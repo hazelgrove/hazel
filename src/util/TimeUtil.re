@@ -51,8 +51,6 @@ let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
     (Core.Time_ns.Span.of_ms(JsUtil.precise_timestamp() -. t0), x);
   };
 
-let time_only: 'a. (unit => 'a) => Core.Time_ns.Span.t = f => fst(timed(f));
-
 let format_time_diff = (prior: float): string => {
   let now = JsUtil.timestamp();
   let diff_seconds = (now -. prior) /. 1000.0;

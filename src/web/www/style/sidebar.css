@@ -694,15 +694,12 @@
 
 /* Worker Messaging renders in the shared .perf-table below; all requests share
    one benchmark table so columns align, separated by styled group rows. Only
-   the encoding column and those group rows are specific to it. */
-#debug-sidebar .perf-table .wm-wire {
-  text-align: left;
-  padding-left: 0.6em;
-}
+   those group rows are specific to it. */
 
-/* Group separators. `wm-req` starts a new request (strong top rule + tint);
-   `wm-resp` is the lighter response sub-header within the same request. */
-#debug-sidebar .perf-table .wm-group {
+/* Group separators (a row spanning every column, emitted by PerfFormat.table).
+   `wm-req` starts a new request (strong top rule + tint); `wm-resp` is the
+   lighter response sub-header within the same request. */
+#debug-sidebar .perf-table .perf-group {
   text-align: left;
   padding: 0.25em 0.3em 0.15em;
 }
@@ -753,7 +750,14 @@
   color: var(--BR4);
 }
 
-/* Edit-action label column (Frame Timing): left-aligned, truncated. */
+/* Name columns (the Worker Messaging encoding): left-aligned, not a number. */
+#debug-sidebar .perf-table .perf-name {
+  text-align: left;
+  padding-left: 0.6em;
+}
+
+/* Edit-action label column (Statics, Editor & Memory, Frame Timing):
+   left-aligned, truncated, with the full label on the cell's tooltip. */
 #debug-sidebar .perf-table .perf-action {
   text-align: left;
   max-width: 9em;

@@ -75,17 +75,10 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
-      /* Start every profiling section collapsed so no benchmarking or
-         per-frame instrumentation runs by default (each is gated on its
-         section being expanded). Strings must match the corresponding
-         <X>Section.title. */
-      debug_collapsed: [
-        "Worker Messaging",
-        "Evaluation",
-        "Statics",
-        "Editor & Memory",
-        "Frame Timing",
-      ],
+      /* Nothing is expanded until the user opens it, so the panel starts
+         scannable and no benchmarking or per-frame instrumentation runs (each
+         collector is gated on its section being expanded). */
+      debug_expanded: [],
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
@@ -392,10 +385,10 @@ module Update = {
             debug_show_raw: !settings.sidebar.debug_show_raw,
           },
         }
-      | Sidebar(ToggleDebugCollapsed(key)) => {
+      | Sidebar(ToggleDebugExpanded(key)) => {
           ...settings,
           sidebar:
-            SidebarModel.Settings.toggle_debug_collapsed(
+            SidebarModel.Settings.toggle_debug_expanded(
               key,
               settings.sidebar,
             ),

@@ -1,28 +1,60 @@
 open Virtual_dom.Vdom;
-open Node;
-open Util.WebUtil;
 
 /* The "Statics" debug sidebar section: a per-frame history of statics +
    elaboration — how long each recompute took (`—` when the debounce deferred
    it or the cache was reused, with the reason in the `mode` column) and the
    resulting info-map size / error / warning counts, plus the triggering edit
-   action. Read from PerfMetrics.frames, populated in CodeWithStatics.calculate
+   action. Read from PerfMetrics.history, populated in CodeWithStatics.calculate
    while this panel is open. Implements DebugSection.S. */
 
 let title = "Statics";
 
-let row = (~max: Core.Time_ns.Span.t, f: PerfMetrics.frame): Node.t =>
-  Node.tr([
-    PerfFormat.action_cell(PerfFormat.action_of(f.perform)),
-    PerfFormat.heat_cell(~max, ~cls=["perf-total"], f.statics),
-    PerfFormat.int_cell(f.info_map_entries),
-    PerfFormat.int_cell(f.errors),
-    PerfFormat.int_cell(f.warnings),
-    Node.td([text(f.statics_mode)]),
-  ]);
+/* How the panel names each outcome PerfMetrics reports. */
+let mode_label = (m: PerfMetrics.statics_mode): string =>
+  switch (m) {
+  | Recomputed => "recompute"
+  | Forced => "forced"
+  | Deferred => "deferred"
+  | Cached => "cached"
+  };
+
+let columns =
+    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
+  {
+    label: "action",
+    tooltip: "The edit action that triggered this frame.",
+    cell: f => PerfFormat.label_cell(PerfFormat.fmt_opt(fst, f.perform)),
+  },
+  {
+    label: "time",
+    tooltip: "Time to recompute statics + elaboration (Statics.mk). — when the recompute was skipped this frame.",
+    cell: f => PerfFormat.heat_cell(~max, ~total=true, f.statics),
+  },
+  {
+    label: "entries",
+    tooltip: "Number of entries in the info map (one per expression id).",
+    cell: f => PerfFormat.int_cell(f.info_map_entries),
+  },
+  {
+    label: "err",
+    tooltip: "Number of static error ids.",
+    cell: f => PerfFormat.int_cell(f.errors),
+  },
+  {
+    label: "warn",
+    tooltip: "Number of static warning ids.",
+    cell: f => PerfFormat.int_cell(f.warnings),
+  },
+  {
+    label: "mode",
+    tooltip: "Whether statics recomputed this frame: recompute, forced, deferred (debounced), or cached (reused).",
+    cell: f =>
+      PerfFormat.text_cell(PerfFormat.fmt_opt(mode_label, f.statics_mode)),
+  },
+];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
-  switch (PerfMetrics.frames^) {
+  switch (PerfMetrics.history^) {
   | [] => [
       PerfFormat.empty("No statics recorded yet — type in the editor."),
     ]
@@ -32,25 +64,9 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
         List.map((f: PerfMetrics.frame) => f.statics, frames),
       );
     [
-      PerfFormat.table([
-        PerfFormat.head_row([
-          ("action", "The edit action that triggered this frame."),
-          (
-            "time",
-            "Time to recompute statics + elaboration (Statics.mk). — when the recompute was skipped this frame.",
-          ),
-          (
-            "entries",
-            "Number of entries in the info map (one per expression id).",
-          ),
-          ("err", "Number of static error ids."),
-          ("warn", "Number of static warning ids."),
-          (
-            "mode",
-            "Whether statics recomputed this frame: recompute, forced, deferred (debounced), or cached (reused).",
-          ),
-        ]),
-        ...List.map(row(~max), frames),
-      ]),
+      PerfFormat.table(
+        ~columns=columns(~max),
+        List.map(f => PerfFormat.Row(f), frames),
+      ),
     ];
   };

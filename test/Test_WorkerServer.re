@@ -41,6 +41,7 @@ let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
   WorkerServer.ServerMessage.Result({
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
+    eval_ms: 0.0,
   });
 
 let parse = (s: string): Exp.t =>

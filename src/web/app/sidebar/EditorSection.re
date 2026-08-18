@@ -11,28 +11,52 @@ open Virtual_dom.Vdom;
 
 let title = "Editor & Memory";
 
-let row = (~max: Core.Time_ns.Span.t, f: PerfMetrics.frame): Node.t =>
-  Node.tr([
-    PerfFormat.action_cell(PerfFormat.action_of(f.perform)),
-    PerfFormat.heat_cell(~max, ~cls=["perf-total"], f.syntax),
-    PerfFormat.int_cell(f.segment_tokens),
-    PerfFormat.int_cell(f.tiles),
-    PerfFormat.int_cell(f.rows),
-    PerfFormat.int_cell(f.projectors),
-  ]);
+let columns =
+    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
+  {
+    label: "action",
+    tooltip: "The edit action that triggered this frame.",
+    cell: f => PerfFormat.label_cell(PerfFormat.fmt_opt(fst, f.perform)),
+  },
+  {
+    label: "rebuild",
+    tooltip: "Time to rebuild the syntax cache: MakeTerm (segment → term) + Measured (layout).",
+    cell: f => PerfFormat.heat_cell(~max, ~total=true, f.syntax),
+  },
+  {
+    label: "tokens",
+    tooltip: "Number of pieces (tokens) in the editor segment.",
+    cell: f => PerfFormat.int_cell(f.segment_tokens),
+  },
+  {
+    label: "tiles",
+    tooltip: "Number of distinct tiles in the measured layout.",
+    cell: f => PerfFormat.int_cell(f.tiles),
+  },
+  {
+    label: "rows",
+    tooltip: "Number of rendered rows in the measured layout.",
+    cell: f => PerfFormat.int_cell(f.rows),
+  },
+  {
+    label: "proj",
+    tooltip: "Number of projectors in the segment.",
+    cell: f => PerfFormat.int_cell(f.projectors),
+  },
+];
 
 let view = (~globals as _: Globals.t): list(Node.t) => {
-  let c = PerfMetrics.counts;
+  let live = PerfMetrics.live^;
   let undo_redo =
     PerfFormat.note(
       Printf.sprintf(
         "undo %d · redo %d · backpack %d",
-        c.undo_depth,
-        c.redo_depth,
-        c.backpack,
+        live.undo_depth,
+        live.redo_depth,
+        live.backpack,
       ),
     );
-  switch (PerfMetrics.frames^) {
+  switch (PerfMetrics.history^) {
   | [] => [
       undo_redo,
       PerfFormat.empty("No edits recorded yet — type in the editor."),
@@ -44,20 +68,10 @@ let view = (~globals as _: Globals.t): list(Node.t) => {
       );
     [
       undo_redo,
-      PerfFormat.table([
-        PerfFormat.head_row([
-          ("action", "The edit action that triggered this frame."),
-          (
-            "rebuild",
-            "Time to rebuild the syntax cache: MakeTerm (segment → term) + Measured (layout).",
-          ),
-          ("tokens", "Number of pieces (tokens) in the editor segment."),
-          ("tiles", "Number of distinct tiles in the measured layout."),
-          ("rows", "Number of rendered rows in the measured layout."),
-          ("proj", "Number of projectors in the segment."),
-        ]),
-        ...List.map(row(~max), frames),
-      ]),
+      PerfFormat.table(
+        ~columns=columns(~max),
+        List.map(f => PerfFormat.Row(f), frames),
+      ),
     ];
   };
 };

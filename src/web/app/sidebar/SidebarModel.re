@@ -149,16 +149,25 @@ module Settings = {
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
+  /* Extra fields are tolerated so a settings blob written by an older build
+     (which stored the inverse, `debug_collapsed`) still loads instead of
+     failing t_of_sexp and resetting every other setting. Persistence goes
+     through sexp only — see Store.F. */
   [@deriving (show({with_path: false}), sexp, yojson)]
+  [@sexp.allow_extra_fields]
   type t = {
     show: bool,
     panel,
     problems: problems_settings,
     debug_show_raw: bool,
-    /* Collapsed debug sidebar sections/fields, keyed by section title or
-       field label. Persists across cursor moves so collapsing e.g. "ctx"
-       keeps it collapsed regardless of the term under the cursor. */
-    debug_collapsed: list(string),
+    /* Debug sidebar sections/fields the user has expanded, keyed by section
+       title or field label. Everything starts collapsed: the panel is deep, and
+       the instrumented sections only collect while expanded. Persists across
+       cursor moves so expanding e.g. "ctx" keeps it open regardless of the term
+       under the cursor, and is defaulted on load so older persisted settings
+       (which lack this field) still load. */
+    [@sexp.default []] [@yojson.default []]
+    debug_expanded: list(string),
     /* Encodings (WorkerServer.encoding) enabled in the Worker Messaging panel;
        only these are benchmarked. Defaults to just the active encoding
        (Marshal) — Direct and Sexp start off — and is defaulted on load so
@@ -169,19 +178,19 @@ module Settings = {
     worker_encodings: list(WorkerServer.encoding),
   };
 
-  let is_debug_collapsed = (key: string, settings: t) =>
-    List.mem(key, settings.debug_collapsed);
+  let is_debug_expanded = (key: string, settings: t) =>
+    List.mem(key, settings.debug_expanded);
 
-  let toggle_debug_collapsed = (key: string, settings: t): t =>
-    if (is_debug_collapsed(key, settings)) {
+  let toggle_debug_expanded = (key: string, settings: t): t =>
+    if (is_debug_expanded(key, settings)) {
       {
         ...settings,
-        debug_collapsed: List.filter(k => k != key, settings.debug_collapsed),
+        debug_expanded: List.filter(k => k != key, settings.debug_expanded),
       };
     } else {
       {
         ...settings,
-        debug_collapsed: [key, ...settings.debug_collapsed],
+        debug_expanded: [key, ...settings.debug_expanded],
       };
     };
 
@@ -207,6 +216,6 @@ module Settings = {
     | SwitchPanel(panel)
     | Problems(problems_action)
     | ToggleDebugRaw
-    | ToggleDebugCollapsed(string)
+    | ToggleDebugExpanded(string)
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

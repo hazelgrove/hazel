@@ -13,19 +13,47 @@ let title = "Frame Timing";
 /* All cells share one scale (the peak total across frames), so a stage as red
    as the total means it dominates that frame, and darker rows are slower
    frames overall. */
-let row = (~max: Core.Time_ns.Span.t, f: PerfMetrics.frame): Node.t =>
-  Node.tr([
-    PerfFormat.action_cell(PerfFormat.action_of(f.perform)),
-    PerfFormat.heat_cell(~max, f.perform |> Option.map(snd)),
-    PerfFormat.heat_cell(~max, f.statics),
-    PerfFormat.heat_cell(~max, f.syntax),
-    PerfFormat.heat_cell(~max, f.cursor_info),
-    PerfFormat.heat_cell(~max, f.color_map),
-    PerfFormat.heat_cell(~max, ~cls=["perf-total"], f.total),
-  ]);
+let columns =
+    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
+  {
+    label: "action",
+    tooltip: "The edit action that triggered this frame.",
+    cell: f => PerfFormat.label_cell(PerfFormat.fmt_opt(fst, f.perform)),
+  },
+  {
+    label: "perform",
+    tooltip: "Update phase: applying the edit action to the zipper (Perform.go).",
+    cell: f => PerfFormat.heat_cell(~max, Option.map(snd, f.perform)),
+  },
+  {
+    label: "statics",
+    tooltip: "Calculate phase: statics + elaboration recompute (— when deferred/cached).",
+    cell: f => PerfFormat.heat_cell(~max, f.statics),
+  },
+  {
+    label: "syntax",
+    tooltip: "Calculate phase: syntax-cache rebuild (MakeTerm + Measured).",
+    cell: f => PerfFormat.heat_cell(~max, f.syntax),
+  },
+  {
+    label: "cursor",
+    tooltip: "Calculate phase: computing cursor info for the sidebar and decorations.",
+    cell: f => PerfFormat.heat_cell(~max, f.cursor_info),
+  },
+  {
+    label: "colors",
+    tooltip: "Calculate phase: building the ExplainThis color-highlight map.",
+    cell: f => PerfFormat.heat_cell(~max, f.color_map),
+  },
+  {
+    label: "total",
+    tooltip: "Whole keystroke: perform (update phase) + the entire calculate phase.",
+    cell: f => PerfFormat.heat_cell(~max, ~total=true, f.total),
+  },
+];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
-  switch (PerfMetrics.frames^) {
+  switch (PerfMetrics.history^) {
   | [] => [
       PerfFormat.empty("No frames recorded yet — type in the editor."),
     ]
@@ -37,37 +65,11 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
       );
     [
       PerfFormat.note(
-        "max total: " ++ PerfFormat.span(max) ++ " · redder = slower",
+        "max total: " ++ PerfFormat.fmt_span(max) ++ " · redder = slower",
       ),
-      PerfFormat.table([
-        PerfFormat.head_row([
-          ("action", "The edit action that triggered this frame."),
-          (
-            "perform",
-            "Update phase: applying the edit action to the zipper (Perform.go).",
-          ),
-          (
-            "statics",
-            "Calculate phase: statics + elaboration recompute (— when deferred/cached).",
-          ),
-          (
-            "syntax",
-            "Calculate phase: syntax-cache rebuild (MakeTerm + Measured).",
-          ),
-          (
-            "cursor",
-            "Calculate phase: computing cursor info for the sidebar and decorations.",
-          ),
-          (
-            "colors",
-            "Calculate phase: building the ExplainThis color-highlight map.",
-          ),
-          (
-            "total",
-            "Whole keystroke: perform (update phase) + the entire calculate phase.",
-          ),
-        ]),
-        ...List.map(row(~max), frames),
-      ]),
+      PerfFormat.table(
+        ~columns=columns(~max),
+        List.map(f => PerfFormat.Row(f), frames),
+      ),
     ];
   };

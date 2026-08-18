@@ -32,66 +32,61 @@ let max_total = (records: list(WorkerMetrics.record)): Core.Time_ns.Span.t =>
     ),
   );
 
-let head_row: Node.t =
-  PerfFormat.head_row([
-    (
-      "encoding",
-      "Candidate wire encoding benchmarked for this payload. Only enabled encodings (chips above) are measured.",
-    ),
-    ("enc", "Time to pack the payload into this encoding."),
-    (
-      "clone",
-      "Time for the structuredClone the browser performs when the payload crosses the worker boundary.",
-    ),
-    ("dec", "Time to unpack the payload back into OCaml values."),
-    (
-      "total",
-      "encode + structuredClone + decode for this encoding — the cost of using it for this payload.",
-    ),
-    ("size", "Encoded payload size (approximate)."),
-    (
-      "ok?",
-      "Whether the round trip succeeded; hover a ✕ for the failure message.",
-    ),
-  ]);
-
-/* A full-width label row separating request groups within the shared table. */
-let wm_group_row = (~cls: string, label: string): Node.t =>
-  Node.tr([
-    Node.td(
-      ~attrs=[Attr.create("colspan", "7"), clss(["wm-group", cls])],
-      [text(label)],
-    ),
-  ]);
-
-let wm_metric_row =
-    (~max: Core.Time_ns.Span.t, m: WorkerMetrics.dir_metric): Node.t => {
-  /* Compact glyph keeps the column narrow; any failure message is on the
-     cell's tooltip. */
-  let (glyph, cls, tooltip) =
-    switch (m.error) {
-    | None => ({|✓|}, "perf-ok", "ok")
-    | Some(e) => ({|✕|}, "perf-fail", e)
-    };
-  Node.tr([
-    Node.td(
-      ~attrs=[clss(["wm-wire"])],
-      [text(WorkerServer.show_encoding(m.encoding))],
-    ),
-    PerfFormat.heat_cell(~max, m.encode),
-    PerfFormat.heat_cell(~max, m.clone),
-    PerfFormat.heat_cell(~max, m.decode),
-    PerfFormat.heat_cell(~max, ~cls=["perf-total"], total_of(m)),
-    Node.td([text(PerfFormat.bytes_str(m.size))]),
-    Node.td(~attrs=[clss([cls]), Attr.title(tooltip)], [text(glyph)]),
-  ]);
-};
+let columns =
+    (~max: Core.Time_ns.Span.t)
+    : list(PerfFormat.column(WorkerMetrics.dir_metric)) => [
+  {
+    label: "encoding",
+    tooltip: "Candidate wire encoding benchmarked for this payload. Only enabled encodings (chips above) are measured.",
+    cell: m => PerfFormat.name_cell(WorkerServer.show_encoding(m.encoding)),
+  },
+  {
+    label: "enc",
+    tooltip: "Time to pack the payload into this encoding.",
+    cell: m => PerfFormat.heat_cell(~max, m.encode),
+  },
+  {
+    label: "clone",
+    tooltip: "Time for the structuredClone the browser performs when the payload crosses the worker boundary.",
+    cell: m => PerfFormat.heat_cell(~max, m.clone),
+  },
+  {
+    label: "dec",
+    tooltip: "Time to unpack the payload back into OCaml values.",
+    cell: m => PerfFormat.heat_cell(~max, m.decode),
+  },
+  {
+    label: "total",
+    tooltip: "encode + structuredClone + decode for this encoding — the cost of using it for this payload.",
+    cell: m => PerfFormat.heat_cell(~max, ~total=true, total_of(m)),
+  },
+  {
+    label: "size",
+    tooltip: "Encoded payload size (approximate).",
+    cell: m =>
+      PerfFormat.text_cell(PerfFormat.fmt_opt(PerfFormat.fmt_bytes, m.size)),
+  },
+  {
+    /* Compact glyph keeps the column narrow; any failure message is on the
+       cell's tooltip. */
+    label: "ok?",
+    tooltip: "Whether the round trip succeeded; hover a ✕ for the failure message.",
+    cell: m =>
+      switch (m.error) {
+      | None =>
+        PerfFormat.status_cell(~cls="perf-ok", ~tooltip=Some("ok"), {|✓|})
+      | Some(e) =>
+        PerfFormat.status_cell(~cls="perf-fail", ~tooltip=Some(e), {|✕|})
+      },
+  },
+];
 
 /* The rows contributed by one request: a request group header (which also
    starts the visual separation from the previous request), its encoding rows,
    then a lighter response sub-header and its rows. */
-let wm_record_rows =
-    (~max: Core.Time_ns.Span.t, r: WorkerMetrics.record): list(Node.t) => {
+let rows_of_record =
+    (r: WorkerMetrics.record)
+    : list(PerfFormat.row(WorkerMetrics.dir_metric)) => {
   let req_label =
     Printf.sprintf(
       "#%d · %d %s · request",
@@ -101,15 +96,26 @@ let wm_record_rows =
     );
   let response_rows =
     switch (r.response) {
-    | [] => [wm_group_row(~cls="wm-note", "response pending / timed out")]
+    | [] => [
+        PerfFormat.Group({
+          cls: "wm-note",
+          label: "response pending / timed out",
+        }),
+      ]
     | rows => [
-        wm_group_row(~cls="wm-resp", "response"),
-        ...List.map(wm_metric_row(~max), rows),
+        PerfFormat.Group({
+          cls: "wm-resp",
+          label: "response",
+        }),
+        ...List.map(m => PerfFormat.Row(m), rows),
       ]
     };
   [
-    wm_group_row(~cls="wm-req", req_label),
-    ...List.map(wm_metric_row(~max), r.request),
+    PerfFormat.Group({
+      cls: "wm-req",
+      label: req_label,
+    }),
+    ...List.map(m => PerfFormat.Row(m), r.request),
   ]
   @ response_rows;
 };
@@ -156,12 +162,12 @@ let view = (~globals: Globals.t): list(Node.t) =>
         /* Column meanings live on the header tooltips; this just anchors the
            heat scale the way the other profiling sections do. */
         PerfFormat.note(
-          "max total: " ++ PerfFormat.span(max) ++ " · redder = slower",
+          "max total: " ++ PerfFormat.fmt_span(max) ++ " · redder = slower",
         ),
-        PerfFormat.table([
-          head_row,
-          ...List.concat_map(wm_record_rows(~max), records),
-        ]),
+        PerfFormat.table(
+          ~columns=columns(~max),
+          List.concat_map(rows_of_record, records),
+        ),
       ];
     }
   );

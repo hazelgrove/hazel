@@ -139,9 +139,9 @@ module Update = {
     let current =
       model.current
       |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics);
-    /* Cheap undo/redo depth for the Editor & Memory panel; PerfMetrics.enabled
-       is set by the sync inside the calculate above, so this reflects this
-       frame's gating. Self-guarded, so a no-op while the panel is closed. */
+    /* Cheap undo/redo depth for the Editor & Memory panel. The calculate above
+       syncs PerfMetrics' gating, so this reflects this frame's settings, and the
+       recorder is self-gating — a no-op while the panel is closed. */
     PerfMetrics.record_history(
       ~undo_depth=List.length(model.undo_stack),
       ~redo_depth=List.length(model.redo_stack),

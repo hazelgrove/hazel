@@ -1,25 +1,17 @@
 /* Data for the "Evaluation" debug panel: the eval Web Worker round trip.
  * Per request we record the wall-clock latency from postMessage to onmessage,
- * the outcome, and the encoded payload sizes (cheap — the byte length the
- * active encoding already computes, no heap walk). Correlated with the Worker
- * Messaging panel by the shared request id (WorkerMetrics.next_id).
+ * the worker's own evaluation time (reported back in the result), the outcome,
+ * and the encoded payload sizes (cheap — the byte length the active encoding
+ * already computes, no heap walk). Rows correlate with the Worker Messaging
+ * panel by the shared request id.
  *
- * Gated by `enabled` (synced from settings in Page.Update.calculate via `sync`)
- * so nothing is recorded while the panel is closed. */
-
-let enabled = ref(false);
-
-let sync = (~enabled as is_enabled: bool): unit => enabled := is_enabled;
-
-/* Worker restarts (on a new request while one is in flight, or on timeout).
-   A running total, shown in the panel header. */
-let restarts = ref(0);
-let incr_restarts = (): unit => incr(restarts);
+ * Gating and the bounded history come from Metrics.Make, so every recorder here
+ * is a no-op while the panel is closed and no call site tests for it. */
 
 type status =
   | Pending
-  | Ok
-  | Fail
+  | Success
+  | Failure
   | Timeout;
 
 type record = {
@@ -27,60 +19,90 @@ type record = {
   entries: int, /* number of request entries (cells) */
   sent_at: float, /* precise_timestamp ms at post; used to derive latency */
   latency: option(Core.Time_ns.Span.t),
+  /* The worker's own time inside the evaluator, so the gap to `latency` is the
+   * queue + result serialization + transfer. */
+  eval: option(Core.Time_ns.Span.t),
   status,
   req_bytes: Core.Byte_units.t,
   resp_bytes: option(Core.Byte_units.t),
 };
 
-let history_limit = 10;
-let history: ref(list(record)) = ref([]); /* newest first */
+include Metrics.Make({
+  type t = record;
+  let limit = 10;
+});
 
-/* Record a posted request; the latency clock starts at `sent_at`. */
+/* Worker restarts (a new request while one is in flight, or a timeout), shown as
+ * a running total in the panel header. Like every other number in this panel it
+ * only counts what happened while the panel was open. */
+let restarts = ref(0);
+let incr_restarts = (): unit => when_enabled(() => incr(restarts));
+
+/* Success only if every cell of the batch evaluated without error. Derived here
+ * rather than at the call site so WorkerClient stays out of the panel's
+ * vocabulary. */
+let status_of_response = (response: WorkerServer.Response.t): status =>
+  List.for_all(
+    ((_, v: WorkerServer.Response.value)) =>
+      switch (v) {
+      | Ok(_) => true
+      | Error(_) => false
+      },
+    response,
+  )
+    ? Success : Failure;
+
+/* Record a posted request; the latency clock starts at `sent_at`. An ack retry
+ * reposts the same request id: keep the original row so latency still measures
+ * from the first post, and so no id can appear twice for `update` to hit. */
 let record_sent =
     (~id: int, ~entries: int, ~sent_at: float, ~req_bytes: Core.Byte_units.t)
     : unit =>
-  history :=
-    [
-      {
+  when_enabled(() =>
+    if (!List.exists((r: record) => r.id == id, history^)) {
+      push({
         id,
         entries,
         sent_at,
         latency: None,
+        eval: None,
         status: Pending,
         req_bytes,
         resp_bytes: None,
-      },
-      ...Util.ListUtil.take(history_limit - 1, history^),
-    ];
+      });
+    }
+  );
 
-/* Complete a request with its response; `now` is precise_timestamp ms. */
+/* Complete a request with its response; `now` is precise_timestamp ms and
+ * `eval_ms` the evaluator time the worker measured for this batch. */
 let record_done =
-    (~id: int, ~now: float, ~status: status, ~resp_bytes: Core.Byte_units.t)
+    (
+      ~id: int,
+      ~now: float,
+      ~response: WorkerServer.Response.t,
+      ~eval_ms: float,
+      ~resp_bytes: Core.Byte_units.t,
+    )
     : unit =>
-  history :=
-    List.map(
-      (r: record) =>
-        r.id == id
-          ? {
-            ...r,
-            latency: Some(Core.Time_ns.Span.of_ms(now -. r.sent_at)),
-            status,
-            resp_bytes: Some(resp_bytes),
-          }
-          : r,
-      history^,
-    );
+  update(
+    (r: record) => r.id == id,
+    (r: record) =>
+      {
+        ...r,
+        latency: Some(Core.Time_ns.Span.of_ms(now -. r.sent_at)),
+        eval: Some(Core.Time_ns.Span.of_ms(eval_ms)),
+        status: status_of_response(response),
+        resp_bytes: Some(resp_bytes),
+      },
+  );
 
 /* Mark a request as timed out (no response arrived). */
 let record_timeout = (~id: int): unit =>
-  history :=
-    List.map(
-      (r: record) =>
-        r.id == id
-          ? {
-            ...r,
-            status: Timeout,
-          }
-          : r,
-      history^,
-    );
+  update(
+    (r: record) => r.id == id,
+    (r: record) =>
+      {
+        ...r,
+        status: Timeout,
+      },
+  );

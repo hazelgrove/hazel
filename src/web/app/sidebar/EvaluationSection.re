@@ -1,34 +1,67 @@
 open Virtual_dom.Vdom;
-open Node;
-open Util.WebUtil;
 
 /* The "Evaluation" debug sidebar section: the eval Web Worker round trip. One
-   row per recent request — latency (postMessage→onmessage), outcome, and the
-   encoded request/response byte lengths (cheap; the active encoding already
-   computes them). Read from EvalMetrics, populated in WorkerClient while this
-   panel is open. Implements DebugSection.S. */
+   row per recent request — the worker's own evaluation time, the round trip the
+   main thread sees, the outcome, and the encoded request/response byte lengths
+   (cheap; the active encoding already computes them). Read from EvalMetrics,
+   populated in WorkerClient while this panel is open. Implements
+   DebugSection.S. */
 
 let title = "Evaluation";
 
+/* Label and color class for an outcome. */
 let status = (s: EvalMetrics.status): (string, string) =>
   switch (s) {
   | Pending => ("pending", "perf-pending")
-  | Ok => ({|ok|}, "perf-ok")
-  | Fail => ("fail", "perf-fail")
+  | Success => ({|ok|}, "perf-ok")
+  | Failure => ("fail", "perf-fail")
   | Timeout => ("timeout", "perf-fail")
   };
 
-let row = (~max: Core.Time_ns.Span.t, r: EvalMetrics.record): Node.t => {
-  let (label, cls) = status(r.status);
-  Node.tr([
-    Node.td([text(Printf.sprintf("#%d", r.id))]),
-    Node.td([text(string_of_int(r.entries))]),
-    Node.td(~attrs=[clss([cls])], [text(label)]),
-    PerfFormat.heat_cell(~max, ~cls=["perf-total"], r.latency),
-    Node.td([text(PerfFormat.bytes(r.req_bytes))]),
-    Node.td([text(PerfFormat.bytes_str(r.resp_bytes))]),
-  ]);
-};
+let columns =
+    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(EvalMetrics.record)) => [
+  {
+    label: "id",
+    tooltip: "Request id, shared with the Worker Messaging panel so rows correlate.",
+    cell: r => PerfFormat.text_cell(Printf.sprintf("#%d", r.id)),
+  },
+  {
+    label: "cells",
+    tooltip: "Number of cells (request entries) evaluated together.",
+    cell: r => PerfFormat.int_cell(r.entries),
+  },
+  {
+    label: "status",
+    tooltip: "Outcome: pending (awaiting response), ok, fail (evaluator error), or timeout.",
+    cell: r => {
+      let (label, cls) = status(r.status);
+      PerfFormat.status_cell(~cls, label);
+    },
+  },
+  {
+    label: "eval",
+    tooltip: "The worker's own time inside the evaluator for this batch, as reported back in the result. The gap to round-trip is queue + result serialization + transfer.",
+    cell: r => PerfFormat.heat_cell(~max, r.eval),
+  },
+  {
+    label: "round-trip",
+    tooltip: "Wall-clock from posting the request to receiving its result: worker queue + evaluation + result serialization + transfer. This is the latency the user feels.",
+    cell: r => PerfFormat.heat_cell(~max, ~total=true, r.latency),
+  },
+  {
+    label: "req",
+    tooltip: "Encoded request size — bytes of the Marshal payload posted to the worker.",
+    cell: r => PerfFormat.text_cell(PerfFormat.fmt_bytes(r.req_bytes)),
+  },
+  {
+    label: "resp",
+    tooltip: "Encoded response size — bytes of the Marshal payload received back.",
+    cell: r =>
+      PerfFormat.text_cell(
+        PerfFormat.fmt_opt(PerfFormat.fmt_bytes, r.resp_bytes),
+      ),
+  },
+];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
   switch (EvalMetrics.history^) {
@@ -36,46 +69,22 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
       PerfFormat.empty("No evaluations recorded yet — evaluate a program."),
     ]
   | records =>
+    /* One scale for both duration columns: the peak round trip, which bounds
+       the eval time inside it. */
     let max =
       PerfFormat.max_span(
         List.map((r: EvalMetrics.record) => r.latency, records),
       );
     [
-      /* Round-trip = time from posting the request until its result arrives on
-         the main thread: worker queue + evaluation + result serialization +
-         transfer. It is dominated by evaluation but is not the worker's
-         isolated evaluate() call. */
       PerfFormat.note(
         Printf.sprintf(
-          "round-trip = post → result (queue + eval + serialize); restarts: %d",
+          "round-trip − eval = queue + serialize + transfer; restarts: %d",
           EvalMetrics.restarts^,
         ),
       ),
-      PerfFormat.table([
-        PerfFormat.head_row([
-          (
-            "id",
-            "Request id, shared with the Worker Messaging panel so rows correlate.",
-          ),
-          ("cells", "Number of cells (request entries) evaluated together."),
-          (
-            "status",
-            "Outcome: pending (awaiting response), ok, fail (evaluator error), or timeout.",
-          ),
-          (
-            "round-trip",
-            "Wall-clock from posting the request to receiving its result: worker queue + evaluation + result serialization + transfer. Dominated by evaluation, but not the worker's isolated evaluate() call.",
-          ),
-          (
-            "req",
-            "Encoded request size — bytes of the Marshal payload posted to the worker.",
-          ),
-          (
-            "resp",
-            "Encoded response size — bytes of the Marshal payload received back.",
-          ),
-        ]),
-        ...List.map(row(~max), records),
-      ]),
+      PerfFormat.table(
+        ~columns=columns(~max),
+        List.map(r => PerfFormat.Row(r), records),
+      ),
     ];
   };
