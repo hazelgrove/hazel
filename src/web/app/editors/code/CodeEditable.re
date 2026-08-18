@@ -587,25 +587,24 @@ module View = {
           Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
         Bonsai.Effect.Expert.handle(inject(Perform(action)));
       });
-    /* Inject for context-menu rows. Clipboard actions need view-layer
-       side effects the core can't perform: Copy/Cut write the system
-       clipboard before dispatch, and a menu Paste carries a placeholder
-       payload — read the system clipboard (async) and let the read
-       dispatch the real Paste, closing the menu immediately. Runs at
-       event-firing time (see Menu.pointerdown_attr), like the keyboard
-       clipboard handlers below. */
-    let perform_from_menu = (a: Action.t): Ui_effect.t(unit) =>
-      switch (a) {
-      | Copy =>
+    /* Inject for context-menu rows. Clipboard rows need view-layer side
+       effects the core can't perform: Copy/Cut write the system clipboard
+       before dispatch, and PasteFromClipboard starts an async read whose
+       result is dispatched as the real Paste, closing the menu
+       immediately. Runs at event-firing time (see Menu.pointerdown_attr),
+       like the keyboard clipboard handlers below. */
+    let perform_from_menu = (c: ContextMenu.command): Ui_effect.t(unit) =>
+      switch (c) {
+      | Perform(Copy) =>
         copy_selection();
         inject(Perform(Copy));
-      | Cut =>
+      | Perform(Cut) =>
         copy_selection();
         inject(Perform(Cut));
-      | Paste(_) =>
+      | PasteFromClipboard =>
         paste_from_clipboard();
         inject(ContextMenu(ContextMenu.Model.Close));
-      | a => inject(Perform(a))
+      | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
      * context menu. Keys are dispatched at capture phase so the editor's
