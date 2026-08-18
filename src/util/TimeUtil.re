@@ -42,8 +42,7 @@ let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
   };
 
 /* Run f and return how long it took (wall-clock via performance.now) alongside
-   its result. Companion to measure_time, but returns the span instead of
-   printing it — used by the debug profiling panels. */
+   its result. Companion to measure_time, which prints instead of returning. */
 let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
   f => {
     let t0 = JsUtil.precise_timestamp();

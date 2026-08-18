@@ -9,8 +9,7 @@ open Virtual_dom.Vdom;
 
 let title = "Evaluation";
 
-/* How each outcome reads, and how it should read — the class it maps to is
-   PerfFormat's business. */
+/* Each outcome's label, and whether it reads as good, bad or waiting. */
 let status = (s: EvalMetrics.status): (string, PerfFormat.outcome) =>
   switch (s) {
   | Pending => ("pending", PerfFormat.Waiting)

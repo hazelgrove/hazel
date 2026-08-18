@@ -13,7 +13,6 @@ open Util.WebUtil;
    alone decides how it is drawn. Nothing outside can style a cell, name a CSS
    class, or tint against a different scale than the table it sits in. */
 
-/* What a metric that didn't run reads as, rather than a misleading 0. */
 let dash = {|—|};
 
 let fmt_span = (s: Core.Time_ns.Span.t): string =>
@@ -31,7 +30,6 @@ type outcome =
   | Bad
   | Waiting;
 
-/* A cell description. Deliberately not a Node.t: see the header comment. */
 type cell =
   | Text(string)
   | Int(int)
@@ -69,8 +67,7 @@ let status_cell =
 /* A timing, tinted by its duration relative to the table's heat scale. */
 let heat_cell = (s: option(Core.Time_ns.Span.t)): cell => Heat(s);
 
-/* The bold summary timing of a row. Every table here has one, and it dominates
-   its own row — which is what makes the derived heat scale below correct. */
+/* The bold summary timing of a row; every table here has one. */
 let total_cell = (s: option(Core.Time_ns.Span.t)): cell => HeatTotal(s);
 
 /* --- columns and rows --- */
@@ -98,9 +95,7 @@ type row('data) =
   | Row('data)
   | Group(group);
 
-/* The edit-action column all three per-frame tables open with, so its wording
-   lives in one place rather than once per section. `get` pulls the row's action
-   label out; the column owns how it is described and rendered. */
+/* The edit-action column the per-frame tables share; `get` pulls the label out. */
 let action_column = (get: 'row => option(string)): column('row) => {
   label: "action",
   tooltip: "The edit action that triggered this frame.",
@@ -121,15 +116,13 @@ let heat_span = (c: cell): option(Core.Time_ns.Span.t) =>
   | Status(_) => None
   };
 
-/* The heat scale a table tints against: the peak timing among its own cells.
-   Derived rather than passed, so a section cannot tint against one scale and
-   describe another in its legend — `table` computes this too, from the same
-   rows. Timings that didn't run drop out, so the fold is just `max`.
+/* The heat scale a table tints against: the peak timing among its own cells, so
+   the tint and the legend cannot disagree.
 
-   This is the same value the sections used to compute by hand, because every
-   table here carries a total column that dominates its own row: a frame's total
-   covers its stages, an encoding's total is the sum of its three phases, and a
-   request's round trip contains its evaluation. */
+   Taking every heat cell rather than only the totals is safe because each table's
+   total column dominates its own row — a frame's total covers its stages, an
+   encoding's total is the sum of its three phases, a request's round trip
+   contains its evaluation — so the peak is the same either way. */
 let scale =
     (~columns: list(column('data)), rows: list(row('data)))
     : Core.Time_ns.Span.t =>
@@ -170,7 +163,6 @@ let heat_style = (~scale: Core.Time_ns.Span.t, s: Core.Time_ns.Span.t): string =
   Printf.sprintf("background-color: rgba(210, 45, 45, %.3f)", frac *. 0.8);
 };
 
-/* Truncate a possibly-long label; the full text goes on the cell's tooltip. */
 let truncate = (n: int, s: string): string =>
   String.length(s) <= n ? s : String.sub(s, 0, n) ++ {|…|};
 
@@ -233,8 +225,7 @@ let head = (c: column('row)): Node.t =>
   );
 
 /* Tooltipped header row plus the rows, in a horizontal scroller (columns
-   overflow the narrow sidebar). A group label spans every column, so its
-   colspan follows the column list rather than a hardcoded count. */
+   overflow the narrow sidebar). A group label spans every column. */
 let table_node =
     (~columns: list(column('data)), rows: list(row('data))): Node.t => {
   let scale = scale(~columns, rows);
@@ -271,8 +262,7 @@ let empty = (msg: string): Node.t =>
 let note = (msg: string): Node.t =>
   div(~attrs=[clss(["perf-note"])], [text(msg)]);
 
-/* The legend the heat tables carry: the scale the reddest cell stands for. Owned
-   here so a section neither formats the span nor repeats the wording. */
+/* The legend the heat tables carry: what the reddest cell stands for. */
 let scale_note =
     (~columns: list(column('data)), rows: list(row('data))): Node.t =>
   note(
@@ -282,8 +272,7 @@ let scale_note =
 /* A whole section body: the rows rendered through `columns`, or `empty` in their
    place when there are none. `live` is a line of current state, shown either way;
    `note` a line about the table, shown with it; `legend` prepends the heat-scale
-   line. Assembling these here is what keeps a section from ordering them, or
-   forgetting the empty case. */
+   line. */
 let view =
     (
       ~columns: list(column('data)),

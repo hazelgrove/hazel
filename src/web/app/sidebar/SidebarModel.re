@@ -163,9 +163,8 @@ module Settings = {
     /* Debug sidebar sections/fields the user has expanded, keyed by section
        title or field label. Everything starts collapsed: the panel is deep, and
        the instrumented sections only collect while expanded. Persists across
-       cursor moves so expanding e.g. "ctx" keeps it open regardless of the term
-       under the cursor, and is defaulted on load so older persisted settings
-       (which lack this field) still load. */
+       cursor moves, so expanding e.g. "ctx" keeps it open regardless of the term
+       under the cursor. */
     [@sexp.default []] [@yojson.default []]
     debug_expanded: list(string),
     /* Encodings (WorkerServer.encoding) enabled in the Worker Messaging panel;

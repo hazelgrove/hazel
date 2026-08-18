@@ -1,3 +1,2 @@
-/* A debug sidebar section: title + body only, per DebugSection.S. Everything
- * else the module builds stays private. */
+/* A debug sidebar section: title + body only, per DebugSection.S. */
 include DebugSection.S;

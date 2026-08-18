@@ -56,11 +56,8 @@ let with_latest = (request_id, f) =>
  * values, to dodge the structured-clone overflow on deep results (#2368;
  * see WorkerServer.Active). Callers still deal in Request.t/Response.t.
  *
- * Encodes once: the Evaluation panel needs the posted byte length, and its
- * latency clock must start as close to the post as possible (excluding any
- * Worker Messaging benchmarking done earlier by record_request). An ack retry
- * reposts the same request id, and record_sent keeps the row the first post
- * opened, so the reported latency still runs from that first post. */
+ * Encodes once: the Evaluation panel needs the posted byte length, and records
+ * the send here so its latency clock starts as close to the post as it can. */
 let post_evaluate = (worker, request: Request.t) => {
   let encoded = Active.encode_request(ClientMessage.Evaluate(request));
   EvalMetrics.record_sent(~request, ~encoded);
@@ -216,9 +213,9 @@ let request =
       request_id: next_request_id^,
       batch,
     };
-    /* The request id doubles as the metrics row id, so the Worker Messaging and
-     * Evaluation panels correlate. Benchmark the request-side encodings before
-     * posting, so that (heavy) work stays outside the latency clock. */
+    /* The request id doubles as the metrics row id, so the two panels correlate.
+     * Benchmarking the request-side encodings happens before the post, keeping
+     * that (heavy) work outside the latency clock. */
     WorkerMetrics.record_request(
       request.request_id,
       ClientMessage.Evaluate(request),

@@ -139,10 +139,8 @@ module Update = {
     let current =
       model.current
       |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics);
-    /* Undo/redo depth for the Editor & Memory panel. The calculate above syncs
-       PerfMetrics' gating, so this reflects this frame's settings, and the
-       recorder both measures and counts inside that gate — a no-op while the
-       panel is closed. */
+    /* Undo/redo depth for the Editor & Memory panel. Ordered after the calculate
+       above, which syncs PerfMetrics' gating for this frame. */
     PerfMetrics.record_history(
       ~undo=model.undo_stack,
       ~redo=model.redo_stack,

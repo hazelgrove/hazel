@@ -68,12 +68,10 @@ module ServerMessage = {
     update: stream_update,
   };
 
-  /* A duration as it crosses the wire. Core gives Span a `pp` and sexp
-     converters but no yojson ones, so this alias carries all of them in one
-     place — rather than making evaluator time the one duration in the panels
-     that isn't a Span. In json it is integer nanoseconds, Time_ns's own
-     representation, written as a bigint literal because jsoo's int is 32-bit and
-     1.07s of nanoseconds would overflow it. */
+  /* A duration as it crosses the wire. Core gives Span a `pp` and sexp converters
+     but no yojson ones, so the alias carries all four in one place. In json it is
+     integer nanoseconds — Time_ns's own representation — as a bigint literal,
+     since jsoo's int is 32-bit and 1.07s of nanoseconds would overflow it. */
   type span = Core.Time_ns.Span.t;
   let pp_span = Core.Time_ns.Span.pp;
   let sexp_of_span = Core.Time_ns.Span.sexp_of_t;

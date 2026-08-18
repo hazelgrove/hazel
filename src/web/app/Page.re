@@ -412,8 +412,7 @@ module Update = {
         || debug_panel_open(EditorSection.title)
         || debug_panel_open(FrameSection.title),
     );
-    /* Everything below is one frame for the profiling panels: time_frame owns
-       both boundaries, so the frame can't be left half-committed. */
+    /* Everything below is one frame for the profiling panels. */
     PerfMetrics.time_frame(() => {
       let editors =
         Editors.Update.calculate(

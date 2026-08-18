@@ -7,10 +7,9 @@
  * Gating and the bounded history come from Metrics.Make, so nothing is measured
  * while every per-frame panel is collapsed and no call site tests for it. */
 
-/* What actually became of statics on a frame — the Statics panel's `outcome`
- * column. Distinct from StaticsMode.t, which is what the throttle *asked* for
- * (Normal | Defer | Force); this is what happened, derived from that request
- * plus whether the recompute ran. `show`n rather than hand-mapped to strings. */
+/* What became of statics on a frame — the Statics panel's `outcome` column.
+ * Distinct from StaticsMode.t, which is what the throttle *asked* for; this is
+ * what happened, derived from that request plus whether the recompute ran. */
 [@deriving show({with_path: false})]
 type statics_outcome =
   | Recomputed /* an edit landed and statics ran this frame */
@@ -142,11 +141,10 @@ let time_colors = f =>
     f,
   );
 
-/* Like the stage timers, but also records the triggering action. Takes the
- * action itself and labels it here, so the (not cheap) `Action.show` runs only
- * while a panel is open — and once per frame rather than once per render, which
- * is why the frame keeps the label and not the action. Assigns rather than
- * accumulating: one perform runs per update. */
+/* Like the stage timers, but also records the triggering action. Labelling it
+ * here keeps `Action.show`, which is not cheap, off the hot path when no panel
+ * is open — and the frame stores the label rather than the action so it runs once
+ * per frame instead of once per render. Assigns: one perform runs per update. */
 let time_perform: 'a. (~action: Haz3lcore.Action.t, unit => 'a) => 'a =
   (~action, f) =>
     if (enabled^) {
@@ -161,10 +159,9 @@ let time_perform: 'a. (~action: Haz3lcore.Action.t, unit => 'a) => 'a =
       f();
     };
 
-/* Run one update cycle's calculate phase and commit a frame for it. The
- * reported total is perform + calculate, since the edit action's perform ran in
- * the earlier update phase — so total is always >= perform. Owning both
- * boundaries here means neither can be forgotten at the call site. */
+/* Run one update cycle's calculate phase and commit a frame for it. The reported
+ * total is perform + calculate, since the edit action's perform ran in the
+ * earlier update phase — so total is always >= perform. */
 let time_frame: 'a. (unit => 'a) => 'a =
   f =>
     if (enabled^) {
@@ -201,9 +198,8 @@ let time_frame: 'a. (unit => 'a) => 'a =
 
 /* --- count recorders --- */
 
-/* Snapshot what statics produced this frame, and why it did or didn't run.
- * `recompute` is the throttle gate's decision and `mode` the debounce's, so the
- * reported mode is derived here rather than at the call site. */
+/* Snapshot what statics produced this frame, and why it did or didn't run:
+ * `recompute` is the throttle gate's decision, `mode` the debounce's. */
 let record_statics_counts =
     (
       ~recompute: bool,
@@ -249,9 +245,9 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
       };
   });
 
-/* Takes the stacks rather than their depths: `List.length` on an uncapped undo
- * stack is O(n) and this runs every frame, so it must happen inside the gate.
- * Polymorphic in the entries, so the collector needn't know History's types. */
+/* Takes the stacks, not their depths: `List.length` on an uncapped undo stack is
+ * O(n) and this runs every frame, so it belongs inside the gate. Polymorphic in
+ * the entries so the collector needn't know History's types. */
 let record_history = (~undo: list('a), ~redo: list('b)): unit =>
   when_enabled(() =>
     live :=

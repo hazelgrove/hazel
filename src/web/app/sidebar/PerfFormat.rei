@@ -1,8 +1,6 @@
 /* Shared table building for the instrumented debug sections; see PerfFormat.re.
- * A section describes its table as columns and rows and never builds markup or
- * formats a value: `cell` is opaque, so how a cell is drawn — its classes, its
- * tint, its units, the em dash for a metric that didn't run — is decided here
- * and nowhere else. */
+ * A section describes its table as columns and rows: `cell` is opaque, so every
+ * choice about how one is drawn belongs to this module. */
 
 /* How an outcome reads, which is what picks its color. */
 type outcome =
@@ -27,7 +25,7 @@ let total_cell: option(Core.Time_ns.Span.t) => cell;
 let opt_cell: option(cell) => cell;
 
 /* One column: its header, the tooltip explaining what it measures, and how to
- * describe a row's cell — one value, so header and cells cannot drift apart. */
+ * describe a row's cell — one value, so the header and its cells stay together. */
 type column('row) = {
   label: string,
   tooltip: string,
@@ -56,7 +54,7 @@ type row('data) =
 /* A whole section body: the rows rendered through `columns`, or `empty` in their
  * place when there are none. `live` is a line of current state, shown either way;
  * `note` a line about the table, shown with it; `legend` prepends the heat-scale
- * legend. A section says what to show, not how the pieces are ordered. */
+ * legend. */
 let view:
   (
     ~columns: list(column('data)),
