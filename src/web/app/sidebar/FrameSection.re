@@ -15,7 +15,7 @@ let title = "Frame Timing";
    frames overall. */
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    PerfFormat.fmt_opt(fst, f.perform)
+    Option.map(fst, f.perform)
   ),
   {
     label: "perform",
@@ -57,11 +57,7 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   | frames =>
     let rows = List.map(f => PerfFormat.Row(f), frames);
     [
-      PerfFormat.note(
-        "max total: "
-        ++ PerfFormat.fmt_span(PerfFormat.scale(~columns, rows))
-        ++ " · redder = slower",
-      ),
+      PerfFormat.scale_note(~columns, rows),
       PerfFormat.table(~columns, rows),
     ];
   };

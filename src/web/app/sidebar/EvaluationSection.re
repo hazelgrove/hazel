@@ -51,15 +51,13 @@ let columns: list(PerfFormat.column(EvalMetrics.record)) = [
   {
     label: "req",
     tooltip: "Encoded request size — bytes of the Marshal payload posted to the worker.",
-    cell: r => PerfFormat.text_cell(PerfFormat.fmt_bytes(r.req_bytes)),
+    cell: r => PerfFormat.bytes_cell(r.req_bytes),
   },
   {
     label: "resp",
     tooltip: "Encoded response size — bytes of the Marshal payload received back.",
     cell: r =>
-      PerfFormat.text_cell(
-        PerfFormat.fmt_opt(PerfFormat.fmt_bytes, r.resp_bytes),
-      ),
+      PerfFormat.opt_cell(Option.map(PerfFormat.bytes_cell, r.resp_bytes)),
   },
 ];
 

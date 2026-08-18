@@ -11,7 +11,7 @@ let title = "Statics";
 
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    PerfFormat.fmt_opt(fst, f.perform)
+    Option.map(fst, f.perform)
   ),
   {
     label: "time",
@@ -37,9 +37,12 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
     label: "outcome",
     tooltip: "What became of statics this frame: recomputed, forced (by the debounce timer), deferred (debounced), or cached (reused).",
     cell: f =>
-      PerfFormat.text_cell(
-        PerfFormat.fmt_opt(
-          o => String.lowercase_ascii(PerfMetrics.show_statics_outcome(o)),
+      PerfFormat.opt_cell(
+        Option.map(
+          o =>
+            PerfFormat.text_cell(
+              String.lowercase_ascii(PerfMetrics.show_statics_outcome(o)),
+            ),
           f.statics_outcome,
         ),
       ),

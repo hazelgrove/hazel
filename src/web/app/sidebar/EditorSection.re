@@ -13,7 +13,7 @@ let title = "Editor & Memory";
 
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    PerfFormat.fmt_opt(fst, f.perform)
+    Option.map(fst, f.perform)
   ),
   {
     label: "rebuild",

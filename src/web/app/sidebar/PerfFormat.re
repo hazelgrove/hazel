@@ -13,9 +13,8 @@ open Util.WebUtil;
    alone decides how it is drawn. Nothing outside can style a cell, name a CSS
    class, or tint against a different scale than the table it sits in. */
 
-/* An em dash rather than a misleading 0 for a metric that didn't run. */
-let fmt_opt = (to_string: 'a => string, x: option('a)): string =>
-  Option.fold(~none={|—|}, ~some=to_string, x);
+/* What a metric that didn't run reads as, rather than a misleading 0. */
+let dash = {|—|};
 
 let fmt_span = (s: Core.Time_ns.Span.t): string =>
   Core.Time_ns.Span.to_string_hum(~decimals=2, s);
@@ -45,6 +44,13 @@ type cell =
 let text_cell = (s: string): cell => Text(s);
 
 let int_cell = (n: int): cell => Int(n);
+
+let bytes_cell = (b: Core.Byte_units.t): cell => Text(fmt_bytes(b));
+
+/* A metric that didn't run: an em dash in place of the cell it would have been.
+   Sections hand over `option(cell)` and never spell the absence themselves. */
+let opt_cell = (c: option(cell)): cell =>
+  Option.value(c, ~default=Text(dash));
 
 /* A left-aligned name (an encoding, a mode) rather than a right-aligned
    number. */
@@ -95,10 +101,10 @@ type row('data) =
 /* The edit-action column all three per-frame tables open with, so its wording
    lives in one place rather than once per section. `get` pulls the row's action
    label out; the column owns how it is described and rendered. */
-let action_column = (get: 'row => string): column('row) => {
+let action_column = (get: 'row => option(string)): column('row) => {
   label: "action",
   tooltip: "The edit action that triggered this frame.",
-  cell: r => label_cell(get(r)),
+  cell: r => opt_cell(Option.map(label_cell, get(r))),
 };
 
 /* --- the heat scale --- */
@@ -193,7 +199,7 @@ let heat_td =
     )
     : Node.t =>
   switch (s) {
-  | None => Node.td(~attrs=[clss(cls)], [text(fmt_opt(fmt_span, s))])
+  | None => Node.td(~attrs=[clss(cls)], [text(dash)])
   | Some(span) =>
     Node.td(
       ~attrs=[clss(cls), Attr.create("style", heat_style(~scale, span))],
@@ -264,3 +270,11 @@ let empty = (msg: string): Node.t =>
 
 let note = (msg: string): Node.t =>
   div(~attrs=[clss(["perf-note"])], [text(msg)]);
+
+/* The legend the heat tables carry: the scale the reddest cell stands for. Owned
+   here so a section neither formats the span nor repeats the wording. */
+let scale_note =
+    (~columns: list(column('data)), rows: list(row('data))): Node.t =>
+  note(
+    "max total: " ++ fmt_span(scale(~columns, rows)) ++ " · redder = slower",
+  );

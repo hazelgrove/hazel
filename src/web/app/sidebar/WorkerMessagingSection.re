@@ -50,7 +50,7 @@ let columns: list(PerfFormat.column(WorkerMetrics.dir_metric)) = [
     label: "size",
     tooltip: "Encoded payload size (approximate).",
     cell: m =>
-      PerfFormat.text_cell(PerfFormat.fmt_opt(PerfFormat.fmt_bytes, m.size)),
+      PerfFormat.opt_cell(Option.map(PerfFormat.bytes_cell, m.size)),
   },
   {
     /* Compact glyph keeps the column narrow; any failure message is on the
@@ -152,14 +152,10 @@ let view = (~globals: Globals.t): list(Node.t) =>
       ]
     | records =>
       let rows = List.concat_map(rows_of_record, records);
+      /* Column meanings live on the header tooltips; the legend just names the
+         heat scale, as in the other profiling sections. */
       [
-        /* Column meanings live on the header tooltips; this just names the heat
-           scale the way the other profiling sections do. */
-        PerfFormat.note(
-          "max total: "
-          ++ PerfFormat.fmt_span(PerfFormat.scale(~columns, rows))
-          ++ " · redder = slower",
-        ),
+        PerfFormat.scale_note(~columns, rows),
         PerfFormat.table(~columns, rows),
       ];
     }
