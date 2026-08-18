@@ -68,33 +68,16 @@ module ServerMessage = {
     update: stream_update,
   };
 
-  /* A duration as it crosses the wire. Core gives Span a `pp` and sexp converters
-     but no yojson ones, so the alias carries all four in one place. In json it is
-     integer nanoseconds — Time_ns's own representation — as a bigint literal,
-     since jsoo's int is 32-bit and 1.07s of nanoseconds would overflow it. */
-  type span = Core.Time_ns.Span.t;
-  let pp_span = Core.Time_ns.Span.pp;
-  let sexp_of_span = Core.Time_ns.Span.sexp_of_t;
-  let span_of_sexp = Core.Time_ns.Span.t_of_sexp;
-  let yojson_of_span = (s: span): Yojson.Safe.t =>
-    `Intlit(Core.Int63.to_string(Core.Time_ns.Span.to_int63_ns(s)));
-  let span_of_yojson = (json: Yojson.Safe.t): span =>
-    switch (json) {
-    | `Intlit(ns) => Core.Time_ns.Span.of_int63_ns(Core.Int63.of_string(ns))
-    | `Int(ns) => Core.Time_ns.Span.of_int63_ns(Core.Int63.of_int(ns))
-    | _ =>
-      failwith("WorkerServer.span_of_yojson: expected integer nanoseconds")
-    };
-
   [@deriving (show, sexp, yojson)]
   type result = {
     request_id: int,
     response: Response.t,
     /* Time the worker spent inside the evaluator for this batch, so the
      * Evaluation panel can separate evaluation from the queue + result
-     * serialization + transfer that the client's round trip also covers. None
-     * when nothing was evaluated, rather than a zero that reads as instant. */
-    eval_time: option(span),
+     * serialization + transfer that the client's round trip also covers.
+     * A TimeUtil.span rather than a Core one so the derived converters resolve;
+     * see TimeUtil. */
+    eval_time: TimeUtil.span,
   };
 
   [@deriving (show, sexp, yojson)]
@@ -323,22 +306,15 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
- * result; None until something is actually evaluated. Timed unconditionally —
- * the worker cannot see whether the Evaluation panel is open, and two clock
- * reads per slice (5000 trampoline steps) is noise against the slice itself. */
-let eval_total: ref(option(Core.Time_ns.Span.t)) = ref(None);
+ * result. Timed unconditionally — the worker cannot see whether the Evaluation
+ * panel is open, and two clock reads per slice (5000 trampoline steps) is noise
+ * against the slice itself. */
+let eval_total = ref(Core.Time_ns.Span.zero);
 
 let timed_eval: 'a. (unit => 'a) => 'a =
   f => {
     let (span, x) = TimeUtil.timed(f);
-    eval_total :=
-      Some(
-        Option.fold(
-          ~none=span,
-          ~some=s => Core.Time_ns.Span.(s + span),
-          eval_total^,
-        ),
-      );
+    eval_total := Core.Time_ns.Span.(eval_total^ + span);
     x;
   };
 
@@ -567,7 +543,7 @@ let install_message_handler = () => {
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
     post_ack(request);
-    eval_total := None;
+    eval_total := Core.Time_ns.Span.zero;
     commit({
       ...model^,
       latest_request: Some(request),

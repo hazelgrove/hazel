@@ -89,7 +89,7 @@ let record_done =
       {
         ...r,
         latency: Some(Core.Time_ns.Span.of_ms(now -. r.sent_at)),
-        eval: result.eval_time,
+        eval: Some(result.eval_time),
         status: status_of_response(result.response),
         resp_bytes: Some(WorkerServer.Active.size_response(encoded)),
       },

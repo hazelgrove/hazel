@@ -40,13 +40,13 @@ let rt_of_encoding =
 /* The evaluator time the worker reports back. Carried by the fixture so every
  * encoding is exercised on a Time_ns.Span crossing the boundary, not just on the
  * expression. */
-let eval_time = Core.Time_ns.Span.of_ms(12.5);
+let eval_time: Util.TimeUtil.span = Core.Time_ns.Span.of_ms(12.5);
 
 let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
   WorkerServer.ServerMessage.Result({
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
-    eval_time: Some(eval_time),
+    eval_time,
   });
 
 let parse = (s: string): Exp.t =>
@@ -109,15 +109,13 @@ let test_eval_time_round_trips = (): test_case(_) =>
     () => {
       let rt = rt_of_encoding((module WorkerServer.MarshalEncoding));
       switch (rt(~clone=true, response_of_exp(parse("1 + 1")))) {
-      | WorkerServer.ServerMessage.Result({eval_time: Some(span), _}) =>
+      | WorkerServer.ServerMessage.Result({eval_time: span, _}) =>
         check(
           bool,
           "same span",
           true,
           Core.Time_ns.Span.equal(span, eval_time),
         )
-      | WorkerServer.ServerMessage.Result({eval_time: None, _}) =>
-        fail("evaluator time was lost")
       | _ => fail("round-trip did not preserve response shape")
       };
     },
@@ -132,7 +130,7 @@ let test_span_yojson = (): test_case(_) =>
     "yojson: a span round-trips as nanoseconds",
     `Quick,
     () => {
-      let json = WorkerServer.ServerMessage.yojson_of_span(eval_time);
+      let json = Util.TimeUtil.yojson_of_span(eval_time);
       check(
         string,
         "encoded as nanoseconds",
@@ -144,7 +142,7 @@ let test_span_yojson = (): test_case(_) =>
         "same span",
         true,
         Core.Time_ns.Span.equal(
-          WorkerServer.ServerMessage.span_of_yojson(json),
+          Util.TimeUtil.span_of_yojson(json),
           eval_time,
         ),
       );
