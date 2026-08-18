@@ -85,6 +85,22 @@ constrains their off-domain behavior. This asymmetry is the entire
 consistency argument; eval steps (definition unfolding) remain unconditionally
 sound because divergence stays ⊥.
 
+### 1.5 Floats are total (IEEE)
+
+Float arithmetic is deliberately total in Hazel: `1.0 /. 0.0` is the *value*
+`infinity`, `0.0 /. 0.0` is `nan` — first-class IEEE values with
+`is_nan`/`is_finite` builtins. Nothing is off-domain, so the refinement
+invariant is not implicated and no definedness gates fire on float
+arithmetic. The costs land elsewhere and are accepted:
+
+- Float theorems mean IEEE: `nan == nan` is `false`, associativity of `+.`
+  fails, etc.
+- The **Algebrite gate must refuse float-typed rewrites** (Phase 3): CAS
+  field laws are false for IEEE floats independent of any partiality story.
+- Conversions *out* of float (`int_of_float`) **are** off-domain on
+  `nan`/`inf` and must error (Phase 0 fix; the current dynamics silently
+  yields an Int).
+
 ---
 
 ## 2. Language additions
@@ -101,13 +117,14 @@ sound because divergence stays ⊥.
 
 ### 2.2 Restricted binders (predicate-subtyping style)
 
-- `forall n | n != 0 -> ...` — sugar for `forall n -> n != 0 ==> ...`,
-  rendered on the binder. Restrictions are ordinary boolean expressions;
-  there is **no separate restriction language** (restrictions are
-  instantiated with arbitrary expressions, so a sublanguage cannot stay
-  small; see §4.3 for how predictability is achieved instead).
+- `forall n where n != 0 -> ...` — sugar for `forall n -> n != 0 ==> ...`,
+  rendered on the binder (syntax decided 2026-08-18: `where` keyword, which
+  avoids ambiguity with induction-case `|` separators). Restrictions are
+  ordinary boolean expressions; there is **no separate restriction language**
+  (restrictions are instantiated with arbitrary expressions, so a sublanguage
+  cannot stay small; see §4.3 for how predictability is achieved instead).
 - **Function contracts**: restrictions on `fun` binders,
-  `fun x | x != 0 -> ... 1/x ...`. Two effects:
+  `fun x where x != 0 -> ... 1/x ...`. Two effects:
   - *Definition-time discharge*: defining `f` emits one obligation — the body
     is defined given the restriction — proven once.
   - *Caller-vocabulary obligations*: a use of `f(e)` emits the contract
@@ -215,6 +232,9 @@ instantiation is a later feature.
 3. **Proposed closure lemmas** — when lookup misses, the (!) menu suggests
    matching lemmas from a curated library (`a != 0, b != 0 |- a*b != 0`,
    sign facts, …). **Automation may propose; only visible steps dispose.**
+   Library placement (decided): built-in OCaml-side axioms in Phase 3 (like
+   `refl_eq`), migrated to a self-hosted proven Hazel prelude once Phase 4
+   makes them provable — trusted base grows temporarily, then shrinks.
 4. **Manual** — split/eval repair, or a real subproof.
 
 Binder fact-sets are extendable by **explicit one-time derivations**: a
@@ -277,6 +297,29 @@ on earlier ones.
   the refinement invariant: off-domain primitive applications (int div/mod by
   zero, list/string partial ops, failed matches) must yield error/indet,
   never a boolean — including under `==`. Fix violations.
+
+  *Audit results (2026-08-18)*: the int/Nat/SInt/list/match/hole/cast surface
+  already satisfies the invariant — `1/0` becomes
+  `DynamicErrorHole(_, DivideByZero)`, and both `DHExp.ty_comparable` and
+  `DHExp.poly_equal` independently refuse boolean verdicts on error/indet
+  operands (`1/0 == 1/0` steps to indet, not `true`). Float arithmetic is
+  IEEE-total by design (§1.5), not a violation. Fixes required:
+  1. `Atom.re` float→Int/SInt conversions unguarded on `nan`/`inf` (silently
+     yields an Int) — add a `NonFiniteFloat`-style error.
+  2. `BuiltinsUtil.re` drops all `Atom.convert` errors (`| R(_) => None`), so
+     `int_of_string("abc")` is an anonymous stuck term instead of
+     `DynamicErrorHole(_, InvalidOfString)` — thread the error through, so
+     "off-domain" has one shape for the Phase 3 domain scan.
+  3. `string_search` silently totalizes an out-of-range index to `-1` —
+     should be `IndexOutOfBounds` (contrast `string_sub`, which is correct).
+  4. `DHExp.poly_equal` on `DrvQuote` with `~skip_hole=false` renders
+     `Some(false)` for hole-containing derivations — the one indet-ish
+     payload that yields a verdict; return `None` when either side has holes.
+  5. Hygiene: `is_value: true` on `dynamic_error_hole` branches in
+     `Transition.re`; uncaught JS exception from malformed regexps in
+     `StringUtil.re`; (`StepperBase.status_of_entry` missing the
+     `proof_is_clean` conjunct — deferred, that file is under active
+     parallel work.)
 - **Phase 1 — obligation substrate.** Sequent obligations; `ProofMap`
   provenance; (!) three states + receipts in the stepper UI;
   `ProvenModulo` status; inline prove-here proof syntax. No new logic yet —
@@ -292,12 +335,16 @@ on earlier ones.
   lemma library + (!) suggestions. *Measure the channel-distribution metric
   here.*
 - **Phase 4 — induction power.** Bool splits as first-class UX; IH
-  generalization (design round needed: keep unpeeled `forall` prefix vs.
-  explicit `generalize` step); structural-recursion detection. *Unlocks the
-  lambda-calculus soundness milestone.*
-- **Phase 5 — directed stepping.** Polarity/variance engine; `==>`-directed
-  rewriting; inequality chains with monotonicity obligations. *Applied-math
-  workflow completed.*
+  generalization via an **explicit `generalize` step** (decided 2026-08-18: a
+  proof form that re-quantifies an already-peeled variable before induction,
+  rather than implicit unpeeled-prefix IHs — more syntax, but recoverable
+  mid-proof and visible in the proof text); structural-recursion detection.
+  *Unlocks the lambda-calculus soundness milestone.*
+- **Phase 5 — directed stepping.** Polarity/variance engine covering
+  **boolean polarity and ordered arithmetic in the same cut** (decided
+  2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with
+  monotonicity of `+`, `-`, and sign-conditional `*` — whose sign side
+  conditions are ordinary obligations. *Applied-math workflow completed.*
 
 ### Open items (tracked, non-blocking for Phases 0–2)
 
@@ -306,7 +353,9 @@ on earlier ones.
 2. Define the matching normal form (§4.3) when/if slack is first needed.
 3. Underdetermined-instantiation UX beyond refusal.
 4. WP pass for path-sensitive definedness.
-5. Surface syntax bikeshed: inline obligation proofs, apply step,
-   restricted-binder concrete syntax.
-6. IH generalization mechanics (Phase 4 design round).
-7. Variance engine shape (Phase 5 design round).
+5. Surface syntax for inline obligation proofs and the apply step (binder
+   syntax decided: `where`).
+6. Exact `generalize` step semantics vs. the `case_eq`/IH machinery
+   (Phase 4 detail, direction decided).
+7. Sign-condition matrix for `*` monotonicity (Phase 5 detail, scope
+   decided).

@@ -124,6 +124,17 @@ let float_op = (fn, d) => {
   Some(Fresh.Exp.float(fn(f)));
 };
 
+/* An off-domain atom builtin application (e.g. int_of_string("abc"), or
+   int_of_float(nan)) must not become an anonymous stuck term: surface the
+   InvalidOperationError from Atom.convert as a DynamicErrorHole attributing
+   the failed application, mirroring the mod builtins in BuiltinsBase. */
+let atom_builtin_error =
+    (name: string, d: DHExp.t, err: InvalidOperationError.t): DHExp.t =>
+  Fresh.Exp.dynamic_error_hole(
+    Fresh.Exp.ap(Operators.Forward, Fresh.Exp.builtin_fun(name), d),
+    err,
+  );
+
 let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
   switch (b) {
   | OneFun(k1, k2, f) =>
@@ -135,7 +146,7 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
         let-unbox x = (Atom(k1), d);
         switch (f(x)) {
         | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
-        | R(_) => None
+        | R(err) => Some(atom_builtin_error(name, d, err))
         };
       },
       custom_statics: None,
@@ -158,7 +169,7 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
             let-unbox y = (Atom(k2), y);
             switch (f(x, y)) {
             | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
-            | R(_) => None
+            | R(err) => Some(atom_builtin_error(name, d, err))
             };
           }
         ),

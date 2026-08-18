@@ -767,7 +767,17 @@ module Transition = (EV: EV_MODE) => {
                   RecordStackFrame(Some(ident), Some(d2'), None),
                 ],
                 kind: BuiltinAp(ident),
-                is_value: false,
+                /* An off-domain builtin application (e.g.
+                   int_of_string("abc")) steps to a DynamicErrorHole whose
+                   payload is the failed application itself; the step must
+                   be marked final (is_value: true, the same mislabel as
+                   the UnOp/BinOp error branches) or re-evaluating the
+                   payload would re-apply the builtin forever. */
+                is_value:
+                  switch (DHExp.term_of(expr)) {
+                  | DynamicErrorHole(_) => true
+                  | _ => false
+                  },
               })
             | None => Indet
             };
@@ -875,6 +885,11 @@ module Transition = (EV: EV_MODE) => {
           expr,
           side_effects: [],
           kind: UnOp(op),
+          /* Mislabel on the error branch: an error hole is indet, not a
+             value. But is_value: true is load-bearing here — it marks the
+             step Final; with false the evaluator would re-evaluate the
+             error hole, whose payload re-steps to a fresh error hole,
+             looping forever. */
           is_value: true,
         });
       };
@@ -957,6 +972,11 @@ module Transition = (EV: EV_MODE) => {
           expr,
           side_effects: [],
           kind: BinOp(op),
+          /* Mislabel on the error branch: an error hole is indet, not a
+             value. But is_value: true is load-bearing here — it marks the
+             step Final; with false the evaluator would re-evaluate the
+             error hole, whose payload re-steps to a fresh error hole,
+             looping forever. */
           is_value: true,
         });
       };

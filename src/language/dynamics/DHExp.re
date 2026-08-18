@@ -302,7 +302,12 @@ let rec poly_equal = (d1, d2): option(bool) => {
     |> Option.some
   | (Atom(_), _) => None
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
-    Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
+    /* An incomplete derivation must not render a boolean verdict: with
+       ~skip_hole=false, eq treats holes as ordinary structure, so a
+       hole-containing derivation would compare Some(false) against a
+       complete one (see docs/prover-obligations.md section 1.2). */
+    Drv.Any.contains_hole(d1) || Drv.Any.contains_hole(d2)
+      ? None : Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None

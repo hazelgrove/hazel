@@ -53,6 +53,31 @@ let plain_search: (string, string, int) => int =
     | None => (-1)
     };
 
+/* Compiling a malformed regexp throws a JS exception; when the pattern comes
+   from user code (the string_* builtins), that exception must not escape the
+   evaluator. These variants return None on a malformed pattern. */
+let regexp_opt = (s: string): option(regexp) =>
+  switch (Js_of_ocaml.Regexp.regexp(s)) {
+  | r => Some(r)
+  | exception _ => None
+  };
+
+let plain_match_opt = (regexp: string, s: string): option(bool) =>
+  regexp_opt(regexp) |> Option.map(r => match(r, s));
+
+let plain_replace_opt =
+    (regexp: string, s: string, repl: string): option(string) =>
+  regexp_opt(regexp) |> Option.map(r => replace(r, s, repl));
+
+let plain_search_opt = (regexp: string, str: string, idx: int): option(int) =>
+  regexp_opt(regexp)
+  |> Option.map(r =>
+       switch (search(r, str, idx)) {
+       | Some((idx, _)) => idx
+       | None => (-1)
+       }
+     );
+
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
