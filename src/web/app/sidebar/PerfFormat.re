@@ -26,18 +26,14 @@ let fmt_span = (s: Core.Time_ns.Span.t): string =>
 let fmt_bytes = (b: Core.Byte_units.t): string =>
   Core.Byte_units.to_string_hum(b);
 
-/* Largest span in a column/table (zero if empty), for the heat-map scale. */
+/* Largest span in a column/table (zero if none ran), for the heat-map scale.
+   Metrics that didn't run drop out of the sequence, so the fold is just `max`
+   rather than a fold carrying an absence case. */
 let max_span =
-    (spans: list(option(Core.Time_ns.Span.t))): Core.Time_ns.Span.t =>
-  List.fold_left(
-    (acc: Core.Time_ns.Span.t, s: option(Core.Time_ns.Span.t)) =>
-      switch (s) {
-      | None => acc
-      | Some(x) => Core.Time_ns.Span.compare(x, acc) > 0 ? x : acc
-      },
-    Core.Time_ns.Span.zero,
-    spans,
-  );
+    (spans: Seq.t(option(Core.Time_ns.Span.t))): Core.Time_ns.Span.t =>
+  spans
+  |> Seq.filter_map(Fun.id)
+  |> Seq.fold_left(Core.Time_ns.Span.max, Core.Time_ns.Span.zero);
 
 /* Below this a timing reads as instant (no tint), so fast frames stay pale no
    matter how they compare to each other. */

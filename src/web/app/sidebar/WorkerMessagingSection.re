@@ -24,13 +24,13 @@ let total_of = (m: WorkerMetrics.dir_metric): option(Core.Time_ns.Span.t) =>
    request and response row. A stage as red as its own total dominates that
    encoding's cost, and the slower encodings read redder than the rest. */
 let max_total = (records: list(WorkerMetrics.record)): Core.Time_ns.Span.t =>
-  PerfFormat.max_span(
-    List.concat_map(
-      (r: WorkerMetrics.record) =>
-        List.map(total_of, r.request @ r.response),
-      records,
-    ),
-  );
+  records
+  |> List.to_seq
+  |> Seq.concat_map((r: WorkerMetrics.record) =>
+       Seq.append(List.to_seq(r.request), List.to_seq(r.response))
+     )
+  |> Seq.map(total_of)
+  |> PerfFormat.max_span;
 
 let columns =
     (~max: Core.Time_ns.Span.t)

@@ -61,9 +61,10 @@ let view = (~globals as _: Globals.t): list(Node.t) => {
     ]
   | frames =>
     let max =
-      PerfFormat.max_span(
-        List.map((f: PerfMetrics.frame) => f.syntax, frames),
-      );
+      frames
+      |> List.to_seq
+      |> Seq.map((f: PerfMetrics.frame) => f.syntax)
+      |> PerfFormat.max_span;
     [
       undo_redo,
       PerfFormat.table(

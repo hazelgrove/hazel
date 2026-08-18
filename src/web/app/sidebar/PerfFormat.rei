@@ -8,8 +8,8 @@ let fmt_opt: ('a => string, option('a)) => string;
 let fmt_span: Core.Time_ns.Span.t => string;
 let fmt_bytes: Core.Byte_units.t => string;
 
-/* Largest span across a column, for the heat-map scale. */
-let max_span: list(option(Core.Time_ns.Span.t)) => Core.Time_ns.Span.t;
+/* Largest span across a column, for the heat-map scale; absent metrics drop out. */
+let max_span: Seq.t(option(Core.Time_ns.Span.t)) => Core.Time_ns.Span.t;
 
 /* Cell builders, for a column's `cell`. */
 let text_cell: string => Util.WebUtil.Node.t;

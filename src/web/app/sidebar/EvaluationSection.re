@@ -72,9 +72,10 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
     /* One scale for both duration columns: the peak round trip, which bounds
        the eval time inside it. */
     let max =
-      PerfFormat.max_span(
-        List.map((r: EvalMetrics.record) => r.latency, records),
-      );
+      records
+      |> List.to_seq
+      |> Seq.map((r: EvalMetrics.record) => r.latency)
+      |> PerfFormat.max_span;
     [
       PerfFormat.note(
         Printf.sprintf(

@@ -58,9 +58,10 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   | frames =>
     /* One scale for the whole table: the peak total across frames. */
     let max =
-      PerfFormat.max_span(
-        List.map((f: PerfMetrics.frame) => f.total, frames),
-      );
+      frames
+      |> List.to_seq
+      |> Seq.map((f: PerfMetrics.frame) => f.total)
+      |> PerfFormat.max_span;
     [
       PerfFormat.note(
         "max total: " ++ PerfFormat.fmt_span(max) ++ " · redder = slower",
