@@ -431,6 +431,38 @@ module F = (Stepper: STEPPER) => {
         Exp.fresh(Atom(Bool(true))),
         model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),
       );
+    /* Hypotheses share the case header line: pattern on the left,
+     * "assume …"s off to the right after a fixed gap. */
+    let hypotheses_view =
+      WebUtil.div_c(
+        "induction-case-hypotheses",
+        List.filter_map(
+          fun
+          | (Binding.{name: _, id: _}, exp) => {
+              let rule = ProofRule.exp_to_rule(exp);
+              let conclusion = ProofRule.conclusion_exp(rule);
+              let code =
+                CodeViewable.view_any(
+                  ~globals,
+                  ~settings=
+                    Haz3lcore.ExpToSegment.Settings.of_core(
+                      ~inline=true,
+                      ~fold_fn_bodies=`Text,
+                      globals.settings.core,
+                    ),
+                  Exp(conclusion),
+                );
+              Some(
+                WebUtil.div_c(
+                  "induction-case-hypothesis",
+                  [WebUtil.Node.text("assume "), code],
+                ),
+              );
+            },
+          model.hypotheses
+          |> Calc.get_saved_exc(~print="hypotheses not calculated"),
+        ),
+      );
     WebUtil.div_c(
       "induction-case",
       [
@@ -441,36 +473,8 @@ module F = (Stepper: STEPPER) => {
             WebUtil.Node.text("Case "),
             pattern_editor,
             WebUtil.Node.text(" : "),
+            hypotheses_view,
           ],
-        ),
-        WebUtil.div_c(
-          "induction-case-hypotheses",
-          List.filter_map(
-            fun
-            | (Binding.{name: _, id: _}, exp) => {
-                let rule = ProofRule.exp_to_rule(exp);
-                let conclusion = ProofRule.conclusion_exp(rule);
-                let code =
-                  CodeViewable.view_any(
-                    ~globals,
-                    ~settings=
-                      Haz3lcore.ExpToSegment.Settings.of_core(
-                        ~inline=true,
-                        ~fold_fn_bodies=`Text,
-                        globals.settings.core,
-                      ),
-                    Exp(conclusion),
-                  );
-                Some(
-                  WebUtil.div_c(
-                    "induction-case-hypothesis",
-                    [WebUtil.Node.text("assume "), code],
-                  ),
-                );
-              },
-            model.hypotheses
-            |> Calc.get_saved_exc(~print="hypotheses not calculated"),
-          ),
         ),
       ]
       @ stepper_view,

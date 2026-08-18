@@ -58,16 +58,29 @@
   flex-direction: row;
   gap: 0.5em;
   align-items: center;
-  border-top: 1px dotted var(--cell-result-border);
+  /* The case's opening line: a touch heavier than the row separators,
+   * with a rounded hook at its left end marking where the case block
+   * begins. */
+  border-top: 2px dotted var(--cell-result-border);
+  border-top-left-radius: 0.6em;
   padding-top: 0.5em;
   margin-left: -1em;
+}
+
+/* Hypotheses share the case header line, off to the right of the
+ * pattern after a fixed gap; several wrap rather than overflow. */
+.induction-case-hypotheses {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1em;
+  margin-left: 1.5em;
 }
 
 .induction-case-hypothesis {
   display: flex;
   flex-direction: row;
   gap: 0.5em;
-  margin-left: 3em;
   align-items: center;
 }
 
@@ -360,6 +373,13 @@
 .step-placeholder {
   background-color: var(--test-panel-bkg)
 }
+
+/* The "⋯" gap row in an incomplete case (StepperTargetBox): shaped like
+ * a normal step row but quiet — it marks missing ground, it isn't a
+ * step. */
+.step-ellipsis .step-output {
+  opacity: 0.4;
+}
 /* Per-row status (see StepperBase.step_row). Design principle: the same
  * syntax always takes up the same space — status must never change the
  * proof's layout, so both indicators live outside the document flow:
@@ -381,15 +401,18 @@
   margin-right: 14px;
 }
 
-/* Lozenge-shaped line: inset from the row's top/bottom, rounded caps,
- * centered in the gutter. */
+/* Lozenge-shaped line, rounded caps, centered in the gutter. Like the
+ * justification, the status describes the TRANSITION out of this row
+ * (the step), not the expression — so the lozenge is a fixed-height
+ * mark centered on the same between-rows boundary the justification
+ * sits on, rather than spanning the row. */
 .step-border.broken::after,
 .step-border.incomplete::after,
 .step-border.blocked::after {
   content: "";
   position: absolute;
-  top: 0.5em;
-  bottom: 0.5em;
+  top: calc(100% - 0.75em);
+  height: 1.5em;
   right: -9px;
   width: 3px;
   border-radius: 1.5px;
@@ -432,6 +455,81 @@
   position: relative;
   display: flex;
   align-items: center;
+}
+
+/* ---- Transition-aligned justifications ----
+ *
+ * A justification lives semantically BETWEEN two steps: it explains how
+ * the expression above becomes the expression below. So it renders
+ * offset half a step down, sitting on the boundary line between the two
+ * rows. The offset is a pure transform: the wrap still occupies its
+ * original slot in the row's flex layout, so expression width, row
+ * heights, and selection geometry are untouched (and the popup anchor
+ * moves with it).
+ *
+ * 50% = half the band's own height (from row-center to the content's
+ * bottom edge), + 0.5em = the row's bottom padding, landing the band's
+ * center on the next row's border-top. */
+.step-display > .step-transition {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+  transform: translateY(calc(50% + 0.5em));
+  z-index: 1;
+  /* Sit ON the separator line: opaque background plus side padding so
+   * the line reads as interrupted by the label ("——— eval 🗑") rather
+   * than struck through it. */
+  background-color: var(--cell-result);
+  padding-left: 0.4em;
+  padding-right: 0.4em;
+}
+
+/* Per-row delete: rides the transition band next to the justification.
+ * Subtle until the row is hovered — it's a destructive affordance, not
+ * information. Hover is keyed to the row's own display line (not
+ * .step-border, which for induction/forall wraps every nested row and
+ * would light up all the trash cans at once). */
+.step-transition .step-delete {
+  opacity: 0;
+  transition: opacity 0.1s ease-in;
+  cursor: pointer;
+}
+
+.step-display:hover .step-delete {
+  opacity: 0.6;
+}
+
+.step-transition .step-delete:hover {
+  opacity: 1;
+}
+
+/* Nested steppers (induction cases, forall bodies, target-box rows) sit
+ * inside their parent row's .step-border, which insets them on the
+ * right by its padding plus the indicator gutter — compounding per
+ * nesting level, so inner justifications crept inward. Cancel the
+ * parent's inset: every row's right edge (and with it the transition
+ * band and status lozenge gutter) lies flat on one column. */
+.step-border .stepper {
+  margin-right: calc(-0.5em - 14px);
+}
+
+/* Rows with block content (induction cases, forall bodies): the step's
+ * transition is goal → (content) → next row, so the band anchors at the
+ * bottom of the whole block instead of under the first line. */
+.step-border.has-content > .step-display > .step-transition {
+  position: absolute;
+  right: 0.5em;
+  bottom: 0;
+  transform: translateY(50%);
+}
+
+/* The trailing row's justification hangs half a step below the last
+ * row; give it room instead of clipping — but only when nothing follows
+ * (inside a target box the "⋯" row comes next, and the band should sit
+ * on the shared boundary, not float above it). */
+.stepper:last-child {
+  padding-bottom: 1.2em;
 }
 
 .step-justification-wrap.has-popup {
@@ -499,4 +597,25 @@
   gap: 0.3em;
   color: var(--step-indicator-broken);
   font-size: 0.85em;
+}
+
+/* Error rows keep the ≡ slot for column alignment but don't show it —
+ * their content is a message, not an equivalent expression. */
+.equiv.equiv-hidden {
+  visibility: hidden;
+}
+
+/* A missing step's justification: the transition out of the row is not
+ * yet known. */
+.missing-step-justification {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.step-unknown {
+  opacity: 0.6;
+  font-weight: bold;
+  padding: 0 0.3em;
 }

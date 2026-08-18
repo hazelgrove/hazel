@@ -105,7 +105,6 @@ module F =
         ~inject as _: action => Ui_effect.t(unit),
         ~take_focus as _: focus => Ui_effect.t(unit),
         ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         ~proof as _: option(Proof.t),
         ~edit_syntax as
@@ -121,7 +120,6 @@ module F =
         ~inject as _: action => Ui_effect.t(unit),
         ~take_focus as _: focus => Ui_effect.t(unit),
         ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         ~proof as _: option(Proof.t),
         ~edit_syntax as

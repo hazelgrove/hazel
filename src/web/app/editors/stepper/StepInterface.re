@@ -49,7 +49,6 @@ module type STEP = {
       ~inject: action => Ui_effect.t(unit),
       ~take_focus: focus => Ui_effect.t(unit),
       ~hide_stepper: Ui_effect.t(unit),
-      ~undo: option(Ui_effect.t(unit)),
       ~is_toplevel: bool,
       /* See note on ~proof / ~edit_syntax in view_content below. */
       ~proof: option(Proof.t),
@@ -65,7 +64,6 @@ module type STEP = {
       ~inject: action => Ui_effect.t(unit),
       ~take_focus: focus => Ui_effect.t(unit),
       ~hide_stepper: Ui_effect.t(unit),
-      ~undo: option(Ui_effect.t(unit)),
       ~is_toplevel: bool,
       /* The Proof.t sub-term this step renders (when inside a Theorem
        * proof). Step kinds whose interactive buttons mutate the proof

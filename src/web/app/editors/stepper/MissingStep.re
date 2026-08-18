@@ -770,20 +770,9 @@ module View = {
       (
         ~globals: Globals.t,
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         _model: Model.t,
       ) => {
-    let button_back =
-      Widgets.button_d(
-        Icons.undo,
-        switch (undo) {
-        | Some(u) => u
-        | None => Ui_effect.Ignore
-        },
-        ~disabled=Option.is_none(undo),
-        ~tooltip="Step Backwards",
-      );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ => hide_stepper);
     let toggle_show_history =
@@ -800,11 +789,8 @@ module View = {
       );
     Node.div(
       ~attrs=[Attr.classes(["stepper-controls"])],
-      [button_back]
-      @ (
-        is_toplevel
-          ? [eval_settings, toggle_show_history, button_hide_stepper] : []
-      ),
+      is_toplevel
+        ? [eval_settings, toggle_show_history, button_hide_stepper] : [],
     );
   };
 };

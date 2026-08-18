@@ -33,12 +33,30 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~main_editor,
         stepper,
       );
+    /* The gap between the last reached expression and the target: a
+     * quiet row shaped exactly like a step (same slots, same height) so
+     * the chain scans uniformly. The preceding stepper's trailing "?"
+     * band lands on the boundary just above it. */
     let step_placeholder = () =>
       Node.div(
-        ~attrs=[
-          Attr.classes(["stepper", "cell-result", "step-placeholder"]),
+        ~attrs=[Attr.classes(["stepper", "cell-result", "step-ellipsis"])],
+        [
+          div_c(
+            "step-border",
+            [
+              div_c(
+                "step-display",
+                [
+                  Node.div(
+                    ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
+                    [Node.text("≡")],
+                  ),
+                  div_c("step-output", [Node.text("⋯")]),
+                ],
+              ),
+            ],
+          ),
         ],
-        [div_c("step-border", [Node.text("...")])],
       );
     let target_editor =
       CodeViewable.view_any(

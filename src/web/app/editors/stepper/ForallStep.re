@@ -179,14 +179,13 @@ module F =
         ~inject as _: action => Ui_effect.t(unit),
         ~take_focus as _: focus => Ui_effect.t(unit),
         ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         ~proof as _: option(Proof.t),
         ~edit_syntax as
           _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         _: model,
       ) =>
-    WebUtil.Node.text("Forall Step");
+    WebUtil.Node.text("forall");
 
   let view_content =
       (
@@ -195,7 +194,6 @@ module F =
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         ~proof as _: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),

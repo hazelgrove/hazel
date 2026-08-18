@@ -347,7 +347,6 @@ module rec StepKind:
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         ~proof: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
@@ -359,7 +358,6 @@ module rec StepKind:
       InductionStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -377,7 +375,6 @@ module rec StepKind:
       ForallStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -395,7 +392,6 @@ module rec StepKind:
       AxiomStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -413,7 +409,6 @@ module rec StepKind:
       AlgebriteStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -431,7 +426,6 @@ module rec StepKind:
       EvalStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -454,7 +448,6 @@ module rec StepKind:
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         ~proof: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
@@ -473,7 +466,6 @@ module rec StepKind:
         ~inject=x => inject(InductionStep(x)),
         ~take_focus=x => take_focus(InductionStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -491,7 +483,6 @@ module rec StepKind:
         ~inject=x => inject(ForallStep(x)),
         ~take_focus=x => take_focus(ForallStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -509,7 +500,6 @@ module rec StepKind:
         ~inject=x => inject(AxiomStep(x)),
         ~take_focus=x => take_focus(AxiomStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -527,7 +517,6 @@ module rec StepKind:
         ~inject=x => inject(AlgebriteStep(x)),
         ~take_focus=x => take_focus(AlgebriteStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -545,7 +534,6 @@ module rec StepKind:
         ~inject=x => inject(EvalStep(x)),
         ~take_focus=x => take_focus(EvalStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -936,10 +924,12 @@ and Stepper: {
           ~proof_map,
           prev_next,
         );
-      | None when status_of_entry(cached_proof_map_entry) != Some(true) =>
-        /* Synthesized trailing row — no backing proof leaf. Keep the
-         * previous row model (and with it the editor's caret/selection)
-         * when it was already a missing row. */
+      | None =>
+        /* Synthesized trailing row — no backing proof leaf. Rendered
+         * even when the goal is discharged, so the final expression
+         * (`true` in a completed proof) gets a bottom row of its own.
+         * Keep the previous row model (and with it the editor's
+         * caret/selection) when it was already a missing row. */
         let prev_missing =
           switch (model.next_step) {
           | MissingStep(m, _) => m
@@ -956,7 +946,6 @@ and Stepper: {
           ),
           Finished,
         );
-      | None => Finished
       };
     {
       cached_proof_map_entry: Calc.Calculated(cached_proof_map_entry),
@@ -1359,6 +1348,16 @@ and Stepper: {
       (
         ~globals: Globals.t,
         ~status: step_status,
+        /* Rows whose expression slot shows an error message (the step
+         * above broke) drop the ≡ marker: the content isn't an
+         * equivalent expression. Hidden, not removed, so the error text
+         * stays column-aligned with the expressions around it. */
+        ~show_equiv: bool,
+        /* Deletes this row's own step outright (splice, see
+         * `remove_step_patch`); rendered as a trash button riding the
+         * transition band next to the justification. None for rows with
+         * no backing step (the synthesized trailing picker). */
+        ~delete: option(Ui_effect.t(unit)),
         /* Extra detail appended to the popup body (e.g. an induction
          * row's missing-pattern witness). */
         ~popup_extra: list(WebUtil.Node.t),
@@ -1402,6 +1401,24 @@ and Stepper: {
           )
         }
       );
+    /* The transition band: justification plus the row's delete button,
+     * offset together onto the between-rows boundary (see stepper.css). */
+    let delete_button =
+      switch (delete) {
+      | Some(d) => [
+          Widgets.button(
+            ~clss=["step-delete"], ~tooltip="Delete this step", Icons.trash, _ =>
+            d
+          ),
+        ]
+      | None => []
+      };
+    let transition =
+      WebUtil.(div_c("step-transition", [justification] @ delete_button));
+    /* Rows with block content (induction cases, forall bodies) anchor
+     * their transition band at the BOTTOM of the whole block — the
+     * step's transition is goal → (content) → next row. */
+    let row_classes = row_classes @ (content == [] ? [] : ["has-content"]);
     WebUtil.[
       Node.div(
         ~attrs=[Attr.classes(["step-border"] @ row_classes)],
@@ -1409,9 +1426,16 @@ and Stepper: {
           div_c(
             "step-display",
             [
-              div_c("equiv", [Node.text("≡")]),
+              Node.div(
+                ~attrs=[
+                  Attr.classes(
+                    ["equiv"] @ (show_equiv ? [] : ["equiv-hidden"]),
+                  ),
+                ],
+                [Node.text("≡")],
+              ),
               div_c("step-output", [editor_view]),
-              justification,
+              transition,
             ],
           ),
         ]
@@ -1428,7 +1452,6 @@ and Stepper: {
             ~hide_stepper: Ui_effect.t(unit),
             ~focus: option(step_focus),
             ~is_toplevel: bool=false,
-            ~undo: option(Ui_effect.t(unit)),
             /* Forwarded write channel for structural proof edits. */
             ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=
                                                                     _ =>
@@ -1501,7 +1524,6 @@ and Stepper: {
             ~inject=a => inject(StepKindAction(a)),
             ~is_toplevel,
             ~focus=step_kind_focus,
-            ~undo,
             ~proof=current_proof,
             ~edit_syntax,
             model.step_kind,
@@ -1514,7 +1536,6 @@ and Stepper: {
             ~inject=a => inject(StepKindAction(a)),
             ~focus=step_kind_focus,
             ~is_toplevel,
-            ~undo,
             ~proof=current_proof,
             ~edit_syntax,
             ~main_editor,
@@ -1550,13 +1571,6 @@ and Stepper: {
                 ~emit,
                 model.insert,
               );
-            let available_steps =
-              switch (model.insert.next_steps |> Calc.get_saved_opt) {
-              | Some(AvailableSteps(steps)) => steps
-              | Some(AutoStep(_))
-              | None => []
-              };
-            let refls = Calc.get_saved([], model.insert.refls);
             StepperEditor.View.view(
               ~globals,
               ~signal=
@@ -1586,12 +1600,16 @@ and Stepper: {
                     },
                   model.insert,
                 ),
+              /* History rows draw no passive hints (next-step
+               * underlines, refl markers) — those belong to the picker
+               * rows at the frontier. Acting on a history row goes
+               * through selection: select a sub-term and the overlay
+               * offers the actions. */
               StepperEditor.Model.{
                 editor,
                 taken_steps,
-                next_steps:
-                  List.map(EvaluatorStep.get_step_id, available_steps),
-                refls: List.map(Exp.rep_id, refls),
+                next_steps: [],
+                refls: [],
               },
             );
           };
@@ -1648,6 +1666,12 @@ and Stepper: {
         step_row(
           ~globals,
           ~status,
+          ~show_equiv=Option.is_none(prev_broken),
+          ~delete=
+            Option.map(
+              p => edit_syntax(remove_step_patch(p)),
+              current_proof,
+            ),
           ~popup_extra,
           ~repair,
           ~editor_view,
@@ -1663,7 +1687,6 @@ and Stepper: {
         ~hide_stepper,
         ~inject,
         ~focus,
-        ~undo=Some(emit_remove_step()),
         ~edit_syntax,
         ~main_editor,
         ~fallback_target=proof_target,
@@ -1683,8 +1706,6 @@ and Stepper: {
         ~hide_stepper: Ui_effect.t(unit),
         ~focus: option(step_focus),
         ~is_toplevel: bool,
-        /* Back arrow on the first tail row: removes the row above. */
-        ~undo: option(Ui_effect.t(unit)),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         ~main_editor: option(CodeEditable.Channel.t),
         /* Where a synthesized (proof-less) missing row lands its step. */
@@ -1707,7 +1728,6 @@ and Stepper: {
         ~hide_stepper,
         ~inject=x => inject(NextStep(x)),
         ~focus=next_focus,
-        ~undo,
         ~edit_syntax,
         ~main_editor,
         ~proof_target=
@@ -1719,6 +1739,8 @@ and Stepper: {
             | ExtendProof(leaf) => ExtendProof(leaf)
             }
           },
+        /* A hole reached through a tail is always inside a Seq. */
+        ~deletable=true,
         ~prev_broken,
         m,
         tail,
@@ -1737,7 +1759,6 @@ and Stepper: {
         ~hide_stepper,
         ~inject=x => inject(NextStep(x)),
         ~focus=next_focus,
-        ~undo,
         ~edit_syntax,
         ~main_editor,
         ~proof_target=next_target,
@@ -1754,10 +1775,13 @@ and Stepper: {
         ~hide_stepper: Ui_effect.t(unit),
         ~focus: option(step_focus),
         ~is_toplevel: bool,
-        ~undo: option(Ui_effect.t(unit)),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         ~main_editor: option(CodeEditable.Channel.t),
         ~proof_target: proof_target,
+        /* False when this row's hole IS the entire proof (root row of a
+         * bare-`?` proof): deleting it would be a no-op splice, so no
+         * trash button is offered. */
+        ~deletable: bool,
         /* See `view_step`: the error mark of a broken step above, shown
          * in place of the (passed-through, duplicate) expression. */
         ~prev_broken: option(ProofMark.t),
@@ -1769,7 +1793,7 @@ and Stepper: {
         m.proof |> Calc.get_saved_opt |> Option.join,
       );
     /* Rows after the hole: the hole is the identity, so they continue on
-     * the same goal. Their back arrow deletes the hole above them. */
+     * the same goal. */
     let tail_view =
       view_tail(
         ~globals,
@@ -1778,11 +1802,6 @@ and Stepper: {
         ~hide_stepper,
         ~inject,
         ~focus,
-        ~undo=
-          switch (m.proof |> Calc.get_saved_opt |> Option.join) {
-          | Some(p) => Some(edit_syntax(remove_step_patch(p)))
-          | None => None
-          },
         ~edit_syntax,
         ~main_editor,
         ~fallback_target=proof_target,
@@ -1798,8 +1817,32 @@ and Stepper: {
         ~globals,
         ~is_toplevel,
         ~hide_stepper,
-        ~undo,
         m,
+      );
+    /* A "?" justification marks a hole the user actually WROTE in the
+     * middle of the proof — a step to come back for. Trailing rows
+     * (synthesized, or a written `?` at the end of the proof) don't
+     * carry it: the picker itself already says the proof continues
+     * here. */
+    let written_mid_chain_hole =
+      Option.is_some(m.proof |> Calc.get_saved_opt |> Option.join)
+      && (
+        switch (tail) {
+        | Finished => false
+        | MissingStep(_, _)
+        | NextStep(_) => true
+        }
+      );
+    let justification =
+      WebUtil.(
+        div_c(
+          "missing-step-justification",
+          (
+            written_mid_chain_hole
+              ? [div_c("step-unknown", [Node.text("?")])] : []
+          )
+          @ [justification],
+        )
       );
     let available_steps =
       switch (m.next_steps |> Calc.get_saved_opt) {
@@ -1812,6 +1855,15 @@ and Stepper: {
      * syntax; `calculate` picks the new step up on the next pass. */
     let emit = term => edit_syntax(add_step_patch(~proof_target, term));
     let signal = missing_step_signal(~take_focus, ~hide_stepper, ~emit, m);
+    /* Deleting a hole row splices the written `?` (and its `;`) out of
+     * the proof. Synthesized trailing rows have nothing to delete. */
+    let delete =
+      deletable
+        ? m.proof
+          |> Calc.get_saved_opt
+          |> Option.join
+          |> Option.map(p => edit_syntax(remove_step_patch(p)))
+        : None;
     let row =
       switch (prev_broken, m.editor |> Calc.get_saved_opt) {
       | (Some(mark), _) =>
@@ -1821,6 +1873,8 @@ and Stepper: {
         step_row(
           ~globals,
           ~status,
+          ~show_equiv=false,
+          ~delete,
           ~popup_extra=[],
           ~repair=[],
           ~editor_view=
@@ -1875,6 +1929,8 @@ and Stepper: {
         step_row(
           ~globals,
           ~status,
+          ~show_equiv=true,
+          ~delete,
           ~popup_extra=[],
           /* The picker already replaces the malformed sub-term when a step
            * is chosen, so no extra repair affordance is needed here. */
@@ -1913,10 +1969,17 @@ and Stepper: {
             ~inject,
             ~focus,
             ~is_toplevel,
-            ~undo=None,
             ~edit_syntax,
             ~main_editor,
             ~proof_target=ReplaceProof(p),
+            /* A root hole with no tail IS the whole proof — deleting it
+             * would be a no-op. */
+            ~deletable=
+              switch (tail) {
+              | Finished => false
+              | MissingStep(_, _)
+              | NextStep(_) => true
+              },
             ~prev_broken=None,
             m,
             tail,
@@ -1943,7 +2006,6 @@ and Stepper: {
           ~inject,
           ~focus,
           ~is_toplevel,
-          ~undo=None,
           ~edit_syntax,
           ~main_editor,
           ~proof_target,
