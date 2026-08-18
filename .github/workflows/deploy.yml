@@ -5,10 +5,9 @@
 # Nothing here uses `needs:`. Previews are deliberately not gated on tests or on
 # formatting: a red suite should not stop you looking at your branch.
 #
-# This workflow is the authority for the static gates on same-repo branches.
-# ci.yml carries the same steps guarded to `merge_group || fork`, which are the
-# only cases a `push` event cannot reach -- so each gate runs exactly once per
-# commit and appears exactly once in the checks list. Full-suite CI is ci.yml.
+# This workflow owns the static gates for same-repo branches; ci.yml repeats them
+# guarded to the cases a `push` event cannot reach, so each gate runs once per
+# commit. Full-suite CI is ci.yml.
 name: Deploy
 
 on:
@@ -115,14 +114,14 @@ jobs:
           exit 1
         working-directory: ./build-target
 
-  # `make ci-quick` uses alcotest's -q filter: 3298 of 3468 cases. The ~190
-  # Slow-tagged ones it drops are 92% of the full suite's wall clock, which is
-  # what makes this cheap enough to run on every push.
+  # `make ci-quick` uses alcotest's -q filter, which drops the Slow-tagged cases
+  # -- the large majority of the full suite's wall clock. That is what makes this
+  # cheap enough to run on every push.
   #
-  # This is still a subset of ci.yml's full run, because alcotest has no
-  # slow-only filter (-q selects Quick; there is no inverse), so a broken quick
-  # test reports red here and in `Test`. Removing that overlap needs a speed
-  # partition in test/haz3ltest.re plus a @test-slow alias; see the follow-up.
+  # It remains a subset of ci.yml's full run: alcotest has no slow-only filter
+  # (-q selects Quick, with no inverse), so a broken quick test reports red here
+  # and in `Test`. Removing that overlap needs a speed partition in
+  # test/haz3ltest.re plus a @test-slow alias.
   Quick:
     name: Quick tests
     if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
@@ -137,7 +136,6 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      # 92s of run plus ~67s of js_of_ocaml build, measured on run 32066364911.
       - name: Run quick tests
         run: opam exec -- make ci-quick
         timeout-minutes: 20

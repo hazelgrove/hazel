@@ -120,21 +120,14 @@ ci: setup-zarith
 ci-quick: setup-zarith
 	dune build @test-quick --profile dev
 
-# The strict-warning gate (issue #2456). dune's release profile promotes
-# warnings to errors and dev does not, so warnings in test/ used to print into
-# the job log and pass: `dune build src --profile release` covers only src, and
-# the instrumented runtest that covers test/ runs under dev. test/dune carries
-# no (env) stanza, so this rests on dune's own profile defaults rather than on
-# any per-library override.
+# The strict-warning gate (issue #2456). dune's release profile promotes warnings
+# to errors and dev does not, so warnings in test/ used to print into the job log
+# and pass: the release build covers only src, and the instrumented runtest that
+# covers test/ runs under dev.
 #
-# @check type-checks every tree without linking, so this catches test/ without
-# paying for a second js_of_ocaml build of the 81MB test bundle. It does not
-# replace the release build of src, which is also what validates jsoo linking.
-#
-# Cheap because it links nothing: 21s from an empty build dir with DUNE_CACHE
-# off, producing .cmi for both src and test and zero .bc.js. Verified to fail
-# (exit 2, "Error (warning 33 [unused-open])") when the open removed from
-# test/Test_ReparseDocSlides.re is put back.
+# @check type-checks every tree without linking, so this reaches test/ without a
+# second js_of_ocaml build of the test bundle -- cheap for the same reason. It
+# does not replace the release build of src, which validates jsoo linking.
 ci-check:
 	dune build @check --profile release
 

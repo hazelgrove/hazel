@@ -20,13 +20,13 @@ runs:
       with:
         ocaml-compiler: 5.2.0
         # Off: setup-ocaml keys this cache on the run id, so it can never be an
-        # exact hit, yet uploads ~1.7GB per run. That churn evicts the _opam
-        # entry below, which shares a 10GB repository-wide budget. In-run caching
-        # is unaffected (DUNE_CACHE / DUNE_CACHE_ROOT).
+        # exact hit, yet uploads hundreds of MB every run. That churn is what
+        # evicts the _opam entry below, since both share GitHub's 10GB
+        # per-repository budget. In-run caching is unaffected (DUNE_CACHE).
         dune-cache: false
 
-    # Single-writer: only dev and bot-update-deps save the ~1GB switch, so the
-    # ~50 daily branch runs cannot evict the entry they all depend on.
+    # Single-writer: only dev and bot-update-deps save the switch, so the many
+    # daily branch runs cannot evict the entry they all depend on.
     - name: Retrieve the switch environment if cached
       id: opam-cache-switch
       uses: actions/cache/restore@v4

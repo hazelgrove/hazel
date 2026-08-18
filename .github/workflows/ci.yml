@@ -8,8 +8,8 @@
 # twice, once per event, and report two reds for one cause.
 #
 # The guard is a step-level `if` on purpose: a job-level one would still emit a
-# `skipped` check run, and it reads only the event payload -- no API lookup and
-# no race with PR creation, which is what bcc5f06 backed out of.
+# `skipped` check run. It reads only the event payload, so it needs no API lookup
+# and cannot race with PR creation.
 name: CI
 
 on:
@@ -26,9 +26,8 @@ jobs:
   Test:
     name: Test
     runs-on: ubuntu-latest
-    # Nothing else bounds this job: the toolchain install alone is 8-11 min cold
-    # and has no step timeout, and GitHub's default job cap is 360 min. Sized to
-    # sit above the 60 min `Run tests` step plus setup, not to be a tight fit.
+    # GitHub's default job cap is 360 min, and the toolchain install has no step
+    # timeout of its own. Sized to sit above the `Run tests` step plus setup.
     timeout-minutes: 90
     permissions:
       contents: read
@@ -52,8 +51,8 @@ jobs:
 
       # Strict-warning gate for src, and the only thing that validates
       # js_of_ocaml linking. dune's release profile promotes warnings to errors
-      # while dev does not; no (env) override is involved, which is why this
-      # survives dev's ab0a20d556 dropping src/util's warning-policy stanza.
+      # and dev does not; this rests on those profile defaults rather than on any
+      # per-library (env) override.
       - name: Build release
         if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: |
@@ -70,10 +69,9 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        # 60, not 20: dev raised this in fd427d4fcc because the full suite
-        # (Slow-tagged QCheck property tests) was timing out at 20. Measured
-        # 1903s (31.7 min) on run 32041001269, so the headroom is ~1.9x -- and
-        # #2426 alone added ~1000s of it. Revisit before it gets thinner.
+        # Raised from 20 on dev: the Slow-tagged QCheck property tests pushed
+        # the full suite past it. Headroom is under 2x, so check the trend before
+        # adding another expensive suite.
         timeout-minutes: 60
 
       # Annotated results UI, not the gate -- `Run tests` exits non-zero on
