@@ -345,7 +345,7 @@ true => BoolExp colorings=[]|},
 2 => IntExp colorings=[]
 3 => IntExp colorings=[]
 _ => WildPat colorings=[]
-case 1 | 1 => 2| _ => 3 end => CaseExp colorings=[1]|},
+case 1 | 1 => 2 | _ => 3 end => CaseExp colorings=[1]|},
   ),
   (
     "listlit",
