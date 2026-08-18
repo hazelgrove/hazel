@@ -17,18 +17,20 @@ let typfunapp_exp_coloring_ids =
   (Piece.id(exp_tfun), f_id),
   (Piece.id(typ), typ_id),
 ];
-let typfunapp_exp: form = {
-  let explanation = "Applies the [*type function*](%s) to the [*type*](%s).";
-  {
-    id: TypFunApExp,
-    syntactic_form: [exp_tfun, mk_ap_exp_typ([[typ]])],
-    expandable_id: None,
-    explanation,
-    examples: [typfunapp_exp_ex],
-  };
+let typfunapp_exp_form = [exp_tfun, mk_ap_exp_typ([[typ]])];
+let typfunapp_exp = (~f_id: Id.t, ~typ_id: Id.t): form => {
+  id: TypFunApExp,
+  syntactic_form: typfunapp_exp_form,
+  colorings: typfunapp_exp_coloring_ids(~f_id, ~typ_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Applies the [*type function*](%s) to the [*type*](%s).",
+      Id.to_string(f_id),
+      Id.to_string(typ_id),
+    ),
+  examples: [typfunapp_exp_ex],
 };
 
-let typfunaps: group = {
-  id: TypFunApExp,
-  forms: [typfunapp_exp],
-};
+let typfunaps = (~f_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(typfunapp_exp(~f_id, ~typ_id));
