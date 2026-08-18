@@ -1,6 +1,7 @@
 /* Shared formatting and table building for the instrumented debug sections; see
- * PerfFormat.re. Sections describe a table as columns + rows and never build
- * HTML themselves. */
+ * PerfFormat.re. A section describes its table as columns and rows and never
+ * builds markup: `cell` is opaque, so how a cell is drawn — its classes, its
+ * tint, its heat scale — is decided here and nowhere else. */
 
 /* Renderings of the units the panels report; `fmt_opt` gives an em dash for a
  * metric that didn't run rather than a misleading 0. */
@@ -8,31 +9,43 @@ let fmt_opt: ('a => string, option('a)) => string;
 let fmt_span: Core.Time_ns.Span.t => string;
 let fmt_bytes: Core.Byte_units.t => string;
 
-/* Largest span across a column, for the heat-map scale; absent metrics drop out. */
-let max_span: Seq.t(option(Core.Time_ns.Span.t)) => Core.Time_ns.Span.t;
+/* How an outcome reads, which is what picks its color. */
+type outcome =
+  | Good
+  | Bad
+  | Waiting;
 
-/* Cell builders, for a column's `cell`. */
-let text_cell: string => Util.WebUtil.Node.t;
-let int_cell: int => Util.WebUtil.Node.t;
-let name_cell: string => Util.WebUtil.Node.t;
-let label_cell: string => Util.WebUtil.Node.t;
+/* What a cell shows. Opaque: build one with the constructors below. */
+type cell;
+
+let text_cell: string => cell;
+let int_cell: int => cell;
+let name_cell: string => cell;
+let label_cell: string => cell;
 let status_cell:
-  (~cls: string, ~tooltip: option(string)=?, string) => Util.WebUtil.Node.t;
-let heat_cell:
-  (~max: Core.Time_ns.Span.t, ~total: bool=?, option(Core.Time_ns.Span.t)) =>
-  Util.WebUtil.Node.t;
+  (~outcome: outcome, ~tooltip: option(string)=?, string) => cell;
+let heat_cell: option(Core.Time_ns.Span.t) => cell;
+let total_cell: option(Core.Time_ns.Span.t) => cell;
 
 /* One column: its header, the tooltip explaining what it measures, and how to
- * render a row's cell — one value, so header and cells cannot drift apart. */
+ * describe a row's cell — one value, so header and cells cannot drift apart. */
 type column('row) = {
   label: string,
   tooltip: string,
-  cell: 'row => Util.WebUtil.Node.t,
+  cell: 'row => cell,
 };
 
+/* The shared edit-action column; `get` pulls the row's action label out. */
+let action_column: ('row => string) => column('row);
+
 /* A full-width label row separating groups of data rows. */
+type group_kind =
+  | Primary
+  | Secondary
+  | Absent;
+
 type group = {
-  cls: string,
+  kind: group_kind,
   label: string,
 };
 
@@ -40,8 +53,10 @@ type row('data) =
   | Row('data)
   | Group(group);
 
-/* The shared edit-action column; `get` pulls the row's action label out. */
-let action_column: ('row => string) => column('row);
+/* The heat scale a table will tint against, for a section that names it in a
+ * legend. `table` derives its own from the same rows, so the two agree. */
+let scale:
+  (~columns: list(column('data)), list(row('data))) => Core.Time_ns.Span.t;
 
 let table:
   (~columns: list(column('data)), list(row('data))) => Util.WebUtil.Node.t;

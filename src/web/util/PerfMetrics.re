@@ -87,10 +87,9 @@ let live: ref(live) =
 let add =
     (cur: option(Core.Time_ns.Span.t), span: Core.Time_ns.Span.t)
     : option(Core.Time_ns.Span.t) =>
-  switch (cur) {
-  | None => Some(span)
-  | Some(s) => Some(Core.Time_ns.Span.(s + span))
-  };
+  Some(
+    Option.fold(~none=span, ~some=s => Core.Time_ns.Span.(s + span), cur),
+  );
 
 /* Time f, folding its span into the frame under construction with `into`, and
  * return f's result. Only times when profiling is on, so call sites needn't
@@ -182,10 +181,9 @@ let time_frame: 'a. (unit => 'a) => 'a =
       let (calc, x) = Util.TimeUtil.timed(f);
       let frame = current^;
       let total =
-        switch (frame.perform) {
-        | Some((_, p)) => Core.Time_ns.Span.(p + calc)
-        | None => calc
-        };
+        frame.perform
+        |> Option.map(snd)
+        |> Option.fold(~none=calc, ~some=p => Core.Time_ns.Span.(p + calc));
       push({
         ...frame,
         total: Some(total),

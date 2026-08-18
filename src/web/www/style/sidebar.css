@@ -697,22 +697,23 @@
    those group rows are specific to it. */
 
 /* Group separators (a row spanning every column, emitted by PerfFormat.table).
-   `wm-req` starts a new request (strong top rule + tint); `wm-resp` is the
-   lighter response sub-header within the same request. */
+   `perf-group-primary` starts a new request (strong top rule + tint);
+   `-secondary` is the lighter response sub-header within the same request, and
+   `-absent` notes a group with nothing to show. */
 #debug-sidebar .perf-table .perf-group {
   text-align: left;
   padding: 0.25em 0.3em 0.15em;
 }
 
-#debug-sidebar .perf-table .wm-req {
+#debug-sidebar .perf-table .perf-group-primary {
   font-weight: 600;
   color: var(--BR4);
   background: var(--T3);
   border-top: 2px solid var(--BR2);
 }
 
-#debug-sidebar .perf-table .wm-resp,
-#debug-sidebar .perf-table .wm-note {
+#debug-sidebar .perf-table .perf-group-secondary,
+#debug-sidebar .perf-table .perf-group-absent {
   font-style: italic;
   color: var(--BR3);
   opacity: 0.8;

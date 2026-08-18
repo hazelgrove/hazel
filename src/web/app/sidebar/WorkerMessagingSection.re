@@ -20,21 +20,7 @@ let total_of = (m: WorkerMetrics.dir_metric): option(Core.Time_ns.Span.t) =>
   | _ => None
   };
 
-/* One scale for the whole table: the peak per-encoding total across every
-   request and response row. A stage as red as its own total dominates that
-   encoding's cost, and the slower encodings read redder than the rest. */
-let max_total = (records: list(WorkerMetrics.record)): Core.Time_ns.Span.t =>
-  records
-  |> List.to_seq
-  |> Seq.concat_map((r: WorkerMetrics.record) =>
-       Seq.append(List.to_seq(r.request), List.to_seq(r.response))
-     )
-  |> Seq.map(total_of)
-  |> PerfFormat.max_span;
-
-let columns =
-    (~max: Core.Time_ns.Span.t)
-    : list(PerfFormat.column(WorkerMetrics.dir_metric)) => [
+let columns: list(PerfFormat.column(WorkerMetrics.dir_metric)) = [
   {
     label: "encoding",
     tooltip: "Candidate wire encoding benchmarked for this payload. Only enabled encodings (chips above) are measured.",
@@ -43,22 +29,22 @@ let columns =
   {
     label: "enc",
     tooltip: "Time to pack the payload into this encoding.",
-    cell: m => PerfFormat.heat_cell(~max, m.encode),
+    cell: m => PerfFormat.heat_cell(m.encode),
   },
   {
     label: "clone",
     tooltip: "Time for the structuredClone the browser performs when the payload crosses the worker boundary.",
-    cell: m => PerfFormat.heat_cell(~max, m.clone),
+    cell: m => PerfFormat.heat_cell(m.clone),
   },
   {
     label: "dec",
     tooltip: "Time to unpack the payload back into OCaml values.",
-    cell: m => PerfFormat.heat_cell(~max, m.decode),
+    cell: m => PerfFormat.heat_cell(m.decode),
   },
   {
     label: "total",
     tooltip: "encode + structuredClone + decode for this encoding — the cost of using it for this payload.",
-    cell: m => PerfFormat.heat_cell(~max, ~total=true, total_of(m)),
+    cell: m => PerfFormat.total_cell(total_of(m)),
   },
   {
     label: "size",
@@ -74,9 +60,17 @@ let columns =
     cell: m =>
       switch (m.error) {
       | None =>
-        PerfFormat.status_cell(~cls="perf-ok", ~tooltip=Some("ok"), {|✓|})
+        PerfFormat.status_cell(
+          ~outcome=PerfFormat.Good,
+          ~tooltip=Some("ok"),
+          {|✓|},
+        )
       | Some(e) =>
-        PerfFormat.status_cell(~cls="perf-fail", ~tooltip=Some(e), {|✕|})
+        PerfFormat.status_cell(
+          ~outcome=PerfFormat.Bad,
+          ~tooltip=Some(e),
+          {|✕|},
+        )
       },
   },
 ];
@@ -98,13 +92,13 @@ let rows_of_record =
     switch (r.response) {
     | [] => [
         PerfFormat.Group({
-          cls: "wm-note",
+          kind: PerfFormat.Absent,
           label: "response pending / timed out",
         }),
       ]
     | rows => [
         PerfFormat.Group({
-          cls: "wm-resp",
+          kind: PerfFormat.Secondary,
           label: "response",
         }),
         ...List.map(m => PerfFormat.Row(m), rows),
@@ -112,7 +106,7 @@ let rows_of_record =
     };
   [
     PerfFormat.Group({
-      cls: "wm-req",
+      kind: PerfFormat.Primary,
       label: req_label,
     }),
     ...List.map(m => PerfFormat.Row(m), r.request),
@@ -157,17 +151,16 @@ let view = (~globals: Globals.t): list(Node.t) =>
         PerfFormat.empty("No requests recorded yet — evaluate a program."),
       ]
     | records =>
-      let max = max_total(records);
+      let rows = List.concat_map(rows_of_record, records);
       [
-        /* Column meanings live on the header tooltips; this just anchors the
-           heat scale the way the other profiling sections do. */
+        /* Column meanings live on the header tooltips; this just names the heat
+           scale the way the other profiling sections do. */
         PerfFormat.note(
-          "max total: " ++ PerfFormat.fmt_span(max) ++ " · redder = slower",
+          "max total: "
+          ++ PerfFormat.fmt_span(PerfFormat.scale(~columns, rows))
+          ++ " · redder = slower",
         ),
-        PerfFormat.table(
-          ~columns=columns(~max),
-          List.concat_map(rows_of_record, records),
-        ),
+        PerfFormat.table(~columns, rows),
       ];
     }
   );

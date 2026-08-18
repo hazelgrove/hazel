@@ -11,15 +11,14 @@ open Virtual_dom.Vdom;
 
 let title = "Editor & Memory";
 
-let columns =
-    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
+let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
     PerfFormat.fmt_opt(fst, f.perform)
   ),
   {
     label: "rebuild",
     tooltip: "Time to rebuild the syntax cache: MakeTerm (segment → term) + Measured (layout).",
-    cell: f => PerfFormat.heat_cell(~max, ~total=true, f.syntax),
+    cell: f => PerfFormat.total_cell(f.syntax),
   },
   {
     label: "tokens",
@@ -59,18 +58,9 @@ let view = (~globals as _: Globals.t): list(Node.t) => {
       undo_redo,
       PerfFormat.empty("No edits recorded yet — type in the editor."),
     ]
-  | frames =>
-    let max =
-      frames
-      |> List.to_seq
-      |> Seq.map((f: PerfMetrics.frame) => f.syntax)
-      |> PerfFormat.max_span;
-    [
+  | frames => [
       undo_redo,
-      PerfFormat.table(
-        ~columns=columns(~max),
-        List.map(f => PerfFormat.Row(f), frames),
-      ),
-    ];
+      PerfFormat.table(~columns, List.map(f => PerfFormat.Row(f), frames)),
+    ]
   };
 };

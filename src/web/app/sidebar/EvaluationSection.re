@@ -9,17 +9,17 @@ open Virtual_dom.Vdom;
 
 let title = "Evaluation";
 
-/* Label and color class for an outcome. */
-let status = (s: EvalMetrics.status): (string, string) =>
+/* How each outcome reads, and how it should read — the class it maps to is
+   PerfFormat's business. */
+let status = (s: EvalMetrics.status): (string, PerfFormat.outcome) =>
   switch (s) {
-  | Pending => ("pending", "perf-pending")
-  | Success => ({|ok|}, "perf-ok")
-  | Failure => ("fail", "perf-fail")
-  | Timeout => ("timeout", "perf-fail")
+  | Pending => ("pending", PerfFormat.Waiting)
+  | Success => ({|ok|}, PerfFormat.Good)
+  | Failure => ("fail", PerfFormat.Bad)
+  | Timeout => ("timeout", PerfFormat.Bad)
   };
 
-let columns =
-    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(EvalMetrics.record)) => [
+let columns: list(PerfFormat.column(EvalMetrics.record)) = [
   {
     label: "id",
     tooltip: "Request id, shared with the Worker Messaging panel so rows correlate.",
@@ -34,19 +34,19 @@ let columns =
     label: "status",
     tooltip: "Outcome: pending (awaiting response), ok, fail (evaluator error), or timeout.",
     cell: r => {
-      let (label, cls) = status(r.status);
-      PerfFormat.status_cell(~cls, label);
+      let (label, outcome) = status(r.status);
+      PerfFormat.status_cell(~outcome, label);
     },
   },
   {
     label: "eval",
     tooltip: "The worker's own time inside the evaluator for this batch, as reported back in the result. The gap to round-trip is queue + result serialization + transfer.",
-    cell: r => PerfFormat.heat_cell(~max, r.eval),
+    cell: r => PerfFormat.heat_cell(r.eval),
   },
   {
     label: "round-trip",
     tooltip: "Wall-clock from posting the request to receiving its result: worker queue + evaluation + result serialization + transfer. This is the latency the user feels.",
-    cell: r => PerfFormat.heat_cell(~max, ~total=true, r.latency),
+    cell: r => PerfFormat.total_cell(r.latency),
   },
   {
     label: "req",
@@ -68,24 +68,13 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   | [] => [
       PerfFormat.empty("No evaluations recorded yet — evaluate a program."),
     ]
-  | records =>
-    /* One scale for both duration columns: the peak round trip, which bounds
-       the eval time inside it. */
-    let max =
-      records
-      |> List.to_seq
-      |> Seq.map((r: EvalMetrics.record) => r.latency)
-      |> PerfFormat.max_span;
-    [
+  | records => [
       PerfFormat.note(
         Printf.sprintf(
           "round-trip − eval = queue + serialize + transfer; restarts: %d",
           EvalMetrics.restarts^,
         ),
       ),
-      PerfFormat.table(
-        ~columns=columns(~max),
-        List.map(r => PerfFormat.Row(r), records),
-      ),
-    ];
+      PerfFormat.table(~columns, List.map(r => PerfFormat.Row(r), records)),
+    ]
   };

@@ -14,15 +14,14 @@ let title = "Statics";
 let mode_label = (m: PerfMetrics.statics_mode): string =>
   String.lowercase_ascii(PerfMetrics.show_statics_mode(m));
 
-let columns =
-    (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
+let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
     PerfFormat.fmt_opt(fst, f.perform)
   ),
   {
     label: "time",
     tooltip: "Time to recompute statics + elaboration (Statics.mk). — when the recompute was skipped this frame.",
-    cell: f => PerfFormat.heat_cell(~max, ~total=true, f.statics),
+    cell: f => PerfFormat.total_cell(f.statics),
   },
   {
     label: "entries",
@@ -52,16 +51,7 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   | [] => [
       PerfFormat.empty("No statics recorded yet — type in the editor."),
     ]
-  | frames =>
-    let max =
-      frames
-      |> List.to_seq
-      |> Seq.map((f: PerfMetrics.frame) => f.statics)
-      |> PerfFormat.max_span;
-    [
-      PerfFormat.table(
-        ~columns=columns(~max),
-        List.map(f => PerfFormat.Row(f), frames),
-      ),
-    ];
+  | frames => [
+      PerfFormat.table(~columns, List.map(f => PerfFormat.Row(f), frames)),
+    ]
   };
