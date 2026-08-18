@@ -398,17 +398,19 @@ module Update = {
        WorkerClient.request call sites nor the per-frame instrumentation sites);
        each collector only runs while its panel is open. */
     let sidebar = model.globals.settings.sidebar;
-    let panel_open = title =>
+    let debug_panel_open = title =>
       model.globals.settings.show_debug_panel
       && SidebarModel.Settings.is_debug_expanded(title, sidebar);
-    WorkerMetrics.sync(~enabled=panel_open(WorkerMessagingSection.title));
+    WorkerMetrics.sync(
+      ~enabled=debug_panel_open(WorkerMessagingSection.title),
+    );
     WorkerMetrics.set_encodings(sidebar.worker_encodings);
-    EvalMetrics.sync(~enabled=panel_open(EvaluationSection.title));
+    EvalMetrics.sync(~enabled=debug_panel_open(EvaluationSection.title));
     PerfMetrics.sync(
       ~enabled=
-        panel_open(StaticsSection.title)
-        || panel_open(EditorSection.title)
-        || panel_open(FrameSection.title),
+        debug_panel_open(StaticsSection.title)
+        || debug_panel_open(EditorSection.title)
+        || debug_panel_open(FrameSection.title),
     );
     /* Everything below is one frame for the profiling panels: time_frame owns
        both boundaries, so the frame can't be left half-committed. */
