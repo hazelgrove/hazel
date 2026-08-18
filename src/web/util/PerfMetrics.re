@@ -7,11 +7,12 @@
  * Gating and the bounded history come from Metrics.Make, so nothing is measured
  * while every per-frame panel is collapsed and no call site tests for it. */
 
-/* Why statics did or didn't recompute on a frame — the Statics panel's `mode`
- * column. Derived here from the throttle's decision so the panel's vocabulary
- * lives with the panel, and `show`n rather than hand-mapped to strings. */
+/* What actually became of statics on a frame — the Statics panel's `outcome`
+ * column. Distinct from StaticsMode.t, which is what the throttle *asked* for
+ * (Normal | Defer | Force); this is what happened, derived from that request
+ * plus whether the recompute ran. `show`n rather than hand-mapped to strings. */
 [@deriving show({with_path: false})]
-type statics_mode =
+type statics_outcome =
   | Recomputed /* an edit landed and statics ran this frame */
   | Forced /* the debounce timer fired and forced a run */
   | Deferred /* an edit landed but the debounce postponed the run */
@@ -32,7 +33,7 @@ type frame = {
   info_map_entries: int,
   errors: int,
   warnings: int,
-  statics_mode: option(statics_mode),
+  statics_outcome: option(statics_outcome),
   segment_tokens: int,
   tiles: int,
   rows: int,
@@ -49,7 +50,7 @@ let empty_frame = {
   info_map_entries: 0,
   errors: 0,
   warnings: 0,
-  statics_mode: None,
+  statics_outcome: None,
   segment_tokens: 0,
   tiles: 0,
   rows: 0,
@@ -211,7 +212,7 @@ let record_statics_counts =
     )
     : unit =>
   when_enabled(() => {
-    let statics_mode =
+    let statics_outcome =
       switch (recompute, mode) {
       | (true, StaticsMode.Force) => Forced
       | (true, _) => Recomputed
@@ -224,7 +225,7 @@ let record_statics_counts =
         info_map_entries: Haz3lcore.Id.Map.cardinal(statics.info_map),
         errors: List.length(statics.error_ids),
         warnings: List.length(statics.warning_ids),
-        statics_mode: Some(statics_mode),
+        statics_outcome: Some(statics_outcome),
       };
   });
 

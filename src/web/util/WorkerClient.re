@@ -99,16 +99,16 @@ let setup_worker_message_handler = worker => {
         with_latest(request_id, latest =>
           latest.callbacks.on_stream(key, update)
         )
-      | ServerMessage.Result({request_id, _} as result) as msg =>
+      | ServerMessage.Result(result) as msg =>
         with_latest(
-          request_id,
+          result.request_id,
           latest => {
             clear_timeouts();
             latest_request := None;
             /* Hand the result off first; benchmarking the other encodings
              * can take tens of ms and must not delay evaluation latency. */
             latest.callbacks.on_result(result.response);
-            WorkerMetrics.record_response(request_id, msg);
+            WorkerMetrics.record_response(result.request_id, msg);
             EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
         )

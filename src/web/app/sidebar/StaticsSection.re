@@ -2,17 +2,12 @@ open Virtual_dom.Vdom;
 
 /* The "Statics" debug sidebar section: a per-frame history of statics +
    elaboration — how long each recompute took (`—` when the debounce deferred
-   it or the cache was reused, with the reason in the `mode` column) and the
+   it or the cache was reused, with the reason in the `outcome` column) and the
    resulting info-map size / error / warning counts, plus the triggering edit
    action. Read from PerfMetrics.history, populated in CodeWithStatics.calculate
    while this panel is open. Implements DebugSection.S. */
 
 let title = "Statics";
-
-/* The panel names each outcome by its constructor, lowercased — no hand-written
-   map to fall out of step with the variant. */
-let mode_label = (m: PerfMetrics.statics_mode): string =>
-  String.lowercase_ascii(PerfMetrics.show_statics_mode(m));
 
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
@@ -39,10 +34,15 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
     cell: f => PerfFormat.int_cell(f.warnings),
   },
   {
-    label: "mode",
-    tooltip: "Whether statics recomputed this frame: recomputed, forced, deferred (debounced), or cached (reused).",
+    label: "outcome",
+    tooltip: "What became of statics this frame: recomputed, forced (by the debounce timer), deferred (debounced), or cached (reused).",
     cell: f =>
-      PerfFormat.text_cell(PerfFormat.fmt_opt(mode_label, f.statics_mode)),
+      PerfFormat.text_cell(
+        PerfFormat.fmt_opt(
+          o => String.lowercase_ascii(PerfMetrics.show_statics_outcome(o)),
+          f.statics_outcome,
+        ),
+      ),
   },
 ];
 

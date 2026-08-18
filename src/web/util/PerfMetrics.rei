@@ -2,14 +2,16 @@
  * timers and recorders are self-gating, so callers never check whether a panel
  * is open. */
 
-type statics_mode =
+/* What became of statics on a frame; distinct from StaticsMode.t, which is what
+ * the throttle asked for. */
+type statics_outcome =
   | Recomputed
   | Forced
   | Deferred
   | Cached;
 
 /* The constructor's name; the panel lowercases it for display. */
-let show_statics_mode: statics_mode => string;
+let show_statics_outcome: statics_outcome => string;
 
 type frame = {
   perform: option((string, Core.Time_ns.Span.t)),
@@ -21,7 +23,7 @@ type frame = {
   info_map_entries: int,
   errors: int,
   warnings: int,
-  statics_mode: option(statics_mode),
+  statics_outcome: option(statics_outcome),
   segment_tokens: int,
   tiles: int,
   rows: int,
