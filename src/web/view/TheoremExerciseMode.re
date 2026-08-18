@@ -282,16 +282,6 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t): bool => {
-    switch (action) {
-    | Instructor(_) => false
-    | Prelude(action) => CellEditor.Update.can_undo(action)
-    | Lemmas(action) => CellEditor.Update.can_undo(action)
-    | Theorem(action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    };
-  };
-
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let statics_mode =

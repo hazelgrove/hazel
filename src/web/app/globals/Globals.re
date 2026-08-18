@@ -149,27 +149,6 @@ module Update = {
     ...model,
     color_highlights,
   };
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SetFontMetrics(_) => false
-    | Set(action) => Settings.Update.can_undo(action)
-    | SetAgentGlobals(_) => true
-    | JumpToTile(_) => false
-    | InitImportAll(_) => true
-    | FinishImportAll(_) => true
-    | ExportForInit => false
-    | ActiveEditor(_) => false
-    | Undo => false
-    | Redo => false
-    | SetMetaDown(_) => false
-    | UpdateVisibleRows(_) => false
-    | Log(_) => false
-    | RethrowException => false
-    | ClearException => false
-    | RestoreLastKnownGood => false
-    };
-  };
 };
 
 type t = Model.t;
