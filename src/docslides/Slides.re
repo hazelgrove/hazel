@@ -4,7 +4,7 @@
  * ? = explicit hole tile, ¿ = implicit (Grout). Probe/statics pins
  * are ^^probe/^^statics triggers in the text (^^probe_table selects
  * the table renderer). */
-let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
+let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("Basic Reference", [%blob "basic-reference.hz"]),
     ("Projectors", [%blob "projectors.hz"]),
@@ -18,5 +18,5 @@ let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
   ]
   |> List.map(((name, text)) =>
-       (name, Haz3lcore.PersistentSegment.of_text(text))
+       (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

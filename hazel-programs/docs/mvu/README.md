@@ -23,12 +23,22 @@ From the command line: `./hazel run <file>.hz` evaluates the app, and
 
 The `MVU / ...` documentation slides embed these files at compile time
 (`src/mvu/Slides.re`, ppx_blob) and parse them at load — there is no
-encode step, so an edit here ships on the next build. Human indentation
-is flattened at load (Hazel computes indentation at layout time), and
-the `^^html_sidebar(...)` wrapper on the final tuple is written in the
-text itself. `Test_FastParseCorpus` keeps every file on the fast parse
-path; `DocSlides.ReparseBackuptext` checks both parsers reproduce the
-text exactly.
+encode step, so an edit here ships on the next build. `Test_FastParseCorpus`
+keeps every file on the fast parse path; `DocSlides.ReparseBackuptext`
+checks both parsers reproduce the text exactly.
+
+Two conventions the slides rely on:
+
+- The trailing app tuple is wrapped in `^^html_sidebar(...)`, so the slide
+  opens with the app running and docked in the projector panel. The
+  `_sidebar` suffix is part of the invoke token, so the placement lives in
+  the text — which is what makes it survive a reparse.
+- Indentation here is for humans; the loader flattens it (Hazel computes
+  indentation at layout time, so literal leading spaces would render
+  doubled).
+
+`./check-comments.py *.hz` catches unterminated comments, which otherwise
+surface as a pile of unrelated static errors.
 
 ## Architecture
 

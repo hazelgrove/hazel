@@ -10,35 +10,12 @@ let read_input = path => {
   );
 };
 
-/* Fast-first CLI parsing: FastParse (linear) with pin collection, then
-   the ¿-aware typing parser; the fallback names itself on stderr-ish
-   console so slow passes are visible. */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) => {
-  Haz3lcore.(
-    switch (
-      FastParse.of_text(
-        ~materialize=Triggers.invoked_projector,
-        ~collect_refractors=true,
-        ~root=Exp,
-        String.trim(s),
-      )
-    ) {
-    | Some(seg) =>
-      Some(
-        Zipper.unzip(~direction=Left, seg)
-        |> PersistentZipper.apply_collected_refractors,
-      )
-    | None =>
-      print_endline(
-        "SLOW PARSE (cli, "
-        ++ string_of_int(String.length(s))
-        ++ " chars): "
-        ++ Option.value(FastParse.bail_note^, ~default="no note"),
-      );
-      MarkerParse.of_text(~root=Exp, s);
-    }
-  );
-};
+/* Fast-first parsing shared with persistence load
+   (PersistentZipper.parse_text); the difference is failure policy —
+   a CLI caller wants a reported error (None → failwith below), where
+   persistence loads an empty buffer rather than brick boot. */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.(PersistentZipper.parse_text(~source="cli", ~root=Exp, s));
 
 let parse_program = (s: string) =>
   switch (parse_to_zipper(s)) {
@@ -114,7 +91,11 @@ let analyze_hazel =
 
     /* Run static analysis */
     let (static_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
@@ -384,7 +365,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Statics.mk(
         ~probe_ids=base_probe_ids,
         CoreSettings.on,
-        Builtins.ctx_init(Some(Int)),
+        Builtins.ctx_init(Some(Operators.default_mode)),
         term,
       );
 
@@ -549,7 +530,7 @@ let implicit_hole_arg = {
     ++ "`slide-encode` so Grout positions are recovered on re-parse.";
   Arg.(
     value
-    & opt(string, Haz3lcore.TextRoundtrip.default_implicit_hole)
+    & opt(string, Haz3lcore.MarkerParse.default_implicit_hole)
     & info(["implicit-hole"], ~docv="CHAR", ~doc)
   );
 };

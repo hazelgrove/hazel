@@ -1,4 +1,4 @@
-/* Tests for Haz3lcore.TextRoundtrip.
+/* Tests for Haz3lcore.MarkerParse's text round-trip.
  *
  * Property under test: any *parser-originated* program survives the
  * text round-trip — `to_text(p) == to_text(of_text(to_text(p)) |> persist)`.
@@ -32,57 +32,39 @@ open Alcotest;
 open Haz3lcore;
 
 let parse_or_fail = text =>
-  switch (TextRoundtrip.of_text(~root=Exp, text)) {
+  switch (MarkerParse.of_text(~root=Exp, text)) {
   | Some(z) => z
   | None => Alcotest.fail("of_text returned None on: " ++ text)
   };
 
-let roundtripped_text = (persisted: PersistentSegment.t): string =>
-  TextRoundtrip.to_text(persisted)
-  |> parse_or_fail
-  |> PersistentSegment.persist
-  |> TextRoundtrip.to_text;
+let roundtripped_text = (z: Zipper.t): string =>
+  MarkerParse.to_text(z) |> parse_or_fail |> MarkerParse.to_text;
 
-let slide_roundtrip_case =
-    ((name, persisted): (string, PersistentSegment.t)) =>
+let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
   test_case(
     name,
     `Slow,
     () => {
-      let before = TextRoundtrip.to_text(persisted);
-      let after = roundtripped_text(persisted);
+      let before = MarkerParse.to_text(z);
+      let after = roundtripped_text(z);
       check(
         string,
-        "TextRoundtrip text is fixed-point for " ++ name,
+        "marker text round-trip is fixed-point for " ++ name,
         before,
         after,
       );
     },
   );
 
-/* B2T2 slides are excluded: each one takes ~2s to parse, blowing the CI
- * test step past its 20-minute budget. The non-B2T2 slides give enough
- * coverage of the round-trip on real-world programs. */
-let is_b2t2 = ((name, _)) =>
-  String.length(name) >= 4 && String.sub(name, 0, 4) == "B2T2";
-
-/* Text-backed slides (committed .hz) carry no segment sexp; materialize
-   one via the load path so the usual fixed-point check applies. */
-let materialize_text_slide =
-    ((name, p): (string, PersistentSegment.t))
-    : (string, PersistentSegment.t) =>
-  p.segment == ""
-    ? (
-      name,
-      PersistentZipper.from_backup_text(p.backup_text, ~root=Exp)
-      |> PersistentSegment.persist,
-    )
-    : (name, p);
-
+/* Slides are text-backed (committed .hz): materialize each via the load
+   path so the usual fixed-point check applies. (Includes the B2T2
+   slides: they were excluded when each cost ~2s via the typing parser,
+   but the fast path loads them in milliseconds.) */
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.filter(s => !is_b2t2(s))
-  |> List.map(materialize_text_slide)
+  |> List.map(((name, p: PersistentZipper.t)) =>
+       (name, PersistentZipper.unpersist(p, ~root=Exp))
+     )
   |> List.map(slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
@@ -90,9 +72,9 @@ let text_fixed_point_case = (~name, text) =>
     name,
     `Quick,
     () => {
-      let persisted = text |> parse_or_fail |> PersistentSegment.persist;
-      let before = TextRoundtrip.to_text(persisted);
-      let after = roundtripped_text(persisted);
+      let z = text |> parse_or_fail;
+      let before = MarkerParse.to_text(z);
+      let after = roundtripped_text(z);
       check(
         string,
         "text round-trip is fixed-point starting from: " ++ text,
@@ -168,11 +150,9 @@ let arb_exp_roundtrip =
     QCheck_Util.arb_exp(~minimal_idents=true, 5),
     exp => {
       let text = render_exp_as_text(exp);
-      switch (TextRoundtrip.of_text(~root=Exp, text)) {
+      switch (MarkerParse.of_text(~root=Exp, text)) {
       | None => false
-      | Some(z) =>
-        let persisted = PersistentSegment.persist(z);
-        TextRoundtrip.to_text(persisted) == roundtripped_text(persisted);
+      | Some(z) => MarkerParse.to_text(z) == roundtripped_text(z)
       };
     },
   );

@@ -4,34 +4,41 @@ open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */
 
-/* `^^kind_opt` — a trigger may carry `_` suffixes: `_sidebar` selects
-   docked placement (stripped first, Token.strip_sidebar) and a trailing
-   option selects a non-default model (`^^probe_table` places a probe
-   with the table renderer active). `_` is an identifier char, so the
-   whole trigger lexes as one editor token. */
-let split_trigger_opt = (s: string): (string, option(string)) =>
+/* A trigger is written `^^kind` or `^^kind_opt`: the base name picks the
+   projector kind, the option after `_` a non-default model (`^^probe_table`
+   = a probe with the table renderer active). Token owns the `^^` prefix and
+   the `_` split, so this takes a BARE kind name. Refractors are the
+   additive-decoration kinds (probe, statics); other kinds answer None.
+     "probe"                ==> Some(Probe)
+     "slider"               ==> None  (a projector kind, not a refractor)
+     "probe_table" / "nope" ==> None  (not a kind name) */
+let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
+  ProjectorCore.Kind.of_name_opt(name)
+  |> OptUtil.filter(ProjectorCore.Kind.is_refractor);
+
+/* Same, for a whole trigger token; None when it is not a trigger at all.
+   A `_sidebar` placement suffix names a DOCKED PROJECTOR PIECE — refractor
+   entries carry no placement — so those belong to expand_projector's
+   projector arm and answer None here. */
+let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
   switch (Token.of_projector_invoke_parts(s)) {
-  | Some((name, _)) => ("^^" ++ name, Token.of_projector_invoke_opt(s))
-  | None => (s, None)
+  | Some((body, Inline)) =>
+    refractor_kind_of_name(fst(Token.split_invoke_opt(body)))
+  | Some((_, Sidebar))
+  | None => None
   };
 
-/* Check if a string is a refractor trigger name (e.g., "^^type", "^^probe") */
-let is_refractor_trigger = (s: string): bool => {
-  let (s, _) = split_trigger_opt(s);
-  String.length(s) > 2
-  && String.sub(s, 0, 2) == "^^"
-  && {
-    let kind_name = String.sub(s, 2, String.length(s) - 2);
-    ProjectorCore.Kind.is_name(kind_name)
-    && ProjectorCore.Kind.is_refractor(ProjectorCore.Kind.of_name(kind_name));
-  };
-};
+/* Is this whole token a refractor trigger (e.g. "^^type", "^^probe")?
+   "^^probe" / "^^probe_table" ==> true
+   "^^slider" / "let" / "^^"   ==> false */
+let is_refractor_trigger = (s: string): bool =>
+  Option.is_some(refractor_kind_of_token(s));
 
-/* Parse a refractor trigger name to get the kind */
-let of_refractor_trigger = (s: string): ProjectorCore.Kind.t => {
-  let (s, _) = split_trigger_opt(s);
-  ProjectorCore.Kind.of_name(String.sub(s, 2, String.length(s) - 2));
-};
+/* Parse a refractor trigger name to get the kind. Partial: only valid on
+   strings is_refractor_trigger accepts.
+     "^^probe" / "^^probe_table" ==> Probe */
+let of_refractor_trigger = (s: string): ProjectorCore.Kind.t =>
+  Option.get(refractor_kind_of_token(s));
 
 let refractor_model_of_opt =
     (kind: ProjectorCore.Kind.t, opt: string): option(string) =>
@@ -48,16 +55,24 @@ let refractor_opt_of_model =
   };
 
 /* Full-token parse: kind plus the model its option selects (if any).
-   Used by trigger expansion and by text-slide loading. */
+   Used by trigger expansion and by text-slide loading. The model is the
+   serialized projector model, not the option name that picked it.
+     "^^probe"       ==> Some((Probe, None))
+     "^^probe_table" ==> Some((Probe, Some("((active_renderer(...)))"))) */
 let refractor_of_invoke_token =
-    (token: string): option((ProjectorCore.Kind.t, option(string))) =>
-  if (is_refractor_trigger(token)) {
-    let kind = of_refractor_trigger(token);
-    let (_, opt) = split_trigger_opt(token);
-    Some((kind, Option.bind(opt, refractor_model_of_opt(kind))));
-  } else {
-    None;
-  };
+    (token: string): option((ProjectorCore.Kind.t, option(string))) => {
+  /* one strip-and-split for both halves, rather than re-parsing the
+     token once for the kind and again for the option */
+  let* (body, placement) = Token.of_projector_invoke_parts(token);
+  let (name, opt) = Token.split_invoke_opt(body);
+  let+ kind =
+    switch (placement) {
+    | Inline => refractor_kind_of_name(name)
+    /* docked: a projector piece, not a refractor (see refractor_kind_of_token) */
+    | Sidebar => None
+    };
+  (kind, Option.bind(opt, refractor_model_of_opt(kind)));
+};
 
 let exp_to_seg =
   ExpToSegment.exp_to_segment(
@@ -79,6 +94,21 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
     ~elaborated=CachedStatics.empty.elaborated,
   );
 };
+
+/* Re-pin the refractor triggers a ~collect_refractors parse consumed from
+   the source. FastParse reports (id, verbatim token) but stays below the
+   action layer, so the token is parsed back into a kind here. Shared by
+   every fast-first parse: text-slide loading and paste. */
+let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
+  List.fold_left(
+    (z, (id, trigger)) =>
+      switch (refractor_of_invoke_token(trigger)) {
+      | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
+      | None => z
+      },
+    z,
+    refractors,
+  );
 
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -129,22 +159,18 @@ let expand_projector = (z: t): option(t) => {
 
 let refractor_to_invoke =
     (
+      ~model: option(string)=?,
       ~placement=ProjectorCore.Placement.Inline,
-      ~model: string="()",
       kind: ProjectorCore.Kind.t,
       seg: Segment.t,
     )
     : Segment.t => {
-  let opt_suffix =
-    switch (refractor_opt_of_model(kind, model)) {
-    | Some(opt) => "_" ++ opt
-    | None => ""
-    };
+  let opt = Option.bind(model, refractor_opt_of_model(kind));
   [
     Piece.mk_tile(
       Form.mk_atom_op(
         Exp,
-        Token.mk_projector_invoke(~placement, kind) ++ opt_suffix,
+        Token.mk_projector_invoke(~opt?, ~placement, kind),
       ),
       [],
     ),

@@ -41,65 +41,18 @@ let go =
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
-      let blocker = Parser.fast_paste_blocker(clipboard, z, ~root);
-      let fast_ctx = blocker == None;
-      /* Linear Menhir zip first when the caret context allows a segment
-         splice: a failed attempt costs ~1ms, a hit turns the worst paste
-         case (a whole external program, quadratic via typing simulation)
-         into milliseconds with formatting kept verbatim. */
-      let menhir_pasted =
-        fast_ctx
-          ? Option.map(
-              seg =>
-                /* Like Zipper.insert_segment, but regrout with Left so the
-                   caret lands BEFORE any grout a body-less fragment opens
-                   (matching the typing path), not after it. */
-                Zipper.rescan_reassemble(
-                  ~with_parent=true,
-                  Left,
-                  z
-                  |> Zipper.replace_selection(Right, seg)
-                  |> Zipper.unselect
-                  |> Zipper.remold_regrout(Left, ~root),
-                  ~root,
-                )
-                |> PersistentZipper.apply_collected_refractors,
-              FastParse.of_text(
-                ~materialize=Triggers.invoked_projector,
-                ~collect_refractors=true,
-                ~root,
-                String.trim(clipboard),
-              ),
-            )
-          : None;
-      {
-        /* console-visible paste telemetry (dev): which parser ran and why */
-
-        let n = string_of_int(String.length(clipboard)) ++ " chars";
-        switch (blocker, menhir_pasted) {
-        | (Some(why), _) =>
-          print_endline(
-            "FastParse paste (" ++ n ++ "): gate refused — " ++ why,
-          )
-        | (None, None) =>
-          print_endline(
-            "FastParse paste fallback ("
-            ++ n
-            ++ "): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note"),
-          )
-        | (None, Some(_)) =>
-          print_endline("FastParse paste (" ++ n ++ "): linear path")
-        };
+      /* console-visible paste telemetry (dev): which parser ran and why */
+      let n = string_of_int(String.length(clipboard)) ++ " chars";
+      switch (Parser.fast_paste(clipboard, z, ~root)) {
+      | Ok(z) =>
+        print_endline("FastParse paste (" ++ n ++ "): linear path");
+        Ok(maybe_reassoc_thorough(z));
+      | Error(why) =>
+        print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
+        Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        |> Option.map(maybe_reassoc_thorough)
+        |> return(CantPaste);
       };
-      (
-        switch (menhir_pasted) {
-        | Some(z) => Some(z)
-        | None => Parser.to_zipper(~root, ~zipper_init=z, clipboard)
-        }
-      )
-      |> Option.map(maybe_reassoc_thorough)
-      |> return(CantPaste);
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */

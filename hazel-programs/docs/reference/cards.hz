@@ -18,13 +18,13 @@ let deck: [Card] = ^^card([(Hearts, King), (Clubs, Queen), (Clubs, Four), (Clubs
 # You can use the card display in patterns too. #
 # A wildcard pattern can be used for the rank or suit#
 let flush = fun hand ->
-case hand
-| ^^card([(Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _)]) => true
-| ^^card([(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_)]) => true
-| ^^card([(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_)]) => true
-| ^^card([(Spades,_),(Spades,_),(Spades,_),(Spades,_),(Spades,_)]) => true
-| _ => false  
-end in
+  case hand
+  | ^^card([(Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _), (Hearts, _)]) => true
+  | ^^card([(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_)]) => true
+  | ^^card([(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_)]) => true
+  | ^^card([(Spades,_),(Spades,_),(Spades,_),(Spades,_),(Spades,_)]) => true
+  | _ => false  
+  end in
 
 test flush([^^card((Hearts, King)),^^card((Hearts, Queen)),^^card((Hearts, Jack)),^^card((Hearts, Ten)),^^card((Hearts, Ace))]) end
 

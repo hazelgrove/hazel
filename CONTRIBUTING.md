@@ -77,7 +77,7 @@ The `make dev` and `make release` commands do three things:
 2. Generate some internal parsers using `menhir`.
 3. Compile the Reason code + parsers to OCaml bytecode using the OCaml compiler.
 4. Compile the OCaml bytecode to JavaScript
-   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+   (`_build/default/src/web/www/hazel.js`) using `js_of_ocaml`.
 
 ## Live Building 
 For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 

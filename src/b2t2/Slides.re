@@ -2,7 +2,7 @@
  * hazel-programs/docs/b2t2 ARE the slides — embedded at compile time,
  * parsed at load. The Datasheet slide is markdown (ppx_blob via
  * Datasheet.re), not a program, and keeps its own path. */
-let text_slides: list((string, Haz3lcore.PersistentSegment.t)) =
+let text_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("B2T2 / Example Tables", [%blob "example-tables.hz"]),
     (
@@ -147,13 +147,13 @@ let text_slides: list((string, Haz3lcore.PersistentSegment.t)) =
     ),
   ]
   |> List.map(((name, text)) =>
-       (name, Haz3lcore.PersistentSegment.of_text(text))
+       (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );
 
 let all_slides = [
   (
     "B2T2 / Datasheet",
-    Haz3lcore.PersistentSegment.of_text(Datasheet.slide_text),
+    Haz3lcore.PersistentZipper.of_slide_text(Datasheet.slide_text),
   ),
   ...text_slides,
 ];

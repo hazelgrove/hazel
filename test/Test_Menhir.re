@@ -9,6 +9,7 @@ let alco_check =
       equality({
         ...syntactic_settings,
         ignore_parens: true,
+        ignore_projectors: true,
       })
     ).
       exp,
@@ -121,6 +122,7 @@ let qcheck_menhir_maketerm_equivalent_test =
             equality({
               ...syntactic_settings,
               ignore_parens: true,
+              ignore_projectors: true,
             })
           ).
             exp(

@@ -31,7 +31,7 @@ let probe_model_of_sexp = sexp =>
   | exception _ => {active_renderer: None}
   };
 
-/* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
+/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)

@@ -1,19 +1,21 @@
 /* HTML/MVU example apps, shipped as documentation slides.
  *
- * Each is a working Elm-style app ending in ^^html_sidebar((init,
- * update, view, subs)), so the slide opens with the app already
- * running and docked.
+ * Each is a working Elm-style app: the program ends in a
+ * `^^html_sidebar((init, update, view, subs))` tuple, so the slide opens
+ * with the app already running and docked in the projector panel, leaving
+ * a chip at the code site. The `_sidebar` suffix is part of the invoke
+ * token, so the placement lives in the TEXT — a slide stores both a zipper
+ * and its backup_text, and if placement were patched into the zipper
+ * afterwards the two would disagree.
  *
  * The committed .hz files in hazel-programs/docs/mvu ARE the slides:
- * their text is embedded here at compile time and parsed at load
- * (FastParse, typing-parser fallback), so there is no encode step to
- * go stale. Human indentation in the .hz is flattened at load
- * (PersistentSegment.of_text) because Hazel computes indentation at
- * layout time. Test_FastParseCorpus keeps every .hz on the fast path.
+ * embedded at compile time, parsed at load (FastParse, MarkerParse
+ * fallback). There is no encoding step — edit an .hz and the slide
+ * changes. Test_FastParseCorpus keeps every .hz on the fast path.
  *
  * The "MVU / " prefix collapses these into a nested dropdown, matching
- * how the "B2T2 / ..." slides are grouped. */
-let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
+ * how the "B2T2 / ..." and "Derivations / ..." slides are grouped. */
+let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("Counter", [%blob "mvu-counter.hz"]),
     ("Watering Timer", [%blob "timer.hz"]),
@@ -27,5 +29,5 @@ let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
     ("Nutrient Tracker", [%blob "nutrient-rotation.hz"]),
   ]
   |> List.map(((name, text)) =>
-       ("MVU / " ++ name, Haz3lcore.PersistentSegment.of_text(text))
+       ("MVU / " ++ name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

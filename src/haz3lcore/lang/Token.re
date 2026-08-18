@@ -146,7 +146,7 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
  *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
- *  single operator token; see Haz3lcore.TextRoundtrip. */
+ *  single operator token; see Haz3lcore.MarkerParse. */
 
 let is_potential_operator =
   /* Multiline operators not supported */
@@ -165,7 +165,7 @@ let is_potential_token = t =>
     t == "()"
     || t == "[]"
     || t == "{}"
-    || t == "¿"  /* implicit-hole marker; see Haz3lcore.TextRoundtrip */
+    || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -281,7 +281,7 @@ let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
 
 /* Implicit-hole marker: the textual stand-in for a Grout piece used by
- * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout
+ * Haz3lcore.MarkerParse so decode|encode round-trips preserve Grout
  * positions. A single non-identifier, non-operator character that the
  * tokeniser treats as its own atomic token (won't glue with adjacent
  * commas, semicolons, or identifiers). */
@@ -298,6 +298,12 @@ let projector_invoke_prefix = "^^";
    would disagree). `_` is safe as a separator: no kind name contains one. */
 let projector_invoke_sidebar = "_sidebar";
 
+/* Strip the `^^` prefix, yielding the invoke body — option and placement
+   suffixes and all, unlike of_projector_invoke_base below. No validation;
+   that is is_projector_invoke's job.
+     "^^probe_table" ==> Some("probe_table")   (base gives Some("probe"))
+     "^^p"           ==> Some("p")   (no such kind; still stripped)
+     "let" / "^^"    ==> None */
 let of_projector_invoke = (input: t): option(t) =>
   if (starts_with(~prefix=projector_invoke_prefix, input)
       && length(input) > 2) {
@@ -306,14 +312,10 @@ let of_projector_invoke = (input: t): option(t) =>
     None;
   };
 
-/* Kind name and placement, split apart. An `@opt` suffix (trigger
-   options, e.g. the probe renderer in `^^probe@table`) is stripped
-   before the placement check — Triggers parses it separately. */
-/* After the `_sidebar` placement suffix, a remaining `_opt` suffix is a
-   trigger OPTION (e.g. the probe renderer in `^^probe_table`). `_` is
-   safe: no kind name contains one, and unlike `@` it merges into a
-   single editor token. */
-let strip_sidebar = (body: t): (t, ProjectorCore.Placement.t) =>
+/* Split a trailing placement suffix off the invoke body. Placement is a
+   SUFFIX and the option split below reads the FIRST `_`, so placement must
+   come off first: "probe_table_sidebar" ==> ("probe_table", Sidebar). */
+let split_invoke_placement = (body: t): (t, ProjectorCore.Placement.t) =>
   String.ends_with(~suffix=projector_invoke_sidebar, body)
     ? (
       String.sub(
@@ -325,41 +327,80 @@ let strip_sidebar = (body: t): (t, ProjectorCore.Placement.t) =>
     )
     : (body, ProjectorCore.Placement.Inline);
 
-let of_projector_invoke_opt = (input: t): option(t) =>
-  switch (of_projector_invoke(input)) {
-  | None => None
-  | Some(body) =>
-    let (body, _) = strip_sidebar(body);
-    switch (String.index_opt(body, '_')) {
-    | Some(i) => Some(String.sub(body, i + 1, String.length(body) - i - 1))
-    | None => None
-    };
-  };
-
+/* Invoke body and placement, split apart. The body keeps any option suffix.
+   "^^slider_sidebar" ==> Some(("slider", Sidebar))
+   "^^probe_table"    ==> Some(("probe_table", Inline)) */
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorCore.Placement.t)) =>
-  switch (of_projector_invoke(input)) {
-  | None => None
-  | Some(body) =>
-    let (body, placement) = strip_sidebar(body);
-    let body =
-      switch (String.index_opt(body, '_')) {
-      | Some(i) => String.sub(body, 0, i)
-      | None => body
-      };
-    Some((body, placement));
+  Option.map(split_invoke_placement, of_projector_invoke(input));
+
+/* A `_opt` suffix on the invoke body is a trigger OPTION (e.g. the
+   probe renderer in `^^probe_table`) — stripped for validity; Triggers
+   parses the option itself. `_` is safe: no kind name contains one,
+   and it merges into a single editor token. Splits on the FIRST `_`;
+   whatever follows is the option verbatim.
+     "probe"       ==> ("probe", None)
+     "probe_table" ==> ("probe", Some("table"))
+     "probe_a_b"   ==> ("probe", Some("a_b")) */
+let split_invoke_opt = (body: t): (t, option(t)) =>
+  switch (StringUtil.split_first(~on='_', body)) {
+  | Some((base, opt)) => (base, Some(opt))
+  | None => (body, None)
   };
 
+/* The option a trigger token selects, if it carries one.
+   "^^probe_table" ==> Some("table")
+   "^^probe"       ==> None
+   "let"           ==> None   (not a trigger at all) */
+let of_projector_invoke_opt = (input: t): option(t) =>
+  Option.bind(of_projector_invoke_parts(input), ((body, _)) =>
+    snd(split_invoke_opt(body))
+  );
+
+/* The kind name a trigger token names, with option and placement stripped.
+   "^^probe_table" ==> Some("probe")
+   "^^probe"       ==> Some("probe")
+   "let"           ==> None   (not a trigger at all) */
+let of_projector_invoke_base = (input: t): option(t) =>
+  Option.map(
+    ((body, _)) => fst(split_invoke_opt(body)),
+    of_projector_invoke_parts(input),
+  );
+
+/* Does this token name a known projector kind? Checks the whole body modulo
+   placement, so a trigger carrying an option fails here even though its base
+   names a kind — Triggers.is_refractor_trigger is the option-aware
+   counterpart, which is why Triggers.expand_projector tries the refractor
+   arm first.
+     "^^probe" / "^^slider" / "^^slider_sidebar" ==> true
+     "^^probe_table"                             ==> false  (no such kind)
+     "^^p" / "let" / "^^"                        ==> false */
 let is_projector_invoke = (str: t): bool =>
   switch (of_projector_invoke_parts(str)) {
   | Some((name, _)) => ProjectorCore.Kind.is_name(name)
   | None => false
   };
 
+/* The trigger token naming a kind, plus any option and placement suffixes.
+   Suffix ORDER is load-bearing: the option is read from the first `_` of the
+   placement-stripped body, so placement goes last.
+     Probe                                 ==> "^^probe"
+     Probe ~opt="table"                    ==> "^^probe_table"
+     Slider ~placement=Sidebar             ==> "^^slider_sidebar" */
 let mk_projector_invoke =
-    (~placement=ProjectorCore.Placement.Inline, kind: ProjectorCore.Kind.t)
+    (
+      ~opt: option(t)=?,
+      ~placement=ProjectorCore.Placement.Inline,
+      kind: ProjectorCore.Kind.t,
+    )
     : string =>
   append(projector_invoke_prefix, ProjectorCore.Kind.name(kind))
+  ++ (
+    switch (opt) {
+    | Some(opt) => "_" ++ opt
+    | None => ""
+    }
+  )
   ++ (
     switch (placement) {
     | Inline => ""

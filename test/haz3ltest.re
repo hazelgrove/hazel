@@ -16,6 +16,7 @@ let (suite, _) =
     [
       Test_AgentPersist.tests,
       Test_LazyHydration.tests,
+      Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,

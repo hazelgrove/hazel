@@ -278,7 +278,7 @@ let tests = (
           string,
           "pin reprints as its trigger",
           text,
-          String.trim(PersistentSegment.persist(z).backup_text),
+          String.trim(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -300,7 +300,32 @@ let tests = (
           string,
           "_table reprints",
           text,
-          String.trim(PersistentSegment.persist(z).backup_text),
+          String.trim(MarkerParse.to_text(z)),
+        );
+      },
+    ),
+    test_case(
+      "edge whitespace: writer's final newline stripped, blank lines kept",
+      `Quick,
+      () => {
+        /* one final newline = the writer's artifact; the second trailing
+           newline and the leading blank line + indent are content */
+        let text = "\n  1 + 2\n\n";
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(
+          string,
+          "persist round-trips edge whitespace",
+          text,
+          PersistentZipper.persist(z).backup_text,
+        );
+        /* the doc-slide unchanged-check compares this print against the
+           stored text minus its final newline (ScratchMode.persist) */
+        let seg = Zipper.unselect_and_zip(z);
+        check(
+          string,
+          "print equals stored text minus final newline",
+          Util.StringUtil.strip_final_newline(text),
+          MarkerParse.seg_to_text(~refractors=z.refractors.manuals, seg),
         );
       },
     ),

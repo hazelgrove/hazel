@@ -288,14 +288,14 @@ let basic_tests = [
      take the fast path via its append-a-hole completion rung; goals are
      the typed-out (slow-path) states, trailing convex grout included. */
   test(
-    ~name="Paste body-less binding chain at top level",
-    ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
-    ~goal="let a = 1 in let b = 2 in¦?",
-  ),
-  test(
     ~name="Paste body-less binding at Outer caret at depth",
     ~acts=mk("let x = ¦ in x") @ [Paste("let y = 2 in")],
     ~goal="let x = let y = 2 in¦? in x",
+  ),
+  test(
+    ~name="Paste body-less binding chain at top level",
+    ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
+    ~goal="let a = 1 in let b = 2 in¦?",
   ),
   test(
     ~name="Paste body-less binding inside empty parens (token split)",

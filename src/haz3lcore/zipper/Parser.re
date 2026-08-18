@@ -13,9 +13,6 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
   | _ => ()
   };
 
-/* Try pasting from segment cache. Returns Some if cache hits and
-   guards pass (caret Outer, no token merging at boundaries).
-   The segment gets fresh IDs to support multiple pastes. */
 /* Would splicing [text] at the caret merge with a neighboring token
    (e.g. pasting `+2` right after `x1`)? Shared by the segment-cache
    paste and the FastParse paste gate. */
@@ -40,6 +37,9 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
   };
 };
 
+/* Try pasting from segment cache. Returns Some if cache hits and
+   guards pass (caret Outer, no token merging at boundaries).
+   The segment gets fresh IDs to support multiple pastes. */
 let try_segment_paste =
     (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
   let trim = Util.StringUtil.trim_leading;
@@ -149,11 +149,10 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
-   to_segment drops unmatched delimiters (they end up in the parsing
-   zipper's backpack which is lost during segment extraction), so fast
-   paste must not be used for unbalanced clipboard content.
-   Conservative: delimiters inside string literals cause false negatives,
-   falling back to the correct slow path. */
+   Under the Menhir path unbalanced text just fails to parse and falls
+   back, so this is a cheap pre-filter (skip the parse attempt), not a
+   correctness requirement. Conservative: delimiters inside string
+   literals cause false negatives, falling back to the slow path. */
 let has_balanced_delimiters = (s: string): bool => {
   let chars = Token.to_list(s);
   let stack = ref([]);
@@ -179,10 +178,13 @@ let has_balanced_delimiters = (s: string): bool => {
 };
 
 /* Gate for the FastParse paste attempt (segment splice at the caret).
-   Requires: caret between tokens, top level, no incomplete tiles, Exp
-   sort, no token merging at boundaries, and balanced delimiters in the
-   clipboard. Returns the first failing condition (console telemetry),
-   or None when the splice is safe. */
+   Requires: caret between tokens, no incomplete tiles, Exp sort, no
+   token merging at boundaries, and balanced delimiters in the clipboard.
+   Unlike dev's can_fast_paste this does NOT require a top-level caret:
+   the splice + remold doesn't depend on ancestors beyond the sort check,
+   so nested pastes (inside parens, case arms) take the fast path too.
+   Returns the first failing condition (console telemetry), or None when
+   the splice is safe. */
 let fast_paste_blocker =
     (clipboard: string, z: Zipper.t, ~root): option(string) =>
   if (String.length(clipboard) == 0) {
@@ -199,6 +201,45 @@ let fast_paste_blocker =
     Some("clipboard would merge with a token at the caret boundary");
   } else {
     None;
+  };
+
+/* Fast paste: linear Menhir zip of the clipboard spliced at the caret.
+   A failed attempt costs ~1ms, and a hit turns the worst paste case (a
+   whole external program) into milliseconds with formatting kept
+   verbatim. Error carries why the fast path lost — a gate refusal or the
+   parser's bail note — so the call site can report it; the failure POLICY
+   (falling back to the quadratic typing parser) lives there too. */
+let fast_paste =
+    (clipboard: string, z: Zipper.t, ~root): result(Zipper.t, string) =>
+  switch (fast_paste_blocker(clipboard, z, ~root)) {
+  | Some(why) => Error("gate refused — " ++ why)
+  | None =>
+    switch (
+      FastParse.parsed_of_text(
+        ~materialize=Triggers.invoked_projector,
+        ~collect_refractors=true,
+        ~root,
+        String.trim(clipboard),
+      )
+    ) {
+    | Error(why) => Error("parse bailed — " ++ why)
+    | Ok({segment, refractors}) =>
+      /* Like Zipper.insert_segment, but regrout with Left so the caret
+         lands BEFORE any grout a body-less fragment opens (matching the
+         typing path), not after it. */
+      Ok(
+        Zipper.rescan_reassemble(
+          ~with_parent=true,
+          Left,
+          z
+          |> Zipper.replace_selection(Right, segment)
+          |> Zipper.unselect
+          |> Zipper.remold_regrout(Left, ~root),
+          ~root,
+        )
+        |> Triggers.apply_refractors(refractors),
+      )
+    }
   };
 
 let to_term = (s: string, ~root): option(Language.Exp.t) => {

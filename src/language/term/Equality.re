@@ -67,6 +67,11 @@ type settings = {
   type_alpha: bool, // Alpha equivalence over type variables
   exp_alpha: bool, // Alpha equivalence over expression variables
   ignore_parens: bool,
+  /* Unwrap term-level Projector wrappers. Historically bundled into
+     ignore_parens; split out so differential tests can be strict on
+     parens placement while still seeing through projectors (the menhir
+     pipeline erases ^^triggers, so its terms never carry them). */
+  ignore_projectors: bool,
   ignore_ascriptions: bool,
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
@@ -94,6 +99,7 @@ let equality =
         type_alpha,
         exp_alpha,
         ignore_parens,
+        ignore_projectors,
         ignore_ascriptions,
         ignore_dynamic_errors,
         ignore_function_types,
@@ -137,8 +143,8 @@ let equality =
         exp'(e1, x)
       | (Parens(x), _) when ignore_parens => exp'(x, e2)
       | (_, Parens(x)) when ignore_parens => exp'(e1, x)
-      | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
-      | (_, Projector(_, x)) when ignore_parens => exp'(e1, x)
+      | (Projector(_, x), _) when ignore_projectors => exp'(x, e2)
+      | (_, Projector(_, x)) when ignore_projectors => exp'(e1, x)
       | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
       | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
       | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -527,8 +533,8 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
-    | (Projector(_, x), _) when ignore_parens => pat'(x, p2)
-    | (_, Projector(_, x)) when ignore_parens => pat'(p1, x)
+    | (Projector(_, x), _) when ignore_projectors => pat'(x, p2)
+    | (_, Projector(_, x)) when ignore_projectors => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
@@ -639,8 +645,8 @@ let equality =
       // Wrappers when ignored: unwrap.
       | (Parens(x), _) when ignore_parens => typ'(x, t2)
       | (_, Parens(x)) when ignore_parens => typ'(t1, x)
-      | (Projector(_, x), _) when ignore_parens => typ'(x, t2)
-      | (_, Projector(_, x)) when ignore_parens => typ'(t1, x)
+      | (Projector(_, x), _) when ignore_projectors => typ'(x, t2)
+      | (_, Projector(_, x)) when ignore_projectors => typ'(t1, x)
       | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
           when ignore_explicit_unlabelling =>
         typ'(t1, t2)
@@ -926,6 +932,7 @@ let syntactic_settings = {
   type_alpha: false,
   exp_alpha: false,
   ignore_parens: false,
+  ignore_projectors: false,
   ignore_dynamic_errors: false,
   ignore_ascriptions: false,
   ignore_function_types: false,
@@ -948,6 +955,7 @@ let semantic_settings = {
   type_alpha: true,
   exp_alpha: true,
   ignore_parens: true,
+  ignore_projectors: true,
   ignore_dynamic_errors: false,
   ignore_ascriptions: false,
   ignore_function_types: false,

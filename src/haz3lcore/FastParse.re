@@ -30,14 +30,6 @@ exception Mismatch;
 let bail_note: ref(option(string)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
-/* Refractor triggers (^^probe/^^statics, optionally ^^kind@opt)
-   consumed by the last of_text call when ~collect_refractors was set:
-   (target term id, verbatim trigger token). The caller re-applies them
-   as manual refractor entries on the unzipped zipper (the token is
-   parsed by Triggers.refractor_of_invoke_token — FastParse stays below
-   the action layer). */
-let collected_refractors: ref(list((Id.t, string))) = ref([]);
-
 type tok = {
   gap: string, /* whitespace/comments between previous token and this */
   text: string,
@@ -135,31 +127,44 @@ let weave =
       tokens: list(tok),
       seg: Segment.t,
     )
-    : Segment.t => {
+    : (Segment.t, list((Id.t, string))) => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
-  /* PROVENANCE RETIREMENT LIST — these token equivalences (and the
-     hole_tiles printer setting) exist only because the menhir AST loses
-     concrete syntax: atom spellings, optional tokens, display-flag ids.
-     When completion-provenance (lexeme/shard retention) lands, each one
-     deletes; if this list grows past a handful, flip priorities and
-     land provenance first. Members: float spellings, label quoting,
-     optional leading sum +, nullary f() vs f(()). */
+  /* Refractor triggers (^^probe/^^statics, optionally ^^kind_opt) consumed
+     from the source: (target term id, verbatim trigger token). Accumulated
+     alongside idx because both are written deep in weave_seg's recursion,
+     and returned so callers never read parser state after the fact — the
+     token is parsed back into a kind by Triggers.refractor_of_invoke_token,
+     keeping FastParse below the action layer. */
+  let refractors = ref([]);
+  /* RETIREMENT LIST for the planned completion-provenance work (tiles
+     retaining their source lexemes/shards, making print∘parse the
+     identity on tokens). These token equivalences (and the hole_tiles
+     printer setting) exist only because the menhir AST loses concrete
+     syntax: atom spellings, optional tokens, display-flag ids. When
+     provenance lands, each one deletes; if this list grows past a
+     handful, flip priorities and land provenance first. Members: float
+     spellings, label quoting, optional leading sum +, nullary f() vs
+     f(()). */
   /* Float literals lose their source spelling through the menhir AST
      (the printer emits e.g. "400.000000" for source "400.0"). Accept
      value-equal float spellings — the SOURCE token is what lands, so
      MakeTerm re-reads the source spelling and meaning is preserved.
      Both sides must be float-syntax (dot/exponent): an int/float pair
      is a genuine sort difference and must still mismatch. */
-  let float_syntax = (s: string): bool =>
+  let float_value = (s: string): option(float) =>
     String.exists(c => c == '.' || c == 'e' || c == 'E', s)
-    && Option.is_some(float_of_string_opt(s));
+      ? float_of_string_opt(s) : None;
   let float_equal_toks = (a: string, b: string): bool =>
-    float_syntax(a)
-    && float_syntax(b)
-    && float_of_string(a) == float_of_string(b);
+    switch (float_value(a), float_value(b)) {
+    | (Some(x), Some(y)) => x == y
+    | _ => false
+    };
   /* The printer quotes labels only when necessary; a source label may
-     carry backticks the reprint drops. Source spelling lands. */
+     carry backticks the reprint drops. Source spelling lands. (The
+     both-plain and both-quoted arms only see unequal spellings — equal
+     tokens hit expect's primary equality — but comparing keeps this
+     helper total on its own terms.) */
   let unquote = (s: string): option(string) =>
     String.length(s) >= 2 && s.[0] == '`' && s.[String.length(s) - 1] == '`'
       ? Some(String.sub(s, 1, String.length(s) - 2)) : None;
@@ -167,7 +172,8 @@ let weave =
     switch (unquote(src), unquote(printed)) {
     | (Some(s), None) => s == printed
     | (None, Some(p)) => src == p
-    | _ => false
+    | (None, None)
+    | (Some(_), Some(_)) => src == printed
     };
   /* Returns (gap before the token, the SOURCE spelling that matched).
      The source spelling is what must land in the zipped piece: it equals
@@ -239,48 +245,40 @@ let weave =
      parens are consumed symmetrically by the wrapped pieces. */
   let is_trigger_next = (): bool =>
     switch (peek(0), peek(1)) {
-    | (Some(t), Some("(")) =>
-      String.length(t) > 2 && String.sub(t, 0, 2) == "^^"
+    | (Some(t), Some("(")) => Option.is_some(Token.of_projector_invoke(t))
     | _ => false
     };
   /* Refractor triggers (^^probe / ^^statics) are decorations added
      through the zipper's refractor path, not projector pieces — bail so
      the typing parser's trigger machinery handles them. Unknown kinds
-     bail too (of_name raises). */
+     answer None on both predicates. Token splits the ^^ prefix and the
+     _opt suffix. */
   let trigger_kind = (trigger: string): option(Language.ProjectorKind.t) =>
-    switch (
-      {
-        let (name, _placement) =
-          switch (Token.of_projector_invoke_parts(trigger)) {
-          | Some(parts) => parts
-          | None => raise(Mismatch)
-          };
-        Language.ProjectorKind.of_name(name);
-      }
-    ) {
-    | kind => Some(kind)
-    | exception _ => None
+    Option.bind(
+      Token.of_projector_invoke_base(trigger),
+      Language.ProjectorKind.of_name_opt,
+    );
+  /* A `_sidebar` placement suffix names a docked projector PIECE, so such a
+     trigger materializes even when its kind is otherwise a refractor. */
+  let trigger_is_docked = (trigger: string): bool =>
+    switch (Token.of_projector_invoke_parts(trigger)) {
+    | Some((_, Sidebar)) => true
+    | Some((_, Inline))
+    | None => false
     };
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
-    | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+    | Some(kind) =>
+      Language.ProjectorKind.is_refractor(kind)
+      && !trigger_is_docked(trigger)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
-    /* Token splits the ^^ prefix and the _sidebar placement suffix;
-       any @-suffix (argument syntax) comes off the remaining name. */
-    switch (
-      {
-        let (name, _placement) =
-          switch (Token.of_projector_invoke_parts(trigger)) {
-          | Some(parts) => parts
-          | None => raise(Mismatch)
-          };
-        Language.ProjectorKind.of_name(name);
-      }
-    ) {
-    | kind => !Language.ProjectorKind.is_refractor(kind)
-    | exception _ => false
+    switch (trigger_kind(trigger)) {
+    | Some(kind) =>
+      !Language.ProjectorKind.is_refractor(kind)
+      || trigger_is_docked(trigger)
+    | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
     switch (seg) {
@@ -292,54 +290,18 @@ let weave =
           && trigger_is_refractor(toks[idx^].text) =>
       /* refractor decoration: consume the trigger, splice the wrapped
          pieces bare, and record the target for the caller to re-pin */
-      let trigger = toks[idx^].text;
-      let (trig_gap, _) = expect(trigger);
-      let (paren_gap, _) = expect("(");
-      if (paren_gap != "") {
-        raise(Mismatch);
-      };
-      let rec grab = (ps: Segment.t, acc: Segment.t) =>
-        if (peek(0) == Some(")")) {
-          (List.rev(acc), ps);
-        } else {
-          switch (ps) {
-          | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
-          };
-        };
-      let (wrapped, rest') = grab([p, ...rest], []);
-      let (close_gap, _) = expect(")");
-      let inner = wrapped @ gap_pieces(close_gap);
-      collected_refractors :=
+      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
+      refractors :=
         [
           (Segment.root_id(Segment.skel(inner), inner), trigger),
-          ...collected_refractors^,
+          ...refractors^,
         ];
       /* bind before recursing: token consumption must follow order */
       let tail = weave_seg(rest');
       gap_pieces(trig_gap) @ inner @ tail;
     | [p, ...rest]
         when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
-      let trigger = toks[idx^].text;
-      let (trig_gap, _) = expect(trigger);
-      let (paren_gap, _) = expect("(");
-      if (paren_gap != "") {
-        raise(
-          Mismatch /* triggers are written ^^kind( adjacent */
-        );
-      };
-      let rec grab = (ps: Segment.t, acc: Segment.t) =>
-        if (peek(0) == Some(")")) {
-          (List.rev(acc), ps);
-        } else {
-          switch (ps) {
-          | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
-          };
-        };
-      let (wrapped, rest') = grab([p, ...rest], []);
-      let (close_gap, _) = expect(")");
-      let inner = wrapped @ gap_pieces(close_gap);
+      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
       switch (materialize(trigger, inner)) {
       | Some(proj) =>
         /* bind before recursing: @ and cons evaluate right-to-left, and
@@ -407,21 +369,21 @@ let weave =
         raise(Mismatch);
       };
       let (gap0, tok0) = expect(List.hd(t.label));
-      let (children, label_rev, _) =
-        List.fold_left(
-          ((children_acc, label_acc, shard_i), label_tok) => {
-            /* child shard_i-1 sits between shard_i-1 and shard_i; the
-               gap before the closing token belongs inside the child */
-            let child = weave_seg(List.nth(t.children, shard_i - 1));
+      let (children, label_rev) =
+        List.fold_left2(
+          ((children_acc, label_acc), label_tok, child_seg) => {
+            /* each child sits between consecutive shards; the gap
+               before the closing token belongs inside the child */
+            let child = weave_seg(child_seg);
             let (gap, tok) = expect(label_tok);
             (
               children_acc @ [child @ gap_pieces(gap)],
               [tok, ...label_acc],
-              shard_i + 1,
             );
           },
-          ([], [tok0], 1),
+          ([], [tok0]),
           List.tl(t.label),
+          t.children,
         );
       gap_pieces(gap0)
       @ [
@@ -431,7 +393,36 @@ let weave =
           children,
         }),
       ];
+    }
+  /* Trigger syntax ^^kind( ... ): consume the trigger token and its
+     parens around the woven wrapped pieces. Shared by the refractor and
+     projector arms of weave_seg; returns (trigger, gap before it, the
+     woven pieces inside the parens incl. the closing gap, remaining
+     segment). The first unmatched `)` closes the trigger: inner parens
+     are consumed symmetrically by the wrapped pieces. */
+  and consume_trigger =
+      (seg: Segment.t): (string, string, Segment.t, Segment.t) => {
+    let trigger = toks[idx^].text;
+    let (trig_gap, _) = expect(trigger);
+    let (paren_gap, _) = expect("(");
+    if (paren_gap != "") {
+      raise(
+        Mismatch /* triggers are written ^^kind( adjacent */
+      );
     };
+    let rec grab = (ps: Segment.t, acc: Segment.t) =>
+      if (peek(0) == Some(")")) {
+        (List.rev(acc), ps);
+      } else {
+        switch (ps) {
+        | [] => raise(Mismatch)
+        | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
+        };
+      };
+    let (wrapped, rest) = grab(seg, []);
+    let (close_gap, _) = expect(")");
+    (trigger, trig_gap, wrapped @ gap_pieces(close_gap), rest);
+  };
   let woven = weave_seg(seg);
   if (idx^ != Array.length(toks)) {
     note(
@@ -443,12 +434,20 @@ let weave =
     );
     raise(Mismatch);
   };
-  woven;
+  (woven, refractors^);
+};
+
+/* A successful fast parse: the woven segment plus the refractor triggers
+   the weave consumed from the source. Each attempt builds its own, so a
+   bailed attempt leaves nothing behind for the next one to inherit. */
+type parsed = {
+  segment: Segment.t,
+  refractors: list((Id.t, string)),
 };
 
 let attempt =
     (~materialize: materialize, ~collect_refractors: bool, text: string)
-    : option(Segment.t) =>
+    : option(parsed) =>
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
@@ -468,7 +467,7 @@ let attempt =
           secondary: PreserveExact,
           parenthesization: Structural,
           /* a source `?` lands as the explicit hole TILE; `¿` (the
-             TextRoundtrip marker, lexed like ?) becomes Grout in zip */
+             MarkerParse marker, lexed like ?) becomes Grout in zip */
           hole_tiles: true,
         };
       switch (ExpToSegment.exp_to_segment(~settings, term)) {
@@ -476,7 +475,11 @@ let attempt =
       | seg =>
         switch (weave(~materialize, ~collect_refractors, tokens, seg)) {
         | exception _ => None
-        | woven => Some(woven @ gap_pieces(trailing_gap))
+        | (woven, refractors) =>
+          Some({
+            segment: woven @ gap_pieces(trailing_gap),
+            refractors,
+          })
         }
       };
     }
@@ -493,6 +496,75 @@ let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
   | _ => None
   };
 
+/* Full result: the segment plus the refractor triggers the weave consumed.
+   Only callers that re-pin those triggers (text-slide loading, paste) need
+   this; everything else takes of_text below. Error carries the bail
+   reason (the most specific note the attempt recorded), so result-based
+   callers never read the bail_note ref. */
+let parsed_of_text =
+    (
+      ~materialize: materialize=(_, _) => None,
+      ~collect_refractors: bool=false,
+      ~root: Sort.t,
+      text: string,
+    )
+    : result(parsed, string) => {
+  bail_note := None;
+  let attempt = attempt(~collect_refractors);
+  let fail = (): result(parsed, string) =>
+    Error(Option.value(bail_note^, ~default="no note"));
+  if (root == Sort.Mod) {
+    /* Module-member chunks (update_binding_clause on a member): parse
+       as a braced module body, then unwrap the brace tile. Chunks with
+       spliced separators (leading/trailing ;) fail the wrap parse and
+       fall back — they are small. */
+    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
+    | Some({
+        segment: [Tile({label: ["{", "}"], children: [inner], _})],
+        refractors,
+      }) =>
+      Ok({
+        segment: inner,
+        refractors,
+      })
+    | _ =>
+      /* keep the attempt's own note when it bailed; the generic wrap
+         message only describes a successful parse of the wrong shape */
+      if (bail_note^ == None) {
+        note("mod-root wrap did not yield a single module body");
+      };
+      fail();
+    };
+  } else if (root != Sort.Exp) {
+    note("root sort is not fast-parseable (Exp and Mod only)");
+    fail();
+  } else {
+    switch (attempt(~materialize, text)) {
+    | Some(p) => Ok(p)
+    | None =>
+      /* keep the first attempt's bail note: the retry's failure mode
+         (usually "menhir: parse error on text + ?") is less telling */
+      let first_note = bail_note^;
+      switch (attempt(~materialize, text ++ " ?")) {
+      | Some(p) =>
+        switch (strip_appended_hole(p.segment)) {
+        | Some(segment) =>
+          Ok({
+            ...p,
+            segment,
+          })
+        | None =>
+          bail_note := first_note;
+          fail();
+        }
+      | None =>
+        bail_note := first_note;
+        fail();
+      };
+    };
+  };
+};
+
 let of_text =
     (
       ~materialize: materialize=(_, _) => None,
@@ -500,37 +572,8 @@ let of_text =
       ~root: Sort.t,
       text: string,
     )
-    : option(Segment.t) => {
-  bail_note := None;
-  collected_refractors := [];
-  let attempt = attempt(~collect_refractors);
-  if (root == Sort.Mod) {
-    /* Module-member chunks (update_binding_clause on a member): parse
-       as a braced module body, then unwrap the brace tile. Chunks with
-       spliced separators (leading/trailing ;) fail the wrap parse and
-       fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some([Tile({label: ["{", "}"], children: [inner], _})]) =>
-      Some(inner)
-    | _ =>
-      note("mod-root wrap did not yield a single module body");
-      None;
-    };
-  } else if (root != Sort.Exp) {
-    None;
-  } else {
-    switch (attempt(~materialize, text)) {
-    | Some(seg) => Some(seg)
-    | None =>
-      /* keep the first attempt's bail note: the retry's failure mode
-         (usually "menhir: parse error on text + ?") is less telling */
-      let first_note = bail_note^;
-      switch (attempt(~materialize, text ++ " ?")) {
-      | Some(seg) => strip_appended_hole(seg)
-      | None =>
-        bail_note := first_note;
-        None;
-      };
-    };
+    : option(Segment.t) =>
+  switch (parsed_of_text(~materialize, ~collect_refractors, ~root, text)) {
+  | Ok(p) => Some(p.segment)
+  | Error(_) => None
   };
-};

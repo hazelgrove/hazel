@@ -47,7 +47,8 @@ module Settings = {
     show_unknown_as_hole: bool,
     /* Emit EmptyHole as an explicit "?" TILE instead of Grout — used by
        FastParse so a source `?` lands as the tile the typing parser
-       would make, keeping `?` (explicit) distinct from `¿` (Grout). */
+       would make, keeping explicit `?` holes distinct from Grout
+       (whose text serialization is the `¿` marker). */
     hole_tiles: bool,
   };
 
@@ -2646,8 +2647,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
             shape: Convex,
           }),
         ]);
-      } else if (settings.hole_tiles) {
-        text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
       } else {
         text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
       },

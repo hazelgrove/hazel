@@ -85,6 +85,7 @@ let equal_terms =
     equality({
       ...syntactic_settings,
       ignore_parens: true,
+      ignore_projectors: true,
     }).
       exp
   );

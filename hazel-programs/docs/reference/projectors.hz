@@ -17,13 +17,13 @@
 #    Clicking a fold toggles a hover term display.   #
 
 let fold = ^^fold((
-("Well",
-("hello",
-("there!",
-["Please close me when you're done"]
-)
-)
-)
+  ("Well",
+    ("hello",
+      ("there!",
+        ["Please close me when you're done"]
+      )
+    )
+  )
 )) in
 
 # B. Projectors applying to specific data literals.  #

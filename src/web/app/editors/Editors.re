@@ -191,15 +191,6 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchMode(_) => true
-    | Scratch(action) => ScratchMode.Update.can_undo(action)
-    | Tutorial(action) => TutorialsMode.Update.can_undo(action)
-    | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    };
-  };
-
   let update =
       (
         ~globals: Globals.t,
@@ -258,15 +249,13 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
-      ScratchMode.reset_persist_state();
       Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
-      |> return;
+      |> return
     | (SwitchMode(Documentation), _) =>
-      ScratchMode.reset_persist_state();
       Model.Documentation(
         Store.load_documentation(~settings=globals.settings.core),
       )
-      |> return;
+      |> return
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(

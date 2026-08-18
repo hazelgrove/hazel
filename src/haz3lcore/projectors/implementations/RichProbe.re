@@ -31,7 +31,7 @@ module type RichProbe = {
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
   /* Default state independent of any sample value — the model a
-     text-level renderer selection (`^^probe@<id>`) starts with. */
+     text-level renderer selection (`^^probe_<id>`) starts with. */
   let empty: model;
 
   let badge: Node.t;
