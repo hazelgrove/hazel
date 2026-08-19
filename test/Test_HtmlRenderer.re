@@ -313,6 +313,44 @@ let evaluate_incrementally = (~before: Language.Exp.t, ~after: Language.Exp.t) =
   value;
 };
 
+/* The msg the browser actually dispatches: the handler value sitting in the
+   rendered pad's OnClick attribute, not a separately-evaluated expression. In
+   the pad the deferred application has been through substitution inside
+   `calc`'s body, which a top-level evaluation of the same text has not. */
+let rec find_onclick = (html: Language.Exp.t): option(Language.Exp.t) =>
+  switch (Haz3lcore.MvuShape.of_constructor(html)) {
+  | Some(("OnClick", payload)) => Some(payload)
+  | Some((_, body)) =>
+    let kids =
+      switch (Haz3lcore.MvuShape.of_tuple(body)) {
+      | Some(parts) => parts
+      | None => [body]
+      };
+    List.fold_left(
+      (acc, part) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          switch (Haz3lcore.MvuShape.of_list(part)) {
+          | Some(items) =>
+            List.fold_left(
+              (acc, i) =>
+                switch (acc) {
+                | Some(_) => acc
+                | None => find_onclick(i)
+                },
+              None,
+              items,
+            )
+          | None => find_onclick(part)
+          }
+        },
+      None,
+      kids,
+    );
+  | None => None
+  };
+
 let tests = (
   "HtmlRenderer",
   [
@@ -645,6 +683,30 @@ let tests = (
           true,
           Haz3lcore.MvuShape.is_html(incr),
         );
+        /* Does the committed program even typecheck? An error mark makes
+           elaboration insert holes and evaluation indeterminate, which is
+           exactly the symptom the editor shows. */
+        let Haz3lcore.MakeTerm.{term: sem_term, _} =
+          Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+        let (info_map, _) =
+          Statics.mk(
+            CoreSettings.on,
+            Builtins.ctx_init(Some(Int)),
+            sem_term,
+          );
+        let errs = Statics.Map.error_ids(info_map);
+        if (errs != []) {
+          print_endline(
+            "STATIC-ERRORS after commit: "
+            ++ string_of_int(List.length(errs)),
+          );
+        };
+        check(
+          int,
+          "committed program has no static errors",
+          0,
+          List.length(errs),
+        );
         let probed = evaluate_with_probes(z);
         if (!Haz3lcore.MvuShape.is_html(probed)) {
           let txt =
@@ -685,6 +747,75 @@ let tests = (
             check(
               bool,
               "html in slices with incremental reuse, as the worker does",
+              true,
+              Haz3lcore.MvuShape.is_html(value),
+            );
+          };
+        };
+      },
+    ),
+    /* The level nothing else reaches: drive the EDITOR's update cycle, take the
+       term it would have posted to the worker (CachedStatics, not a fresh
+       Statics.mk), and evaluate it the way the worker does. See
+       docs/testing-projectors.md. */
+    test_case(
+      "a commit performed through the editor evaluates",
+      `Quick,
+      () => {
+        let program =
+          switch (
+            List.assoc_opt("Charts / Calculator", Charts.Slides.all_slides)
+          ) {
+          | Some({backup_text, _}: Haz3lcore.PersistentZipper.t) => backup_text
+          | None => Alcotest.fail("Calculator slide not registered")
+          };
+        let model = EditorCycle.of_text(program);
+        let id =
+          switch (EditorCycle.first_probe_id(model)) {
+          | Some(id) => id
+          | None => Alcotest.fail("no probe in the slide")
+          };
+        /* The REAL commit: HtmlRenderer.commit_syntax over the info the probe's
+           renderer actually receives. */
+        let info = EditorCycle.probe_info(model, id);
+        /* Pull the msg out of the rendered pad, as HazelDOM's dispatch does. */
+        let pad = evaluate(elaborate(parse_exp(program)));
+        let msg =
+          switch (find_onclick(pad)) {
+          | Some(m) => m
+          | None => Alcotest.fail("no OnClick handler in the rendered pad")
+          };
+        let seg =
+          switch (Haz3lcore.HtmlRenderer.commit_syntax(info, msg)) {
+          | Some(seg) => seg
+          | None => Alcotest.fail("commit_syntax returned None")
+          };
+        let idx = EditorCycle.refractor_idx(model, id);
+        switch (
+          EditorCycle.perform(Project(SetSyntax(idx, Probe, seg)), model)
+        ) {
+        | Error(msg) => Alcotest.fail("SetSyntax failed: " ++ msg)
+        | Ok(after) =>
+          check(
+            int,
+            "no static errors after the commit",
+            0,
+            List.length(EditorCycle.error_ids(after)),
+          );
+          switch (EditorCycle.evaluate_as_worker(after)) {
+          | Error(msg) => Alcotest.fail("worker evaluation: " ++ msg)
+          | Ok((value, _)) =>
+            if (!Haz3lcore.MvuShape.is_html(value)) {
+              let txt =
+                Language.Exp.show(Haz3lcore.MvuShape.strip_wrappers(value));
+              print_endline(
+                "EDITOR-CYCLE-HEAD: "
+                ++ String.sub(txt, 0, min(1200, String.length(txt))),
+              );
+            };
+            check(
+              bool,
+              "html after a commit performed through the editor",
               true,
               Haz3lcore.MvuShape.is_html(value),
             );

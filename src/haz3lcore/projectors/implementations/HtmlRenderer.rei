@@ -28,6 +28,11 @@ let handler_syntax: (~bound: string => bool, Language.Exp.t) => Language.Exp.t;
 /* `base |> handler`, the shape a press commits. */
 let spliced: (~handler: Language.Exp.t, Language.Exp.t) => Language.Exp.t;
 
+/* The segment a press commits: `base |> handler`, lifted through
+   info.utility.lift_syntax. None when the lift fails. */
+let commit_syntax:
+  (ProjectorBase.info, Language.Exp.t) => option(Base.segment);
+
 include
   RichProbe.RichProbe with
     type model = m and type action = a and type value = v;

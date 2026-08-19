@@ -4,10 +4,35 @@ Notes from building the html rich probe, written down because most of the time
 went into *finding out what was wrong* rather than fixing it. Read this before
 reaching for a browser.
 
+## `test/EditorCycle.re` — drive the editor, not the browser
+
+The harness for anything that commits syntax. It runs the editor's own update
+cycle in-process, so a test can ask for *the term the editor would have sent to
+the worker* and then run it the way the worker runs it:
+
+| Function | What it gives you |
+|---|---|
+| `of_text` | a `CodeWithStatics.Model.t` with statics calculated the editor's way |
+| `calculate(~is_edited)` | the pass the editor runs after every edit |
+| `perform(action, model)` | `Perform.go` + that pass, i.e. one turn of the cycle |
+| `probe_info(model, id)` | the `info` a probe's renderer actually receives, via `RefractorView.mk_data` — its `syntax` is unparenthesized, trimmed and re-parenthesized, *not* the raw `TermData` segment |
+| `refractor_idx` | the index `Action.SetSyntax` wants |
+| `request(model)` | `(elaborated, EvalInfo.t)` — from `CachedStatics`, not a fresh `Statics.mk` |
+| `evaluate_as_worker(~prev)` | `start_yielding_evaluation` + `run_yielding_slice` at the worker's own 5000-step budget |
+
+A full round trip is then: `of_text` → `probe_info` → the renderer's real
+`commit_syntax` → `perform(Project(SetSyntax(...)))` → `error_ids` →
+`evaluate_as_worker`. Every step is the editor's own code.
+
+Two details it exists to stop you getting wrong, both of which cost us a day:
+`info.syntax` is not the raw segment, and the msg a handler dispatches is the
+value sitting in the *rendered* tree (post-substitution inside its enclosing
+function), not the same expression evaluated at top level.
+
 ## Test the seam, not the screen
 
 Almost everything a projector does is checkable in-process. `test/Test_HtmlRenderer.re`
-covers the commit path at eight levels in ~7 seconds:
+covers the commit path at nine levels in ~10 seconds:
 
 | Level | What it uses |
 |---|---|
@@ -19,6 +44,7 @@ covers the commit path at eight levels in ~7 seconds:
 | incremental | `EvaluatorState.get_incr_eval` threaded as `~prev` |
 | probe-instrumented | `EvalInfo.of_targets(targets_of_zipper(...))` |
 | sliced | `start_yielding_evaluation` + `run_yielding_slice(~step_budget=5000)` |
+| the whole cycle | `EditorCycle` — real `info`, real `commit_syntax`, real `Perform.go`, `CachedStatics`, worker-style slices |
 
 Two things made that possible and are worth copying:
 
@@ -106,23 +132,20 @@ loop at its own 5000-step budget, sliced *and* reusing the previous pass's
 `IncrEval`, and `Statics.Map.error_ids` on the committed program. The real slide
 text, not an analogue, at every level.
 
-So the committed document the browser holds differs from the one a test
-reconstructs, and nothing reachable from a test can see the difference. Two
-places that could hide it:
+`EditorCycle` was built to close the two gaps that were then outstanding — the
+editor's `CachedStatics` elaboration and the worker's sliced evaluation — and it
+covers both. **It still does not reproduce this.** With the real `info`, the real
+`commit_syntax`, the msg taken out of the rendered pad, the commit performed as
+an editor action, and evaluation sliced at the worker's budget, the committed
+program evaluates to html.
 
-- **`expr` comes from the editor's `CachedStatics`**, not a fresh `Statics.mk`
-  with `CoreSettings.on` and `ctx_init(Some(Int))`. A test cannot currently ask
-  for "the term the editor would have sent".
-- **The worker's request lifecycle.** `WorkerServer` abandons superseded
-  requests via `is_latest`; a request abandoned without a replacement completing
-  leaves the last streamed partial on screen forever, which is
-  indistinguishable from an evaluation that got stuck.
+So whatever is left is outside everything the harness models: not the commit,
+not elaboration, not evaluation. That points at the live UI layer — view
+construction, `HazelDOM`'s dispatch, or `WorkerServer`'s request scheduling
+(`is_latest` abandons superseded requests; one abandoned without a replacement
+completing would leave the last streamed partial on screen forever, which looks
+exactly like a stuck evaluation).
 
-**The mechanism worth building.** Both gaps close the same way: a harness that
-drives the editor's own update cycle over a scripted sequence — perform an
-action, take the resulting model, read the `expr` and `eval_info_map` it would
-post, then drive `WorkerServer`'s update function over those requests. Every
-level in the table above stops one step short of that, which is exactly why the
-one bug that matters slipped through all of them. Until it exists, a projector
-that commits syntax cannot be verified end to end without a browser, and the
-browser is where a day goes.
+The next thing to build, if it comes back: drive `WorkerServer`'s update
+function over a scripted request sequence, so abandonment and streaming are
+observable. That is the one layer with no test coverage at all.
