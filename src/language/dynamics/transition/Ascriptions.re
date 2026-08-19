@@ -186,7 +186,18 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when Typ.is_consistent(ctx, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            /* The constructor's own result type needs the same resolution the
+               ascription type got above: compact_builtin_recs leaves builtin
+               aliases as Var("JSON"), and Typ.unroll only unrolls a Rec, so
+               without normalizing here a builtin ADT's constructor is never
+               consistent with the Sum and the ascription never pushes in —
+               leaving `case` stuck on an ascribed value. */
+            Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
+            sumt' |> Typ.temp,
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -201,7 +212,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(ctx, Typ.unroll(t), t' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            Typ.unroll(Typ.weak_head_normalize(ctx, t)),
+            t' |> Typ.temp,
+          ) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(
