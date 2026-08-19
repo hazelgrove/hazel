@@ -129,21 +129,24 @@ on.
 
 ### Known gap: the proof/derivation components
 
-`AxiomsBox` (2 `let.calc`) and `MissingStep` (5) are the remaining components with
-substantial `Calc` logic and no coverage. They resist the approach above for a
-specific reason worth recording rather than rediscovering: with a plain
-expression context their cached values come back empty, and an empty list or map
-in OCaml is a shared constant, so `x === y` holds whether the value was reused or
-rebuilt. Every reuse test written that way passes vacuously -- including under a
-mutation that forces a recompute, which is how the vacuity was caught here.
+`AxiomsBox`'s filtered rewrite list is the one guard here that resists testing,
+for a reason worth recording rather than rediscovering: with a plain expression
+context it comes back empty, and an empty list or map in OCaml is a shared
+constant, so `x === y` holds whether the value was reused or rebuilt. A reuse
+test written that way passes vacuously -- including under a mutation that forces
+a recompute, which is how the vacuity was caught. Covering it needs a fixture
+with a real proof context (assumptions and propositions) so the list is
+non-empty.
 
-Covering them needs a fixture with a real proof context -- assumptions and
-propositions, so the derived rule and rewrite lists are non-empty -- at which
-point physical equality becomes a fair observable again. `Test_Theorems` shows
-the shape of that setup for theorems specifically: evaluate a real `theorem`
-program with `enable_proof` on and feed the resulting `Dynamics.t` in, with a
-fixture guard asserting the program really did contribute a theorem so the rest
-cannot pass vacuously.
+`MissingStep`'s assumption set does not have that problem -- it is seeded from
+`Axioms.v` and is non-empty -- which is why `Test_MissingStep` can use physical
+equality and its neighbour cannot. When a cached value might be empty, check
+whether your test still fails under a mutation before trusting it.
+
+`Test_Theorems` shows the shape of a real-fixture setup: evaluate an actual
+`theorem` program with `enable_proof` on and feed the resulting `Dynamics.t` in,
+with a fixture guard asserting the program really did contribute a theorem so the
+rest cannot pass vacuously.
 
 ## The Future
 

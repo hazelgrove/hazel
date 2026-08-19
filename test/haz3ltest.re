@@ -25,6 +25,7 @@ let (suite, _) =
       Test_StepperView.tests,
       Test_Editors.tests,
       Test_Theorems.tests,
+      Test_MissingStep.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
