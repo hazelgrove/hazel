@@ -23,6 +23,7 @@ let (suite, _) =
       Test_Calc.tests,
       Test_Page.tests,
       Test_StepperView.tests,
+      Test_Editors.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
