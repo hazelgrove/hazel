@@ -175,13 +175,36 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
   go(0, [start], pieces);
 };
 
+/* Does an operand sit to the left of index j? If so the index is in
+ * OPERATOR position, where a convex-left (prefix) mold cannot serve.
+ * Secondary AND grout are transparent: grout is derived from the
+ * molding under test (a prefix mold beside an operand is exactly what
+ * makes regrout insert a concave junction there), so consulting it
+ * would beg the question. The nearest real piece decides. */
+let rec operand_to_left = (seg: Segment.t, j: int): bool =>
+  j <= 0
+    ? false
+    : (
+      switch ((List.nth(seg, j - 1): Piece.t)) {
+      | Secondary(_)
+      | Grout(_) => operand_to_left(seg, j - 1)
+      | Projector(_) => true
+      | Tile(t) =>
+        switch (snd(Mold.nibs(~index=Tile.r_shard(t), t.mold)).shape) {
+        | Convex => true
+        | Concave(_) => false
+        }
+      }
+    );
+
 /* A prefix-token witness for a missing shard: a token whose text is
  * a proper prefix of the expected shard's text: (1) molded as an
  * infix-delimiter prefix, or (2) symbolic with no legitimate
- * non-label mold at the slot's sort (`-` molds only at Exp, so after
- * a Pat it must be a broken `->`; label-precedence molds don't
- * block). The tile independently EXPECTS the delimiter; the token
- * only witnesses WHERE. */
+ * non-label mold at the slot's sort AND position. `-` outs at Pat
+ * only as unary minus, a prefix, so after a complete Pat operand it
+ * can only be a broken `->`; label-precedence molds don't block. The
+ * tile independently EXPECTS the delimiter; the token only witnesses
+ * WHERE. */
 let is_symbolic_token = (tok: Token.t): bool => {
   let n = String.length(tok);
   let rec go = k =>
@@ -198,7 +221,9 @@ let is_symbolic_token = (tok: Token.t): bool => {
   n > 0 && go(0);
 };
 
-let is_prefix_witness = (~slot: Sort.t, p: Piece.t, shard_text: Token.t): bool =>
+let is_prefix_witness =
+    (~slot: Sort.t, ~operand_left: bool, p: Piece.t, shard_text: Token.t)
+    : bool =>
   switch (p) {
   | Tile({label: [tok], _}) =>
     Token.length(tok) < Token.length(shard_text)
@@ -213,7 +238,7 @@ let is_prefix_witness = (~slot: Sort.t, p: Piece.t, shard_text: Token.t): bool =
                && (
                  switch (fst(m.nibs).shape) {
                  | Concave(prec) => prec != Precedence.lab
-                 | Convex => true
+                 | Convex => !operand_left
                  }
                ),
              Form.Molds.get_base([tok]),
@@ -298,7 +323,12 @@ let middle_split_plan =
       let token_sites =
         indexed
         |> List.filter_map(((j, pc): (int, Piece.t)) =>
-             is_prefix_witness(~slot=l_nib.sort, pc, List.nth(t.label, m))
+             is_prefix_witness(
+               ~slot=l_nib.sort,
+               ~operand_left=operand_to_left(child, j),
+               pc,
+               List.nth(t.label, m),
+             )
                ? legal(j) |> Option.map(lr => (pc, lr)) : None
            );
       let junctions =
@@ -1349,10 +1379,23 @@ let find_trailing_site =
   let witness_sites =
     List.init(max(witness_end - cursor, 0), k => cursor + k)
     |> List.filter(j =>
-         is_prefix_witness(~slot=l_nib.sort, List.nth(seg, j), shard_text)
+         is_prefix_witness(
+           ~slot=l_nib.sort,
+           ~operand_left=operand_to_left(seg, j),
+           List.nth(seg, j),
+           shard_text,
+         )
        );
+  /* LEFTMOST, not unique: the region used to hold at most one
+     candidate because the frontier clipped at the broken symbol, but
+     `-` now has a (prefix) Pat mold, so a Pat slot no longer ends at
+     the dash and a body minus can share the region. Position
+     legitimacy carries the safety argument instead: a candidate must
+     sit in operator position (see is_prefix_witness), which the
+     pattern's OWN unary minus never does, so the leftmost candidate
+     is the broken shard. */
   switch (witness_sites) {
-  | [j] => Some(TrailWitness(j))
+  | [j, ..._] => Some(TrailWitness(j))
   | _ =>
     switch (r_nib.shape) {
     | Convex => None
