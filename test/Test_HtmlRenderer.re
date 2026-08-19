@@ -778,8 +778,16 @@ let tests = (
         /* The REAL commit: HtmlRenderer.commit_syntax over the info the probe's
            renderer actually receives. */
         let info = EditorCycle.probe_info(model, id);
-        /* Pull the msg out of the rendered pad, as HazelDOM's dispatch does. */
-        let pad = evaluate(elaborate(parse_exp(program)));
+        /* Pull the msg out of the rendered pad, as HazelDOM's dispatch does.
+           The pad MUST come from the model's own elaborated term: a second
+           parse of the same text mints disjoint ids, so the msg could never
+           collide with the document, and the commit would be testing an input
+           the browser never produces. */
+        let pad =
+          switch (EditorCycle.evaluate_as_worker(model)) {
+          | Ok((v, _)) => v
+          | Error(m) => Alcotest.fail("pre-commit evaluation: " ++ m)
+          };
         let msg =
           switch (find_onclick(pad)) {
           | Some(m) => m
@@ -821,6 +829,102 @@ let tests = (
             );
           };
         };
+      },
+    ),
+    /* The level the harness was still missing. `EvalResult.Update.calculate`
+       sets `incr_eval := streaming_outbox.completed` while a result is
+       `ResultPending`, and that partial map is the `prev` the NEXT request
+       carries. The worker abandons an in-flight run as soon as a newer request
+       arrives (`WorkerServer.is_latest`), so a commit that lands mid-evaluation
+       re-evaluates against a partial map. A fresh page load starts from
+       `IncrEval.empty` and is unaffected -- which is exactly the asymmetry
+       observed in the browser. */
+    test_case(
+      "a commit evaluated against a partial (abandoned) incr map",
+      `Quick,
+      () => {
+        let program =
+          switch (
+            List.assoc_opt("Charts / Calculator", Charts.Slides.all_slides)
+          ) {
+          | Some({backup_text, _}: Haz3lcore.PersistentZipper.t) => backup_text
+          | None => Alcotest.fail("Calculator slide not registered")
+          };
+        let model = EditorCycle.of_text(program);
+        let id =
+          switch (EditorCycle.first_probe_id(model)) {
+          | Some(id) => id
+          | None => Alcotest.fail("no probe in the slide")
+          };
+        let info = EditorCycle.probe_info(model, id);
+        let pad =
+          switch (EditorCycle.evaluate_as_worker(model)) {
+          | Ok((v, _)) => v
+          | Error(m) => Alcotest.fail("pre-commit evaluation: " ++ m)
+          };
+        let msg =
+          switch (find_onclick(pad)) {
+          | Some(m) => m
+          | None => Alcotest.fail("no OnClick handler in the rendered pad")
+          };
+        let seg =
+          switch (Haz3lcore.HtmlRenderer.commit_syntax(info, msg)) {
+          | Some(seg) => seg
+          | None => Alcotest.fail("commit_syntax returned None")
+          };
+        let idx = EditorCycle.refractor_idx(model, id);
+        let after =
+          switch (
+            EditorCycle.perform(Project(SetSyntax(idx, Probe, seg)), model)
+          ) {
+          | Error(m) => Alcotest.fail("SetSyntax failed: " ++ m)
+          | Ok(after) => after
+          };
+        /* Abandon the pre-commit run after n slices, keep what it streamed,
+           then evaluate the committed program against it. Sweep n so the test
+           does not depend on where the cut happens to land. */
+        List.iter(
+          slices => {
+            let prev =
+              slices == 0
+                ? switch (EditorCycle.evaluate_as_worker(model)) {
+                  | Ok((_, state)) => state.incr_eval
+                  | Error(m) => Alcotest.fail("pre-commit evaluation: " ++ m)
+                  }
+                : EditorCycle.partial_prev(~slices, model);
+            switch (EditorCycle.evaluate_as_worker(~prev, after)) {
+            | Error(m) =>
+              Alcotest.fail(
+                "worker evaluation after "
+                ++ string_of_int(slices)
+                ++ " slices: "
+                ++ m,
+              )
+            | Ok((value, _)) =>
+              if (!Haz3lcore.MvuShape.is_html(value)) {
+                let txt =
+                  Language.Exp.show(
+                    Haz3lcore.MvuShape.strip_wrappers(value),
+                  );
+                print_endline(
+                  "PARTIAL-PREV-HEAD("
+                  ++ string_of_int(slices)
+                  ++ "): "
+                  ++ String.sub(txt, 0, min(600, String.length(txt))),
+                );
+              };
+              check(
+                bool,
+                "html with prev from slices="
+                ++ string_of_int(slices)
+                ++ " slices",
+                true,
+                Haz3lcore.MvuShape.is_html(value),
+              );
+            };
+          },
+          [0, 1, 2, 3, 5, 8, 13],
+        );
       },
     ),
     test_case(

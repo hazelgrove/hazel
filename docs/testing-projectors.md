@@ -114,38 +114,80 @@ Two performance cliffs in the html/probe path present as breakage, not slowness:
 Both are worth measuring with `./hazel run <file> | wc -c` before assuming a
 logic error.
 
-## Still missing
-
-One bug outlived every level above, and the shape of the search is the lesson.
+## The bug that outlived nine levels — and why
 
 **Symptom.** A handler written as a deferred application (`pressDigit(_, "1")`)
 commits correctly — the source really does become
 `(calc(0) |> pressDigit(_, "1"))` — and the program then evaluates to an
-*indeterminate* `setState(...)` in the editor and stays there. The equivalent
-named handler works. `./hazel run` on the same committed text reduces it.
+*indeterminate* `setState(...)` in the editor and stays there, surviving a slide
+switch. The equivalent named handler worked. `./hazel run` on the same committed
+text reduced it. A page reload fixed it.
 
-**Ruled out, all in-process:** segment well-formedness (`Highlight.of_tile`'s own
-assertion), document id reuse, the real `lift_syntax`, ProjectorPerform's
-refractor branch including the leftover selection, plain evaluation, `IncrEval`
-reuse, probe instrumentation via `EvalInfo.of_targets`, the worker's sliced
-loop at its own 5000-step budget, sliced *and* reusing the previous pass's
-`IncrEval`, and `Statics.Map.error_ids` on the committed program. The real slide
-text, not an analogue, at every level.
+**Root cause.** `IncrEval.reuse_check` handed back a cached value that was a
+bare `Fun` — no `Closure` wrapper, so no environment.
 
-`EditorCycle` was built to close the two gaps that were then outstanding — the
-editor's `CachedStatics` elaboration and the worker's sliced evaluation — and it
-covers both. **It still does not reproduce this.** With the real `info`, the real
-`commit_syntax`, the msg taken out of the rendered pad, the commit performed as
-an editor action, and evaluation sliced at the worker's budget, the committed
-program evaluates to html.
+`Transition`'s `Closure` rule evaluates subterms with `~in_closure`, and
+`wrap_closure_when_done` therefore *suppresses* the `Closure` wrapper for a
+function value nested under a `Closure`. That is correct in place: the enclosing
+`Closure` supplies the environment. But a cache entry is keyed by id alone and is
+replayed at top level (`reuse_check` requires `call_stack.stack == []`), where
+that enclosing `Closure` is gone. Applying the replayed function then lands in
 
-So whatever is left is outside everything the harness models: not the commit,
-not elaboration, not evaluation. That points at the live UI layer — view
-construction, `HazelDOM`'s dispatch, or `WorkerServer`'s request scheduling
-(`is_latest` abandons superseded requests; one abandoned without a replacement
-completing would leave the last streamed partial on screen forever, which looks
-exactly like a stuck evaluation).
+```reason
+| FunNoEnv(dp, d3) when mode == `Substitution => …step…
+| FunNoEnv(_) => Indet          // ← environment mode: silently final
+```
 
-The next thing to build, if it comes back: drive `WorkerServer`'s update
-function over a scripted request sequence, so abandonment and streaming are
-observable. That is the one layer with no test coverage at all.
+so the application is final-but-stuck and never reduces again. The fix is a
+`carries_env` guard in `reuse_check`: don't reuse a value that carries no
+environment of its own.
+
+**Why the harness missed it — the actual lesson.** `EditorCycle.request` built
+its `eval_info` with `EvalInfo.of_targets(model.statics.targets)`. The editor
+builds it with `EvalInfo.of_info_map(~probe_all, ~targets, statics.info_map)`.
+Only `of_info_map` populates the per-id `statics` field (`elab_term`, `co_ctx`,
+`probe_targets`) — and `reuse_check` begins with
+`EvalInfo.find_opt(id, eval_info)`, so with `of_targets` **reuse never happens at
+all**. Nine levels of harness were evaluating with the incremental evaluator
+switched off, and no amount of extra levels below that would have found it.
+
+Two ingredients are each necessary, which is why nothing simpler reproduced it:
+a non-empty `prev`, and an `eval_info` built the way the editor builds it.
+
+Ruled out along the way, all in-process: segment well-formedness
+(`Highlight.of_tile`'s own assertion), document id reuse (`dup_ids=0` in the live
+editor), the real `lift_syntax`, ProjectorPerform's refractor branch including
+the leftover selection, plain evaluation, the worker's sliced loop at its own
+5000-step budget, streaming, and `Statics.Map.error_ids`. Forcing the browser
+onto the main-thread `evaluate_sync` path still reproduced it, which exonerated
+the worker, slicing and streaming in one move — worth doing early next time.
+
+**What made it debuggable in the end**, in order of value:
+
+1. **Instrument the real thing and read the console.** `prerr_endline` reaches
+   `console.error` from jsoo, and `read_console_messages` with a `pattern` reads
+   it. One build that printed what `RichProbe.parse` was rejecting settled a
+   question three rounds of structural reasoning had not.
+2. **Force the sync path** (`queue_worker = None` in `ScratchMode`) to delete the
+   worker, slicing and streaming from the picture.
+3. **Bisect by disabling, not by reading.** `reuse_check |> always None` turned
+   "reuse is involved somehow" into a fact in one run.
+4. **Compare the harness's inputs against the real call site field by field.**
+   The bug was in an argument the harness constructed differently, not in the
+   code under test.
+
+Two traps that cost real time and will recur:
+
+- **A second parse mints disjoint ids.** `parse_exp(program)` produces a term
+  whose ids cannot collide with the model's, so a msg taken from it exercises a
+  commit the browser never performs. Take the pad from the model's own
+  evaluation.
+- **`use` is a reserved word.** A `.hz` program that binds it fails to parse, and
+  `./hazel run` reports the failure as a line of echoed source that reads exactly
+  like a stuck evaluation. Six "reproductions" of a nonexistent `DeferredAp` bug
+  came from that. Read the whole output, not `tail -2`.
+
+## Still missing
+
+`WorkerServer`'s update function has no test coverage: request scheduling,
+`is_latest` abandonment and streaming are only exercised through the browser.

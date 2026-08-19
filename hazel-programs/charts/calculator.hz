@@ -5,11 +5,11 @@
 # prune a step, or type one by hand: #
 
 #   calc(0)                                                                 #
-#     |> d1                                                                 #
-#     |> d2                                                                 #
-#     |> times                                                              #
-#     |> d4                                                                 #
-#     |> equals                                                             #
+#     |> pressDigit(_, "1")                                                                 #
+#     |> pressDigit(_, "2")                                                                 #
+#     |> pressOp(_, "*")                                                              #
+#     |> pressDigit(_, "4")                                                                 #
+#     |> pressOp(_, "=")                                                             #
 
 # This started as an OCaml CalculatorRenderer that probed an Int and rewrote #
 # it to `n + 3`. Nothing here is built in: the pad is html, the keys are #
@@ -100,38 +100,7 @@ let pressOp =
     )
 in
 
-# Each key is a NAMED function of this exact shape. The probe splices the #
-# name the evaluator recorded on it, which keeps the committed pipeline #
-# readable. #
-
-# Inline handlers — `pressDigit(_, "7")` — are recognized too, and would #
-# remove these sixteen bindings. They commit correctly, but the committed #
-# program then sticks unevaluated in the editor for reasons not yet found: #
-# every stage reproduced in Test_HtmlRenderer evaluates it fine, including #
-# the worker's own sliced-with-reuse path. Named is what ships. #
-
-# Nothing is annotated, deliberately: evaluation substitutes environments #
-# away, so each key closure carries every helper it reaches, and an #
-# annotation naming HTML or Attr drags the whole expanded sum along with it. #
-# Annotated, this pad evaluates to 1.2MB and the editor times out. #
-
-let d0 = fun node -> pressDigit(node, "0") in
-let d1 = fun node -> pressDigit(node, "1") in
-let d2 = fun node -> pressDigit(node, "2") in
-let d3 = fun node -> pressDigit(node, "3") in
-let d4 = fun node -> pressDigit(node, "4") in
-let d5 = fun node -> pressDigit(node, "5") in
-let d6 = fun node -> pressDigit(node, "6") in
-let d7 = fun node -> pressDigit(node, "7") in
-let d8 = fun node -> pressDigit(node, "8") in
-let d9 = fun node -> pressDigit(node, "9") in
-
-let plus = fun node -> pressOp(node, "+") in
-let minus = fun node -> pressOp(node, "-") in
-let times = fun node -> pressOp(node, "*") in
-let divide = fun node -> pressOp(node, "/") in
-let equals = fun node -> pressOp(node, "=") in
-let clear = fun node -> setState(node, "0", "", "") in
+# Inlined handlers: a deferred application still names pressDigit. #
 
 let key =
   fun (label, op) -> Button([OnClick(op), Class("calc-key")], [Text(label)])
@@ -147,23 +116,27 @@ let calc =
     ], [
       display(string_of_int(n), "", ""),
       Div([Class("calc-keys")], [
-        key("7", d7), key("8", d8), key("9", d9), key("/", divide),
-        key("4", d4), key("5", d5), key("6", d6), key("*", times),
-        key("1", d1), key("2", d2), key("3", d3), key("-", minus),
-        key("0", d0), key("C", clear), key("=", equals), key("+", plus)
+        key("7", pressDigit(_, "7")), key("8", pressDigit(_, "8")),
+        key("9", pressDigit(_, "9")), key("/", pressOp(_, "/")),
+        key("4", pressDigit(_, "4")), key("5", pressDigit(_, "5")),
+        key("6", pressDigit(_, "6")), key("*", pressOp(_, "*")),
+        key("1", pressDigit(_, "1")), key("2", pressDigit(_, "2")),
+        key("3", pressDigit(_, "3")), key("-", pressOp(_, "-")),
+        key("0", pressDigit(_, "0")), key("C", setState(_, "0", "", "")),
+        key("=", pressOp(_, "=")), key("+", pressOp(_, "+"))
       ])
     ])
 in
 
 hint "digits accumulate into one operand rather than replacing it"
 test
-  let (_, _, entry) = stateOf(calc(0) |> d1 |> d2 |> d3) in
+  let (_, _, entry) = stateOf(calc(0) |> pressDigit(_, "1") |> pressDigit(_, "2") |> pressDigit(_, "3")) in
   entry == "123"
 end;
 
 hint "an operator folds the pending entry into the total"
 test
-  let (acc, op, entry) = stateOf(calc(0) |> d1 |> d2 |> times) in
+  let (acc, op, entry) = stateOf(calc(0) |> pressDigit(_, "1") |> pressDigit(_, "2") |> pressOp(_, "*")) in
   acc == "12" && op == "*" && entry == ""
 end;
 
@@ -172,11 +145,11 @@ test
   let (acc, _, _) =
     stateOf(
       calc(0)
-        |> d1
-        |> d2
-        |> times
-        |> d4
-        |> equals
+        |> pressDigit(_, "1")
+        |> pressDigit(_, "2")
+        |> pressOp(_, "*")
+        |> pressDigit(_, "4")
+        |> pressOp(_, "=")
     )
   in
   acc == "48"
@@ -184,7 +157,7 @@ end;
 
 hint "the pad survives every press, so keys keep working"
 test
-  case calc(0) |> d5 |> plus |> d6 |> equals
+  case calc(0) |> pressDigit(_, "5") |> pressOp(_, "+") |> pressDigit(_, "6") |> pressOp(_, "=")
   | Div(_, [_, Div(_, keys)]) => length(keys) == 16
   | _ => false
   end
@@ -192,7 +165,7 @@ end;
 
 hint "dividing by zero leaves the total alone"
 test
-  let (acc, _, _) = stateOf(calc(0) |> d8 |> divide |> d0 |> equals) in
+  let (acc, _, _) = stateOf(calc(0) |> pressDigit(_, "8") |> pressOp(_, "/") |> pressDigit(_, "0") |> pressOp(_, "=")) in
   acc == "8"
 end;
 
