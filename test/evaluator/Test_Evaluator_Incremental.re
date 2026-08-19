@@ -1658,12 +1658,23 @@ n|};
  * edited in place -- two separate parses of the same text mint disjoint ids and
  * nothing is reused. Plain typing is enough; no projector is involved.
  *
- * Three ingredients, each necessary (dropping any one makes it evaluate fine):
+ * Three ingredients, all of which have to have happened by the time the second
+ * program is evaluated:
  *   1. `inner` appears as a DEFERRED application in the result, which is what
  *      gets its value recorded without a `Closure`;
- *   2. the first program APPLIES `outer`, so the `inner` occurrence inside its
- *      body is reached and cached;
+ *   2. `outer` has been APPLIED at some point, so the `inner` occurrence inside
+ *      its body was reached and cached;
  *   3. the second program applies `outer` again, reusing that entry.
+ *
+ * Dropping any one of the three from THIS test makes it evaluate fine. In a live
+ * session they are not independent, and that is why the bug looks
+ * nondeterministic there: `prev` is a function of the whole editing history, not
+ * of the current text. Ingredient 2 can be supplied by any earlier state -- a
+ * `test` block that has since been deleted, or just the intermediate text an
+ * edit passes through -- and deleting that state does NOT clear the entry it
+ * recorded. Only a reload does, since `prev` starts empty. So the same final
+ * program reproduces or not depending on how it was arrived at. The `test` block
+ * below pins ingredient 2 down so this test does not depend on history.
  */
 module BareFunReuse = {
   open Web;
