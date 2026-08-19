@@ -1661,6 +1661,142 @@ n|};
   );
 };
 
+/* Regression: a reused cache entry must carry its own environment.
+ *
+ * `Transition`'s `Closure` rule evaluates subterms with `~in_closure`, which
+ * suppresses the `Closure` wrapper for a function value nested under a
+ * `Closure` -- correct in place, because the enclosing `Closure` supplies the
+ * environment. A cache entry is keyed by id alone and is replayed at top level,
+ * where that enclosing `Closure` is gone, so applying the replayed function
+ * lands in `Transition`'s `| FunNoEnv(_) => Indet`: the application becomes
+ * final-but-stuck and never reduces again.
+ *
+ * Reaching it needs the EDITOR, not a bare evaluation. The cached ids have to
+ * survive into the next program, which only happens when the same document is
+ * edited in place -- two separate parses of the same text mint disjoint ids and
+ * nothing is reused. Plain typing is enough; no projector is involved.
+ *
+ * Three ingredients, each necessary (dropping any one makes it evaluate fine):
+ *   1. `inner` appears as a DEFERRED application in the result, which is what
+ *      gets its value recorded without a `Closure`;
+ *   2. the first program APPLIES `outer`, so the `inner` occurrence inside its
+ *      body is reached and cached;
+ *   3. the second program applies `outer` again, reusing that entry.
+ */
+module BareFunReuse = {
+  open Web;
+  open Haz3lcore;
+  open Language;
+
+  let settings = CoreSettings.on;
+
+  let calculate = (~is_edited, model: CodeWithStatics.Model.t) =>
+    CodeWithStatics.Update.calculate(
+      ~settings,
+      ~is_edited,
+      ~stitch=x => x,
+      ~dynamics=model.dynamics,
+      ~is_dynamic_term=false,
+      model,
+    );
+
+  let of_text = (text: string): CodeWithStatics.Model.t =>
+    switch (Parser.to_zipper(~root=Sort.Exp, text)) {
+    | None => failwith("could not parse")
+    | Some(z) =>
+      Editor.Model.mk(z, ~root=Sort.Exp)
+      |> CodeWithStatics.Model.mk
+      |> calculate(~is_edited=true)
+    };
+
+  let perform = (a: Action.t, model: CodeWithStatics.Model.t) =>
+    switch (
+      Perform.go(
+        ~settings,
+        ~statics=model.statics,
+        ~syntax=model.editor.syntax,
+        ~root=model.editor.root,
+        a,
+        {
+          zipper: model.editor.state.zipper,
+          col_target: None,
+        },
+      )
+    ) {
+    | Error(f) => failwith("action failed: " ++ Action.Failure.show(f))
+    | Ok(zipper) =>
+      calculate(
+        ~is_edited=true,
+        {
+          ...model,
+          editor: Editor.Model.mk(zipper, ~root=model.editor.root),
+        },
+      )
+    };
+
+  /* The request `EvalResult.Update.calculate` posts. `of_info_map` is not
+     interchangeable with `of_targets`: only `of_info_map` populates the per-id
+     `statics` field, and `reuse_check` looks that up before reusing anything,
+     so with `of_targets` incremental reuse never fires at all. */
+  let evaluate = (~prev=IncrEval.empty, model: CodeWithStatics.Model.t) => {
+    let eval_info =
+      EvalInfo.of_info_map(
+        ~probe_all=settings.probe_all,
+        ~targets=model.statics.targets,
+        model.statics.info_map,
+      );
+    Evaluator.evaluate(
+      ~prev,
+      ~eval_info,
+      ~env=Builtins.env_init,
+      model.statics.elaborated,
+    );
+  };
+
+  let type_at_end = (text, model) =>
+    String.fold_left(
+      (m, c) => perform(Insert(String.make(1, c)), m),
+      perform(Move(End), model),
+      text,
+    );
+
+  let program = {|let inner = fun (node, a) -> node in
+let outer = fun (node, b) -> inner(node, b) in
+let mk = fun n -> (n, inner(_, 0)) in
+test let (x, _) = mk(0) |> outer(_, 8) in x == 0 end;
+mk(0)|};
+
+  let typed = {| |> outer(_, 1)|};
+
+  let test = () => {
+    let model = of_text(program);
+    let (_, state) = evaluate(model);
+    let after = type_at_end(typed, model);
+    let (value, _) = evaluate(~prev=state.incr_eval, after);
+    /* Without the guard in `reuse_check` this is
+       `Ap(Forward, Fun((node, a), ...), ...)` -- `inner` applied to a final
+       pair, stuck forever -- instead of the pair `calc(0)` returns. */
+    let stuck =
+      switch (Exp.term_of(value)) {
+      | Ap(_, fn, _) =>
+        switch (Exp.term_of(fn)) {
+        | Fun(_) => true
+        | _ => false
+        }
+      | _ => false
+      };
+    if (stuck) {
+      print_endline("stuck result: " ++ Exp.show(value));
+    };
+    Alcotest.check(
+      Alcotest.bool,
+      "the typed application reduces",
+      false,
+      stuck,
+    );
+  };
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1853,6 +1989,11 @@ let tests = (
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "reuse keeps a function value's environment (plain typing)",
+      `Quick,
+      BareFunReuse.test,
     ),
   ],
 );
