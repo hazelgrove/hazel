@@ -110,6 +110,24 @@ open AST
 
 %token SEMI_COLON
 
+(* Prover forms (docs/prover-obligations.md) *)
+%token IMPLIES
+%token WHERE
+%token FORALL
+%token THEOREM
+%token PROOF
+%token PROOF_OBJECT
+%token ASSUME
+%token GENERALIZE
+%token REVERT
+%token INDUCTION
+%token AXIOM
+%token AXIOM_REV
+%token REWRITE
+%token WITH
+%token AT
+%token ON
+
 
 
 (* Precedences *)
@@ -122,6 +140,12 @@ open AST
 %right DASH_ARROW
 %nonassoc IF_EXP
 
+/* Proof prefix forms (`forall p =>`, `assume e =>`, `revert e =>`,
+   `generalize e =>`) bind at Precedence.fun_, which is LOOSER than the
+   proof-sequence `;` (Precedence.semi) — so `assume e => a; b` puts the
+   whole sequence in the body, matching the segment parser. */
+%nonassoc PROOF_PRE
+
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
 
@@ -129,6 +153,11 @@ open AST
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
+
+/* Material implication: right-associative, one level LOOSER than `||`
+   (Precedence.impl = 34 vs Precedence.or_ = 33), so `a == b ==> c == d`
+   is `(a == b) ==> (c == d)` and `a ==> b ==> c` is `a ==> (b ==> c)`. */
+%right IMPLIES
 
 %right L_OR
 %right L_AND
@@ -200,6 +229,7 @@ program:
 %inline boolOp:
     | L_AND { BoolOp(And) }
     | L_OR { BoolOp(Or) }
+    | IMPLIES { BoolOp(Implies) }
 
 %inline stringOp:
     | STRING_CONCAT { StringOp(Concat) }
@@ -296,7 +326,12 @@ pat:
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
-    | p = nonAscriptingPat; { p }
+    (* The %prec is only consulted in the one state where `forallPat`'s
+       unparenthesized ascription offers a competing shift of COLON (see
+       forallPat): a precedence looser than COLON picks the shift, i.e.
+       `forall n : Int -> e` binds the ascription to the forall's binder
+       instead of reducing `n` to a bare pat first. *)
+    | p = nonAscriptingPat; { p } %prec LET_EXP
     | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
 
 
@@ -308,7 +343,44 @@ case:
 
 funExp: 
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
+    (* Function contract `fun p where g -> e` (Form.re FunWhere). *)
+    | FUN; p = funPat; WHERE; g = exp; DASH_ARROW; e1 = exp; { FunWhereExp (p, g, e1) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+
+(* `forall` needs an UNPARENTHESIZED ascribed binder (`forall n: Int -> ...`
+   is the idiom throughout the prover tests), which funPat does not allow.
+   It gets its own nonterminal rather than reusing `pat`: `pat COLON typ`
+   is followed by DASH_ARROW only here, and putting DASH_ARROW into that
+   rule's lookahead makes the parser REDUCE (COLON binds tighter than
+   DASH_ARROW) in every context sharing the state -- which would break
+   arrow types in ordinary let patterns, `let f : Int -> Int = ...`.
+   Keeping a separate rule keeps the two states apart: here DASH_ARROW
+   ends the binder, there it extends the ascribed type. *)
+forallPat:
+    | p = funPat { p }
+    | p = nonAscriptingPat; COLON; t = typ { AscPat(p, t) }
+
+forallExp:
+    | FORALL; p = forallPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
+    (* Restricted binder `forall p where g -> e` (Form.re ForallWhere). *)
+    | FORALL; p = forallPat; WHERE; g = exp; DASH_ARROW; e = exp; { ForallWhereExp (p, g, e) }
+
+(* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
+prul:
+    | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
+
+proof:
+    | QUESTION { EmptyHoleProof }
+    | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
+    | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
+    | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
+    | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
+    | AXIOM_REV; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRev(eq, idx, ae) }
+    | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
+    | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
+    | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
 
 
 %inline ifExp:
@@ -365,6 +437,16 @@ exp:
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
+    | f = forallExp {f}
+    | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
+    | PROOF_OBJECT; e = exp; END { ProofObject(e) }
+    (* `where` and `assume` are the base names ProofCheck gives to
+       where-guard and assume-intro hypotheses (ProofCheck.re
+       add_hypothesis), so they show up in expression position as the name
+       of a cited fact: `axiom assume at 0 on n end`. The segment parser
+       molds them as variables there; keep parity. *)
+    | WHERE { Var "where" }
+    | ASSUME { Var "assume" }
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}

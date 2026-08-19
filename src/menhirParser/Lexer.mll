@@ -72,6 +72,7 @@ rule token =
     | "..." { TUPLE_EXTENSION }
     | "." { DOT }
     (* Poly ops*)
+    | "==>" { IMPLIES }
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }
     (* Int ops*)
@@ -138,6 +139,25 @@ rule token =
     | "?tp" {TP_TPAT}
     | "?e" {E_EXP}
     | "named_fun" {NAMED_FUN}
+    (* Prover forms (docs/prover-obligations.md). These are hard keywords,
+       so `where`, `assume`, `at`, `on`, `with`, ... are reserved; the two
+       that ProofCheck also uses as hypothesis names (`where`, `assume`)
+       are additionally accepted in expression position by the parser. *)
+    | "theorem" {THEOREM}
+    | "proof_object" {PROOF_OBJECT}
+    | "proof" {PROOF}
+    | "forall" {FORALL}
+    | "where" {WHERE}
+    | "assume" {ASSUME}
+    | "generalize" {GENERALIZE}
+    | "revert" {REVERT}
+    | "induction" {INDUCTION}
+    | "axiomrev" {AXIOM_REV}
+    | "axiom" {AXIOM}
+    | "rewrite" {REWRITE}
+    | "with" {WITH}
+    | "at" {AT}
+    | "on" {ON}
     | "poly" {POLY}
     | "rec" {REC}
     | identifier as i { IDENT(i) }

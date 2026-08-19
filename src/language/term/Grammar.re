@@ -703,6 +703,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
   type mod_ = mod_t(DefaultAnnotation.t);
+  type proof = proof_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
@@ -1320,6 +1321,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
       term: Forall(x, body),
+      annotation: default_annotation(ann),
+    };
+    let assume = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Assume(e, body),
+      annotation: default_annotation(ann),
+    };
+    let generalize = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Generalize(e, body),
+      annotation: default_annotation(ann),
+    };
+    let revert = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Revert(e, body),
       annotation: default_annotation(ann),
     };
   };

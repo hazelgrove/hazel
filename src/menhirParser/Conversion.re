@@ -239,15 +239,23 @@ module rec Exp: {
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | Theorem(p, e1, e2) =>
+    | Theorem(p, e1, pf, e2) =>
       theorem(
         Pat.of_menhir_ast(p),
         of_menhir_ast(e1),
-        IndicatedG.Proof.empty_hole(),
+        Proof.of_menhir_ast(pf),
         of_menhir_ast(e2),
       )
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
+    | ForallWhereExp(p, g, e) =>
+      forall_where(
+        Pat.of_menhir_ast(p),
+        of_menhir_ast(g),
+        of_menhir_ast(e),
+      )
+    | FunWhereExp(p, g, e) =>
+      fun_where(Pat.of_menhir_ast(p), of_menhir_ast(g), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
@@ -362,23 +370,15 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
-    | Theorem(p, e1, _pf, e2) =>
-      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Theorem(p, e1, pf, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), Proof.of_core(pf), of_core(e2))
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
-    /* The menhir AST has no restricted-binder form; render as the
-       logically-equivalent `forall p -> g ==> e`. */
     | ForallWhere(p, g, e) =>
-      ForallExp(
-        Pat.of_core(p),
-        BinExp(Exp.of_core(g), BoolOp(Implies), Exp.of_core(e)),
-      )
+      ForallWhereExp(Pat.of_core(p), Exp.of_core(g), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
-    /* The menhir AST has no function-contract form, and unlike
-       ForallWhere there is no equivalent lambda encoding: the guard is
-       proof-layer metadata with no dynamic effect (Grammar.re), so it is
-       dropped here. */
-    | FunWhere(p, _g, e) => Fun(Pat.of_core(p), of_core(e), None)
+    | FunWhere(p, g, e) =>
+      FunWhereExp(Pat.of_core(p), Exp.of_core(g), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
@@ -598,6 +598,104 @@ and TPat: {
     | Var(x) => VarTPat(x)
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    };
+  };
+}
+and Proof: {
+  let of_menhir_ast: AST.proof => IndicatedG.proof;
+  let of_core: IndicatedG.proof => AST.proof;
+} = {
+  open IndicatedG.Proof;
+  let rec of_menhir_ast = (pf: AST.proof): IndicatedG.proof => {
+    switch (pf) {
+    | EmptyHoleProof => empty_hole()
+    | ProofSeq(p1, p2) => seq(of_menhir_ast(p1), of_menhir_ast(p2))
+    | ProofForall(p, body) =>
+      forall(Pat.of_menhir_ast(p), of_menhir_ast(body))
+    | ProofAssume(e, body) =>
+      assume(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofGeneralize(e, body) =>
+      generalize(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofRevert(e, body) =>
+      revert(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofAxiom(eq, at_idx, at_exp) =>
+      axiom_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~direction=Util.Direction.Right,
+        ~equality=Exp.of_menhir_ast(eq),
+        (),
+      )
+    | ProofAxiomRev(eq, at_idx, at_exp) =>
+      axiom_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~direction=Util.Direction.Left,
+        ~equality=Exp.of_menhir_ast(eq),
+        (),
+      )
+    | ProofAlgebrite(at_exp, with_exp, at_idx) =>
+      algebrite_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~with_exp=Exp.of_menhir_ast(with_exp),
+        (),
+      )
+    | ProofEval(at_exp, at_idx) =>
+      eval_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        (),
+      )
+    | ProofInduction(scrut, cases) =>
+      induction(
+        Exp.of_menhir_ast(scrut),
+        List.map(
+          ((p, body)) => (Pat.of_menhir_ast(p), of_menhir_ast(body)),
+          cases,
+        ),
+      )
+    };
+  };
+
+  let rec of_core = (pf: IndicatedG.proof): AST.proof => {
+    switch (pf.term) {
+    | EmptyHole => EmptyHoleProof
+    /* No menhir syntax for a broken proof term; the empty hole is the
+       closest well-formed stand-in. */
+    | Invalid(_)
+    | MultiHole(_) => EmptyHoleProof
+    | Seq(p1, p2) => ProofSeq(of_core(p1), of_core(p2))
+    | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
+    | Assume(e, body) => ProofAssume(Exp.of_core(e), of_core(body))
+    | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
+    | Revert(e, body) => ProofRevert(Exp.of_core(e), of_core(body))
+    | AxiomStep({at_idx, at_exp, direction, equality}) =>
+      /* `axiom` applies the equality left-to-right, `axiomrev`
+         right-to-left. */
+      let mk =
+        switch (direction) {
+        | Right => (((eq, idx, ae)) => AST.ProofAxiom(eq, idx, ae))
+        | Left => (((eq, idx, ae)) => AST.ProofAxiomRev(eq, idx, ae))
+        };
+      mk((
+        Exp.of_core(equality),
+        Exp.of_core(at_idx),
+        Exp.of_core(at_exp),
+      ));
+    | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+      ProofAlgebrite(
+        Exp.of_core(at_exp),
+        Exp.of_core(with_exp),
+        Exp.of_core(at_idx),
+      )
+    | EvalStep({at_idx, at_exp}) =>
+      ProofEval(Exp.of_core(at_exp), Exp.of_core(at_idx))
+    | Induction(scrut, cases) =>
+      ProofInduction(
+        Exp.of_core(scrut),
+        List.map(((p, body)) => (Pat.of_core(p), of_core(body)), cases),
+      )
     };
   };
 }

@@ -145,10 +145,16 @@ and exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
-  | Theorem(pat, exp, exp)
+  | Theorem(pat, exp, proof, exp)
   | ProofObject(exp)
   | Fun(pat, exp, option(string))
+  /* `fun p where g -> e` (Grammar.re FunWhere): the guard is proof-layer
+     metadata with no dynamic effect, but it is program text, so the
+     parser keeps it. */
+  | FunWhereExp(pat, exp, exp)
   | ForallExp(pat, exp)
+  /* `forall p where g -> e` (Grammar.re ForallWhere). */
+  | ForallWhereExp(pat, exp, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
   | ExplicitNonlabel
@@ -178,6 +184,28 @@ and exp =
   | TupleExtension(exp, exp)
   | Module(list(mod_item))
   | ModuleExp(pat, exp, exp)
+
+/* The proof sort (Grammar.re proof_term / Form.re "PROOF FORMS").
+   `AxiomStep`'s Direction is encoded by the two ProofAxiom* constructors:
+   `axiom` applies its equality left-to-right (Direction.Right),
+   `axiomrev` right-to-left (Direction.Left). */
+and proof =
+  | EmptyHoleProof
+  | ProofSeq(proof, proof)
+  | ProofForall(pat, proof)
+  | ProofAssume(exp, proof)
+  | ProofGeneralize(exp, proof)
+  | ProofRevert(exp, proof)
+  /* (equality, at_idx, at_exp) — argument order follows the surface
+     syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
+  | ProofAxiom(exp, exp, exp)
+  | ProofAxiomRev(exp, exp, exp)
+  /* `rewrite <at_exp> with <with_exp> at <at_idx> end` */
+  | ProofAlgebrite(exp, exp, exp)
+  /* `eval <at_exp> at <at_idx> end` */
+  | ProofEval(exp, exp)
+  /* `induction <scrut> | <pat> => <proof> ... end` */
+  | ProofInduction(exp, list((pat, proof)))
 
 and mod_item =
   | ModItemLet(pat, exp)
@@ -779,7 +807,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(Let(shrunk, e1, e2));
           }
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           of_list([e1, e2])
           <+> (
             switch (pat_typ_opt(p)) {
@@ -789,15 +817,15 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           )
           <+> {
             let* shrunk = shrink_exp(e1);
-            return(Theorem(p, shrunk, e2));
+            return(Theorem(p, shrunk, pf, e2));
           }
           <+> {
             let* shrunk = shrink_exp(e2);
-            return(Theorem(p, e1, shrunk));
+            return(Theorem(p, e1, pf, shrunk));
           }
           <+> {
             let* shrunk = shrink_pat(p);
-            return(Theorem(shrunk, e1, e2));
+            return(Theorem(shrunk, e1, pf, e2));
           }
         | ProofObject(t) =>
           let* shrunk = shrink_exp(t);
@@ -1084,6 +1112,10 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(ModuleExp(shrunk, e1, e2));
           }
+        /* Not produced by gen_exp_sized (the prover forms are hand-written
+           test inputs only), so there is nothing to shrink towards. */
+        | FunWhereExp(_)
+        | ForallWhereExp(_)
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)

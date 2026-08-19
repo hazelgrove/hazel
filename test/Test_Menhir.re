@@ -79,6 +79,32 @@ let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
     },
   );
 
+/* Compares menhir ASTs directly. Used to check `Conversion.Exp.of_core`,
+   the core -> menhir-AST direction, which `menhir_matches` never
+   exercises. */
+let ast_check =
+  (testable(Fmt.using(AST.show_exp, Fmt.string)))(AST.equal_exp)
+  |> Alcotest.check;
+
+/* Round-trip through the OTHER direction: take the segment parser's core
+   term for `src`, render it back to a menhir AST with `of_core`, and
+   require it to equal what menhir parses from the same text. This is what
+   caught the old ForallWhere/FunWhere gaps (of_core used to desugar the
+   `where` guard away). */
+let of_core_renders_test = (name: string, src: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let core = make_term_parse(src);
+      ast_check(
+        "of_core(MakeTerm parse) matches menhir parse",
+        Interface.parse_program(src),
+        Conversion.Exp.of_core(Grammar.map_exp_annotation(_ => false, core)),
+      );
+    },
+  );
+
 let menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, actual: string) =>
   test_case(name, speed_level, () => {
@@ -886,6 +912,222 @@ let ex5 = list_of_mylist(x) in
         "Capitalized name in dot RHS",
         Fresh.Exp.(dot(var("m"), label("X"))),
         {|m.X|},
+      ),
+      /* ===================================================================
+         Prover syntax (docs/prover-obligations.md). Before this batch the
+         menhir lexer/grammar had none of these forms; only the core ->
+         AST direction knew about them.
+         =================================================================== */
+      /* --- `==>` : right-associative, one level looser than `||` ------- */
+      full_parser_test(
+        "Implies",
+        bin_op(Bool(Implies), var("a"), var("b")),
+        "a ==> b",
+      ),
+      full_parser_test(
+        "Implies is right associative",
+        bin_op(
+          Bool(Implies),
+          var("a"),
+          bin_op(Bool(Implies), var("b"), var("c")),
+        ),
+        "a ==> b ==> c",
+      ),
+      full_parser_test(
+        "Implies binds looser than equality",
+        bin_op(
+          Bool(Implies),
+          bin_op(Poly(Equals), var("a"), var("b")),
+          bin_op(Poly(Equals), var("c"), var("d")),
+        ),
+        "a == b ==> c == d",
+      ),
+      full_parser_test(
+        "Implies binds looser than disjunction",
+        bin_op(
+          Bool(Implies),
+          bin_op(Bool(Or), var("a"), var("b")),
+          bin_op(Bool(Or), var("c"), var("d")),
+        ),
+        "a || b ==> c || d",
+      ),
+      full_parser_test(
+        "Conjunction binds tighter than implies",
+        bin_op(
+          Bool(Implies),
+          bin_op(Bool(And), var("a"), var("b")),
+          var("c"),
+        ),
+        "a && b ==> c",
+      ),
+      /* --- `forall` and the `where` binders ---------------------------- */
+      full_parser_test(
+        "Forall",
+        forall(Pat.var("x"), bin_op(Poly(Equals), var("x"), var("x"))),
+        "forall x -> x == x",
+      ),
+      full_parser_test(
+        "Forall with ascribed binder",
+        forall(
+          Pat.asc(Pat.var("n"), Typ.int()),
+          bin_op(Poly(Equals), var("n"), int(0)),
+        ),
+        "forall n : Int -> n == 0",
+      ),
+      /* The body extends across `==>`: fun_ (37) is looser than impl (34). */
+      full_parser_test(
+        "Forall body swallows implications",
+        forall(
+          Pat.asc(Pat.var("n"), Typ.int()),
+          bin_op(
+            Bool(Implies),
+            bin_op(Poly(Equals), var("n"), int(0)),
+            bin_op(Poly(Equals), var("n"), int(1)),
+          ),
+        ),
+        "forall n : Int -> n == 0 ==> n == 1",
+      ),
+      full_parser_test(
+        "ForallWhere",
+        forall_where(
+          Pat.var("x"),
+          bin_op(Poly(NotEquals), var("x"), int(0)),
+          bin_op(
+            Poly(Equals),
+            bin_op(Int(Divide), var("x"), var("x")),
+            int(1),
+          ),
+        ),
+        "forall x where x != 0 -> x / x == 1",
+      ),
+      full_parser_test(
+        "ForallWhere with ascribed binder",
+        forall_where(
+          Pat.asc(Pat.var("b"), Typ.bool()),
+          var("b"),
+          bin_op(Poly(Equals), var("b"), bool(true)),
+        ),
+        "forall b : Bool where b -> b == true",
+      ),
+      full_parser_test(
+        "FunWhere",
+        fun_where(
+          Pat.var("x"),
+          bin_op(Poly(NotEquals), var("x"), int(0)),
+          bin_op(Int(Divide), int(100), var("x")),
+        ),
+        "fun x where x != 0 -> 100 / x",
+      ),
+      /* The guard extends across `&&` (and_ 32 is tighter than fun_ 37). */
+      full_parser_test(
+        "FunWhere guard swallows conjunction",
+        fun_where(
+          Pat.var("x"),
+          bin_op(
+            Bool(And),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+            bin_op(Poly(NotEquals), var("x"), int(1)),
+          ),
+          var("x"),
+        ),
+        "fun x where x != 0 && x != 1 -> x",
+      ),
+      /* --- proof prefix forms ------------------------------------------ */
+      menhir_maketerm_equivalent_test(
+        "Theorem with an empty-hole proof",
+        "theorem t = forall x -> x == x proof ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof assume",
+        "theorem t = forall n : Int -> n == 0 ==> n == 0 proof assume n == 0 => ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof revert",
+        "theorem t = forall n : Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof generalize",
+        "theorem t = forall n : Int -> n == n proof forall n => generalize n => ? in t",
+      ),
+      /* `assume e => a; b` puts the whole sequence in the body: the prefix
+         forms sit at fun_ (37), looser than the proof `;` at semi (35). */
+      menhir_maketerm_equivalent_test(
+        "Proof prefix binds looser than proof sequencing",
+        "theorem t = forall x -> x == x proof assume x == x => ?; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof axiom step",
+        "theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof axiomrev step",
+        "theorem t = forall x -> x == x proof axiomrev refl_eq at 0 on x == x end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof eval step",
+        "theorem t = 1 + 1 == 2 proof eval 1 + 1 at 0 end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof rewrite step",
+        "theorem t = 1 + 1 == 2 proof rewrite 1 + 1 with 2 at 0 end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof induction",
+        "theorem t = forall n : Int -> n == n proof induction n | 0 => ? | m => ? end in t",
+      ),
+      /* `where` and `assume` are ProofCheck's base names for where-guard
+         and assume-intro hypotheses, so they also appear as cited fact
+         names in expression position. */
+      menhir_maketerm_equivalent_test(
+        "Hypothesis names `assume` and `where` in expression position",
+        "theorem t = forall b : Bool where b -> b == true proof axiom where at 0 on b end; axiom assume at 0 on b end in t",
+      ),
+      /* --- full prover programs (from test/evaluator, Phase 2 / 4c) ---- */
+      /* Test_Revert.ex_falso_src */
+      menhir_maketerm_equivalent_test(
+        "Full program: ex falso via assume/revert",
+        "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => axiom assume at 0 on n end; eval 0 == 1 at 0 end; eval false ==> false at 0 end in t",
+      ),
+      /* Test_Revert.bool_fact_src: a where-binder plus axiom steps. */
+      menhir_maketerm_equivalent_test(
+        "Full program: bare-boolean where-fact",
+        "theorem t = forall b: Bool where b -> b == true proof axiom where at 0 on b end; axiom refl_eq at 0 on true == true end in t",
+      ),
+      /* Test_Revert.adt_ih_src: ADT induction with a reverted IH. */
+      menhir_maketerm_equivalent_test(
+        "Full program: ADT induction with a reverted IH",
+        "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end; eval true ==> pos(S(b)) at 0 end; eval pos(S(b)) at 0 end end in t",
+      ),
+      /* Test_FunContracts style: a fun-contract used by a theorem. */
+      menhir_maketerm_equivalent_test(
+        "Full program: fun contract plus theorem",
+        "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == 100 / y proof ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof object",
+        "let p = proof_object 1 == 1 end in p",
+      ),
+      /* --- core -> menhir AST (Conversion.of_core) ---------------------- */
+      of_core_renders_test("of_core: implies", "a ==> b ==> c"),
+      of_core_renders_test(
+        "of_core: fun where",
+        "fun x where x != 0 -> 100 / x",
+      ),
+      of_core_renders_test(
+        "of_core: forall where",
+        "forall x where x != 0 -> x / x == 1",
+      ),
+      of_core_renders_test(
+        "of_core: theorem with assume/revert",
+        "theorem t = forall n : Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => ? in t",
+      ),
+      of_core_renders_test(
+        "of_core: proof steps",
+        "theorem t = 1 + 1 == 2 proof eval 1 + 1 at 0 end; rewrite 1 + 1 with 2 at 0 end; axiom refl_eq at 0 on 2 == 2 end in t",
+      ),
+      of_core_renders_test(
+        "of_core: proof induction and generalize",
+        "theorem t = forall n : Int -> n == n proof forall n => generalize n => induction n | 0 => ? | m => ? end in t",
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
