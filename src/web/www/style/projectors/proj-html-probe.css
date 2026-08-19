@@ -125,3 +125,49 @@
   max-height: none;
   max-width: none;
 }
+
+/* Number pad for the Calculator slide. The markup is the slide's, not this
+   renderer's — a program using other class names brings its own styling. */
+.calc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.4em;
+  width: 13em;
+}
+
+.calc-display {
+  font-family: var(--code-font);
+  text-align: right;
+  padding: 0.2em 0.45em;
+  border-radius: var(--BR2);
+  background: var(--T4);
+  overflow: hidden;
+}
+
+/* The operator waiting on an operand, dimmer than the value itself. */
+.calc-pending {
+  font-size: 0.75em;
+  min-height: 1.1em;
+  color: var(--BR3);
+  white-space: pre;
+}
+
+.calc-value {
+  font-size: 1.5em;
+  line-height: 1.1;
+  color: var(--chart-label-text);
+}
+
+.calc-keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25em;
+}
+
+.calc-key {
+  font-family: var(--code-font);
+  font-size: 1em;
+  padding: 0.3em 0;
+  cursor: pointer;
+}

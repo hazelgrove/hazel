@@ -314,9 +314,16 @@ module Chart = {
 
 # ===== A GALLERY OF ALL FIVE KINDS ===== #
 
-# Each chart carries its own ^^probe_html, so it draws beside the code that #
-# builds it. The gallery Div at the bottom is the program's result: turn on #
-# Nut menu -> HTML to have the evaluation output render it too. #
+# Two surfaces draw the same values, and this slide is set up to show both. #
+
+# Each chart below carries its own ^^probe_html, so it draws beside the code #
+# that builds it — that rich probe renders an expression's evaluated value. #
+
+# The gallery Div at the very bottom is the program's RESULT, and the #
+# evaluation output can draw that too: turn on Nut menu -> Value Display -> #
+# HTML. Off, the result prints as a constructor tree, which is worth looking #
+# at once — every chart here is just that tree. On, the same value renders #
+# as the figures. Nothing about the program changes either way. #
 
 
 let sales : [(label=String, value=Float)] = [

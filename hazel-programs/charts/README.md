@@ -1,13 +1,12 @@
 # Charts
 
-Four programs, all shipped as documentation slides under **Charts / …**.
+Three programs, all shipped as documentation slides under **Charts / …**.
 
 | File | Slide | What it is |
 |---|---|---|
 | `charts.hz` | Charts | The charting library — `Svg`, `Scale`, `Chart` — plus a gallery of all five kinds |
 | `linked.hz` | Linked Views | An app whose bars are dragged to set their values, with a pie derived from the same model |
-| `b2t2-explorer.hz` | Table Explorer | One app, polymorphic in its row type, instantiated over two B2T2 tables |
-| `steps.hz` | Steps | A probe inside a recursion — one sample per step — and html that edits its own source |
+| `calculator.hz` | Calculator | A calculator whose keys rewrite their own source, one `|>` stage per press |
 
 There is no chart type or chart projector in Hazel. A chart is an ordinary HTML
 value built from `Node` and `Create`, which render SVG. See `docs/charts.md`.
@@ -28,7 +27,7 @@ the code that builds it; the gallery `Div` at the bottom is the program's
 result, which **Nut menu → HTML** renders in the evaluation output as well.
 
 From the command line, `./hazel run charts.hz` prints the HTML value the program
-produces, and `./hazel test linked.hz` runs that file's inline tests.
+produces, and `./hazel test calculator.hz` runs that file's inline tests.
 
 ## Editing
 
@@ -49,14 +48,10 @@ Two things to keep in mind:
 
 `charts.hz` is the only full copy of the library. `linked.hz` carries `Svg` and
 `Chart` trimmed to what a pie actually needs — no `Scale` at all, since a pie
-has no axes — and `b2t2-explorer.hz` draws with `Node`/`Create` directly, since
-its subject is app construction rather than charting. Keeping each program to
-what it uses is what stops these from becoming three libraries to keep in sync;
-if you extend `charts.hz`, nothing here needs to follow.
-
-`b2t2-explorer.hz` reuses the `Student` and `GradebookEntry` tables and the
-idiomatic `groupByRetentive` from `hazel-programs/docs/b2t2/`, so the app is
-driven by the real table API rather than a parallel one.
+has no axes — and `calculator.hz` uses no chart code at all, since its
+subject is the probe rather than charting. Keeping each program to what it uses
+is what stops these from becoming three libraries to keep in sync; if you extend
+`charts.hz`, nothing here needs to follow.
 
 `test/Test_Charts.re` reads the library out of the shipped slide and cuts it at
 the `# ===== A GALLERY OF ALL FIVE KINDS ===== #` header — renaming that line

@@ -80,9 +80,9 @@ is what each one *is*:
 
 The second row is the one with no workaround. A probe on an expression inside a
 loop or a recursion records a sample per iteration, so the whole run is
-inspectable rather than just its answer — see **Charts / Steps**, whose probe
-sits inside a recursive `run` and draws each step. A projector there would show
-the last step only, and would have hidden the recursive call to do it.
+inspectable rather than just its answer, navigable with sample focus. A
+projector there would show the last sample only, and would have hidden the
+expression to do it.
 
 The third row is the probe's other advantage, and `HtmlRenderer` takes it by
 **rewriting the source**. Clicking a handler pipes the probed html into it —
@@ -112,19 +112,24 @@ Two properties follow from rewriting rather than evaluating:
   name there would write an unbound variable.
 
 Each click appends another stage rather than nesting, so a run of edits reads as
-a pipeline:
+a pipeline — which is an accurate record of what was asked for, and prunes a line
+at a time. **Charts / Calculator** is built on exactly this: its keys are named
+`Html -> Html` functions, so a session accumulates as
 
 ```
-Div([], [...])
-  |> bump
-  |> bump
+calc(0)
+  |> plusOne
+  |> double
+  |> square
 ```
 
-which is an accurate record of what was asked for, and prunes a line at a time.
+Naming matters here: an operation built by partial application has no recorded
+name to commit, so it would be inlined at the use site instead.
 
 A *fixed* app also cannot serve more than one schema: a literal 4-tuple's `view`
 fixes one row type, where an app built by a polymorphic function does not. That
-is **Charts / Table Explorer** — one definition over two B2T2 tables.
+is a property of computed apps rather than of the probe, so both surfaces show
+it equally.
 
 **Known limitation.** The AppStore is keyed by the probe's id, and rebinding
 preserves the old model whenever the new `view` still evaluates it. One probe on
