@@ -233,16 +233,15 @@ let bool_unary_not_exp = (~exp_id: Id.t): form => {
 let e = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
   unop_exp_coloring_ids(Piece.id(e), ~exp_id);
+/* Serves Int/Float/SInt/Nat alike: the dispatch matches the user term,
+   whose op is always the Int kind even when statics re-kinded it. */
 let int_unary_minus_exp = (~exp_id: Id.t): form => {
   id: UnOpExp(Int(Minus)),
   syntactic_form: [unary_minus(), e],
   colorings: int_unary_minus_exp_coloring_ids(~exp_id),
   expandable_id: None,
   explanation:
-    unop_explanation(
-      ~exp_id,
-      "Performs integer negation of the [*operand*](%s).",
-    ),
+    unop_explanation(~exp_id, "Performs negation of the [*operand*](%s)."),
   examples: [int_unary_minus_ex],
 };
 let binop_exp_coloring_ids =

@@ -364,6 +364,7 @@ type compound_form =
   | Not
   | TypSumSingle
   | UnaryMinus
+  | UnaryMinusPat
   // N-ARY OPS (on the semantics level)
   | CommaExp
   | CommaPat
@@ -473,6 +474,7 @@ let get: compound_form => t =
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
+  | UnaryMinusPat => mk_prefix("-", Pat, P.neg)
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
