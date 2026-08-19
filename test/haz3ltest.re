@@ -27,6 +27,7 @@ let (suite, _) =
       Test_Theorems.tests,
       Test_MissingStep.tests,
       Test_Export.tests,
+      Test_SyntaxTest.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
