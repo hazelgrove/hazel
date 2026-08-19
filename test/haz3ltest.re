@@ -30,6 +30,7 @@ let (suite, _) =
       Test_SyntaxTest.tests,
       Test_Highlight.tests,
       Test_CodeGrading.tests,
+      Test_PersistentZipper.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
