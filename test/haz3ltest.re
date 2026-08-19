@@ -15,6 +15,7 @@ let (suite, _) =
     "HazelTests",
     [
       Test_LazyHydration.tests,
+      Test_CellEditor.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
