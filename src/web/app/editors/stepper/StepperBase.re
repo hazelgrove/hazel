@@ -509,7 +509,6 @@ module rec StepKind:
       AssumeStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -527,7 +526,6 @@ module rec StepKind:
       RevertStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -545,7 +543,6 @@ module rec StepKind:
       GeneralizeStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -671,7 +668,6 @@ module rec StepKind:
         ~inject=x => inject(AssumeStep(x)),
         ~take_focus=x => take_focus(AssumeStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -689,7 +685,6 @@ module rec StepKind:
         ~inject=x => inject(RevertStep(x)),
         ~take_focus=x => take_focus(RevertStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -707,7 +702,6 @@ module rec StepKind:
         ~inject=x => inject(GeneralizeStep(x)),
         ~take_focus=x => take_focus(GeneralizeStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -729,6 +723,11 @@ and Stepper: {
   let assume_term: (~exp: Exp.t) => TermBase.Proof.term;
   let revert_term: (~exp: Exp.t) => TermBase.Proof.term;
   let generalize_term: (~exp: Exp.t) => TermBase.Proof.term;
+  /* Exposed for the same reason: the caret jump that lands the user in a
+   * freshly inserted form's argument slot keys off this id, so the
+   * "insert with a hole, then focus the hole" contract is testable
+   * without the view layer. */
+  let form_arg_id: TermBase.Proof.term => option(Id.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = next_step;
@@ -1179,6 +1178,33 @@ and Stepper: {
     let missing_step =
         (~proof_head: Proof.t, ~prev_tail: next_step, m: MissingStep.Model.t)
         : next_step => {
+      /* Prefer the CHECKER's incoming goal for this hole over the goal
+       * the caller threaded down. `calculate_full_step` already does
+       * this (via `editor_groups`); a missing-step row used to be the
+       * one row that didn't, and it is the row whose overlay WRITES
+       * expressions back into the proof text (`axiom ... on <exp> end`).
+       * The two differ: the theorem statement seeding the first row is
+       * the evaluator's record, which `Transition.re`'s Theorem rule
+       * env-inlines before recording (`Substitution.in_exp(env, e)`),
+       * so a goal mentioning a let-bound `f` arrives with f's whole
+       * lambda spliced in at every occurrence. The ProofMap keeps the
+       * form the user wrote, and the checker matches at_exps modulo
+       * env (`nth_exp_env`), so quoting the written form still checks.
+       * Falls back to `exp` when nothing has been checked yet. */
+      let exp =
+        switch (
+          ProofMap.lookup(
+            Proof.rep_id(proof_head),
+            Calc.get_value(proof_map),
+          )
+        ) {
+        | Some(entry) =>
+          switch (editor_exps_of_entry(entry)) {
+          | Some((_pre, current, _post)) => Calc.NewValue(current)
+          | None => exp
+          }
+        | None => exp
+        };
       let m =
         calculate_missing_step(
           ~settings,
@@ -1395,6 +1421,29 @@ and Stepper: {
   let generalize_term = (~exp: Exp.t): TermBase.Proof.term =>
     Generalize(exp |> embed_exp, Proof.fresh(EmptyHole));
 
+  /* The id of a wrapping form's argument AS WRITTEN. `embed_exp` runs
+   * `Exp.replace_all_ids`, so a caller that built the term from an
+   * expression cannot predict this id — it has to read it back off the
+   * term. Needed to park the main editor's caret in the new argument
+   * slot after insertion (see `emit_wrapping_form`); the serializer
+   * stamps term ids onto the pieces it emits, so an EmptyHole argument
+   * arrives in the segment as a Grout carrying exactly this id. */
+  let form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
+    switch (t) {
+    | Assume(e, _)
+    | Revert(e, _)
+    | Generalize(e, _) => Some(Exp.rep_id(e))
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_, _)
+    | Induction(_, _)
+    | Forall(_, _)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_) => None
+    };
+
   /* Patch that lands a new step in the proof syntax. Two shapes:
    *   - this row is backed by a written hole (`?`): replace the hole with
    *     the bare step — no trailing `; ?` is appended, the next-step UI is
@@ -1488,10 +1537,59 @@ and Stepper: {
         ~take_focus: step_focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~emit: TermBase.Proof.term => Ui_effect.t(unit),
+        /* Needed to move the caret into the argument slot of a
+         * just-inserted wrapping form; see `emit_wrapping_form`. */
+        ~main_editor: option(CodeEditable.Channel.t),
         m: MissingStep.Model.t,
         event: MissingStep.View.event,
       )
       : Ui_effect.t(unit) => {
+    /* Insert a wrapping form and leave the user typing in its argument.
+     * The argument slot is not a widget of its own: it is a `SubEditor`
+     * window onto the main editor's segment (ProofFormView.view_arg), so
+     * "focus the new step's arg editor" is three things at once.
+     *
+     *  1. Move the MAIN editor's caret into the new slot. A sub-editor
+     *     REJECTS edits whose caret is outside its splice
+     *     (SubEditor.confine_pre), and draws no caret decoration either
+     *     (CodeEditable's edit_decos), so without this the slot looks and
+     *     behaves dead. `Move(Goal(TileId(_)))` is the same jump the cell
+     *     uses for a sidebar JumpTo.
+     *  2. Point the stepper's focus path at that step's `Arg`, which is
+     *     what makes the splice render as the active editor. The row this
+     *     handler belongs to sits at the focus path `take_focus` closes
+     *     over, and the inserted step lands at exactly that position — a
+     *     hole row and the step that replaces it are the same node of the
+     *     rendered chain (`view_tail`'s MissingStep/NextStep cases share
+     *     one `Next` prefix), and an insert-before on a step row puts the
+     *     new step where that row was. So the path is this row's own with
+     *     `MissingStepFocus` swapped for the form's `Arg`.
+     *  3. Schedule DOM focus for after the render: the click left it on
+     *     the menu button, and the newly-selected editor only picks up
+     *     keystrokes once it actually holds DOM focus. Same mechanism as
+     *     Page.re's post-jump focus.
+     *
+     * Ordering matters: the patch must be applied before the caret jump,
+     * or there is no slot to jump to. */
+    let emit_wrapping_form =
+        (~arg_focus: step_kind_focus, term: TermBase.Proof.term) => {
+      let jump_to_arg =
+        switch (main_editor, form_arg_id(term)) {
+        | (Some(channel: CodeEditable.Channel.t), Some(arg_id)) =>
+          channel.inject(Perform(Move(Goal(TileId(arg_id)))))
+        | (None, _)
+        | (_, None) => Ui_effect.Ignore
+        };
+      Ui_effect.Many([
+        emit(term),
+        jump_to_arg,
+        take_focus(StepKindFocus(arg_focus)),
+        Ui_effect.of_sync_fun(
+          () => Haz3lcore.ProbePerform.FocusEffect.schedule_cell(),
+          (),
+        ),
+      ]);
+    };
     let available_steps =
       switch (m.next_steps |> Calc.get_saved_opt) {
       | Some(AvailableSteps(steps)) => steps
@@ -1508,9 +1606,15 @@ and Stepper: {
       emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
     | AddAlgebriteStep(at_idx, at_exp, with_exp) =>
       emit(algebrite_step_term(~at_idx, ~at_exp, ~with_exp))
-    | AddAssume(exp) => emit(assume_term(~exp))
-    | AddRevert(exp) => emit(revert_term(~exp))
-    | AddGeneralize(exp) => emit(generalize_term(~exp))
+    | AddAssume(exp) =>
+      emit_wrapping_form(~arg_focus=AssumeStep(Arg()), assume_term(~exp))
+    | AddRevert(exp) =>
+      emit_wrapping_form(~arg_focus=RevertStep(Arg()), revert_term(~exp))
+    | AddGeneralize(exp) =>
+      emit_wrapping_form(
+        ~arg_focus=GeneralizeStep(Arg()),
+        generalize_term(~exp),
+      )
     | TakeStep(idx) =>
       switch (List.nth_opt(available_steps, idx)) {
       | Some(step) =>
@@ -1781,6 +1885,7 @@ and Stepper: {
                 ~take_focus,
                 ~hide_stepper,
                 ~emit,
+                ~main_editor,
                 model.insert,
               );
             StepperEditor.View.view(
@@ -2066,7 +2171,8 @@ and Stepper: {
     /* Everything the overlay offers is a step written into the proof
      * syntax; `calculate` picks the new step up on the next pass. */
     let emit = term => edit_syntax(add_step_patch(~proof_target, term));
-    let signal = missing_step_signal(~take_focus, ~hide_stepper, ~emit, m);
+    let signal =
+      missing_step_signal(~take_focus, ~hide_stepper, ~emit, ~main_editor, m);
     /* Deleting a hole row splices the written `?` (and its `;`) out of
      * the proof. Synthesized trailing rows have nothing to delete. */
     let delete =

@@ -1828,9 +1828,89 @@ let pad_ids_tests = (
   ],
 );
 
+/* Expressions embedded in PROOF steps get the same defensive parens as
+   any other expression. Steps inserted by the stepper UI are BUILT, not
+   parsed, so they carry no explicit Parens node: `parenthesize` has to
+   descend through the proof to add them, otherwise a `fun`/`fun where`
+   in application-head position reparses as the argument being applied
+   inside the body (`(fun x -> 100 / x)(y)` printing as
+   `fun x -> 100 / x(y)`). */
+let built_fun_ap = (~guard: bool, ()): Exp.t => {
+  let body = Test_Evaluator_Prelude.parse_exp({|100 / x|});
+  let pat = Pat.fresh(Var("x"));
+  let f =
+    Exp.fresh(
+      guard
+        ? FunWhere(pat, Test_Evaluator_Prelude.parse_exp({|x != 0|}), body)
+        : Fun(pat, body, None, None),
+    );
+  Exp.fresh(Ap(Forward, f, Test_Evaluator_Prelude.parse_exp({|y|})));
+};
+
+let theorem_around = (pf: TermBase.Proof.term): Exp.t =>
+  Exp.fresh(
+    Theorem(
+      Pat.fresh(Var("t")),
+      Test_Evaluator_Prelude.parse_exp({|1 == 1|}),
+      Proof.fresh(pf),
+      Exp.fresh(Var("t")),
+    ),
+  );
+
+let proof_paren_test = (name: string, pf: TermBase.Proof.term, expected: string) =>
+  test_case(name, `Quick, () => {
+    let printed = editable_print(theorem_around(pf));
+    check(string, "printed with defensive parens", expected, printed);
+    /* and it reparses to the same text */
+    switch (Parser.to_term(printed, ~root=Exp)) {
+    | Some(t) => check(string, "reparse fixed point", printed, editable_print(t))
+    | None => Alcotest.fail("failed to reparse: " ++ printed)
+    };
+  });
+
+let proof_embedded_paren_tests = (
+  "Defensive Parens: Proof-Embedded Expressions",
+  [
+    proof_paren_test(
+      {|axiom `on` term: fun where in application head|},
+      AxiomStep({
+        at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+        at_exp: built_fun_ap(~guard=true, ()),
+        direction: Util.Direction.Right,
+        equality: Exp.fresh(Var("refl_eq")),
+      }),
+      {|theorem t = 1 == 1 proof axiom refl_eq at 0 on(fun x where x != 0 -> 100 / x)(y) end in t|},
+    ),
+    proof_paren_test(
+      {|axiom `on` term: plain fun in application head|},
+      AxiomStep({
+        at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+        at_exp: built_fun_ap(~guard=false, ()),
+        direction: Util.Direction.Right,
+        equality: Exp.fresh(Var("refl_eq")),
+      }),
+      {|theorem t = 1 == 1 proof axiom refl_eq at 0 on(fun x -> 100 / x)(y) end in t|},
+    ),
+    proof_paren_test(
+      {|assume hypothesis: fun where in application head|},
+      Assume(built_fun_ap(~guard=true, ()), Proof.fresh(EmptyHole)),
+      {|theorem t = 1 == 1 proof assume(fun x where x != 0 -> 100 / x)(y) => ? in t|},
+    ),
+    proof_paren_test(
+      {|eval `at` term: fun where in application head|},
+      EvalStep({
+        at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+        at_exp: built_fun_ap(~guard=true, ()),
+      }),
+      {|theorem t = 1 == 1 proof eval(fun x where x != 0 -> 100 / x)(y) at 0 end in t|},
+    ),
+  ],
+);
+
 let all = [
   tests,
   pad_ids_tests,
+  proof_embedded_paren_tests,
   roundtrip_tests,
   roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,

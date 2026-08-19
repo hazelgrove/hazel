@@ -315,10 +315,11 @@ let parse_zipper = (s: string): Zipper.t =>
   | None => Alcotest.fail("failed to parse zipper: " ++ s)
   };
 
-/* Write `term` over the theorem's (hole) proof and return the program text,
-   exactly as the step-picker's ProofPatch does for a MissingStep row whose
-   backing proof is a hole (StepperBase.add_step_patch / ReplaceProof). */
-let insert_proof_term = (~src: string, term: TermBase.Proof.term): string => {
+/* Write `term` over the theorem's (hole) proof, exactly as the
+   step-picker's ProofPatch does for a MissingStep row whose backing proof
+   is a hole (StepperBase.add_step_patch / ReplaceProof). Returns the
+   patched zipper so callers can also ask where the caret can land. */
+let insert_proof_zipper = (~src: string, term: TermBase.Proof.term): Zipper.t => {
   let z = parse_zipper(src);
   let root = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let target_id =
@@ -329,9 +330,11 @@ let insert_proof_term = (~src: string, term: TermBase.Proof.term): string => {
   EditorTransform.apply_patch(
     z,
     EditorTransform.mk_proof_patch(~target_id, Proof.fresh(term)),
-  )
-  |> Printer.of_zipper(~holes="?");
+  );
 };
+
+let insert_proof_term = (~src: string, term: TermBase.Proof.term): string =>
+  insert_proof_zipper(~src, term) |> Printer.of_zipper(~holes="?");
 
 let contains = (haystack: string, needle: string): bool => {
   let hl = String.length(haystack);
@@ -853,8 +856,135 @@ let tests = (
     // ============================================================
     // Insertion: the step-picker's ProofPatch round-trip
     // ============================================================
+    /* The step-picker inserts a no-search wrapping form IMMEDIATELY, with
+       an empty argument, and then puts the caret in that argument
+       (docs/prover-obligations.md §3.4). These tests pin the two halves of
+       that contract at model level: what gets written, and that the hole
+       just written is a reachable caret target. */
     test_case(
-      "insertion: Add-Assume writes `assume <e> => ?` over the hole",
+      "insertion: Assume with no argument writes `assume ? =>`",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 2 ==> x == 2 proof ? in t",
+            StepperBase.Stepper.assume_term(~exp=EmptyHole |> Exp.fresh),
+          );
+        check_contains(
+          ~msg="assume step landed with a hole",
+          out,
+          "assume ?",
+        );
+        check_contains(~msg="the arrow is written too", out, "=>");
+        check_contains(
+          ~msg="theorem statement survives",
+          out,
+          "forall x -> x == 2 ==> x == 2",
+        );
+      },
+    ),
+    test_case(
+      "insertion: Generalize with no argument writes `generalize ? =>`",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == x proof ? in t",
+            StepperBase.Stepper.generalize_term(~exp=EmptyHole |> Exp.fresh),
+          );
+        check_contains(
+          ~msg="generalize step landed with a hole",
+          out,
+          "generalize ?",
+        );
+      },
+    ),
+    test_case(
+      "insertion: an empty-argument form reparses with a hole argument",
+      `Quick,
+      () => {
+        /* The inserted text must parse back to `Assume(EmptyHole, EmptyHole)`
+           — an argument hole (which the user is about to type into) AND a
+           body hole (which becomes the next step-picker row). If the
+           argument came back as anything else, the row the user is dropped
+           into is not an empty editable slot. */
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 2 ==> x == 2 proof ? in t",
+            StepperBase.Stepper.assume_term(~exp=EmptyHole |> Exp.fresh),
+          );
+        switch (Test_ProofMap.find_theorem_proof(parse_exp(out))) {
+        | Some({
+            term: Assume({term: EmptyHole, _}, {term: EmptyHole, _}),
+            _,
+          }) =>
+          check(bool, "argument and body are both holes", true, true)
+        | Some(p) =>
+          Alcotest.fail("reparsed as something else: " ++ Proof.show(p))
+        | None => Alcotest.fail("no theorem proof after insertion")
+        };
+      },
+    ),
+    test_case(
+      "insertion: the new form's argument hole is a reachable caret target",
+      `Quick,
+      () => {
+      /* Focus mechanics: after inserting, the view jumps the MAIN editor's
+         caret to `form_arg_id(term)` so the argument's SubEditor splice
+         accepts edits (SubEditor.confine_pre drops edits whose caret is
+         outside the splice). That id survives into the patched segment
+         only because the serializer stamps term ids onto the pieces it
+         emits — an EmptyHole argument arrives as a Grout carrying it. If
+         this jump cannot resolve, the inserted slot looks and behaves
+         dead, so pin it. */
+      List.iter(
+        ((label, term)) => {
+          let arg_id =
+            switch (StepperBase.Stepper.form_arg_id(term)) {
+            | Some(id) => id
+            | None => Alcotest.fail(label ++ ": form_arg_id returned None")
+            };
+          let z =
+            insert_proof_zipper(
+              ~src="theorem t = forall x -> x == 2 ==> x == 2 proof ? in t",
+              term,
+            );
+          check(
+            bool,
+            label ++ ": caret can jump to the argument hole",
+            true,
+            Haz3lcore.Move.jump_to_id_indicated(z, arg_id) != None,
+          );
+        },
+        [
+          (
+            "assume",
+            StepperBase.Stepper.assume_term(~exp=EmptyHole |> Exp.fresh),
+          ),
+          (
+            "generalize",
+            StepperBase.Stepper.generalize_term(~exp=EmptyHole |> Exp.fresh),
+          ),
+          /* Revert is picked, not typed, but it is focused the same way
+             so the user can adjust the pick. */
+          (
+            "revert (picked)",
+            StepperBase.Stepper.revert_term(~exp=parse_exp("x == 2")),
+          ),
+        ],
+      )
+    }),
+    test_case(
+      "insertion: form_arg_id ignores steps that have no argument", `Quick, () =>
+      check(
+        bool,
+        "a hole step has no wrapping-form argument",
+        true,
+        StepperBase.Stepper.form_arg_id(Proof.fresh(EmptyHole).term) == None,
+      )
+    ),
+    test_case(
+      "insertion: a picked Assume argument writes `assume <e> => ?`",
       `Quick,
       () => {
         let out =
@@ -871,7 +1001,7 @@ let tests = (
       },
     ),
     test_case(
-      "insertion: Add-Revert writes `revert <e> => ?` over the hole",
+      "insertion: a picked Revert fact writes `revert <e> => ?`",
       `Quick,
       () => {
         let out =
@@ -883,7 +1013,7 @@ let tests = (
       },
     ),
     test_case(
-      "insertion: Add-Generalize writes `generalize <e> => ?` over the hole",
+      "insertion: a picked Generalize argument writes `generalize <e> => ?`",
       `Quick,
       () => {
         let out =
@@ -917,6 +1047,50 @@ let tests = (
         | Some(p) =>
           Alcotest.fail("reparsed as something else: " ++ Proof.show(p))
         | None => Alcotest.fail("no theorem proof after insertion")
+        };
+      },
+    ),
+    /* A missing-step row's expression is what its overlay WRITES into
+       the proof text (`axiom ... on <exp> end`). It must be the goal as
+       WRITTEN, not the env-inlined one: the theorem statement the app
+       seeds the first row with is the evaluator's record, and
+       `Transition.re`'s Theorem rule runs `Substitution.in_exp(env, e)`
+       before recording it, so a goal mentioning a let-bound `f` arrives
+       with f's whole lambda spliced in. The checker's ProofMap keeps the
+       written form; the row must prefer it. */
+    test_case(
+      "missing-step row takes its goal from the checker, not the inlined statement",
+      `Quick,
+      () => {
+        let src = "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == f(y) proof ? in t";
+        let (proof, pm) = checked_proof(src);
+        /* What Theorems.re seeds the first row with today: the recorded
+           (env-inlined) statement, peeled. */
+        let inlined_goal =
+          parse_exp(
+            "(fun x where x != 0 -> 100 / x)(y) == (fun x where x != 0 -> 100 / x)(y)",
+          );
+        let result =
+          test_calculate(
+            ~exp=inlined_goal,
+            ~ctx=ctx_with_x,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        switch (result) {
+        | StepperBase.MissingStep(m, _) =>
+          let printed =
+            m.full_exp
+            |> saved_exc(~print="full_exp")
+            |> Test_ProofMap.print_exp;
+          check(
+            string,
+            "row goal is the written form",
+            "f(y) == f(y)",
+            printed,
+          );
+        | _ => Alcotest.fail("expected a MissingStep row")
         };
       },
     ),

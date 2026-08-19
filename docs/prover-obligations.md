@@ -191,6 +191,41 @@ obligation in that branch through ordinary lookup. Within a branch `case_eq`
 is a genuine symmetric equation (the split gate has already required the
 scrutinee defined and terminating).
 
+### 3.4 UI convention: insertion is immediate, menus only pick
+
+**Insertion is immediate with an empty editable slot; menus only ever PICK,
+never EDIT.** (User decision, 2026-08-21.)
+
+Clicking a step-insertion action writes the step into the proof text *at
+once*. Where the step takes an argument that cannot be guessed, it is
+written as a hole and the caret lands in that hole, which is editable in
+place: the argument slot is a `SubEditor` window onto the program text
+(`ProofFormView.view_arg`), so the splice's pieces ARE the proof's pieces
+and typing there is an ordinary edit that re-checks like any other. There is
+no intermediate editor inside the menu, and nothing to confirm — the written
+step is the only state.
+
+A menu therefore appears only when the argument must be *searched*, and it
+offers nothing but candidates; picking one inserts the step with that
+candidate already in place. `revert` is the current example (it matches an
+in-scope fact by `Exp.fast_equal`, so free-typing it is error-prone), as is
+`assume`'s implication-antecedent prefill — a pick, not an edit. `assume`
+and `generalize` take arbitrary expressions, so they have nothing to search
+and insert straight away with a hole.
+
+Consequences worth keeping in mind when wiring a new form:
+
+- The inserted step lands at the position the picker row occupied, so the
+  focus path of the new step's argument is that row's own path with
+  `MissingStepFocus` swapped for the form's `Arg` (see
+  `StepperBase.missing_step_signal`).
+- Focusing an argument slot means *three* things: move the main editor's
+  caret into the slot (a sub-editor rejects edits whose caret is outside its
+  splice), point the stepper's focus path at the slot, and take DOM focus
+  after render (the click left it on the menu button).
+- The argument's id is only knowable from the built term (`embed_exp`
+  refreshes ids), hence `StepperBase.form_arg_id`.
+
 ---
 
 ## 4. Gates and discharge

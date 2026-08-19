@@ -137,6 +137,39 @@ let patch_proof = (~reflow=true, target_src: string, replacement_src: string) =>
 let tests = (
   "EditorTransform",
   [
+    /* The step-picker inserts a wrapping form with an EMPTY argument and
+       then jumps the caret into it (docs/prover-obligations.md §3.4,
+       StepperBase.form_arg_id). That jump keys off the argument term's
+       rep id, so the id must survive the patch: `ExpToSegment` emits an
+       EmptyHole as a Grout stamped with the term's id, and the splice must
+       carry that Grout through unchanged. If it didn't, the inserted slot
+       would render but never take the caret. */
+    test_case(
+      "proof patch preserves an empty argument's id",
+      `Quick,
+      () => {
+        let z = parse_zipper("theorem t = 1 == 1 proof ? in t");
+        let arg = Exp.fresh(EmptyHole);
+        let arg_id = Exp.rep_id(arg);
+        let replacement = Proof.fresh(Assume(arg, Proof.fresh(EmptyHole)));
+        let out =
+          patch_proof_zipper(z, ~select=find_theorem_proof, replacement);
+        check_contains(
+          ~msg="the form is written with a hole argument",
+          serialize(out),
+          "assume ?",
+        );
+        check(
+          bool,
+          "the argument hole's id is present in the patched segment",
+          true,
+          List.mem(
+            arg_id,
+            Haz3lcore.Segment.ids(Haz3lcore.Zipper.unselect_and_zip(out)),
+          ),
+        );
+      },
+    ),
     test_case(
       "root transform rewrites the root expression",
       `Quick,

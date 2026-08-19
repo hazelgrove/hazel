@@ -637,10 +637,20 @@
   margin-left: 2em;
 }
 
-/* The insert-a-wrapping-form box in the step-picker menu. Same chrome as
- * `.rewrite-box` / `.axiom-box`, laid out in a row because the content
- * reads as one line of proof text (`assume <editor> => ?`) followed by its
- * prefill and commit buttons. */
+/* Read-only fallback for a wrapping form's argument (cell-level stepper,
+ * or a moment when the backing segment can't be spliced). Deliberately
+ * WITHOUT `.inline-editor-wrapper`'s chrome: an editor-looking box that
+ * cannot be typed into reads as broken. */
+.proof-form-arg-static {
+  padding: 0.2em 0;
+}
+
+/* The pick list for a wrapping form whose argument must be SEARCHED
+ * (currently only `revert`). Same chrome as `.rewrite-box` / `.axiom-box`,
+ * laid out in a row because it reads as one line: the keyword followed by
+ * the candidates. It holds no editor — picking inserts the step and the
+ * argument is then edited in place, in the row's own
+ * `.proof-form-arg` slot (docs/prover-obligations.md §3.4). */
 .proof-form-box {
   background-color: var(--menu-bkg);
   border-radius: 0 0 0.5em 0;

@@ -32,7 +32,12 @@ type action'('step) =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus'('step) =
-  | InnerExp('step);
+  | InnerExp('step)
+  /* The form's own expression argument, edited in place as a SubEditor
+   * window onto the main editor (see ProofFormView.view_arg). Carries
+   * no local model: the splice IS the proof text, so this constructor
+   * only records which sub-view holds focus. */
+  | Arg(CodeEditable.Selection.t);
 
 let init = init_step => {
   inner_exp: Calc.Pending,
@@ -161,6 +166,10 @@ module F =
             model.inner_stepper,
           );
         (InnerExp(ci): action);
+      /* The arg editor's actions belong to the main editor (they are
+       * injected through its own channel), so this row contributes no
+       * cursor info of its own. */
+      | Arg(_) => Cursor.empty
       }
     );
 
@@ -171,7 +180,6 @@ module F =
         ~inject as _: action => Ui_effect.t(unit),
         ~take_focus as _: focus => Ui_effect.t(unit),
         ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         ~proof as _: option(Proof.t),
         ~edit_syntax as
@@ -187,7 +195,6 @@ module F =
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         ~proof: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
@@ -200,6 +207,7 @@ module F =
         ~focus=
           switch (focus) {
           | Some(InnerExp(f)) => Some(f)
+          | Some(Arg(_))
           | None => None
           },
         ~inject=x => inject(InnerExp(x)),
@@ -210,7 +218,20 @@ module F =
         ~main_editor,
         model.inner_stepper,
       );
-    ProofFormView.view_arg(~globals, ~label="Revert: ", arg_of_proof(proof))
+    ProofFormView.view_arg(
+      ~globals,
+      ~label="Revert: ",
+      ~proof,
+      ~main_editor,
+      ~focused=
+        switch (focus) {
+        | Some(Arg(_)) => true
+        | Some(InnerExp(_))
+        | None => false
+        },
+      ~take_focus=() => take_focus(Arg()),
+      arg_of_proof(proof),
+    )
     @ inner_stepper;
   };
 };

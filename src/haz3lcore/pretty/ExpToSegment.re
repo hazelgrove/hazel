@@ -612,7 +612,18 @@ let rec parenthesize =
     Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(thm) |> paren_at(Precedence.min),
-      pf,
+      /* The proof carries expressions of its own (an axiom's `on` term,
+       * an `assume`'s hypothesis, an induction scrutinee). They need the
+       * same defensive parens as any other expression: steps inserted by
+       * the stepper UI are BUILT, not parsed, so they carry no explicit
+       * Parens node and would otherwise reparse wrong (`fun x -> b`
+       * applied to an argument printing as `fun x -> b(y)`). */
+      parenthesize_proof(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        pf,
+      ),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
@@ -1066,6 +1077,69 @@ and parenthesize_rul =
   };
 }
 
+/* Proof terms have no precedence of their own to defend (every form is
+ * keyword-delimited), but the EXPRESSIONS in their slots do. Each slot
+ * is a bracketed tile child (`assume _ =>`, `axiom _ at _ on _ end`,
+ * ...), so `Precedence.min` is the right internal level — it never adds
+ * a spurious layer, it just makes the recursive walk happen at all.
+ * Induction's scrutinee is the exception: it shares its slot with the
+ * `| pat => body` rule chain, so it defends at `rule_sep`. */
+and parenthesize_proof =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_ascriptions: bool,
+      ~show_filters: bool,
+      proof: Proof.t,
+    )
+    : Proof.t => {
+  let go_exp = (~level=Precedence.min, e: Exp.t): Exp.t =>
+    parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
+    |> paren_at(~parenthesization, level);
+  let go_pat = (p: Pat.t): Pat.t =>
+    parenthesize_pat(~parenthesization, ~show_ascriptions, ~show_filters, p);
+  let go =
+    parenthesize_proof(~parenthesization, ~show_ascriptions, ~show_filters);
+  let (term, rewrap: TermBase.Proof.term => Proof.t) =
+    IdTagged.unwrap(proof);
+  switch (term) {
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => proof
+  | Seq(p1, p2) => Seq(go(p1), go(p2)) |> rewrap
+  | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
+  | Assume(e, body) => Assume(go_exp(e), go(body)) |> rewrap
+  | Generalize(e, body) => Generalize(go_exp(e), go(body)) |> rewrap
+  | Revert(e, body) => Revert(go_exp(e), go(body)) |> rewrap
+  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+    AxiomStep({
+      at_idx: go_exp(at_idx),
+      at_exp: go_exp(at_exp),
+      direction,
+      equality: go_exp(equality),
+    })
+    |> rewrap
+  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+    AlgebriteStep({
+      at_idx: go_exp(at_idx),
+      at_exp: go_exp(at_exp),
+      with_exp: go_exp(with_exp),
+    })
+    |> rewrap
+  | EvalStep({at_idx, at_exp}) =>
+    EvalStep({
+      at_idx: go_exp(at_idx),
+      at_exp: go_exp(at_exp),
+    })
+    |> rewrap
+  | Induction(scrut, cases) =>
+    Induction(
+      go_exp(~level=Precedence.rule_sep, scrut),
+      List.map(((pat, body)) => (go_pat(pat), go(body)), cases),
+    )
+    |> rewrap
+  };
+}
+
 and parenthesize_any =
     (
       ~parenthesization: Settings.parenthesization,
@@ -1131,7 +1205,15 @@ and parenthesize_any =
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
-  | Proof(_) => any
+  | Proof(p) =>
+    Proof(
+      parenthesize_proof(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        p,
+      ),
+    )
   | PRul(_) => any
   | Any(_) => any
   };

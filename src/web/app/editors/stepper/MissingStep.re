@@ -29,31 +29,13 @@ module Model = {
         cached_exp: Calc.saved(Exp.t),
         cached_result: option(bool),
       })
-    /* Same inline-editor affordance as RewritesOpen, minus the
-       check/replace round-trip: these forms are always well-formed
-       syntax, so the expression goes straight into the proof text and the
-       checker reports on the resulting step. */
-    | ProofFormOpen({
-        form: proof_form,
-        editor: CodeEditable.Model.t,
-        cached_exp: Calc.saved(Exp.t),
-      })
+    /* A wrapping form whose argument cannot be guessed but CAN be
+       searched: the box lists candidates and picking one inserts the
+       step. Purely a pick list — it holds no editor, because the
+       inserted step's argument is edited in place (docs/prover-
+       obligations.md §3.4: menus only ever PICK, never EDIT). */
+    | ProofFormPicksOpen({form: proof_form})
     | NoneOpen;
-
-  /* An editor seeded with an expression, for the one-click prefills
-     (implication antecedent / picked in-scope fact). */
-  let editor_of_exp = (exp: Exp.t): CodeEditable.Model.t =>
-    CodeEditable.Model.mk(
-      Editor.Model.mk(
-        ~root=Exp,
-        Zipper.unzip(
-          ExpToSegment.exp_to_segment(
-            ~settings=ExpToSegment.Settings.editable(~inline=true),
-            exp,
-          ),
-        ),
-      ),
-    );
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type assumptions = list(AssumptionBox.Model.t);
@@ -108,9 +90,7 @@ module Update = {
     | UpdateResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t)
-    | OpenProofForm(Model.proof_form)
-    | ProofFormEditorAction(CodeEditable.Update.t)
-    | PrefillProofForm(Exp.t);
+    | ToggleProofFormPicks(Model.proof_form);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -119,7 +99,7 @@ module Update = {
         switch (model.open_box) {
         | NoneOpen
         | RewritesOpen(_)
-        | ProofFormOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | ProofFormPicksOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
         | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
@@ -132,7 +112,7 @@ module Update = {
         switch (model.open_box) {
         | NoneOpen
         | AxiomsOpen(_)
-        | ProofFormOpen(_) =>
+        | ProofFormPicksOpen(_) =>
           Model.RewritesOpen({
             editor:
               CodeEditable.Model.mk(
@@ -177,53 +157,24 @@ module Update = {
         open_box: Model.AxiomsOpen(updated),
       };
     | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
-    /* Toggle: the same button closes the box it opened, and switching
-       forms (or coming from another box) opens a fresh empty editor. */
-    | (OpenProofForm(form), _) =>
+    /* Toggle: the same button closes the pick list it opened, and
+       switching forms (or coming from another box) opens that form's
+       list. The list carries no state of its own — the candidates are
+       read off `model.assumptions` at view time. */
+    | (ToggleProofFormPicks(form), _) =>
       let open_box =
         switch (model.open_box) {
-        | ProofFormOpen({form: open_form, _}) when open_form == form => Model.NoneOpen
+        | ProofFormPicksOpen({form: open_form}) when open_form == form => Model.NoneOpen
         | NoneOpen
         | AxiomsOpen(_)
         | RewritesOpen(_)
-        | ProofFormOpen(_) =>
-          Model.ProofFormOpen({
-            form,
-            editor:
-              CodeEditable.Model.mk(
-                Editor.Model.mk(Zipper.init(), ~root=Exp),
-              ),
-            cached_exp: Calc.Pending,
-          })
+        | ProofFormPicksOpen(_) => Model.ProofFormPicksOpen({form: form})
         };
       Model.{
         ...model,
         open_box,
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true);
-    | (ProofFormEditorAction(action), ProofFormOpen({editor, _} as r)) =>
-      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
-      Model.{
-        ...model,
-        open_box:
-          Model.ProofFormOpen({
-            ...r,
-            editor: new_editor,
-          }),
-      };
-    | (ProofFormEditorAction(_), _) => model |> Updated.raise_invalid_action
-    | (PrefillProofForm(exp), ProofFormOpen(r)) =>
-      Model.{
-        ...model,
-        open_box:
-          Model.ProofFormOpen({
-            ...r,
-            editor: Model.editor_of_exp(exp),
-            cached_exp: Calc.Pending,
-          }),
-      }
-      |> Updated.return_quiet(~recalculate=true, ~logged=true)
-    | (PrefillProofForm(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -234,9 +185,7 @@ module Update = {
     | UpdateResult(_)
     | RewriteEditorAction(_)
     | AxiomBoxAction(_)
-    | OpenProofForm(_)
-    | ProofFormEditorAction(_)
-    | PrefillProofForm(_) => false
+    | ToggleProofFormPicks(_) => false
     };
   };
 
@@ -424,30 +373,9 @@ module Update = {
         AxiomsOpen(
           AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
-      | ProofFormOpen({form, editor, cached_exp}) =>
-        /* Same editor pipeline as RewritesOpen: calculate syntax/statics,
-           then read the elaborated expression back out. */
-        let editor =
-          CodeEditable.Update.calculate(
-            ~settings,
-            ~is_edited=true,
-            ~is_dynamic_term=true,
-            ~dynamics=Dynamics.Map.empty,
-            ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
-            editor,
-          );
-        let cached_exp =
-          Calc.set(
-            ~eq=Exp.fast_equal_with_lexemes,
-            CodeEditable.Model.get_statics(editor).elaborated,
-            cached_exp,
-          );
-        Model.ProofFormOpen({
-          form,
-          editor,
-          cached_exp: cached_exp |> Calc.save,
-        });
+      /* Nothing to calculate: a pick list holds no editor, and its
+         candidates come from `assumptions`, computed above. */
+      | ProofFormPicksOpen(_) as picks => picks
       | NoneOpen => NoneOpen
       };
     let cached_env =
@@ -478,8 +406,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | RewriteEditor(CodeEditable.Selection.t)
-    | AxiomBoxSelection(AxiomsBox.Selection.t)
-    | ProofFormEditor(CodeEditable.Selection.t);
+    | AxiomBoxSelection(AxiomsBox.Selection.t);
 
   let get_cursor_info =
       (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
@@ -497,15 +424,6 @@ module Selection = {
       let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
-    | (ProofFormEditor(selection), ProofFormOpen({editor, _})) =>
-      let+ ci =
-        CodeEditable.Selection.get_cursor_info(
-          ~inject=a => inject(Update.ProofFormEditorAction(a)),
-          ~selection,
-          editor,
-        );
-      Update.ProofFormEditorAction(ci);
-    | (ProofFormEditor(_), _) => empty
     };
   };
 };
@@ -518,8 +436,13 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
-    /* The wrapping forms: `assume`/`revert`/`generalize <exp> => ?` written
-       around this row's hole (see StepperBase.assume_term & friends). */
+    /* The wrapping forms: `assume`/`revert`/`generalize <exp> => ?`
+       written around this row's hole (see StepperBase.assume_term &
+       friends). The payload is the argument as it should first appear: an
+       EmptyHole for the no-search forms (the user types into the inserted
+       step's own arg editor), or a picked expression for the prefills.
+       Either way the insertion is immediate and focus lands in the new
+       step's arg slot — see StepperBase's `emit_wrapping_form`. */
     | AddAssume(Exp.t)
     | AddRevert(Exp.t)
     | AddGeneralize(Exp.t)
@@ -640,6 +563,53 @@ module View = {
         && Exp.is_fun(Calc.get_saved_exc(model.full_exp));
       };
 
+      /* The wrapping proof forms (`assume`/`revert`/`generalize <exp> =>`).
+         Convention (docs/prover-obligations.md §3.4): a menu only ever
+         PICKS. Where there is nothing to search — Assume and Generalize
+         take an arbitrary expression — one click inserts the step with a
+         HOLE argument and focus lands in the new step's own inline arg
+         editor, so the user just types. Where the argument must be
+         searched (Revert matches an in-scope fact by `Exp.fast_equal`),
+         the button opens a pick list and picking inserts directly. Both
+         paths force the record open, or the row just written would not be
+         on screen. */
+      let insert_form = (event: event) =>
+        Ui_effect.Many([
+          globals.inject_global(Set(Evaluation(ForceShowRecord))),
+          signal(event),
+        ]);
+      let hole = () => EmptyHole |> Exp.fresh;
+      let wrapping_form_buttons = {
+        let full_exp =
+          model.full_exp |> Calc.get_saved_exc(~print="full_exp not cached");
+        [proof_button(~callback=insert_form(AddAssume(hole())), "Assume")]
+        @ (
+          /* Implication intro (docs/prover-obligations.md §2.1): with goal
+             `A ==> B`, assuming exactly A strips the antecedent and incurs
+             NO obligation. That is a pick, not an edit, so it inserts the
+             step with A already in place. */
+          switch (full_exp |> Exp.term_of) {
+          | BinOp(Bool(Implies), a, _) => [
+              proof_button(
+                ~callback=insert_form(AddAssume(a)),
+                "Assume antecedent",
+              ),
+            ]
+          | _ => []
+          }
+        )
+        @ [
+          proof_button(
+            ~callback=inject(ToggleProofFormPicks(Revert)),
+            "Revert ▼",
+          ),
+          proof_button(
+            ~callback=insert_form(AddGeneralize(hole())),
+            "Generalize",
+          ),
+        ];
+      };
+
       // I want to make a bunch of buttons here:
       // Evaluate [TODO], Rewrite, Axioms, Cases,
       let buttons =
@@ -692,21 +662,9 @@ module View = {
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
-            /* The wrapping proof forms. Each opens the same inline-editor
-               box; the keyword is the button label so it is obvious what
-               lands in the proof text. */
-            proof_button(
-              ~callback=inject(OpenProofForm(Assume)),
-              "Assume ▼",
-            ),
-            proof_button(
-              ~callback=inject(OpenProofForm(Revert)),
-              "Revert ▼",
-            ),
-            proof_button(
-              ~callback=inject(OpenProofForm(Generalize)),
-              "Generalize ▼",
-            ),
+          ]
+          @ wrapping_form_buttons
+          @ [
             proof_button(
               ~callback=
                 Ui_effect.Many([
@@ -906,46 +864,40 @@ module View = {
                       },
                     ),
                   ];
-                | ProofFormOpen({form, editor, cached_exp}) =>
+                | ProofFormPicksOpen({form}) =>
                   let keyword = Model.proof_form_keyword(form);
-                  let unboxed_cached_exp =
-                    Calc.get_saved_exc(
-                      ~print="proof form exp not calculated",
-                      cached_exp,
-                    );
-                  let full_exp =
-                    model.full_exp
-                    |> Calc.get_saved_exc(~print="full_exp not cached");
-                  /* One-click prefills, so the common cases need no typing.
-                     Both drop an expression into the box's editor rather
-                     than writing the step straight out: the user sees
-                     exactly what will be written, and can adjust it. */
-                  let prefill = (~label: string, exp: Exp.t) =>
+                  /* A pick list, nothing more: each entry INSERTS the step
+                     with that expression already in place (docs/prover-
+                     obligations.md §3.4). `revert` matches an in-scope fact
+                     by `Exp.fast_equal` (ProofCheck.lookup_fact), so
+                     free-typing it is error-prone — hence the search. The
+                     listing is the one the Assumptions box shows, minus the
+                     builtin axioms (global rules, not facts of this scope)
+                     and captured entries. */
+                  let pick = (~label: string, exp: Exp.t) =>
                     Widgets.button(
                       ~clss=["proof-button"],
-                      ~tooltip="Fill in " ++ label,
+                      ~tooltip=
+                        "Write `"
+                        ++ keyword
+                        ++ " "
+                        ++ label
+                        ++ " =>` into the proof",
                       Node.text(label),
                       _ =>
-                      inject(PrefillProofForm(exp))
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        switch (form) {
+                        | Assume => signal(AddAssume(exp))
+                        | Revert => signal(AddRevert(exp))
+                        | Generalize => signal(AddGeneralize(exp))
+                        },
+                      ])
                     );
-                  let prefills =
+                  let picks =
                     switch (form) {
-                    /* Implication intro (docs/prover-obligations.md §2.1):
-                       with goal `A ==> B`, assuming exactly A strips the
-                       antecedent and incurs NO obligation, so offer A. */
-                    | Assume =>
-                      switch (full_exp |> Exp.term_of) {
-                      | BinOp(Bool(Implies), a, _) => [
-                          prefill(~label="Assume antecedent", a),
-                        ]
-                      | _ => []
-                      }
-                    /* `revert` matches an in-scope fact by `Exp.fast_equal`
-                       (ProofCheck.lookup_fact), so free-typing it is
-                       error-prone: offer the same in-scope listing the
-                       Assumptions box shows, minus the builtin axioms
-                       (global rules, not facts of this scope) and captured
-                       entries. Picking one fills it in verbatim. */
                     | Revert =>
                       model.assumptions
                       |> Calc.get_saved_opt
@@ -961,60 +913,23 @@ module View = {
                                 )
                          )
                       |> List.map((ab: AssumptionBox.Model.t) =>
-                           prefill(~label=ab.ctx_entry.name, ab.ctx_entry.exp)
+                           pick(~label=ab.ctx_entry.name, ab.ctx_entry.exp)
                          )
-                    /* `generalize` takes a bare in-scope variable; there is
-                       no single obvious candidate, so it is typed. */
+                    /* No-search forms don't open a list at all; their
+                       buttons insert straight away. */
+                    | Assume
                     | Generalize => []
                     };
                   [
                     div_c(
                       "proof-form-box",
-                      [
-                        Node.text(keyword ++ " "),
-                        div_c(
-                          "inline-editor-wrapper",
-                          [
-                            CodeEditable.View.view(
-                              ~globals,
-                              ~signal=
-                                fun
-                                | MakeActive =>
-                                  signal(MakeActive(ProofFormEditor())),
-                              ~edit_mode=
-                                EditMode.Editable({
-                                  inject: x =>
-                                    inject(ProofFormEditorAction(x)),
-                                  escape: _ => Ui_effect.Ignore,
-                                  take_focus: _ => Ui_effect.Ignore,
-                                  focus:
-                                    switch (selected) {
-                                    | Some(ProofFormEditor ()) => Some()
-                                    | _ => None
-                                    },
-                                }),
-                              ~dynamics=Dynamics.Map.empty,
-                              editor,
-                            ),
-                          ],
-                        ),
-                        Node.text("=> ?"),
-                      ]
-                      @ prefills
-                      @ [
-                        Widgets.button(
-                          ~clss=["proof-button"],
-                          ~tooltip="Write " ++ keyword ++ " into the proof",
-                          Node.text("Add " ++ keyword),
-                          _ =>
-                          switch (form) {
-                          | Assume => signal(AddAssume(unboxed_cached_exp))
-                          | Revert => signal(AddRevert(unboxed_cached_exp))
-                          | Generalize =>
-                            signal(AddGeneralize(unboxed_cached_exp))
-                          }
-                        ),
-                      ],
+                      picks == []
+                        ? [
+                          Node.text(
+                            "No in-scope facts to " ++ keyword ++ ".",
+                          ),
+                        ]
+                        : [Node.text(keyword ++ " ")] @ picks,
                     ),
                   ];
                 };
