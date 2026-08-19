@@ -127,6 +127,24 @@ Things worth knowing before writing one of these tests:
 when its input is old. That is the contract every `calculate` in the app depends
 on.
 
+### Known gap: the proof/derivation components
+
+`AxiomsBox` (2 `let.calc`) and `MissingStep` (5) are the remaining components with
+substantial `Calc` logic and no coverage. They resist the approach above for a
+specific reason worth recording rather than rediscovering: with a plain
+expression context their cached values come back empty, and an empty list or map
+in OCaml is a shared constant, so `x === y` holds whether the value was reused or
+rebuilt. Every reuse test written that way passes vacuously -- including under a
+mutation that forces a recompute, which is how the vacuity was caught here.
+
+Covering them needs a fixture with a real proof context -- assumptions and
+propositions, so the derived rule and rewrite lists are non-empty -- at which
+point physical equality becomes a fair observable again. `Test_Theorems` shows
+the shape of that setup for theorems specifically: evaluate a real `theorem`
+program with `enable_proof` on and feed the resulting `Dynamics.t` in, with a
+fixture guard asserting the program really did contribute a theorem so the rest
+cannot pass vacuously.
+
 ## The Future
 
 This system could be viewed as an in-between state, between the original implementation (with one large model and update type) and a fully-incremental Bonsai implementation (where subcomponent inclusion and downstream calculation are handled fully by Bonsai).
