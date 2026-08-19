@@ -1109,8 +1109,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(_id, (["-"], []))], []) =>
       /* Negative literal patterns: the pattern grammar has no unary ops,
          and a matched value is a plain negative atom, so fold the minus
-         into the literal. The literal's ids are adopted, as in ListLit
-         absorption. Non-literal operands (`-x`) stay holes. */
+         into the literal. The float fold is exact: IEEE negation only
+         flips the sign bit and correctly-rounded decimal conversion
+         commutes with sign, so -. parse(s) == parse("-" ++ s). The
+         literal's ids are adopted, as in ListLit absorption. Non-literal
+         operands (`-x`) stay holes. */
       switch (r) {
       | {term: Atom(Int(n)), annotation: {ids, _}} =>
         adopted_ids := ids @ adopted_ids^;

@@ -32,6 +32,22 @@ let tests = (
     test_case("Negation of parenthesized float expression", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|atan(0. -. 1.) ==. -(atan(1.))|})
     ),
+    /* Under a `use` mode, a definitively-Int operand re-kinds negation
+       back to Int (was a float op stuck on the Int operand). The `let`
+       keeps the use-expression in synthetic position so the operand
+       peek, not the ana branch, decides. */
+    test_case("Int-ascribed operand negates under use Float", `Quick, () =>
+      parse_and_evaluate_test(
+        {|0|},
+        {|let n = (use Float in -3 : Int) in n + 3|},
+      )
+    ),
+    test_case("Bare literal under use Float still floats", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|let y = (use Float in -3) in y ==. 0. -. 3.|},
+      )
+    ),
     /* Negative literal PATTERNS: MakeTerm folds prefix minus into the
        literal atom (patterns have no unary ops). */
     test_case("Negative int pattern matches", `Quick, () =>
