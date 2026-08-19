@@ -1098,9 +1098,11 @@ let entry_experience_tests = [
    a tile expecting that opener completes in place (the tile's
    surviving shards carry the expectation; no mold gate exists in
    operand position, so length >= 2 is the residual protection) === */
-/* Sort-aware symbolic witnesses: `-`/`=` have no legitimate
-   non-label mold at the slot's sort, so they can only be broken
-   `->`/`=>` prefixes there */
+/* Sort- and position-aware symbolic witnesses: `-`/`=` have no
+   legitimate non-label mold at the slot's sort AND position, so they
+   can only be broken `->`/`=>` prefixes there. (`-` does out at Pat
+   since #2419, but only as a prefix, so it stays illegitimate after
+   a complete pattern.) */
 let symbolic_witness_tests = [
   edit_case(
     ~name="deleted > of ->: dash witnesses arrow in Pat slot",
@@ -1114,8 +1116,9 @@ let symbolic_witness_tests = [
   ),
   edit_case(
     ~name="genuine minus beyond the frontier is not eaten",
-    /* the Pat frontier fires AT the broken dash, so the body's real
-       minus sits outside the witness region — uniqueness holds */
+    /* both dashes now sit in the witness region (the Pat frontier no
+       longer clips at the first one), so the leftmost rule is what
+       keeps the body's real minus */
     ~acts=Test_Editing.mk("let f = fun x ->¦ x - 2 in f(1)") @ [destruct_l],
     ~expected="let f = fun x -> x - 2 in f(1)",
   ),
@@ -1862,7 +1865,10 @@ let clippable_guard_tests = {
     Alcotest.test_case("form-table sort coverage", `Quick, () =>
       Alcotest.(check(string))(
         "coverage",
-        "Exp 67/88 | Pat 8/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+        /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
+           Pat mold. Re-decided, not repinned blindly: 9/88 is still
+           real signal, so clippable_sort stands. */
+        "Exp 67/88 | Pat 9/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
         table,
       )
     ),
