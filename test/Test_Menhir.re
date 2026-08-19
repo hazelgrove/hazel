@@ -391,6 +391,12 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* An expression ascription ends before a top-level `+`, after `...`
+         too: `(x : A ... B) + C`. */
+      menhir_maketerm_equivalent_test(
+        "ascription with an extension, then +",
+        "x : A ... B + C",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(
