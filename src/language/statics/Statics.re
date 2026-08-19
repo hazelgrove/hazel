@@ -711,6 +711,21 @@ and uexp_to_info_map =
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
+      /* Re-kind numeric negation by the analyzed class, else by the
+         operand's own class (peeked with a discarded pass) — mirrors
+         replace_literal, so `-1.5` and `let x: Float = -5` type as float
+         negation instead of locking the operand to Int. */
+      let op =
+        switch (Typ.is_ana_atom(ana)) {
+        | Some(_) as ana_cls => Operators.replace_un_op_cls(op, ana_cls, None)
+        | None =>
+          let (peek, _, _) = go(~ana=syn, e, m);
+          Operators.replace_un_op_cls(
+            op,
+            None,
+            Typ.is_ana_atom(peek.elab_syn_ty),
+          );
+        };
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
