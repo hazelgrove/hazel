@@ -21,6 +21,7 @@ let (suite, _) =
       Test_CodeEditable.tests,
       Test_CrashHandling.tests,
       Test_Calc.tests,
+      Test_Page.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,

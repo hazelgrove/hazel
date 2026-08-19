@@ -120,6 +120,15 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
     worker;
   };
 
+/* Whether to offload evaluation to a Web Worker at all. Off means callers pass
+   `~queue_worker=None` and evaluation runs synchronously through
+   `WorkerServer.evaluate_sync` -- the path `ExplainThis` already uses.
+   The switch exists so the page-level update cycle can be driven in the test
+   binary, where `Worker` is not a constructor: without it, any `calculate` with
+   dynamics on dies here and the whole top-level incrementality cycle is
+   untestable. Always on in the browser. */
+let use_worker: ref(bool) = ref(true);
+
 /* Created on first use, not at module init: the test binary links this
    module (via ScratchMode) under node, where Worker doesn't exist. */
 let worker_ref:

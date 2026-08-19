@@ -985,12 +985,15 @@ module Update = {
     switch (scratchpad.kind) {
     | Code({editor, agent}) =>
       let worker_request = ref([]);
+      /* No worker means evaluate in-process; see WorkerClient.use_worker. */
       let queue_worker =
-        Some(
-          (req_value: WorkerServer.Request.value) => {
-            worker_request := worker_request^ @ [("", req_value)]
-          },
-        );
+        WorkerClient.use_worker^
+          ? Some(
+              (req_value: WorkerServer.Request.value) => {
+                worker_request := worker_request^ @ [("", req_value)]
+              },
+            )
+          : None;
       let new_ed =
         CellEditor.Update.calculate(
           ~settings,
