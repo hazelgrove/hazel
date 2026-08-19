@@ -434,6 +434,9 @@ type compound_form =
   | ProofRevert
   | ProofAxiom
   | ProofAxiomRev
+  | ProofRevertWith
+  | ProofAxiomWith
+  | ProofAxiomRevWith
   | ProofAlgebrite
   | ProofEval
   | ProofInduction
@@ -577,6 +580,34 @@ let get: compound_form => t =
    * `axiom` alone applies it left-to-right (Direction.Right). */
   | ProofAxiomRev =>
     mk_op_c(L, ["axiomrev", "at", "on", "end"], Proof, [Exp, Exp, Exp])
+  /* Phase-4d explicit-instantiation variants (docs/prover-obligations.md
+   * open item 3). These sit BESIDE the plain forms rather than making
+   * them variadic — the same choice as `ForallWhere` beside `Forall`.
+   * `revert <fact> with <var> = <exp> => <proof>` and
+   * `axiom <name> with <var> = <exp> at <idx> on <target> end`. v1 takes
+   * exactly one binding per step. */
+  | ProofRevertWith =>
+    mk_pre_c(
+      L,
+      ["revert", "with", "=", "=>"],
+      P.fun_,
+      Proof,
+      [Exp, Exp, Exp],
+    )
+  | ProofAxiomWith =>
+    mk_op_c(
+      L,
+      ["axiom", "with", "=", "at", "on", "end"],
+      Proof,
+      [Exp, Exp, Exp, Exp, Exp],
+    )
+  | ProofAxiomRevWith =>
+    mk_op_c(
+      L,
+      ["axiomrev", "with", "=", "at", "on", "end"],
+      Proof,
+      [Exp, Exp, Exp, Exp, Exp],
+    )
   | ProofAlgebrite =>
     mk_op_c(L, ["rewrite", "with", "at", "end"], Proof, [Exp, Exp, Exp])
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])

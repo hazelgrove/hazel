@@ -4524,6 +4524,40 @@ and proof_to_info_map =
     | Projector(_, inner) => unwrap_head(inner)
     | _ => e
     };
+  /* Phase-4d `with <var> = <exp>` support. The declared type of the
+     quantified binder [x] in a proposition, when syntactically
+     recoverable: peel `forall` / `forall-where` binders looking for an
+     ascribed binder of that name. The instantiation analyzes against
+     this type when it is found and merely synthesizes when it is not —
+     a missing ascription is not an error here, the CHECKER is the
+     authority on whether the citation makes sense
+     (docs/prover-obligations.md, Phase 4d). */
+  let rec binder_typ_of_pat = (x: Var.t, pat: Pat.t): option(Typ.t) =>
+    switch (pat.term) {
+    | Parens(p1) => binder_typ_of_pat(x, p1)
+    | Asc(p1, ty) =>
+      switch (p1.term) {
+      | Var(y) when y == x => Some(ty)
+      | Parens(_) => binder_typ_of_pat(x, p1)
+      | _ => None
+      }
+    | _ => None
+    };
+  let rec binder_typ_in_prop = (x: Var.t, prop: Exp.t): option(Typ.t) =>
+    switch (prop.term) {
+    | Parens(e1) => binder_typ_in_prop(x, e1)
+    | Forall(pat, body) =>
+      switch (binder_typ_of_pat(x, pat)) {
+      | Some(_) as found => found
+      | None => binder_typ_in_prop(x, body)
+      }
+    | ForallWhere(pat, _, body) =>
+      switch (binder_typ_of_pat(x, pat)) {
+      | Some(_) as found => found
+      | None => binder_typ_in_prop(x, body)
+      }
+    | _ => None
+    };
   /* Update the InfoExp entry at [id] by prepending [mark]. */
   let add_mark_to_exp = (id: Id.t, mark: Mark.t, m: Map.t): Map.t =>
     switch (Id.Map.find_opt(id, m)) {
@@ -4580,7 +4614,7 @@ and proof_to_info_map =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p2), m);
     let elab = rewrap(Seq(proof_of_any(p1_elab), proof_of_any(p2_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
-  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     /* Check the index against Int and the at-expression by synthesis. */
     let (_, at_idx_elab, m) =
       uexp_to_info_map(
@@ -4642,6 +4676,68 @@ and proof_to_info_map =
           );
         (equality_elab, m);
       };
+    /* Phase-4d `with <var> = <exp>`. `<var>` names a BINDER OF THE CITED
+       RULE, not a program variable, so it is walked in a ctx extended
+       with a dummy entry (the same Free-suppression trick the equality
+       slot uses above); the checker reports an unknown binder name as
+       `ProofMark.UnknownInstantiationVar`. `<exp>` analyzes against the
+       binder's declared type when the cited hypothesis's proposition is
+       known and ascribes it, and otherwise just synthesizes. */
+    let (instantiation_elab, m) =
+      switch (instantiation) {
+      | None => (None, m)
+      | Some((var, inst)) =>
+        let var_head = unwrap_head(var);
+        let var_name =
+          switch (var_head.term) {
+          | Var(name) => Some(name)
+          | _ => None
+          };
+        let ctx_for_var =
+          switch (var_name) {
+          | None => ctx
+          | Some(name) =>
+            Ctx.extend(
+              ctx,
+              VarEntry({
+                name,
+                id: Id.invalid,
+                typ: Unknown(Internal) |> Typ.temp,
+                custom_statics: None,
+              }),
+            )
+          };
+        let (_, var_elab, m) =
+          uexp_to_info_map(
+            ~ctx=ctx_for_var,
+            ~ancestors=ancestors_inclusive,
+            var,
+            m,
+          );
+        let binder_typ =
+          switch (var_name, head.term) {
+          | (Some(x), Var(eq_name)) =>
+            switch (Ctx.lookup_hypothesis(ctx, eq_name)) {
+            | Some({prop: Some(prop), _}) => binder_typ_in_prop(x, prop)
+            | _ => None
+            }
+          | _ => None
+          };
+        let (_, inst_elab, m) =
+          switch (binder_typ) {
+          | Some(ty) =>
+            uexp_to_info_map(
+              ~ctx,
+              ~ana=ty,
+              ~ancestors=ancestors_inclusive,
+              inst,
+              m,
+            )
+          | None =>
+            uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, inst, m)
+          };
+        (Some((var_elab, inst_elab)), m);
+      };
     let elab =
       rewrap(
         AxiomStep({
@@ -4649,6 +4745,7 @@ and proof_to_info_map =
           at_exp: at_exp_elab,
           direction,
           equality: equality_elab,
+          instantiation: instantiation_elab,
         }),
       );
     (CoCtx.empty, Proof(elab), add_proof_info(m));
@@ -4879,7 +4976,7 @@ and proof_to_info_map =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
     let elab = rewrap(Generalize(e_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
-  | Revert(e, body) =>
+  | Revert(e, instantiation, body) =>
     /* `revert F => body` cashes the in-scope fact `F` back into the goal:
        `F` is a proposition, so analyze it against Bool. The body is
        checked in the UNCHANGED ctx — reverting does not remove the fact
@@ -4893,9 +4990,66 @@ and proof_to_info_map =
         e,
         m,
       );
+    /* Phase-4d `with <var> = <exp>`: `<var>` is a quantified binder of
+       the reverted fact, which is written out in full right here, so the
+       binder's declared type is recoverable from `e` itself. As in the
+       axiom step, `<var>` is walked with a dummy ctx entry so naming a
+       rule binder is not a Free variable. */
+    let (instantiation_elab, m) =
+      switch (instantiation) {
+      | None => (None, m)
+      | Some((var, inst)) =>
+        let var_head = unwrap_head(var);
+        let var_name =
+          switch (var_head.term) {
+          | Var(name) => Some(name)
+          | _ => None
+          };
+        let ctx_for_var =
+          switch (var_name) {
+          | None => ctx
+          | Some(name) =>
+            Ctx.extend(
+              ctx,
+              VarEntry({
+                name,
+                id: Id.invalid,
+                typ: Unknown(Internal) |> Typ.temp,
+                custom_statics: None,
+              }),
+            )
+          };
+        let (_, var_elab, m) =
+          uexp_to_info_map(
+            ~ctx=ctx_for_var,
+            ~ancestors=ancestors_inclusive,
+            var,
+            m,
+          );
+        let binder_typ =
+          switch (var_name) {
+          | Some(x) => binder_typ_in_prop(x, e)
+          | None => None
+          };
+        let (_, inst_elab, m) =
+          switch (binder_typ) {
+          | Some(ty) =>
+            uexp_to_info_map(
+              ~ctx,
+              ~ana=ty,
+              ~ancestors=ancestors_inclusive,
+              inst,
+              m,
+            )
+          | None =>
+            uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, inst, m)
+          };
+        (Some((var_elab, inst_elab)), m);
+      };
     let (_, body_elab, m) =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
-    let elab = rewrap(Revert(e_elab, proof_of_any(body_elab)));
+    let elab =
+      rewrap(Revert(e_elab, instantiation_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
   };
 };

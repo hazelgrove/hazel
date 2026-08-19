@@ -61,7 +61,7 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Forall(_, body)
     | Assume(_, body)
     | Generalize(_, body)
-    | Revert(_, body) => find_proofs(pred, body)
+    | Revert(_, _, body) => find_proofs(pred, body)
     };
   (pred(p) ? [p] : []) @ kids;
 };

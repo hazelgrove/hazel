@@ -109,7 +109,7 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | Forall(_, body)
     | Assume(_, body)
     | Generalize(_, body)
-    | Revert(_, body) => proof_is_clean(pm, body)
+    | Revert(_, _, body) => proof_is_clean(pm, body)
     | Induction(_, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -162,7 +162,7 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Forall(_, body)
     | Assume(_, body)
     | Generalize(_, body)
-    | Revert(_, body) => obligations_of_proof(pm, body)
+    | Revert(_, _, body) => obligations_of_proof(pm, body)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
@@ -185,7 +185,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | Forall(_, body)
     | Assume(_, body)
     | Generalize(_, body)
-    | Revert(_, body) => rep_ids_of_proof(body)
+    | Revert(_, _, body) => rep_ids_of_proof(body)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }

@@ -939,6 +939,19 @@ let equality =
     let exp' = exp(alphas_exp, alphas_typ);
     let pat' = pat(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
+    /* Optional `with <var> = <exp>` clauses (Phase 4d). */
+    let inst' =
+        (
+          n1: option((TermBase.Exp.t, TermBase.Exp.t)),
+          n2: option((TermBase.Exp.t, TermBase.Exp.t)),
+        )
+        : bool =>
+      switch (n1, n2) {
+      | (None, None) => true
+      | (Some((v1, i1)), Some((v2, i2))) => exp'(v1, v2) && exp'(i1, i2)
+      | (None, Some(_))
+      | (Some(_), None) => false
+      };
     let rec proof' = (p1: TermBase.Proof.t, p2: TermBase.Proof.t): bool =>
       switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
       | (EmptyHole, EmptyHole) => true
@@ -952,10 +965,26 @@ let equality =
       | (Seq(a1, a2), Seq(b1, b2)) => proof'(a1, b1) && proof'(a2, b2)
       | (Seq(_, _), _) => false
       | (
-          AxiomStep({at_idx: i1, at_exp: e1, direction: d1, equality: q1}),
-          AxiomStep({at_idx: i2, at_exp: e2, direction: d2, equality: q2}),
+          AxiomStep({
+            at_idx: i1,
+            at_exp: e1,
+            direction: d1,
+            equality: q1,
+            instantiation: n1,
+          }),
+          AxiomStep({
+            at_idx: i2,
+            at_exp: e2,
+            direction: d2,
+            equality: q2,
+            instantiation: n2,
+          }),
         ) =>
-        exp'(i1, i2) && exp'(e1, e2) && d1 == d2 && exp'(q1, q2)
+        exp'(i1, i2)
+        && exp'(e1, e2)
+        && d1 == d2
+        && exp'(q1, q2)
+        && inst'(n1, n2)
       | (AxiomStep(_), _) => false
       | (
           AlgebriteStep({at_idx: i1, at_exp: e1, with_exp: w1}),
@@ -987,8 +1016,9 @@ let equality =
       | (Generalize(e1, b1), Generalize(e2, b2)) =>
         exp'(e1, e2) && proof'(b1, b2)
       | (Generalize(_, _), _) => false
-      | (Revert(e1, b1), Revert(e2, b2)) => exp'(e1, e2) && proof'(b1, b2)
-      | (Revert(_, _), _) => false
+      | (Revert(e1, n1, b1), Revert(e2, n2, b2)) =>
+        exp'(e1, e2) && inst'(n1, n2) && proof'(b1, b2)
+      | (Revert(_, _, _), _) => false
       };
     proof'(p1, p2);
   };

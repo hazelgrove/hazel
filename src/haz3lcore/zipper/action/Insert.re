@@ -184,6 +184,54 @@ let upgrade_forall_where = (z: t): t => {
   };
 };
 
+/* Phase-4d `with` clauses on citation steps: `axiom`/`axiomrev`/`revert`
+ * each have a with-variant form sharing their leading token, so — exactly
+ * as for ForallWhere above — the expansion machinery resolves the leading
+ * token in favor of the plain label and the "with" token must upgrade the
+ * tile after the fact. The scan stops at the FIRST incomplete tile to the
+ * left: `rewrite <e> with ...` (ProofAlgebrite) legitimately awaits its
+ * own "with", and must not be skipped past in search of an outer
+ * citation. */
+let upgrade_with_clause = (z: t): t => {
+  let (pre, suf) = z.relatives.siblings;
+  let upgraded = (tile: Tile.t, label: Label.t) => {
+    let mold = Form.Molds.get(Sort.Proof, label);
+    Piece.Tile({
+      ...tile,
+      label,
+      mold,
+    });
+  };
+  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
+    switch (rev_pre) {
+    | [] => None
+    | [Tile(t) as p, ...rest] =>
+      switch (t.label, t.shards) {
+      | (["axiom" | "axiomrev", "at", "on", "end"], [0]) =>
+        let label = [List.hd(t.label), "with", "=", "at", "on", "end"];
+        Some([upgraded(t, label), ...rest]);
+      | (["revert", "=>"], [0]) =>
+        Some([upgraded(t, ["revert", "with", "=", "=>"]), ...rest])
+      | _ when !Tile.is_complete(t) =>
+        /* An unrelated incomplete tile (e.g. a `rewrite` awaiting its
+         * own "with"): this token belongs to it, not to us. */
+        None
+      | _ => go(rest) |> Option.map(rest' => [p, ...rest'])
+      }
+    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
+    };
+  switch (go(List.rev(pre))) {
+  | Some(rev_pre') => {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(rev_pre'), suf),
+      },
+    }
+  | None => z
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -196,6 +244,9 @@ let insert_shard =
     )
     : t => {
   let z = t == "where" ? upgrade_forall_where(z) : z;
+  let z =
+    t == "with" && Zipper.find_missing_shard(t, z) == None
+      ? upgrade_with_clause(z) : z;
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;

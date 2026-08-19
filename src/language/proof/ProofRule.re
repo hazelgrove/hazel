@@ -40,6 +40,83 @@ let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), list(Exp.t), Exp.t) =>
   | _ => ([], [], exp)
   };
 
+/* Binder identification for the Phase-4d `with <var> = ...` clause.
+ *
+ * The name a binder carries in an INSTALLED fact is not always the name
+ * the user wrote: `Substitution.in_exp` alpha-renames a binder that
+ * shadows something already in the environment by appending primes
+ * (`Environment.free_name` / `Var.next_name`), and generated inductive
+ * hypotheses are env-substituted before installation. That renaming is
+ * invisible in the program text, so a user citing `with t0 = ...` cannot
+ * know whether the fact's binder is now `t0'` or `t0'''`.
+ *
+ * Identification is therefore modulo trailing primes, exact matches
+ * first. This is NOT slack in the discharge relation of §4.3 — no
+ * proposition matching is involved, only naming which of a rule's own
+ * binders is being instantiated. */
+let strip_primes = (x: Var.t): Var.t => {
+  let n = ref(String.length(x));
+  while (n^ > 0 && x.[n^ - 1] == '\'') {
+    decr(n);
+  };
+  String.sub(x, 0, n^);
+};
+
+let same_binder = (supplied: Var.t, actual: Var.t): bool =>
+  supplied == actual || strip_primes(supplied) == strip_primes(actual);
+
+/* Is this binder pattern exactly the variable `x` (modulo parens, a type
+ * ascription, and the prime-renaming above)? */
+let rec pat_binder_name = (x: Var.t, pat: Pat.t): option(Var.t) =>
+  switch (pat |> Pat.term_of) {
+  | Var(y) => same_binder(x, y) ? Some(y) : None
+  | Parens(p1) => pat_binder_name(x, p1)
+  | Asc(p1, _) => pat_binder_name(x, p1)
+  | _ => None
+  };
+
+/* Eliminate the quantifier over `x` in a proposition by substituting
+ * `e` for it — the Phase-4d `revert <fact> with x = e` semantics
+ * (docs/prover-obligations.md, open item 3):
+ *
+ *   `forall x -> B`            ↦  `B[x := e]`
+ *   `forall x where g -> B`    ↦  `g[x := e] ==> B[x := e]`
+ *
+ * (a `where` restriction is a CONDITION once its binder is gone, so it
+ * survives as an antecedent rather than being dropped — dropping it
+ * would be unsound). Binders quantified outside `x` are preserved in
+ * place. `None` when no binder in the prefix is named `x`; substitution
+ * is the same capture-avoiding pass rule instantiation uses. */
+let rec instantiate_binder = (x: Var.t, e: Exp.t, prop: Exp.t): option(Exp.t) => {
+  /* Substitute for the binder's ACTUAL name — which may carry renaming
+   * primes the citation does not (see `same_binder`). */
+  let subst = (actual: Var.t, body: Exp.t) =>
+    Substitution.in_exp(Environment.of_bindings([(actual, e)]), body);
+  switch (prop |> Exp.term_of) {
+  | Parens(inner) => instantiate_binder(x, e, inner)
+  | Forall(pat, body) =>
+    switch (pat_binder_name(x, pat)) {
+    | Some(actual) => Some(subst(actual, body))
+    | None =>
+      instantiate_binder(x, e, body)
+      |> Option.map(b => Exp.fresh(Forall(pat, b)))
+    }
+  | ForallWhere(pat, g, body) =>
+    switch (pat_binder_name(x, pat)) {
+    | Some(actual) =>
+      Some(
+        Exp.fresh(
+          BinOp(Bool(Implies), subst(actual, g), subst(actual, body)),
+        ),
+      )
+    | None =>
+      instantiate_binder(x, e, body)
+      |> Option.map(b => Exp.fresh(ForallWhere(pat, g, b)))
+    }
+  | _ => None
+  };
+};
+
 /* Peel the top-level `==>` chain off a core proposition:
  * `A ==> B ==> concl` yields ([A, B], concl). */
 let rec peel_implications = (exp: Exp.t): (list(Exp.t), Exp.t) =>
@@ -149,19 +226,54 @@ let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
   | [_, ...rs] => get_empty_bindings(rs)
   };
 
+/* Pre-assign one of the rule's binders in a match context: the Phase-4d
+ * `with <var> = <exp>` clause, seeded BEFORE matching so that matching
+ * only has to resolve what is left (docs/prover-obligations.md, open
+ * item 3). `None` when `name` is not a binder of the rule — the caller
+ * reports that as `UnknownInstantiationVar`. */
+let seed_binding =
+    (name: Var.t, exp: Exp.t, bindings: MatchExp.match_ctx)
+    : option(MatchExp.match_ctx) => {
+  /* Exact match first, prime-insensitive fallback second (see
+   * `same_binder`); the outermost matching binder wins. */
+  let target =
+    if (MatchExp.match_ctx_has(bindings, name)) {
+      Some(name);
+    } else {
+      List.find_map(
+        ((n, (_, _))) => same_binder(name, n) ? Some(n) : None,
+        bindings,
+      );
+    };
+  target
+  |> Option.map(target =>
+       List.map(
+         ((n, (t, e))) =>
+           n == target ? (n, (t, Some(exp))) : (n, (t, e)),
+         bindings,
+       )
+     );
+};
+
 /* Like `can_eq` below, but also returns the match context that produced
  * each rewrite, so callers can instantiate the rule's assumptions and
  * detect unresolved metavariables (underdetermined instantiation,
- * docs/prover-obligations.md §4.1). */
+ * docs/prover-obligations.md §4.1). `~bindings` overrides the initial
+ * (all-unassigned) match context, which is how an explicit `with` clause
+ * is seeded. */
 let can_eq_inst =
-    (~info_map, ~env, rule: t, exp: Exp.t)
+    (~info_map, ~env, ~bindings=?, rule: t, exp: Exp.t)
     : (
         option((Exp.t, MatchExp.match_ctx)),
         option((Exp.t, MatchExp.match_ctx)),
       ) => {
   switch (rule.conclusion) {
   | Equality(a, b) =>
-    let bindings = get_empty_bindings(rule.bindings);
+    let bindings =
+      switch (bindings) {
+      | Some(b) => b
+      | None => get_empty_bindings(rule.bindings)
+      };
     let via = (from, to_) =>
       MatchExp.match_exp(
         ~info_map,

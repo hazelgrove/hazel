@@ -866,7 +866,7 @@ and Stepper: {
     | Induction(_, _)
     | Assume(_, _)
     | Generalize(_, _)
-    | Revert(_, _)
+    | Revert(_, _, _)
     | Seq(_, _) => false
     };
 
@@ -910,7 +910,7 @@ and Stepper: {
     /* The wrapping forms own a body proof; their kinds descend into it on
      * their own `calculate` pass (see AssumeStep.calculate). */
     | Assume(_, _) => Some(AssumeStep(AssumeStep.init(init_step)))
-    | Revert(_, _) => Some(RevertStep(RevertStep.init(init_step)))
+    | Revert(_, _, _) => Some(RevertStep(RevertStep.init(init_step)))
     | Generalize(_, _) =>
       Some(GeneralizeStep(GeneralizeStep.init(init_step)))
     | EmptyHole
@@ -934,7 +934,7 @@ and Stepper: {
     | (Forall(_, _), ForallStep(_))
     | (Induction(_, _), InductionStep(_))
     | (Assume(_, _), AssumeStep(_))
-    | (Revert(_, _), RevertStep(_))
+    | (Revert(_, _, _), RevertStep(_))
     | (Generalize(_, _), GeneralizeStep(_)) => sk
     | _ => kind_of_proof(proof_head) |> Option.value(~default=sk)
     };
@@ -1375,6 +1375,7 @@ and Stepper: {
       at_exp: at_exp |> embed_exp,
       direction,
       equality: Exp.fresh(Var(equality)),
+      instantiation: None,
     });
 
   let algebrite_step_term =
@@ -1416,7 +1417,9 @@ and Stepper: {
     Assume(exp |> embed_exp, Proof.fresh(EmptyHole));
 
   let revert_term = (~exp: Exp.t): TermBase.Proof.term =>
-    Revert(exp |> embed_exp, Proof.fresh(EmptyHole));
+    /* The step-picker UI builds plain `revert`; a Phase-4d `with` clause
+     * is authored by typing it (docs/prover-obligations.md, 4d). */
+    Revert(exp |> embed_exp, None, Proof.fresh(EmptyHole));
 
   let generalize_term = (~exp: Exp.t): TermBase.Proof.term =>
     Generalize(exp |> embed_exp, Proof.fresh(EmptyHole));
@@ -1508,7 +1511,7 @@ and Stepper: {
   let flip_direction_patch =
       (p: Proof.t): option(Haz3lcore.EditorTransform.patch) =>
     switch (p.term) {
-    | AxiomStep({at_idx, at_exp, direction, equality}) =>
+    | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
       Some(
         Haz3lcore.EditorTransform.mk_proof_patch(
           ~target_id=Proof.rep_id(p),
@@ -1520,6 +1523,7 @@ and Stepper: {
                 at_exp,
                 direction: Direction.toggle(direction),
                 equality,
+                instantiation,
               }),
           },
         ),

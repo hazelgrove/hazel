@@ -71,6 +71,8 @@ let rec match_exp =
           ),
         )
       | Some(e) =>
+        /* Already bound — by an earlier occurrence, or by a Phase-4d
+         * explicit `with` seeding. Consistency is required. */
         Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None
       }
     };

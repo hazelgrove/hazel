@@ -376,8 +376,11 @@ proof:
     | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
     | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
     | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
     | AXIOM_REV; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRev(eq, idx, ae) }
+    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomWith(eq, v, i, idx, ae) }
+    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRevWith(eq, v, i, idx, ae) }
     | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
     | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }

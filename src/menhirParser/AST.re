@@ -196,10 +196,18 @@ and proof =
   | ProofAssume(exp, proof)
   | ProofGeneralize(exp, proof)
   | ProofRevert(exp, proof)
+  /* Phase-4d explicit instantiation: the extra (var, exp) pair is the
+     `with <var> = <exp>` clause (docs/prover-obligations.md, open item
+     3). Kept as separate constructors, mirroring the tile-level forms. */
+  | ProofRevertWith(exp, exp, exp, proof)
   /* (equality, at_idx, at_exp) — argument order follows the surface
      syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
   | ProofAxiom(exp, exp, exp)
   | ProofAxiomRev(exp, exp, exp)
+  /* (equality, var, instantiation, at_idx, at_exp) — surface order of
+     `axiom <equality> with <var> = <exp> at <at_idx> on <at_exp> end`. */
+  | ProofAxiomWith(exp, exp, exp, exp, exp)
+  | ProofAxiomRevWith(exp, exp, exp, exp, exp)
   /* `rewrite <at_exp> with <with_exp> at <at_idx> end` */
   | ProofAlgebrite(exp, exp, exp)
   /* `eval <at_exp> at <at_idx> end` */

@@ -179,11 +179,17 @@ and proof_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Seq(proof_t('a), proof_t('a))
+  /* `instantiation` is the optional `with <var> = <exp>` clause
+   * (docs/prover-obligations.md, Phase 4d): an EXPLICIT instantiation of
+   * one of the cited rule's binders, seeded into the match context
+   * before matching. `None` is the plain `axiom ... at ... on ... end`
+   * form. v1 allows a single binding per step. */
   | AxiomStep({
       at_idx: exp_t('a),
       at_exp: exp_t('a),
       direction: Direction.t,
       equality: exp_t('a),
+      instantiation: option((exp_t('a), exp_t('a))),
     })
   | AlgebriteStep({
       at_idx: exp_t('a),
@@ -216,8 +222,12 @@ and proof_term('a) =
    * in-scope fact `F` matching the exp, the sub-proof's goal is
    * `F ==> G`. Sound and complete (`F` holds here, so `(F ==> G) == G`
    * under the Kleene reading) and therefore obligation-free
-   * (docs/prover-obligations.md, Phase 4c). */
-  | Revert(exp_t('a), proof_t('a))
+   * (docs/prover-obligations.md, Phase 4c).
+   *
+   * The optional `(var, exp)` is the `with <var> = <exp>` clause of Phase
+   * 4d: when present, the in-scope fact must be quantified and the
+   * antecedent cashed into the goal is the fact INSTANTIATED at `exp`. */
+  | Revert(exp_t('a), option((exp_t('a), exp_t('a))), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -414,12 +424,18 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Seq(p1, p2) =>
           Seq(map_proof_annotation(f, p1), map_proof_annotation(f, p2))
-        | AxiomStep({at_idx, at_exp, direction, equality}) =>
+        | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
           AxiomStep({
             at_idx: map_exp_annotation(f, at_idx),
             at_exp: map_exp_annotation(f, at_exp),
             direction,
             equality: map_exp_annotation(f, equality),
+            instantiation:
+              Option.map(
+                ((v, i)) =>
+                  (map_exp_annotation(f, v), map_exp_annotation(f, i)),
+                instantiation,
+              ),
           })
         | AlgebriteStep({at_idx, at_exp, with_exp}) =>
           AlgebriteStep({
@@ -450,8 +466,16 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
             map_exp_annotation(f, e),
             map_proof_annotation(f, body),
           )
-        | Revert(e, body) =>
-          Revert(map_exp_annotation(f, e), map_proof_annotation(f, body))
+        | Revert(e, inst, body) =>
+          Revert(
+            map_exp_annotation(f, e),
+            Option.map(
+              ((v, i)) =>
+                (map_exp_annotation(f, v), map_exp_annotation(f, i)),
+              inst,
+            ),
+            map_proof_annotation(f, body),
+          )
         },
       annotation: new_annotation,
     };
@@ -1284,7 +1308,15 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let axiom_step =
-        (~ann=?, ~at_idx, ~at_exp, ~direction, ~equality, ())
+        (
+          ~ann=?,
+          ~at_idx,
+          ~at_exp,
+          ~direction,
+          ~equality,
+          ~instantiation=None,
+          (),
+        )
         : proof_t(DefaultAnnotation.t) => {
       term:
         AxiomStep({
@@ -1292,6 +1324,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
           at_exp,
           direction,
           equality,
+          instantiation,
         }),
       annotation: default_annotation(ann),
     };
@@ -1331,8 +1364,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Generalize(e, body),
       annotation: default_annotation(ann),
     };
-    let revert = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
-      term: Revert(e, body),
+    let revert =
+        (~ann=?, ~instantiation=None, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Revert(e, instantiation, body),
       annotation: default_annotation(ann),
     };
   };

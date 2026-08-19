@@ -118,6 +118,12 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text("The split scrutinee may not terminate."),
     ]
   | UnknownFactReverted => [text("No fact in scope matches this `revert`.")]
+  | UnknownInstantiationVar({equality, var}) => [
+      text("`" ++ var ++ "` is not a binder of `" ++ equality ++ "`."),
+    ]
+  | RevertFactNotQuantified({var}) => [
+      text("The reverted fact is not quantified over `" ++ var ++ "`."),
+    ]
   | InductionEmptyCases => [text("Induction requires at least one case.")]
   };
 };

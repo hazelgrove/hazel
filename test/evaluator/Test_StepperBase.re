@@ -238,6 +238,7 @@ let axiom_step_proof = (~equality="refl_eq", at_exp: Exp.t): Calc.t(Proof.t) =>
         at_exp,
         direction: Direction.Right,
         equality: Exp.fresh(Var(equality)),
+        instantiation: None,
       }),
     ),
   );

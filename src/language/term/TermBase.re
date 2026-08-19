@@ -1456,12 +1456,17 @@ and Proof: {
         | Invalid(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Seq(p1, p2) => Seq(proof_map_term(p1), proof_map_term(p2))
-        | AxiomStep({at_idx, at_exp, direction, equality}) =>
+        | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
           AxiomStep({
             at_idx: exp_map_term(at_idx),
             at_exp: exp_map_term(at_exp),
             direction,
             equality: exp_map_term(equality),
+            instantiation:
+              Option.map(
+                ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+                instantiation,
+              ),
           })
         | AlgebriteStep({at_idx, at_exp, with_exp}) =>
           AlgebriteStep({
@@ -1486,7 +1491,15 @@ and Proof: {
         | Assume(e, body) => Assume(exp_map_term(e), proof_map_term(body))
         | Generalize(e, body) =>
           Generalize(exp_map_term(e), proof_map_term(body))
-        | Revert(e, body) => Revert(exp_map_term(e), proof_map_term(body))
+        | Revert(e, inst, body) =>
+          Revert(
+            exp_map_term(e),
+            Option.map(
+              ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+              inst,
+            ),
+            proof_map_term(body),
+          )
         },
     };
     x |> f_proof(proof_map_term);

@@ -57,7 +57,7 @@ let rec dump = (pm: ProofMap.t, p: Proof.t, ind: string): string => {
     | Forall(_, b)
     | Assume(_, b)
     | Generalize(_, b)
-    | Revert(_, b) => [dump(pm, b, ind ++ "  ")]
+    | Revert(_, _, b) => [dump(pm, b, ind ++ "  ")]
     | Induction(_, cases) =>
       List.map(((_, b)) => dump(pm, b, ind ++ "  "), cases)
     | _ => []

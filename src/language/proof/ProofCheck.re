@@ -140,7 +140,14 @@ let occurs_var = (name: Var.t, e: Exp.t): bool => {
  * definedness gates: totality check + domain scan, docs/
  * prover-obligations.md §4.1). A conditional rule whose assumptions
  * mention metavariables the match left unresolved is refused
- * (UnderdeterminedInstantiation, v1 behavior per §4.1). */
+ * (UnderdeterminedInstantiation, v1 behavior per §4.1) — UNLESS the
+ * citation supplies them explicitly: `~instantiation` is the Phase-4d
+ * `with <var> = <exp>` clause, seeded into the match context BEFORE
+ * matching, so the underdetermined check only looks at what remains
+ * unresolved AFTER seeding. A `<var>` that is not a binder of the cited
+ * rule is `UnknownInstantiationVar`. The seeded binding is returned in
+ * the instantiation list like any matched one, so the Phase-3a gates
+ * (totality refusal + domain scan) apply to it unchanged. */
 let axiom_step_outgoing_result =
     (
       ~info_map: Statics.Map.t,
@@ -150,6 +157,7 @@ let axiom_step_outgoing_result =
       ~at_exp: Exp.t,
       ~direction: Direction.t,
       ~equality: string,
+      ~instantiation: option((Var.t, Exp.t))=None,
       incoming: Exp.t,
     )
     : result((Exp.t, list(Exp.t), list((Var.t, Exp.t))), ProofMark.t) => {
@@ -159,57 +167,87 @@ let axiom_step_outgoing_result =
   | Some(rule) =>
     /* Phase 4c: a cited bare-boolean fact also reads as `F == true`. */
     let rule = ProofRule.with_bool_fact_reading(rule);
-    switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
-    | None =>
-      Error(
-        PatternNotFound({
-          at_exp,
-          at_idx,
-        }),
-      )
-    | Some(e) =>
-      let (l, r) = ProofRule.can_eq_inst(~info_map, ~env, rule, e);
-      let with_exp =
-        switch (direction) {
-        | Direction.Left => l
-        | Direction.Right => r
-        };
-      switch (with_exp) {
-      | None =>
-        Error(
-          RuleDoesNotApply({
-            equality,
-            direction,
-          }),
-        )
-      | Some((w, mctx)) =>
-        let unresolved =
-          List.filter_map(
-            ((n, (_, assigned))) => assigned == None ? Some(n) : None,
-            mctx,
-          );
-        let underdetermined =
-          List.exists(
-            a => List.exists(n => occurs_var(n, a), unresolved),
-            rule.assumptions,
-          );
-        if (underdetermined) {
-          Error(UnderdeterminedInstantiation({equality: equality}));
-        } else {
-          let instantiated =
-            List.map(MatchExp.substitute_exp(mctx), rule.assumptions);
-          let instantiations =
-            List.filter_map(
-              ((n, (_, assigned))) => Option.map(e => (n, e), assigned),
-              mctx,
-            );
-          Ok((
-            ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w),
-            instantiated,
-            instantiations,
-          ));
+    /* Phase 4d: seed the explicit instantiation into the initial match
+     * context. The supplied expression is env-substituted first, exactly
+     * like every other expression the checker computes with. */
+    let seeded =
+      switch (instantiation) {
+      | None => Ok(None)
+      | Some((var, inst)) =>
+        let inst = inst |> Substitution.in_exp(env);
+        switch (
+          ProofRule.seed_binding(
+            var,
+            inst,
+            ProofRule.get_empty_bindings(rule.bindings),
+          )
+        ) {
+        | Some(bindings) => Ok(Some(bindings))
+        | None =>
+          Error(
+            ProofMark.UnknownInstantiationVar({
+              equality,
+              var,
+            }),
+          )
         };
       };
+    switch (seeded) {
+    | Error(m) => Error(m)
+    | Ok(bindings) =>
+      switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
+      | None =>
+        Error(
+          PatternNotFound({
+            at_exp,
+            at_idx,
+          }),
+        )
+      | Some(e) =>
+        let (l, r) =
+          ProofRule.can_eq_inst(~info_map, ~env, ~bindings?, rule, e);
+        let with_exp =
+          switch (direction) {
+          | Direction.Left => l
+          | Direction.Right => r
+          };
+        switch (with_exp) {
+        | None =>
+          Error(
+            RuleDoesNotApply({
+              equality,
+              direction,
+            }),
+          )
+        | Some((w, mctx)) =>
+          let unresolved =
+            List.filter_map(
+              ((n, (_, assigned))) => assigned == None ? Some(n) : None,
+              mctx,
+            );
+          let underdetermined =
+            List.exists(
+              a => List.exists(n => occurs_var(n, a), unresolved),
+              rule.assumptions,
+            );
+          if (underdetermined) {
+            Error(UnderdeterminedInstantiation({equality: equality}));
+          } else {
+            let instantiated =
+              List.map(MatchExp.substitute_exp(mctx), rule.assumptions);
+            let instantiations =
+              List.filter_map(
+                ((n, (_, assigned))) => Option.map(e => (n, e), assigned),
+                mctx,
+              );
+            Ok((
+              ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w),
+              instantiated,
+              instantiations,
+            ));
+          };
+        };
+      }
     };
   };
 };
@@ -257,6 +295,7 @@ let axiom_step_outgoing_ast =
       ~at_exp: Exp.t,
       ~direction: Direction.t,
       ~equality: Exp.t,
+      ~instantiation: option((Exp.t, Exp.t))=None,
       incoming: Exp.t,
     )
     : result((Exp.t, list(Exp.t), list((Var.t, Exp.t))), ProofMark.t) =>
@@ -266,16 +305,38 @@ let axiom_step_outgoing_ast =
     switch (exp_to_equality_name(equality)) {
     | None => Error(MalformedEqualityName)
     | Some(name) =>
-      axiom_step_outgoing_result(
-        ~info_map,
-        ~env,
-        ~ctx,
-        ~at_idx=idx,
-        ~at_exp,
-        ~direction,
-        ~equality=name,
-        incoming,
-      )
+      /* The `with <var> = ...` slot must name a binder; a non-variable
+       * there is reported the same way an unknown binder name is. */
+      switch (instantiation) {
+      | Some((var, _)) when exp_to_equality_name(var) == None =>
+        Error(
+          UnknownInstantiationVar({
+            equality: name,
+            var: "?",
+          }),
+        )
+      | _ =>
+        let instantiation =
+          Option.map(
+            ((var, inst)) =>
+              (
+                exp_to_equality_name(var) |> Option.value(~default="?"),
+                inst,
+              ),
+            instantiation,
+          );
+        axiom_step_outgoing_result(
+          ~info_map,
+          ~env,
+          ~ctx,
+          ~at_idx=idx,
+          ~at_exp,
+          ~direction,
+          ~equality=name,
+          ~instantiation,
+          incoming,
+        );
+      }
     }
   };
 
@@ -781,7 +842,7 @@ let rec check =
     let (out1, m1) = check(~step, ~info_map, ~ctx, incoming, p1);
     let (out2, m2) = check(~step, ~info_map, ~ctx, out1, p2);
     (out2, record(id, incoming, out2, ProofMap.union(m1, m2)));
-  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let (outgoing, marks, obligations) =
       switch (incoming) {
       | None => (None, [ProofMark.MissingIncoming], [])
@@ -795,6 +856,7 @@ let rec check =
             ~at_exp,
             ~direction,
             ~equality,
+            ~instantiation,
             inc,
           )
         ) {
@@ -1156,7 +1218,7 @@ let rec check =
         };
       (outgoing, record(id, incoming, outgoing, m));
     };
-  | Revert(e, body) =>
+  | Revert(e, instantiation, body) =>
     /* Cash an in-scope fact back into the goal — the symmetric partner of
      * assume-intro (docs/prover-obligations.md, Phase 4c). With incoming
      * goal `G` and an in-scope fact `F` whose statement matches the
@@ -1179,7 +1241,33 @@ let rec check =
      * (§4.2–4.3): the written expression must name the fact as it stands.
      * No match is recovery, not refusal — mark and pass the goal
      * through. */
-    let fact = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let env_of_ctx = SemanticCtx.get_env(ctx);
+    /* Resolve the argument to the proposition to look up. A bare
+     * hypothesis NAME is read straight out of the environment, where
+     * facts live as `ProofObject(fact)` — so `revert ih` names the same
+     * thing `axiom ih` does. This deliberately does NOT go through
+     * `Substitution.in_exp`: installed facts are ALREADY env-substituted
+     * (Phase 4b), and substituting one a second time alpha-renames the
+     * binders inside its inlined closures (`Environment.free_name` in
+     * `Substitution.in_pat`), after which it no longer `fast_equal`s the
+     * fact as stored — every by-name citation would miss.
+     *
+     * A spelled-out proposition is substituted as before: it is written
+     * in the user's vocabulary and has to be brought into the same
+     * inlined form as the stored facts. */
+    let fact =
+      switch (exp_to_equality_name(e)) {
+      | Some(name) =>
+        switch (Environment.lookup(env_of_ctx, name)) {
+        | Some(v) =>
+          switch (Exp.term_of(v)) {
+          | Grammar.ProofObject(inner) => inner
+          | _ => e |> Substitution.in_exp(env_of_ctx)
+          }
+        | None => e |> Substitution.in_exp(env_of_ctx)
+        }
+      | None => e |> Substitution.in_exp(env_of_ctx)
+      };
     switch (incoming) {
     | None =>
       let (_, m) = check(~step, ~info_map, ~ctx, None, body);
@@ -1199,21 +1287,79 @@ let rec check =
           ),
         );
       | Some(_fact_id) =>
-        let body_incoming =
-          Some(Exp.fresh(BinOp(Bool(Implies), fact, goal)));
-        let (out_body, m) =
-          check(~step, ~info_map, ~ctx, body_incoming, body);
-        /* The body works on `F ==> G`, which is not a sub-expression of
-         * `G`, so a partial outgoing must not leak past this node: only a
-         * literal `true` discharges, anything else passes `G` through
-         * (cf. the Forall / Generalize cases). */
-        let true_exp = Exp.temp(Atom(Bool(true)));
-        let outgoing =
-          switch (out_body) {
-          | Some(o) when Exp.fast_equal(o, true_exp) => out_body
-          | _ => incoming
+        /* Phase 4d: with `with x = v`, the antecedent cashed into the
+         * goal is the fact INSTANTIATED at `v` rather than the fact as
+         * it stands. Sound for the same one-line reason as plain
+         * revert, once `v` clears the gates: `forall x -> F(x)` holds in
+         * this scope, so `F(v)` holds, so `F(v) ==> G` denotes exactly
+         * what `G` denotes. The gates are the Phase-3a instantiation
+         * gate applied to `v` — divergence refuses, domain conditions
+         * become obligations on this step — the same treatment a
+         * matched instantiation gets at an axiom step. */
+        let instantiated =
+          switch (instantiation) {
+          | None => Ok((fact, []))
+          | Some((var, inst)) =>
+            switch (exp_to_equality_name(var)) {
+            | None =>
+              Error(([ProofMark.RevertFactNotQuantified({var: "?"})], []))
+            | Some(x) =>
+              let inst_sub = inst |> Substitution.in_exp(env_of_ctx);
+              switch (ProofRule.instantiate_binder(x, inst_sub, fact)) {
+              | None =>
+                Error(([ProofMark.RevertFactNotQuantified({var: x})], []))
+              | Some(f) =>
+                switch (
+                  instantiation_gate(~info_map, ~ctx, [(x, inst_sub)])
+                ) {
+                | Error(v) =>
+                  Error((
+                    [
+                      ProofMark.PossiblyDivergentInstantiation({
+                        equality: x,
+                        var: v,
+                      }),
+                    ],
+                    [],
+                  ))
+                | Ok(domain_conditions) =>
+                  Ok((
+                    f,
+                    List.map(
+                      incur_obligation(~step, ~ctx, ~origin=id),
+                      dedup_conditions(domain_conditions),
+                    ),
+                  ))
+                }
+              };
+            }
           };
-        (outgoing, record(id, incoming, outgoing, m));
+        switch (instantiated) {
+        | Error((marks, obligations)) =>
+          /* Refusal is recovery here too: check the body against the
+           * unchanged goal so later steps stay meaningful. */
+          let (_, m) = check(~step, ~info_map, ~ctx, incoming, body);
+          (
+            incoming,
+            record(~marks, ~obligations, id, incoming, incoming, m),
+          );
+        | Ok((antecedent, obligations)) =>
+          let body_incoming =
+            Some(Exp.fresh(BinOp(Bool(Implies), antecedent, goal)));
+          let (out_body, m) =
+            check(~step, ~info_map, ~ctx, body_incoming, body);
+          /* The body works on `F ==> G`, which is not a sub-expression of
+           * `G`, so a partial outgoing must not leak past this node: only a
+           * literal `true` discharges, anything else passes `G` through
+           * (cf. the Forall / Generalize cases). */
+          let true_exp = Exp.temp(Atom(Bool(true)));
+          let outgoing =
+            switch (out_body) {
+            | Some(o) when Exp.fast_equal(o, true_exp) => out_body
+            | _ => incoming
+            };
+          (outgoing, record(~obligations, id, incoming, outgoing, m));
+        };
       }
     };
   | Induction(scrut, cases) =>

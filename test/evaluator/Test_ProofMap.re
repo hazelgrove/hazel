@@ -274,7 +274,7 @@ let rec find_marked_sub =
     | Forall(_, body)
     | Assume(_, body)
     | Generalize(_, body)
-    | Revert(_, body) => find_marked_sub(pm, body)
+    | Revert(_, _, body) => find_marked_sub(pm, body)
     | Induction(_, cases) =>
       let rec scan = (
         fun

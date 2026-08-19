@@ -138,7 +138,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Forall(_, b)
     | Assume(_, b)
     | Generalize(_, b)
-    | Revert(_, b) => [dump_proof(pm, b, indent ++ "  ")]
+    | Revert(_, _, b) => [dump_proof(pm, b, indent ++ "  ")]
     | Induction(_, cases) =>
       List.mapi(
         (i, (_pat, body)) =>
@@ -402,7 +402,7 @@ let test_true_branch_is_really_closed = () => {
     | Assume(_, b)
     | Forall(_, b)
     | Generalize(_, b)
-    | Revert(_, b) => find_induction(b)
+    | Revert(_, _, b) => find_induction(b)
     | Seq(a, b) =>
       switch (find_induction(a)) {
       | Some(x) => Some(x)
@@ -608,7 +608,7 @@ let test_zero_case_closes_by_ex_falso = () => {
   check_mark_free("ex falso probe", pm, proof);
   let rec find_revert = (p: Proof.t): option(Proof.t) =>
     switch (p.term) {
-    | Revert(_, _) => Some(p)
+    | Revert(_, _, _) => Some(p)
     | Assume(_, b)
     | Forall(_, b)
     | Generalize(_, b) => find_revert(b)

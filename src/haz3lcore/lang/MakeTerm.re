@@ -1852,6 +1852,7 @@ and proof_term: unsorted => TermBase.Proof.term = {
             at_idx,
             at_exp,
             direction: Direction.Right,
+            instantiation: None,
           }),
         )
       | (
@@ -1864,6 +1865,36 @@ and proof_term: unsorted => TermBase.Proof.term = {
             at_idx,
             at_exp,
             direction: Direction.Left,
+            instantiation: None,
+          }),
+        )
+      /* `axiom <name> with <var> = <exp> at <idx> on <target> end`:
+       * explicit instantiation of one of the cited rule's binders
+       * (docs/prover-obligations.md, Phase 4d). */
+      | (
+          ["axiom", "with", "=", "at", "on", "end"],
+          [Exp(equality), Exp(var), Exp(inst), Exp(at_idx), Exp(at_exp)],
+        ) =>
+        ret(
+          AxiomStep({
+            equality,
+            at_idx,
+            at_exp,
+            direction: Direction.Right,
+            instantiation: Some((var, inst)),
+          }),
+        )
+      | (
+          ["axiomrev", "with", "=", "at", "on", "end"],
+          [Exp(equality), Exp(var), Exp(inst), Exp(at_idx), Exp(at_exp)],
+        ) =>
+        ret(
+          AxiomStep({
+            equality,
+            at_idx,
+            at_exp,
+            direction: Direction.Left,
+            instantiation: Some((var, inst)),
           }),
         )
       | (
@@ -1905,7 +1936,13 @@ and proof_term: unsorted => TermBase.Proof.term = {
     | ([(_id, (["generalize", "=>"], [Exp(e)]))], []) =>
       ret(Generalize(e, body))
     | ([(_id, (["revert", "=>"], [Exp(e)]))], []) =>
-      ret(Revert(e, body))
+      ret(Revert(e, None, body))
+    /* `revert <fact> with <var> = <exp> => <proof>` (Phase 4d). */
+    | (
+        [(_id, (["revert", "with", "=", "=>"], [Exp(e), Exp(v), Exp(i)]))],
+        [],
+      ) =>
+      ret(Revert(e, Some((v, i)), body))
     | _ => ret(hole(tm))
     }
   | Bin(Proof(p1), tiles, Proof(p2)) as tm =>

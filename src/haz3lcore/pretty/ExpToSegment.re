@@ -1109,13 +1109,21 @@ and parenthesize_proof =
   | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
   | Assume(e, body) => Assume(go_exp(e), go(body)) |> rewrap
   | Generalize(e, body) => Generalize(go_exp(e), go(body)) |> rewrap
-  | Revert(e, body) => Revert(go_exp(e), go(body)) |> rewrap
-  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+  | Revert(e, inst, body) =>
+    Revert(
+      go_exp(e),
+      Option.map(((v, i)) => (go_exp(v), go_exp(i)), inst),
+      go(body),
+    )
+    |> rewrap
+  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     AxiomStep({
       at_idx: go_exp(at_idx),
       at_exp: go_exp(at_exp),
       direction,
       equality: go_exp(equality),
+      instantiation:
+        Option.map(((v, i)) => (go_exp(v), go_exp(i)), instantiation),
     })
     |> rewrap
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
@@ -3509,20 +3517,37 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofGeneralize, id, [e])] @ b);
-  | Revert(e, body) =>
+  | Revert(e, None, body) =>
     let+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofRevert, id, [e])] @ b);
-  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+  | Revert(e, Some((v, inst)), body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ v = exp_to_pretty(~settings, v)
+    and+ inst = exp_to_pretty(~settings, inst)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofRevertWith, id, [e, v, inst])] @ b);
+  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)
     and+ ae = exp_to_pretty(~settings, at_exp);
-    let form =
-      switch (direction) {
-      | Direction.Right => Form.ProofAxiom
-      | Direction.Left => Form.ProofAxiomRev
+    let inst: list(Segment.t) =
+      switch (instantiation) {
+      | None => []
+      | Some((v, e)) => [
+          exp_to_pretty(~settings, v),
+          exp_to_pretty(~settings, e),
+        ]
       };
-    wrap(p, [mk_form(form, id, [eq, i, ae])]);
+    let form =
+      switch (direction, instantiation) {
+      | (Direction.Right, None) => Form.ProofAxiom
+      | (Direction.Left, None) => Form.ProofAxiomRev
+      | (Direction.Right, Some(_)) => Form.ProofAxiomWith
+      | (Direction.Left, Some(_)) => Form.ProofAxiomRevWith
+      };
+    let children: list(Segment.t) = List.concat([[eq], inst, [i, ae]]);
+    wrap(p, [mk_form(form, id, children)]);
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
     let+ ae = exp_to_pretty(~settings, at_exp)
     and+ we = exp_to_pretty(~settings, with_exp)

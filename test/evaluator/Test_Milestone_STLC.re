@@ -97,7 +97,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Forall(_, b)
     | Assume(_, b)
     | Generalize(_, b)
-    | Revert(_, b) => [dump_proof(pm, b, indent ++ "  ")]
+    | Revert(_, _, b) => [dump_proof(pm, b, indent ++ "  ")]
     | Induction(_, cases) =>
       List.map(
         ((pat, body)) =>
@@ -502,10 +502,13 @@ let test_lemma_some_tm_is_some = () =>
  *     canonical forms, closed by ex falso -- `revert` the value-ness
  *     case_eq into the goal, rewrite x0 there by the shape case_eq, and
  *     let evaluation falsify the antecedent.
- * TWO leaves remain as holes (down from four), both wanting the SAME
- * missing vocabulary: instantiation of the quantified inductive
- * hypothesis (see the friction comment in place and
- * test_pin_ih_underdetermined).
+ *   - value head that steps to NoTm, and lambda head + non-value
+ *     argument stepping to NoTm (Phase 4d): vacuous by the INDUCTIVE
+ *     HYPOTHESIS at the type the enclosing split produced -- `revert`
+ *     the IH INSTANTIATED there (`revert ih with t0 = tf0`), rewrite
+ *     its antecedent away with the case_eqs in scope, and the same
+ *     ex-falso collapse finishes it.
+ * ZERO leaves remain: `progress` is fully Proven (test_progress_proven).
  *
  * Binder naming: all proof-level binders are 0-suffixed, disjoint from
  * every prelude-internal binder, so evaluator inlining never
@@ -574,22 +577,31 @@ let progress_src =
     ++ "eval false || is_some_tm(step(TmAp(x0, y0))) at 0 end; "
     ++ "axiom step_ap_val1 at 0 on step(TmAp(x0, y0)) end; "
     ++ "induction step(x0) "
-    /* FRICTION (the one remaining wall; see
-     * test_pin_ih_underdetermined below). This branch is vacuous: IH(x0)
-     * at t0 := tf0, with case_eq infer(([], x0)) == SomeTy(tf0) and
-     * is_value(x0) == false, forces step(x0) == SomeTm(_), contradicting
-     * case_eq step(x0) == NoTm. Since Phase 4c the IH EXISTS and its
-     * disjunctive conclusion DOES have a rewrite reading
-     * (`D == true`) -- but it is quantified, `forall t0 -> A(t0) ==> D`,
-     * and D does not mention t0, so citing it leaves the rule's binder
-     * unresolved while its antecedent mentions it: UnderdeterminedInstantiation,
-     * refused in v1 (docs/prover-obligations.md §4.1). `revert`ing the IH
-     * does not help either -- the branch goal here is `false`, so
-     * `IH ==> false` is genuinely false, and cashing the contradiction
-     * would need to REFUTE the reverted `forall` by exhibiting the
-     * witness t0 := tf0 inside the goal. What is missing is explicit
-     * user instantiation of a quantified fact, not another reading. */
-    ++ "| NoTm => ? "
+    /* Vacuous by the inductive hypothesis -- the leaf Phase 4d unlocked.
+     * IH(x0) at t0 := tf0, with case_eq infer(([], x0)) == SomeTy(tf0)
+     * and is_value(x0) == false, forces step(x0) == SomeTm(_), which
+     * contradicts case_eq step(x0) == NoTm. The IH is quantified
+     * (`forall t0 -> A(t0) ==> D`) and D does not mention t0, so no
+     * amount of matching can fix the binder -- the citation has to SAY
+     * what t0 is. `revert ih with t0 = tf0` cashes the INSTANCE into the
+     * goal; then the case_eqs in scope rewrite A to `SomeTy(tf0) ==
+     * SomeTy(tf0)` (refl_eq: true) and D to `false`, leaving
+     * `false ==> G`, which McCarthy-collapses to true.
+     *
+     * Two indexing notes, both load-bearing: `step(x0)` is rewritten at
+     * occurrence 1, not 0 -- `nth_exp` reaches the consequent's
+     * occurrence first -- and `is_value`/`step` in the reverted IH are
+     * addressable because the IH's inlined closures match written
+     * at_exps under nth_exp_env. */
+    ++ "| NoTm => revert ih with t0 = tf0 => "
+    ++ "axiom case_eq' at 0 on infer(([], x0)) end; "
+    ++ "axiom refl_eq at 0 on SomeTy(tf0) == SomeTy(tf0) end; "
+    ++ "eval true ==> is_value(x0) || is_some_tm(step(x0)) at 0 end; "
+    ++ "axiom case_eq''''' at 0 on is_value(x0) end; "
+    ++ "eval false || is_some_tm(step(x0)) at 0 end; "
+    ++ "axiom case_eq'''''' at 1 on step(x0) end; "
+    ++ "eval is_some_tm(NoTm) at 0 end; "
+    ++ "eval false ==> is_some_tm(case step(x0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
     ++ "| SomeTm(u0) => axiom case_eq'''''' at 0 on step(x0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
     ++ "end "
     ++ "| true => induction x0 "
@@ -606,9 +618,16 @@ let progress_src =
     /* Congruence-2 at a lambda head. */
     ++ "| false => axiom step_lam_ap2 at 0 on step(TmAp(TmLam(w0, q0), y0)) end; "
     ++ "induction step(y0) "
-    /* FRICTION: same wall as the NoTm branch above, at IH(y0) and
-     * t0 := s0 -- quantified-IH instantiation. */
-    ++ "| NoTm => ? "
+    /* The same IH leaf as above, at IH(y0) and t0 := s0. */
+    ++ "| NoTm => revert ih' with t0 = s0 => "
+    ++ "axiom case_eq''' at 0 on infer(([], y0)) end; "
+    ++ "axiom refl_eq at 0 on SomeTy(s0) == SomeTy(s0) end; "
+    ++ "eval true ==> is_value(y0) || is_some_tm(step(y0)) at 0 end; "
+    ++ "axiom case_eq''''''' at 0 on is_value(y0) end; "
+    ++ "eval false || is_some_tm(step(y0)) at 0 end; "
+    ++ "axiom case_eq'''''''' at 1 on step(y0) end; "
+    ++ "eval is_some_tm(NoTm) at 0 end; "
+    ++ "eval false ==> is_some_tm(case step(y0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
     ++ "| SomeTm(u0) => axiom case_eq'''''''' at 0 on step(y0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
     ++ "end "
     ++ "end "
@@ -623,10 +642,9 @@ let progress_src =
     ++ "end in progress",
   );
 
-let test_progress_partial = () => {
+let test_progress_proven = () => {
   let (pm, proof) = run_named("progress", progress_src);
-  /* Mark-free: every step the vocabulary allows goes through; only the
-   * two documented holes remain. */
+  /* Mark-free, and since Phase 4d there are no holes left either. */
   if (Test_ProofMap.find_marked_sub(pm, proof) != None) {
     Alcotest.fail(
       "progress should be mark-free\n--- proof dump ---\n" ++ dump(pm, proof),
@@ -667,12 +685,12 @@ let test_progress_partial = () => {
          ),
     );
   };
-  check_full_status(
-    "progress pins as Incomplete (2 friction holes)",
-    ProofMap.Incomplete,
-    pm,
-    proof,
-  );
+  /* THE MILESTONE. Every leaf closes; `progress` for STLC is proven end
+   * to end in the object language, from `theorem` to `Proven`. The last
+   * two leaves were the vacuous ones that need the quantified inductive
+   * hypothesis at a type the split produced — `revert ih with t0 = tf0`
+   * and `revert ih' with t0 = s0` (docs/prover-obligations.md, 4d). */
+  check_full_status("progress is fully Proven", ProofMap.Proven, pm, proof);
 };
 
 /* --- Checker-limitation pins: at_exp addressability ---------------------
@@ -793,17 +811,12 @@ let test_ih_not_at_scrutinee = () => {
   };
 };
 
-/* FRICTION (the remaining Phase-4 gap, and the reason two `progress`
- * holes stay open): the quantified IH cannot be INSTANTIATED. Its
- * conclusion (bare-boolean, so read as `... == true` since Phase 4c) does
- * not mention `t0`, so matching the conclusion leaves the rule's binder
- * unresolved while its antecedent mentions it -- exactly the
- * underdetermined instantiation that §4.1 refuses in v1. `revert` does
- * not help: it moves `forall t0 -> A(t0) ==> D` into the goal, and
- * eliminating that quantifier there needs a witness step that does not
- * exist. What is missing is explicit user instantiation (§4.1's "later
- * feature"), not another rewrite reading. */
-let test_pin_ih_underdetermined = () => {
+/* Phase 4d RESOLVED this: the quantified IH can now be INSTANTIATED at
+   the citation site. Without a `with` clause the citation is still
+   refused — the IH's conclusion does not mention `t0`, so matching it
+   leaves the binder unresolved while the antecedent mentions it, which
+   is exactly the underdetermined instantiation §4.1 refuses. */
+let test_ih_citation_underdetermined_without_with = () => {
   let (pm, proof) =
     run_named(
       "ihprobe",
@@ -820,7 +833,43 @@ let test_pin_ih_underdetermined = () => {
           | _ => false,
         )) {
     Alcotest.fail(
-      "citing the quantified IH should be refused as underdetermined\n"
+      "citing the quantified IH with no instantiation should still be "
+      ++ "refused as underdetermined\n"
+      ++ dump(pm, proof),
+    );
+  };
+};
+
+/* ...and WITH one it goes through: `revert ih with t0 = <ty>` cashes the
+   INSTANCE of the IH into the goal. This is the vocabulary the two
+   former `progress` holes were missing; both now close (see
+   test_progress_proven). Note the IH is cited BY NAME here — Phase 4d
+   also made by-name fact resolution work in `revert`. */
+let test_ih_instantiated_with_clause = () => {
+  let (pm, proof) =
+    run_named("ihprobe", ih_probe_src("revert ih with t0 = t0 => ?"));
+  if (Test_ProofMap.find_marked_sub(pm, proof) != None) {
+    Alcotest.fail(
+      "instantiating the quantified IH should be mark-free\n"
+      ++ dump(pm, proof),
+    );
+  };
+};
+
+/* The binder must actually be one the IH quantifies. */
+let test_ih_instantiation_unknown_binder = () => {
+  let (pm, proof) =
+    run_named("ihprobe", ih_probe_src("revert ih with zz = t0 => ?"));
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.RevertFactNotQuantified(_) => true
+          | _ => false,
+        )) {
+    Alcotest.fail(
+      "`with zz = ...` names no binder of the IH and should be marked\n"
       ++ dump(pm, proof),
     );
   };
@@ -850,6 +899,21 @@ let test_pin_where_fact_uncitable = () => {
       ++ dump(pm, proof),
     );
   };
+};
+
+let test_debug_ih_name = () => {
+  List.iter(
+    cite => {
+      let (pm, proof) = run_named("ihprobe", ih_probe_src(cite));
+      let marks =
+        switch (Test_ProofMap.find_marked_sub(pm, proof)) {
+        | None => "<none>"
+        | Some((_, ms)) => String.concat("; ", List.map(ProofMark.show, ms))
+        };
+      print_endline("### CITE: " ++ cite ++ "  MARKS: " ++ marks);
+    },
+    ["revert ih => ?"],
+  );
 };
 
 let tests = (
@@ -896,7 +960,7 @@ let tests = (
     test_case("lemma step_lam_ap2", `Quick, test_lemma_step_lam_ap2),
     test_case("lemma step_beta", `Quick, test_lemma_step_beta),
     test_case("lemma some_tm_is_some", `Quick, test_lemma_some_tm_is_some),
-    test_case("PROGRESS partial proof pin", `Quick, test_progress_partial),
+    test_case("PROGRESS is fully proven", `Quick, test_progress_proven),
     test_case(
       "ADT induction generates a quantified IH",
       `Quick,
@@ -908,9 +972,19 @@ let tests = (
       test_ih_not_at_scrutinee,
     ),
     test_case(
-      "pin: quantified IH citation is underdetermined",
+      "quantified IH citation is underdetermined without `with`",
       `Quick,
-      test_pin_ih_underdetermined,
+      test_ih_citation_underdetermined_without_with,
+    ),
+    test_case(
+      "quantified IH instantiates with a `with` clause",
+      `Quick,
+      test_ih_instantiated_with_clause,
+    ),
+    test_case(
+      "`with` must name a binder the IH quantifies",
+      `Quick,
+      test_ih_instantiation_unknown_binder,
     ),
     test_case(
       "pin: boolean where-fact is uncitable",

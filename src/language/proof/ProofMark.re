@@ -37,6 +37,20 @@ type t =
    * metavariables the match left unresolved — refused in v1
    * (docs/prover-obligations.md §4.1). */
   | UnderdeterminedInstantiation({equality: string})
+  /* Axiom / revert: a `with <var> = <exp>` clause named something that
+   * is not a binder of the cited rule (axiom) or of the reverted fact
+   * (revert) — so there is nothing to instantiate. Pass-through, like
+   * the other citation marks (docs/prover-obligations.md, Phase 4d).
+   * `var` is the offending name; a non-variable `<var>` slot reports
+   * itself as "?". */
+  | UnknownInstantiationVar({
+      equality: string,
+      var: string,
+    })
+  /* Revert: a `with` clause was supplied but the in-scope fact is not
+   * quantified over the named binder at all — there is no `forall` to
+   * eliminate (docs/prover-obligations.md, Phase 4d). */
+  | RevertFactNotQuantified({var: string})
   /* Axiom: a metavariable instantiation bound by the match could not be
    * shown structurally total (Totality.check) — refused: divergence is
    * ⊥, never a boolean obligation (docs/prover-obligations.md §1.1,

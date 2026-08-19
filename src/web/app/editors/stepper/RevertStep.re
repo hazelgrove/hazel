@@ -48,7 +48,7 @@ let init = init_step => {
 /* The reverted expression, read from syntax (single source of truth). */
 let arg_of_proof = (proof: option(Proof.t)): option(Exp.t) =>
   switch (proof) {
-  | Some({term: Revert(e, _), _}) => Some(e)
+  | Some({term: Revert(e, _, _), _}) => Some(e)
   | _ => None
   };
 
@@ -107,7 +107,7 @@ module F =
      * would target / replace the Revert, destroying its structure). */
     let descend = (p: Proof.t): Proof.t =>
       switch (p) {
-      | {term: Revert(_, body), _} => body
+      | {term: Revert(_, _, body), _} => body
       | p => p
       };
     let inner_proof =

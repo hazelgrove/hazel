@@ -77,7 +77,13 @@ module F =
       switch (Calc.get_value(proof)) {
       | {
           term:
-            AxiomStep({at_idx: ai, at_exp: ae, direction: dir, equality: eq}),
+            AxiomStep({
+              at_idx: ai,
+              at_exp: ae,
+              direction: dir,
+              equality: eq,
+              instantiation: _,
+            }),
           _,
         } =>
         let idx = ProofCheck.exp_to_int(ai) |> Option.value(~default=at_idx);

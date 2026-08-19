@@ -967,6 +967,39 @@ end|}),
       {|Assume: nested|},
       {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => axiom y at y on y end in x|},
     ),
+    /* Proof: Phase-4d explicit instantiation (`with <var> = <exp>` on a
+       citation step). Each with-variant is a distinct compound form
+       sitting beside its plain form, so both spellings must round-trip. */
+    roundtrip_test(
+      {|AxiomWith: simple|},
+      {|theorem x = 1 proof axiom y with n = 2 at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|AxiomWith: spaced|},
+      {|theorem x = 1 proof axiom y  with  n  =  2  at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|AxiomRevWith: simple|},
+      {|theorem x = 1 proof axiomrev y with n = 2 at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|RevertWith: simple|},
+      {|theorem x = 1 proof revert y with n = 2 => axiom y at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|RevertWith: compound instantiation|},
+      {|theorem x = 1 proof revert y with n = 2 + 3 => axiom y at y on y end in x|},
+    ),
+    /* The plain forms must keep round-tripping unchanged: `with` is only
+       absorbed by a citation step that is still missing its own shards. */
+    roundtrip_test(
+      {|Revert: plain still round-trips|},
+      {|theorem x = 1 proof revert y => axiom y at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|Algebrite: `with` still belongs to rewrite|},
+      {|theorem x = 1 proof rewrite y with z at 0 end in x|},
+    ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */
@@ -1884,6 +1917,7 @@ let proof_embedded_paren_tests = (
         at_exp: built_fun_ap(~guard=true, ()),
         direction: Util.Direction.Right,
         equality: Exp.fresh(Var("refl_eq")),
+        instantiation: None,
       }),
       {|theorem t = 1 == 1 proof axiom refl_eq at 0 on(fun x where x != 0 -> 100 / x)(y) end in t|},
     ),
@@ -1894,6 +1928,7 @@ let proof_embedded_paren_tests = (
         at_exp: built_fun_ap(~guard=false, ()),
         direction: Util.Direction.Right,
         equality: Exp.fresh(Var("refl_eq")),
+        instantiation: None,
       }),
       {|theorem t = 1 == 1 proof axiom refl_eq at 0 on(fun x -> 100 / x)(y) end in t|},
     ),

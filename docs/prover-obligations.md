@@ -484,8 +484,9 @@ on earlier ones.
   (!)-menu proposal UI for channel 3 is still to come; closure lemmas
   cover the Int operator class only (SInt/Nat variants are mechanical
   later additions).
-- **Phase 4 — induction power.** Bool splits as first-class UX; IH
-  generalization via an **explicit `generalize` step** (decided 2026-08-18: a
+- **Phase 4 — induction power.** *(Complete as of 4d: the STLC
+  `progress` milestone is fully proven.)* Bool splits as first-class UX;
+  IH generalization via an **explicit `generalize` step** (decided 2026-08-18: a
   proof form that re-quantifies an already-peeled variable before induction,
   rather than implicit unpeeled-prefix IHs — more syntax, but recoverable
   mid-proof and visible in the proof text); structural-recursion detection.
@@ -613,17 +614,15 @@ on earlier ones.
   proven this way, and two of `progress`'s four open leaves close.
 
   *Still open after 4c* (documented in place in the milestone file):
-  - **Quantified-IH instantiation.** The other two `progress` leaves are
-    vacuous via `IH(x0)` at a type produced by a split. The IH now
-    exists and has a rewrite reading, but it is `forall t0 -> A(t0) ==>
-    D` with `t0` absent from `D`, so matching the conclusion leaves the
-    binder unresolved while the antecedent mentions it —
-    `UnderdeterminedInstantiation`, refused in v1 (§4.1). `revert`
-    cannot substitute for it: the leaf goal is `false`, so `IH ==> false`
-    is genuinely false, and cashing the contradiction would mean
-    refuting a `forall` inside the goal by exhibiting a witness. The
-    missing feature is **explicit user instantiation** of a quantified
-    fact (§4.1's deferred item), not another reading.
+  - **Quantified-IH instantiation.** *(Closed by 4d, below.)* The other
+    two `progress` leaves are vacuous via `IH(x0)` at a type produced by
+    a split. The IH exists and has a rewrite reading, but it is
+    `forall t0 -> A(t0) ==> D` with `t0` absent from `D`, so matching
+    the conclusion leaves the binder unresolved while the antecedent
+    mentions it — `UnderdeterminedInstantiation`, refused in v1 (§4.1).
+    The missing feature is **explicit user instantiation** of a
+    quantified fact (§4.1's deferred item), not another reading. Phase
+    4d supplies it (`revert ih with t0 = tf0`) and both leaves close.
   - The `FixUnwrap` self-unrolled matching asymmetry (an occurrence of
     the recursing function created by the hidden self-substitution is
     not addressable by a written `at_exp`, while env-inlined occurrences
@@ -637,6 +636,119 @@ on earlier ones.
     goal antecedent, so introducing a *reverted* antecedent by `assume`
     fails to `fast_equal`. Worked around in the milestone by reverting in
     the leaf that needs it rather than above the split.
+  *4d landed (2026-08-19)*: **explicit instantiation at the citation
+  site** — open item 3, and the last thing the Phase-4 milestone was
+  waiting on.
+
+  *Syntax.* A `with` clause on the citation steps, as a distinct
+  compound form beside each plain one (`Form.ProofAxiomWith`,
+  `ProofAxiomRevWith`, `ProofRevertWith` — the same choice as
+  `ForallWhere` beside `Forall`, so the plain forms stay
+  non-variadic):
+
+      axiom    <name> with <x> = <e> at <i> on <target> end
+      axiomrev <name> with <x> = <e> at <i> on <target> end
+      revert   <fact> with <x> = <e> => <proof>
+
+  In the AST this is an `option((exp, exp))` on `AxiomStep` and a third
+  argument to `Revert`, so every existing proof term is unchanged.
+  Because the with-variants share a leading token with the plain forms,
+  the "with" token upgrades the tile after the fact
+  (`Insert.upgrade_with_clause`, mirroring `upgrade_forall_where`); the
+  scan stops at the first incomplete tile so `rewrite <e> with …` keeps
+  its own "with". The menhir surface carries the clause too
+  (`AST.Proof{Revert,Axiom,AxiomRev}With` + `Parser.mly` rules, both
+  `Conversion` directions), so the textual parser round-trips it rather
+  than silently dropping it.
+
+  *Axiom semantics — seeding.* The binding is written into `MatchExp`'s
+  match context BEFORE matching (`ProofRule.seed_binding`, threaded
+  through `can_eq_inst`'s new `~bindings`), so matching only has to
+  resolve what is left and `UnderdeterminedInstantiation` fires only on
+  metavariables still unresolved AFTER seeding. A seeded variable that
+  also occurs in the conclusion is checked for consistency by the
+  ordinary already-assigned path in `MatchExp`, so an instantiation that
+  contradicts the target simply fails to match. A `<var>` that is not a
+  binder of the cited rule is `UnknownInstantiationVar` (pass-through,
+  like the other citation marks).
+
+  *Revert semantics — elimination.* With a `with` clause the in-scope
+  fact must be quantified over the named binder; that binder is
+  eliminated (`ProofRule.instantiate_binder`) and the INSTANTIATED fact
+  is what gets cashed into the goal. A `where` restriction on the
+  eliminated binder survives as an antecedent
+  (`forall x where g -> B` at `e` becomes `g[x:=e] ==> B[x:=e]`) —
+  dropping it would be unsound. No such binder is
+  `RevertFactNotQuantified`. Soundness is the Phase-4c one-liner plus
+  the gates: `forall x -> F(x)` holds in scope and `e` clears them, so
+  `F(e)` holds, so `F(e) ==> G` denotes exactly what `G` denotes — still
+  no obligation from the step itself.
+
+  *The gates apply.* The supplied expression goes through the Phase-3a
+  instantiation gate exactly as a matched one does, on both steps:
+  structural totality is a REFUSAL (`PossiblyDivergentInstantiation`)
+  and the domain scan's conditions become obligations on the step. There
+  is no bypass — the whole point of instantiating explicitly is to
+  choose the witness, not to skip the checks.
+
+  *Two adjacent fixes this required.*
+  1. **By-name fact citation in `revert`.** `revert ih` now resolves the
+     name straight out of the environment (where facts live as
+     `ProofObject`), instead of running the written expression through
+     `Substitution.in_exp`. Installed facts are ALREADY env-substituted
+     (Phase 4b), and substituting one a second time alpha-renames the
+     binders inside its inlined closures (`Environment.free_name` in
+     `Substitution.in_pat` turns `fun l -> …` into `fun l' -> …`), after
+     which it no longer `fast_equal`s the fact as stored — so every
+     by-name citation missed. Spelling the proposition out still
+     substitutes, as before.
+  2. **Binder identification modulo renaming primes.** The same
+     alpha-renaming means an installed fact's quantifier may be `t0'`
+     where the source said `t0`, and that renaming is invisible in the
+     program text. `with` therefore identifies a binder by exact name
+     first and by name-modulo-trailing-primes second
+     (`ProofRule.same_binder`). This is not slack in the discharge
+     relation of §4.3: no proposition matching is involved, only naming
+     which of a rule's own binders is meant.
+
+  *The milestone closes.* `test/evaluator/Test_Milestone_STLC.re`'s
+  `progress` theorem —
+
+      forall e -> forall t -> infer(([], e)) == SomeTy(t) ==>
+        is_value(e) || is_some_tm(step(e))
+
+  — is now **fully Proven**, with zero holes and zero marks, and exactly
+  three obligations (the step-lemma antecedents), all discharged Remote
+  through channel 1. The two leaves that were open after 4c are the ones
+  4d unlocked: `revert ih with t0 = tf0` and `revert ih' with t0 = s0`,
+  each followed by rewriting the instantiated antecedent to `false` with
+  the case_eqs in scope and letting McCarthy `==>` collapse the goal.
+  (The three step-unfolding LEMMAS are still partial for the unrelated
+  `FixUnwrap` reason above; they are axioms of the development, which is
+  what the milestone measures the proof language against.)
+
+  One friction item surfaced while writing those leaves, worth fixing
+  later and not blocking: `ProofHacks.nth_exp` numbers occurrences of an
+  `at_exp` with the CONSEQUENT of a `==>` before the antecedent, so the
+  reverted fact's own occurrence is `at 1` — a surprising index the
+  author has to discover by experiment.
+
+  A `revert`ed fact is also EXPENSIVE: it carries every decision
+  procedure inlined, and the ProofMap holds an incoming and an outgoing
+  copy of that AST per step, so the two IH leaves are the milestone's
+  heaviest. On the pre-`xspkrxmy` checker this cost ~190s for the
+  `progress` test alone and exhausted node's default ~4GB old-space;
+  with nested `Statics.mk` removed from proof checking the whole
+  30-test milestone suite runs in ~47s and no heap bump is needed.
+  Shrinking what a `revert`ed fact costs — by not re-inlining
+  definitions the goal already carries — remains the obvious follow-up.
+
+  *v1 limitation*: exactly ONE binding per step. Multi-binding
+  (`with x = e, y = f`, or repeated clauses) is future work — the
+  representation is already an option field rather than a list only to
+  keep the v1 diff honest; widening it to a list is mechanical, and the
+  seeding/gate logic already folds over a list internally.
+
 - **Phase 5 — directed stepping.** Polarity/variance engine covering
   **boolean polarity and ordered arithmetic in the same cut** (decided
   2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with
@@ -648,7 +760,9 @@ on earlier ones.
 1. Enumerate the concrete ND/Kleene rule set for `==>` and connectives
    (Phase 2; soundness criterion fixed by §1.3).
 2. Define the matching normal form (§4.3) when/if slack is first needed.
-3. Underdetermined-instantiation UX beyond refusal.
+3. Underdetermined-instantiation UX beyond refusal. **RESOLVED — 4d
+   landed (2026-08-19)**; see the Phase-4 notes above for the full
+   description.
 4. WP pass for path-sensitive definedness.
 5. Surface syntax for inline obligation proofs and the apply step (binder
    syntax decided: `where`).

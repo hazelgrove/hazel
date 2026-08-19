@@ -618,6 +618,12 @@ and Proof: {
       generalize(Exp.of_menhir_ast(e), of_menhir_ast(body))
     | ProofRevert(e, body) =>
       revert(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofRevertWith(e, v, i, body) =>
+      revert(
+        ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
     | ProofAxiom(eq, at_idx, at_exp) =>
       axiom_step(
         ~at_idx=Exp.of_menhir_ast(at_idx),
@@ -632,6 +638,24 @@ and Proof: {
         ~at_exp=Exp.of_menhir_ast(at_exp),
         ~direction=Util.Direction.Left,
         ~equality=Exp.of_menhir_ast(eq),
+        (),
+      )
+    | ProofAxiomWith(eq, v, i, at_idx, at_exp) =>
+      axiom_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~direction=Util.Direction.Right,
+        ~equality=Exp.of_menhir_ast(eq),
+        ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
+        (),
+      )
+    | ProofAxiomRevWith(eq, v, i, at_idx, at_exp) =>
+      axiom_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~direction=Util.Direction.Left,
+        ~equality=Exp.of_menhir_ast(eq),
+        ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
         (),
       )
     | ProofAlgebrite(at_exp, with_exp, at_idx) =>
@@ -669,20 +693,31 @@ and Proof: {
     | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
     | Assume(e, body) => ProofAssume(Exp.of_core(e), of_core(body))
     | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
-    | Revert(e, body) => ProofRevert(Exp.of_core(e), of_core(body))
-    | AxiomStep({at_idx, at_exp, direction, equality}) =>
+    | Revert(e, None, body) => ProofRevert(Exp.of_core(e), of_core(body))
+    | Revert(e, Some((v, i)), body) =>
+      ProofRevertWith(
+        Exp.of_core(e),
+        Exp.of_core(v),
+        Exp.of_core(i),
+        of_core(body),
+      )
+    | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
       /* `axiom` applies the equality left-to-right, `axiomrev`
-         right-to-left. */
-      let mk =
-        switch (direction) {
-        | Right => (((eq, idx, ae)) => AST.ProofAxiom(eq, idx, ae))
-        | Left => (((eq, idx, ae)) => AST.ProofAxiomRev(eq, idx, ae))
-        };
-      mk((
+         right-to-left; a Phase-4d `with` clause picks the -With
+         variants. */
+      let (eq, idx, ae) = (
         Exp.of_core(equality),
         Exp.of_core(at_idx),
         Exp.of_core(at_exp),
-      ));
+      );
+      switch (direction, instantiation) {
+      | (Right, None) => AST.ProofAxiom(eq, idx, ae)
+      | (Left, None) => AST.ProofAxiomRev(eq, idx, ae)
+      | (Right, Some((v, i))) =>
+        AST.ProofAxiomWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+      | (Left, Some((v, i))) =>
+        AST.ProofAxiomRevWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+      };
     | AlgebriteStep({at_idx, at_exp, with_exp}) =>
       ProofAlgebrite(
         Exp.of_core(at_exp),

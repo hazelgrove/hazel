@@ -37,7 +37,7 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | Forall(_, _) => Forall
   | Assume(_, _) => Assume
   | Generalize(_, _) => Generalize
-  | Revert(_, _) => Revert
+  | Revert(_, _, _) => Revert
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -61,6 +61,18 @@ let temp: term => t =
     annotation: IdTagged.IdTag.temp(),
   };
 
+/* Compare optional `with <var> = <exp>` instantiation clauses
+ * (docs/prover-obligations.md, Phase 4d). */
+let inst_equal =
+    (n1: option((Exp.t, Exp.t)), n2: option((Exp.t, Exp.t))): bool =>
+  switch (n1, n2) {
+  | (None, None) => true
+  | (Some((v1, i1)), Some((v2, i2))) =>
+    Equality.syntactic.exp(v1, v2) && Equality.syntactic.exp(i1, i2)
+  | (None, Some(_))
+  | (Some(_), None) => false
+  };
+
 let rec fast_equal = (p1: t, p2: t): bool => {
   switch (p1.term, p2.term) {
   | (EmptyHole, EmptyHole) => true
@@ -70,13 +82,26 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     && List.for_all2(Equality.syntactic.any, xs, ys)
   | (Seq(a1, a2), Seq(b1, b2)) => fast_equal(a1, b1) && fast_equal(a2, b2)
   | (
-      AxiomStep({at_idx: i1, at_exp: e1, direction: d1, equality: q1}),
-      AxiomStep({at_idx: i2, at_exp: e2, direction: d2, equality: q2}),
+      AxiomStep({
+        at_idx: i1,
+        at_exp: e1,
+        direction: d1,
+        equality: q1,
+        instantiation: n1,
+      }),
+      AxiomStep({
+        at_idx: i2,
+        at_exp: e2,
+        direction: d2,
+        equality: q2,
+        instantiation: n2,
+      }),
     ) =>
     Equality.syntactic.exp(i1, i2)
     && Equality.syntactic.exp(e1, e2)
     && d1 == d2
     && Equality.syntactic.exp(q1, q2)
+    && inst_equal(n1, n2)
   | (
       AlgebriteStep({at_idx: i1, at_exp: e1, with_exp: w1}),
       AlgebriteStep({at_idx: i2, at_exp: e2, with_exp: w2}),
@@ -101,8 +126,10 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
   | (Generalize(e1, b1), Generalize(e2, b2)) =>
     Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
-  | (Revert(e1, b1), Revert(e2, b2)) =>
-    Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
+  | (Revert(e1, n1, b1), Revert(e2, n2, b2)) =>
+    Equality.syntactic.exp(e1, e2)
+    && inst_equal(n1, n2)
+    && fast_equal(b1, b2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -113,7 +140,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Forall(_, _), _)
   | (Assume(_, _), _)
   | (Generalize(_, _), _)
-  | (Revert(_, _), _)
+  | (Revert(_, _, _), _)
   | (EvalStep(_), _) => false
   };
 };
@@ -135,7 +162,7 @@ let rec has_hole = (p: t): bool =>
   | Forall(_, body) => has_hole(body)
   | Assume(_, body) => has_hole(body)
   | Generalize(_, body) => has_hole(body)
-  | Revert(_, body) => has_hole(body)
+  | Revert(_, _, body) => has_hole(body)
   | EvalStep(_) => false
   };
 
@@ -188,6 +215,12 @@ let pat_has_hole = (p: Pat.t): bool =>
   | exception Found_hole => true
   };
 
+let inst_has_hole = (inst: option((Exp.t, Exp.t))): bool =>
+  switch (inst) {
+  | None => false
+  | Some((v, i)) => exp_has_hole(v) || exp_has_hole(i)
+  };
+
 /* Do the step's OWN arguments contain a hole? Unlike `has_hole`, nested
  * sub-proofs are NOT inspected: a hole in a case body renders its own
  * "…" continuation row in the stepper, while a hole in an argument
@@ -199,8 +232,11 @@ let args_have_hole = (p: t): bool =>
   | Invalid(_)
   | MultiHole(_)
   | Seq(_, _) => false
-  | AxiomStep({at_idx, at_exp, equality, direction: _}) =>
-    exp_has_hole(at_idx) || exp_has_hole(at_exp) || exp_has_hole(equality)
+  | AxiomStep({at_idx, at_exp, equality, instantiation, direction: _}) =>
+    exp_has_hole(at_idx)
+    || exp_has_hole(at_exp)
+    || exp_has_hole(equality)
+    || inst_has_hole(instantiation)
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
     exp_has_hole(at_idx) || exp_has_hole(at_exp) || exp_has_hole(with_exp)
   | EvalStep({at_idx, at_exp}) =>
@@ -211,5 +247,5 @@ let args_have_hole = (p: t): bool =>
   | Forall(pat, _) => pat_has_hole(pat)
   | Assume(e, _) => exp_has_hole(e)
   | Generalize(e, _) => exp_has_hole(e)
-  | Revert(e, _) => exp_has_hole(e)
+  | Revert(e, inst, _) => exp_has_hole(e) || inst_has_hole(inst)
   };
