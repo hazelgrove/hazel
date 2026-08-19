@@ -490,11 +490,16 @@ let discharge_goal =
 let incur_obligation =
     (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, goal: Exp.t)
     : Obligation.t => {
+  /* `display_goal` is the incoming term as written; `goal` is it with the
+   * environment substituted in (the semantic one the channels run on).
+   * See Obligation.re for why both are kept. */
+  let display_goal = goal;
   let goal = goal |> Substitution.in_exp(SemanticCtx.get_env(ctx));
   Obligation.{
     origin,
     bindings: SemanticCtx.get_ctx(ctx).entries,
     goal,
+    display_goal,
     discharge: discharge_goal(~step, ~ctx, goal),
   };
 };
@@ -990,6 +995,9 @@ let rec check =
             origin: id,
             bindings: SemanticCtx.get_ctx(ctx).entries,
             goal: hyp,
+            /* The assumption as written, before env-inlining (see
+             * Obligation.display_goal). */
+            display_goal: e,
             discharge: discharge_goal(~step, ~ctx, hyp),
           },
         ]

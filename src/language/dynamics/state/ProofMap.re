@@ -169,6 +169,62 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
   );
 };
 
+/* Every id at which a step of this proof term is recorded. Used to tell
+ * proof entries from the definition-time entries below. */
+let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
+  [Proof.rep_id(proof)]
+  @ (
+    switch (proof.term) {
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_) => []
+    | Seq(p1, p2) => rep_ids_of_proof(p1) @ rep_ids_of_proof(p2)
+    | Forall(_, body)
+    | Assume(_, body)
+    | Generalize(_, body)
+    | Revert(_, body) => rep_ids_of_proof(body)
+    | Induction(_, cases) =>
+      List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
+    }
+  );
+
+/* Definition-time obligations (docs/prover-obligations.md §2.2, produced
+ * by `ProofCheck.definition_obligations`) live in this same map but are
+ * keyed by a FUNCTION term's id rather than a proof step's, so they are
+ * invisible to `obligations_of_proof`. Two independent criteria identify
+ * them, both required:
+ *
+ *  1. the minimal non-proof entry SHAPE — no incoming, no outgoing, no
+ *     marks, at least one obligation (this is exactly how the checker
+ *     records them, and how Test_FunContracts identifies them);
+ *  2. the key is not the rep_id of any step of the given proofs.
+ *
+ * (1) alone would also catch a proof step that happened to be recorded
+ * with neither goal side and no mark; (2) alone would catch every entry
+ * belonging to some OTHER cell's proof. `proofs` should be every proof
+ * term whose obligations are displayed separately. */
+let is_definition_entry = (entry: entry): bool =>
+  switch (entry) {
+  | {incoming: None, outgoing: None, marks: [], obligations: [_, ..._], _} =>
+    true
+  | _ => false
+  };
+
+let definition_obligations =
+    (~proofs: list(Proof.t)=[], pm: t): list(Obligation.t) => {
+  let proof_ids = List.concat_map(rep_ids_of_proof, proofs);
+  Id.Map.fold(
+    (id, entry, acc) =>
+      is_definition_entry(entry) && !List.mem(id, proof_ids)
+        ? acc @ entry.obligations : acc,
+    pm,
+    [],
+  );
+};
+
 /* The still-undischarged obligations in the proof subtree. */
 let pending_obligations = (pm: t, proof: Proof.t): list(Obligation.t) =>
   obligations_of_proof(pm, proof) |> List.filter(Obligation.is_pending);

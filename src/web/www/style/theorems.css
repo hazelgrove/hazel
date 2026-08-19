@@ -43,3 +43,133 @@
 .theorem-status.unknown {
   color: var(--light-page-color);
 }
+
+/* --- Obligations (docs/prover-obligations.md §3–§4) -------------------
+ *
+ * Added as a new section at the end of the file (UI-1) so the existing
+ * rules above are untouched. `.theorem-status.modulo` sits deliberately
+ * between `.true` and `.unknown` in the palette: it is proven-green pulled
+ * toward the stepper's "incomplete" tan, reading as an asterisked pass
+ * rather than a failure. No `jello` animation — ProvenModulo is not a
+ * clean win to celebrate. */
+
+.theorem-status.modulo {
+  background-color: color-mix(
+    in srgb,
+    var(--test-pass) 45%,
+    var(--step-indicator-incomplete)
+  );
+  color: var(--test-percent-text);
+}
+
+.obligations-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  border-top: 1px solid var(--cell-exercises-border);
+  font-size: 0.9em;
+}
+
+.obligations-panel.definitions {
+  border-top: none;
+  border-left: 1px solid var(--cell-exercises-border);
+  border-radius: 0.4em;
+  background-color: var(--test-panel-bkg);
+  padding: 1em;
+}
+
+.obligation-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.obligation-section-title {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4em;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.obligation-count {
+  display: flex;
+  align-items: center;
+  height: 1.5em;
+  padding: 0 0.6em;
+  border-radius: 0.75em;
+  background-color: var(--BR2);
+  font-weight: normal;
+  font-size: 0.85em;
+}
+
+.obligation-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5em;
+  padding: 0.4em 0.6em;
+  border-left: 3px solid var(--BR2);
+  border-radius: 0.2em;
+}
+
+/* Pending is the state that wants attention: full-strength tan bar and a
+ * tinted background. Discharged rows are receipts and stay quiet. */
+.obligation-row.pending {
+  border-left-color: var(--step-indicator-incomplete);
+  background-color: color-mix(
+    in srgb,
+    var(--step-indicator-incomplete) 14%,
+    transparent
+  );
+}
+
+.obligation-row.remote,
+.obligation-row.local {
+  border-left-color: color-mix(in srgb, var(--test-pass) 60%, transparent);
+}
+
+.obligation-row.evaluated {
+  border-left-color: color-mix(in srgb, var(--test-pass) 35%, transparent);
+}
+
+.obligation-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 0.7em;
+  background-color: var(--BR2);
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+.obligation-row.pending .obligation-badge {
+  background-color: var(--step-indicator-incomplete);
+}
+
+.obligation-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.obligation-receipt-label {
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
+.obligation-row.pending .obligation-receipt-label {
+  opacity: 1;
+  font-weight: bold;
+}
+
+.obligation-fact {
+  display: flex;
+  align-items: center;
+}

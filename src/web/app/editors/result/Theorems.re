@@ -17,6 +17,12 @@ module Model = {
      * (outgoing is literally false), None = incomplete / not yet proven
      * (holes, failed steps, or no map entry). */
     proof_mark: Calc.saved(option(bool)),
+    /* The obligation-aware status (ProofMap.full_status_of_proof), which
+     * additionally distinguishes ProvenModulo — the goal reached `true`
+     * but pending obligations remain (docs/prover-obligations.md §3.1).
+     * `proof_mark` above is left exactly as it was: it is the legacy
+     * bool status and still what `get_score` grades on. */
+    full_status: Calc.saved(ProofMap.full_status),
   };
 
   let theorem_init = name => {
@@ -28,6 +34,7 @@ module Model = {
     proof: Calc.Pending,
     stepper_view: StepperView.Model.init,
     proof_mark: Calc.Pending,
+    full_status: Calc.Pending,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -204,6 +211,7 @@ module Update = {
                    proof,
                    stepper_view,
                    proof_mark,
+                   full_status,
                  } =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
@@ -308,6 +316,18 @@ module Update = {
                    Calc.set(mark, proof_mark);
                  };
 
+                 /* Same lookup, refined status: obligations recorded in
+                  * the proof subtree turn a `true` outgoing into
+                  * ProvenModulo. */
+                 let full_status = {
+                   let status =
+                     switch (proof_lookup) {
+                     | Some(p) => ProofMap.full_status_of_proof(proof_map, p)
+                     | None => ProofMap.Incomplete
+                     };
+                   Calc.set(status, full_status);
+                 };
+
                  Some({
                    name,
                    ctx: ctx |> Calc.save,
@@ -317,6 +337,7 @@ module Update = {
                    proof: proof |> Calc.save,
                    stepper_view,
                    proof_mark: proof_mark |> Calc.save,
+                   full_status: full_status |> Calc.save,
                  });
                },
                acc,
@@ -394,31 +415,61 @@ module View = {
         },
       },
     };
+    let proof_map = model.proof_map |> Calc.get_saved(ProofMap.empty);
     switch (model.thms |> Calc.get_saved([])) {
     | [] => []
     | xs =>
+      /* Definition-time obligations belong to the definitions the cell's
+       * theorems can see, not to any one theorem, so they are rendered
+       * once at the end (see ObligationsPanel.view_definitions). Every
+       * theorem's proof is excluded from the walk. */
+      let definitions =
+        ObligationsPanel.view_definitions(
+          ~globals,
+          ObligationsPanel.group_of(
+            ~pm=proof_map,
+            ~proofs=
+              xs
+              |> List.filter_map(id =>
+                   Id.Map.find_opt(id, model.thm_map)
+                   |> Option.map((t: Model.theorem) => t.proof)
+                   |> Option.map(Calc.get_saved_opt)
+                   |> Option.join
+                   |> Option.join
+                 ),
+          ),
+        );
       List.mapi(
         (idx, id) => {
-          let Model.{stepper_view, name, proof_mark, _} =
+          let Model.{stepper_view, name, full_status, proof, _} =
             Id.Map.find(id, model.thm_map);
+          /* Status now comes from the obligation-aware
+           * `full_status_of_proof`, so ProvenModulo reads distinctly from
+           * both proven and incomplete. */
+          let full_status =
+            full_status
+            |> Calc.get_saved_opt
+            |> Option.value(~default=ProofMap.Incomplete);
           let status =
-            switch (proof_mark |> Calc.get_saved_opt |> Option.join) {
-            | Some(true) =>
-              Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "true"])],
-                [Node.text("proven true")],
-              )
-            | Some(false) =>
-              Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "false"])],
-                [Node.text("disproven")],
-              )
-            | None =>
-              Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "unknown"])],
-                [Node.text("incomplete")],
-              )
-            };
+            Node.div(
+              ~attrs=[
+                Attr.classes([
+                  "theorem-status",
+                  ObligationsPanel.status_class(full_status),
+                ]),
+              ],
+              [Node.text(ObligationsPanel.status_label(full_status))],
+            );
+          /* This theorem's own obligations, with their receipts. */
+          let obligations =
+            ObligationsPanel.view(
+              ~globals,
+              ObligationsPanel.group_of(
+                ~pm=proof_map,
+                ~proofs=
+                  proof |> Calc.get_saved_opt |> Option.join |> Option.to_list,
+              ),
+            );
           let header =
             WebUtil.div_c(
               "theorem-header",
@@ -446,10 +497,11 @@ module View = {
               ~main_editor,
               stepper_view,
             );
-          div_c("theorem", [header, ...stepper]);
+          div_c("theorem", [header, ...stepper] @ obligations);
         },
         xs,
       )
+      @ definitions;
     };
   };
 };
