@@ -1699,70 +1699,40 @@ module BareFunReuse = {
   open Haz3lcore;
   open Language;
 
-  let settings = CoreSettings.on;
+  /* The app's own defaults, not a hand-built CoreSettings. */
+  let settings = Settings.Model.init;
 
-  let calculate = (~is_edited, model: CodeWithStatics.Model.t) =>
-    CodeWithStatics.Update.calculate(
-      ~settings,
+  /* One frame of the editor's real update loop, exactly as ScratchMode runs it.
+     With `~queue_worker=None`, `EvalResult.Update.calculate` builds the request
+     itself and evaluates through `WorkerServer.evaluate_sync`, then stores
+     `incr_eval` in the model -- so the request construction, the choice of
+     `EvalInfo.of_info_map`, and the threading of `prev` across edits are all
+     production code here, not restated by the test. That matters: the reason
+     this bug went unnoticed is that a harness which builds its own request with
+     `EvalInfo.of_targets` leaves `reuse_check`'s `EvalInfo.find_opt` empty and
+     never reuses anything, so it passes no matter what `reuse_check` does. */
+  let calculate = (~is_edited, model) =>
+    CellEditor.Update.calculate(
+      ~settings=settings.core,
       ~is_edited,
+      ~queue_worker=None,
       ~stitch=x => x,
-      ~dynamics=model.dynamics,
-      ~is_dynamic_term=false,
       model,
     );
 
-  let of_text = (text: string): CodeWithStatics.Model.t =>
+  let of_text = (text: string): CellEditor.Model.t =>
     switch (Parser.to_zipper(~root=Sort.Exp, text)) {
     | None => failwith("could not parse")
     | Some(z) =>
       Editor.Model.mk(z, ~root=Sort.Exp)
-      |> CodeWithStatics.Model.mk
+      |> CellEditor.Model.mk
       |> calculate(~is_edited=true)
     };
 
-  let perform = (a: Action.t, model: CodeWithStatics.Model.t) =>
-    switch (
-      Perform.go(
-        ~settings,
-        ~statics=model.statics,
-        ~syntax=model.editor.syntax,
-        ~root=model.editor.root,
-        a,
-        {
-          zipper: model.editor.state.zipper,
-          col_target: None,
-        },
-      )
-    ) {
-    | Error(f) => failwith("action failed: " ++ Action.Failure.show(f))
-    | Ok(zipper) =>
-      calculate(
-        ~is_edited=true,
-        {
-          ...model,
-          editor: Editor.Model.mk(zipper, ~root=model.editor.root),
-        },
-      )
-    };
-
-  /* The request `EvalResult.Update.calculate` posts. `of_info_map` is not
-     interchangeable with `of_targets`: only `of_info_map` populates the per-id
-     `statics` field, and `reuse_check` looks that up before reusing anything,
-     so with `of_targets` incremental reuse never fires at all. */
-  let evaluate = (~prev=IncrEval.empty, model: CodeWithStatics.Model.t) => {
-    let eval_info =
-      EvalInfo.of_info_map(
-        ~probe_all=settings.probe_all,
-        ~targets=model.statics.targets,
-        model.statics.info_map,
-      );
-    Evaluator.evaluate(
-      ~prev,
-      ~eval_info,
-      ~env=Builtins.env_init,
-      model.statics.elaborated,
-    );
-  };
+  /* An editor action, dispatched and recalculated the way the app does. */
+  let perform = (a: Action.t, model: CellEditor.Model.t) =>
+    CellEditor.Update.update(~settings, MainEditor(Perform(a)), model).model
+    |> calculate(~is_edited=true);
 
   let type_at_end = (text, model) =>
     String.fold_left(
@@ -1770,6 +1740,12 @@ module BareFunReuse = {
       perform(Move(End), model),
       text,
     );
+
+  let value = (model: CellEditor.Model.t): option(Exp.t) =>
+    switch (Util.Calc.get_value(model.result.result)) {
+    | ProgramResult.ResultOk({result, _}) => Some(result)
+    | _ => None
+    };
 
   let program = {|let inner = fun (node, a) -> node in
 let outer = fun (node, b) -> inner(node, b) in
@@ -1780,24 +1756,26 @@ mk(0)|};
   let typed = {| |> outer(_, 1)|};
 
   let test = () => {
-    let model = of_text(program);
-    let (_, state) = evaluate(model);
-    let after = type_at_end(typed, model);
-    let (value, _) = evaluate(~prev=state.incr_eval, after);
+    let model = of_text(program) |> type_at_end(typed);
     /* Without the guard in `reuse_check` this is
        `Ap(Forward, Fun((node, a), ...), ...)` -- `inner` applied to a final
-       pair, stuck forever -- instead of the pair `calc(0)` returns. */
+       pair, stuck forever -- instead of the pair `mk(0)` returns. */
     let stuck =
-      switch (Exp.term_of(value)) {
-      | Ap(_, fn, _) =>
-        switch (Exp.term_of(fn)) {
-        | Fun(_) => true
+      switch (value(model)) {
+      | None => false
+      | Some(v) =>
+        switch (Exp.term_of(v)) {
+        | Ap(_, fn, _) =>
+          switch (Exp.term_of(fn)) {
+          | Fun(_) => true
+          | _ => false
+          }
         | _ => false
         }
-      | _ => false
       };
-    if (stuck) {
-      print_endline("stuck result: " ++ Exp.show(value));
+    switch (value(model)) {
+    | Some(v) when stuck => print_endline("stuck result: " ++ Exp.show(v))
+    | _ => ()
     };
     Alcotest.check(
       Alcotest.bool,
