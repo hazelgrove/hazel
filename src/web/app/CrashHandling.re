@@ -111,6 +111,21 @@ module Update = {
     | _ => model |> Updated.return_quiet
     };
 
+  /* Run `f`, and if it raises, record the exception and fall back to
+     `previous` rather than losing it. Extracted from `calculate` and left
+     polymorphic so the fallback can be tested without building an app model --
+     it is the thing that keeps a crash mid-calculate from discarding the user's
+     work, and it was previously unreachable from a test. */
+  let guard_calculate = (~previous: 'a, f: unit => 'a): 'a =>
+    try(f()) {
+    | exn =>
+      set_last_exception(exn);
+      let msg = Printexc.to_string(exn);
+      print_endline("CrashHandling: Caught exception in calculate: " ++ msg);
+      set_current_exception(Calculate(msg));
+      previous;
+    };
+
   let calculate =
       (
         ~schedule_action: t => unit,
@@ -120,18 +135,13 @@ module Update = {
         model: Model.t,
       )
       : Model.t =>
-    try({
-      model:
-        model.model
-        |> Logged.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
-    }) {
-    | exn =>
-      set_last_exception(exn);
-      let msg = Printexc.to_string(exn);
-      print_endline("CrashHandling: Caught exception in calculate: " ++ msg);
-      set_current_exception(Calculate(msg));
-      previous_model;
-    };
+    guard_calculate(~previous=previous_model, () =>
+      {
+        model:
+          model.model
+          |> Logged.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
+      }
+    );
 };
 
 module View = {
