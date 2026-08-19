@@ -65,6 +65,11 @@ type t =
   /* Generalize: the argument isn't a bare in-scope variable (a peeled
    * binder that can be re-quantified). */
   | MalformedGeneralize
+  /* Revert: no in-scope fact matches the reverted expression, so there is
+   * nothing to cash into the goal (docs/prover-obligations.md, Phase 4c).
+   * Grouped with the other proof-form marks: less urgent than a broken
+   * axiom citation, more urgent than the structural induction marks. */
+  | UnknownFactReverted
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
   /* Induction/split: a COMPUTED scrutinee (bool split) could not be

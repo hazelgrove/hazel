@@ -431,6 +431,7 @@ type compound_form =
   | ProofForall
   | ProofAssume
   | ProofGeneralize
+  | ProofRevert
   | ProofAxiom
   | ProofAxiomRev
   | ProofAlgebrite
@@ -568,6 +569,8 @@ let get: compound_form => t =
   | ProofAssume => mk_pre_c(L, ["assume", "=>"], P.fun_, Proof, [Exp])
   | ProofGeneralize =>
     mk_pre_c(L, ["generalize", "=>"], P.fun_, Proof, [Exp])
+  /* `revert <fact> => <proof>`: cash an in-scope fact into the goal. */
+  | ProofRevert => mk_pre_c(L, ["revert", "=>"], P.fun_, Proof, [Exp])
   | ProofAxiom =>
     mk_op_c(L, ["axiom", "at", "on", "end"], Proof, [Exp, Exp, Exp])
   /* An axiom step applying the equality right-to-left (Direction.Left);

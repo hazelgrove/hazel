@@ -157,6 +157,8 @@ let axiom_step_outgoing_result =
   switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
   | None => Error(UnknownEquality(equality))
   | Some(rule) =>
+    /* Phase 4c: a cited bare-boolean fact also reads as `F == true`. */
+    let rule = ProofRule.with_bool_fact_reading(rule);
     switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
     | None =>
       Error(
@@ -208,7 +210,7 @@ let axiom_step_outgoing_result =
           ));
         };
       };
-    }
+    };
   };
 };
 
@@ -1150,6 +1152,66 @@ let rec check =
         };
       (outgoing, record(id, incoming, outgoing, m));
     };
+  | Revert(e, body) =>
+    /* Cash an in-scope fact back into the goal — the symmetric partner of
+     * assume-intro (docs/prover-obligations.md, Phase 4c). With incoming
+     * goal `G` and an in-scope fact `F` whose statement matches the
+     * (env-substituted) argument, the body's incoming goal is `F ==> G`.
+     *
+     * Soundness AND completeness, hence no obligation: `F` holds in this
+     * scope, so under the Kleene reading of §1.3 `(F ==> G)` denotes
+     * exactly what `G` denotes. Nothing is given away and nothing is
+     * assumed; the step only MOVES a fact from the context into the goal,
+     * where the eval/rewrite machinery can compute with it.
+     *
+     * The fact is NOT removed from scope: it stays citable (both as a
+     * discharge-channel-1 fact and — via the bare-boolean reading — as a
+     * rewrite rule), which is what makes the ex-falso idiom work:
+     * `revert` the contradictory fact, then rewrite it with the OTHER
+     * facts (e.g. a `case_eq`) until the antecedent evaluates to `false`,
+     * at which point `false ==> G` evaluates to `true`.
+     *
+     * Matching is the same dumb `Exp.fast_equal` lookup as channel 1
+     * (§4.2–4.3): the written expression must name the fact as it stands.
+     * No match is recovery, not refusal — mark and pass the goal
+     * through. */
+    let fact = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    switch (incoming) {
+    | None =>
+      let (_, m) = check(~step, ~info_map, ~ctx, None, body);
+      (None, record(~marks=[ProofMark.MissingIncoming], id, None, None, m));
+    | Some(goal) =>
+      switch (lookup_fact(ctx, fact)) {
+      | None =>
+        let (_, m) = check(~step, ~info_map, ~ctx, incoming, body);
+        (
+          incoming,
+          record(
+            ~marks=[ProofMark.UnknownFactReverted],
+            id,
+            incoming,
+            incoming,
+            m,
+          ),
+        );
+      | Some(_fact_id) =>
+        let body_incoming =
+          Some(Exp.fresh(BinOp(Bool(Implies), fact, goal)));
+        let (out_body, m) =
+          check(~step, ~info_map, ~ctx, body_incoming, body);
+        /* The body works on `F ==> G`, which is not a sub-expression of
+         * `G`, so a partial outgoing must not leak past this node: only a
+         * literal `true` discharges, anything else passes `G` through
+         * (cf. the Forall / Generalize cases). */
+        let true_exp = Exp.temp(Atom(Bool(true)));
+        let outgoing =
+          switch (out_body) {
+          | Some(o) when Exp.fast_equal(o, true_exp) => out_body
+          | _ => incoming
+          };
+        (outgoing, record(id, incoming, outgoing, m));
+      }
+    };
   | Induction(scrut, cases) =>
     /* Split/induction gate (§4.1). Ordinary structural induction — a
      * bare quantified-variable scrutinee — emits nothing (quantifiers
@@ -1281,7 +1343,12 @@ and check_induction =
           };
         /* 2b. Add inductive hypotheses for sub-patterns of scrut's type. */
         let ihs =
-          ProofHacks.get_inductive_hypotheses(info_map, scrut_ty, pat)
+          ProofHacks.get_inductive_hypotheses(
+            ~tyctx=SemanticCtx.get_ctx(ctx),
+            info_map,
+            scrut_ty,
+            pat,
+          )
           |> List.filter_map(h =>
                ProofHacks.replace_exp(
                  info_map,

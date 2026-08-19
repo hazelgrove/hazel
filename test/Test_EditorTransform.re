@@ -60,7 +60,8 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
       List.concat_map(((_, body)) => find_proofs(pred, body), cases)
     | Forall(_, body)
     | Assume(_, body)
-    | Generalize(_, body) => find_proofs(pred, body)
+    | Generalize(_, body)
+    | Revert(_, body) => find_proofs(pred, body)
     };
   (pred(p) ? [p] : []) @ kids;
 };

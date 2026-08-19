@@ -72,6 +72,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Forall(_) => "forall"
     | Assume(_) => "assume"
     | Generalize(_) => "generalize"
+    | Revert(_) => "revert"
     | Induction(_) => "induction"
     | AxiomStep(_) => "axiom"
     | AlgebriteStep(_) => "rewrite"
@@ -95,7 +96,8 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Seq(a, b) => [dump_proof(pm, a, indent), dump_proof(pm, b, indent)]
     | Forall(_, b)
     | Assume(_, b)
-    | Generalize(_, b) => [dump_proof(pm, b, indent ++ "  ")]
+    | Generalize(_, b)
+    | Revert(_, b) => [dump_proof(pm, b, indent ++ "  ")]
     | Induction(_, cases) =>
       List.map(
         ((pat, body)) =>
@@ -116,8 +118,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
 
 let dump = (pm, proof): string => dump_proof(pm, proof, "");
 
-let check_full_status =
-    (msg, expected: ProofMap.full_status, pm, proof): unit => {
+let check_full_status = (msg, expected: ProofMap.full_status, pm, proof): unit => {
   let actual = ProofMap.full_status_of_proof(pm, proof);
   if (actual != expected) {
     Alcotest.fail(
@@ -212,7 +213,12 @@ let smoke = (fn_app: string): unit => {
       ++ " end in t",
     );
   let (pm, proof) = run_named("t", src);
-  check_obligation_count("smoke: no obligations for " ++ fn_app, 0, pm, proof);
+  check_obligation_count(
+    "smoke: no obligations for " ++ fn_app,
+    0,
+    pm,
+    proof,
+  );
   check_proven("smoke: " ++ fn_app ++ " refl is Proven", pm, proof);
 };
 
@@ -304,48 +310,59 @@ let canonical_impl_src =
 
 let test_canonical_impl_proven = () => {
   let (pm, proof) = run_named("canonical", canonical_impl_src);
-  check_obligation_count("canonical (==> form): no obligations", 0, pm, proof);
+  check_obligation_count(
+    "canonical (==> form): no obligations",
+    0,
+    pm,
+    proof,
+  );
   check_proven("canonical (==> form) is fully Proven", pm, proof);
 };
 
-/* The task-statement phrasing with a `where`-restricted binder is only
- * PARTIALLY provable: the guard `is_value(e)` is installed as a
- * hypothesis, but it is a bare boolean fact — ProofRule classifies it
- * `Other`, and `can_eq` refuses Other conclusions — so it can never be
- * cited as a rewrite, and there is no ex-falso step to exploit its
- * contradiction with `e == TmAp(x, y)`. TmVar and TmLam close by
- * evaluation; TmAp is pinned with a hole. */
+/* The task-statement phrasing with a `where`-restricted binder is now
+ * FULLY provable too (Phase 4c). The guard `is_value(e)` is a bare
+ * boolean hypothesis; the TmAp case is closed by `revert`ing it into the
+ * goal, where the case_eq `e == TmAp(x, y)` rewrites it into a closed
+ * computation, evaluation falsifies it, and McCarthy `==>` returns
+ * `true`. That is the ex-falso idiom: no absurdity rule, just move the
+ * contradictory fact to where the machinery already works.
+ *
+ * The theorem binder is `e0`, not `e`: the at_exp of the case_eq
+ * citation is the bare binder, and `is_value`'s own parameter is `e`, so
+ * an `e` binder here is shadowed inside the inlined closure and the
+ * occurrence is not addressable (the file's 0-suffix convention).
+ *
+ * (Reverting at the TOP of the proof, before the induction, also works
+ * for TmVar/TmAp -- the induction substitutes the scrutinee inside the
+ * reverted antecedent too, so no case_eq needs naming -- but it then
+ * blocks TmLam, whose reverted antecedent is `true`: stripping it by eval
+ * auto-steps into the untouched consequent and fix-unrolls `infer`, and
+ * stripping it by assume-intro fails because the intro test compares a
+ * re-substituted antecedent. Reverting only in the leaf that needs it
+ * avoids both.) */
 let canonical_where_src =
   program(
-    "theorem canonicalw = forall e: Term where is_value(e) -> forall t1: Ty -> forall t2: Ty -> infer(([], e)) == SomeTy(TArr(t1, t2)) ==> is_lam(e) proof induction e "
+    "theorem canonicalw = forall e0: Term where is_value(e0) -> forall t1: Ty -> forall t2: Ty -> infer(([], e0)) == SomeTy(TArr(t1, t2)) ==> is_lam(e0) proof induction e0 "
     ++ "| TmVar(n) => eval infer(([], TmVar(n))) at 0 end; eval nth_ty(([], n)) at 0 end; eval NoTy == SomeTy(TArr(t1, t2)) at 0 end; eval false ==> is_lam(TmVar(n)) at 0 end "
     ++ "| TmLam(t, b) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => eval is_lam(TmLam(t, b)) at 0 end "
-    /* FRICTION: the where-hypothesis `is_value(e)` is unusable here — a
-     * non-equality fact has no rewrite reading (ProofRule.can_eq:
-     * Other => (None, None)) and the checker has no ex-falso/absurdity
-     * step, so the contradiction `is_value(e)` vs `e == TmAp(x, y)`
-     * cannot be cashed in. The ==>-chain variant above avoids the
-     * hypothesis altogether by keeping `is_value(e)` in the goal where
-     * evaluation can reach it. */
-    ++ "| TmAp(x, y) => ? "
+    ++ "| TmAp(x, y) => revert is_value(e0) => axiom case_eq at 0 on e0 end; eval is_value(TmAp(x, y)) at 0 end; eval false ==> (infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y))) at 0 end "
     ++ "end in canonicalw",
   );
 
 let test_canonical_where_partial = () => {
   let (pm, proof) = run_named("canonicalw", canonical_where_src);
-  /* Exact intermediate status: mark-free, obligation-free, Incomplete. */
-  check_obligation_count("canonical (where form): no obligations", 0, pm, proof);
+  check_obligation_count(
+    "canonical (where form): no obligations",
+    0,
+    pm,
+    proof,
+  );
   if (Test_ProofMap.find_marked_sub(pm, proof) != None) {
     Alcotest.fail(
       "canonical (where form) should be mark-free\n" ++ dump(pm, proof),
     );
   };
-  check_full_status(
-    "canonical (where form) pins as Incomplete (TmAp hole)",
-    ProofMap.Incomplete,
-    pm,
-    proof,
-  );
+  check_proven("canonical (where form) is fully Proven", pm, proof);
 };
 
 /* A small genuine theorem exercising the full TmVar eval chain of
@@ -412,14 +429,12 @@ let lemma_step_lam_ap2 =
   ++ ") proof assume is_value(u2) == false => eval step(TmAp(TmLam(w1, q1), u2)) at 0 end; eval is_value(TmLam(w1, q1)) at 0 end; axiom assume at 0 on is_value(u2) end; ? in ";
 
 /* Beta: both sides values, lambda head. */
-let lemma_step_beta =
-  "theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => eval step(TmAp(TmLam(w1, q1), u2)) at 0 end; eval is_value(TmLam(w1, q1)) at 0 end; axiom assume at 0 on is_value(u2) end; ? in ";
+let lemma_step_beta = "theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => eval step(TmAp(TmLam(w1, q1), u2)) at 0 end; eval is_value(TmLam(w1, q1)) at 0 end; axiom assume at 0 on is_value(u2) end; ? in ";
 
 /* is_some_tm(SomeTm(v)) == true — needed because evaluating
  * `is_some_tm(SomeTm(subst(...)))` directly would first unfold the
  * CBV-forced `subst` application into an unquotable blob. */
-let lemma_some_tm_is_some =
-  "theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof eval is_some_tm(SomeTm(u1)) at 0 end; axiom refl_eq at 0 on true == true end in ";
+let lemma_some_tm_is_some = "theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof eval is_some_tm(SomeTm(u1)) at 0 end; axiom refl_eq at 0 on true == true end in ";
 
 /* The step-unfolding lemma PROOFS are partial (see the FRICTION notes in
  * each source): every retained step is mark-free, no obligations are
@@ -433,7 +448,12 @@ let lemma_partial_test = (name: string, lemma: string): unit => {
       "lemma " ++ name ++ " should be mark-free\n" ++ dump(pm, proof),
     );
   };
-  check_obligation_count("lemma " ++ name ++ ": no obligations", 0, pm, proof);
+  check_obligation_count(
+    "lemma " ++ name ++ ": no obligations",
+    0,
+    pm,
+    proof,
+  );
   check_full_status(
     "lemma " ++ name ++ " pins as Incomplete",
     ProofMap.Incomplete,
@@ -445,7 +465,12 @@ let lemma_partial_test = (name: string, lemma: string): unit => {
 let lemma_test = (name: string, lemma: string): unit => {
   let (pm, proof) = run_named(name, program(lemma ++ name));
   check_proven("lemma " ++ name ++ " is fully Proven", pm, proof);
-  check_obligation_count("lemma " ++ name ++ ": no obligations", 0, pm, proof);
+  check_obligation_count(
+    "lemma " ++ name ++ ": no obligations",
+    0,
+    pm,
+    proof,
+  );
 };
 
 let test_lemma_step_ap_val1 = () =>
@@ -472,9 +497,15 @@ let test_lemma_some_tm_is_some = () =>
  *   - head-not-value + step(x0) = SomeTm(_): congruence lemma;
  *   - lambda head + value argument: beta lemma;
  *   - lambda head + non-value argument + step(y0) = SomeTm(_):
- *     congruence lemma.
- * Exactly FOUR leaves remain as holes, each demanding vocabulary that
- * does not exist yet (see the friction comments in place).
+ *     congruence lemma;
+ *   - value head that is a TmVar or a TmAp (Phase 4c): vacuous by
+ *     canonical forms, closed by ex falso -- `revert` the value-ness
+ *     case_eq into the goal, rewrite x0 there by the shape case_eq, and
+ *     let evaluation falsify the antecedent.
+ * TWO leaves remain as holes (down from four), both wanting the SAME
+ * missing vocabulary: instantiation of the quantified inductive
+ * hypothesis (see the friction comment in place and
+ * test_pin_ih_underdetermined).
  *
  * Binder naming: all proof-level binders are 0-suffixed, disjoint from
  * every prelude-internal binder, so evaluator inlining never
@@ -532,42 +563,58 @@ let progress_src =
     ++ " at 0 end "
     ++ "| true => axiom case_eq'''' at 0 on ty_eq((ta0, s0)) end; eval if true then SomeTy(tb0) else NoTy at 0 end; "
     ++ "assume SomeTy(tb0) == SomeTy(t0) => "
-    ++ "eval is_value(TmAp(x0, y0)) at 0 end; "
-    ++ "eval false || is_some_tm(step(TmAp(x0, y0))) at 0 end; "
+    /* The `is_value(x0)` split comes BEFORE the two goal-evaluating
+     * steps: the ex-falso leaves below need the goal in its WRITTEN form
+     * (`eval false || is_some_tm(step(...))` auto-steps `step` into an
+     * inlined closure blob that no written at_exp can quote), so the
+     * evaluation is pushed into the only branch that wants it. */
     ++ "induction is_value(x0) "
     /* Congruence-1: the head steps, so the application steps. */
-    ++ "| false => axiom step_ap_val1 at 0 on step(TmAp(x0, y0)) end; "
+    ++ "| false => eval is_value(TmAp(x0, y0)) at 0 end; "
+    ++ "eval false || is_some_tm(step(TmAp(x0, y0))) at 0 end; "
+    ++ "axiom step_ap_val1 at 0 on step(TmAp(x0, y0)) end; "
     ++ "induction step(x0) "
-    /* FRICTION: this branch is vacuous -- IH(x0) with the case_eq
-     * infer(([], x0)) == SomeTy(tf0) and is_value(x0) == false forces
-     * step(x0) == SomeTm(_) -- but the IH's conclusion is a disjunction
-     * (ProofRule Other: no rewrite reading), there is no modus ponens
-     * to instantiate it into a fact, and no ex-falso step to cash in
-     * the contradiction with case_eq step(x0) == NoTm. */
+    /* FRICTION (the one remaining wall; see
+     * test_pin_ih_underdetermined below). This branch is vacuous: IH(x0)
+     * at t0 := tf0, with case_eq infer(([], x0)) == SomeTy(tf0) and
+     * is_value(x0) == false, forces step(x0) == SomeTm(_), contradicting
+     * case_eq step(x0) == NoTm. Since Phase 4c the IH EXISTS and its
+     * disjunctive conclusion DOES have a rewrite reading
+     * (`D == true`) -- but it is quantified, `forall t0 -> A(t0) ==> D`,
+     * and D does not mention t0, so citing it leaves the rule's binder
+     * unresolved while its antecedent mentions it: UnderdeterminedInstantiation,
+     * refused in v1 (docs/prover-obligations.md §4.1). `revert`ing the IH
+     * does not help either -- the branch goal here is `false`, so
+     * `IH ==> false` is genuinely false, and cashing the contradiction
+     * would need to REFUTE the reverted `forall` by exhibiting the
+     * witness t0 := tf0 inside the goal. What is missing is explicit
+     * user instantiation of a quantified fact, not another reading. */
     ++ "| NoTm => ? "
     ++ "| SomeTm(u0) => axiom case_eq'''''' at 0 on step(x0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
     ++ "end "
     ++ "| true => induction x0 "
-    /* FRICTION: vacuous by canonical forms -- is_value(x0) == true and
-     * x0 == TmVar(m0) are contradictory (is_value(TmVar(m0)) computes
-     * to false), but the contradiction lives in HYPOTHESES, which no
-     * step can evaluate or combine; an ex-falso/absurdity step (or
-     * computing inside facts) is missing vocabulary. */
-    ++ "| TmVar(m0) => ? "
-    ++ "| TmLam(w0, q0) => induction is_value(y0) "
+    /* Vacuous by canonical forms -- is_value(x0) == true and
+     * x0 == TmVar(m0) are contradictory. Phase 4c closes it by ex falso:
+     * `revert` the value-ness fact into the goal, rewrite `x0` there by
+     * the split's case_eq, and let evaluation falsify the antecedent. */
+    ++ "| TmVar(m0) => revert is_value(x0) == true => axiom case_eq'''''' at 0 on x0 end; eval is_value(TmVar(m0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmVar(m0), y0)) || is_some_tm(step(TmAp(TmVar(m0), y0)))) at 0 end "
+    ++ "| TmLam(w0, q0) => eval is_value(TmAp(TmLam(w0, q0), y0)) at 0 end; "
+    ++ "eval false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) at 0 end; "
+    ++ "induction is_value(y0) "
     /* Beta: the crown-jewel leaf -- the canonical-forms moment. */
     ++ "| true => axiom step_beta at 0 on step(TmAp(TmLam(w0, q0), y0)) end; axiom some_tm_is_some at 0 on is_some_tm(SomeTm(subst((0, y0, q0)))) end "
     /* Congruence-2 at a lambda head. */
     ++ "| false => axiom step_lam_ap2 at 0 on step(TmAp(TmLam(w0, q0), y0)) end; "
     ++ "induction step(y0) "
-    /* FRICTION: same shape as the NoTm branch above, at IH(y0). */
+    /* FRICTION: same wall as the NoTm branch above, at IH(y0) and
+     * t0 := s0 -- quantified-IH instantiation. */
     ++ "| NoTm => ? "
     ++ "| SomeTm(u0) => axiom case_eq'''''''' at 0 on step(y0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
     ++ "end "
     ++ "end "
-    /* FRICTION: vacuous by canonical forms again -- is_value(x0) == true
-     * with x0 == TmAp(f0, a0); same missing ex-falso. */
-    ++ "| TmAp(f0, a0) => ? "
+    /* Same ex falso as the TmVar leaf: is_value(x0) == true with
+     * x0 == TmAp(f0, a0). */
+    ++ "| TmAp(f0, a0) => revert is_value(x0) == true => axiom case_eq'''''' at 0 on x0 end; eval is_value(TmAp(f0, a0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) at 0 end "
     ++ "end "
     ++ "end "
     ++ "end "
@@ -579,7 +626,7 @@ let progress_src =
 let test_progress_partial = () => {
   let (pm, proof) = run_named("progress", progress_src);
   /* Mark-free: every step the vocabulary allows goes through; only the
-   * four documented holes remain. */
+   * two documented holes remain. */
   if (Test_ProofMap.find_marked_sub(pm, proof) != None) {
     Alcotest.fail(
       "progress should be mark-free\n--- proof dump ---\n" ++ dump(pm, proof),
@@ -596,14 +643,15 @@ let test_progress_partial = () => {
     pm,
     proof,
   );
-  if (!List.for_all(
-        (ob: Obligation.t) =>
-          switch (ob.discharge) {
-          | Obligation.Remote(_) => true
-          | _ => false
-          },
-        obs,
-      )) {
+  if (!
+        List.for_all(
+          (ob: Obligation.t) =>
+            switch (ob.discharge) {
+            | Obligation.Remote(_) => true
+            | _ => false
+            },
+          obs,
+        )) {
     Alcotest.fail(
       "all progress obligations should discharge Remote (channel 1):\n"
       ++ String.concat(
@@ -620,7 +668,7 @@ let test_progress_partial = () => {
     );
   };
   check_full_status(
-    "progress pins as Incomplete (4 friction holes)",
+    "progress pins as Incomplete (2 friction holes)",
     ProofMap.Incomplete,
     pm,
     proof,
@@ -662,13 +710,14 @@ let test_pin_env_inlined_addressable = () => {
 /* The pin: the self-unrolled `step(u1)` is NOT addressable. */
 let test_pin_self_unrolled_unaddressable = () => {
   let (pm, proof) = unroll_probe("step(u1)");
-  if (!has_mark_kind(
-        pm,
-        proof,
-        fun
-        | ProofMark.PatternNotFound(_) => true
-        | _ => false,
-      )) {
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.PatternNotFound(_) => true
+          | _ => false,
+        )) {
     Alcotest.fail(
       "self-unrolled step(u1) unexpectedly became addressable -- a "
       ++ "checker improvement landed; unblock the step lemmas!\n"
@@ -679,58 +728,125 @@ let test_pin_self_unrolled_unaddressable = () => {
 
 /* --- Friction pins: why the remaining holes cannot be closed ------------ */
 
-/* FRICTION (Phase-4 gap found by this milestone): structural induction
- * over a user ADT generates NO inductive hypotheses at all. IH
- * generation (ProofHacks.get_inductive_hypotheses_inner') keeps a
- * sub-pattern only if its statics type `Typ.fast_equal`s the
- * scrutinee's type -- but recursive-ADT constructor payloads carry the
- * unrolled `rec` form while the scrutinee carries the alias form, so
- * the comparison always fails (list inductions, whose element types
- * compare nominally, are unaffected -- cf. Test_Generalize). Citing
- * `ih` in the TmAp case is therefore UnknownEquality (no such fact),
- * not RuleDoesNotApply. When IH generation normalizes types, this pin
- * should flip to RuleDoesNotApply (the IH would exist but its
- * disjunctive conclusion still has no rewrite reading). */
-let test_pin_ih_disjunction_uncitable = () => {
-  let src =
-    program(
-      "theorem ihprobe = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy(t0) ==> is_value(e0) || is_some_tm(step(e0)) proof generalize t0 => induction e0 "
-      ++ "| TmVar(m0) => ? | TmLam(w0, q0) => ? "
-      ++ "| TmAp(x0, y0) => forall t0 => axiom ih at 0 on is_value(TmAp(x0, y0)) end "
-      ++ "end in ihprobe",
+/* Phase 4c: structural induction over a user ADT NOW generates inductive
+ * hypotheses. (Before, `ProofHacks.get_inductive_hypotheses_inner'` kept a
+ * sub-pattern only if its statics type `Typ.fast_equal`ed the scrutinee's
+ * type -- but recursive-ADT constructor payloads carry the unrolled `rec`
+ * form while the scrutinee carries the alias form, so ADT inductions
+ * generated ZERO IHs; list inductions, whose element types compare
+ * nominally, were unaffected. Both sides are now `Typ.normalize`d.)
+ *
+ * `revert` is the sharpest available assertion about the IH's SHAPE: it
+ * matches an in-scope fact by `Exp.fast_equal`, so a mark-free revert of
+ * the spelled-out statement pins the IH exactly -- the goal at the
+ * sub-term x0, still quantified over t0 thanks to the `generalize`. */
+let ih_probe_src = (cite: string): string =>
+  program(
+    "theorem ihprobe = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy(t0) ==> is_value(e0) || is_some_tm(step(e0)) proof generalize t0 => induction e0 "
+    ++ "| TmVar(m0) => ? | TmLam(w0, q0) => ? "
+    ++ "| TmAp(x0, y0) => forall t0 => "
+    ++ cite
+    ++ " end in ihprobe",
+  );
+
+/* The IH exists, quantified over t0, at the sub-term x0. */
+let test_ih_exists_quantified = () => {
+  let (pm, proof) =
+    run_named(
+      "ihprobe",
+      ih_probe_src(
+        "revert forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => ?",
+      ),
     );
-  let (pm, proof) = run_named("ihprobe", src);
-  if (!has_mark_kind(
+  if (has_mark_kind(
         pm,
         proof,
         fun
-        | ProofMark.UnknownEquality("ih") => true
+        | ProofMark.UnknownFactReverted => true
         | _ => false,
       )) {
     Alcotest.fail(
-      "ADT induction should generate no IH (UnknownEquality)\n"
+      "the quantified IH at x0 should be an in-scope fact\n"
       ++ dump(pm, proof),
     );
   };
 };
 
-/* A where-guard that is a bare boolean fact (not an equation) has no
- * rewrite reading either. */
+/* Negative control: the IH is at the SUB-TERM, not at the scrutinee. */
+let test_ih_not_at_scrutinee = () => {
+  let (pm, proof) =
+    run_named(
+      "ihprobe",
+      ih_probe_src(
+        "revert forall t0 -> infer(([], TmAp(x0, y0))) == SomeTy(t0) ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) => ?",
+      ),
+    );
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.UnknownFactReverted => true
+          | _ => false,
+        )) {
+    Alcotest.fail("the goal at the scrutinee is not an IH");
+  };
+};
+
+/* FRICTION (the remaining Phase-4 gap, and the reason two `progress`
+ * holes stay open): the quantified IH cannot be INSTANTIATED. Its
+ * conclusion (bare-boolean, so read as `... == true` since Phase 4c) does
+ * not mention `t0`, so matching the conclusion leaves the rule's binder
+ * unresolved while its antecedent mentions it -- exactly the
+ * underdetermined instantiation that §4.1 refuses in v1. `revert` does
+ * not help: it moves `forall t0 -> A(t0) ==> D` into the goal, and
+ * eliminating that quantifier there needs a witness step that does not
+ * exist. What is missing is explicit user instantiation (§4.1's "later
+ * feature"), not another rewrite reading. */
+let test_pin_ih_underdetermined = () => {
+  let (pm, proof) =
+    run_named(
+      "ihprobe",
+      ih_probe_src(
+        "revert forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => axiom ih at 0 on is_value(x0) || is_some_tm(step(x0)) end",
+      ),
+    );
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.UnderdeterminedInstantiation(_) => true
+          | _ => false,
+        )) {
+    Alcotest.fail(
+      "citing the quantified IH should be refused as underdetermined\n"
+      ++ dump(pm, proof),
+    );
+  };
+};
+
+/* A where-guard that is a bare boolean fact DOES have a rewrite reading
+ * since Phase 4c (`F == true`, applied to cited facts only -- see
+ * Test_Revert), but it still only rewrites occurrences of `F` itself:
+ * citing it at an unrelated target is RuleDoesNotApply, as before. */
 let test_pin_where_fact_uncitable = () => {
   let src =
     program(
       "theorem wprobe = forall u1: Term where is_value(u1) -> is_lam(u1) proof axiom where at 0 on is_lam(u1) end in wprobe",
     );
   let (pm, proof) = run_named("wprobe", src);
-  if (!has_mark_kind(
-        pm,
-        proof,
-        fun
-        | ProofMark.RuleDoesNotApply(_) => true
-        | _ => false,
-      )) {
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.RuleDoesNotApply(_) => true
+          | _ => false,
+        )) {
     Alcotest.fail(
-      "citing the boolean where-fact should be RuleDoesNotApply\n"
+      "citing the boolean where-fact at a non-matching target should be "
+      ++ "RuleDoesNotApply\n"
       ++ dump(pm, proof),
     );
   };
@@ -782,9 +898,19 @@ let tests = (
     test_case("lemma some_tm_is_some", `Quick, test_lemma_some_tm_is_some),
     test_case("PROGRESS partial proof pin", `Quick, test_progress_partial),
     test_case(
-      "pin: disjunctive IH is uncitable",
+      "ADT induction generates a quantified IH",
       `Quick,
-      test_pin_ih_disjunction_uncitable,
+      test_ih_exists_quantified,
+    ),
+    test_case(
+      "the IH is at the sub-term, not the scrutinee",
+      `Quick,
+      test_ih_not_at_scrutinee,
+    ),
+    test_case(
+      "pin: quantified IH citation is underdetermined",
+      `Quick,
+      test_pin_ih_underdetermined,
     ),
     test_case(
       "pin: boolean where-fact is uncitable",

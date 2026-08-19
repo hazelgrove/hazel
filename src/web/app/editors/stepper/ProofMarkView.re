@@ -117,6 +117,7 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | PossiblyDivergentScrutinee => [
       text("The split scrutinee may not terminate."),
     ]
+  | UnknownFactReverted => [text("No fact in scope matches this `revert`.")]
   | InductionEmptyCases => [text("Induction requires at least one case.")]
   };
 };

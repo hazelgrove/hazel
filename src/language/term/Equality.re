@@ -987,6 +987,8 @@ let equality =
       | (Generalize(e1, b1), Generalize(e2, b2)) =>
         exp'(e1, e2) && proof'(b1, b2)
       | (Generalize(_, _), _) => false
+      | (Revert(e1, b1), Revert(e2, b2)) => exp'(e1, e2) && proof'(b1, b2)
+      | (Revert(_, _), _) => false
       };
     proof'(p1, p2);
   };

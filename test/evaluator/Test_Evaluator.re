@@ -34,5 +34,6 @@ let tests =
     Test_StructuralRecursion.tests,
     Test_FunContracts.tests,
     Test_Generalize.tests,
+    Test_Revert.tests,
     Test_Milestone_STLC.tests,
   ];

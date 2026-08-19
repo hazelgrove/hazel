@@ -686,6 +686,7 @@ and Stepper: {
     | Induction(_, _)
     | Assume(_, _)
     | Generalize(_, _)
+    | Revert(_, _)
     | Seq(_, _) => false
     };
 
@@ -733,6 +734,7 @@ and Stepper: {
      * stepper-UI work; obligation rendering is a later phase). */
     | Assume(_, _)
     | Generalize(_, _)
+    | Revert(_, _)
     | Seq(_, _) => None
     };
 

@@ -479,6 +479,79 @@ on earlier ones.
   regions where axiom splices inlined definition closures (pre-existing,
   observed while testing — the axiom-step path is env-aware and
   unaffected).
+
+  *4c landed (2026-08-19)*: the fixes the Phase-4 milestone
+  (`test/evaluator/Test_Milestone_STLC.re`, an STLC progress attempt)
+  identified as blockers.
+
+  1. **IH generation for recursive ADTs.**
+     `ProofHacks.get_inductive_hypotheses` kept a sub-pattern only when
+     its statics type `Typ.fast_equal`ed the scrutinee's type — but a
+     recursive ADT's constructor payloads carry the unrolled `Rec` form
+     while the scrutinee carries the alias, so the comparison ALWAYS
+     failed and ADT inductions generated **zero** inductive hypotheses
+     (list inductions, whose element types compare nominally, were
+     unaffected — which is why Phase 4b's tests passed). Both sides are
+     now `Typ.normalize`d against the induction's type context — the same
+     normalization `check_induction` already hands `Coverage.check` — so
+     the comparison is modulo alias unrolling.
+     `get_inductive_hypotheses` takes a `~tyctx` argument for this.
+  2. **The `revert` proof step**, the symmetric partner of assume-intro:
+     `revert <fact> => <proof>`. With incoming goal `G` and an in-scope
+     fact `F` whose statement `Exp.fast_equal`s the env-substituted
+     argument, the body's incoming goal is `F ==> G`; no matching fact
+     marks `UnknownFactReverted` and passes the goal through. **Soundness
+     and completeness in one line**: `F` holds in this scope, so under
+     the Kleene reading of §1.3 `(F ==> G)` denotes exactly what `G`
+     denotes — hence *no obligation*. The step only MOVES a fact from the
+     context into the goal, which is where all the eval/rewrite machinery
+     lives. The fact is NOT removed from scope (reverting is not
+     consuming), and the node's outgoing is `true` only when the body
+     proves `F ==> G` to literal `true` (a partial outgoing must not
+     leak: `F ==> G` is not a sub-expression of `G` — cf.
+     `forall`/`generalize`).
+  3. **Bare-boolean facts as rewrite rules.** A cited fact holds, i.e.
+     its conclusion denotes `true`, so a conclusion `ProofRule.classify`
+     calls `Other` (a disjunction, a decision-procedure application, a
+     `where` guard) additionally admits the reading `F == true`
+     (`ProofRule.with_bool_fact_reading`, applied at the citation site in
+     `ProofCheck`'s axiom step — deliberately NOT in
+     `classify`/`exp_to_rule`, so goal classification and the co-context
+     machinery keep seeing the proposition as written). Occurrences of
+     `F` in the goal now rewrite to `true`.
+
+  Together these unlock the **ex-falso idiom** with no absurdity rule:
+  `revert` the contradictory fact, rewrite it in the goal with the other
+  facts in scope (typically a `case_eq`) until the antecedent evaluates
+  to `false`, and McCarthy `==>` returns `true`. The milestone's
+  canonical-forms theorem in `where`-restricted phrasing is now fully
+  proven this way, and two of `progress`'s four open leaves close.
+
+  *Still open after 4c* (documented in place in the milestone file):
+  - **Quantified-IH instantiation.** The other two `progress` leaves are
+    vacuous via `IH(x0)` at a type produced by a split. The IH now
+    exists and has a rewrite reading, but it is `forall t0 -> A(t0) ==>
+    D` with `t0` absent from `D`, so matching the conclusion leaves the
+    binder unresolved while the antecedent mentions it —
+    `UnderdeterminedInstantiation`, refused in v1 (§4.1). `revert`
+    cannot substitute for it: the leaf goal is `false`, so `IH ==> false`
+    is genuinely false, and cashing the contradiction would mean
+    refuting a `forall` inside the goal by exhibiting a witness. The
+    missing feature is **explicit user instantiation** of a quantified
+    fact (§4.1's deferred item), not another reading.
+  - The `FixUnwrap` self-unrolled matching asymmetry (an occurrence of
+    the recursing function created by the hidden self-substitution is
+    not addressable by a written `at_exp`, while env-inlined occurrences
+    of OTHER definitions are). This blocks the three step-unfolding
+    lemma proofs; the fix is an equality/substitution change, not
+    trivially safe. Pinned by `test_pin_self_unrolled_unaddressable`.
+  - Annotated-`let` matching; prime-counted hypothesis names as a UX
+    problem (citing `case_eq''''''` by counting primes); obligation
+    display inlining.
+  - Assume-intro's antecedent test re-substitutes an already-substituted
+    goal antecedent, so introducing a *reverted* antecedent by `assume`
+    fails to `fast_equal`. Worked around in the milestone by reverting in
+    the leaf that needs it rather than above the split.
 - **Phase 5 — directed stepping.** Polarity/variance engine covering
   **boolean polarity and ordered arithmetic in the same cut** (decided
   2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with

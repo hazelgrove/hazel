@@ -66,6 +66,25 @@ let exp_to_rule = (exp: Exp.t): t => {
   };
 };
 
+/* A CITED fact/rule is known to hold, i.e. its conclusion denotes `true`.
+ * So a bare-boolean conclusion `F` (classified `Other` — a disjunction, an
+ * application of a decision procedure, a `where` guard) additionally
+ * admits the equality reading `F == true`, making it usable as a rewrite
+ * rule: occurrences of `F` in the goal rewrite to `true`
+ * (docs/prover-obligations.md, Phase 4c).
+ *
+ * Deliberately applied only where a fact is CITED (`ProofCheck`'s axiom
+ * step), never in `classify`/`exp_to_rule`: goal classification and the
+ * co-context machinery must keep seeing the proposition as written. */
+let with_bool_fact_reading = (rule: t): t =>
+  switch (rule.conclusion) {
+  | Equality(_, _) => rule
+  | Other(e) => {
+      ...rule,
+      conclusion: Equality(e, Exp.fresh(Atom(Bool(true)))),
+    }
+  };
+
 let typ_to_rule = (typ: Typ.t): option(t) =>
   switch (typ |> Typ.term_of) {
   | ProofOf(e) => Some(exp_to_rule(e))

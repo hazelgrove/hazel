@@ -1486,6 +1486,7 @@ and Proof: {
         | Assume(e, body) => Assume(exp_map_term(e), proof_map_term(body))
         | Generalize(e, body) =>
           Generalize(exp_map_term(e), proof_map_term(body))
+        | Revert(e, body) => Revert(exp_map_term(e), proof_map_term(body))
         },
     };
     x |> f_proof(proof_map_term);

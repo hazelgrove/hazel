@@ -211,6 +211,7 @@ module F = (Stepper: STEPPER) => {
         // Note: we do not add any IHs that are captured by the added variables. (This should happen iff the inner exp is captured)
         let inductive_hypotheses =
           ProofHacks.get_inductive_hypotheses(
+            ~tyctx=SemanticCtx.get_ctx(sem_ctx),
             CodeEditable.Model.get_statics(pattern).info_map,
             scrut_ty,
             elab_pattern,

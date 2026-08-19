@@ -211,6 +211,13 @@ and proof_term('a) =
    * the binder). Used before `induction` to get forall-quantified IHs
    * (docs/prover-obligations.md, Phase 4). */
   | Generalize(exp_t('a), proof_t('a))
+  /* `revert <exp> => <proof>`: cash an in-scope fact back into the goal —
+   * the symmetric partner of assume-intro. With incoming goal `G` and an
+   * in-scope fact `F` matching the exp, the sub-proof's goal is
+   * `F ==> G`. Sound and complete (`F` holds here, so `(F ==> G) == G`
+   * under the Kleene reading) and therefore obligation-free
+   * (docs/prover-obligations.md, Phase 4c). */
+  | Revert(exp_t('a), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -443,6 +450,8 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
             map_exp_annotation(f, e),
             map_proof_annotation(f, body),
           )
+        | Revert(e, body) =>
+          Revert(map_exp_annotation(f, e), map_proof_annotation(f, body))
         },
       annotation: new_annotation,
     };

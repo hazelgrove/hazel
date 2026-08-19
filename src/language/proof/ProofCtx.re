@@ -105,7 +105,6 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
              let coctx =
                ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
              let is_captured = CoCtx.has_any(coctx, seen_vars);
-             print_endline("is captured: " ++ string_of_bool(is_captured));
              let entry = {
                name,
                rule,

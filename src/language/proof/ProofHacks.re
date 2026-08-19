@@ -257,9 +257,19 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
 /* Returns all sub-pattern of the original pattern that
        1. Have the same type as the original pattern
        2. Are not the original pattern itself.
+
+   `tyctx` is the type context the induction is checked in; it is needed
+   because the two types being compared are written in DIFFERENT forms for
+   a recursive ADT: the scrutinee carries the alias (`Term`), while the
+   constructor payloads statics assigns to sub-patterns carry the unrolled
+   `Rec` form. `Typ.fast_equal` on those always fails, so before Phase 4c
+   every ADT induction generated ZERO inductive hypotheses (list
+   inductions, whose element types compare nominally, were unaffected).
+   Both sides are `Typ.normalize`d before comparison — the same
+   normalization `Coverage.check` is already given in `check_induction`.
    */
 
-let rec get_inductive_hypotheses = (m, t, pat) => {
+let rec get_inductive_hypotheses = (~tyctx, m, t, pat) => {
   switch (pat |> Pat.term_of) {
   | _ when Typ.fast_equal(t, Typ.temp(Unknown(Internal))) => []
   | Invalid(_) => []
@@ -268,39 +278,46 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Wild => []
   | Atom(_) => []
   | ListLit(xs) =>
-    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat(
+      List.map(get_inductive_hypotheses_inner(~tyctx, m, t, _), xs),
+    )
   | Constructor(_) => []
   | Cons(e1, e2) =>
-    get_inductive_hypotheses_inner(m, t, e1)
-    @ get_inductive_hypotheses_inner(m, t, e2)
+    get_inductive_hypotheses_inner(~tyctx, m, t, e1)
+    @ get_inductive_hypotheses_inner(~tyctx, m, t, e2)
   | Var(_) => []
   | Tuple(xs) =>
-    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat(
+      List.map(get_inductive_hypotheses_inner(~tyctx, m, t, _), xs),
+    )
   | Parens(e)
-  | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
+  | Projector(_, e) => get_inductive_hypotheses_inner(~tyctx, m, t, e)
   | Ap(e1, e2) =>
-    get_inductive_hypotheses_inner(m, t, e1)
-    @ get_inductive_hypotheses_inner(m, t, e2)
-  | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
+    get_inductive_hypotheses_inner(~tyctx, m, t, e1)
+    @ get_inductive_hypotheses_inner(~tyctx, m, t, e2)
+  | Asc(e, _) => get_inductive_hypotheses_inner(~tyctx, m, t, e)
   | Label(_) => []
   | TupLabel(l, e) =>
-    get_inductive_hypotheses_inner(m, t, l)
-    @ get_inductive_hypotheses_inner(m, t, e)
+    get_inductive_hypotheses_inner(~tyctx, m, t, l)
+    @ get_inductive_hypotheses_inner(~tyctx, m, t, e)
   | ExplicitNonlabel => []
   };
 }
-and get_inductive_hypotheses_inner' = (m, t, pat) => {
+and get_inductive_hypotheses_inner' = (~tyctx, m, t, pat) => {
+  /* Compare modulo type-alias unrolling: see the note above. */
+  let norm = ty => Typ.normalize(tyctx, ty);
   let is_correct_type =
     Statics.Map.ty_of(Pat.rep_id(pat), m)
-    |> Option.map(Typ.fast_equal(t))
+    |> Option.map(ty => Typ.fast_equal(norm(ty), norm(t)))
     |> Option.value(~default=false);
-  (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
+  (is_correct_type ? [pat] : [])
+  @ get_inductive_hypotheses(~tyctx, m, t, pat);
 }
-and get_inductive_hypotheses_inner = (m, t, pat) =>
+and get_inductive_hypotheses_inner = (~tyctx, m, t, pat) =>
   switch (pat |> Pat.term_of) {
-  | Parens(x) => get_inductive_hypotheses_inner(m, t, x)
-  | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
-  | _ => get_inductive_hypotheses_inner'(m, t, pat)
+  | Parens(x) => get_inductive_hypotheses_inner(~tyctx, m, t, x)
+  | Asc(e, _) => get_inductive_hypotheses_inner(~tyctx, m, t, e)
+  | _ => get_inductive_hypotheses_inner'(~tyctx, m, t, pat)
   };
 
 exception BlacklistVarFound;

@@ -4879,6 +4879,24 @@ and proof_to_info_map =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
     let elab = rewrap(Generalize(e_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Revert(e, body) =>
+    /* `revert F => body` cashes the in-scope fact `F` back into the goal:
+       `F` is a proposition, so analyze it against Bool. The body is
+       checked in the UNCHANGED ctx — reverting does not remove the fact
+       from scope (it stays citable), and it introduces no new binding
+       (docs/prover-obligations.md, Phase 4c). */
+    let (_, e_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        e,
+        m,
+      );
+    let (_, body_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
+    let elab = rewrap(Revert(e_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   };
 };
 
