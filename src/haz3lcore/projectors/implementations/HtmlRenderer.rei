@@ -20,6 +20,14 @@ let handler_name: Language.Exp.t => option(string);
    handler value itself otherwise. */
 let handler_ref: (ProjectorBase.info, Language.Exp.t) => Language.Exp.t;
 
+/* The pure core of the above: what to commit for a handler, given a test for
+   which names are in scope. Exposed so the commit shape can be tested without
+   an editor. */
+let handler_syntax: (~bound: string => bool, Language.Exp.t) => Language.Exp.t;
+
+/* `base |> handler`, the shape a press commits. */
+let spliced: (~handler: Language.Exp.t, Language.Exp.t) => Language.Exp.t;
+
 include
   RichProbe.RichProbe with
     type model = m and type action = a and type value = v;

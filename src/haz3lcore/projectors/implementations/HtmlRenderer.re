@@ -99,17 +99,71 @@ let handler_name = (msg: Exp.t): option(string) =>
   | _ => None
   };
 
-let handler_ref = (info: info, msg: Exp.t): Exp.t => {
-  let bound = name =>
-    switch (info.statics) {
-    | Some(i) => Ctx.lookup_var(Info.ctx_of(i), name) != None
-    | None => false
+/* Two handler shapes commit as something short:
+ *
+ *     OnClick(bump)                ->   |> bump
+ *     OnClick(press(_, "1"))       ->   |> press(_, "1")
+ *
+ * The second is what lets a keypad inline its handlers rather than binding a
+ * name per button: a deferred application evaluates to a DeferredAp whose
+ * function is the named `press`, so the name and the already-evaluated
+ * arguments can both be recovered and re-spliced.
+ *
+ * Anything else is spliced as the value. Evaluation substitutes environments
+ * away, so for a closure that means the transitive closure of every helper it
+ * reaches — tens of kilobytes per press. That is a fallback, not a plan.
+ *
+ * A name is only used when the probe site binds it. A handler defined in an
+ * inner scope and returned outward carries a name that means nothing here,
+ * and splicing it would write an unbound variable into the program. */
+/* Deep-refresh every id in a term. Reused subterms keep the ids they had
+ * where they came from, and a document may not hold the same id twice. */
+let fresh_ids: Exp.t => Exp.t =
+  Exp.map_term(~f_exp=(continue, e) => continue(IdTagged.new_ids(e)));
+
+/* The syntax to commit for a handler, given a test for which names are in
+ * scope at the probe site. Pure, so the commit shape is testable without an
+ * editor: see Test_HtmlRenderer. */
+let handler_syntax = (~bound: string => bool, msg: Exp.t): Exp.t => {
+  let in_scope = (fn: Exp.t): option(string) =>
+    switch (handler_name(fn)) {
+    | Some(name) when bound(name) => Some(name)
+    | _ => None
     };
-  switch (handler_name(msg)) {
-  | Some(name) when bound(name) => IdTagged.FreshGrammar.Exp.var(name)
-  | _ => msg
-  };
+  let stripped = MvuShape.strip_wrappers(msg);
+  IdTagged.FreshGrammar.(
+    switch (stripped.term) {
+    | DeferredAp(fn, args) =>
+      switch (in_scope(fn)) {
+      /* The arguments come from an evaluated value, so they still carry the
+         ids they had inside the handler's own definition. Splicing those into
+         a second place in the document puts one id on two pieces, and the
+         measured map only holds one of them — which surfaces later as
+         `Highlight.of_tile: shard mismatch` when a tile's shards can't all be
+         found. Re-mint them. */
+      | Some(name) =>
+        Exp.deferred_ap(Exp.var(name), List.map(fresh_ids, args))
+      | None => msg
+      }
+    | _ =>
+      switch (in_scope(stripped)) {
+      | Some(name) => Exp.var(name)
+      | None => msg
+      }
+    }
+  );
 };
+
+let handler_ref = (info: info, msg: Exp.t): Exp.t =>
+  handler_syntax(
+    ~bound=
+      name =>
+        switch (info.statics) {
+        | Some(i) => Ctx.lookup_var(Info.ctx_of(i), name) != None
+        | None => false
+        },
+    msg,
+  );
 
 /* Commit a handler by REWRITING THE SOURCE, never by evaluating.
  *
@@ -144,20 +198,16 @@ let rec strip_outer_parens = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
+let spliced = (~handler: Exp.t, base: Exp.t): Exp.t =>
+  IdTagged.FreshGrammar.Exp.ap(Reverse, handler, strip_outer_parens(base));
+
 let commit_syntax = (info: info, msg: Exp.t): option(Base.segment) => {
   let ok = ref(true);
   let lifted =
     info.utility.lift_syntax(
       ~inline=false,
       fun
-      | Exp(exp) =>
-        Exp(
-          IdTagged.FreshGrammar.Exp.ap(
-            Reverse,
-            handler_ref(info, msg),
-            strip_outer_parens(exp),
-          ),
-        )
+      | Exp(exp) => Exp(spliced(~handler=handler_ref(info, msg), exp))
       | other => {
           ok := false;
           other;
