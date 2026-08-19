@@ -14,7 +14,23 @@ open RichProbeRegistry;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: option(packed_model)};
+type probe_model = {
+  active_renderer: option(packed_model),
+  /* Where the open rich probe draws: in a modal over the code, or as a card
+   * in the Projectors panel. This lives here rather than in the renderer's
+   * own model so every renderer docks with no per-renderer support, the same
+   * way ProjectorCore.Placement gives every projector kind docking.
+   * Defaulted so models persisted before docking existed still load. */
+  [@sexp.default ProjectorCore.Placement.Inline] [@yojson.default
+                                                   ProjectorCore.Placement.Inline
+                                                 ]
+  renderer_placement: ProjectorCore.Placement.t,
+};
+
+let closed: probe_model = {
+  active_renderer: None,
+  renderer_placement: Inline,
+};
 
 /* Any deserialization failure resets to closed-modal — the record is
  * pure transient UI state. Known failure modes are logged for
@@ -24,11 +40,11 @@ let probe_model_of_sexp = sexp =>
   | model => model
   | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
     print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
-    {active_renderer: None};
+    closed;
   | exception (Failure(msg)) =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
-    {active_renderer: None};
-  | exception _ => {active_renderer: None}
+    closed;
+  | exception _ => closed
   };
 
 /* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
@@ -36,14 +52,17 @@ let probe_model_of_sexp = sexp =>
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
   |> Option.map((r: packed_renderer) =>
-       sexp_of_probe_model({active_renderer: Some(r.empty_model)})
+       sexp_of_probe_model({
+         ...closed,
+         active_renderer: Some(r.empty_model),
+       })
        |> Sexplib.Sexp.to_string
      );
 
 let renderer_of_model_string = (model: string): option(string) =>
   switch (probe_model_of_sexp(Sexplib.Sexp.of_string(model))) {
-  | {active_renderer: Some(PModel(rid, _, _))} => Some(rid)
-  | {active_renderer: None} => None
+  | {active_renderer: Some(PModel(rid, _, _)), _} => Some(rid)
+  | {active_renderer: None, _} => None
   | exception _ => None
   };
 
@@ -51,6 +70,7 @@ let renderer_of_model_string = (model: string): option(string) =>
 type action =
   | ChangeLength(int, int)
   | ToggleModal(option(packed_model))
+  | ToggleRendererPlacement
   | RendererAction(packed_action)
   | ToggleWindowMode
   | ToggleShowEnv
@@ -1489,8 +1509,8 @@ module M: Projector = {
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({active_renderer: None})
-    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts */
+    | Pat(_) => Some(closed)
+    | Any(_) => Some(closed) /* Grout don't have sorts */
     | _ => None
     };
   };
@@ -1533,8 +1553,19 @@ module M: Projector = {
       model;
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: pm}
-      | Some(_) => {active_renderer: None}
+      | None => {
+          ...model,
+          active_renderer: pm,
+        }
+      | Some(_) => {
+          ...model,
+          active_renderer: None,
+        }
+      }
+    | ToggleRendererPlacement => {
+        ...model,
+        renderer_placement:
+          ProjectorCore.Placement.toggle(model.renderer_placement),
       }
     | RendererAction(pa) =>
       /* Dispatch through the action's renderer. update_model's internal
@@ -1545,6 +1576,7 @@ module M: Projector = {
         find(RichProbe.renderer_id_of_action(pa)),
       ) {
       | (Some(pm), Some(r)) => {
+          ...model,
           active_renderer: Some(r.update_model(pm, pa)),
         }
       | _ => model
@@ -1552,7 +1584,69 @@ module M: Projector = {
     };
   };
 
-  /* Modal overlay for dynamic renderer display */
+  /* The open rich probe's rendered content, if there is one: a renderer is
+   * selected, a sample is in focus, and the renderer still recognizes it.
+   * Where this content goes (modal or panel) is decided by the callers
+   * below, so both placements draw exactly the same thing. */
+  let rich_probe_content =
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+      : option(Node.t) =>
+    switch (model.active_renderer, get_current(~settings, info)) {
+    | (Some(pm), Some(exp)) =>
+      switch (find(RichProbe.renderer_id_of_model(pm))) {
+      | Some(renderer) when renderer.can_handle(sort, exp) =>
+        renderer.render_model(
+          pm,
+          ~info,
+          ~exp,
+          ~view_seg,
+          ~local=pa => local(RendererAction(pa)),
+          ~parent,
+          ~sort,
+          (),
+        )
+      | _ => None
+      }
+    | _ => None
+    };
+
+  let dock_button = (~local: action => Ui_effect.t(unit), placement) =>
+    div(
+      ~attrs=[
+        Attr.classes(["modal-dock-btn"]),
+        Attr.title(
+          ProjectorCore.Placement.is_sidebar(placement)
+            ? "Move back over the code" : "Move to the Projectors panel",
+        ),
+        Attr.on_click(_ => local(ToggleRendererPlacement)),
+      ],
+      [
+        text(
+          ProjectorCore.Placement.is_sidebar(placement) ? {|⇤|} : {|⇥|},
+        ),
+      ],
+    );
+
+  let close_button = (~local: action => Ui_effect.t(unit)) =>
+    div(
+      ~attrs=[
+        Attr.classes(["modal-close-btn"]),
+        Attr.title("Close"),
+        Attr.on_click(_ => local(ToggleModal(None))),
+      ],
+      [text({|×|})],
+    );
+
+  /* Over the code: the renderer in a modal. Docked: a stub that says where
+   * it went and can bring it back, so the probe never looks broken. */
   let modal_overlay =
       (
         ~settings,
@@ -1563,56 +1657,82 @@ module M: Projector = {
         ~view_seg,
         ~sort,
       )
-      : list(Node.t) => {
-    switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some(pm), Some(exp)) =>
-      let rid = RichProbe.renderer_id_of_model(pm);
-      /* Find the renderer and check if it can still handle the expression */
-      switch (find(rid)) {
-      | Some(renderer) when renderer.can_handle(sort, exp) =>
-        let rendered =
-          renderer.render_model(
-            pm,
-            ~info,
-            ~exp,
-            ~view_seg,
-            ~local=pa => local(RendererAction(pa)),
-            ~parent,
-            ~sort,
-            (),
-          );
-        switch (rendered) {
-        | None => []
-        | Some(content) => [
+      : list(Node.t) =>
+    switch (
+      rich_probe_content(
+        ~settings,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+    ) {
+    | None => []
+    | Some(content) =>
+      let body =
+        ProjectorCore.Placement.is_sidebar(model.renderer_placement)
+          ? div(
+              ~attrs=[Attr.classes(["modal-docked-stub"])],
+              [text("Docked to the Projectors panel")],
+            )
+          : content;
+      [
+        div(
+          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+          [
             div(
-              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+              ~attrs=[
+                Attr.classes(["modal"]),
+                Attr.on_click(_ => Effect.Stop_propagation),
+              ],
               [
                 div(
-                  ~attrs=[
-                    Attr.classes(["modal"]),
-                    Attr.on_click(_ => Effect.Stop_propagation),
-                  ],
+                  ~attrs=[Attr.classes(["modal-controls"])],
                   [
-                    div(
-                      ~attrs=[
-                        Attr.classes(["modal-close-btn"]),
-                        Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
-                      ],
-                      [text("×")],
-                    ),
-                    content,
+                    dock_button(~local, model.renderer_placement),
+                    close_button(~local),
                   ],
                 ),
+                body,
               ],
             ),
-          ]
-        };
-      | _ => []
-      };
-    | _ => []
+          ],
+        ),
+      ];
     };
-  };
+
+  /* What the Projectors panel shows for this probe. The probe itself never
+   * moves, so undocking is just its own placement toggle. */
+  let docked_view =
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+      : option(View.docked) =>
+    ProjectorCore.Placement.is_sidebar(model.renderer_placement)
+      ? rich_probe_content(
+          ~settings,
+          model,
+          info,
+          ~local,
+          ~parent,
+          ~view_seg,
+          ~sort,
+        )
+        |> Option.map((content): View.docked =>
+             {
+               content,
+               undock: () => local(ToggleRendererPlacement),
+             }
+           )
+      : None;
   let error = (_, _): option(ProjectorBase.error) => None;
   let view =
       (
@@ -1648,6 +1768,16 @@ module M: Projector = {
                 ~sort,
               ),
           ),
+        ),
+      docked:
+        docked_view(
+          ~settings,
+          model,
+          info,
+          ~local,
+          ~parent,
+          ~view_seg,
+          ~sort,
         ),
       error: false,
     };

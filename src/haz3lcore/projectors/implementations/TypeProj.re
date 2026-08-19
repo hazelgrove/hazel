@@ -109,6 +109,7 @@ module M: Projector = {
           ),
         ),
       overlay: None,
+      docked: None,
       error: false,
     };
 };

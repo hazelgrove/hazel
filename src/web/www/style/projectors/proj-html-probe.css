@@ -1,0 +1,127 @@
+/* Rich-probe view of an HTML-valued expression (HtmlRenderer).
+ *
+ * The renderer only wraps HazelDOM's output; everything inside is whatever
+ * the program's HTML value describes. So the rules here size the container,
+ * and the `chart-*` rules below style the classes the charting library in
+ * hazel-programs/charts/ puts on its SVG. A program using different class
+ * names simply brings its own styling via Style(...). */
+
+.projector .html-probe {
+  min-width: 20em;
+  max-width: min(46em, 80vw);
+  max-height: 70vh;
+  overflow: auto;
+  padding: 0.5em;
+}
+
+.html-probe .MVU-render {
+  display: flex;
+  justify-content: center;
+}
+
+.html-probe svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- classes emitted by hazel-programs/charts/charts.hz --- */
+
+.chart-svg {
+  width: 100%;
+  font-family: var(--code-font);
+}
+
+/* Horizontal gridline behind the marks, one per y tick. */
+.chart-grid {
+  stroke: var(--chart-grid);
+  stroke-width: 0.5;
+}
+
+.chart-axis-text {
+  fill: var(--chart-axis-text);
+  font-size: 8px;
+}
+
+.chart-axis-y {
+  text-anchor: end;
+}
+
+.chart-axis-x {
+  text-anchor: middle;
+}
+
+/* Bars, points and pie slices. */
+.chart-mark {
+  transition: opacity 0.1s ease;
+}
+
+.chart-mark:hover {
+  opacity: 0.78;
+}
+
+.chart-line {
+  stroke: var(--chart-1);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* Per-bar value, drawn only when a single series leaves room for it. */
+.chart-value {
+  fill: var(--chart-label-text);
+  font-size: 8px;
+  text-anchor: middle;
+}
+
+.chart-legend {
+  fill: var(--chart-label-text);
+  font-size: 8px;
+  dominant-baseline: middle;
+}
+
+.chart-empty {
+  fill: var(--chart-axis-text);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+/* The Charts slide lays its five figures out in a wrapping grid. */
+.chart-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  justify-content: center;
+}
+
+.chart-figure {
+  flex: 1 1 18em;
+  min-width: 14em;
+  max-width: 24em;
+}
+
+.chart-caption {
+  font-size: 0.85em;
+  color: var(--chart-label-text);
+  text-align: center;
+  padding-bottom: 0.2em;
+}
+
+/* Status line while an app's store entry is still being built. */
+.html-probe-message {
+  padding: 0.5em;
+  font-style: italic;
+  color: var(--BR3);
+}
+
+/* A docked rich probe is rendered in the panel with the same class list its
+   code-site wrapper uses, so per-kind CSS still applies; the panel supplies
+   its own flow, and the probe's absolute positioning must not leak in. */
+#projector-panel .projector.probe {
+  position: static;
+  width: auto;
+  height: auto;
+}
+
+#projector-panel .projector.probe .html-probe {
+  max-height: none;
+  max-width: none;
+}

@@ -110,10 +110,27 @@ module View = {
    * including the inline views of all other projectors, and/or
    * an offside view, which is rendered at the end of the base
    * editor line containing the projector */
+  type docked = {
+    content: Node.t,
+    undock: unit => Ui_effect.t(unit),
+  };
+
   type t = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    /* A secondary surface this projector wants rendered in the Projectors
+     * panel. This is NOT the same as docking the projector itself
+     * (ProjectorCore.Placement, which moves the whole thing and leaves a
+     * chip): it lets a projector keep its inline presence and send only part
+     * of itself to the panel. A probe uses it to dock its rich-probe view
+     * while the probe itself stays on the code.
+     *
+     * The projector supplies `undock` as well as the content, because only
+     * it knows what "put this back" means — and its `local` callback already
+     * carries the projector-list index that Action.SetModel needs, which the
+     * panel has no business reconstructing. */
+    docked: option(docked),
     /* If true, the projector div gets the "error" class,
      * triggering the dashed red SVG border from proj-base.css */
     error: bool,
@@ -170,10 +187,11 @@ module View = {
     row_height: float,
   };
 
-  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~docked=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    docked,
     error,
   };
 };

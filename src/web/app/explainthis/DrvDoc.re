@@ -29,6 +29,7 @@ let settings =
     show_unknown_as_hole: false,
     hole_tiles: false,
     project_tables: false,
+    project_html: false,
   };
 
 let f_jdmt: exp_t => Segment.t =

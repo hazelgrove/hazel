@@ -17,6 +17,8 @@ let (suite, _) =
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
+      Test_Charts.tests,
+      Test_HtmlRenderer.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,

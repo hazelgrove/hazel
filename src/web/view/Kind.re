@@ -23,6 +23,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             show_unknown_as_hole: true,
             hole_tiles: false,
             project_tables: false,
+            project_html: false,
           },
           ty,
         ),

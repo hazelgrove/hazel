@@ -9,11 +9,16 @@ open MvuShape;
  *   the new model.
  * - Syntax: the inline projector (HTMLProj) evaluates msg(model) and
  *   splices the result back into the document. A msg is an Html -> Html
- *   transform: self-modifying = Elm with update = apply. */
+ *   transform: self-modifying = Elm with update = apply.
+ * - Value: there is nothing to commit to. The rendered html is an
+ *   evaluated value with no syntactic counterpart to splice back into
+ *   (HtmlRenderer, which draws a probe sample), so handlers are inert and
+ *   events are left to propagate normally. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type commit =
   | State
-  | Syntax;
+  | Syntax
+  | Value;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -56,8 +61,9 @@ let payload_transform = (handler: DHExp.t, payload: DHExp.t): DHExp.t =>
   );
 
 // Simple event: the handler IS the msg (in Syntax mode: an Html -> Html
-// transform).
-let on_ = (mvu: t, handler, _evt) => dispatch(mvu, handler);
+// transform). Under Value commit there is nowhere to dispatch to.
+let on_ = (mvu: t, handler, _evt) =>
+  mvu.commit == Value ? Effect.Ignore : dispatch(mvu, handler);
 
 // Payload event.
 // State: handler is payload -> msg; evaluate it now. On error, dispatch
@@ -66,6 +72,7 @@ let on_ = (mvu: t, handler, _evt) => dispatch(mvu, handler);
 //   fun m -> handler((m, payload)), applied at commit time.
 let on_payload = (mvu: t, what: string, handler, payload: DHExp.t) =>
   switch (mvu.commit) {
+  | Value => Effect.Ignore
   | Syntax => dispatch(mvu, payload_transform(handler, payload))
   | State =>
     switch (safe_evaluate(Exp.ap(Forward, handler, payload))) {
@@ -387,7 +394,13 @@ let of_error = (elide_errors: bool, mvu: t, d: DHExp.t): Node.t => {
 /* Tags a generic Node(tag, attrs, children) creates in the SVG namespace.
    createElement on these yields an inert HTMLUnknownElement that renders
    nothing; createElementNS is required. Ambiguous names shared with HTML
-   (a, script, style) are deliberately absent and stay HTML. */
+   (a, script, style) are deliberately absent and stay HTML — which means
+   SVG links are not expressible; use an HTML wrapper instead.
+
+   `title` and `desc` are the exceptions to that rule: they are shared with
+   HTML but resolve to SVG here, because inside an svg subtree <title> is
+   the native tooltip and charts rely on it. HTML's <title> belongs in
+   <head>, which a projector never renders, so nothing real loses out. */
 let svg_tags = [
   "svg",
   "g",
@@ -425,6 +438,10 @@ let svg_tags = [
   "feOffset",
   "feTurbulence",
   "foreignObject",
+  "switch",
+  "view",
+  "feImage",
+  "feTile",
   "desc",
   "title",
   "animate",
