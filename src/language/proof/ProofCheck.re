@@ -579,6 +579,10 @@ let peel_binder =
     Some((p, Typ.fresh(Unknown(Internal)), None, d1))
   | ForallWhere(p, g, d1) =>
     Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1))
+  /* A contract function peels like Fun, with its guard installed as a
+   * hypothesis — same free intro as ForallWhere (§2.2). */
+  | FunWhere(p, g, d1) =>
+    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1))
   | _ => None
   };
 };
@@ -605,6 +609,102 @@ let rec peel_stmt_binders =
     peel_stmt_binders(ctx, body);
   | _ => (ctx, goal)
   };
+
+/* --- Phase 3b: definition-time discharge of function contracts --------
+ * (docs/prover-obligations.md §2.2, "definition-time discharge")
+ *
+ * When a theorem is checked, every function DEFINITION its proof
+ * context can see (env-bound, non-builtin, non-recursive) is scanned
+ * once, at the definition's own altitude:
+ *   - `fun p where g -> body`: each of the body's domain conditions is
+ *     discharged if it fast_equal-matches the guard `g` or one of its
+ *     `&&`-conjuncts; leftover conditions become obligations.
+ *   - `fun p -> body` (no guard): every body condition is an
+ *     obligation — recorded here, ONCE, instead of at every call
+ *     (DomainConditions.scan deliberately does not descend into
+ *     function bodies).
+ *
+ * Leftovers are recorded in the ProofMap keyed by the FUNCTION term's
+ * id — a non-proof id, so the entry is minimal: incoming/outgoing None,
+ * no marks, only obligations, each with `origin` = the function's id.
+ * Recording is idempotent across theorems (same definition, same
+ * entry; ProofMap.union replaces like with like). Because the
+ * function's id is not inside any proof subtree, definition
+ * obligations do not affect Proven/ProvenModulo status in v1 — they
+ * are honest, inspectable residue at the definition, for the (!) UI.
+ *
+ * The body scan runs with the parameter's bindings visible
+ * (SemanticCtx.add_from_pattern), so conditions may mention the
+ * parameter. v1 skips (documented): builtins; recursive definitions
+ * (FixF spine — tier-2 totality is Phase 4); non-function bindings. */
+
+let rec guard_conjuncts = (g: Exp.t): list(Exp.t) =>
+  switch (g |> Exp.term_of) {
+  | Parens(g1) => guard_conjuncts(g1)
+  | BinOp(Bool(And), a, b) => guard_conjuncts(a) @ guard_conjuncts(b)
+  | _ => [g]
+  };
+
+let definition_obligations =
+    (~step: step_fn=no_step, ~ctx: SemanticCtx.t, ()): ProofMap.t => {
+  let env = SemanticCtx.get_env(ctx);
+  let base_ctx = SemanticCtx.get_ctx(ctx);
+  /* Builtin ctx entries carry Id.invalid (BuiltinsUtil), distinguishing
+   * them from user definitions — cf. Totality.is_builtin. */
+  let is_builtin = (name: Var.t): bool =>
+    switch (Ctx.lookup_var(base_ctx, name)) {
+    | Some(entry) => entry.id == Id.invalid
+    | None => false
+    };
+  let record_leftovers = (acc, fun_term: Exp.t, p: Pat.t, guard, body) => {
+    let conjuncts =
+      switch (guard) {
+      | Some(g) => guard_conjuncts(g)
+      | None => []
+      };
+    let leftover =
+      DomainConditions.scan(body)
+      |> List.filter(c => !List.exists(Exp.fast_equal(c), conjuncts));
+    switch (leftover) {
+    | [] => acc
+    | _ =>
+      let fun_id = Exp.rep_id(fun_term);
+      let ctx' =
+        SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+      let obligations =
+        List.map(
+          incur_obligation(~step, ~ctx=ctx', ~origin=fun_id),
+          leftover,
+        );
+      ProofMap.add(
+        fun_id,
+        entry(~incoming=None, ~outgoing=None, ~obligations, ()),
+        acc,
+      );
+    };
+  };
+  Environment.to_list(env)
+  |> List.fold_left(
+       (acc, (name, value)) =>
+         if (is_builtin(name)) {
+           acc;
+         } else {
+           /* Resolve closures / inline visible definitions so the body
+            * scan sees concrete terms; ids of the function node itself
+            * are preserved by substitution. */
+           let v =
+             DomainConditions.unwrap(value |> Substitution.in_exp(env));
+           switch (v |> Exp.term_of) {
+           | FunWhere(p, g, body) =>
+             record_leftovers(acc, v, p, Some(g), body)
+           | Fun(p, body, _, _) => record_leftovers(acc, v, p, None, body)
+           /* FixF (recursive), non-functions, self-map Vars: skipped. */
+           | _ => acc
+           };
+         },
+       ProofMap.empty,
+     );
+};
 
 /* Translate an Ok/Error result from one of the *_ast helpers into an
  * (outgoing, marks) pair suitable for `record`.

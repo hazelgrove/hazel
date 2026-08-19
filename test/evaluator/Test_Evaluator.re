@@ -31,4 +31,5 @@ let tests =
     Test_OffDomain.tests,
     Test_ProofMap.tests,
     Test_Definedness.tests,
+    Test_FunContracts.tests,
   ];

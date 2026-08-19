@@ -102,8 +102,11 @@ let check =
       } else {
         Ok();
       }
-    /* Lambdas are values; their bodies are checked at application. */
+    /* Lambdas are values; their bodies are checked at application.
+     * A FunWhere is a function value like Fun (its guard has no
+     * dynamic effect, Grammar.re). */
     | Fun(_)
+    | FunWhere(_)
     | TypFun(_) => Ok()
     /* General recursion: refuse, naming the function (§4.1 tier 1;
      * tier-2 structural-recursion detection is Phase 4). */
@@ -169,6 +172,9 @@ let check =
     | Asc(e1, _)
     | Closure(_, e1) => go_ap(e1)
     | Fun(_, body, _, _) => go(body)
+    /* Application drops the contract guard (no dynamic effect), so
+     * totality of the application is totality of the body. */
+    | FunWhere(_, _, body) => go(body)
     /* All Hazel builtins terminate (partiality is `err`, scanned by
      * DomainConditions). */
     | BuiltinFun(_) => Ok()

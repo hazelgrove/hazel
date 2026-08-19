@@ -263,6 +263,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Theorem(_), _)
     | (Forall(_), _)
     | (ForallWhere(_), _)
+    /* Unlike Fun, we don't push ascriptions into a FunWhere: the guard
+     * complicates the rewrite and the value is displayed opaquely. */
+    | (FunWhere(_), _)
     | (Asc(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)

@@ -72,6 +72,10 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           /* The `where` guard is under the binder's scope, like the body. */
           let (env', pat') = in_pat(env, env, pat);
           ForallWhere(pat', in_exp(env', g), in_exp(env', e)) |> rewrap;
+        | FunWhere(pat, g, e) =>
+          /* The contract guard is under the binder's scope, like the body. */
+          let (env', pat') = in_pat(env, env, pat);
+          FunWhere(pat', in_exp(env', g), in_exp(env', e)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)

@@ -24,6 +24,7 @@ type cls =
   | ProofObject
   | Forall
   | ForallWhere
+  | FunWhere
   | FixF
   | TyAlias
   | Use
@@ -148,6 +149,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | ProofObject(_) => ProofObject
   | Forall(_) => Forall
   | ForallWhere(_) => ForallWhere
+  | FunWhere(_) => FunWhere
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
   | Use(_) => Use
@@ -210,6 +212,7 @@ let show_cls: cls => string =
   | ProofObject => "Proof placeholder"
   | Forall => "Forall expression"
   | ForallWhere => "Restricted forall expression"
+  | FunWhere => "Function with contract"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
   | Use => "Specify number format to use"
@@ -264,6 +267,7 @@ let rec is_fun = (e: t) => {
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
+  | FunWhere(_)
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
   | Dot(e1, e2) =>
@@ -363,6 +367,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
+    | FunWhere(_)
     | TypFun(_)
     | Closure(_)
     | BuiltinFun(_)
@@ -434,6 +439,7 @@ let rec get_num_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
+    | FunWhere(_)
     | TypFun(_)
     | Var(_)
     | Let(_)

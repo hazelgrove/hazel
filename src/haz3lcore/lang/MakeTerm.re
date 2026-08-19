@@ -951,6 +951,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["forall", "where", "->"], [Pat(pat), Exp(g)]) =>
           ForallWhere(pat, g, r)
+        | (["fun", "where", "->"], [Pat(pat), Exp(g)]) =>
+          FunWhere(pat, g, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)

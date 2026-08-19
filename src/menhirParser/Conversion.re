@@ -374,6 +374,11 @@ module rec Exp: {
         BinExp(Exp.of_core(g), BoolOp(Implies), Exp.of_core(e)),
       )
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
+    /* The menhir AST has no function-contract form, and unlike
+       ForallWhere there is no equivalent lambda encoding: the guard is
+       proof-layer metadata with no dynamic effect (Grammar.re), so it is
+       dropped here. */
+    | FunWhere(p, _g, e) => Fun(Pat.of_core(p), of_core(e), None)
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>

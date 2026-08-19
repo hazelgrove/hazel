@@ -363,6 +363,42 @@ on earlier ones.
   checker-side CAS re-verification of Algebrite rewrites (the CAS lives in
   the browser as `window.Algebrite`; the equational content remains
   UI-trusted), function contracts, closure-lemma library.
+
+  *3b landed (2026-08-18)*: function contracts + closure-lemma library.
+  `fun p where g -> e` (`FunWhere`, mirroring the ForallWhere plumbing
+  end-to-end: forms/parse/print round-trip, statics — `g` analyzes Bool
+  with `p` in scope, otherwise types like `Fun` — substitution, alpha-
+  equality, matching). The guard has **no dynamic effect** in v1: a
+  FunWhere evaluates exactly like Fun (runtime contract enforcement would
+  change program behavior; separate future feature). The two §2.2 effects:
+  (a) *caller vocabulary* — `DomainConditions.scan` no longer descends
+  into `Fun`/`FunWhere` bodies; an application of a FunWhere emits the
+  instantiated contract `g[p := arg]` instead; (b) *definition-time
+  discharge* — at each theorem, `ProofCheck.definition_obligations` walks
+  the env's non-builtin, non-recursive function definitions once, scans
+  each BODY (parameter in scope), discharges conditions that `fast_equal`-
+  match the guard or one of its `&&`-conjuncts, and records leftovers as
+  obligations keyed by the *function's own id* in the ProofMap (minimal
+  entry: incoming/outgoing None; origin = the function id; idempotent
+  across theorems). So `fun x where x != 0 -> 1/x` leaves zero residue and
+  an unguarded `fun x -> 1/x` yields `x != 0` once, at the definition —
+  never per call. Closure lemmas (§4.2 channel 3, built-in OCaml-side in
+  `Axioms.re` as decided): `nonzero_mul`, `nonzero_of_pos`,
+  `nonzero_of_neg`, `pos_mul`, `pos_add`, `pow_pos` — guarded
+  equality-form (`… ==> (P == true)`) conditional rewrite rules over Int;
+  applying one incurs its antecedents through the ordinary Phase-2
+  machinery (obligations about obligations, same channels). The planned
+  `nonneg_pow` was rejected as invalid for negative bases ((-2)**3 = -8);
+  `pow_pos` (positive base, `**` errors only on negative exponents) ships
+  instead. v1 limitations: contract instantiation handles simple variable
+  parameters only (destructuring patterns skip at call sites, still
+  discharged at the definition); applied *inline* unguarded lambdas emit
+  nothing; recursive (FixF) definition bodies are not scanned (tier-2
+  totality is Phase 4); definition obligations don't yet affect
+  Proven/ProvenModulo status (they live outside proof subtrees) and the
+  (!)-menu proposal UI for channel 3 is still to come; closure lemmas
+  cover the Int operator class only (SInt/Nat variants are mechanical
+  later additions).
 - **Phase 4 — induction power.** Bool splits as first-class UX; IH
   generalization via an **explicit `generalize` step** (decided 2026-08-18: a
   proof form that re-quantifies an already-peeled variable before induction,

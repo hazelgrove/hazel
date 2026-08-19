@@ -176,6 +176,24 @@ let tests = (
       {|theorem t = forall x where 5 -> x == x proof ? in t|},
       is_expectation_mismatch,
     ),
+    /* Function contract (Phase 3b): the parameter is in scope for both
+       the guard and the body... */
+    expects_no_mark(
+      "fun-where binder scopes over guard and body",
+      {|let f = fun x where x != 0 -> 100 / x in f(1) == f(1)|},
+      is_free_var,
+    ),
+    /* ...and the guard analyzes against Bool. */
+    expects_mark(
+      "fun-where guard analyzes against Bool",
+      {|let f = fun x where 5 -> x in f(1)|},
+      is_expectation_mismatch,
+    ),
+    expects_no_mark(
+      "fun-where bool guard has no type error",
+      {|let f = fun x where x != 0 -> 100 / x in f(1)|},
+      is_expectation_mismatch,
+    ),
     /* Peeling a restricted binder installs the guard as a hypothesis
        (base name "where"): citing it in the proof is not a free
        hypothesis. */

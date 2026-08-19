@@ -141,21 +141,26 @@ let insert_shard_core =
   };
 };
 
-/* `forall p where g -> e` (ForallWhere) shares its leading token with
- * plain Forall, and the expansion machinery necessarily resolves the
- * ambiguity at "forall"-typing time in favor of the two-shard label.
- * When the token "where" materializes and the lexically-closest
- * incomplete tile to the left is a `forall` still missing its "->",
- * upgrade that tile's label to the three-shard ForallWhere form; the
- * "where" (and, later, the "->") then land through the ordinary
- * missing-shard machinery. */
+/* `forall p where g -> e` (ForallWhere) and `fun p where g -> e`
+ * (FunWhere) share their leading token with plain Forall / Fun, and the
+ * expansion machinery necessarily resolves the ambiguity at
+ * "forall"/"fun"-typing time in favor of the two-shard label. When the
+ * token "where" materializes and the lexically-closest incomplete tile
+ * to the left is a `forall`/`fun` still missing its "->", upgrade that
+ * tile's label to the three-shard where-form; the "where" (and, later,
+ * the "->") then land through the ordinary missing-shard machinery. */
 let upgrade_forall_where = (z: t): t => {
   let (pre, suf) = z.relatives.siblings;
   let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
     switch (rev_pre) {
     | [] => None
-    | [Tile({label: ["forall", "->"], shards: [0], _} as tile), ...rest] =>
-      let label = ["forall", "where", "->"];
+    | [
+        Tile(
+          {label: ["forall" | "fun", "->"] as l, shards: [0], _} as tile,
+        ),
+        ...rest,
+      ] =>
+      let label = [List.hd(l), "where", "->"];
       let mold = Form.Molds.get(Sort.Exp, label);
       Some([
         Piece.Tile({

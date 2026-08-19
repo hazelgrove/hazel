@@ -30,6 +30,16 @@ open Util;
  *   - `int_of_float` / `sint_of_float` / `nat_of_float` →
  *     `is_finite(arg)` (they error on nan/inf — Phase 0 fix).
  *
+ * Function bodies (Phase 3b, §2.2): the scan does NOT descend into
+ * `Fun` / `FunWhere` bodies. A lambda value's body does not run until
+ * applied, and body conditions are phrased in the lambda's own bound
+ * variables — the wrong altitude for the caller. Instead:
+ *   - applying a contract function `FunWhere(p, g, _)` emits the
+ *     instantiated contract `g[p := arg]` — the CALLER's vocabulary,
+ *     never conditions about the body's internals;
+ *   - unguarded functions get their body conditions once, at the
+ *     DEFINITION (ProofCheck.definition_obligations), not per call.
+ *
  * v1 limitations (documented, deliberately skipped):
  *   - `int_of_string`-family: no clean boolean predicate for
  *     parseability exists in the language — skipped.
@@ -39,6 +49,14 @@ open Util;
  *     finiteness condition is emitted.
  *   - mod/conversion builtins applied to a computed (non-literal)
  *     tuple: the denominator cannot be named — skipped.
+ *   - contract instantiation handles simple variable parameters
+ *     (incl. Parens/Asc/Cast wrappers); a destructuring parameter
+ *     pattern's contract is skipped at call sites (still discharged at
+ *     the definition).
+ *   - an applied INLINE unguarded lambda `(fun x -> 1/x)(y)` emits
+ *     nothing: it is neither a contract application nor an env-bound
+ *     definition. Rare in proof positions; a WP-style pass is the
+ *     later upgrade.
  *
  * Identical conditions are deduplicated (Exp.fast_equal). */
 
@@ -102,6 +120,29 @@ let pair_snd = (arg: Exp.t): option(Exp.t) =>
   | _ => None
   };
 
+/* The simple-variable name of a contract function's parameter pattern,
+ * looking through transparent pattern wrappers. Destructuring patterns
+ * yield None (v1 limitation, module header). */
+let rec pat_var = (p: Pat.t): option(Var.t) =>
+  switch (p |> IdTagged.term_of) {
+  | Var(x) => Some(x)
+  | Parens(p1)
+  | Asc(p1, _) => pat_var(p1)
+  | _ => None
+  };
+
+/* The contract condition of an application whose head is a FunWhere:
+ * the guard instantiated by the argument, `g[p := arg]` — the caller's
+ * vocabulary (§2.2). */
+let contract_condition = (p: Pat.t, g: Exp.t, arg: Exp.t): option(Exp.t) =>
+  pat_var(p)
+  |> Option.map(x =>
+       g
+       |> Substitution.in_exp(
+            Environment.extend(Environment.empty, (x, arg)),
+          )
+     );
+
 /* Conditions of one builtin application, if it is a partial builtin we
  * cover in v1. */
 let builtin_conditions = (name: string, arg: Exp.t): list(Exp.t) =>
@@ -141,9 +182,21 @@ let scan = (exp: Exp.t): list(Exp.t) => {
     | BinOp(SInt(Power), _, e2) when !nonneg_literal(e2) =>
       emit(geq_zero_sint(e2))
     | Ap(_, fn, arg) =>
-      switch (callee_name(fn)) {
-      | Some(name) => List.iter(emit, builtin_conditions(name, arg))
-      | None => ()
+      switch (unwrap(fn) |> Exp.term_of) {
+      /* Caller-vocabulary contract obligation (§2.2): applying a
+       * contract function emits its guard instantiated by the
+       * argument, never conditions about the body (the body is
+       * discharged once, at the definition). */
+      | FunWhere(p, g, _body) =>
+        switch (contract_condition(p, g, arg)) {
+        | Some(c) => emit(c)
+        | None => () /* destructuring parameter: v1 skip (header) */
+        }
+      | _ =>
+        switch (callee_name(fn)) {
+        | Some(name) => List.iter(emit, builtin_conditions(name, arg))
+        | None => ()
+        }
       }
     | _ => ()
     };
@@ -152,7 +205,15 @@ let scan = (exp: Exp.t): list(Exp.t) => {
       ~f_exp=
         (continue, e: Exp.t) => {
           visit(e);
-          continue(e);
+          switch (e |> Exp.term_of) {
+          /* Do not descend into function bodies (module header): a
+           * lambda's body does not run until applied, its conditions
+           * are in the wrong (callee) vocabulary, and env-bound
+           * definitions are covered once at the definition site. */
+          | Fun(_)
+          | FunWhere(_) => e
+          | _ => continue(e)
+          };
         },
       exp,
     );

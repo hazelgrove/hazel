@@ -188,7 +188,22 @@ let rec evaluate =
         Some(conclusion),
         proof,
       );
-    parent_state := EvaluatorState.merge_proof_map(parent_state^, pm);
+    /* Phase 3b: definition-time discharge of function contracts (§2.2).
+     * Runs at the definition's altitude — the theorem-site ctx/env
+     * BEFORE the statement binders are peeled — and keys entries by
+     * the function's own id, so re-running at each theorem is
+     * idempotent. See ProofCheck.definition_obligations. */
+    let def_pm =
+      ProofCheck.definition_obligations(
+        ~step,
+        ~ctx=SemanticCtx.of_ctx_and_env(ctx, env),
+        (),
+      );
+    parent_state :=
+      EvaluatorState.merge_proof_map(
+        parent_state^,
+        ProofMap.union(def_pm, pm),
+      );
   | _ => ()
   };
   /* Only key outbox.current by ids from the elaborated program.

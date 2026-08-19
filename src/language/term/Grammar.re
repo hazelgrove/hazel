@@ -42,6 +42,16 @@ and exp_term('a) =
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
+  /* Function contract `fun p where g -> e` (docs/prover-obligations.md
+     §2.2). The guard `g` is a boolean over the parameter. It has NO
+     dynamic effect in v1: a FunWhere evaluates exactly like the
+     corresponding Fun (the guard is proof-layer metadata — definition-time
+     discharge + caller-vocabulary obligations). Runtime contract
+     enforcement would change program behavior (an off-guard call would
+     error instead of running) and is a separate, future feature. Kept
+     distinct from Fun for the same reason ForallWhere is kept distinct
+     from Forall: program text is truth. */
+  | FunWhere(pat_t('a), exp_t('a), exp_t('a))
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
@@ -269,6 +279,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | ForallWhere(p, g, e) =>
           ForallWhere(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, g),
+            map_exp_annotation(f, e),
+          )
+        | FunWhere(p, g, e) =>
+          FunWhere(
             map_pat_annotation(f, p),
             map_exp_annotation(f, g),
             map_exp_annotation(f, e),
@@ -807,6 +823,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall_where = (~ann=?, p, g, e): exp_t(DefaultAnnotation.t) => {
       term: ForallWhere(p, g, e),
+      annotation: default_annotation(ann),
+    };
+    let fun_where = (~ann=?, p, g, e): exp_t(DefaultAnnotation.t) => {
+      term: FunWhere(p, g, e),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {

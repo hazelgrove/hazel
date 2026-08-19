@@ -854,6 +854,25 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
+      /* Function contract: reuse the generic function docs (pat + body);
+         the guard has no dedicated coloring yet — mirrors ForallWhere
+         below. */
+      | FunWhere(pat, _guard, body) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=FunctionExp.function_exp_coloring_ids(~pat_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          FunctionExp.functions,
+        );
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(IdTagged.ids(pat), 0);

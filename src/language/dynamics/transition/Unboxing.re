@@ -185,6 +185,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
+    /* A FunWhere applies exactly like Fun: the contract guard has no
+     * dynamic effect (Grammar.re) — it is dropped at application. */
+    | (Fun, Closure(env', {term: FunWhere(dp, _g, d3), _})) =>
+      Matches(FunEnv(dp, d3, env'))
+    | (Fun, FunWhere(dp, _g, d3)) => Matches(FunNoEnv(dp, d3))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
@@ -240,6 +245,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Forall(_) |
         ForallWhere(_) |
         Fun(_, _, _, _) |
+        FunWhere(_) |
         TypAp(_) |
         FixF(_) |
         TyAlias(_) |

@@ -1996,6 +1996,54 @@ and uexp_to_info_map =
           ]),
         m,
       );
+    | FunWhere(p, g, e) =>
+      /* Function contract (docs/prover-obligations.md §2.2): types like
+         Fun — Arrow(p.ty, body ty) — except the guard `g` additionally
+         analyzes against Bool with the parameter in scope. */
+      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
+      let (mode_pat, mode_body) = MatchedTyp.arrow_tolerant(ctx, ana);
+      let (p', _, _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
+      let (g, g_elab, m) =
+        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, g, m);
+      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      /* Second pass on the pattern, as in Fun: attach the co_ctx of the
+         guard and body, preserving the ana-meet'd type. */
+      let (p, p_elab, m) =
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.union([g.co_ctx, e.co_ctx]),
+          ~ana=p'.ty,
+          p,
+          m,
+        );
+      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      let Coverage.CheckMatrix.{exhaustiveness, _} =
+        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
+      let marks_fun =
+        switch (exhaustiveness) {
+        | Exhaustive => []
+        | Inexhaustive(unseen_pattern) => [
+            Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
+          ]
+        };
+      add(
+        ~elab_term=FunWhere(p_elab, g_elab, e_elab) |> rewrap,
+        ~elab_syn_ty=syn_ty_fun,
+        ~marks=marks_fun,
+        ~co_ctx=
+          CoCtx.union([
+            CoCtx.mk(ctx, p.ctx, CoCtx.union([g.co_ctx, e.co_ctx])),
+            pat_typ_refs,
+          ]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            p.probe_targets,
+            g.probe_targets,
+            e.probe_targets,
+          ]),
+        m,
+      );
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
@@ -4839,6 +4887,14 @@ let initial_hypotheses: list(Ctx.hypothesis_entry) =
     "impl_true",
     "true_impl",
     "false_impl",
+    /* Closure-lemma library (Phase 3b, docs/prover-obligations.md §4.2
+       channel 3). */
+    "nonzero_mul",
+    "nonzero_of_pos",
+    "nonzero_of_neg",
+    "pos_mul",
+    "pos_add",
+    "pow_pos",
   ]
   |> List.map(name =>
        Ctx.{

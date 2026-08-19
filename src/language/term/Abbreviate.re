@@ -1218,6 +1218,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
 
+      /* Like Fun, a FunWhere is a function value — abbreviate opaquely. */
+      | FunWhere(_p, _g, _e) => Invalid("<function>")
+
       | Closure(env, exp) =>
         handle_unary(
           ~cost=1, // space between terms

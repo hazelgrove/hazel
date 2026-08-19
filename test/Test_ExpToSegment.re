@@ -908,6 +908,12 @@ end|}),
       {|ForallWhere: simple|},
       {|forall a where a != 0 -> a == a|},
     ),
+    /* function contract (fun-where binder) */
+    roundtrip_test({|FunWhere: simple|}, {|fun a where a != 0 -> 100 / a|}),
+    roundtrip_test(
+      {|FunWhere: conjunctive guard|},
+      {|fun a where a != 0 && a != 1 -> 100 / a|},
+    ),
     /* material implication */
     roundtrip_test({|Implies: simple|}, {|true ==> false|}),
     roundtrip_test({|Implies: with equalities|}, {|a == b ==> c == d|}),

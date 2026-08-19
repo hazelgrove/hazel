@@ -13,6 +13,8 @@
  *
  * NOTE: keep the name list in sync with `Statics.initial_hypotheses`. */
 
+open Util;
+
 let var = (x: string): Exp.t => Var(x) |> Exp.fresh;
 let tt: Exp.t = Atom(Bool(true)) |> Exp.fresh;
 let ff: Exp.t = Atom(Bool(false)) |> Exp.fresh;
@@ -32,6 +34,27 @@ let forall = (x: string, body: Exp.t): Exp.t =>
 /* forall-wrap `body` in each of `xs` (innermost binder last in list). */
 let foralls = (xs: list(string), body: Exp.t): Exp.t =>
   List.fold_right(forall, xs, body);
+
+/* Closure-lemma builders (Phase 3b, §4.2 channel 3). Constructed at the
+ * ops user code parses to: `*`/`+`/`**`/`>`/`<`/`>=` parse to the Int
+ * class (MakeTerm; the Int closure lemmas are the v1 set — SInt/Nat
+ * variants are a later, mechanical extension) and `!=` parses to
+ * Poly(NotEquals) — matching what DomainConditions emits. */
+let int_zero = (): Exp.t => Atom(Int(Bigint.zero)) |> Exp.fresh;
+let mul = (a: Exp.t, b: Exp.t): Exp.t =>
+  BinOp(Int(Times), a, b) |> Exp.fresh;
+let add = (a: Exp.t, b: Exp.t): Exp.t =>
+  BinOp(Int(Plus), a, b) |> Exp.fresh;
+let pow = (a: Exp.t, b: Exp.t): Exp.t =>
+  BinOp(Int(Power), a, b) |> Exp.fresh;
+let neq0 = (a: Exp.t): Exp.t =>
+  BinOp(Poly(NotEquals), a, int_zero()) |> Exp.fresh;
+let gt0 = (a: Exp.t): Exp.t =>
+  BinOp(Int(GreaterThan), a, int_zero()) |> Exp.fresh;
+let lt0 = (a: Exp.t): Exp.t =>
+  BinOp(Int(LessThan), a, int_zero()) |> Exp.fresh;
+let geq0 = (a: Exp.t): Exp.t =>
+  BinOp(Int(GreaterThanOrEqual), a, int_zero()) |> Exp.fresh;
 
 let a = var("a");
 let b = var("b");
@@ -80,6 +103,60 @@ let axioms: list((string, Exp.t)) = [
   ("impl_true", forall("a", eq(a ==>> tt, tt))),
   ("true_impl", forall("a", eq(tt ==>> a, a))),
   ("false_impl", forall("a", eq(ff ==>> a, tt))),
+  /* --- Closure-lemma library (Phase 3b; §4.2 channel 3) ---------------
+   *
+   * Guarded equality-form axioms: the conclusion is an Equality
+   * (`P == true`), so each is an ordinary CONDITIONAL rewrite rule
+   * applied through the same axiom-step machinery — rewriting `P` to
+   * `true` incurs the antecedents as obligations (Phase 2
+   * apply-with-obligation). Today they are manual axiom steps; the
+   * (!)-menu proposal UI is later. Note the compositional payoff:
+   * applying `nonzero_mul` incurs `a != 0` / `b != 0`, which are
+   * themselves discharged through the same channels — obligations about
+   * obligations, one mechanism.
+   *
+   * Kleene soundness (§1.3): each guard, when PROVEN true, is a defined
+   * true — its operands are defined values — so the conclusion's
+   * arithmetic is defined and the stated (in)equality holds over exact
+   * bigint Int arithmetic (`*`/`+` total; `**` errors only on a negative
+   * exponent, Operators.int_power, which `b >= 0` excludes; a > 0 and
+   * b >= 0 give a ** b >= 1 > 0). No axiom renders a verdict off-domain:
+   * with any guard undefined/false the rule simply cannot be
+   * legitimately applied (its obligation cannot be discharged).
+   *
+   * Deliberately absent: `nonneg_pow : b >= 0 ==> ((a ** b >= 0) ==
+   * true)` is INVALID for negative bases — (-2) ** 3 == -8 < 0 — so the
+   * positive-base `pow_pos` ships instead. */
+  (
+    "nonzero_mul",
+    foralls(
+      ["a", "b"],
+      neq0(a) ==>> (neq0(b) ==>> eq(neq0(mul(a, b)), tt)),
+    ),
+  ),
+  ("nonzero_of_pos", forall("a", gt0(a) ==>> eq(neq0(a), tt))),
+  ("nonzero_of_neg", forall("a", lt0(a) ==>> eq(neq0(a), tt))),
+  (
+    "pos_mul",
+    foralls(
+      ["a", "b"],
+      gt0(a) ==>> (gt0(b) ==>> eq(gt0(mul(a, b)), tt)),
+    ),
+  ),
+  (
+    "pos_add",
+    foralls(
+      ["a", "b"],
+      gt0(a) ==>> (gt0(b) ==>> eq(gt0(add(a, b)), tt)),
+    ),
+  ),
+  (
+    "pow_pos",
+    foralls(
+      ["a", "b"],
+      gt0(a) ==>> (geq0(b) ==>> eq(gt0(pow(a, b)), tt)),
+    ),
+  ),
 ];
 
 let v: ProofCtx.t =

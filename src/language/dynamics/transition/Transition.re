@@ -543,7 +543,11 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | TypFun(_)
-    | Fun(_, _, _, _) =>
+    | Fun(_, _, _, _)
+    /* A FunWhere is a function value exactly like Fun; its contract
+     * guard has no dynamic effect (Grammar.re) — application drops it
+     * (Unboxing). */
+    | FunWhere(_) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;

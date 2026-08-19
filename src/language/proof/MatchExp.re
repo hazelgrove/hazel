@@ -135,6 +135,11 @@ let rec match_exp =
     let* ctx = match_exp(alphas' @ alphas, ctx, g1, g2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (ForallWhere(_, _, _), _) => None
+  | (FunWhere(p1, g1, e1), FunWhere(p2, g2, e2)) =>
+    let* alphas' = match_pat(p1, p2);
+    let* ctx = match_exp(alphas' @ alphas, ctx, g1, g2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
+  | (FunWhere(_, _, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
     // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);
