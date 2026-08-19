@@ -85,9 +85,10 @@ sits inside a recursive `run` and draws each step. A projector there would show
 the last step only, and would have hidden the recursive call to do it.
 
 The third row is the probe's other advantage, and `HtmlRenderer` takes it by
-**rewriting the source**. Clicking a handler splices `f(H)` where `H` was the
-probed html, and the program's own pipeline evaluates the application — with
-statics, elaboration, and the scope `H` already sits in.
+**rewriting the source**. Clicking a handler pipes the probed html into it —
+`H` becomes `H |> f`, in reverse application over newlines, the way
+`TableRenderer`'s column operations commit — and the program's own pipeline
+evaluates that, with statics, elaboration, and the scope `H` already sits in.
 
 Evaluating the transform inside the renderer instead does not work, and is
 worth recording because it looks like it should. A probe has no elaborated form
@@ -110,9 +111,16 @@ Two properties follow from rewriting rather than evaluating:
   an inner scope and returned outward is inlined instead, since splicing its
   name there would write an unbound variable.
 
-The one wart is accumulation: clicking twice gives `bump(bump(H))`. That is an
-accurate record of what was asked for, and it is ordinary text to collapse by
-hand, but it does grow.
+Each click appends another stage rather than nesting, so a run of edits reads as
+a pipeline:
+
+```
+Div([], [...])
+  |> bump
+  |> bump
+```
+
+which is an accurate record of what was asked for, and prunes a line at a time.
 
 A *fixed* app also cannot serve more than one schema: a literal 4-tuple's `view`
 fixes one row type, where an app built by a polymorphic function does not. That

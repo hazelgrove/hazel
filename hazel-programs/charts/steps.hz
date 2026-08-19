@@ -83,17 +83,16 @@ let settled = run(plots, 6) in
 # ===== TWO: HTML THAT EDITS ITS OWN SOURCE ===== #
 
 # Clicking a handler does not evaluate anything here. It REWRITES the #
-# source: the probed html `H` becomes `bump(H)`, and the program's own #
-# pipeline evaluates that — with statics, elaboration, and the scope `H` #
-# already sits in. Evaluating the transform inside the renderer instead #
-# cannot work: a probe has no elaborated syntax and no environment to #
-# resolve `bump` in. #
+# source, piping the probed html into the handler: `H` becomes `H |> bump`, #
+# and the program's own pipeline evaluates that — with statics, elaboration, #
+# and the scope `H` already sits in. Evaluating the transform inside the #
+# renderer instead cannot work: a probe has no elaborated syntax and no #
+# environment to resolve `bump` in. #
 
 # Two consequences worth knowing. The rewrite names `bump` rather than #
 # inlining it, so editing the definition changes what every committed call #
-# does. And each click wraps again — click twice and the source reads #
-# `bump(bump(H))` — which is honest about what you asked for, and is #
-# ordinary text you can collapse by hand. #
+# does. And each click appends another stage, so the edits read as a #
+# pipeline you can prune a line at a time. #
 
 let bump : HTML -> HTML =
   fun node ->

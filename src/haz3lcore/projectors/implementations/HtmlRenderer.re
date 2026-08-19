@@ -113,20 +113,59 @@ let handler_ref = (info: info, msg: Exp.t): Exp.t => {
 
 /* Commit a handler by REWRITING THE SOURCE, never by evaluating.
  *
- * The probed expression `H` becomes `f(H)`, and the program's own pipeline
- * evaluates it — with statics, elaboration, and the scope `H` already sits
- * in. That is what makes this work where evaluating the transform here did
- * not: a probe has no elaborated form of its syntax and no environment to
- * resolve `f` in, so the application went through unreduced and a stuck term
- * got spliced over the program. Handing the application back as syntax puts
- * the evaluation somewhere that has all three.
+ * The probed expression `H` becomes the pipeline `H |> f`, and the program's
+ * own pipeline evaluates it — with statics, elaboration, and the scope `H`
+ * already sits in. That is what makes this work where evaluating the
+ * transform here did not: a probe has no elaborated form of its syntax and no
+ * environment to resolve `f` in, so the application went through unreduced
+ * and a stuck term got spliced over the program. Handing the application back
+ * as syntax puts the evaluation somewhere that has all three.
+ *
+ * Reverse application over newlines (`~inline=false`), the way
+ * TableRenderer's column operations commit, so repeated clicks read as a
+ * pipeline —
+ *
+ *     Div([], [...])
+ *       |> bump
+ *       |> bump
+ *
+ * — rather than nesting into `bump(bump(H))`.
  *
  * It also means the rewrite lands on the DEFINITION. If the html sits inside
  * a function, every call renders the transformed version, not just the
  * invocation that was clicked. */
-let commit_syntax = (info: info, msg: Exp.t, src: Exp.t): Base.segment =>
-  Exp(IdTagged.FreshGrammar.Exp.ap(Forward, handler_ref(info, msg), src))
-  |> info.utility.term_to_seg(~inline=true);
+
+/* Only the wrapper RefractorView puts around the probed piece, not parens the
+ * program wrote; `lift_syntax` re-parenthesizes the result where its context
+ * needs it. */
+let rec strip_outer_parens = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(inner) => strip_outer_parens(inner)
+  | _ => e
+  };
+
+let commit_syntax = (info: info, msg: Exp.t): option(Base.segment) => {
+  let ok = ref(true);
+  let lifted =
+    info.utility.lift_syntax(
+      ~inline=false,
+      fun
+      | Exp(exp) =>
+        Exp(
+          IdTagged.FreshGrammar.Exp.ap(
+            Reverse,
+            handler_ref(info, msg),
+            strip_outer_parens(exp),
+          ),
+        )
+      | other => {
+          ok := false;
+          other;
+        },
+      info.syntax,
+    );
+  ok^ ? lifted : None;
+};
 
 let message = (text: string): Node.t =>
   Node.div(
@@ -161,10 +200,9 @@ let render =
     | Static(html) =>
       let seed: HazelDOM.t = {
         inject: msg =>
-          switch (info.syntax |> info.utility.seg_to_term) {
-          | Some(Exp(src)) =>
-            parent(SetSyntax(commit_syntax(info, msg, src)))
-          | _ => Effect.Ignore
+          switch (commit_syntax(info, msg)) {
+          | Some(seg) => parent(SetSyntax(seg))
+          | None => Effect.Ignore
           },
         view_term,
         commit: HazelDOM.Syntax,
