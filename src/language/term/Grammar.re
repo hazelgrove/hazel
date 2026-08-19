@@ -54,6 +54,11 @@ and exp_term('a) =
   | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
+  /* Restricted binder `forall p where g -> e` (docs/prover-obligations.md
+     §2.2). Kept distinct from Forall — program text is truth; the
+     equivalence with `forall p -> g ==> e` lives in the checker/rule
+     reading (ProofRule.exp_to_rule / ProofCheck). */
+  | ForallWhere(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -262,6 +267,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
+        | ForallWhere(p, g, e) =>
+          ForallWhere(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, g),
+            map_exp_annotation(f, e),
+          )
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -792,6 +803,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
       term: Forall(p, e),
+      annotation: default_annotation(ann),
+    };
+    let forall_where = (~ann=?, p, g, e): exp_t(DefaultAnnotation.t) => {
+      term: ForallWhere(p, g, e),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {

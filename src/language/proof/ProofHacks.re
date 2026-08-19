@@ -453,6 +453,23 @@ let rec replace_exp =
             Forall(p, replace_exp(e, restrict_blacklist(p, blacklist_vars)))
             |> rewrap;
           }
+        | ForallWhere(p, g, e) =>
+          if (is_bound(p)) {
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
+            exp;
+          } else {
+            ForallWhere(
+              p,
+              replace_exp(g, restrict_blacklist(p, blacklist_vars)),
+              replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+            )
+            |> rewrap;
+          }
         /* Variables: check if in blacklist */
         | Var(x) when List.mem(x, blacklist_vars) => raise(BlacklistVarFound)
         | Var(_) => continue(exp)

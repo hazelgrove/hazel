@@ -109,8 +109,18 @@ arithmetic. The costs land elsewhere and are accepted:
 
 - New boolean binary operator. Right-associative, precedence below `||`.
 - Evaluation: McCarthy left-to-right (`false ==> _` short-circuits to `true`).
-- Proof interpretation: Kleene. Natural-deduction rules (enumerated in
-  Phase 2) let goals be proven without evaluating either side.
+- Proof interpretation: Kleene. The "ND rules" ship as **built-in equational
+  axioms** (decided in Phase 2), not new step forms — `impl_def :
+  (a ==> b) == (!a || b)`, commutativity/associativity/units/De Morgan for
+  the connectives, `impl_true`/`impl_false` — each sound under the Kleene
+  reading of §1.3 and applied through the ordinary axiom-step machinery. No
+  new checker logic; the rewriting architecture is the proof calculus.
+- **Implication introduction unifies with `assume`**: when the goal is
+  `A ==> B` and the proof says `assume A' => body` with `A'` alpha-equal to
+  `A`, the checker strips the antecedent (body's incoming goal is `B`) and
+  incurs **no obligation** — that is intro, sound unconditionally. Otherwise
+  `assume` incurs its obligation as usual. One form, two readings; intro is
+  the degenerate case of assume-then-bake.
 - `ProofRule.exp_to_rule` peels `==>` after `forall`s into a resurrected
   `assumptions` field (the commented-out hook at `ProofRule.re:11` and
   `:28-35`), making conditional rewrite rules first-class.

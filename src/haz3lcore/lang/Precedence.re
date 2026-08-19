@@ -75,11 +75,16 @@ let and_ = 32 |> right_associative;
 // _____ || false
 let or_ = 33 |> right_associative;
 
-// Derivation Mode Only
+// Material implication `==>` (also used in Derivation Mode)
 // A /\ B \/ C ==> D
 // ((A /\ B) \/ C) ==> D
-let impl = 34;
+// a || b ==> c || d parses as (a || b) ==> (c || d);
+// a ==> b ==> c parses as a ==> (b ==> c)
+let impl = 34 |> right_associative;
 // false || _____
+/* Note: shares the level with `impl`. Registering right-associativity is
+   inert for grout: Skel's tie-break only distinguishes Some(Left) from
+   everything else, and grout previously had no registered associativity. */
 let concave_grout = 34;
 
 // ===== SEMICOLON (tightest structural form) =====
@@ -163,6 +168,7 @@ let of_bin_op: Language.Operators.op_bin => t =
     switch (op) {
     | And => and_
     | Or => or_
+    | Implies => impl
     }
   | String(op) =>
     switch (op) {

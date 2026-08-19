@@ -115,6 +115,7 @@ module Utils = {
     | Theorem(_, _, _, _)
     | ProofObject(_)
     | Forall(_, _)
+    | ForallWhere(_, _, _)
     | Projector(_, _)
     | Var(_)
     | Module(_) => []

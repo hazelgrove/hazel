@@ -303,6 +303,16 @@ let equality =
       | None => false
       }
     | (Forall(_, _), _) => false
+    | (ForallWhere(p1, g1, e1), ForallWhere(p2, g2, e2)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        /* The guard is under the binder's scope, like the body. */
+        let alphas_exp'' = Alphas.combine(alphas_exp', alphas_exp);
+        exp(alphas_exp'', alphas_typ, g1, g2)
+        && exp(alphas_exp'', alphas_typ, e1, e2);
+      | None => false
+      }
+    | (ForallWhere(_, _, _), _) => false
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
     | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>

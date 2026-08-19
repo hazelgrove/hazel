@@ -2025,6 +2025,24 @@ let get_doc =
             ),
           ForallExp.forall,
         );
+      /* Restricted binder: reuse the forall docs (pat + body), the guard
+         has no dedicated coloring yet. */
+      | ForallWhere(pat, _guard, typ) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(typ), 0);
+        get_message(
+          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          ForallExp.forall,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -2383,6 +2401,7 @@ let get_doc =
           | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
           | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
+          | Bool(Implies) => (bool_implies, bool_implies_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
           | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
           | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)

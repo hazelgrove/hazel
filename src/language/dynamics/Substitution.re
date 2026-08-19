@@ -68,6 +68,10 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
+        | ForallWhere(pat, g, e) =>
+          /* The `where` guard is under the binder's scope, like the body. */
+          let (env', pat') = in_pat(env, env, pat);
+          ForallWhere(pat', in_exp(env', g), in_exp(env', e)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)

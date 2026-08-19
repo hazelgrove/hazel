@@ -346,6 +346,7 @@ type compound_form =
   | LogicalAnd
   | LogicalOrLegacy
   | LogicalOr
+  | LogicalImplies
   | ListConcat
   | ConsExp
   | ConsPat
@@ -393,6 +394,7 @@ type compound_form =
   | TypFun
   | Poly
   | Forall
+  | ForallWhere
   | Rec
   | Rule
   | Pipeline
@@ -465,6 +467,7 @@ let get: compound_form => t =
   | LogicalAnd => mk_infix("&&", Exp, P.and_)
   | LogicalOrLegacy => mk_infix("\\/", Exp, P.or_)
   | LogicalOr => mk_infix("||", Exp, P.or_)
+  | LogicalImplies => mk_infix("==>", Exp, P.impl)
   | ListConcat => mk_infix("@", Exp, P.concat)
   | ConsExp => mk_infix("::", Exp, P.cons)
   | ConsPat => mk_infix("::", Pat, P.cons)
@@ -509,6 +512,10 @@ let get: compound_form => t =
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
+  /* Restricted binder: `forall p where g -> e` (docs/prover-obligations.md
+   * §2.2). A distinct form, not desugared — program text is truth. */
+  | ForallWhere =>
+    mk_pre_c(L, ["forall", "where", "->"], P.fun_, Exp, [Pat, Exp])
   | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>

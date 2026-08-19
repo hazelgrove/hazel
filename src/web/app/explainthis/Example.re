@@ -49,6 +49,7 @@ let fgte = () => mk_monotile(Form.get(FGte));
 let sconcat = () => mk_monotile(Form.get(StringConcat));
 let logical_and = () => mk_monotile(Form.get(LogicalAnd));
 let logical_or = () => mk_monotile(Form.get(LogicalOr));
+let logical_implies = () => mk_monotile(Form.get(LogicalImplies));
 let comma_exp = () => mk_monotile(Form.get(CommaExp));
 let comma_pat = () => mk_monotile(Form.get(CommaPat));
 let comma_typ = () => mk_monotile(Form.get(CommaTyp));

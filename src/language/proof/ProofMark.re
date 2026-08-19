@@ -33,6 +33,10 @@ type t =
       equality: string,
       direction: Direction.t,
     })
+  /* Axiom: a conditional rule matched, but its assumptions mention
+   * metavariables the match left unresolved — refused in v1
+   * (docs/prover-obligations.md §4.1). */
+  | UnderdeterminedInstantiation({equality: string})
   /* Step helpers: `at_idx` isn't a concrete int literal. */
   | MalformedIndex
   /* Step helpers: `at_exp` pattern not found at the requested

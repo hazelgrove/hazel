@@ -22,7 +22,8 @@ type op_un_num =
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_bool =
   | And
-  | Or;
+  | Or
+  | Implies;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_num =
@@ -194,7 +195,8 @@ let show_unop: op_un => string =
 let show_op_bin_bool: op_bin_bool => string =
   fun
   | And => "Boolean Conjunction"
-  | Or => "Boolean Disjunction";
+  | Or => "Boolean Disjunction"
+  | Implies => "Boolean Implication";
 
 let show_op_bin_num: op_bin_num => string =
   fun
@@ -245,6 +247,7 @@ let bool_op_to_string = (op: op_bin_bool): string => {
   switch (op) {
   | And => "&&"
   | Or => "||"
+  | Implies => "==>"
   };
 };
 
@@ -413,6 +416,7 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
 
   | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
   | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
+  | Bool(Implies) => Defined(Bool, Bool, Bool, just((a, b) => !a || b)) // McCarthy short-circuit in transition, like And/Or
 
   | Poly(Equals) => DefinedPoly(Equals)
   | Poly(NotEquals) => DefinedPoly(NotEquals)
@@ -463,6 +467,7 @@ let op_name = (op: op_bin): string =>
   | String(Concat) => "string_concat"
   | Bool(And) => "bool_and"
   | Bool(Or) => "bool_or"
+  | Bool(Implies) => "bool_implies"
   | Poly(Equals) => "poly_eq"
   | Poly(NotEquals) => "poly_neq"
   };

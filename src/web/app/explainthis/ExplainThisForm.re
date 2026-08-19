@@ -134,6 +134,8 @@ type example_id =
   | AndTrue
   | OrFalse
   | OrTrue
+  | ImpliesFalse
+  | ImpliesTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt

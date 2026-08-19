@@ -262,6 +262,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TyAlias(_), _)
     | (Theorem(_), _)
     | (Forall(_), _)
+    | (ForallWhere(_), _)
     | (Asc(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)

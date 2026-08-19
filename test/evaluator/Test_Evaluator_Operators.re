@@ -46,6 +46,22 @@ let tests = (
         parse_and_evaluate_test("s1 /. s2", "(s1 /. s2) : Float");
         parse_and_evaluate_test("b1 && b2", "(b1 && b2) : Bool");
         parse_and_evaluate_test("b1 || b2", "(b1 || b2) : Bool");
+        parse_and_evaluate_test("b1 ==> b2", "(b1 ==> b2) : Bool");
+      },
+    ),
+    test_case(
+      "Material implication evaluates McCarthy left-to-right",
+      `Quick,
+      () => {
+        /* A false antecedent short-circuits to true without evaluating
+           the consequent — even past a domain error. */
+        parse_and_evaluate_test("true", "false ==> 1 / 0 == 1");
+        parse_and_evaluate_test("false", "true ==> false");
+        parse_and_evaluate_test("true", "true ==> true");
+        parse_and_evaluate_test("true", "false ==> false");
+        /* Nested with other bool ops at the documented precedences:
+           (a || b) ==> (c && d). */
+        parse_and_evaluate_test("false", "false || true ==> true && false");
       },
     ),
   ],

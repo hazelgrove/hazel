@@ -187,14 +187,11 @@ module Update = {
         | Some(x) => x.theorems
       )
       |> List.map(((a, b, c, d)) => {
-           let d' =
-             ProofRule.exp_to_rule(
-               d |> Substitution.in_exp(Environment.empty),
-             );
+           let d' = d |> Substitution.in_exp(Environment.empty);
            (a, b, c, d');
          })
       |> List.fold_left(
-           (acc, (id, name, env', rule: ProofRule.t)) =>
+           (acc, (id, name, env', stmt: Exp.t)) =>
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
@@ -210,10 +207,18 @@ module Update = {
                  } =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
+                 /* Seed the stepper's goal with the statement's core after
+                  * auto-introducing outer binders — kept in sync with the
+                  * big-step checker, which peels through the same
+                  * `ProofCheck.peel_stmt_binders` (any `==>` antecedents
+                  * stay in the goal; `where` restrictions become
+                  * hypotheses in the semantic ctx below). */
                  let goal_exp =
                    Calc.set(
                      ~eq=Exp.fast_equal_with_lexemes,
-                     rule |> ProofRule.conclusion_exp,
+                     stmt
+                     |> ProofRule.peel_binders
+                     |> (((_, _, core)) => core),
                      goal_exp,
                    );
 
@@ -223,12 +228,7 @@ module Update = {
                      let.calc statics = statics;
                      statics.info_map
                      |> Statics.Map.ctx_of(id)
-                     |> Option.value(~default=Ctx.empty)
-                     |> List.fold_left(
-                          Ctx.extend,
-                          _,
-                          rule.bindings |> List.rev,
-                        );
+                     |> Option.value(~default=Ctx.empty);
                    };
 
                  let env = Calc.set(~eq=Environment.id_equal, env', env);
@@ -238,7 +238,11 @@ module Update = {
                    |> {
                      let.calc ctx = ctx
                      and.calc env = env;
-                     SemanticCtx.of_ctx_and_env(ctx, env);
+                     ProofCheck.peel_stmt_binders(
+                       SemanticCtx.of_ctx_and_env(ctx, env),
+                       stmt,
+                     )
+                     |> fst;
                    };
 
                  /* Lift the proof sub-term out of the Theorem syntax node.

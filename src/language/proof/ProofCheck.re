@@ -110,46 +110,35 @@ let exp_to_equality_name = (e: Exp.t): option(string) =>
   | _ => None
   };
 
-/* Canonical axiom-step outgoing: given a resolved equality name and
- * occurrence index, produce the rewritten `incoming`. Used by both the
- * evaluator and the UI stepper. Option-returning (no mark taxonomy) so
- * the UI stepper module stays unchanged. */
-let axiom_step_outgoing =
-    (
-      ~info_map: Statics.Map.t,
-      ~env: Environment.t(Exp.t),
-      ~ctx: Ctx.t,
-      ~at_idx: int,
-      ~at_exp: Exp.t,
-      ~direction: Direction.t,
-      ~equality: string,
-      incoming: Exp.t,
-    )
-    : option(Exp.t) => {
-  let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
-  switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
-  | None => None
-  | Some(rule) =>
-    switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
-    | None => None
-    | Some(e) =>
-      let (l, r) = ProofRule.can_eq(~info_map, ~env, rule, e);
-      let with_exp =
-        switch (direction) {
-        | Direction.Left => l
-        | Direction.Right => r
-        };
-      switch (with_exp) {
-      | None => None
-      | Some(w) =>
-        Some(ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w))
-      };
-    }
-  };
+/* Does variable `name` occur (as a Var) anywhere in `e`? Used to detect
+ * rule metavariables left unresolved by matching. Deliberately ignores
+ * shadowing by binders inside `e`: rule metavariables and expression-level
+ * binders sharing a name is a degenerate case, and over-reporting an
+ * occurrence only makes the underdetermined check more conservative. */
+let occurs_var = (name: Var.t, e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) =>
+          switch (e |> Exp.term_of) {
+          | Var(x) when x == name =>
+            found := true;
+            e;
+          | _ => continue(e)
+          },
+      e,
+    );
+  found^;
 };
 
-/* Structured-error variant of `axiom_step_outgoing` used by `check`.
- * Categorises each failure into a `ProofMark.t`. */
+/* Structured-error axiom-step outgoing used by `check`. Categorises each
+ * failure into a `ProofMark.t`. On success also returns the rule's
+ * assumptions instantiated by the match — the conditions the application
+ * incurs as obligations (empty for unconditional rules). A conditional
+ * rule whose assumptions mention metavariables the match left unresolved
+ * is refused (UnderdeterminedInstantiation, v1 behavior per
+ * docs/prover-obligations.md §4.1). */
 let axiom_step_outgoing_result =
     (
       ~info_map: Statics.Map.t,
@@ -161,7 +150,7 @@ let axiom_step_outgoing_result =
       ~equality: string,
       incoming: Exp.t,
     )
-    : result(Exp.t, ProofMark.t) => {
+    : result((Exp.t, list(Exp.t)), ProofMark.t) => {
   let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
   switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
   | None => Error(UnknownEquality(equality))
@@ -175,7 +164,7 @@ let axiom_step_outgoing_result =
         }),
       )
     | Some(e) =>
-      let (l, r) = ProofRule.can_eq(~info_map, ~env, rule, e);
+      let (l, r) = ProofRule.can_eq_inst(~info_map, ~env, rule, e);
       let with_exp =
         switch (direction) {
         | Direction.Left => l
@@ -189,11 +178,63 @@ let axiom_step_outgoing_result =
             direction,
           }),
         )
-      | Some(w) => Ok(ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w))
+      | Some((w, mctx)) =>
+        let unresolved =
+          List.filter_map(
+            ((n, (_, assigned))) => assigned == None ? Some(n) : None,
+            mctx,
+          );
+        let underdetermined =
+          List.exists(
+            a => List.exists(n => occurs_var(n, a), unresolved),
+            rule.assumptions,
+          );
+        if (underdetermined) {
+          Error(UnderdeterminedInstantiation({equality: equality}));
+        } else {
+          let instantiated =
+            List.map(MatchExp.substitute_exp(mctx), rule.assumptions);
+          Ok((
+            ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w),
+            instantiated,
+          ));
+        };
       };
     }
   };
 };
+
+/* Canonical axiom-step outgoing: given a resolved equality name and
+ * occurrence index, produce the rewritten `incoming`. Used by the UI
+ * stepper. Option-returning (no mark taxonomy, drops the incurred
+ * conditions) so the UI stepper module stays unchanged. */
+let axiom_step_outgoing =
+    (
+      ~info_map: Statics.Map.t,
+      ~env: Environment.t(Exp.t),
+      ~ctx: Ctx.t,
+      ~at_idx: int,
+      ~at_exp: Exp.t,
+      ~direction: Direction.t,
+      ~equality: string,
+      incoming: Exp.t,
+    )
+    : option(Exp.t) =>
+  axiom_step_outgoing_result(
+    ~info_map,
+    ~env,
+    ~ctx,
+    ~at_idx,
+    ~at_exp,
+    ~direction,
+    ~equality,
+    incoming,
+  )
+  |> (
+    fun
+    | Ok((out, _conditions)) => Some(out)
+    | Error(_) => None
+  );
 
 /* Wrapper invoked from the Proof AST: extracts idx/name out of the
  * expression-shaped arguments before calling the structured helper. */
@@ -208,7 +249,7 @@ let axiom_step_outgoing_ast =
       ~equality: Exp.t,
       incoming: Exp.t,
     )
-    : result(Exp.t, ProofMark.t) =>
+    : result((Exp.t, list(Exp.t)), ProofMark.t) =>
   switch (exp_to_int(at_idx)) {
   | None => Error(MalformedIndex)
   | Some(idx) =>
@@ -354,21 +395,120 @@ let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) =>
        }
      );
 
+/* --- Discharge channel 2: closed evaluation (§4.2) -------------------
+ *
+ * Ground obligations (`2 != 0`) just run: if the goal has no free
+ * variables after env substitution, evaluate it by iterating the
+ * injected single-step function to a fixpoint (with a generous fuel
+ * bound, since `step_fn` exposes no termination signal) and check for
+ * the literal `true`. Open goals are NEVER evaluated. */
+
+let closed_eval_fuel = 1000;
+
+/* Closedness via the co-context machinery (cf. `ProofRule.get_coctx`):
+ * run statics on the goal against an empty ctx; an empty co-context
+ * means no free variable occurrences. */
+let is_closed = (goal: Exp.t): bool => {
+  let (statics, _) =
+    Statics.mk(~ana=Typ.temp(Atom(Bool)), CoreSettings.on, Ctx.empty, goal);
+  switch (Statics.Map.lookup_exp(Exp.rep_id(goal), statics)) {
+  | Some(info) => Info.exp_co_ctx(info) == []
+  | None => false
+  };
+};
+
+let rec eval_via_step = (~step: step_fn, ~env, ~fuel: int, e: Exp.t): Exp.t =>
+  if (fuel <= 0) {
+    e;
+  } else {
+    switch (step(~env, e)) {
+    | Some({outgoing, _}) =>
+      eval_via_step(~step, ~env, ~fuel=fuel - 1, outgoing)
+    | None => e
+    };
+  };
+
+/* Run the discharge channels in order on an (env-substituted) obligation
+ * goal: 1. binder lookup, 2. closed evaluation; otherwise Pending. */
+let discharge_goal =
+    (~step: step_fn, ~ctx: SemanticCtx.t, goal: Exp.t): Obligation.discharge =>
+  switch (lookup_fact(ctx, goal)) {
+  | Some(fact_id) => Obligation.Remote(fact_id)
+  | None =>
+    if (is_closed(goal)) {
+      let result =
+        eval_via_step(
+          ~step,
+          ~env=SemanticCtx.get_env(ctx),
+          ~fuel=closed_eval_fuel,
+          goal,
+        );
+      Exp.fast_equal(result, Exp.temp(Atom(Bool(true))))
+        ? Obligation.Evaluated : Obligation.Pending;
+    } else {
+      Obligation.Pending;
+    }
+  };
+
+/* Build the obligation record for one incurred condition at step `id`,
+ * running the discharge channels. */
+let incur_obligation =
+    (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, goal: Exp.t)
+    : Obligation.t => {
+  let goal = goal |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+  Obligation.{
+    origin,
+    bindings: SemanticCtx.get_ctx(ctx).entries,
+    goal,
+    discharge: discharge_goal(~step, ~ctx, goal),
+  };
+};
+
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used
- * by the `Forall` and `Intro` proof forms to walk under the binder. */
-let peel_binder = (incoming: option(Exp.t)): option((Pat.t, Typ.t, Exp.t)) => {
+ * by the `Forall` and `Intro` proof forms to walk under the binder. The
+ * third component is the binder's `where` restriction, if any — peeling a
+ * restricted binder additionally installs it as a hypothesis (a free,
+ * sound introduction; docs/prover-obligations.md §2.2). */
+let peel_binder =
+    (incoming: option(Exp.t))
+    : option((Pat.t, Typ.t, option(Exp.t), Exp.t)) => {
   open OptUtil.Syntax;
   let* e = incoming;
   switch (e |> Exp.term_of) {
   | Fun(p, d1, t, _) =>
     let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-    Some((p, t, d1));
+    Some((p, t, None, d1));
   | Forall(p, d1) =>
     /* No annotated type at this level, use Unknown. */
-    Some((p, Typ.fresh(Unknown(Internal)), d1))
+    Some((p, Typ.fresh(Unknown(Internal)), None, d1))
+  | ForallWhere(p, g, d1) =>
+    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1))
   | _ => None
   };
 };
+
+/* Auto-introduce a theorem statement's outer binders: extend the semantic
+ * ctx with each binder's variables, install `where` restrictions as
+ * hypotheses (base name "where"), and return the remaining core goal —
+ * which retains any `==>` antecedents (those are introduced explicitly,
+ * via `assume`). Used by the big-step evaluator's theorem hook and the
+ * per-theorem UI stepper to seed the proof goal. */
+let rec peel_stmt_binders =
+        (ctx: SemanticCtx.t, goal: Exp.t): (SemanticCtx.t, Exp.t) =>
+  switch (goal |> Exp.term_of) {
+  | Forall(p, body) =>
+    peel_stmt_binders(
+      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal))),
+      body,
+    )
+  | ForallWhere(p, g, body) =>
+    let ctx =
+      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+    let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let (ctx, _) = SemanticCtx.add_hypothesis(ctx, "where", g);
+    peel_stmt_binders(ctx, body);
+  | _ => (ctx, goal)
+  };
 
 /* Translate an Ok/Error result from one of the *_ast helpers into an
  * (outgoing, marks) pair suitable for `record`.
@@ -439,12 +579,11 @@ let rec check =
     let (out2, m2) = check(~step, ~info_map, ~ctx, out1, p2);
     (out2, record(id, incoming, out2, ProofMap.union(m1, m2)));
   | AxiomStep({at_idx, at_exp, direction, equality}) =>
-    let (outgoing, marks) =
+    let (outgoing, marks, obligations) =
       switch (incoming) {
-      | None => (None, [ProofMark.MissingIncoming])
+      | None => (None, [ProofMark.MissingIncoming], [])
       | Some(inc) =>
-        result_to_outgoing(
-          ~incoming=inc,
+        switch (
           axiom_step_outgoing_ast(
             ~info_map,
             ~env=SemanticCtx.get_env(ctx),
@@ -454,10 +593,28 @@ let rec check =
             ~direction,
             ~equality,
             inc,
-          ),
-        )
+          )
+        ) {
+        | Ok((out, condition_goals)) =>
+          /* Conditional-rule application: each of the rule's assumptions,
+           * instantiated by the match, is incurred as an obligation on
+           * this step (docs/prover-obligations.md §4.1), running the
+           * discharge channels. */
+          let obligations =
+            List.map(
+              incur_obligation(~step, ~ctx, ~origin=id),
+              condition_goals,
+            );
+          (Some(out), [], obligations);
+        /* Error recovery: pass the incoming through (see
+         * `result_to_outgoing`). */
+        | Error(m) => (Some(inc), [m], [])
+        }
       };
-    (outgoing, record(~marks, id, incoming, outgoing, ProofMap.empty));
+    (
+      outgoing,
+      record(~marks, ~obligations, id, incoming, outgoing, ProofMap.empty),
+    );
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
     let (outgoing, marks) =
       switch (incoming) {
@@ -512,11 +669,19 @@ let rec check =
       | None => (None, ctx, [ProofMark.MissingIncoming])
       | Some(_) =>
         switch (peel_binder(incoming)) {
-        | Some((p, t, inner)) => (
-            Some(inner),
-            SemanticCtx.add_from_pattern(ctx, p, t),
-            [],
-          )
+        | Some((p, t, guard, inner)) =>
+          let ctx' = SemanticCtx.add_from_pattern(ctx, p, t);
+          /* A restricted binder's `where` guard becomes a hypothesis for
+           * the sub-proof — free, sound intro (§2.2). */
+          let ctx' =
+            switch (guard) {
+            | Some(g) =>
+              let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx'));
+              let (ctx'', _) = SemanticCtx.add_hypothesis(ctx', "where", g);
+              ctx'';
+            | None => ctx'
+            };
+          (Some(inner), ctx', []);
         /* Recovery: no binder to peel — mark it, but let the body keep
          * working on the goal as-is. */
         | None => (incoming, ctx, [ProofMark.ExpectedForallGoal])
@@ -536,30 +701,57 @@ let rec check =
       };
     (outgoing, record(~marks=binder_marks, id, incoming, outgoing, m));
   | Assume(e, body) =>
-    /* Hypothesize `e` for the body's scope, incurring an obligation to
-     * establish it (recorded on this node's ProofMap entry). Assuming
-     * doesn't change the goal, so the node's outgoing is the body's. */
+    /* Hypothesize `e` for the body's scope. Two readings, one form
+     * (docs/prover-obligations.md §2.1):
+     *
+     * - Implication INTRO: if the incoming goal is `A ==> B` and the
+     *   assumed exp equals A (alpha-equality via `Exp.fast_equal`), the
+     *   antecedent is stripped — the body's incoming is B — and NO
+     *   obligation is incurred: intro is unconditionally sound.
+     * - Otherwise (assume-then-bake): the goal is unchanged and the step
+     *   incurs an obligation to establish the assumption, run through
+     *   discharge channels 1 (binder lookup) and 2 (closed evaluation).
+     *
+     * Assuming never changes the outgoing: it's the body's. */
     let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
-    /* Channel-1 discharge against the ENCLOSING scope's facts (before the
-     * new hypothesis is added, so an assume never discharges itself). */
-    let discharge =
-      switch (lookup_fact(ctx, hyp)) {
-      | Some(fact_id) => Obligation.Remote(fact_id)
-      | None => Obligation.Pending
+    let intro_consequent =
+      switch (incoming) {
+      | Some(goal) =>
+        switch (goal |> Exp.term_of) {
+        | BinOp(Bool(Implies), a, b)
+            when
+              Exp.fast_equal(
+                a |> Substitution.in_exp(SemanticCtx.get_env(ctx)),
+                hyp,
+              ) =>
+          Some(b)
+        | _ => None
+        }
+      | None => None
       };
-    let obligation =
-      Obligation.{
-        origin: id,
-        bindings: SemanticCtx.get_ctx(ctx).entries,
-        goal: hyp,
-        discharge,
+    /* Channels run against the ENCLOSING scope's facts (before the new
+     * hypothesis is added, so an assume never discharges itself). */
+    let obligations =
+      switch (intro_consequent) {
+      | Some(_) => []
+      | None => [
+          Obligation.{
+            origin: id,
+            bindings: SemanticCtx.get_ctx(ctx).entries,
+            goal: hyp,
+            discharge: discharge_goal(~step, ~ctx, hyp),
+          },
+        ]
+      };
+    let body_incoming =
+      switch (intro_consequent) {
+      | Some(b) => Some(b)
+      | None => incoming
       };
     let (ctx', _binding) = SemanticCtx.add_hypothesis(ctx, "assume", hyp);
-    let (out_body, m) = check(~step, ~info_map, ~ctx=ctx', incoming, body);
-    (
-      out_body,
-      record(~obligations=[obligation], id, incoming, out_body, m),
-    );
+    let (out_body, m) =
+      check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
+    (out_body, record(~obligations, id, incoming, out_body, m));
   | Induction(scrut, cases) =>
     let (out, marks, m) =
       check_induction(~step, ~info_map, ~ctx, ~incoming, ~scrut, ~cases);

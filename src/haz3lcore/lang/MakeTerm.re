@@ -949,6 +949,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
+        | (["forall", "where", "->"], [Pat(pat), Exp(g)]) =>
+          ForallWhere(pat, g, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
@@ -1097,6 +1099,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
           | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["==>"], []) => BinOp(Bool(Implies), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)

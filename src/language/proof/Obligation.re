@@ -20,6 +20,10 @@ type discharge =
   /* Discharged by an in-scope fact (binder restriction, case_eq,
    * hypothesis), identified by that fact's stable id. */
   | Remote(Id.t)
+  /* Channel 2 (docs/prover-obligations.md §4.2): the goal was closed and
+   * evaluated to the literal `true`. Replayable in the stepper by
+   * construction. */
+  | Evaluated
   /* Nothing in scope covers it. */
   | Pending;
 
@@ -38,5 +42,6 @@ let is_pending = (ob: t): bool =>
   switch (ob.discharge) {
   | Pending => true
   | Local(_)
-  | Remote(_) => false
+  | Remote(_)
+  | Evaluated => false
   };

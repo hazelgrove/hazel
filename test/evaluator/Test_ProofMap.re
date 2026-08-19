@@ -641,9 +641,11 @@ let test_axiom_direction_roundtrip = () => {
 
 /* (a) An unused, undischargeable assumption: the proof still reaches
  * `true` (legacy status unchanged), but full status is ProvenModulo with
- * exactly one pending obligation `2 == 2`. */
+ * exactly one pending obligation `1 == 2`. (The assumption is closed but
+ * evaluates to `false`, so discharge channel 2 does NOT fire — a closed
+ * `true` assumption would discharge as `Evaluated`, see the next test.) */
 let test_assume_proven_modulo = () => {
-  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -655,7 +657,7 @@ let test_assume_proven_modulo = () => {
   );
   switch (ProofMap.full_status_of_proof(pm, proof)) {
   | ProvenModulo([ob]) =>
-    check_exp("pending obligation goal is the assumption", "2 == 2", ob.goal);
+    check_exp("pending obligation goal is the assumption", "1 == 2", ob.goal);
     Alcotest.check(
       Alcotest.bool,
       "the obligation is pending",
@@ -668,6 +670,32 @@ let test_assume_proven_modulo = () => {
       ++ ProofMap.show_full_status(other),
     )
   };
+};
+
+/* (a') Discharge channel 2 (closed evaluation): a closed assumption that
+ * evaluates to literal `true` discharges as `Evaluated`, so the theorem
+ * is fully Proven despite the (baked) assumption. */
+let test_assume_closed_true_discharges_evaluated = () => {
+  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  Alcotest.check(
+    Alcotest.bool,
+    "the obligation discharges by closed evaluation",
+    true,
+    switch (all) {
+    | [ob] => ob.discharge == Obligation.Evaluated
+    | _ => false
+    },
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "full status is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
 };
 
 /* (b) The assumed equation is USED: citing the generated hypothesis name
@@ -692,9 +720,11 @@ let test_assume_hypothesis_used = () => {
 
 /* (c) A nested assume of an identical proposition: the inner obligation
  * discharges Remote against the outer hypothesis (channel-1 lookup), so
- * two obligations are recorded but only ONE is pending. */
+ * two obligations are recorded but only ONE is pending. (Channel 1 is
+ * tried before channel 2, and `1 == 2` evaluates to `false` anyway, so
+ * the outer one stays pending.) */
 let test_nested_assume_discharges_remote = () => {
-  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => assume 1 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -720,6 +750,7 @@ let test_nested_assume_discharges_remote = () => {
         switch (ob.discharge) {
         | Remote(_) => true
         | Local(_)
+        | Evaluated
         | Pending => false
         },
       all,
@@ -753,6 +784,294 @@ let test_no_assume_full_status_proven = () => {
     "full status is Proven",
     true,
     ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
+};
+
+/* --- Phase 2: implication and restrictions --------------------------- */
+
+/* Find the proof of the theorem bound to `name` (test programs may now
+ * contain several theorems, e.g. a guarded lemma and its use site). */
+let rec pat_var_name = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(x) => Some(x)
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _) => pat_var_name(p)
+  | _ => None
+  };
+
+let find_theorem_proof_named = (name: string, e: Exp.t): option(Proof.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Theorem(p, _, proof, _) when pat_var_name(p) == Some(name) =>
+      if (found^ == None) {
+        found := Some(proof);
+      };
+      continue(e);
+    | _ => continue(e)
+    };
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
+let proof_of_named = (name: string, elab: Exp.t): Proof.t =>
+  switch (find_theorem_proof_named(name, elab)) {
+  | Some(p) => p
+  | None => Alcotest.fail("no theorem named " ++ name)
+  };
+
+/* `==>` parses right-associative, just below `||`, and round-trips
+ * through printing. */
+let test_implies_parse_and_roundtrip = () => {
+  let same = (msg, a, b) =>
+    Alcotest.check(
+      Alcotest.bool,
+      msg,
+      true,
+      Exp.fast_equal(parse_exp(a), parse_exp(b)),
+    );
+  let diff = (msg, a, b) =>
+    Alcotest.check(
+      Alcotest.bool,
+      msg,
+      false,
+      Exp.fast_equal(parse_exp(a), parse_exp(b)),
+    );
+  same(
+    "==> binds looser than ==",
+    "a == b ==> c == d",
+    "(a == b) ==> (c == d)",
+  );
+  same("==> is right-associative", "a ==> b ==> c", "a ==> (b ==> c)");
+  diff("==> is not left-associative", "a ==> b ==> c", "(a ==> b) ==> c");
+  same(
+    "==> binds looser than ||",
+    "a || b ==> c || d",
+    "(a || b) ==> (c || d)",
+  );
+  let roundtrip = src => {
+    let e = parse_exp(src);
+    Alcotest.check(
+      Alcotest.bool,
+      "round-trip: " ++ src,
+      true,
+      Exp.fast_equal(e, parse_exp(print_exp(e))),
+    );
+  };
+  roundtrip("a == b ==> c == d");
+  roundtrip("a ==> b ==> c");
+  roundtrip("(a ==> b) ==> c");
+};
+
+/* `forall p where g -> e` parses, prints, and round-trips; exp_to_rule
+ * reads the guard as an assumption. */
+let test_forall_where_parse_and_rule = () => {
+  let src = "forall x where x != 0 -> x == x";
+  let e = parse_exp(src);
+  Alcotest.check(
+    Alcotest.bool,
+    "parses to ForallWhere",
+    true,
+    switch (Exp.term_of(e)) {
+    | ForallWhere(_, _, _) => true
+    | _ => false
+    },
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "round-trips through printing",
+    true,
+    Exp.fast_equal(e, parse_exp(print_exp(e))),
+  );
+  let rule = ProofRule.exp_to_rule(e);
+  Alcotest.check(
+    Alcotest.int,
+    "guard becomes one assumption",
+    1,
+    List.length(rule.assumptions),
+  );
+  check_exp(
+    "the assumption is the guard",
+    "x != 0",
+    List.hd(rule.assumptions),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "conclusion is the equality",
+    true,
+    switch (rule.conclusion) {
+    | Equality(_, _) => true
+    | Other(_) => false
+    },
+  );
+};
+
+/* Implication INTRO via assume: when the assumed exp is the antecedent of
+ * the incoming `A ==> B` goal, the checker strips it — body's incoming is
+ * B — and NO obligation is incurred. A complete proof goes through with
+ * full status Proven and zero obligations. */
+let test_impl_intro_via_assume = () => {
+  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => axiom assume at 0 on x end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.int,
+    "intro incurs ZERO obligations",
+    0,
+    List.length(ProofMap.obligations_of_proof(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "full status is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
+};
+
+/* Non-matching assume against an implication goal falls back to Phase-1
+ * behavior: the goal keeps its antecedent, so the proof can't strip it,
+ * and the assume incurs its obligation. */
+let test_assume_non_antecedent_keeps_goal = () => {
+  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 5 => ? in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.int,
+    "non-intro assume still incurs its obligation",
+    1,
+    List.length(ProofMap.obligations_of_proof(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.option(bool),
+    "nothing is proven",
+    None,
+    ProofMap.status_of_proof(pm, proof),
+  );
+};
+
+/* Conditional rule via a restricted binder: a use site with a CLOSED
+ * instantiation incurs the instantiated guard, which discharge channel 2
+ * evaluates away (`Evaluated`) — full status Proven. */
+let test_conditional_rule_closed_discharges = () => {
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof axiom refl_eq at 0 on x == x end in theorem u = 2 == 2 proof axiom inv at 0 on 2 end; axiom refl_eq at 0 on 2 == 2 end in u|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let use_proof = proof_of_named("u", elab);
+  let obs = ProofMap.obligations_of_proof(pm, use_proof);
+  Alcotest.check(
+    Alcotest.int,
+    "the use site incurs one obligation",
+    1,
+    List.length(obs),
+  );
+  switch (obs) {
+  | [ob] =>
+    check_exp("the obligation is the instantiated guard", "2 != 0", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged by closed evaluation",
+      true,
+      ob.discharge == Obligation.Evaluated,
+    );
+  | _ => ()
+  };
+  Alcotest.check(
+    Alcotest.bool,
+    "use is fully Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, use_proof) == ProofMap.Proven,
+  );
+};
+
+/* Same rule with an OPEN instantiation: the instantiated guard can't be
+ * evaluated (never evaluate open goals) and nothing in scope covers it —
+ * Pending, so the use is ProvenModulo. */
+let test_conditional_rule_open_pending = () => {
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof axiom refl_eq at 0 on x == x end in theorem u = forall y -> y == y proof axiom inv at 0 on y end; axiom refl_eq at 0 on y == y end in u|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let use_proof = proof_of_named("u", elab);
+  switch (ProofMap.full_status_of_proof(pm, use_proof)) {
+  | ProvenModulo([ob]) =>
+    check_exp("pending obligation is the open guard", "y != 0", ob.goal)
+  | other =>
+    Alcotest.fail(
+      "expected ProvenModulo with one pending obligation, got: "
+      ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* Peeling a restricted binder installs the guard as a citable hypothesis
+ * (base name "where") — free, sound intro: the proof can rewrite with it
+ * and close with ZERO obligations. */
+let test_forall_where_hypothesis_cited = () => {
+  let src = {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.int,
+    "where-intro incurs no obligations",
+    0,
+    List.length(ProofMap.obligations_of_proof(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "full status is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
+};
+
+/* Underdetermined instantiation: a conditional rule whose assumption
+ * mentions a metavariable (`k`) the conclusion match cannot fix is
+ * refused with UnderdeterminedInstantiation. */
+let test_underdetermined_instantiation = () => {
+  let src = {|theorem r = forall x -> forall k -> k != 0 ==> x == x proof ? in theorem u = 2 == 2 proof axiom r at 0 on 2 end in u|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let use_proof = proof_of_named("u", elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "UnderdeterminedInstantiation mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      use_proof,
+      fun
+      | ProofMark.UnderdeterminedInstantiation(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* Built-in Kleene axioms are usable as ordinary axiom steps. */
+let test_kleene_axiom_and_comm = () => {
+  let src = {|theorem t = (true && false) == (false && true) proof axiom and_comm at 0 on true && false end; axiom refl_eq at 0 on (false && true) == (false && true) end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.bool,
+    "and_comm proof is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof_of(elab)) == ProofMap.Proven,
+  );
+};
+
+let test_kleene_axiom_impl_def = () => {
+  let src = {|theorem t = forall p -> forall q -> (p ==> q) == (!p || q) proof axiom impl_def at 0 on p ==> q end; axiom refl_eq at 0 on (!p || q) == (!p || q) end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.bool,
+    "impl_def proof is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof_of(elab)) == ProofMap.Proven,
   );
 };
 
@@ -862,6 +1181,61 @@ let tests = (
       "assume-free proof is Proven with no obligations",
       `Quick,
       test_no_assume_full_status_proven,
+    ),
+    test_case(
+      "closed true assumption discharges Evaluated",
+      `Quick,
+      test_assume_closed_true_discharges_evaluated,
+    ),
+    test_case(
+      "==> parses and round-trips",
+      `Quick,
+      test_implies_parse_and_roundtrip,
+    ),
+    test_case(
+      "forall-where parses and reads as a conditional rule",
+      `Quick,
+      test_forall_where_parse_and_rule,
+    ),
+    test_case(
+      "implication intro via assume (no obligation)",
+      `Quick,
+      test_impl_intro_via_assume,
+    ),
+    test_case(
+      "non-antecedent assume keeps the goal and its obligation",
+      `Quick,
+      test_assume_non_antecedent_keeps_goal,
+    ),
+    test_case(
+      "conditional rule: closed instantiation discharges Evaluated",
+      `Quick,
+      test_conditional_rule_closed_discharges,
+    ),
+    test_case(
+      "conditional rule: open instantiation stays Pending",
+      `Quick,
+      test_conditional_rule_open_pending,
+    ),
+    test_case(
+      "forall-where restriction is a citable hypothesis",
+      `Quick,
+      test_forall_where_hypothesis_cited,
+    ),
+    test_case(
+      "underdetermined instantiation is refused",
+      `Quick,
+      test_underdetermined_instantiation,
+    ),
+    test_case(
+      "Kleene axiom and_comm is usable",
+      `Quick,
+      test_kleene_axiom_and_comm,
+    ),
+    test_case(
+      "Kleene axiom impl_def is usable",
+      `Quick,
+      test_kleene_axiom_impl_def,
     ),
   ],
 );

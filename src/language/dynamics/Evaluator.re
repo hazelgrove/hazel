@@ -98,15 +98,17 @@ let rec evaluate =
       | None => Ctx.empty
       };
     /* Auto-introduce the theorem's outer universal quantifiers: their
-     * bound variables become hypotheses in the proof context, and the
-     * proof is checked against the rule's conclusion rather than the full
-     * proposition. This mirrors the per-theorem stepper (Theorems.re),
-     * which seeds its goal from `conclusion_exp` and extends ctx with the
-     * same bindings, so the big-step proof_map agrees with the stepper. */
-    let rule = ProofRule.exp_to_rule(goal);
-    let ctx =
-      List.fold_left(Ctx.extend, ctx, rule.ProofRule.bindings |> List.rev);
-    let sem_ctx = SemanticCtx.of_ctx_and_env(ctx, env);
+     * bound variables enter the proof context (and `where` restrictions
+     * become hypotheses), and the proof is checked against the remaining
+     * core — which keeps any `==>` antecedents, introduced explicitly via
+     * `assume`. This mirrors the per-theorem stepper (Theorems.re), which
+     * seeds its goal through the same `ProofCheck.peel_stmt_binders`, so
+     * the big-step proof_map agrees with the stepper. */
+    let (sem_ctx, conclusion) =
+      ProofCheck.peel_stmt_binders(
+        SemanticCtx.of_ctx_and_env(ctx, env),
+        goal,
+      );
     /* Single-step callback injected into ProofCheck.
      *
      * For proof-level `eval <exp> at <idx> end` the user's mental model
@@ -178,7 +180,6 @@ let rec evaluate =
         };
       }
     );
-    let conclusion = ProofRule.conclusion_exp(rule);
     let (_out, pm) =
       ProofCheck.check(
         ~step,

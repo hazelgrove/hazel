@@ -1191,6 +1191,33 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
 
+      | ForallWhere(p, g, e) =>
+        if (available^ < 6) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ <= 14) {
+          Invalid("forall…where…→…");
+        } else {
+          available := available^ - 14;
+          let p' = abbreviate_pat(p);
+          let g' = abbreviate_exp(g);
+          if (available^ > 4) {
+            // " -> "
+            available := available^ - 4;
+            let e' = abbreviate_exp(e);
+            ForallWhere(p', g', e');
+          } else {
+            ForallWhere(
+              p',
+              g',
+              {
+                ...e,
+                term: indet_term,
+              },
+            );
+          };
+        }
+
       | Closure(env, exp) =>
         handle_unary(
           ~cost=1, // space between terms

@@ -77,6 +77,13 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
         ++ " direction here.",
       ),
     ]
+  | UnderdeterminedInstantiation({equality}) => [
+      text(
+        "Conditional rule \""
+        ++ equality
+        ++ "\" matched, but its side conditions mention variables the match did not determine.",
+      ),
+    ]
   | MalformedIndex => [text("Expected a numeric index literal.")]
   | PatternNotFound({at_exp, at_idx}) => [
       text("Could not find occurrence #" ++ string_of_int(at_idx) ++ " of "),

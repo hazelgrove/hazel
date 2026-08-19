@@ -87,6 +87,7 @@ module Operators = {
         switch (op_bool) {
         | And => And
         | Or => Or
+        | Implies => Implies
         },
       )
     | String(op_string) =>
@@ -162,6 +163,7 @@ module Operators = {
     switch (op) {
     | And => And
     | Or => Or
+    | Implies => Implies
     };
   };
 
@@ -364,6 +366,13 @@ module rec Exp: {
       Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
+    /* The menhir AST has no restricted-binder form; render as the
+       logically-equivalent `forall p -> g ==> e`. */
+    | ForallWhere(p, g, e) =>
+      ForallExp(
+        Pat.of_core(p),
+        BinExp(Exp.of_core(g), BoolOp(Implies), Exp.of_core(e)),
+      )
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined

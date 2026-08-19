@@ -24,7 +24,8 @@ type op_bin_float =
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_bool =
   | And
-  | Or;
+  | Or
+  | Implies;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_int =

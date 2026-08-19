@@ -324,6 +324,51 @@ and uexp_to_info_map =
           m,
         );
       proof_ctx_of_goal(fp'.ctx, fbody, m);
+    | ForallWhere(fp, g, fbody) =>
+      /* Like Forall, but the `where` restriction additionally enters the
+         proof's scope as a citable hypothesis, under the same
+         deterministically-generated name the big-step checker will use
+         (`SemanticCtx.add_hypothesis` with base name "where", freshened
+         against the variables in scope) — mirroring the Assume statics
+         below. */
+      let (fp', _, m) =
+        upat_to_info_map(
+          ~is_synswitch=false,
+          ~ctx,
+          ~co_ctx=CoCtx.empty,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          fp,
+          m,
+        );
+      let ctx = fp'.ctx;
+      let name =
+        Var.free_name(
+          "where",
+          List.map(
+            (ve: Ctx.var_entry) => ve.name,
+            Ctx.get_var_entries(ctx),
+          ),
+        );
+      let hyp_id = IdTagged.rep_id(g);
+      let ctx =
+        Ctx.extend_hypothesis(
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name,
+              id: hyp_id,
+              typ: Typ.fresh(ProofOf(g)),
+              custom_statics: None,
+            }),
+          ),
+          {
+            name,
+            id: hyp_id,
+            prop: Some(g),
+          },
+        );
+      proof_ctx_of_goal(ctx, fbody, m);
     | _ => (ctx, m)
     };
   /* Analyze an expression in label position. Adds info for the label
@@ -1927,6 +1972,28 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
+        m,
+      );
+    | ForallWhere(p, g, e) =>
+      /* Restricted binder: the guard `g` and the body `e` are both
+         propositions (Bool) with the binder in scope. */
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (g, g_elab, m) =
+        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, g, m);
+      let (e, e_elab, m) =
+        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add(
+        ~elab_term=ForallWhere(p_elab, g_elab, e_elab) |> rewrap,
+        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, CoCtx.union([g.co_ctx, e.co_ctx])),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            p.probe_targets,
+            g.probe_targets,
+            e.probe_targets,
+          ]),
         m,
       );
     | TypFun(utpat, body, tfname) =>
@@ -4754,13 +4821,32 @@ and proof_to_info_map =
 
 /* Seed the initial context with built-in hypothesis entries (axioms) that
    every program has access to. Keep this in sync with [Axioms.re]. */
-let initial_hypotheses: list(Ctx.hypothesis_entry) = [
-  {
-    name: "refl_eq",
-    id: Id.mk_str("refl_eq"),
-    prop: None,
-  },
-];
+let initial_hypotheses: list(Ctx.hypothesis_entry) =
+  [
+    "refl_eq",
+    "impl_def",
+    "and_comm",
+    "or_comm",
+    "and_assoc",
+    "or_assoc",
+    "demorgan_and",
+    "demorgan_or",
+    "and_true",
+    "and_false",
+    "or_true",
+    "or_false",
+    "not_not",
+    "impl_true",
+    "true_impl",
+    "false_impl",
+  ]
+  |> List.map(name =>
+       Ctx.{
+         name,
+         id: Id.mk_str(name),
+         prop: None,
+       }
+     );
 
 let with_initial_hypotheses = (ctx: Ctx.t): Ctx.t =>
   List.fold_left(Ctx.extend_hypothesis, ctx, initial_hypotheses);

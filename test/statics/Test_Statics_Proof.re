@@ -151,5 +151,38 @@ let tests = (
       {|theorem t = 1 == 1 proof assume 2 == 2 => ? in t|},
       is_expectation_mismatch,
     ),
+    /* --- Phase 2: implication and restrictions ----------------------- */
+    /* `==>` types Bool × Bool → Bool: boolean operands are fine... */
+    expects_no_mark(
+      "==> accepts boolean operands",
+      {|theorem t = true ==> true proof ? in t|},
+      is_expectation_mismatch,
+    ),
+    /* ...non-boolean ones are a type error. */
+    expects_mark(
+      "==> rejects non-boolean operands",
+      {|theorem t = 5 ==> true proof ? in t|},
+      is_expectation_mismatch,
+    ),
+    /* Restricted binder: the binder is in scope for both the guard and
+       the body, and both analyze against Bool. */
+    expects_no_mark(
+      "forall-where binder scopes over guard and body",
+      {|theorem t = forall x where x == 1 -> x == 1 proof ? in t|},
+      is_free_var,
+    ),
+    expects_mark(
+      "forall-where guard analyzes against Bool",
+      {|theorem t = forall x where 5 -> x == x proof ? in t|},
+      is_expectation_mismatch,
+    ),
+    /* Peeling a restricted binder installs the guard as a hypothesis
+       (base name "where"): citing it in the proof is not a free
+       hypothesis. */
+    expects_no_mark(
+      "forall-where restriction is citable as `where`",
+      {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end in t|},
+      is_free_hyp,
+    ),
   ],
 );

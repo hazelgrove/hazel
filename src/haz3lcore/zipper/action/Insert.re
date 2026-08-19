@@ -141,6 +141,44 @@ let insert_shard_core =
   };
 };
 
+/* `forall p where g -> e` (ForallWhere) shares its leading token with
+ * plain Forall, and the expansion machinery necessarily resolves the
+ * ambiguity at "forall"-typing time in favor of the two-shard label.
+ * When the token "where" materializes and the lexically-closest
+ * incomplete tile to the left is a `forall` still missing its "->",
+ * upgrade that tile's label to the three-shard ForallWhere form; the
+ * "where" (and, later, the "->") then land through the ordinary
+ * missing-shard machinery. */
+let upgrade_forall_where = (z: t): t => {
+  let (pre, suf) = z.relatives.siblings;
+  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
+    switch (rev_pre) {
+    | [] => None
+    | [Tile({label: ["forall", "->"], shards: [0], _} as tile), ...rest] =>
+      let label = ["forall", "where", "->"];
+      let mold = Form.Molds.get(Sort.Exp, label);
+      Some([
+        Piece.Tile({
+          ...tile,
+          label,
+          mold,
+        }),
+        ...rest,
+      ]);
+    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
+    };
+  switch (go(List.rev(pre))) {
+  | Some(rev_pre') => {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(rev_pre'), suf),
+      },
+    }
+  | None => z
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -151,7 +189,8 @@ let insert_shard =
       z: t,
       ~root,
     )
-    : t =>
+    : t => {
+  let z = t == "where" ? upgrade_forall_where(z) : z;
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;
@@ -166,6 +205,7 @@ let insert_shard =
       ~root,
     );
   };
+};
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard =

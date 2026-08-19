@@ -538,7 +538,8 @@ module Transition = (EV: EV_MODE) => {
         })
       };
     // Note[Matt]: we could make this spin, but for now it's indet
-    | Forall(_) =>
+    | Forall(_)
+    | ForallWhere(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | TypFun(_)
@@ -923,6 +924,25 @@ module Transition = (EV: EV_MODE) => {
         expr: b1 ? bool(true) : asc(d2, IdTagged.FreshGrammar.Typ.bool()),
         side_effects: [],
         kind: BinOp(Bool(Or)),
+        is_value: false,
+      });
+    /* Material implication evaluates McCarthy left-to-right: a false
+       antecedent short-circuits to true without touching the consequent
+       (docs/prover-obligations.md §2.1). */
+    | BinOp(Bool(Implies), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(Implies), d1, d2) |> rewrap)
+      and. d1' =
+        req_final(
+          req(env),
+          d1 => BinOp1(Bool(Implies), d1, d2) |> wrap_ctx,
+          d1,
+        );
+      let.wrap_closure _ = (env, BinOp(Bool(Implies), d1', d2) |> rewrap);
+      let-unbox b1 = (Atom(Bool), d1');
+      Step({
+        expr: b1 ? asc(d2, IdTagged.FreshGrammar.Typ.bool()) : bool(true),
+        side_effects: [],
+        kind: BinOp(Bool(Implies)),
         is_value: false,
       });
     | BinOp(op, d1, d2) =>

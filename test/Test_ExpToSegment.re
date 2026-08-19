@@ -903,6 +903,16 @@ end|}),
     roundtrip_test({|Forall: simple|}, {|forall a -> 1|}),
     roundtrip_test({|Forall: with spaces|}, {|forall a  ->  1|}),
     roundtrip_test({|Forall: compact|}, {|forall a->1|}),
+    /* restricted forall (where-binder) */
+    roundtrip_test(
+      {|ForallWhere: simple|},
+      {|forall a where a != 0 -> a == a|},
+    ),
+    /* material implication */
+    roundtrip_test({|Implies: simple|}, {|true ==> false|}),
+    roundtrip_test({|Implies: with equalities|}, {|a == b ==> c == d|}),
+    roundtrip_test({|Implies: chained|}, {|a ==> b ==> c|}),
+    roundtrip_test({|Implies: left-parenthesized|}, {|(a ==> b) ==> c|}),
     /* Use expressions (use ... in) */
     roundtrip_test({|Use: simple|}, {|use Nat in 1|}),
     roundtrip_test({|Use: spaced|}, {|use Nat  in  1|}),
