@@ -73,10 +73,18 @@ let perform =
   };
 
 /* What the editor posts to the worker: the elaborated term from CachedStatics
-   and the probe targets, not a fresh Statics.mk. */
+   plus the eval_info EvalResult.Update.calculate builds from the info_map --
+   `of_info_map`, NOT `of_targets`. The difference is not cosmetic: only
+   `of_info_map` populates the per-id `statics` field (elab_term, co_ctx,
+   probe_targets), which is a real evaluator input. A harness that passes
+   `of_targets` is evaluating a different request than the editor does. */
 let request = (model: CodeWithStatics.Model.t): (Exp.t, EvalInfo.t) => (
   model.statics.elaborated,
-  EvalInfo.of_targets(model.statics.targets),
+  EvalInfo.of_info_map(
+    ~probe_all=settings.probe_all,
+    ~targets=model.statics.targets,
+    model.statics.info_map,
+  ),
 );
 
 /* Evaluate that request the way WorkerServer does: in slices, resuming a
@@ -98,6 +106,43 @@ let evaluate_as_worker =
       : (
         switch (Evaluator.run_yielding_slice(~step_budget, evaluation)) {
         | EvaluationCompleted(pair) => Ok(pair)
+        | EvaluationYielded(evaluation) => drive(n + 1, evaluation)
+        }
+      );
+  drive(
+    0,
+    Evaluator.start_yielding_evaluation(
+      ~prev,
+      ~eval_info,
+      ~env=Builtins.env_init,
+      expr,
+    ),
+  );
+};
+
+/* The incremental map a *pending* evaluation leaves behind.
+   `EvalResult.Update.calculate` sets `incr_eval := streaming_outbox.completed`
+   whenever the result is still `ResultPending`, and that value is what goes
+   out as `prev` on the next request. When the worker abandons a run (a newer
+   request arrives mid-flight, `WorkerServer.is_latest`), this partial map is
+   the `prev` the next evaluation reuses -- so it is a real input to the
+   evaluator, not just an intermediate. Drive `slices` slices and harvest it. */
+let partial_prev =
+    (
+      ~step_budget: int=5000,
+      ~slices: int,
+      ~prev=IncrEval.empty,
+      model: CodeWithStatics.Model.t,
+    )
+    : EvaluatorState.incr_eval => {
+  let (expr, eval_info) = request(model);
+  let rec drive = (n, evaluation) =>
+    n >= slices
+      ? Evaluator.drain_streaming_outbox(evaluation).completed
+      : (
+        switch (Evaluator.run_yielding_slice(~step_budget, evaluation)) {
+        | EvaluationCompleted(_) =>
+          Evaluator.drain_streaming_outbox(evaluation).completed
         | EvaluationYielded(evaluation) => drive(n + 1, evaluation)
         }
       );

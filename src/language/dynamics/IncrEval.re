@@ -344,5 +344,24 @@ let reuse_check =
       (),
     );
 
+  /* A bare `Fun`/`TypFun` carries no environment. Transition's `Closure` rule
+     evaluates subterms with `~in_closure`, which suppresses the wrapper for
+     function values nested under a `Closure` -- correct in place, because the
+     enclosing `Closure` supplies the environment. A cache entry is keyed by id
+     alone and is replayed at top level (`call_stack.stack == []`), where that
+     enclosing `Closure` is gone. Applying the replayed function then lands in
+     `Transition`'s `| FunNoEnv(_) => Indet`, so the application is silently
+     final-but-stuck and never reduces again. Only reuse values that carry
+     their own environment. */
+  let rec carries_env = (e: Exp.t): bool =>
+    switch (e.term) {
+    | Fun(_)
+    | TypFun(_) => false
+    | Parens(x)
+    | Asc(x, _) => carries_env(x)
+    | _ => true
+    };
+  let* () = OptUtil.some_if(carries_env(entry.value), ());
+
   Some(entry);
 };
