@@ -619,3 +619,38 @@
   font-weight: bold;
   padding: 0 0.3em;
 }
+
+/* PROVER: WRAPPING PROOF FORMS (assume / revert / generalize) ---------
+ *
+ * Appended as its own section (see the note in the prover UI docs): the
+ * three wrapping forms render a keyword + their expression argument above
+ * the nested rows of their body proof, and the step-picker menu grows an
+ * inline-editor box for inserting them. */
+
+/* A wrapping form's argument row, above its body's nested stepper. Matches
+ * `.induction-scrut`: a label plus the argument in an inline chip. */
+.proof-form-arg {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  margin-left: 2em;
+}
+
+/* The insert-a-wrapping-form box in the step-picker menu. Same chrome as
+ * `.rewrite-box` / `.axiom-box`, laid out in a row because the content
+ * reads as one line of proof text (`assume <editor> => ?`) followed by its
+ * prefill and commit buttons. */
+.proof-form-box {
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 40em;
+}

@@ -5,6 +5,22 @@ open Calc.Syntax;
 open Haz3lcore;
 
 module Model = {
+  /* The wrapping proof forms this row can insert. One variant covers all
+   * three because they share the whole flow: take an expression, write
+   * `<kw> <exp> => ` around the current hole. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type proof_form =
+    | Assume
+    | Revert
+    | Generalize;
+
+  let proof_form_keyword = (f: proof_form): string =>
+    switch (f) {
+    | Assume => "assume"
+    | Revert => "revert"
+    | Generalize => "generalize"
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
     | AxiomsOpen(AxiomsBox.Model.t)
@@ -13,7 +29,31 @@ module Model = {
         cached_exp: Calc.saved(Exp.t),
         cached_result: option(bool),
       })
+    /* Same inline-editor affordance as RewritesOpen, minus the
+       check/replace round-trip: these forms are always well-formed
+       syntax, so the expression goes straight into the proof text and the
+       checker reports on the resulting step. */
+    | ProofFormOpen({
+        form: proof_form,
+        editor: CodeEditable.Model.t,
+        cached_exp: Calc.saved(Exp.t),
+      })
     | NoneOpen;
+
+  /* An editor seeded with an expression, for the one-click prefills
+     (implication antecedent / picked in-scope fact). */
+  let editor_of_exp = (exp: Exp.t): CodeEditable.Model.t =>
+    CodeEditable.Model.mk(
+      Editor.Model.mk(
+        ~root=Exp,
+        Zipper.unzip(
+          ExpToSegment.exp_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            exp,
+          ),
+        ),
+      ),
+    );
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type assumptions = list(AssumptionBox.Model.t);
@@ -67,7 +107,10 @@ module Update = {
     | ProposeRewrite
     | UpdateResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t)
-    | AxiomBoxAction(AxiomsBox.Update.t);
+    | AxiomBoxAction(AxiomsBox.Update.t)
+    | OpenProofForm(Model.proof_form)
+    | ProofFormEditorAction(CodeEditable.Update.t)
+    | PrefillProofForm(Exp.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -75,7 +118,8 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | RewritesOpen(_)
+        | ProofFormOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
         | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
@@ -87,7 +131,8 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | AxiomsOpen(_) =>
+        | AxiomsOpen(_)
+        | ProofFormOpen(_) =>
           Model.RewritesOpen({
             editor:
               CodeEditable.Model.mk(
@@ -132,6 +177,53 @@ module Update = {
         open_box: Model.AxiomsOpen(updated),
       };
     | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
+    /* Toggle: the same button closes the box it opened, and switching
+       forms (or coming from another box) opens a fresh empty editor. */
+    | (OpenProofForm(form), _) =>
+      let open_box =
+        switch (model.open_box) {
+        | ProofFormOpen({form: open_form, _}) when open_form == form => Model.NoneOpen
+        | NoneOpen
+        | AxiomsOpen(_)
+        | RewritesOpen(_)
+        | ProofFormOpen(_) =>
+          Model.ProofFormOpen({
+            form,
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(Zipper.init(), ~root=Exp),
+              ),
+            cached_exp: Calc.Pending,
+          })
+        };
+      Model.{
+        ...model,
+        open_box,
+      }
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
+    | (ProofFormEditorAction(action), ProofFormOpen({editor, _} as r)) =>
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        open_box:
+          Model.ProofFormOpen({
+            ...r,
+            editor: new_editor,
+          }),
+      };
+    | (ProofFormEditorAction(_), _) => model |> Updated.raise_invalid_action
+    | (PrefillProofForm(exp), ProofFormOpen(r)) =>
+      Model.{
+        ...model,
+        open_box:
+          Model.ProofFormOpen({
+            ...r,
+            editor: Model.editor_of_exp(exp),
+            cached_exp: Calc.Pending,
+          }),
+      }
+      |> Updated.return_quiet(~recalculate=true, ~logged=true)
+    | (PrefillProofForm(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -141,7 +233,10 @@ module Update = {
     | ProposeRewrite
     | UpdateResult(_)
     | RewriteEditorAction(_)
-    | AxiomBoxAction(_) => false
+    | AxiomBoxAction(_)
+    | OpenProofForm(_)
+    | ProofFormEditorAction(_)
+    | PrefillProofForm(_) => false
     };
   };
 
@@ -329,6 +424,30 @@ module Update = {
         AxiomsOpen(
           AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
+      | ProofFormOpen({form, editor, cached_exp}) =>
+        /* Same editor pipeline as RewritesOpen: calculate syntax/statics,
+           then read the elaborated expression back out. */
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~is_dynamic_term=true,
+            ~dynamics=Dynamics.Map.empty,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            editor,
+          );
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal_with_lexemes,
+            CodeEditable.Model.get_statics(editor).elaborated,
+            cached_exp,
+          );
+        Model.ProofFormOpen({
+          form,
+          editor,
+          cached_exp: cached_exp |> Calc.save,
+        });
       | NoneOpen => NoneOpen
       };
     let cached_env =
@@ -359,7 +478,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | RewriteEditor(CodeEditable.Selection.t)
-    | AxiomBoxSelection(AxiomsBox.Selection.t);
+    | AxiomBoxSelection(AxiomsBox.Selection.t)
+    | ProofFormEditor(CodeEditable.Selection.t);
 
   let get_cursor_info =
       (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
@@ -377,6 +497,15 @@ module Selection = {
       let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
+    | (ProofFormEditor(selection), ProofFormOpen({editor, _})) =>
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.ProofFormEditorAction(a)),
+          ~selection,
+          editor,
+        );
+      Update.ProofFormEditorAction(ci);
+    | (ProofFormEditor(_), _) => empty
     };
   };
 };
@@ -389,6 +518,11 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
+    /* The wrapping forms: `assume`/`revert`/`generalize <exp> => ?` written
+       around this row's hole (see StepperBase.assume_term & friends). */
+    | AddAssume(Exp.t)
+    | AddRevert(Exp.t)
+    | AddGeneralize(Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int);
@@ -558,6 +692,21 @@ module View = {
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
+            /* The wrapping proof forms. Each opens the same inline-editor
+               box; the keyword is the button label so it is obvious what
+               lands in the proof text. */
+            proof_button(
+              ~callback=inject(OpenProofForm(Assume)),
+              "Assume ▼",
+            ),
+            proof_button(
+              ~callback=inject(OpenProofForm(Revert)),
+              "Revert ▼",
+            ),
+            proof_button(
+              ~callback=inject(OpenProofForm(Generalize)),
+              "Generalize ▼",
+            ),
             proof_button(
               ~callback=
                 Ui_effect.Many([
@@ -755,6 +904,117 @@ module View = {
                           ]
                         };
                       },
+                    ),
+                  ];
+                | ProofFormOpen({form, editor, cached_exp}) =>
+                  let keyword = Model.proof_form_keyword(form);
+                  let unboxed_cached_exp =
+                    Calc.get_saved_exc(
+                      ~print="proof form exp not calculated",
+                      cached_exp,
+                    );
+                  let full_exp =
+                    model.full_exp
+                    |> Calc.get_saved_exc(~print="full_exp not cached");
+                  /* One-click prefills, so the common cases need no typing.
+                     Both drop an expression into the box's editor rather
+                     than writing the step straight out: the user sees
+                     exactly what will be written, and can adjust it. */
+                  let prefill = (~label: string, exp: Exp.t) =>
+                    Widgets.button(
+                      ~clss=["proof-button"],
+                      ~tooltip="Fill in " ++ label,
+                      Node.text(label),
+                      _ =>
+                      inject(PrefillProofForm(exp))
+                    );
+                  let prefills =
+                    switch (form) {
+                    /* Implication intro (docs/prover-obligations.md §2.1):
+                       with goal `A ==> B`, assuming exactly A strips the
+                       antecedent and incurs NO obligation, so offer A. */
+                    | Assume =>
+                      switch (full_exp |> Exp.term_of) {
+                      | BinOp(Bool(Implies), a, _) => [
+                          prefill(~label="Assume antecedent", a),
+                        ]
+                      | _ => []
+                      }
+                    /* `revert` matches an in-scope fact by `Exp.fast_equal`
+                       (ProofCheck.lookup_fact), so free-typing it is
+                       error-prone: offer the same in-scope listing the
+                       Assumptions box shows, minus the builtin axioms
+                       (global rules, not facts of this scope) and captured
+                       entries. Picking one fills it in verbatim. */
+                    | Revert =>
+                      model.assumptions
+                      |> Calc.get_saved_opt
+                      |> Option.join
+                      |> Option.value(~default=[])
+                      |> List.filter((ab: AssumptionBox.Model.t) =>
+                           !ab.ctx_entry.is_captured
+                           && !
+                                List.exists(
+                                  (e: ProofCtx.entry) =>
+                                    e.name == ab.ctx_entry.name,
+                                  Axioms.v,
+                                )
+                         )
+                      |> List.map((ab: AssumptionBox.Model.t) =>
+                           prefill(~label=ab.ctx_entry.name, ab.ctx_entry.exp)
+                         )
+                    /* `generalize` takes a bare in-scope variable; there is
+                       no single obvious candidate, so it is typed. */
+                    | Generalize => []
+                    };
+                  [
+                    div_c(
+                      "proof-form-box",
+                      [
+                        Node.text(keyword ++ " "),
+                        div_c(
+                          "inline-editor-wrapper",
+                          [
+                            CodeEditable.View.view(
+                              ~globals,
+                              ~signal=
+                                fun
+                                | MakeActive =>
+                                  signal(MakeActive(ProofFormEditor())),
+                              ~edit_mode=
+                                EditMode.Editable({
+                                  inject: x =>
+                                    inject(ProofFormEditorAction(x)),
+                                  escape: _ => Ui_effect.Ignore,
+                                  take_focus: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(ProofFormEditor ()) => Some()
+                                    | _ => None
+                                    },
+                                }),
+                              ~dynamics=Dynamics.Map.empty,
+                              editor,
+                            ),
+                          ],
+                        ),
+                        Node.text("=> ?"),
+                      ]
+                      @ prefills
+                      @ [
+                        Widgets.button(
+                          ~clss=["proof-button"],
+                          ~tooltip="Write " ++ keyword ++ " into the proof",
+                          Node.text("Add " ++ keyword),
+                          _ =>
+                          switch (form) {
+                          | Assume => signal(AddAssume(unboxed_cached_exp))
+                          | Revert => signal(AddRevert(unboxed_cached_exp))
+                          | Generalize =>
+                            signal(AddGeneralize(unboxed_cached_exp))
+                          }
+                        ),
+                      ],
                     ),
                   ];
                 };

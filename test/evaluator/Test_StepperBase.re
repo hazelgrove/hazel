@@ -242,6 +242,113 @@ let axiom_step_proof = (~equality="refl_eq", at_exp: Exp.t): Calc.t(Proof.t) =>
     ),
   );
 
+/* ---- Wrapping proof forms: assume / revert / generalize -------------
+ *
+ * These three own a body proof rather than continuing a `Seq` chain, so a
+ * row for them must (a) exist at all (`kind_of_proof`), (b) hand the body
+ * to a nested stepper, and (c) hand it the scope and goal the CHECKER
+ * computed — not a locally re-derived guess. */
+
+/* Run a program through the checker and hand back its theorem proof and
+   proof map, the two inputs a wrapping form's row sources from. */
+let checked_proof = (src: string): (Proof.t, Language.ProofMap.t) => {
+  let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+  let proof =
+    switch (Test_ProofMap.find_theorem_proof(elab)) {
+    | Some(p) => p
+    | None => Alcotest.fail("no theorem proof in: " ++ src)
+    };
+  (proof, EvaluatorState.get_proof_map(state));
+};
+
+/* Bind `x:Int` in the row's scope. `generalize` only re-quantifies a bare
+   IN-SCOPE variable (otherwise ProofCheck marks it MalformedGeneralize and
+   passes through), and in the app that binding comes from the theorem
+   statement's peeled binders — which this unit-level ctx has to stand in
+   for. */
+let ctx_with_x =
+  Ctx.extend(
+    Builtins.ctx_init(Some(Int)),
+    Ctx.VarEntry({
+      name: "x",
+      id: Id.mk(),
+      typ: IdTagged.FreshGrammar.Typ.int(),
+      custom_statics: None,
+    }),
+  );
+
+/* Promote a MissingStep row against a checked program's proof. */
+let promote =
+    (~src: string, ~goal: string, ~ctx=ctx_with_x, ()): StepperBase.next_step => {
+  let (proof, pm) = checked_proof(src);
+  test_calculate(
+    ~exp=parse_exp(goal),
+    ~ctx,
+    ~proof=Calc.NewValue(proof),
+    ~proof_map=Calc.NewValue(pm),
+    mk_missing_step(),
+  );
+};
+
+/* The `ProofOf` facts a step's inner scope offers, by name. */
+let facts_of_ctx = (ctx: SemanticCtx.t): list((string, Exp.t)) =>
+  SemanticCtx.get_ctx(ctx)
+  |> Ctx.get_var_entries
+  |> List.filter_map((e: Ctx.var_entry) =>
+       switch (Typ.term_of(e.typ)) {
+       | ProofOf(fact) => Some((e.name, fact))
+       | _ => None
+       }
+     );
+
+let saved_exc = (~print: string, x: Calc.saved('a)): 'a =>
+  switch (x) {
+  | Calc.Calculated(v) => v
+  | Calc.Pending => Alcotest.fail(print ++ " not calculated")
+  };
+
+/* ---- Insertion round-trip helpers (cf. test/Test_EditorTransform.re) -- */
+
+let parse_zipper = (s: string): Zipper.t =>
+  switch (Parser.to_zipper(s, ~root=Exp)) {
+  | Some(z) => z
+  | None => Alcotest.fail("failed to parse zipper: " ++ s)
+  };
+
+/* Write `term` over the theorem's (hole) proof and return the program text,
+   exactly as the step-picker's ProofPatch does for a MissingStep row whose
+   backing proof is a hole (StepperBase.add_step_patch / ReplaceProof). */
+let insert_proof_term = (~src: string, term: TermBase.Proof.term): string => {
+  let z = parse_zipper(src);
+  let root = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let target_id =
+    switch (Test_ProofMap.find_theorem_proof(root)) {
+    | Some(p) => Proof.rep_id(p)
+    | None => Alcotest.fail("no theorem proof in: " ++ src)
+    };
+  EditorTransform.apply_patch(
+    z,
+    EditorTransform.mk_proof_patch(~target_id, Proof.fresh(term)),
+  )
+  |> Printer.of_zipper(~holes="?");
+};
+
+let contains = (haystack: string, needle: string): bool => {
+  let hl = String.length(haystack);
+  let nl = String.length(needle);
+  let rec go = i =>
+    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+  nl == 0 || go(0);
+};
+
+let check_contains = (~msg: string, haystack: string, needle: string) =>
+  check(
+    bool,
+    msg ++ " — expected to find:\n" ++ needle ++ "\nin:\n" ++ haystack,
+    true,
+    contains(haystack, needle),
+  );
+
 let tests = (
   "StepperBase",
   [
@@ -362,7 +469,8 @@ let tests = (
         /* The synthesized trailing row must also keep its model. */
         let missing_of = (ns: StepperBase.next_step) =>
           switch (ns) {
-          | StepperBase.NextStep({next_step: MissingStep(m, _), _}) => Some(m)
+          | StepperBase.NextStep({next_step: MissingStep(m, _), _}) =>
+            Some(m)
           | _ => None
           };
         switch (missing_of(moved), missing_of(recalc)) {
@@ -520,6 +628,295 @@ let tests = (
         | StepperBase.InductionStep(_) =>
           check(bool, "induction step created", true, true)
         | _ => Alcotest.fail("Expected InductionStep")
+        };
+      },
+    ),
+    // ============================================================
+    // Wrapping proof forms: assume / revert / generalize
+    // ============================================================
+    test_case(
+      "assume: a proof-side assume promotes to an AssumeStep row",
+      `Quick,
+      () => {
+        /* `assume` used to map to None in kind_of_proof, so the step and
+           its whole body proof rendered nothing at all. */
+        let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(_), _}) => ()
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "assume: the body's scope carries the auto-named `assume` hypothesis",
+      `Quick,
+      () => {
+        /* Rows inside an assume cite the hypothesis by its auto-name
+           (`axiom assume at ...`), which only works if the nested stepper
+           is handed the same scope ProofCheck builds. */
+        let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(m), _}) =>
+          let facts =
+            m.inner_ctx
+            |> saved_exc(~print="assume inner_ctx")
+            |> facts_of_ctx;
+          check(
+            bool,
+            "a fact named `assume` is in the body's scope",
+            true,
+            List.mem_assoc("assume", facts),
+          );
+          check(
+            bool,
+            "and it is the assumed proposition",
+            true,
+            Exp.fast_equal(
+              List.assoc("assume", facts),
+              parse_exp("x == 1"),
+            ),
+          );
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "assume: the body proof renders as nested rows",
+      `Quick,
+      () => {
+        /* The row must descend into the body, not stop at the assume. */
+        let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(m), _}) =>
+          switch (m.inner_stepper) {
+          | StepperBase.NextStep({step_kind: AxiomStep(_), _}) => ()
+          | StepperBase.NextStep(_) =>
+            Alcotest.fail("nested row is not the body's axiom step")
+          | StepperBase.MissingStep(_, _)
+          | StepperBase.Finished =>
+            Alcotest.fail("assume body did not render a step row")
+          }
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "assume: implication intro strips the antecedent from the body's goal",
+      `Quick,
+      () => {
+        /* The body's goal is read off the checker's ProofMap, so the intro
+           reading (goal `A ==> B`, assume A, body proves B) is reflected in
+           the nested rows without being re-derived here. */
+        let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => ? in t|};
+        switch (promote(~src, ~goal="x == 2 ==> x + 1 == 3", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(m), _}) =>
+          let inner = m.inner_exp |> saved_exc(~print="assume inner_exp");
+          check(
+            bool,
+            "body works on the consequent",
+            true,
+            Exp.fast_equal(inner, parse_exp("x + 1 == 3")),
+          );
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "revert: a proof-side revert promotes to a RevertStep row",
+      `Quick,
+      () => {
+        let src = {|theorem t = 1 == 1 proof revert 1 == 1 => ? in t|};
+        switch (promote(~src, ~goal="1 == 1", ())) {
+        | StepperBase.NextStep({step_kind: RevertStep(_), _}) => ()
+        | _ => Alcotest.fail("expected NextStep(RevertStep) row")
+        };
+      },
+    ),
+    test_case(
+      "revert: the body's goal is the fact implying the old goal",
+      `Quick,
+      () => {
+        /* `revert F` with goal `G` hands the body `F ==> G`; the fact stays
+           in scope (that is what makes the ex-falso idiom work), so the
+           nested rows see the enclosing context unchanged. */
+        let src = {|theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => revert x == 1 => ? in t|};
+        switch (promote(~src, ~goal="x == 1 ==> x == 1", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(outer), _}) =>
+          switch (outer.inner_stepper) {
+          | StepperBase.NextStep({step_kind: RevertStep(m), _}) =>
+            let inner = m.inner_exp |> saved_exc(~print="revert inner_exp");
+            check(
+              bool,
+              "body works on `F ==> G`",
+              true,
+              Exp.fast_equal(inner, parse_exp("x == 1 ==> x == 1")),
+            );
+            let facts =
+              m.inner_ctx
+              |> saved_exc(~print="revert inner_ctx")
+              |> facts_of_ctx;
+            check(
+              bool,
+              "the reverted fact is still citable in the body",
+              true,
+              List.mem_assoc("assume", facts),
+            );
+          | _ => Alcotest.fail("expected a nested RevertStep row")
+          }
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "generalize: a proof-side generalize re-quantifies the body's goal",
+      `Quick,
+      () => {
+        let src = {|theorem t = forall x -> x == x proof generalize x => ? in t|};
+        switch (promote(~src, ~goal="x == x", ())) {
+        | StepperBase.NextStep({step_kind: GeneralizeStep(m), _}) =>
+          let inner = m.inner_exp |> saved_exc(~print="generalize inner_exp");
+          switch (inner |> Exp.term_of) {
+          | Forall(_, _)
+          | ForallWhere(_, _, _) => ()
+          | _ =>
+            Alcotest.fail(
+              "expected a re-quantified body goal, got: " ++ Exp.show(inner),
+            )
+          };
+        | _ => Alcotest.fail("expected NextStep(GeneralizeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "generalize: facts about the generalized variable leave the body's scope",
+      `Quick,
+      () => {
+        /* Capture soundness: inside the body every fact mentioning x is
+           about the OLD x, so the nested rows must not offer it (ProofCheck
+           removes them; the row mirrors that removal). */
+        let src = {|theorem t = forall x -> x == 1 ==> x == x proof assume x == 1 => generalize x => ? in t|};
+        switch (promote(~src, ~goal="x == 1 ==> x == x", ())) {
+        | StepperBase.NextStep({step_kind: AssumeStep(outer), _}) =>
+          let outer_facts =
+            outer.inner_ctx
+            |> saved_exc(~print="assume inner_ctx")
+            |> facts_of_ctx;
+          check(
+            bool,
+            "the hypothesis is in scope before the generalize",
+            true,
+            List.mem_assoc("assume", outer_facts),
+          );
+          switch (outer.inner_stepper) {
+          | StepperBase.NextStep({step_kind: GeneralizeStep(m), _}) =>
+            let facts =
+              m.inner_ctx
+              |> saved_exc(~print="generalize inner_ctx")
+              |> facts_of_ctx;
+            check(
+              bool,
+              "and it is gone inside the generalize",
+              false,
+              List.mem_assoc("assume", facts),
+            );
+          | _ => Alcotest.fail("expected a nested GeneralizeStep row")
+          };
+        | _ => Alcotest.fail("expected NextStep(AssumeStep) row")
+        };
+      },
+    ),
+    test_case(
+      "generalize: generalized_ctx removes facts mentioning the variable",
+      `Quick,
+      () => {
+        let (ctx, _) =
+          SemanticCtx.add_hypothesis(
+            SemanticCtx.of_ctx_and_env(ctx_with_x, Builtins.env_init),
+            "assume",
+            parse_exp("x == 1"),
+          );
+        check(
+          bool,
+          "fact present before",
+          true,
+          List.mem_assoc("assume", facts_of_ctx(ctx)),
+        );
+        let ctx' = Web.GeneralizeStep.generalized_ctx(ctx, parse_exp("x"));
+        check(
+          bool,
+          "fact removed after",
+          false,
+          List.mem_assoc("assume", facts_of_ctx(ctx')),
+        );
+      },
+    ),
+    // ============================================================
+    // Insertion: the step-picker's ProofPatch round-trip
+    // ============================================================
+    test_case(
+      "insertion: Add-Assume writes `assume <e> => ?` over the hole",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 2 ==> x == 2 proof ? in t",
+            StepperBase.Stepper.assume_term(~exp=parse_exp("x == 2")),
+          );
+        check_contains(~msg="assume step landed", out, "assume x == 2 =>");
+        check_contains(
+          ~msg="theorem statement survives",
+          out,
+          "forall x -> x == 2 ==> x == 2",
+        );
+      },
+    ),
+    test_case(
+      "insertion: Add-Revert writes `revert <e> => ?` over the hole",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 1 proof ? in t",
+            StepperBase.Stepper.revert_term(~exp=parse_exp("x == 1")),
+          );
+        check_contains(~msg="revert step landed", out, "revert x == 1 =>");
+      },
+    ),
+    test_case(
+      "insertion: Add-Generalize writes `generalize <e> => ?` over the hole",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == x proof ? in t",
+            StepperBase.Stepper.generalize_term(~exp=parse_exp("x")),
+          );
+        check_contains(~msg="generalize step landed", out, "generalize x =>");
+      },
+    ),
+    test_case(
+      "insertion: an inserted wrapping form reparses as that form",
+      `Quick,
+      () => {
+        /* The patch reflows through ExpToSegment, so the written text must
+           parse back to the same proof term — otherwise the row that
+           `calculate` synthesizes next pass is not the one just inserted. */
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 2 ==> x == 2 proof ? in t",
+            StepperBase.Stepper.assume_term(~exp=parse_exp("x == 2")),
+          );
+        switch (Test_ProofMap.find_theorem_proof(parse_exp(out))) {
+        | Some({term: Assume(e, {term: EmptyHole, _}), _}) =>
+          check(
+            bool,
+            "the assumed expression round-trips",
+            true,
+            Exp.fast_equal(e, parse_exp("x == 2")),
+          )
+        | Some(p) =>
+          Alcotest.fail("reparsed as something else: " ++ Proof.show(p))
+        | None => Alcotest.fail("no theorem proof after insertion")
         };
       },
     ),

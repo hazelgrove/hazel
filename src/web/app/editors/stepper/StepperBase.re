@@ -30,6 +30,12 @@ and step_kind_model =
   | AxiomStep(AxiomStep.model'(next_step))
   | AlgebriteStep(AlgebriteStep.model'(next_step))
   | EvalStep(EvalStep.model'(next_step))
+  /* The wrapping proof forms (`assume` / `revert` / `generalize`): like
+   * ForallStep they own a body proof, so their models embed a nested
+   * stepper. */
+  | AssumeStep(AssumeStep.model'(next_step))
+  | RevertStep(RevertStep.model'(next_step))
+  | GeneralizeStep(GeneralizeStep.model'(next_step))
 
 and step_model = {
   // Cache
@@ -154,6 +160,9 @@ type step_kind_action =
   | AxiomStep(AxiomStep.action'(step_action))
   | AlgebriteStep(AlgebriteStep.action'(step_action))
   | EvalStep(EvalStep.action'(step_action))
+  | AssumeStep(AssumeStep.action'(step_action))
+  | RevertStep(RevertStep.action'(step_action))
+  | GeneralizeStep(GeneralizeStep.action'(step_action))
 
 and step_action =
   | StepKindAction(step_kind_action)
@@ -168,6 +177,9 @@ type step_kind_focus =
   | AxiomStep(AxiomStep.focus'(step_focus))
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
   | EvalStep(EvalStep.focus'(step_focus))
+  | AssumeStep(AssumeStep.focus'(step_focus))
+  | RevertStep(RevertStep.focus'(step_focus))
+  | GeneralizeStep(GeneralizeStep.focus'(step_focus))
 
 and step_focus =
   | StepKindFocus(step_kind_focus)
@@ -194,6 +206,9 @@ module rec StepKind:
   module AxiomStep = AxiomStep.F(Stepper);
   module AlgebriteStep = AlgebriteStep.F(Stepper);
   module EvalStep = EvalStep.F(Stepper);
+  module AssumeStep = AssumeStep.F(Stepper);
+  module RevertStep = RevertStep.F(Stepper);
+  module GeneralizeStep = GeneralizeStep.F(Stepper);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_kind_model;
@@ -220,9 +235,21 @@ module rec StepKind:
       | (EvalStep(a), EvalStep(m)) =>
         let* s = EvalStep.update(~settings, a, m);
         (EvalStep(s): model);
+      | (AssumeStep(a), AssumeStep(m)) =>
+        let* s = AssumeStep.update(~settings, a, m);
+        (AssumeStep(s): model);
+      | (RevertStep(a), RevertStep(m)) =>
+        let* s = RevertStep.update(~settings, a, m);
+        (RevertStep(s): model);
+      | (GeneralizeStep(a), GeneralizeStep(m)) =>
+        let* s = GeneralizeStep.update(~settings, a, m);
+        (GeneralizeStep(s): model);
       | (
           InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
-          EvalStep(_),
+          EvalStep(_) |
+          AssumeStep(_) |
+          RevertStep(_) |
+          GeneralizeStep(_),
           _,
         ) =>
         model |> Updated.raise_invalid_action
@@ -237,6 +264,9 @@ module rec StepKind:
     | AxiomStep(action) => AxiomStep.can_undo(action)
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
     | EvalStep(action) => EvalStep.can_undo(action)
+    | AssumeStep(action) => AssumeStep.can_undo(action)
+    | RevertStep(action) => RevertStep.can_undo(action)
+    | GeneralizeStep(action) => GeneralizeStep.can_undo(action)
     };
   };
 
@@ -286,6 +316,15 @@ module rec StepKind:
     | EvalStep(m) =>
       let+ m = calculate_with(EvalStep.calculate, m);
       (EvalStep(m): model);
+    | AssumeStep(m) =>
+      let+ m = calculate_with(AssumeStep.calculate, m);
+      (AssumeStep(m): model);
+    | RevertStep(m) =>
+      let+ m = calculate_with(RevertStep.calculate, m);
+      (RevertStep(m): model);
+    | GeneralizeStep(m) =>
+      let+ m = calculate_with(GeneralizeStep.calculate, m);
+      (GeneralizeStep(m): model);
     };
   };
 
@@ -332,9 +371,36 @@ module rec StepKind:
             m,
           );
         (EvalStep(focus_info): action);
+      | (AssumeStep(focus), AssumeStep(m)) =>
+        let+ focus_info =
+          AssumeStep.get_cursor_info(
+            ~inject=x => inject(AssumeStep(x): action),
+            ~focus,
+            m,
+          );
+        (AssumeStep(focus_info): action);
+      | (RevertStep(focus), RevertStep(m)) =>
+        let+ focus_info =
+          RevertStep.get_cursor_info(
+            ~inject=x => inject(RevertStep(x): action),
+            ~focus,
+            m,
+          );
+        (RevertStep(focus_info): action);
+      | (GeneralizeStep(focus), GeneralizeStep(m)) =>
+        let+ focus_info =
+          GeneralizeStep.get_cursor_info(
+            ~inject=x => inject(GeneralizeStep(x): action),
+            ~focus,
+            m,
+          );
+        (GeneralizeStep(focus_info): action);
       | (
           InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
-          EvalStep(_),
+          EvalStep(_) |
+          AssumeStep(_) |
+          RevertStep(_) |
+          GeneralizeStep(_),
           _,
         ) => Cursor.empty
       }
@@ -439,6 +505,60 @@ module rec StepKind:
         ~take_focus=x => take_focus(EvalStep(x)),
         m,
       )
+    | AssumeStep(m) =>
+      AssumeStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(AssumeStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(AssumeStep(x)),
+        ~take_focus=x => take_focus(AssumeStep(x)),
+        m,
+      )
+    | RevertStep(m) =>
+      RevertStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(RevertStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(RevertStep(x)),
+        ~take_focus=x => take_focus(RevertStep(x)),
+        m,
+      )
+    | GeneralizeStep(m) =>
+      GeneralizeStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(GeneralizeStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(GeneralizeStep(x)),
+        ~take_focus=x => take_focus(GeneralizeStep(x)),
+        m,
+      )
     };
 
   let view_justification =
@@ -539,6 +659,60 @@ module rec StepKind:
         ~edit_syntax,
         m,
       )
+    | AssumeStep(m) =>
+      AssumeStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(AssumeStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(AssumeStep(x)),
+        ~take_focus=x => take_focus(AssumeStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
+    | RevertStep(m) =>
+      RevertStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(RevertStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(RevertStep(x)),
+        ~take_focus=x => take_focus(RevertStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
+    | GeneralizeStep(m) =>
+      GeneralizeStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(GeneralizeStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(GeneralizeStep(x)),
+        ~take_focus=x => take_focus(GeneralizeStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
     };
 }
 and Stepper: {
@@ -548,6 +722,13 @@ and Stepper: {
       type action = step_action and
       type focus = step_focus;
   let get_validity: next_step => option(bool);
+  /* The proof terms the step-picker writes for the wrapping forms
+   * (`assume` / `revert` / `generalize`), exposed so the insertion
+   * round-trip is testable against EditorTransform without going through
+   * the view layer. */
+  let assume_term: (~exp: Exp.t) => TermBase.Proof.term;
+  let revert_term: (~exp: Exp.t) => TermBase.Proof.term;
+  let generalize_term: (~exp: Exp.t) => TermBase.Proof.term;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = next_step;
@@ -727,14 +908,15 @@ and Stepper: {
           InductionStep.init(~exp=Exp.replace_all_ids(scrut), ()),
         ),
       )
+    /* The wrapping forms own a body proof; their kinds descend into it on
+     * their own `calculate` pass (see AssumeStep.calculate). */
+    | Assume(_, _) => Some(AssumeStep(AssumeStep.init(init_step)))
+    | Revert(_, _) => Some(RevertStep(RevertStep.init(init_step)))
+    | Generalize(_, _) =>
+      Some(GeneralizeStep(GeneralizeStep.init(init_step)))
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
-    /* Assume/Generalize have no stepper-UI step kind yet (Phase 1: no
-     * stepper-UI work; obligation rendering is a later phase). */
-    | Assume(_, _)
-    | Generalize(_, _)
-    | Revert(_, _)
     | Seq(_, _) => None
     };
 
@@ -751,7 +933,10 @@ and Stepper: {
     | (AlgebriteStep(_), AlgebriteStep(_))
     | (EvalStep(_), EvalStep(_))
     | (Forall(_, _), ForallStep(_))
-    | (Induction(_, _), InductionStep(_)) => sk
+    | (Induction(_, _), InductionStep(_))
+    | (Assume(_, _), AssumeStep(_))
+    | (Revert(_, _), RevertStep(_))
+    | (Generalize(_, _), GeneralizeStep(_)) => sk
     | _ => kind_of_proof(proof_head) |> Option.value(~default=sk)
     };
 
@@ -1194,6 +1379,22 @@ and Stepper: {
   let forall_term = (): TermBase.Proof.term =>
     Forall(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole));
 
+  /* The wrapping forms: `<kw> <exp> => ?`. The body starts as a hole, so
+   * inserting one never discards proof text — the hole this replaces
+   * re-appears inside the new scope as its own step-picker row. Because
+   * `;` prints flat and these are prefix forms, an insert BEFORE an
+   * existing step reparses with that step inside the new scope, which is
+   * the intended reading (all three scope over the rest of the proof —
+   * cf. `assume x == 1 => axiom assume ...; axiom ...`). */
+  let assume_term = (~exp: Exp.t): TermBase.Proof.term =>
+    Assume(exp |> embed_exp, Proof.fresh(EmptyHole));
+
+  let revert_term = (~exp: Exp.t): TermBase.Proof.term =>
+    Revert(exp |> embed_exp, Proof.fresh(EmptyHole));
+
+  let generalize_term = (~exp: Exp.t): TermBase.Proof.term =>
+    Generalize(exp |> embed_exp, Proof.fresh(EmptyHole));
+
   /* Patch that lands a new step in the proof syntax. Two shapes:
    *   - this row is backed by a written hole (`?`): replace the hole with
    *     the bare step — no trailing `; ?` is appended, the next-step UI is
@@ -1307,6 +1508,9 @@ and Stepper: {
       emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
     | AddAlgebriteStep(at_idx, at_exp, with_exp) =>
       emit(algebrite_step_term(~at_idx, ~at_exp, ~with_exp))
+    | AddAssume(exp) => emit(assume_term(~exp))
+    | AddRevert(exp) => emit(revert_term(~exp))
+    | AddGeneralize(exp) => emit(generalize_term(~exp))
     | TakeStep(idx) =>
       switch (List.nth_opt(available_steps, idx)) {
       | Some(step) =>
