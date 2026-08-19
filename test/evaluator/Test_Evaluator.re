@@ -36,4 +36,5 @@ let tests =
     Test_Generalize.tests,
     Test_Revert.tests,
     Test_Milestone_STLC.tests,
+    Test_ClosureLibrary.tests,
   ];

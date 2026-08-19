@@ -245,6 +245,56 @@ instantiation is a later feature.
    Library placement (decided): built-in OCaml-side axioms in Phase 3 (like
    `refl_eq`), migrated to a self-hosted proven Hazel prelude once Phase 4
    makes them provable — trusted base grows temporarily, then shrinks.
+
+   *Self-hosting status (2026-08-19, `test/evaluator/Test_ClosureLibrary.re`)*:
+   the migration is **blocked, and not by a Phase-4 gap** — 0 of 6 are
+   provable in-language today. The proof calculus is rewriting (§2.1), so
+   relating two predicates needs an equation mentioning both; no built-in
+   equation mentions two different arithmetic comparisons (the Kleene set is
+   purely boolean, `refl_eq` is reflexivity), and evaluation is stuck on a
+   symbolic comparison. What is missing is **Phase 5**'s ordered-arithmetic
+   polarity engine, whose monotonicity lemmas are exactly these facts. Per
+   lemma, all six pinned as mark-free partial proofs (antecedents intro'd,
+   bool split on the goal predicate, `true` branch closed by `refl_eq`,
+   `false` branch open):
+   - `nonzero_of_pos` — still trusted: needs `a > 0` ⟹ `a != 0`, i.e. an
+     equation relating `>` to `!=`. None exists but the axiom itself.
+   - `nonzero_of_neg` — still trusted: same wall at `<` vs `!=`.
+   - `nonzero_mul` — still trusted: needs zero-divisor reasoning on a
+     symbolic product; no equation relates `a != 0`/`b != 0` to `a*b != 0`.
+   - `pos_mul` — still trusted: sign monotonicity of `*` (Phase 5's
+     sign-condition matrix, open item 7).
+   - `pos_add` — still trusted: monotonicity of `+` (Phase 5).
+   - `pow_pos` — still trusted, doubly: monotonicity as above, **plus** an
+     inductive exponent. `induction` on an Int or Nat binder is accepted but
+     offers only a literal and a catch-all pattern — no successor, hence no
+     `ih` at all, so Phase 4b's `generalize` has no induction principle to
+     quantify. Switching the exponent to Nat does not help (Nat is an atom
+     type here, and `**` parses to the Int operator class anyway, so a
+     Nat-typed variant is a different lemma).
+   Not purely negative: each lemma's `true` branch is genuinely closed
+   in-language; `nonzero_of_pos`'s `a == 0` sub-case closes outright by the
+   Phase-4c ex-falso idiom (splitting the symbolic `a` yields the bare
+   equation `a == 0` as its `case_eq`, which rewrites `a` to `0` in the
+   reverted antecedent so evaluation can falsify it) — the wall is
+   specifically SYMBOLIC operands; and all 12 closed instances checked are
+   fully proven through channel 2, spot-checking §1.3's operational
+   guarantee. Two hazards pinned in the same file: an **Algebrite rewrite
+   still launders any of these lemmas to `Proven`**, because the checker
+   does not yet re-verify a step's equational content (§4.1's CAS TODO; the
+   Float gate is the only content gate that fires, and a Bool-typed rewrite
+   sails past it) — so Algebrite cannot self-host the library without
+   growing the unchecked base; and a `Parens` node around a nested
+   antecedent (`A ==> (B ==> C)`, the shape `Axioms.re`'s `==>>` reads as)
+   defeats assume-intro, which matches `BinOp(Implies)` on the bare term, so
+   the inner `assume` falls through to assume-then-bake and goes pending.
+   Channel distribution on this workload (§4.3): 13 obligations, 1 channel 1
+   (`pow_pos`'s `**` domain condition, discharged against the intro'd
+   guard), 12 channel 2, 0 pending — 100%, which reads as a caution about
+   the metric: it measures obligation ergonomics, not proof completeness,
+   since the automation debt here surfaces as six open branches that incur
+   no obligations at all.
+
 4. **Manual** — split/eval repair, or a real subproof.
 
 Binder fact-sets are extendable by **explicit one-time derivations**: a
