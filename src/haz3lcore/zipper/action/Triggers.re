@@ -96,13 +96,16 @@ let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
     refractors,
   );
 
+/* nt is a single-token tile whose token satisfies is_invoke_tok */
+let is_invoke_tile = (is_invoke_tok: Token.t => bool, nt: Tile.t): bool =>
+  Tile.arity(nt) == 1 && is_invoke_tok(Tile.token(nt, 0));
+
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
       when
         Tile.is_paren_shaped(parens)
-        && Tile.arity(nt) == 1
-        && is_refractor_trigger(Tile.token(nt, 0)) =>
+        && is_invoke_tile(is_refractor_trigger, nt) =>
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
@@ -122,8 +125,7 @@ let expand_projector = (z: t): option(t) => {
   | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
       when
         Tile.is_paren_shaped(parens)
-        && Tile.arity(nt) == 1
-        && Token.is_projector_invoke(Tile.token(nt, 0)) =>
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
     let+ piece = invoked_projector(Tile.token(nt, 0), syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
@@ -133,8 +135,7 @@ let expand_projector = (z: t): option(t) => {
   | [Tile(ht), Tile(nt), ...rest]
       when
         Tile.is_empty_tuple_shaped(ht)
-        && Tile.arity(nt) == 1
-        && Token.is_projector_invoke(Tile.token(nt, 0)) =>
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
     let+ piece =
       invoked_projector(Tile.token(nt, 0), [Piece.mk_grout(Convex)]);
     Zipper.update_siblings(

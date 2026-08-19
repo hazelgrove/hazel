@@ -1,27 +1,11 @@
-/* DISPOSAL: originally disposable migration tooling for the tile FormId
- * change; now also the re-export tool for the example exercise modules'
- * shipped (persistent) format, so keep it as long as those modules exist.
- * The migration-specific companions (LegacyBase.re,
- * Migrate_slides.re) can still be deleted once tile-datatype has merged to
- * dev and active feature branches have run the recipe in
- * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
- * this file. */
-
-/* Exporter for the example exercise modules (tile-datatype migration
- * endpoint, reusable for any future re-export).
- *
- * Prints PERSISTENT versions of every registered example module: each
- * editor becomes a PersistentZipper.t literal ({zipper: "<Zipper sexp>",
- * backup_text: "<program text>"}, the same scheme doc slides use) and the
- * module calls CodeExercise.of_persistent / Tutorial.of_persistent /
- * TheoremExercise.of_persistent / DerivationExercise.of_persistent at load
- * time. Decoding the sexp is ~free (no per-character re-parse at startup),
- * and a decode failure self-heals by re-parsing backup_text.
- *
- * (The string-based "transitionary" format — the *.transition functions —
- * is the type-independent migration interchange format: it survives
- * Zipper.t datatype changes at the cost of a startup re-parse. Recipe for
- * feature branches in scripts/README_migrate_tile_format.md.)
+/* Dev tool (nothing at runtime depends on this file): regenerates the
+ * example exercise modules' shipped form. Each registered module is
+ * reprinted with every editor as a PersistentZipper.t literal
+ * ({zipper: "<Zipper sexp>", backup_text: "<program text>"}) decoded via
+ * *.of_persistent at load time: sexp decode is ~free at startup, and a
+ * decode failure after a zipper representation change self-heals by
+ * re-parsing backup_text (with a printed warning). Re-run this after such
+ * a change to refresh the sexps and silence the warnings.
  *
  * Output format (stdout):
  *   ===FILE: <path relative to repo root>===
@@ -39,10 +23,13 @@
  * backup_text); failures are reported in the summary (and on stderr) and
  * the original file should be left in place.
  *
- * Build & run (see scripts/README_migrate_tile_format.md):
+ * Build & run:
  *   dune build src/web/migrate_exercises.bc.js --profile dev
  *   node --stack-size=8192 --require ./test/idb_stub.js \
- *     _build/default/src/web/migrate_exercises.bc.js
+ *     _build/default/src/web/migrate_exercises.bc.js > /tmp/migrate_out.txt
+ * then split the dump into files, e.g.:
+ *   awk '/^===FILE: /{f=substr($0,10,length($0)-12); next}
+ *        /^===END===$/{f=""; next} f{print > f}' /tmp/migrate_out.txt
  */
 open Haz3lcore;
 open Web;
@@ -231,8 +218,7 @@ let emit_file = (f: file): string =>
  *      text |> Parser.to_zipper(~root) |> PersistentZipper.to_string == text
  *  (b) persistent-decode equivalence: the zipper sexp we emit decodes, and
  *      its segment structurally equals (ids ignored) the segment obtained
- *      by re-parsing backup_text — i.e. what transition(text) would have
- *      produced. */
+ *      by re-parsing backup_text. */
 
 /* Id-ignoring structural segment equality (copy of
  * test/EditingPrelude.equal_segment; the test lib is not linkable here). */

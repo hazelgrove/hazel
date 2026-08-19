@@ -253,28 +253,10 @@ let absorb_comments =
   go([], pieces);
 };
 
-let is_semi = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.is_semi(t)
-  | _ => false
-  };
-
-let is_comma = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.is_comma(t)
-  | _ => false
-  };
-
 let is_infix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) when Tile.arity(t) == 1 =>
-    Mold.is_infix_op(Tile.mold(t)) && !is_comma(p) && !is_semi(p)
-  | _ => false
-  };
-
-let is_dot = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.is_dot(t)
+    Mold.is_infix_op(Tile.mold(t)) && !Piece.is_comma(p) && !Piece.is_semi(p)
   | _ => false
   };
 
@@ -301,7 +283,7 @@ let infix_precedence = (p: Piece.t): option(int) =>
 let piece_precedence = (p: Piece.t): option(int) =>
   if (is_infix(p)) {
     infix_precedence(p);
-  } else if (is_comma(p)) {
+  } else if (Piece.is_comma(p)) {
     Some(Precedence.comma);
   } else {
     None;
@@ -364,12 +346,6 @@ let is_compound_prefix = (p: Piece.t): bool =>
       | _ => false
       }
     )
-  | _ => false
-  };
-
-let is_case_rule_tile = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.is_case_rule(t)
   | _ => false
   };
 
@@ -443,7 +419,7 @@ let split_at_next_rule =
   let rec go = (body_rev, pieces) =>
     switch (pieces) {
     | [] => (List.rev(body_rev), [])
-    | [p, ..._] when is_case_rule_tile(p) => (List.rev(body_rev), pieces)
+    | [p, ..._] when Piece.is_case_rule(p) => (List.rev(body_rev), pieces)
     | [p, ...rest] => go([p, ...body_rev], rest)
     };
   go([], pieces);
@@ -459,7 +435,7 @@ let split_at_comma =
   let rec go = (before_rev, pieces) =>
     switch (pieces) {
     | [] => None
-    | [p, ...rest] when is_comma(p) =>
+    | [p, ...rest] when Piece.is_comma(p) =>
       Some((List.rev(before_rev), p, rest))
     | [p, ...rest] => go([p, ...before_rev], rest)
     };
@@ -564,7 +540,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
      hint/test/end, and other operand forms ending in "end". */
   let tile_with_rest = (tile_doc: doc): doc =>
     switch (rest) {
-    | [semi, ...rest2] when is_semi(semi) =>
+    | [semi, ...rest2] when Piece.is_semi(semi) =>
       cats([
         tile_doc,
         piece_doc(semi),
@@ -857,11 +833,11 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
-      when List.length(t.children) > 0 && is_semi(semi) =>
+      when List.length(t.children) > 0 && Piece.is_semi(semi) =>
     seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
-  | [p, semi, ...rest] when is_semi(semi) =>
+  | [p, semi, ...rest] when Piece.is_semi(semi) =>
     let left = cats([piece_doc(p), piece_doc(semi)]);
     switch (rest) {
     | [] => seg_finish(acc_rev, left)
@@ -869,13 +845,13 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     };
 
   /* Semicolon at start: hard break after */
-  | [p, ...rest] when is_semi(p) =>
+  | [p, ...rest] when Piece.is_semi(p) =>
     seg_loop(s, [Cat(piece_doc(p), HardBreak), ...acc_rev], rest)
 
   /* Piece followed by comma: keep comma with left operand, break after.
      Trailing comments after comma stay on the same line.
      All-or-nothing: no Group wrapper on rest. */
-  | [p, comma, ...rest] when is_comma(comma) =>
+  | [p, comma, ...rest] when Piece.is_comma(comma) =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
@@ -890,7 +866,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
 
   /* Case rule (|...=>): group rule with its body, HardBreak between rules
      so case rules always appear on separate lines */
-  | [p, ...rest] when is_case_rule_tile(p) =>
+  | [p, ...rest] when Piece.is_case_rule(p) =>
     let (body, remaining) = split_at_next_rule(rest);
     let body_doc =
       switch (body) {
@@ -904,7 +880,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     };
 
   /* Dot accessor: keep tight, no space or break */
-  | [p, op, ...rest] when is_infix(op) && is_dot(op) =>
+  | [p, op, ...rest] when is_infix(op) && Piece.is_dot(op) =>
     seg_loop(s, [Cat(piece_doc(p), piece_doc(op)), ...acc_rev], rest)
 
   /* Infix operator: precedence-aware chain splitting.
@@ -964,7 +940,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     let p_doc = piece_with_comments(p, comments);
     switch (rest_after) {
     | [] => seg_finish(acc_rev, p_doc)
-    | [next, ..._] when is_case_rule_tile(next) =>
+    | [next, ..._] when Piece.is_case_rule(next) =>
       seg_loop(s, [Cat(p_doc, HardBreak), ...acc_rev], rest_after)
     | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
       seg_loop(s, [p_doc, ...acc_rev], rest_after)
@@ -1005,7 +981,7 @@ and build_infix_chain_doc =
             leading_comments,
           );
         let next =
-          if (is_comma(op)) {
+          if (Piece.is_comma(op)) {
             cats([acc, piece_doc(op), comment_suffix, Break, operand_doc]);
           } else if (is_label_eq(op)) {
             cats([
@@ -1048,10 +1024,10 @@ let tighten_applications = (outputs: list(output)): list(output) => {
         when is_right_convex(prev) && is_paren_or_bracket(next) =>
       go([OPiece(prev), ...acc], [OPiece(next), ...rest])
     /* Remove space before dot */
-    | [OPiece(prev), OSpace, OPiece(dot), ...rest] when is_dot(dot) =>
+    | [OPiece(prev), OSpace, OPiece(dot), ...rest] when Piece.is_dot(dot) =>
       go([OPiece(prev), ...acc], [OPiece(dot), ...rest])
     /* Remove space after dot */
-    | [OPiece(dot), OSpace, OPiece(next), ...rest] when is_dot(dot) =>
+    | [OPiece(dot), OSpace, OPiece(next), ...rest] when Piece.is_dot(dot) =>
       go([OPiece(dot), ...acc], [OPiece(next), ...rest])
     | [out, ...rest] => go([out, ...acc], rest)
     | [] => List.rev(acc)

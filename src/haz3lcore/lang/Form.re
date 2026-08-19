@@ -321,14 +321,17 @@ let defs_of_rows = (fam: family): list(def) => {
      });
 };
 
-/* Same-label candidate priority — the only place where row order in
- * the form table is meaningful. Four labels are spelled by more than
- * one family; where their rows share an out sort, classify_label
- * stores the first fitting row's family and remold offers candidates
- * in this order (lower rank first; ties keep family declaration
- * order). NOTE(andrew): parens below aps at Drv sorts is
- * load-bearing — a Drv `(...)` group classifies as Ap, and explicit
- * parenthesization there goes through mk_parens_id instead. */
+/* Priority between families that share a label. Four labels each
+ * belong to two families — ["(", ")"] to Parens/Ap, ["-"] to
+ * Minus/UnaryMinus, ["+"] to Plus/SumSingle, ["|-"] to
+ * Entail/UnaryEntail. Where both families have a row at the same out
+ * sort, classify_label stores the lower-ranked family and remold
+ * offers candidates in rank order (ties keep family declaration
+ * order); the intended orders are pinned in
+ * Test_FormId.check_same_label_order. NOTE(andrew): parens below aps
+ * at Drv sorts is load-bearing — a Drv `(...)` group classifies as
+ * Ap, and explicit parenthesization there goes through parens_form
+ * instead. */
 let same_label_rank = (fam: family, out: Sort.t): int =>
   switch (fam, out) {
   /* ["(",")"]: Parens over Ap, flipped at Drv sorts */
@@ -711,8 +714,10 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
   | Compound(fam) =>
     switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
     | Some(mold) => mold
-    /* parens wrap one child at every sort; the family table only
-     * registers rows at the grammar's declared sorts */
+    /* parens wrap one child at every sort, but the family table only
+     * registers rows at the grammar's declared sorts; the childless
+     * fallback mold below would crash parenthesize at unregistered
+     * sorts (Test_MakeTerm parenthesize-at-Any regression) */
     | None when fam == Parens => Mold.mk_op(sort, [sort])
     | None => unmolded_mold(label_of_family(fam), Sort.Any)
     }
@@ -745,24 +750,23 @@ let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
     | [(fam, _), ..._] => (Compound(fam), Sort.Any)
     | [] =>
       switch (label) {
-      | [t] => (Tok(t), Sort.Any)
-      | [t, ..._] =>
-        /* unregistered multi-token labels don't arise from the
-         * grammar; approximate with the head token */
-        (Tok(t), Sort.Any)
+      /* head token; unregistered multi-token labels don't arise from
+       * the grammar */
+      | [t, ..._] => (Tok(t), Sort.Any)
       | [] => (Tok(Token.empty), Sort.Any)
       }
     }
   };
 };
 
-/* The form wrapping a segment in parens at a given sort
- * (Segment.mk_duo/parenthesize): always the registered Paren form,
- * never the Ap form classify_label would find first at
- * Drv(Exp)/Drv(Pat). Sorts with no registered paren row (Rul, Mod,
- * Sig, MPat, Any, remaining Drv) fall back to classify_label:
- * (Parens, Any) with the op(Any) fallback mold. */
-let mk_parens_id = (sort: Sort.t): (t, Sort.t) =>
+/* The (form, sort) stamped on a tile that explicitly parenthesizes a
+ * segment (Segment.parenthesize). classify_label can't be used for
+ * this: parenthesization must always produce the Parens form, and at
+ * Drv(Exp)/Drv(Pat) classify_label finds the Ap form first (see
+ * same_label_rank). Sorts with no registered paren row (Rul, Mod,
+ * Sig, MPat, Any, remaining Drv) do fall back to classify_label:
+ * (Parens, Any) with the op fallback mold. */
+let parens_form = (sort: Sort.t): (t, Sort.t) =>
   switch (sort) {
   | Exp
   | Pat

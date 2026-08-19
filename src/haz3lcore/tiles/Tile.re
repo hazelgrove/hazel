@@ -120,6 +120,13 @@ let shapes = (t: t) => {
   (l.shape, r.shape);
 };
 
+/* Whole-form left nib (unlike [nibs], ignores which shards are present) */
+let has_concave_left_nib = (t: t): bool =>
+  switch (mold(t).nibs) {
+  | ({shape: Concave(_), _}, _) => true
+  | _ => false
+  };
+
 let to_piece = t => Tile(t);
 
 let sorted_children = (t: t) => {

@@ -370,9 +370,11 @@ let weave =
           List.tl(label),
           t.children,
         );
-      /* the source spelling must land (float/backtick-equivalence
-         accepts); those arise only on single-token atoms, so
-         reclassifying at the tile's sort preserves the mold */
+      /* expect's float/backtick equivalence can accept a source token
+         that differs from the reference tile's label; the source text
+         is what must land. Such mismatches arise only on single-token
+         atoms, where reclassifying the source token at the tile's
+         stored sort reproduces the tile's mold. */
       let src_label = List.rev(label_rev);
       let (form, sort) =
         src_label == label

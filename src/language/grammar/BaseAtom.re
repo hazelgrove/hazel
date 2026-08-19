@@ -1,13 +1,14 @@
-/* The bidirectional association between atomic base-type SPELLINGS and
- * their Typ term constructors: the base atoms ("Bool" etc.), "Void"
- * (the empty sum), and the Drv quote types (spellings derived from
- * DrvSort.to_string). Token.base_typs is derived from this table, so
- * spellings are typed as plain strings here (Token.t == string;
- * referencing Token would be circular). Built over TermBase rather
- * than Typ to stay out of the statics dependency closure. */
+/* The bidirectional association between base-type TOKEN TEXT and Typ
+ * term constructors: the base atoms ("Bool" etc.), "Void" (the empty
+ * sum), and the Drv quote types (token text from DrvSort.to_string).
+ * The single home of these strings: Token.base_typs is derived from
+ * this table. Tokens are typed as plain strings here (Token.t ==
+ * string; referencing Token would be circular), and the table is
+ * built over TermBase rather than Typ to stay out of the statics
+ * dependency closure. */
 
-/* Spelling of each atomic type class; exhaustive, so adding an
- * Atom.cls forces a spelling decision here. */
+/* Token text of each atomic type class; exhaustive, so adding an
+ * Atom.cls forces a choice of token here. */
 let atom_token: Atom.cls => string =
   fun
   | Bool => "Bool"
@@ -17,11 +18,12 @@ let atom_token: Atom.cls => string =
   | Float => "Float"
   | String => "String";
 
-/* Spelling of the empty sum type */
+/* Token text of the empty sum type */
 let void_token = "Void";
 
-/* token -> term rows, in Token.base_typs order: atoms sorted by
- * spelling, then Void, then Drv quote types in DrvSort.all order. */
+/* token -> term rows, in Token.base_typs order: atoms sorted
+ * alphabetically, then Void, then Drv quote types in DrvSort.all
+ * order. */
 let table: list((string, TermBase.Typ.term)) =
   (
     Atom.all_of_cls

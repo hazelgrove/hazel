@@ -145,6 +145,26 @@ let is_complete: t => bool =
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
+let is_comma: t => bool =
+  fun
+  | Tile(t) => Tile.is_comma(t)
+  | _ => false;
+
+let is_semi: t => bool =
+  fun
+  | Tile(t) => Tile.is_semi(t)
+  | _ => false;
+
+let is_dot: t => bool =
+  fun
+  | Tile(t) => Tile.is_dot(t)
+  | _ => false;
+
+let is_case_rule: t => bool =
+  fun
+  | Tile(t) => Tile.is_case_rule(t)
+  | _ => false;
+
 let replace_id = (id: Id.t, p: t): t =>
   switch (p) {
   | Tile(t) =>
