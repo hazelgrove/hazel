@@ -60,6 +60,7 @@ let (suite, _) =
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_Polarity.tests
+    @ Test_ProofRuleMentions.tests
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,

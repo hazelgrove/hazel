@@ -440,7 +440,7 @@ let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) =>
 
 let closed_eval_fuel = 1000;
 
-/* Closedness via the co-context machinery (cf. `ProofRule.get_coctx`):
+/* Closedness via the co-context machinery (cf. `ProofRule.occurs_free_any`):
  * run statics on the goal against an empty ctx; an empty co-context
  * means no free variable occurrences. */
 let is_closed = (goal: Exp.t): bool => {
@@ -1034,8 +1034,8 @@ let rec check =
      * relying on the env-shadowing `is_captured` machinery (which only
      * covers rule lookup, and only fires once the body re-peels the new
      * binder). Removal covers both channels in one stroke. The mention
-     * test is FREE occurrence, via the same co-context machinery
-     * `ProofCtx.of_env` uses for `is_captured` (`ProofRule.get_coctx`):
+     * test is FREE occurrence, via the same machinery
+     * `ProofCtx.of_env` uses for `is_captured` (`ProofRule.mentions_any`):
      * a global lemma `forall x -> ...` whose x is bound by its own
      * binder does NOT mention the generalized x and stays available.
      * (Over-removal would still be sound — it only weakens the fact
@@ -1076,14 +1076,10 @@ let rec check =
       );
     | (Some(goal), Some(x)) =>
       /* Does `x` occur FREE in the fact? Peel the fact's own binders into
-       * a rule and ask statics for the co-context of its core (guards
-       * included) — cf. ProofCtx.of_env's capture test. */
-      let mentions_x = (fact: Exp.t) => {
-        let rule = ProofRule.exp_to_rule(fact);
-        let coctx =
-          ProofRule.get_coctx(base_ctx, Typ.temp(Atom(Bool)), rule);
-        CoCtx.has_any(coctx, [x]);
-      };
+       * a rule and ask whether its core (guards included) mentions `x` —
+       * cf. ProofCtx.of_env's capture test. */
+      let mentions_x = (fact: Exp.t) =>
+        ProofRule.mentions_any(ProofRule.exp_to_rule(fact), [x]);
       /* A hypothesis name with base "where": "where", "where'", ... (see
        * SemanticCtx.add_entry_free_name / Var.next_name). */
       let is_where_name = (name: string): bool =>

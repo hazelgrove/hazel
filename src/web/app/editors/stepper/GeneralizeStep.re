@@ -65,11 +65,8 @@ let generalized_ctx = (ctx: SemanticCtx.t, arg: Exp.t): SemanticCtx.t => {
   let base_ctx = SemanticCtx.get_ctx(ctx);
   switch (ProofCheck.unwrap_head(arg) |> Exp.term_of) {
   | Var(x) when Ctx.lookup_var(base_ctx, x) != None =>
-    let mentions_x = (fact: Exp.t) => {
-      let rule = ProofRule.exp_to_rule(fact);
-      let coctx = ProofRule.get_coctx(base_ctx, Typ.temp(Atom(Bool)), rule);
-      CoCtx.has_any(coctx, [x]);
-    };
+    let mentions_x = (fact: Exp.t) =>
+      ProofRule.mentions_any(ProofRule.exp_to_rule(fact), [x]);
     SemanticCtx.of_ctx_and_env(
       {
         ...base_ctx,

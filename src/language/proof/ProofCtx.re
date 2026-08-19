@@ -68,9 +68,7 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
         | Ctx.VarEntry({name, typ, _}) =>
           switch (ProofRule.typ_to_rule(typ)) {
           | Some(rule) =>
-            let coctx =
-              ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
-            let is_captured = CoCtx.has_any(coctx, seen_vars);
+            let is_captured = ProofRule.mentions_any(rule, seen_vars);
             let entry = {
               name,
               rule,
@@ -92,7 +90,10 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
   rules;
 };
 
-let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
+/* `~ctx` is retained for API stability (and symmetry with `of_ctx`); the
+ * capture test no longer needs a typing context now that it is a direct
+ * free-variable check rather than a statics run. */
+let of_env = (~builtins, ~ctx as _: Ctx.t, env: Environment.t(Exp.t)) => {
   let (_, rules) =
     Environment.to_list(env)
     |> List.rev
@@ -102,9 +103,7 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
            | Grammar.ProofObject(e) =>
              let rule = ProofRule.exp_to_rule(e);
              let typ = ProofRule.rule_to_typ(rule);
-             let coctx =
-               ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
-             let is_captured = CoCtx.has_any(coctx, seen_vars);
+             let is_captured = ProofRule.mentions_any(rule, seen_vars);
              let entry = {
                name,
                rule,
