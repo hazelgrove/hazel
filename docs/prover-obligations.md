@@ -405,6 +405,33 @@ on earlier ones.
   rather than implicit unpeeled-prefix IHs — more syntax, but recoverable
   mid-proof and visible in the proof text); structural-recursion detection.
   *Unlocks the lambda-calculus soundness milestone.*
+
+  *4a landed (2026-08-18)*: structural-recursion detection (tier 2 of
+  §4.1) — `StructuralRecursion.re`, wired into `Totality.re` where tier 1
+  used to refuse every reachable `FixF`. The detector accepts a fix when
+  every recursive call passes, in ONE fixed argument position (the same
+  across all call sites — per-call valid-position sets are intersected), a
+  variable that is a strict subterm of that position's parameter. Strict
+  subterms arise syntactically: case/destructuring-let patterns on a
+  parameter (or on a variable already strict in it — tracking is
+  transitive, and nested patterns like `Ap(Lam(b), a)` count both layers),
+  cons/list patterns, constructor patterns directly in a `fun` binder;
+  tuple parameters are tracked per component, so `f((b, n))` passes when
+  the decreasing component is strict (components of a non-strict tuple
+  alias never become strict — reconstruction can't sneak through).
+  Accepted fixes are then walked by Totality with the self-name assumed
+  total (sound by well-founded induction on the subterm order), so the
+  rest of the body is still tier-1-checked; refusals now say "recursive
+  and not visibly structural (…)" to distinguish tier-2 from tier-1
+  failures. Conservative rejections: self-name escaping non-call position,
+  re-constructed or arithmetic arguments (`f(n - 1)` still refuses),
+  inconsistent decreasing positions, shadowed subterm variables, any
+  unanalyzed form. Limitations: **mutual recursion** (tuple-bound fix or
+  two fixes calling each other) is refused outright; no
+  lexicographic/multi-position measures; nested fixes must each pass the
+  check independently. Unlocks Term-ADT decision procedures (`size`,
+  `infer`-shaped) and the `snoc`/`rev` list shapes end-to-end through the
+  instantiation gate.
 - **Phase 5 — directed stepping.** Polarity/variance engine covering
   **boolean polarity and ordered arithmetic in the same cut** (decided
   2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with
