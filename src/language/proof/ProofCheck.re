@@ -135,10 +135,12 @@ let occurs_var = (name: Var.t, e: Exp.t): bool => {
 /* Structured-error axiom-step outgoing used by `check`. Categorises each
  * failure into a `ProofMark.t`. On success also returns the rule's
  * assumptions instantiated by the match — the conditions the application
- * incurs as obligations (empty for unconditional rules). A conditional
- * rule whose assumptions mention metavariables the match left unresolved
- * is refused (UnderdeterminedInstantiation, v1 behavior per
- * docs/prover-obligations.md §4.1). */
+ * incurs as obligations (empty for unconditional rules) — and the
+ * metavariable instantiations the match bound (for the Phase-3a
+ * definedness gates: totality check + domain scan, docs/
+ * prover-obligations.md §4.1). A conditional rule whose assumptions
+ * mention metavariables the match left unresolved is refused
+ * (UnderdeterminedInstantiation, v1 behavior per §4.1). */
 let axiom_step_outgoing_result =
     (
       ~info_map: Statics.Map.t,
@@ -150,7 +152,7 @@ let axiom_step_outgoing_result =
       ~equality: string,
       incoming: Exp.t,
     )
-    : result((Exp.t, list(Exp.t)), ProofMark.t) => {
+    : result((Exp.t, list(Exp.t), list((Var.t, Exp.t))), ProofMark.t) => {
   let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
   switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
   | None => Error(UnknownEquality(equality))
@@ -194,9 +196,15 @@ let axiom_step_outgoing_result =
         } else {
           let instantiated =
             List.map(MatchExp.substitute_exp(mctx), rule.assumptions);
+          let instantiations =
+            List.filter_map(
+              ((n, (_, assigned))) => Option.map(e => (n, e), assigned),
+              mctx,
+            );
           Ok((
             ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, w),
             instantiated,
+            instantiations,
           ));
         };
       };
@@ -232,7 +240,7 @@ let axiom_step_outgoing =
   )
   |> (
     fun
-    | Ok((out, _conditions)) => Some(out)
+    | Ok((out, _conditions, _instantiations)) => Some(out)
     | Error(_) => None
   );
 
@@ -249,7 +257,7 @@ let axiom_step_outgoing_ast =
       ~equality: Exp.t,
       incoming: Exp.t,
     )
-    : result((Exp.t, list(Exp.t)), ProofMark.t) =>
+    : result((Exp.t, list(Exp.t), list((Var.t, Exp.t))), ProofMark.t) =>
   switch (exp_to_int(at_idx)) {
   | None => Error(MalformedIndex)
   | Some(idx) =>
@@ -267,6 +275,31 @@ let axiom_step_outgoing_ast =
         incoming,
       )
     }
+  };
+
+/* Is this expression Float-typed? Statics first, with a syntactic
+ * fallback (float literal / float arithmetic at the head) for
+ * expressions statics did not reach. Used by the Algebrite float gate
+ * (docs/prover-obligations.md §1.5). */
+let rec float_head = (e: Exp.t): bool =>
+  switch (e |> Exp.term_of) {
+  | Parens(e1)
+  | Projector(_, e1) => float_head(e1)
+  | Atom(Float(_)) => true
+  | UnOp(Float(_), _) => true
+  | BinOp(Float(Plus | Minus | Times | Power | Divide), _, _) => true
+  | _ => false
+  };
+
+let is_float_typed = (~info_map: Statics.Map.t, e: Exp.t): bool =>
+  switch (Statics.Map.ty_of(Exp.rep_id(e), info_map)) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Atom(Float) => true
+    | Unknown(_) => float_head(e)
+    | _ => false
+    }
+  | None => float_head(e)
   };
 
 let algebrite_step_outgoing =
@@ -464,6 +497,69 @@ let incur_obligation =
   };
 };
 
+/* --- Phase 3a: definedness gates (docs/prover-obligations.md §4.1) ----
+ *
+ * Two-tier treatment of partiality at the gates:
+ *   - DIVERGENCE (⊥) is never a boolean obligation — a failed
+ *     structural-totality check REFUSES the step (PossiblyDivergent*
+ *     marks).
+ *   - DOMAIN ERRORS (err) are boolean-expressible — the domain scan's
+ *     conditions are incurred as ordinary obligations through the
+ *     discharge channels.
+ * Eval steps carry NO gates: they are denotation-preserving (§5). */
+
+/* Deduplicate a condition list (Exp.fast_equal), preserving order. */
+let dedup_conditions = (conditions: list(Exp.t)): list(Exp.t) =>
+  List.fold_left(
+    (acc, c) => List.exists(Exp.fast_equal(c), acc) ? acc : acc @ [c],
+    [],
+    conditions,
+  );
+
+/* Instantiation gate (axiom/lemma steps): every metavariable
+ * instantiation bound by the match must be structurally total —
+ * `Error(var)` names the first that is not (the step is refused).
+ * Otherwise `Ok(conditions)` carries the domain scan of the
+ * instantiations. The common instantiations — a quantified variable, a
+ * literal, compositions of them under total ops (x := y, x := 2,
+ * x := a + b) — pass the totality check and scan to nothing, so they
+ * emit no traffic at all. */
+let instantiation_gate =
+    (
+      ~info_map: Statics.Map.t,
+      ~ctx: SemanticCtx.t,
+      instantiations: list((Var.t, Exp.t)),
+    )
+    : result(list(Exp.t), Var.t) => {
+  let env = SemanticCtx.get_env(ctx);
+  /* Substitute first: visible definitions are inlined (checkable
+   * through their bodies), recursive ones surface their FixF spine,
+   * quantified binders stay bare Vars. */
+  let substituted =
+    List.map(
+      ((n, e)) => (n, e |> Substitution.in_exp(env)),
+      instantiations,
+    );
+  let divergent =
+    List.find_map(
+      ((n, e)) =>
+        switch (Totality.check(~info_map, ~ctx=SemanticCtx.get_ctx(ctx), e)) {
+        | Ok () => None
+        | Error(_) => Some(n)
+        },
+      substituted,
+    );
+  switch (divergent) {
+  | Some(n) => Error(n)
+  | None =>
+    Ok(
+      substituted
+      |> List.concat_map(((_, e)) => DomainConditions.scan(e))
+      |> dedup_conditions,
+    )
+  };
+};
+
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used
  * by the `Forall` and `Intro` proof forms to walk under the binder. The
  * third component is the binder's `where` restriction, if any — peeling a
@@ -595,17 +691,34 @@ let rec check =
             inc,
           )
         ) {
-        | Ok((out, condition_goals)) =>
-          /* Conditional-rule application: each of the rule's assumptions,
-           * instantiated by the match, is incurred as an obligation on
-           * this step (docs/prover-obligations.md §4.1), running the
-           * discharge channels. */
-          let obligations =
-            List.map(
-              incur_obligation(~step, ~ctx, ~origin=id),
-              condition_goals,
+        | Ok((out, condition_goals, instantiations)) =>
+          /* Phase-3a instantiation gate (§4.1): the matched
+           * instantiations must be structurally total (divergence is
+           * refused, never an obligation), and their domain scan joins
+           * the rule's own instantiated assumptions as obligations on
+           * this step, running the discharge channels. */
+          switch (instantiation_gate(~info_map, ~ctx, instantiations)) {
+          | Error(var) =>
+            let equality_name =
+              exp_to_equality_name(equality) |> Option.value(~default="?");
+            (
+              Some(inc),
+              [
+                ProofMark.PossiblyDivergentInstantiation({
+                  equality: equality_name,
+                  var,
+                }),
+              ],
+              [],
             );
-          (Some(out), [], obligations);
+          | Ok(domain_conditions) =>
+            let obligations =
+              List.map(
+                incur_obligation(~step, ~ctx, ~origin=id),
+                dedup_conditions(condition_goals @ domain_conditions),
+              );
+            (Some(out), [], obligations);
+          }
         /* Error recovery: pass the incoming through (see
          * `result_to_outgoing`). */
         | Error(m) => (Some(inc), [m], [])
@@ -616,16 +729,52 @@ let rec check =
       record(~marks, ~obligations, id, incoming, outgoing, ProofMap.empty),
     );
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-    let (outgoing, marks) =
+    let (outgoing, marks, obligations) =
       switch (incoming) {
-      | None => (None, [ProofMark.MissingIncoming])
+      | None => (None, [ProofMark.MissingIncoming], [])
       | Some(inc) =>
-        result_to_outgoing(
-          ~incoming=inc,
-          algebrite_step_outgoing_ast(~at_idx, ~at_exp, ~with_exp, inc),
-        )
+        /* Float gate (§1.5): CAS field laws are false for IEEE floats
+         * independent of any partiality story, so Float-typed rewrites
+         * are refused outright. */
+        if (is_float_typed(~info_map, at_exp)
+            || is_float_typed(~info_map, with_exp)) {
+          (Some(inc), [ProofMark.FloatAlgebrite], []);
+        } else {
+          switch (
+            algebrite_step_outgoing_ast(~at_idx, ~at_exp, ~with_exp, inc)
+          ) {
+          | Ok(out) =>
+            /* Domain scan of BOTH sides (§4.1): the CAS reasons in a
+             * field; these obligations are what make that sound here.
+             *
+             * TODO(docs/prover-obligations.md §4.1): checker-side CAS
+             * re-verification of the rewrite itself. The CAS lives in
+             * the browser as window.Algebrite (the node test harness
+             * has no CAS at all), so the equational content of the
+             * step remains UI-trusted for now — only its domain
+             * obligations are checked here. */
+            let env = SemanticCtx.get_env(ctx);
+            let conditions =
+              dedup_conditions(
+                DomainConditions.scan(at_exp |> Substitution.in_exp(env))
+                @ DomainConditions.scan(with_exp |> Substitution.in_exp(env)),
+              );
+            (
+              Some(out),
+              [],
+              List.map(
+                incur_obligation(~step, ~ctx, ~origin=id),
+                conditions,
+              ),
+            );
+          | Error(m) => (Some(inc), [m], [])
+          };
+        }
       };
-    (outgoing, record(~marks, id, incoming, outgoing, ProofMap.empty));
+    (
+      outgoing,
+      record(~marks, ~obligations, id, incoming, outgoing, ProofMap.empty),
+    );
   | EvalStep({at_idx, at_exp}) =>
     let (auto_incoming, auto_outgoing, outgoing, marks) =
       switch (incoming) {
@@ -753,9 +902,52 @@ let rec check =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
   | Induction(scrut, cases) =>
+    /* Split/induction gate (§4.1). Ordinary structural induction — a
+     * bare quantified-variable scrutinee — emits nothing (quantifiers
+     * range over total values). A COMPUTED scrutinee is the bool-split
+     * case: within a branch its `case_eq` is a genuine symmetric
+     * equation only if the scrutinee is defined and terminating (§3.3),
+     * so refuse possibly-divergent scrutinees and incur the domain
+     * scan's conditions on this node. */
+    let scrut_sub = scrut |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let is_bare_var =
+      switch (unwrap_head(scrut_sub) |> Exp.term_of) {
+      | Var(_) => true
+      | _ => false
+      };
+    let (gate_marks, gate_obligations) =
+      if (is_bare_var) {
+        ([], []);
+      } else {
+        let gate_marks =
+          switch (
+            Totality.check(
+              ~info_map,
+              ~ctx=SemanticCtx.get_ctx(ctx),
+              scrut_sub,
+            )
+          ) {
+          | Ok () => []
+          | Error(_) => [ProofMark.PossiblyDivergentScrutinee]
+          };
+        let gate_obligations =
+          DomainConditions.scan(scrut_sub)
+          |> List.map(incur_obligation(~step, ~ctx, ~origin=id));
+        (gate_marks, gate_obligations);
+      };
     let (out, marks, m) =
       check_induction(~step, ~info_map, ~ctx, ~incoming, ~scrut, ~cases);
-    (out, record(~marks, id, incoming, out, m));
+    (
+      out,
+      record(
+        ~marks=gate_marks @ marks,
+        ~obligations=gate_obligations,
+        id,
+        incoming,
+        out,
+        m,
+      ),
+    );
   };
 }
 /* Induction on `scrut` in the incoming goal.

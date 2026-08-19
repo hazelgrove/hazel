@@ -30,4 +30,5 @@ let tests =
     Test_Evaluator_Incremental.tests,
     Test_OffDomain.tests,
     Test_ProofMap.tests,
+    Test_Definedness.tests,
   ];

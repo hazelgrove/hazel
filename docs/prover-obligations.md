@@ -344,6 +344,25 @@ on earlier ones.
   discharge; Algebrite checker-verification + domain obligations; closure-
   lemma library + (!) suggestions. *Measure the channel-distribution metric
   here.*
+
+  *3a landed (2026-08-18)*: `Totality.re` (structural totality, tier 1 —
+  any reachable `FixF` refuses; tier-2 structural-recursion detection stays
+  Phase 4) and `DomainConditions.re` (path-insensitive domain scan), wired
+  into `ProofCheck`: instantiation gate on axiom steps
+  (`PossiblyDivergentInstantiation` + scan obligations; quantified-variable
+  / literal / total-op instantiations emit nothing), split gate on computed
+  induction scrutinees (`PossiblyDivergentScrutinee` + scan; bare-variable
+  induction emits nothing), Algebrite domain obligations on both sides plus
+  refusal of Float-typed rewrites (`FloatAlgebrite`, §1.5); eval steps stay
+  gate-free. v1 scan coverage: Int/SInt/Nat `/` → `b != 0`
+  (Float `/.` emits nothing, §1.5); `*_mod` builtins incl. float →
+  `b != 0`; Int/SInt `**` → `e >= 0`; `{int,sint,nat}_of_float` →
+  `is_finite(arg)`. Skipped in v1: `int_of_string`-family (no boolean
+  parseability predicate), `string_sub`/`string_search` index bounds,
+  `nat_of_float` negativity, `Int→SInt/Nat` conversion errors. Still TODO:
+  checker-side CAS re-verification of Algebrite rewrites (the CAS lives in
+  the browser as `window.Algebrite`; the equational content remains
+  UI-trusted), function contracts, closure-lemma library.
 - **Phase 4 — induction power.** Bool splits as first-class UX; IH
   generalization via an **explicit `generalize` step** (decided 2026-08-18: a
   proof form that re-quantifies an already-peeled variable before induction,

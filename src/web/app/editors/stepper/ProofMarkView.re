@@ -84,6 +84,18 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
         ++ "\" matched, but its side conditions mention variables the match did not determine.",
       ),
     ]
+  | PossiblyDivergentInstantiation({equality, var}) => [
+      text(
+        "Applying \""
+        ++ equality
+        ++ "\" here instantiates "
+        ++ var
+        ++ " at an expression that may not terminate.",
+      ),
+    ]
+  | FloatAlgebrite => [
+      text("Algebraic rewrites are refused on float-typed expressions."),
+    ]
   | MalformedIndex => [text("Expected a numeric index literal.")]
   | PatternNotFound({at_exp, at_idx}) => [
       text("Could not find occurrence #" ++ string_of_int(at_idx) ++ " of "),
@@ -98,6 +110,9 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
   | InductionNotExhaustive => [
       text("Induction cases don't cover the scrutinee's type."),
+    ]
+  | PossiblyDivergentScrutinee => [
+      text("The split scrutinee may not terminate."),
     ]
   | InductionEmptyCases => [text("Induction requires at least one case.")]
   };

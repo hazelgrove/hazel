@@ -37,6 +37,18 @@ type t =
    * metavariables the match left unresolved — refused in v1
    * (docs/prover-obligations.md §4.1). */
   | UnderdeterminedInstantiation({equality: string})
+  /* Axiom: a metavariable instantiation bound by the match could not be
+   * shown structurally total (Totality.check) — refused: divergence is
+   * ⊥, never a boolean obligation (docs/prover-obligations.md §1.1,
+   * §4.1). `var` is the rule metavariable whose instantiation failed. */
+  | PossiblyDivergentInstantiation({
+      equality: string,
+      var: string,
+    })
+  /* Algebrite: refuse Float-typed rewrites — CAS field laws are false
+   * for IEEE floats independent of any partiality story
+   * (docs/prover-obligations.md §1.5). */
+  | FloatAlgebrite
   /* Step helpers: `at_idx` isn't a concrete int literal. */
   | MalformedIndex
   /* Step helpers: `at_exp` pattern not found at the requested
@@ -52,6 +64,11 @@ type t =
   | ExpectedForallGoal
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
+  /* Induction/split: a COMPUTED scrutinee (bool split) could not be
+   * shown structurally total — refused, like divergent instantiations
+   * (docs/prover-obligations.md §4.1). Ordinary structural induction on
+   * a bare quantified variable never carries this mark. */
+  | PossiblyDivergentScrutinee
   /* Induction: zero cases were given. */
   | InductionEmptyCases;
 
