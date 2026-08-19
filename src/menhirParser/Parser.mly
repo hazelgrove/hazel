@@ -321,28 +321,43 @@ typ:
     | t1 = typ_inner; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) }
     | t = typ_inner { t }
 
-typ_inner:
+(* The body every typ_inner variant shares; `self` is the variant itself, so
+   recursive positions stay in the same variant. *)
+%inline typ_core(self):
     | t = typAtom { t }
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | PROOF_OF; e = exp; END { ProofOfType(e) }
-    | POLY; a = tpat; DASH_ARROW; t = typ_inner { PolyType(a, t) }
+    | POLY; a = tpat; DASH_ARROW; t = self { PolyType(a, t) }
     | t = tupleType { t }
-    | t1 = typ_inner; DASH_ARROW; t2 = typ_inner { ArrowType(t1, t2) }
+    | t1 = self; DASH_ARROW; t2 = self { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
+    | REC; c=tpat; DASH_ARROW; t = self { RecType(c, t) }
+    | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabelType, t)])) }
+    | t1 = self; DOT; t2 = self { ProdProjection(t1, t2) }
+    | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
+
+typ_inner:
+    | t = typ_core(typ_inner) { t }
     (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The head is its own
        nonterminal, restricted to constructor forms and atoms, so LR tells it
        from a plain typ on the PLUS lookahead. A general `sumTerm PLUS …` head
        would not work: sumTerm derives `typ`, hence also a leading-plus sum,
        which the sumTyp rules would then swallow whole. *)
     | h = noLeadSumHead; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp(h :: flatten_sumterms rest) }
-    | REC; c=tpat; DASH_ARROW; t = typ_inner { RecType(c, t) }
-    | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
-    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
-    | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabelType, t)])) }
-    | t1 = typ_inner; DOT; t2 = typ_inner { ProdProjection(t1, t2) }
-    | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
+
+(* An expression ascription's type: typ without a top-level no-lead sum.
+   MakeTerm ends an expression ascription before `+` (`x : SInt + 1` is
+   `(x : SInt) + 1`), so the sum reading must not be on offer here. *)
+exp_asc_typ:
+    | t1 = exp_asc_typ_inner; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) }
+    | t = exp_asc_typ_inner { t }
+
+exp_asc_typ_inner:
+    | t = typ_core(exp_asc_typ_inner) { t }
 
 tupPatEntry:
     | p = pat {p}
@@ -530,7 +545,7 @@ exp:
     | l = QUOTED_LABEL { Label(l) }
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
-    | e = exp; COLON; t = typ { Asc(e, t) }
+    | e = exp; COLON; t = exp_asc_typ { Asc(e, t) }
     | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
