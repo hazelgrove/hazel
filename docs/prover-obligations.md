@@ -432,6 +432,53 @@ on earlier ones.
   check independently. Unlocks Term-ADT decision procedures (`size`,
   `infer`-shaped) and the `snoc`/`rev` list shapes end-to-end through the
   instantiation gate.
+
+  *4b landed (2026-08-19)*: the `generalize` proof step.
+  `generalize x => <proof>` is a prefix proof form (mirroring `assume`'s
+  wiring, with an `[Exp]` child) whose argument must be a bare in-scope
+  variable — a previously peeled binder. Semantics: with incoming goal
+  `G`, the body's incoming goal is `forall x -> G`; the node's outgoing
+  is `true` ONLY when the body proves the re-quantified goal to literal
+  `true` (sound: `forall x -> G` denoting true entails `G` at the
+  ambient `x`). Anything else marks (`MalformedGeneralize` for a
+  non-variable/out-of-scope argument) and passes the goal through.
+  **Restriction travel**: a `where`-restricted binder re-quantifies as
+  `forall x where g -> G` — the restriction is recovered as the
+  hypotheses installed under the "where" base name whose fact mentions
+  `x` free (conjoined with `&&` if several), so after re-peeling, the
+  guard is a hypothesis again and discharges through channel 1.
+  Re-attaching any ambient hypothesis as a guard is sound regardless of
+  attribution (it weakens the generalized statement; its ambient
+  instance is discharged by that same hypothesis), so approximate
+  recovery cannot compromise soundness. **Capture**: inside the body,
+  every fact whose statement mentions `x` free (assume-hypotheses,
+  `case_eq`, IHs, the where guard itself) is REMOVED from the body's
+  semantic ctx — both the `ProofOf` ctx entries behind channel-1
+  `lookup_fact` and the `ProofObject` env entries behind rule lookup —
+  rather than relying on the env-shadowing `is_captured` machinery
+  (which covers only rule lookup, and only after the body re-peels).
+  The mention test is free occurrence via `ProofRule.get_coctx`, so
+  global lemmas binding the same name (`forall x -> ...`) stay
+  available. **The payoff**: `generalize t => induction e` runs
+  IH generation on the quantified goal, so IHs come out
+  forall-quantified and are citable at other instantiations through the
+  ordinary axiom-step machinery (`exp_to_rule` peels the `forall`);
+  `check_induction` needed no changes for forall goals — the goal is
+  substituted wholesale. One adjacent fix: generated IHs are now
+  env-substituted before installation (like `assume`/`case_eq`
+  hypotheses already were) — rule exps are matched against
+  env-substituted targets, so a raw `Var f` fact could never match its
+  inlined value; the quantified-IH path is the first to exercise IH
+  citation end-to-end. Known limitations: statics checks the generalize
+  body in the unchanged ctx (`x` re-binds at the same name/type, and
+  captured hypotheses remain statically resolvable — the checker
+  refuses their use dynamically); multiple recovered restrictions
+  conjoin into one `&&` guard, which channel-1 lookup matches only
+  whole; `AlgebriteStep` still locates its target with the
+  env-unaware `nth_exp`, so written rewrite patterns fail to match goal
+  regions where axiom splices inlined definition closures (pre-existing,
+  observed while testing — the axiom-step path is env-aware and
+  unaffected).
 - **Phase 5 — directed stepping.** Polarity/variance engine covering
   **boolean polarity and ordered arithmetic in the same cut** (decided
   2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with

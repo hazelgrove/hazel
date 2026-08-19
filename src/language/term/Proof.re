@@ -9,7 +9,8 @@ type cls =
   | EvalStep
   | Induction
   | Forall
-  | Assume;
+  | Assume
+  | Generalize;
 
 include TermBase.Proof;
 
@@ -34,6 +35,7 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | Induction(_, _) => Induction
   | Forall(_, _) => Forall
   | Assume(_, _) => Assume
+  | Generalize(_, _) => Generalize
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -47,6 +49,7 @@ let show_cls: cls => string =
   | Induction => "Induction step"
   | Forall => "Forall step"
   | Assume => "Assume step"
+  | Generalize => "Generalize step"
   | EvalStep => "Eval step";
 
 let temp: term => t =
@@ -93,6 +96,8 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     Equality.syntactic.pat(x1, x2) && fast_equal(b1, b2)
   | (Assume(e1, b1), Assume(e2, b2)) =>
     Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
+  | (Generalize(e1, b1), Generalize(e2, b2)) =>
+    Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -102,6 +107,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Induction(_, _), _)
   | (Forall(_, _), _)
   | (Assume(_, _), _)
+  | (Generalize(_, _), _)
   | (EvalStep(_), _) => false
   };
 };
@@ -122,6 +128,7 @@ let rec has_hole = (p: t): bool =>
     List.exists(((_, body)) => has_hole(body), cases)
   | Forall(_, body) => has_hole(body)
   | Assume(_, body) => has_hole(body)
+  | Generalize(_, body) => has_hole(body)
   | EvalStep(_) => false
   };
 
@@ -196,4 +203,5 @@ let args_have_hole = (p: t): bool =>
     || List.exists(((pat, _)) => pat_has_hole(pat), cases)
   | Forall(pat, _) => pat_has_hole(pat)
   | Assume(e, _) => exp_has_hole(e)
+  | Generalize(e, _) => exp_has_hole(e)
   };

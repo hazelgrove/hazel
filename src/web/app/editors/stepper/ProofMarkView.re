@@ -108,6 +108,9 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text("."),
     ]
   | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
+  | MalformedGeneralize => [
+      text("`generalize` expects a bare in-scope variable."),
+    ]
   | InductionNotExhaustive => [
       text("Induction cases don't cover the scrutinee's type."),
     ]

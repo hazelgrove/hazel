@@ -62,6 +62,9 @@ type t =
   | NothingToStep({at_exp: Exp.t})
   /* Forall: incoming goal isn't a `forall`/`fun`-binder. */
   | ExpectedForallGoal
+  /* Generalize: the argument isn't a bare in-scope variable (a peeled
+   * binder that can be re-quantified). */
+  | MalformedGeneralize
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
   /* Induction/split: a COMPUTED scrutinee (bool split) could not be

@@ -272,7 +272,8 @@ let rec find_marked_sub =
       | None => find_marked_sub(pm, p2)
       }
     | Forall(_, body)
-    | Assume(_, body) => find_marked_sub(pm, body)
+    | Assume(_, body)
+    | Generalize(_, body) => find_marked_sub(pm, body)
     | Induction(_, cases) =>
       let rec scan = (
         fun

@@ -984,6 +984,9 @@ let equality =
       | (Forall(_, _), _) => false
       | (Assume(e1, b1), Assume(e2, b2)) => exp'(e1, e2) && proof'(b1, b2)
       | (Assume(_, _), _) => false
+      | (Generalize(e1, b1), Generalize(e2, b2)) =>
+        exp'(e1, e2) && proof'(b1, b2)
+      | (Generalize(_, _), _) => false
       };
     proof'(p1, p2);
   };

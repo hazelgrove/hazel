@@ -1902,6 +1902,8 @@ and proof_term: unsorted => TermBase.Proof.term = {
       ret(Forall(p, body))
     | ([(_id, (["assume", "=>"], [Exp(e)]))], []) =>
       ret(Assume(e, body))
+    | ([(_id, (["generalize", "=>"], [Exp(e)]))], []) =>
+      ret(Generalize(e, body))
     | _ => ret(hole(tm))
     }
   | Bin(Proof(p1), tiles, Proof(p2)) as tm =>

@@ -33,4 +33,5 @@ let tests =
     Test_Definedness.tests,
     Test_StructuralRecursion.tests,
     Test_FunContracts.tests,
+    Test_Generalize.tests,
   ];

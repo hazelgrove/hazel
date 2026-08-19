@@ -107,7 +107,8 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | EvalStep(_) => true
     | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
     | Forall(_, body)
-    | Assume(_, body) => proof_is_clean(pm, body)
+    | Assume(_, body)
+    | Generalize(_, body) => proof_is_clean(pm, body)
     | Induction(_, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -158,7 +159,8 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Seq(p1, p2) =>
       obligations_of_proof(pm, p1) @ obligations_of_proof(pm, p2)
     | Forall(_, body)
-    | Assume(_, body) => obligations_of_proof(pm, body)
+    | Assume(_, body)
+    | Generalize(_, body) => obligations_of_proof(pm, body)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }

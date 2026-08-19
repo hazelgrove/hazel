@@ -1001,6 +1001,155 @@ let rec check =
     let (out_body, m) =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
+  | Generalize(e, body) =>
+    /* Re-quantify an already-peeled binder x (docs/prover-obligations.md,
+     * Phase 4b): with incoming goal G, the body's incoming goal is
+     * `forall x -> G` — or `forall x where g -> G` when x carries a
+     * recoverable `where` restriction (below). The node's outgoing is
+     * `true` ONLY when the body proves the re-quantified goal to literal
+     * `true`. Soundness: `forall x -> G` denoting true entails G at the
+     * ambient x; for a restricted binder, the guard's ambient instance
+     * is exactly the `where` hypothesis that was installed when x was
+     * peeled. (Plain-forall re-quantification of a restricted binder
+     * would also be sound — it only STRENGTHENS the body's goal — just
+     * needlessly unprovable, so we recover the restriction.)
+     *
+     * Capture soundness — the critical piece: inside the body, every
+     * fact whose statement mentions x (assume-hypotheses, case_eq, IHs,
+     * the where guard itself) is about the OLD x and must become
+     * unavailable under the new binder. We REMOVE those entries from the
+     * body's semantic ctx — both the `ProofOf` ctx entries that drive
+     * discharge-channel-1 `lookup_fact`, and the `ProofObject` env
+     * entries that drive `ProofCtx.of_env` rule lookup — rather than
+     * relying on the env-shadowing `is_captured` machinery (which only
+     * covers rule lookup, and only fires once the body re-peels the new
+     * binder). Removal covers both channels in one stroke. The mention
+     * test is FREE occurrence, via the same co-context machinery
+     * `ProofCtx.of_env` uses for `is_captured` (`ProofRule.get_coctx`):
+     * a global lemma `forall x -> ...` whose x is bound by its own
+     * binder does NOT mention the generalized x and stays available.
+     * (Over-removal would still be sound — it only weakens the fact
+     * set — but needlessly breaks citations of such lemmas.)
+     *
+     * Restriction travel: `where` guards are installed as hypotheses
+     * under the base name "where" (`peel_binder` / `peel_stmt_binders`,
+     * freshened by appending primes). We recover x's restriction as the
+     * where-based hypotheses whose fact mentions x, conjoined with `&&`
+     * if several match. Re-attaching an ambient hypothesis as a binder
+     * guard is sound regardless of attribution: it weakens the
+     * generalized statement, and its ambient instance is discharged by
+     * that same hypothesis. */
+    let base_ctx = SemanticCtx.get_ctx(ctx);
+    let var_name =
+      switch (unwrap_head(e) |> Exp.term_of) {
+      | Var(x) when Ctx.lookup_var(base_ctx, x) != None => Some(x)
+      | _ => None
+      };
+    switch (incoming, var_name) {
+    | (None, _) =>
+      let (_, m) = check(~step, ~info_map, ~ctx, None, body);
+      (None, record(~marks=[ProofMark.MissingIncoming], id, None, None, m));
+    | (Some(_), None) =>
+      /* Recovery: the argument isn't a bare in-scope variable — mark it
+       * and pass the goal through unchanged (the body still gets checked
+       * against the un-generalized goal). */
+      let (_, m) = check(~step, ~info_map, ~ctx, incoming, body);
+      (
+        incoming,
+        record(
+          ~marks=[ProofMark.MalformedGeneralize],
+          id,
+          incoming,
+          incoming,
+          m,
+        ),
+      );
+    | (Some(goal), Some(x)) =>
+      /* Does `x` occur FREE in the fact? Peel the fact's own binders into
+       * a rule and ask statics for the co-context of its core (guards
+       * included) — cf. ProofCtx.of_env's capture test. */
+      let mentions_x = (fact: Exp.t) => {
+        let rule = ProofRule.exp_to_rule(fact);
+        let coctx =
+          ProofRule.get_coctx(base_ctx, Typ.temp(Atom(Bool)), rule);
+        CoCtx.has_any(coctx, [x]);
+      };
+      /* A hypothesis name with base "where": "where", "where'", ... (see
+       * SemanticCtx.add_entry_free_name / Var.next_name). */
+      let is_where_name = (name: string): bool =>
+        String.length(name) >= 5
+        && String.sub(name, 0, 5) == "where"
+        && String.for_all(
+             c => c == '\'',
+             String.sub(name, 5, String.length(name) - 5),
+           );
+      let guards =
+        Ctx.get_var_entries(base_ctx)
+        |> List.filter_map((ve: Ctx.var_entry) =>
+             switch (Typ.term_of(ve.typ)) {
+             | ProofOf(fact) when is_where_name(ve.name) && mentions_x(fact) =>
+               Some(fact)
+             | _ => None
+             }
+           );
+      let binder = Pat.fresh(Var(x));
+      let body_goal =
+        switch (guards) {
+        | [] => Exp.fresh(Forall(binder, goal))
+        | [g, ...gs] =>
+          let guard =
+            List.fold_left(
+              (acc, g') => Exp.fresh(BinOp(Bool(And), acc, g')),
+              g,
+              gs,
+            );
+          Exp.fresh(ForallWhere(binder, guard, goal));
+        };
+      /* Capture: strip every fact mentioning x from the body's scope.
+       * x's own binder entry stays — it is inert once no fact mentions
+       * it (its env binding is the identity `x ↦ Var(x)`), and the
+       * body's re-peel of the new binder rebinds it anyway. */
+      let ctx' =
+        SemanticCtx.of_ctx_and_env(
+          {
+            ...base_ctx,
+            entries:
+              List.filter(
+                (entry: Ctx.entry) =>
+                  switch (entry) {
+                  | VarEntry({typ, _}) =>
+                    switch (Typ.term_of(typ)) {
+                    | ProofOf(fact) => !mentions_x(fact)
+                    | _ => true
+                    }
+                  | _ => true
+                  },
+                base_ctx.entries,
+              ),
+          },
+          Environment.filter(
+            (_, v) =>
+              switch (Exp.term_of(v)) {
+              | Grammar.ProofObject(fact) => !mentions_x(fact)
+              | _ => true
+              },
+            SemanticCtx.get_env(ctx),
+          ),
+        );
+      let (out_body, m) =
+        check(~step, ~info_map, ~ctx=ctx', Some(body_goal), body);
+      /* Discharged when the body reduces the re-quantified goal to
+       * literal `true`; otherwise the outer goal passes through (the
+       * body's partial outgoing lives under the new binder — cf. the
+       * Forall case). */
+      let true_exp = Exp.temp(Atom(Bool(true)));
+      let outgoing =
+        switch (out_body) {
+        | Some(e) when Exp.fast_equal(e, true_exp) => out_body
+        | _ => incoming
+        };
+      (outgoing, record(id, incoming, outgoing, m));
+    };
   | Induction(scrut, cases) =>
     /* Split/induction gate (§4.1). Ordinary structural induction — a
      * bare quantified-variable scrutinee — emits nothing (quantifiers
@@ -1144,6 +1293,16 @@ and check_induction =
                  incoming |> Option.value(~default=Exp.fresh(EmptyHole)),
                )
              );
+        /* Store IHs env-substituted, like `assume` hypotheses and
+         * `case_eq` above: rule exps are matched against env-substituted
+         * targets (MatchExp.match_exp substitutes the exp side), so a
+         * fact citing a definition by bare name (`Var ra`) could never
+         * match its inlined value. */
+        let ihs =
+          List.map(
+            ih => ih |> Substitution.in_exp(SemanticCtx.get_env(ctx')),
+            ihs,
+          );
         let ctx' =
           List.fold_left(
             (c, ih) => {

@@ -4864,6 +4864,21 @@ and proof_to_info_map =
       );
     let elab = rewrap(Assume(e_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Generalize(e, body) =>
+    /* `generalize x => body` re-quantifies an already-peeled binder: `x`
+       must be a bare in-scope variable. Synthesizing gives the variable
+       its ctx-entry type (and a Free-variable mark when out of scope —
+       the checker additionally refuses non-variable arguments with
+       `ProofMark.MalformedGeneralize`). The body is checked in the same
+       ctx: the new quantifier re-binds `x` at the same name and type as
+       the existing entry, so the ctx shape is unchanged (mirroring how
+       the checker rebinds it when the body re-peels the new `forall`). */
+    let (_, e_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, e, m);
+    let (_, body_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
+    let elab = rewrap(Generalize(e_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   };
 };
 
