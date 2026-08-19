@@ -1729,7 +1729,7 @@ let view =
         ~title=
           switch (info_cursor) {
           | None => "Whitespace or Comment"
-          | Some(info) => Info.cls_of(info) |> Cls.show
+          | Some(info) => Info.cls_label(info)
           },
         syn_form @ explanation,
       ),
