@@ -31,6 +31,7 @@ let (suite, _) =
       Test_Highlight.tests,
       Test_CodeGrading.tests,
       Test_PersistentZipper.tests,
+      Test_ProjectorGuard.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
