@@ -143,8 +143,85 @@ let module_tests = [
   ),
 ];
 
+/* Pasting is the other consumer of `Triggers.apply_refractors` -- its comment
+ * names "text-slide loading and paste" -- and only the loading half was covered.
+ * A regression there does not raise: the `^^probe` token either stays in the
+ * program as literal text (a syntax error the user did not write) or the probe is
+ * silently dropped (an annotation quietly lost). Neither is visible from a
+ * parse/print test, because paste goes through the action layer. */
+let settings = Language.CoreSettings.on;
+
+let paste_into_empty = (text: string): Zipper.t => {
+  let model =
+    Editor.Model.mk(Zipper.init(), ~root=Exp) |> Web.CodeWithStatics.Model.mk;
+  let model =
+    Web.CodeWithStatics.Update.calculate(
+      ~settings,
+      ~is_edited=true,
+      ~stitch=x => x,
+      ~dynamics=model.dynamics,
+      ~is_dynamic_term=false,
+      model,
+    );
+  switch (
+    Perform.go(
+      ~settings,
+      ~statics=model.statics,
+      ~syntax=model.editor.syntax,
+      ~root=model.editor.root,
+      Paste(text),
+      {
+        zipper: model.editor.state.zipper,
+        col_target: None,
+      },
+    )
+  ) {
+  | Error(f) => fail("paste failed: " ++ Action.Failure.show(f))
+  | Ok(z) => z
+  };
+};
+
+let manual_count = (z: Zipper.t) => List.length(z.refractors.manuals);
+
+let test_paste_keeps_refractor = (~name, ~code) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = paste_into_empty(code);
+      /* The probe must exist as a refractor, not as leftover text... */
+      check(
+        bool,
+        "a refractor was reconstructed",
+        true,
+        manual_count(z) > 0,
+      );
+      /* ...and the program must print back as what was pasted, which fails both
+         ways: a dropped trigger and a literal one print differently. */
+      check(
+        string,
+        "pasted program round-trips",
+        code,
+        Printer.of_zipper(z),
+      );
+    },
+  );
+
+let paste_tests = [
+  test_paste_keeps_refractor(~name="Paste a probe", ~code="^^probe(1 + 1)"),
+  test_paste_keeps_refractor(
+    ~name="Paste a probe in a let",
+    ~code="let x = ^^probe(1) in x",
+  ),
+  test_paste_keeps_refractor(
+    ~name="Paste two probes",
+    ~code="^^probe(1) + ^^probe(2)",
+  ),
+];
+
 let tests = [
   ("RoundTrip.Basic", basic_tests),
   ("RoundTrip.Probes", probe_tests),
   ("RoundTrip.Modules", module_tests),
+  ("RoundTrip.Paste", paste_tests),
 ];
