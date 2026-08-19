@@ -84,6 +84,49 @@ let view =
 
 `~signal` is a way to propagate events, such as clicks, upwards to this component's parent.
 
+## Testing a component
+
+`Update.update` and `Update.calculate` are ordinary functions over a `Model.t`, so
+they can be driven directly from `test/`. No view layer, no browser. Existing
+examples: `Test_CodeWithStatics`, `Test_EvalResult`, `Test_CodeEditable`,
+`Test_CellEditor`, `Test_Page`, `Test_Editors`, `Test_StepperView`.
+
+Two seams make the awkward parts reachable:
+
+* **`~queue_worker=None`** (`EvalResult.Update.calculate`, and `CellEditor` /
+  `CodeExerciseMode` / … above it) evaluates synchronously through
+  `WorkerServer.evaluate_sync` instead of posting to a worker. Passing
+  `Some(collector)` instead captures the requests the editor *would* have posted,
+  which is how you observe request gating without evaluating anything.
+* **`WorkerClient.use_worker := false`** makes `ScratchMode` choose that `None`
+  path, so the whole page-level cycle is drivable. Without it, any `calculate`
+  with dynamics on dies under node on `Worker is not a constructor`.
+
+Things worth knowing before writing one of these tests:
+
+* **Assert on behaviour, not allocation.** `CachedStatics.init` memoises below
+  `CodeWithStatics`, so a "recomputed" frame can return a physically equal
+  `info_map`. To tell reuse from recompute, hand `calculate` a model whose
+  document has moved on while its `statics` still describes the previous one --
+  the state an edit produces -- and ask which document the result describes.
+  Where a recomputation does mint new ids (`StepperView`'s
+  `Exp.replace_all_ids`), physical equality is a fair observable.
+* **Thread `Updated.is_edit` into `calculate`**, as `Main.re` does. The statics
+  debounce reads it, so a test that hardcodes `~is_edited=true` models a frame
+  sequence the app never produces.
+* **One stale frame is correct.** `StaticsDebounce.consume` returns
+  `StaticsDefer` whenever `is_edited`, so the frame right after a keystroke
+  deliberately shows the previous result; the scheduled `RefreshStatics` finishes
+  the job. Assert both halves — "stale for one frame" and "stale forever" look
+  identical from a single sample, and only the second reaches users.
+* **Mutation-check anything about incrementality.** These decisions fail
+  silently in both directions, so a green test proves little until you have seen
+  it go red. Break the behaviour, watch the test fail, restore.
+
+`Calc` itself is covered by `Test_Calc`, including that `let.calc` skips the work
+when its input is old. That is the contract every `calculate` in the app depends
+on.
+
 ## The Future
 
 This system could be viewed as an in-between state, between the original implementation (with one large model and update type) and a fully-incremental Bonsai implementation (where subcomponent inclusion and downstream calculation are handled fully by Bonsai).

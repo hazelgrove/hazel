@@ -78,5 +78,40 @@ let tests = (
         );
       },
     ),
+    /* The other two modes load from their own stores; exercising the switch
+       catches a load-path regression that the scratch-only tests cannot. */
+    test_case(
+      "switching to exercises loads it",
+      `Quick,
+      () => {
+        let u = update(SwitchMode(Exercises), scratch());
+        check(string, "mode", "Exercises", mode_of(u.model));
+        check(bool, "recalculate requested", true, u.recalculate);
+      },
+    ),
+    test_case(
+      "switching to tutorial loads it",
+      `Quick,
+      () => {
+        let u = update(SwitchMode(Tutorial), scratch());
+        check(string, "mode", "Tutorial", mode_of(u.model));
+        check(bool, "recalculate requested", true, u.recalculate);
+      },
+    ),
+    /* Asymmetry, pinned as observed rather than endorsed: re-selecting the
+       current mode is quiet for Scratch, Documentation and Exercises, but
+       Tutorial raises InvalidAction instead. Nothing depends on the difference
+       today -- the mode buttons are disabled for the active mode -- but it is a
+       trap for anyone adding a mode by copying a neighbouring case. */
+    test_case(
+      "re-selecting tutorial raises rather than being quiet",
+      `Quick,
+      () => {
+        let tutorial = update(SwitchMode(Tutorial), scratch()).model;
+        check_raises("InvalidAction", Updated.InvalidAction, () =>
+          ignore(update(SwitchMode(Tutorial), tutorial))
+        );
+      },
+    ),
   ],
 );
