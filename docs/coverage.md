@@ -24,20 +24,49 @@ not zero. OCaml drops library modules that nothing references, so "nobody calls
 this" and "this is fully covered" look identical in the summary: both are silence.
 
 44 of 519 files are absent for this reason. They are listed explicitly in
-`COVERAGE_NOT_EXPECTED` in the Makefile, in four groups:
+`COVERAGE_NOT_EXPECTED` in the Makefile, in five groups — and the groups are not
+interchangeable, because "absent" has three different causes:
 
-| group | why |
-|---|---|
-| `src/CLI/` | an `executable`, so the test binary cannot depend on it. Untested by choice. |
-| `Main.re`, `Worker.re` | app entry points, excluded from the `web` library by design |
-| `ExerciseSettings_*`, `TutorialSettings_*` | build variants; only whichever copy is in place gets compiled |
-| the remaining 23, incl. all of `src/pretty/` | unreferenced modules: compiled, never linked |
+| group | n | why |
+|---|---|---|
+| `src/CLI/` | 5 | an `executable`, so the test binary cannot depend on it. Untested by choice. |
+| `Main.re`, `Worker.re` | 2 | app entry points, excluded from the `web` library by design |
+| `ExerciseSettings_*`, `TutorialSettings_*` | 4 | build variants; only whichever copy is in place gets compiled |
+| **nothing to instrument** | 12 | declare rather than compute: module types, module aliases, bare types, constant data, or an empty file |
+| **unreferenced code** | 21 | real code nothing references, incl. all of `src/pretty/` |
 
-**Every entry in the last group is a dead-code candidate.** `src/pretty` is an
-entire library nothing references; `Either`, `Monads`, `StateMonad`, `BonsaiUtil`,
-`FreeVariables` and `Drv` are unreferenced today. Cross-check with
-`make dead-code` before adding to that group — a file landing there is a signal,
-not paperwork.
+Only the last group is a list of dead-code candidates. Cross-check it with
+`make dead-code` before adding an entry.
+
+### Worked example: `StepInterface.re`
+
+Worth spelling out, because it is the case that looks most like a coverage gap
+and is least like one.
+
+`src/web/app/editors/stepper/StepInterface.re` is 114 lines and absent from the
+report. It is not dead: eight modules `open` it, and **all eight are in the
+report** — `StepperBase`, `SingleStep`, `AxiomStep`, `AlgebriteStep`,
+`ForallStep`, `InductionStep`, `InductionCase`, `StepperTargetBox`. So the
+obvious diagnosis, "nothing links it because nothing uses it", is wrong.
+
+What the file contains is two `module type` declarations (`STEP` and `STEPPER`)
+and nothing else — zero value definitions. Two consequences:
+
+1. A `module type` generates no runtime code, so `open StepInterface` is a
+   compile-time dependency only. There is no runtime reference for the linker to
+   follow, so the module is compiled and never linked.
+2. bisect_ppx instruments *expressions*. There are none, so there are no coverage
+   points to register even if it were linked.
+
+**So nothing upstream would fix this.** Linking it (via `-linkall`) does make it
+appear — at `100.00%`, from `0/0` points. That is worse than absent: it is a
+vacuous 100% padding the file count while measuring nothing.
+
+`Drv.re` is the same shape and makes the point harder to miss: five lines of
+`module Exp = DrvTerm.Exp;`-style aliases, named on roughly two thousand lines
+across the tree, and equally uncoverable. `FreeVariables.re` and
+`AssumptionView.re` are one byte each — genuinely empty files, and the only
+members of this group that are safe to simply delete.
 
 ## `make coverage-check`
 
@@ -93,5 +122,9 @@ see docs/ui-architecture.md.
 anything needs reformatting it promotes the fix and exits non-zero, so the run
 stops before doing any work. That is not a failure — run it again.
 
-Do not run `make -p` to inspect variables: with no explicit target it also runs
-the default goal, which rebuilds and deletes the `.coverage` data.
+`make coverage-check` reads the `.coverage` data `make coverage` leaves behind,
+so it has to follow it. A plain `make` or `./run_tests` in between rebuilds
+without instrumentation and the data goes away — the guard then fails with
+`no *.coverage files found`, which means "re-run coverage", not "a file is
+missing". Nor should you run `make -p` to inspect these variables: with no
+explicit target it runs the default goal, which has the same effect.

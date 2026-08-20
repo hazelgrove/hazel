@@ -145,38 +145,50 @@ COVERAGE_SKIP_VARIANTS = \
   --do-not-expect src/web/exercises/settings/TutorialSettings_instructor.re \
   --do-not-expect src/web/exercises/settings/TutorialSettings_student.re
 
-# Unreferenced: compiled but not linked, so absent from the report. Every entry
-# here is a dead-code candidate -- cross-check with `make dead-code` before
-# adding one. src/pretty is an entire library that nothing references.
+# Nothing to instrument. These declare rather than compute -- module types,
+# module aliases, bare type definitions, constant data, or (two of them) an empty
+# file. bisect_ppx instruments expressions, so these have no coverage points, and
+# `open Foo` for a signature is a compile-time dependency that generates no
+# runtime reference for the linker to follow. NOT dead code: StepInterface has 8
+# referrers and Drv is named on ~2000 lines. No test can cover them, and forcing
+# them into the link makes them report a vacuous 100% (0/0), which inflates the
+# total rather than measuring anything.
+COVERAGE_SKIP_NO_CODE = \
+  --do-not-expect src/web/app/editors/stepper/StepInterface.re \
+  --do-not-expect src/web/app/sidebar/DebugSection.re \
+  --do-not-expect src/language/derivation/Drv.re \
+  --do-not-expect src/web/PersistentData.re \
+  --do-not-expect src/web/view/agentCore/AgentResult.re \
+  --do-not-expect src/language/term/FreeVariables.re \
+  --do-not-expect src/web/app/editors/stepper/AssumptionView.re \
+  --do-not-expect src/web/exercises/Specs.re \
+  --do-not-expect src/web/exercises/examples/BlankCodeExercise.ml \
+  --do-not-expect src/web/exercises/examples/BlankDerivationExercise.ml \
+  --do-not-expect src/web/exercises/examples/BlankTheoremExercise.ml \
+  --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re
+
+# Real code that nothing references, so it is compiled but never linked. THESE
+# are the dead-code candidates -- cross-check with `make dead-code` before adding
+# one. src/pretty is an entire library nothing references (its MemoTbl is
+# signature-only, but the whole directory is excluded here).
 COVERAGE_SKIP_UNREFERENCED = \
   --do-not-expect src/pretty/ \
-  --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re \
-  --do-not-expect src/language/derivation/Drv.re \
-  --do-not-expect src/language/term/FreeVariables.re \
   --do-not-expect src/util/BonsaiUtil.re \
   --do-not-expect src/util/Either.re \
   --do-not-expect src/util/FloatingElement.re \
   --do-not-expect src/util/Monads.re \
   --do-not-expect src/util/StateMonad.re \
   --do-not-expect src/util/Unicode.re \
-  --do-not-expect src/web/app/editors/stepper/AssumptionView.re \
-  --do-not-expect src/web/app/editors/stepper/StepInterface.re \
-  --do-not-expect src/web/app/input/FailedInput.re \
   --do-not-expect src/web/app/LogEntry.re \
-  --do-not-expect src/web/app/sidebar/DebugSection.re \
+  --do-not-expect src/web/app/input/FailedInput.re \
   --do-not-expect src/web/debug/DebugMode.re \
-  --do-not-expect src/web/exercises/examples/BlankCodeExercise.ml \
-  --do-not-expect src/web/exercises/examples/BlankDerivationExercise.ml \
-  --do-not-expect src/web/exercises/examples/BlankTheoremExercise.ml \
-  --do-not-expect src/web/exercises/ExerciseUtil.re \
-  --do-not-expect src/web/exercises/Specs.re \
-  --do-not-expect src/web/PersistentData.re \
-  --do-not-expect src/web/view/agentCore/AgentResult.re
+  --do-not-expect src/web/exercises/ExerciseUtil.re
 
 COVERAGE_NOT_EXPECTED = \
   $(COVERAGE_SKIP_CLI) \
   $(COVERAGE_SKIP_ENTRY) \
   $(COVERAGE_SKIP_VARIANTS) \
+  $(COVERAGE_SKIP_NO_CODE) \
   $(COVERAGE_SKIP_UNREFERENCED)
 
 coverage-check:
