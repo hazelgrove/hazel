@@ -57,15 +57,22 @@ let test_pip = (t: CanvasGraph.test_info): Node.t => {
   div(~attrs=[clss(["test-pip", cls])], []);
 };
 
-let edge_classes = (e: CanvasGraph.edge): list(string) =>
+let edge_classes =
+    (~focused: option(string)=None, e: CanvasGraph.edge): list(string) =>
   [e.main ? "edge-main" : "edge-helper"]
   @ (e.e_hole ? ["edge-hole"] : [])
-  @ (e.e_err ? ["edge-err"] : []);
+  @ (e.e_err ? ["edge-err"] : [])
+  @ (focused == Some(e.e_name) ? ["edge-focused"] : []);
 
 let edge_svg =
-    (~radius_of: string => float, el: CanvasLayout.edge_layout): list(Node.t) => {
+    (
+      ~focused: option(string),
+      ~radius_of: string => float,
+      el: CanvasLayout.edge_layout,
+    )
+    : list(Node.t) => {
   let e = el.edge;
-  let cls = edge_classes(e);
+  let cls = edge_classes(~focused, e);
   if (el.endo) {
     let r = radius_of(e.dst) +. 16. +. float_of_int(el.orbit_rank) *. 15.;
     [
@@ -149,8 +156,25 @@ let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t =>
     [],
   );
 
-let edge_label = (~inject_jump, el: CanvasLayout.edge_layout): Node.t => {
+let edge_label =
+    (
+      ~focused: option(string),
+      ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      el: CanvasLayout.edge_layout,
+    )
+    : Node.t => {
   let e = el.edge;
+  let test_note = {
+    let n = List.length(e.tests);
+    let passing =
+      List.length(
+        List.filter(
+          (t: CanvasGraph.test_info) => t.status == Some(Pass),
+          e.tests,
+        ),
+      );
+    n == 0 ? "" : Printf.sprintf("\n%d test(s), %d passing", n, passing);
+  };
   let tooltip =
     e.e_name
     ++ " : "
@@ -160,14 +184,15 @@ let edge_label = (~inject_jump, el: CanvasLayout.edge_layout): Node.t => {
       | Some(d) => "\n" ++ d
       | None => ""
       }
-    );
+    )
+    ++ test_note;
   div(
     ~attrs=[
       Attr.id(edge_dom_id(e.e_name)),
-      clss(["canvas-edge-label", ...edge_classes(e)]),
+      clss(["canvas-edge-label", ...edge_classes(~focused, e)]),
       anchor_style(el.label_p),
       Attr.title(tooltip),
-      Attr.on_click(_ => inject_jump(e.e_id)),
+      Attr.on_click(_ => on_edge_click(e)),
     ],
     [text(e.e_name), ...List.map(test_pip, e.tests)],
   );
@@ -261,6 +286,8 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
 let view =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
+      ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
@@ -349,7 +376,7 @@ let view =
       [defs]
       @ List.map(dep_link_svg, lay.dep_links)
       @ List.map(formation_svg, lay.formations)
-      @ List.concat_map(edge_svg(~radius_of), lay.edges),
+      @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );
   let loose =
     loose_tests == []
@@ -374,7 +401,7 @@ let view =
     ],
     [edges_svg]
     @ List.map(node_view(~inject_jump), lay.nodes)
-    @ List.map(edge_label(~inject_jump), lay.edges)
+    @ List.map(edge_label(~focused, ~on_edge_click), lay.edges)
     @ List.map(value_view(~inject_jump), lay.values)
     @ (
       switch (avatar) {

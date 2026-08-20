@@ -87,6 +87,7 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      canvas_focus: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: false,
@@ -363,6 +364,13 @@ module Update = {
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
+          },
+        }
+      | Sidebar(SetCanvasFocus(f)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_focus: f,
           },
         }
       | Sidebar(Problems(ToggleCollapsed(label, cat))) => {

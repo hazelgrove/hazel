@@ -168,6 +168,10 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Canvas panel: name of the function focused in the detail strip.
+       Keyed by name (not id) so it survives re-parses. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_focus: option(string),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -209,5 +213,6 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
-    | ToggleWorkerEncoding(WorkerServer.encoding);
+    | ToggleWorkerEncoding(WorkerServer.encoding)
+    | SetCanvasFocus(option(string));
 };

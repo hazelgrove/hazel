@@ -270,6 +270,157 @@
   text-decoration: underline;
 }
 
+/* ---- focused edge accent ---- */
+
+.canvas-line.edge-focused,
+.canvas-orbit.edge-focused {
+  stroke: #3a7a3a;
+  opacity: 1;
+}
+
+.canvas-edge-label.edge-focused {
+  border-color: #3a7a3a;
+  box-shadow: 0 0 0 2px rgba(74, 122, 74, 0.35);
+}
+
+/* ---- focus strip: one function, flattened input → output ---- */
+
+.canvas-focus {
+  flex: 0 0 auto;
+  border-top: 2px solid var(--CREASE, #ccc);
+  padding: 6px 12px 10px;
+  max-height: 240px;
+  overflow: auto;
+  font-family: var(--code-font, monospace);
+}
+
+.focus-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.focus-name {
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.focus-name:hover {
+  text-decoration: underline;
+}
+
+.focus-ty {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.focus-close {
+  margin-left: auto;
+  cursor: pointer;
+  opacity: 0.5;
+  padding: 0 4px;
+}
+
+.focus-close:hover {
+  opacity: 1;
+}
+
+.focus-doc {
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.7;
+  margin: 2px 0 4px;
+}
+
+.focus-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.focus-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.focus-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.focus-chip {
+  border: 2px solid var(--BLACK, #333);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  background: var(--df-bg, #fdfdf4);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.focus-chip.kind-alias {
+  border-color: #4a7a4a;
+  background: #eaf3e6;
+  font-weight: bold;
+}
+
+.focus-chip.kind-builtin {
+  border-width: 1px;
+  opacity: 0.65;
+}
+
+.focus-chip.kind-ghost {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.focus-well {
+  border: 1.5px dashed var(--CREASE, #bbb);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 10px;
+  opacity: 0.55;
+  min-width: 72px;
+}
+
+.well-glyph {
+  font-weight: bold;
+}
+
+.focus-fn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.focus-fn.edge-hole .focus-fnbox {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.focus-fnbox {
+  border: 2px solid var(--BLACK, #333);
+  border-radius: 7px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  background: var(--df-bg, #fdfdf4);
+  cursor: pointer;
+}
+
+.focus-fnbox:hover {
+  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+}
+
+.focus-arrow {
+  font-size: 15px;
+  opacity: 0.6;
+}
+
 /* ---- legend ---- */
 
 .canvas-legend {

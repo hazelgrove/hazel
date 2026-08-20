@@ -308,6 +308,62 @@ let doc_of = (e_annotation: Language.IdTagged.IdTag.t): option(string) => {
   };
 };
 
+/* ---------- test attribution ---------- */
+
+/* Which top-level function is a test's subject? A test that mentions
+   exactly one is lexically a unit test of it. With several, take the head
+   of the DEEPEST application — the innermost call is the one being driven;
+   outer calls massage its output for the assertion (in
+   `count(update(...)) == 1` the subject is `update`). */
+let test_subject = (~edge_names: list(string), body: Exp.t): option(string) => {
+  let rec head_of = (e: Exp.t): option(string) =>
+    switch (strip_exp(e).term) {
+    | Var(x) => Some(x)
+    | Ap(_, f, _) => head_of(f)
+    | _ => None
+    };
+  let hits: ref(list((string, int))) = ref([]);
+  let depth = ref(0);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          switch (e.term) {
+          | Ap(_, f, _) =>
+            switch (head_of(f)) {
+            | Some(x) when List.mem(x, edge_names) =>
+              hits := [(x, depth^), ...hits^]
+            | _ => ()
+            };
+            incr(depth);
+            let r = cont(e);
+            decr(depth);
+            r;
+          | _ => cont(e)
+          }
+        },
+      body,
+    );
+  let names = hits^ |> List.map(fst) |> List.sort_uniq(compare);
+  switch (names) {
+  | [] =>
+    /* no applications: fall back to any bare mention */
+    exp_vars(body) |> List.find_opt(v => List.mem(v, edge_names))
+  | [x] => Some(x)
+  | _ =>
+    hits^
+    |> List.fold_left(
+         (best, (x, d)) =>
+           switch (best) {
+           | Some((_, bd)) when bd >= d => best
+           | _ => Some((x, d))
+           },
+         None,
+       )
+    |> Option.map(fst)
+  };
+};
+
 /* ---------- error attribution ---------- */
 
 /* Which of [roots] (disjoint def/typ/test subtree rep_ids) owns [err_id]? */
@@ -589,7 +645,7 @@ let extract =
       bindings,
     );
 
-  /* Tests: attach to the first top-level function mentioned in the body. */
+  /* Tests: attach to their lexical subject (see test_subject). */
   let edge_names = List.map(e => e.e_name, edges_raw);
   let status_of = (id: Id.t): option(TestStatus.t) =>
     switch (test_results) {
@@ -607,9 +663,7 @@ let extract =
             t_id,
             status: status_of(t_id),
           };
-          switch (
-            exp_vars(body) |> List.find_opt(v => List.mem(v, edge_names))
-          ) {
+          switch (test_subject(~edge_names, body)) {
           | Some(target) => ([(target, info), ...et], lt)
           | None => (et, lt @ [info])
           };

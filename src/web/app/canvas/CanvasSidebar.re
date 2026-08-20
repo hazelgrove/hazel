@@ -142,6 +142,16 @@ let view =
       globals.inject_global(JumpToTile(id)),
       Effect.Stop_propagation,
     ]);
+  let set_focus = (f: option(string)) =>
+    globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
+  /* clicking a function: focus it in the detail strip AND jump to its def */
+  let on_edge_click = (e: CanvasGraph.edge) =>
+    Effect.Many([
+      set_focus(Some(e.e_name)),
+      globals.inject_global(JumpToTile(e.e_id)),
+      Effect.Stop_propagation,
+    ]);
+  let focused = globals.settings.sidebar.canvas_focus;
   let avatar =
     avatar_target(~editor, editors)
     |> Util.OptUtil.and_then(((id, state)) =>
@@ -196,6 +206,13 @@ let view =
       ],
     );
   };
+  let focus_strip =
+    switch (focused) {
+    | Some(name) =>
+      CanvasFocus.view(~inject_jump, ~on_close=set_focus(None), ~graph, name)
+      |> Option.to_list
+    | None => []
+    };
   div(
     ~attrs=[Attr.id("canvas-sidebar")],
     [
@@ -205,13 +222,16 @@ let view =
         [
           CanvasView.view(
             ~inject_jump,
+            ~on_edge_click,
+            ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,
             lay,
           ),
         ],
       ),
-      legend,
-    ],
+    ]
+    @ focus_strip
+    @ [legend],
   );
 };
