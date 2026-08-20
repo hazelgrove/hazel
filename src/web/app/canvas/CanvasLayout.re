@@ -76,6 +76,26 @@ let cubic_mid = (s: pos, c1: pos, c2: pos, d: pos): pos => {
   y: 0.125 *. s.y +. 0.375 *. c1.y +. 0.375 *. c2.y +. 0.125 *. d.y,
 };
 
+/* unit vector a→b */
+let norm = (a: pos, b: pos): pos => {
+  let dx = b.x -. a.x
+  and dy = b.y -. a.y;
+  let l = max(1., sqrt(dx *. dx +. dy *. dy));
+  {
+    x: dx /. l,
+    y: dy /. l,
+  };
+};
+
+/* the point [d] along the way from [a] toward [b] */
+let offset_along = (a: pos, b: pos, d: float): pos => {
+  let u = norm(a, b);
+  {
+    x: a.x +. u.x *. d,
+    y: a.y +. u.y *. d,
+  };
+};
+
 /* How a non-grid node docks to its anchor. */
 type dock =
   | DockIn /* builtin terminal on the input side */
@@ -266,10 +286,15 @@ let layout = (g: CanvasGraph.t): t => {
               x: a.x +. ar +. 92.,
               y: a.y -. 20. +. fi *. 42.,
             }
-          | DockLoop => {
-              x: a.x -. ar -. 72. -. fi *. 24.,
-              y: a.y -. ar -. 38. -. fi *. 34.,
-            }
+          | DockLoop =>
+            /* fan loop products at distinct angles around the anchor so
+               several feedback functions stay visually separate */
+            let th = (125. +. fi *. 42.) *. Float.pi /. 180.;
+            let dist = ar +. 62. +. fi *. 8.;
+            {
+              x: a.x +. cos(th) *. dist,
+              y: a.y -. sin(th) *. dist,
+            };
           };
         let r = node_radius(~fan=fan(n.key), n);
         docked_layouts :=
@@ -319,13 +344,21 @@ let layout = (g: CanvasGraph.t): t => {
     |> Option.map(snd)
     |> Option.value(~default=base_radius);
 
-  /* ---- formation + dependency links ---- */
+  /* ---- formation + dependency links (rim-to-rim so arrowheads land) ---- */
+  let rim_pair = (from_k: string, to_k: string): option((pos, pos)) =>
+    switch (pos_of(from_k), pos_of(to_k)) {
+    | (Some(fp), Some(tp)) =>
+      Some((
+        offset_along(fp, tp, radius_of(from_k) +. 2.),
+        offset_along(tp, fp, radius_of(to_k) +. 4.),
+      ))
+    | _ => None
+    };
   let formations =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
-        switch (n.kind, pos_of(n.key)) {
-        | (Product, Some(pp)) =>
-          n.parts |> List.filter_map(pos_of) |> List.map(cp => (cp, pp))
+        switch (n.kind) {
+        | Product => n.parts |> List.filter_map(pk => rim_pair(pk, n.key))
         | _ => []
         },
       g.nodes,
@@ -333,12 +366,11 @@ let layout = (g: CanvasGraph.t): t => {
   let dep_links =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
-        switch (n.kind, pos_of(n.key)) {
-        | (Alias, Some(np)) =>
+        switch (n.kind) {
+        | Alias =>
           n.deps
           |> List.filter(d => d != n.key)
-          |> List.filter_map(pos_of)
-          |> List.map(dp => (dp, np))
+          |> List.filter_map(dk => rim_pair(dk, n.key))
         | _ => []
         },
       g.nodes,
@@ -349,6 +381,12 @@ let layout = (g: CanvasGraph.t): t => {
     x: margin,
     y: margin,
   };
+  let loop_product_edges: list((string, string)) =
+    List.filter_map(
+      ((n: CanvasGraph.tynode, anchor, d)) =>
+        d == DockLoop ? Some((n.key, anchor)) : None,
+      docked,
+    );
   let orbit_seen: Hashtbl.t(string, int) = Hashtbl.create(4);
   let edge_layouts =
     List.map(
@@ -356,6 +394,7 @@ let layout = (g: CanvasGraph.t): t => {
         let src_p = Option.value(~default=fallback, pos_of(e.e_src));
         let dst_p = Option.value(~default=fallback, pos_of(e.dst));
         let endo = e.e_src == e.dst;
+        let is_loop = List.mem((e.e_src, e.dst), loop_product_edges);
         let orbit_rank =
           if (endo) {
             let k =
@@ -383,6 +422,44 @@ let layout = (g: CanvasGraph.t): t => {
             label_p: {
               x: apex.x,
               y: apex.y -. 2.,
+            },
+          };
+        } else if (is_loop) {
+          /* feedback: arc from the product back into its own component,
+             bulging perpendicular to the dock axis; label rides the arc */
+          let u = norm(dst_p, src_p);
+          let v0 = {
+            x: -. u.y,
+            y: u.x,
+          };
+          let v =
+            v0.y > 0.
+              ? {
+                x: -. v0.x,
+                y: -. v0.y,
+              }
+              : v0;
+          let mid = {
+            x: (src_p.x +. dst_p.x) /. 2.,
+            y: (src_p.y +. dst_p.y) /. 2.,
+          };
+          let ctrl = {
+            x: mid.x +. v.x *. 38.,
+            y: mid.y +. v.y *. 38.,
+          };
+          let s = offset_along(src_p, ctrl, radius_of(e.e_src) +. 2.);
+          let d = offset_along(dst_p, ctrl, radius_of(e.dst) +. 6.);
+          {
+            edge: e,
+            src_p: s,
+            dst_p: d,
+            c1: ctrl,
+            c2: ctrl,
+            endo,
+            orbit_rank,
+            label_p: {
+              x: ctrl.x +. v.x *. 14.,
+              y: ctrl.y +. v.y *. 14. -. 4.,
             },
           };
         } else {
@@ -424,6 +501,37 @@ let layout = (g: CanvasGraph.t): t => {
       },
       g.edges,
     );
+
+  /* ---- greedy label separation: nudge colliding chips downward ---- */
+  let edge_layouts = {
+    let placed_labels: ref(list(pos)) = ref([]);
+    List.map(
+      (el: edge_layout) => {
+        let collides = (p: pos): bool =>
+          List.exists(
+            q => abs_float(q.x -. p.x) < 58. && abs_float(q.y -. p.y) < 16.,
+            placed_labels^,
+          );
+        let rec free = (p: pos, tries: int): pos =>
+          tries > 6 || !collides(p)
+            ? p
+            : free(
+                {
+                  x: p.x,
+                  y: p.y +. 18.,
+                },
+                tries + 1,
+              );
+        let p = free(el.label_p, 0);
+        placed_labels := [p, ...placed_labels^];
+        {
+          ...el,
+          label_p: p,
+        };
+      },
+      edge_layouts,
+    );
+  };
 
   /* ---- values dock below their type's node ---- */
   let value_layouts =

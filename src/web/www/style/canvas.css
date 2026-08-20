@@ -82,6 +82,16 @@
   opacity: 0.8;
 }
 
+.canvas-arrowhead-sm {
+  fill: var(--BLACK, #333);
+  opacity: 0.5;
+}
+
+.canvas-arrowhead-dep {
+  fill: #4a7a4a;
+  opacity: 0.35;
+}
+
 /* ---- nodes: absolutely positioned circles.
    Anchored via left/top at the node's center and centered with the
    standalone CSS `translate` property — NOT `transform`, which the WAAPI
@@ -258,6 +268,51 @@
 
 .canvas-value:hover {
   text-decoration: underline;
+}
+
+/* ---- legend ---- */
+
+.canvas-legend {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--CREASE, #ccc);
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.legend-glyph {
+  font-weight: bold;
+}
+
+.legend-item.lg-dep .legend-glyph {
+  color: #4a7a4a;
+  opacity: 0.7;
+}
+
+.legend-item.lg-form .legend-glyph,
+.legend-item.lg-hole .legend-glyph {
+  opacity: 0.65;
+}
+
+.legend-item.lg-tests .legend-glyph {
+  color: #4a9a4a;
+}
+
+.legend-item.lg-agent .legend-glyph {
+  background: #2a2a2a;
+  color: #ffd75e;
+  border-radius: 3px;
+  padding: 0 3px;
 }
 
 /* ---- the agent avatar ---- */

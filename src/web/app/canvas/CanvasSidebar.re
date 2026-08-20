@@ -175,6 +175,27 @@ let view =
         ),
       ],
     );
+  let legend = {
+    let item = (cls, glyph, label) =>
+      div(
+        ~attrs=[clss(["legend-item", cls])],
+        [
+          span(~attrs=[clss(["legend-glyph"])], [text(glyph)]),
+          text(label),
+        ],
+      );
+    div(
+      ~attrs=[clss(["canvas-legend"])],
+      [
+        item("lg-fn", {js|─▶|js}, "function"),
+        item("lg-form", {js|┈▶|js}, "forms tuple"),
+        item("lg-dep", {js|─▶|js}, "made of"),
+        item("lg-hole", {js|╌╌|js}, "unwritten (hole)"),
+        item("lg-tests", {js|●|js}, "tests"),
+        item("lg-agent", "@", "agent"),
+      ],
+    );
+  };
   div(
     ~attrs=[Attr.id("canvas-sidebar")],
     [
@@ -190,6 +211,7 @@ let view =
           ),
         ],
       ),
+      legend,
     ],
   );
 };

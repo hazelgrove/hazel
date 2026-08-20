@@ -129,6 +129,7 @@ let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => 
           fmt(pp.y),
         ),
       ),
+      Attr.create("marker-end", "url(#cnv-arrow-sm)"),
     ],
     [],
   );
@@ -143,6 +144,7 @@ let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t =>
       Attr.create("y1", fmt(dp.y)),
       Attr.create("x2", fmt(np.x)),
       Attr.create("y2", fmt(np.y)),
+      Attr.create("marker-end", "url(#cnv-arrow-dep)"),
     ],
     [],
   );
@@ -271,11 +273,47 @@ let view =
     )
     |> Option.map((nl: CanvasLayout.node_layout) => nl.r)
     |> Option.value(~default=CanvasLayout.base_radius);
+  let mk_marker = (~id, ~size, ~cls) =>
+    svg(
+      "marker",
+      [
+        Attr.id(id),
+        Attr.create("markerWidth", fmt(size)),
+        Attr.create("markerHeight", fmt(size)),
+        Attr.create("refX", fmt(size *. 0.8)),
+        Attr.create("refY", fmt(size /. 2.)),
+        Attr.create("orient", "auto"),
+        Attr.create("markerUnits", "userSpaceOnUse"),
+      ],
+      [
+        svg(
+          "path",
+          [
+            Attr.create(
+              "d",
+              Printf.sprintf(
+                "M0,0 L%s,%s L0,%s z",
+                fmt(size),
+                fmt(size /. 2.),
+                fmt(size),
+              ),
+            ),
+            clss([cls]),
+          ],
+          [],
+        ),
+      ],
+    );
+  let small_markers = [
+    mk_marker(~id="cnv-arrow-sm", ~size=6., ~cls="canvas-arrowhead-sm"),
+    mk_marker(~id="cnv-arrow-dep", ~size=6., ~cls="canvas-arrowhead-dep"),
+  ];
   let defs =
     svg(
       "defs",
       [],
-      [
+      small_markers
+      @ [
         svg(
           "marker",
           [
