@@ -105,8 +105,17 @@ type dock =
 
 /* ~x_scale stretches grid columns so a small graph fills the available
    panel width; dock offsets stay fixed (satellite distances shouldn't
-   stretch), and all edge/rim geometry derives from final positions. */
-let layout = (~x_scale=1., g: CanvasGraph.t): t => {
+   stretch), and all edge/rim geometry derives from final positions.
+   ~offsets are user drag deltas keyed by node key, applied after auto
+   placement (edges/rims then derive from the moved positions, and the
+   final normalization translates deltas and auto positions together). */
+let layout =
+    (
+      ~x_scale=1.,
+      ~offsets: list((string, (float, float)))=[],
+      g: CanvasGraph.t,
+    )
+    : t => {
   /* ---- classify: grid vs docked ---- */
   let is_loop_product = (n: CanvasGraph.tynode): bool =>
     n.kind == Product
@@ -359,7 +368,27 @@ let layout = (~x_scale=1., g: CanvasGraph.t): t => {
     },
     unresolved,
   );
-  let node_layouts = grid_layouts @ docked_layouts^;
+  /* ---- user drag deltas ---- */
+  let node_layouts =
+    List.map(
+      (nl: node_layout) =>
+        switch (List.assoc_opt(nl.node.key, offsets)) {
+        | Some((dx, dy)) => {
+            ...nl,
+            p: {
+              x: nl.p.x +. dx,
+              y: nl.p.y +. dy,
+            },
+          }
+        | None => nl
+        },
+      grid_layouts @ docked_layouts^,
+    );
+  Hashtbl.reset(placed);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
+    node_layouts,
+  );
   let pos_of = (k: string): option(pos) =>
     Hashtbl.find_opt(placed, k) |> Option.map(fst);
   let radius_of = (k: string): float =>

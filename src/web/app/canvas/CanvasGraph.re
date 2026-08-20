@@ -76,6 +76,9 @@ type t = {
   edges: list(edge),
   values: list(value),
   loose_tests: list(test_info),
+  /* rep id of the first test / the result expression — canvas-authored
+     function stubs paste just before it (after all definitions) */
+  insert_anchor: option(Id.t),
 };
 
 let empty: t = {
@@ -83,6 +86,7 @@ let empty: t = {
   edges: [],
   values: [],
   loose_tests: [],
+  insert_anchor: None,
 };
 
 let mk_node =
@@ -758,10 +762,19 @@ let extract =
       edges_raw,
     );
 
+  let insert_anchor =
+    List.find_map(
+      fun
+      | ITest(term, _) => Some(Exp.rep_id(term))
+      | IResult(e) => Some(Exp.rep_id(e))
+      | _ => None,
+      items,
+    );
   {
     nodes: alias_nodes @ extras^,
     edges,
     values,
     loose_tests,
+    insert_anchor,
   };
 };

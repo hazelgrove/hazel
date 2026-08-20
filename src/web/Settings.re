@@ -33,6 +33,12 @@ module Model = {
        divider-drag end (the drag itself updates styles imperatively) */
     [@sexp.default None] [@yojson.default None]
     canvas_pane_width: option(int),
+    /* user rearrangements of canvas nodes: ((slide, node key), delta from
+       the auto layout). Deltas rather than absolute positions so a dragged
+       node shifts WITH its neighborhood as the program grows, and layout
+       never rewrites them (no feedback/drift). */
+    [@sexp.default []] [@yojson.default []]
+    canvas_node_offsets: list(((string, string), (float, float))),
   };
 
   let init = {
@@ -98,6 +104,7 @@ module Model = {
       worker_encodings: [WorkerServer.Marshal],
       canvas_focus: None,
       canvas_focus_ty: None,
+      canvas_connect: None,
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -110,6 +117,7 @@ module Model = {
     show_incremental_deco: false,
     canvas_split: false,
     canvas_pane_width: None,
+    canvas_node_offsets: [],
   };
 
   let fix_instructor_mode = settings =>
@@ -187,6 +195,8 @@ module Update = {
     | Sidebar(SidebarModel.Settings.action)
     | ToggleCanvasSplit
     | SetCanvasPaneWidth(int)
+    | SetCanvasNodeOffset(string, string, float, float)
+    | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
@@ -397,6 +407,13 @@ module Update = {
             canvas_focus: None,
           },
         }
+      | Sidebar(SetCanvasConnect(c)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_connect: c,
+          },
+        }
       | Sidebar(SetWidth(w)) => {
           ...settings,
           sidebar: {
@@ -528,6 +545,21 @@ module Update = {
       | SetCanvasPaneWidth(w) => {
           ...settings,
           canvas_pane_width: Some(w),
+        }
+      | SetCanvasNodeOffset(slide, key, dx, dy) => {
+          ...settings,
+          canvas_node_offsets: [
+            ((slide, key), (dx, dy)),
+            ...List.remove_assoc((slide, key), settings.canvas_node_offsets),
+          ],
+        }
+      | ClearCanvasNodeOffsets(slide) => {
+          ...settings,
+          canvas_node_offsets:
+            List.filter(
+              (((s, _), _)) => s != slide,
+              settings.canvas_node_offsets,
+            ),
         }
       | ToggleCanvasSplit =>
         let enabling = !settings.canvas_split;

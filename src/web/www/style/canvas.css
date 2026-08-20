@@ -108,6 +108,44 @@
   overflow: auto;
 }
 
+/* ---- authoring toolbar ---- */
+
+.canvas-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--CREASE, #ccc);
+  font-size: 11px;
+}
+
+.canvas-tool-btn {
+  border: 1px solid var(--CREASE, #aaa);
+  border-radius: 8px;
+  padding: 1px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.canvas-tool-btn:hover {
+  background: rgba(120, 160, 90, 0.15);
+  border-color: #4a7a4a;
+}
+
+.canvas-tool-btn.tool-active {
+  background: #4a7a4a;
+  color: #fff;
+  border-color: #4a7a4a;
+}
+
+.tool-hint {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
 .canvas-root {
   position: relative;
   /* center when the stretch cap leaves the graph narrower than the pane */

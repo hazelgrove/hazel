@@ -177,6 +177,10 @@ module Settings = {
        (observed inhabitant values). Mutually exclusive with canvas_focus. */
     [@sexp.default None] [@yojson.default None]
     canvas_focus_ty: option(string),
+    /* Canvas connect mode: None = off; Some(None) = picking the source
+       node; Some(Some(key)) = source picked, awaiting the target. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_connect: option(option(string)),
     /* Sidebar width in px, set at resize-drag end (the drag itself updates
        styles imperatively). Model state so width-dependent panels (the
        canvas) re-render, and so the width survives reloads. */
@@ -226,5 +230,6 @@ module Settings = {
     | ToggleWorkerEncoding(WorkerServer.encoding)
     | SetCanvasFocus(option(string))
     | SetCanvasFocusTy(option(string))
+    | SetCanvasConnect(option(option(string)))
     | SetWidth(int);
 };

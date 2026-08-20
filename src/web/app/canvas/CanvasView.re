@@ -214,7 +214,12 @@ let edge_label =
 
 let node_view =
     (
-      ~on_node_click: CanvasGraph.tynode => Effect.t(unit),
+      ~on_node_mousedown:
+         (
+           CanvasGraph.tynode,
+           Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)
+         ) =>
+         Effect.t(unit),
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -229,9 +234,10 @@ let node_view =
       | None => ""
       }
     );
-  let click_attrs =
-    n.kind == Product
-      ? [] : [Attr.on_click(_ => on_node_click(n)), clss(["clickable"])];
+  let click_attrs = [
+    Attr.on_mousedown(evt => on_node_mousedown(n, evt)),
+    clss(["clickable"]),
+  ];
   let label_nodes =
     n.label == ""
       ? []
@@ -304,7 +310,12 @@ let view =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
-      ~on_node_click: CanvasGraph.tynode => Effect.t(unit),
+      ~on_node_mousedown:
+         (
+           CanvasGraph.tynode,
+           Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)
+         ) =>
+         Effect.t(unit),
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests: list(CanvasGraph.test_info),
@@ -418,7 +429,7 @@ let view =
       ),
     ],
     [edges_svg]
-    @ List.map(node_view(~on_node_click), lay.nodes)
+    @ List.map(node_view(~on_node_mousedown), lay.nodes)
     @ List.map(
         edge_label(~inject_jump, ~focused, ~on_edge_click),
         lay.edges,
