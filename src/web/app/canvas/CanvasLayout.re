@@ -100,7 +100,8 @@ let offset_along = (a: pos, b: pos, d: float): pos => {
 type dock =
   | DockIn /* builtin terminal on the input side */
   | DockOut /* builtin terminal on the output side */
-  | DockLoop; /* loop product: above-left of its result component */
+  | DockLoop /* loop product: above-left of its result component */
+  | DockDeriv; /* derived [T]: beneath its element type */
 
 /* ~x_scale stretches grid columns so a small graph fills the available
    panel width; dock offsets stay fixed (satellite distances shouldn't
@@ -133,7 +134,19 @@ let layout = (~x_scale=1., g: CanvasGraph.t): t => {
           Some((n, anchor, output ? DockOut : DockIn))
         | None when is_loop_product(n) =>
           Some((n, loop_anchor(n), DockLoop))
-        | None => None
+        | None =>
+          /* derived [T] docks beneath T when T is itself on the grid */
+          switch (n.kind, strip_brackets(n.key)) {
+          | (Derived, Some(ik)) =>
+            switch (
+              List.find_opt((m: CanvasGraph.tynode) => m.key == ik, g.nodes)
+            ) {
+            | Some(m) when m.sat == None && !is_loop_product(m) =>
+              Some((n, ik, DockDeriv))
+            | _ => None
+            }
+          | _ => None
+          }
         },
       g.nodes,
     );
@@ -301,6 +314,10 @@ let layout = (~x_scale=1., g: CanvasGraph.t): t => {
               x: a.x +. cos(th) *. dist,
               y: a.y -. sin(th) *. dist,
             };
+          | DockDeriv => {
+              x: a.x,
+              y: a.y +. ar +. 52. +. fi *. 36.,
+            }
           };
         let r = node_radius(~fan=fan(n.key), n);
         docked_layouts :=

@@ -46,7 +46,7 @@ let kind_cls = (k: CanvasGraph.node_kind): string =>
 
 let svg = (name, attrs, children) => Node.create_svg(name, ~attrs, children);
 
-let test_pip = (t: CanvasGraph.test_info): Node.t => {
+let test_pip = (~on_click=?, t: CanvasGraph.test_info): Node.t => {
   let cls =
     switch (t.status) {
     | Some(Pass) => "pip-pass"
@@ -54,7 +54,12 @@ let test_pip = (t: CanvasGraph.test_info): Node.t => {
     | Some(Indet) => "pip-indet"
     | None => "pip-unknown"
     };
-  div(~attrs=[clss(["test-pip", cls])], []);
+  let click =
+    switch (on_click) {
+    | Some(f) => [Attr.on_click(_ => f(t)), Attr.title("select this test")]
+    | None => []
+    };
+  div(~attrs=[clss(["test-pip", cls]), ...click], []);
 };
 
 let edge_classes =
@@ -158,6 +163,7 @@ let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t =>
 
 let edge_label =
     (
+      ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~focused: option(string),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
       el: CanvasLayout.edge_layout,
@@ -194,7 +200,15 @@ let edge_label =
       Attr.title(tooltip),
       Attr.on_click(_ => on_edge_click(e)),
     ],
-    [text(e.e_name), ...List.map(test_pip, e.tests)],
+    [
+      text(e.e_name),
+      ...List.map(
+           test_pip(~on_click=(t: CanvasGraph.test_info) =>
+             inject_jump(t.t_id)
+           ),
+           e.tests,
+         ),
+    ],
   );
 };
 
@@ -405,7 +419,10 @@ let view =
     ],
     [edges_svg]
     @ List.map(node_view(~on_node_click), lay.nodes)
-    @ List.map(edge_label(~focused, ~on_edge_click), lay.edges)
+    @ List.map(
+        edge_label(~inject_jump, ~focused, ~on_edge_click),
+        lay.edges,
+      )
     @ List.map(value_view(~inject_jump), lay.values)
     @ (
       switch (avatar) {
