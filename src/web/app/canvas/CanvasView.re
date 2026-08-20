@@ -198,7 +198,12 @@ let edge_label =
   );
 };
 
-let node_view = (~inject_jump, nl: CanvasLayout.node_layout): Node.t => {
+let node_view =
+    (
+      ~on_node_click: CanvasGraph.tynode => Effect.t(unit),
+      nl: CanvasLayout.node_layout,
+    )
+    : Node.t => {
   let n = nl.node;
   let d = nl.r *. 2.;
   let tooltip =
@@ -211,10 +216,8 @@ let node_view = (~inject_jump, nl: CanvasLayout.node_layout): Node.t => {
       }
     );
   let click_attrs =
-    switch (n.n_id) {
-    | Some(id) => [Attr.on_click(_ => inject_jump(id)), clss(["clickable"])]
-    | None => []
-    };
+    n.kind == Product
+      ? [] : [Attr.on_click(_ => on_node_click(n)), clss(["clickable"])];
   let label_nodes =
     n.label == ""
       ? []
@@ -287,6 +290,7 @@ let view =
     (
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_node_click: CanvasGraph.tynode => Effect.t(unit),
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests: list(CanvasGraph.test_info),
@@ -400,7 +404,7 @@ let view =
       ),
     ],
     [edges_svg]
-    @ List.map(node_view(~inject_jump), lay.nodes)
+    @ List.map(node_view(~on_node_click), lay.nodes)
     @ List.map(edge_label(~focused, ~on_edge_click), lay.edges)
     @ List.map(value_view(~inject_jump), lay.values)
     @ (

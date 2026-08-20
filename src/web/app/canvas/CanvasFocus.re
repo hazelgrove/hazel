@@ -132,6 +132,208 @@ let slot =
   );
 };
 
+/* ---------- type focus: observed inhabitants across all probe sites ---------- */
+
+let max_type_values = 10;
+
+/* pretty type of a probed site, from statics */
+let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
+  switch (Id.Map.find_opt(id, info_map)) {
+  | Some(InfoExp(e)) =>
+    Some(CanvasGraph.pretty_ty(Language.Info.exp_ty(e)))
+  | Some(InfoPat(p)) =>
+    Some(CanvasGraph.pretty_ty(Language.Info.pat_ty(p)))
+  | _ => None
+  };
+
+let type_view =
+    (
+      ~globals: Globals.t,
+      ~inject_jump,
+      ~on_close: Effect.t(unit),
+      ~dynamics: Language.Dynamics.Map.t,
+      ~info_map: Language.Statics.Map.t,
+      ~graph: CanvasGraph.t,
+      key: string,
+    )
+    : option(Node.t) =>
+  node_of(graph, key)
+  |> Option.map((n: CanvasGraph.tynode) => {
+       let probing = globals.settings.core.probe_all;
+       /* a site inhabits this type if its pretty type matches the node's
+          name or (for aliases) its body */
+       let names =
+         [n.label]
+         @ (
+           switch (n.n_ty) {
+           | Some(b) when b != n.label => [b]
+           | _ => []
+           }
+         );
+       let tally: Hashtbl.t(string, (int, int)) = Hashtbl.create(16);
+       Language.Sample.Map.fold(
+         (id, samples, ()) =>
+           switch (site_ty(~info_map, id)) {
+           | Some(t) when List.mem(t, names) =>
+             List.iter(
+               (s: Language.Sample.t) => {
+                 let v = print_value(s.value);
+                 let (c, latest) =
+                   Option.value(
+                     ~default=(0, 0),
+                     Hashtbl.find_opt(tally, v),
+                   );
+                 Hashtbl.replace(tally, v, (c + 1, max(latest, s.seq)));
+               },
+               samples,
+             )
+           | _ => ()
+           },
+         dynamics,
+         (),
+       );
+       let entries =
+         Hashtbl.fold(
+           (v, (c, latest), acc) => [(v, c, latest), ...acc],
+           tally,
+           [],
+         )
+         |> List.sort(((_, _, a), (_, _, b)) => compare(b, a));
+       let shown = entries |> List.filteri((i, _) => i < max_type_values);
+       let total_obs =
+         List.fold_left((acc, (_, c, _)) => acc + c, 0, entries);
+       let head =
+         div(
+           ~attrs=[clss(["focus-head"])],
+           [
+             span(
+               ~attrs=
+                 [clss(["focus-name"])]
+                 @ (
+                   switch (n.n_id) {
+                   | Some(id) => [
+                       Attr.on_click(_ => inject_jump(id)),
+                       Attr.title("select definition"),
+                     ]
+                   | None => []
+                   }
+                 ),
+               [text(n.label)],
+             ),
+           ]
+           @ (
+             switch (n.n_ty) {
+             | Some(b) when b != n.label => [
+                 span(~attrs=[clss(["focus-ty"])], [text(" = " ++ b)]),
+               ]
+             | _ => []
+             }
+           )
+           @ [
+             span(
+               ~attrs=[clss(["focus-ty"])],
+               [
+                 text(
+                   Printf.sprintf(
+                     "  ·  %d distinct value(s), %d observation(s)",
+                     List.length(entries),
+                     total_obs,
+                   ),
+                 ),
+               ],
+             ),
+           ]
+           @ (
+             probing
+               ? []
+               : [
+                 div(
+                   ~attrs=[
+                     clss(["focus-probe-btn"]),
+                     Attr.on_click(_ =>
+                       globals.inject_global(Set(ProbeAll))
+                     ),
+                     Attr.title(
+                       "turn on probe-all so values of this type are sampled",
+                     ),
+                   ],
+                   [text("collect samples")],
+                 ),
+               ]
+           )
+           @ [
+             div(
+               ~attrs=[
+                 clss(["focus-close"]),
+                 Attr.on_click(_ => on_close),
+                 Attr.title("close"),
+               ],
+               [text({js|✕|js})],
+             ),
+           ],
+         );
+       let doc =
+         switch (n.n_doc) {
+         | Some(d) => [div(~attrs=[clss(["focus-doc"])], [text(d)])]
+         | None => []
+         };
+       let values_row =
+         shown == []
+           ? [
+             div(
+               ~attrs=[clss(["type-values-empty"])],
+               [
+                 text(
+                   probing
+                     ? "no values of this type observed"
+                     : "no samples — collect samples and run",
+                 ),
+               ],
+             ),
+           ]
+           : [
+             div(
+               ~attrs=[clss(["type-values"])],
+               List.map(
+                 ((v, c, _)) =>
+                   div(
+                     ~attrs=[clss(["type-value"]), Attr.title(v)],
+                     [text(truncate(36, v))]
+                     @ (
+                       c > 1
+                         ? [
+                           span(
+                             ~attrs=[clss(["type-value-count"])],
+                             [text(Printf.sprintf({js| ×%d|js}, c))],
+                           ),
+                         ]
+                         : []
+                     ),
+                   ),
+                 shown,
+               )
+               @ (
+                 List.length(entries) > max_type_values
+                   ? [
+                     div(
+                       ~attrs=[clss(["well-more"])],
+                       [
+                         text(
+                           Printf.sprintf(
+                             "+%d more",
+                             List.length(entries) - max_type_values,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ]
+                   : []
+               ),
+             ),
+           ];
+       div(~attrs=[clss(["canvas-focus"])], [head] @ doc @ values_row);
+     });
+
 let view =
     (
       ~globals: Globals.t,

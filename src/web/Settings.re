@@ -93,6 +93,7 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
       canvas_focus: None,
+      canvas_focus_ty: None,
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -379,6 +380,15 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_focus: f,
+            canvas_focus_ty: None,
+          },
+        }
+      | Sidebar(SetCanvasFocusTy(k)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_focus_ty: k,
+            canvas_focus: None,
           },
         }
       | Sidebar(SetWidth(w)) => {

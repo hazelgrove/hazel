@@ -33,6 +33,7 @@ type tynode = {
   n_id: option(Id.t), /* TyAlias rep_id — jump anchor */
   kind: node_kind,
   ctrs: list(string), /* constructor names when alias body is a sum */
+  n_ty: option(string), /* alias body pretty — a second name for matching */
   n_doc: option(string),
   n_err: bool,
   deps: list(string), /* node keys this node's body/components reference */
@@ -88,6 +89,7 @@ let mk_node =
     (
       ~n_id=None,
       ~ctrs=[],
+      ~n_ty=None,
       ~n_doc=None,
       ~n_err=false,
       ~deps=[],
@@ -103,6 +105,7 @@ let mk_node =
   n_id,
   kind,
   ctrs,
+  n_ty,
   n_doc,
   n_err,
   deps,
@@ -205,6 +208,21 @@ let rec unwrap_ty = (ty: Typ.t): Typ.t =>
   | TupLabel(_, t) => unwrap_ty(t)
   | _ => ty
   };
+
+/* pretty-print with redundant Parens stripped everywhere, so signatures
+   read `(Model, Msg) -> Model` rather than `((Model, Msg)) -> Model` and
+   type strings compare stably regardless of source parenthesization */
+let pretty_ty = (ty: Typ.t): string => {
+  let rec strip = (t: Typ.t): Typ.t =>
+    switch (t.term) {
+    | Parens(inner) => strip(inner)
+    | _ => t
+    };
+  ty
+  |> Typ.map_term(~f_typ=(cont, t) => cont(strip(t)))
+  |> strip
+  |> Typ.pretty_print;
+};
 
 let ty_vars = (ty: Typ.t): list(string) => {
   let acc = ref([]);
@@ -488,6 +506,7 @@ let extract =
               ~n_id=Some(Exp.rep_id(term)),
               ~kind=is_hole ? Ghost : Alias,
               ~ctrs=ctr_names(ty),
+              ~n_ty=is_hole ? None : Some(pretty_ty(ty)),
               ~n_doc=doc_of(term.annotation),
               ~n_err=root_has_err(Some(Typ.rep_id(ty))),
               ~deps=List.sort_uniq(compare, ty_vars(ty)),
@@ -593,7 +612,7 @@ let extract =
                 v_name: name,
                 v_id: id,
                 v_key,
-                v_ty: Typ.pretty_print(ty),
+                v_ty: pretty_ty(ty),
                 v_err: err,
               },
             ],
@@ -679,7 +698,7 @@ let extract =
               {
                 e_name: name,
                 e_id: id,
-                e_ty: Typ.pretty_print(ty),
+                e_ty: pretty_ty(ty),
                 e_src: input_key,
                 dst: dst_key,
                 e_doc: doc,

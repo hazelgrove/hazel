@@ -169,9 +169,14 @@ module Settings = {
                                             ]
     worker_encodings: list(WorkerServer.encoding),
     /* Canvas panel: name of the function focused in the detail strip.
-       Keyed by name (not id) so it survives re-parses. */
+       Keyed by name (not id) so it survives re-parses. Mutually exclusive
+       with canvas_focus_ty. */
     [@sexp.default None] [@yojson.default None]
     canvas_focus: option(string),
+    /* Canvas panel: node key of the TYPE focused in the detail strip
+       (observed inhabitant values). Mutually exclusive with canvas_focus. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_focus_ty: option(string),
     /* Sidebar width in px, set at resize-drag end (the drag itself updates
        styles imperatively). Model state so width-dependent panels (the
        canvas) re-render, and so the width survives reloads. */
@@ -220,5 +225,6 @@ module Settings = {
     | ToggleDebugCollapsed(string)
     | ToggleWorkerEncoding(WorkerServer.encoding)
     | SetCanvasFocus(option(string))
+    | SetCanvasFocusTy(option(string))
     | SetWidth(int);
 };

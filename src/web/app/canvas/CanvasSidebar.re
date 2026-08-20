@@ -192,7 +192,22 @@ let view =
       globals.inject_global(SelectTile(e.e_id)),
       Effect.Stop_propagation,
     ]);
+  /* clicking a type: focus its observed values; aliases also select */
+  let on_node_click = (n: CanvasGraph.tynode) =>
+    Effect.Many(
+      [
+        globals.inject_global(Set(Sidebar(SetCanvasFocusTy(Some(n.key))))),
+      ]
+      @ (
+        switch (n.n_id) {
+        | Some(id) => [globals.inject_global(SelectTile(id))]
+        | None => []
+        }
+      )
+      @ [Effect.Stop_propagation],
+    );
   let focused = globals.settings.sidebar.canvas_focus;
+  let focused_ty = globals.settings.sidebar.canvas_focus_ty;
   let avatar =
     avatar_target(~editor, editors)
     |> Util.OptUtil.and_then(((id, state)) =>
@@ -264,8 +279,20 @@ let view =
     );
   };
   let focus_strip =
-    switch (focused) {
-    | Some(name) =>
+    switch (focused_ty, focused) {
+    | (Some(key), _) =>
+      CanvasFocus.type_view(
+        ~globals,
+        ~inject_jump,
+        ~on_close=
+          globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+        ~dynamics=editor.dynamics,
+        ~info_map=editor.statics.info_map,
+        ~graph,
+        key,
+      )
+      |> Option.to_list
+    | (None, Some(name)) =>
       CanvasFocus.view(
         ~globals,
         ~inject_jump,
@@ -275,7 +302,7 @@ let view =
         name,
       )
       |> Option.to_list
-    | None => []
+    | (None, None) => []
     };
   div(
     ~attrs=[Attr.id("canvas-sidebar")],
@@ -287,6 +314,7 @@ let view =
           CanvasView.view(
             ~inject_jump,
             ~on_edge_click,
+            ~on_node_click,
             ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,
