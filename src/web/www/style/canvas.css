@@ -10,25 +10,33 @@
 
 /* main-area split: editor left, canvas right, agent chat free in the sidebar */
 
+/* Absolutely-positioned panes rather than flex items: as flex (or grid)
+   children of #main the panes' cross-size stuck at the line's content
+   height (~half the pane) instead of stretching to the grid-stretched
+   container — absolute insets size directly off #main's box. */
+
 #main.has-canvas-split {
-  display: flex;
-  flex-direction: row;
+  position: relative;
   overflow: hidden;
 }
 
-#main.has-canvas-split .main-split-editors {
+.main-split-editors {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 44%;
+  overflow: auto;
   display: flex;
   flex-direction: column;
 }
 
-.main-split-editors {
-  flex: 1 1 55%;
-  min-width: 0;
-  overflow: auto;
-}
-
 #canvas-main {
-  flex: 0 0 44%;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 44%;
   min-width: 320px;
   border-left: 2px solid var(--CREASE, #ccc);
   overflow: hidden;
