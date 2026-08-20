@@ -3,10 +3,13 @@ open Node;
 open Util.WebUtil;
 
 /* CanvasView — SVG/HTML rendering of a laid-out CanvasGraph. Edges live in
-   an underlying SVG; nodes, labels, values, and the agent avatar are
+   an underlying SVG (horizontal-tangent béziers; orbits for single-arg
+   endofunctions); nodes, labels, values, and the agent avatar are
    absolutely-positioned divs so they can carry stable DOM ids for the
-   id-keyed FLIP in Animation.re (positioned via left/top, NOT transform —
-   WAAPI transform animations would clobber a transform-based centering). */
+   id-keyed FLIP in Animation.re. Elements are anchored via left/top and
+   centered with the standalone CSS `translate` property — never the
+   `transform` property, which WAAPI FLIP animations would override
+   mid-flight (the label-jump bug). */
 
 let fmt = f => Printf.sprintf("%.1f", f);
 
@@ -26,16 +29,10 @@ let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
 let edge_dom_id = (name: string): string => "cedge-" ++ sanitize(name);
 let avatar_dom_id = "canvas-avatar";
 
-let pos_style = (~w: float, ~h: float, p: CanvasLayout.pos): Attr.t =>
+let anchor_style = (p: CanvasLayout.pos): Attr.t =>
   Attr.create(
     "style",
-    Printf.sprintf(
-      "left: %spx; top: %spx; width: %spx; height: %spx;",
-      fmt(p.x -. w /. 2.),
-      fmt(p.y -. h /. 2.),
-      fmt(w),
-      fmt(h),
-    ),
+    Printf.sprintf("left: %spx; top: %spx;", fmt(p.x), fmt(p.y)),
   );
 
 let kind_cls = (k: CanvasGraph.node_kind): string =>
@@ -44,34 +41,10 @@ let kind_cls = (k: CanvasGraph.node_kind): string =>
   | Builtin => "kind-builtin"
   | Derived => "kind-derived"
   | Ghost => "kind-ghost"
+  | Product => "kind-product"
   };
 
 let svg = (name, attrs, children) => Node.create_svg(name, ~attrs, children);
-
-let line = (~cls: list(string), a: CanvasLayout.pos, b: CanvasLayout.pos) =>
-  svg(
-    "line",
-    [
-      clss(["canvas-line", ...cls]),
-      Attr.create("x1", fmt(a.x)),
-      Attr.create("y1", fmt(a.y)),
-      Attr.create("x2", fmt(b.x)),
-      Attr.create("y2", fmt(b.y)),
-    ],
-    [],
-  );
-
-/* pull the endpoint back so the arrowhead lands on the node's rim */
-let shorten =
-    (a: CanvasLayout.pos, b: CanvasLayout.pos, by: float): CanvasLayout.pos => {
-  let dx = b.x -. a.x
-  and dy = b.y -. a.y;
-  let len = max(1., sqrt(dx *. dx +. dy *. dy));
-  {
-    x: b.x -. dx /. len *. by,
-    y: b.y -. dy /. len *. by,
-  };
-};
 
 let test_pip = (t: CanvasGraph.test_info): Node.t => {
   let cls =
@@ -84,16 +57,18 @@ let test_pip = (t: CanvasGraph.test_info): Node.t => {
   div(~attrs=[clss(["test-pip", cls])], []);
 };
 
+let edge_classes = (e: CanvasGraph.edge): list(string) =>
+  [e.main ? "edge-main" : "edge-helper"]
+  @ (e.e_hole ? ["edge-hole"] : [])
+  @ (e.e_err ? ["edge-err"] : []);
+
 let edge_svg =
     (~radius_of: string => float, el: CanvasLayout.edge_layout): list(Node.t) => {
   let e = el.edge;
-  let cls =
-    [e.main ? "edge-main" : "edge-helper"]
-    @ (e.e_hole ? ["edge-hole"] : [])
-    @ (e.e_err ? ["edge-err"] : []);
+  let cls = edge_classes(e);
   if (el.endo) {
     let r = radius_of(e.dst) +. 16. +. float_of_int(el.orbit_rank) *. 15.;
-    let orbit =
+    [
       svg(
         "circle",
         [
@@ -103,43 +78,74 @@ let edge_svg =
           Attr.create("r", fmt(r)),
         ],
         [],
-      );
-    let inputs =
-      List.map(
-        p => line(~cls=["edge-input", ...cls], p, el.jct),
-        el.src_ps,
-      );
-    [orbit, ...inputs];
+      ),
+    ];
   } else {
-    let tip = shorten(el.jct, el.dst_p, radius_of(el.edge.dst) +. 4.);
-    let main_line =
+    [
       svg(
-        "line",
+        "path",
         [
           clss(["canvas-line", "edge-arrow", ...cls]),
-          Attr.create("x1", fmt(el.jct.x)),
-          Attr.create("y1", fmt(el.jct.y)),
-          Attr.create("x2", fmt(tip.x)),
-          Attr.create("y2", fmt(tip.y)),
+          Attr.create(
+            "d",
+            Printf.sprintf(
+              "M %s,%s C %s,%s %s,%s %s,%s",
+              fmt(el.src_p.x),
+              fmt(el.src_p.y),
+              fmt(el.c1.x),
+              fmt(el.c1.y),
+              fmt(el.c2.x),
+              fmt(el.c2.y),
+              fmt(el.dst_p.x),
+              fmt(el.dst_p.y),
+            ),
+          ),
           Attr.create("marker-end", "url(#cnv-arrow)"),
         ],
         [],
-      );
-    let inputs =
-      List.length(el.src_ps) == 1
-        ? []  /* single arg: jct sits on the src→dst line, skip stub */
-        : List.map(
-            p => line(~cls=["edge-input", ...cls], p, el.jct),
-            el.src_ps,
-          );
-    let single =
-      switch (el.src_ps) {
-      | [p] => [line(~cls=["edge-input", ...cls], p, el.jct)]
-      | _ => []
-      };
-    inputs @ single @ [main_line];
+      ),
+    ];
   };
 };
+
+let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
+  /* gentle curve from component toward its product */
+  let mx = (cp.x +. pp.x) /. 2.;
+  svg(
+    "path",
+    [
+      clss(["canvas-formation"]),
+      Attr.create(
+        "d",
+        Printf.sprintf(
+          "M %s,%s C %s,%s %s,%s %s,%s",
+          fmt(cp.x),
+          fmt(cp.y),
+          fmt(mx),
+          fmt(cp.y),
+          fmt(mx),
+          fmt(pp.y),
+          fmt(pp.x),
+          fmt(pp.y),
+        ),
+      ),
+    ],
+    [],
+  );
+};
+
+let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t =>
+  svg(
+    "line",
+    [
+      clss(["canvas-dep"]),
+      Attr.create("x1", fmt(dp.x)),
+      Attr.create("y1", fmt(dp.y)),
+      Attr.create("x2", fmt(np.x)),
+      Attr.create("y2", fmt(np.y)),
+    ],
+    [],
+  );
 
 let edge_label = (~inject_jump, el: CanvasLayout.edge_layout): Node.t => {
   let e = el.edge;
@@ -156,20 +162,8 @@ let edge_label = (~inject_jump, el: CanvasLayout.edge_layout): Node.t => {
   div(
     ~attrs=[
       Attr.id(edge_dom_id(e.e_name)),
-      clss(
-        ["canvas-edge-label"]
-        @ (e.main ? ["edge-main"] : [])
-        @ (e.e_hole ? ["edge-hole"] : [])
-        @ (e.e_err ? ["edge-err"] : []),
-      ),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "left: %spx; top: %spx;",
-          fmt(el.label_p.x),
-          fmt(el.label_p.y),
-        ),
-      ),
+      clss(["canvas-edge-label", ...edge_classes(e)]),
+      anchor_style(el.label_p),
       Attr.title(tooltip),
       Attr.on_click(_ => inject_jump(e.e_id)),
     ],
@@ -181,7 +175,7 @@ let node_view = (~inject_jump, nl: CanvasLayout.node_layout): Node.t => {
   let n = nl.node;
   let d = nl.r *. 2.;
   let tooltip =
-    n.label
+    (n.kind == Product ? n.key : n.label)
     ++ (n.ctrs == [] ? "" : " = " ++ String.concat(" + ", n.ctrs))
     ++ (
       switch (n.n_doc) {
@@ -194,6 +188,10 @@ let node_view = (~inject_jump, nl: CanvasLayout.node_layout): Node.t => {
     | Some(id) => [Attr.on_click(_ => inject_jump(id)), clss(["clickable"])]
     | None => []
     };
+  let label_nodes =
+    n.label == ""
+      ? []
+      : [span(~attrs=[clss(["canvas-node-label"])], [text(n.label)])];
   div(
     ~attrs=
       [
@@ -201,11 +199,20 @@ let node_view = (~inject_jump, nl: CanvasLayout.node_layout): Node.t => {
         clss(
           ["canvas-node", kind_cls(n.kind)] @ (n.n_err ? ["node-err"] : []),
         ),
-        pos_style(~w=d, ~h=d, nl.p),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "left: %spx; top: %spx; width: %spx; height: %spx;",
+            fmt(nl.p.x),
+            fmt(nl.p.y),
+            fmt(d),
+            fmt(d),
+          ),
+        ),
         Attr.title(tooltip),
       ]
       @ click_attrs,
-    [span(~attrs=[clss(["canvas-node-label"])], [text(n.label)])],
+    label_nodes,
   );
 };
 
@@ -215,10 +222,7 @@ let value_view = (~inject_jump, vl: CanvasLayout.value_layout): Node.t => {
     ~attrs=[
       Attr.id("cval-" ++ sanitize(v.v_name)),
       clss(["canvas-value"] @ (v.v_err ? ["node-err"] : [])),
-      Attr.create(
-        "style",
-        Printf.sprintf("left: %spx; top: %spx;", fmt(vl.p.x), fmt(vl.p.y)),
-      ),
+      anchor_style(vl.p),
       Attr.title(v.v_name ++ " : " ++ v.v_ty),
       Attr.on_click(_ => inject_jump(v.v_id)),
     ],
@@ -231,14 +235,10 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
     ~attrs=[
       Attr.id(avatar_dom_id),
       clss(["canvas-avatar"] @ (state == "" ? [] : ["avatar-" ++ state])),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "left: %spx; top: %spx;",
-          fmt(p.x +. 14.),
-          fmt(p.y -. 34.),
-        ),
-      ),
+      anchor_style({
+        x: p.x +. 14.,
+        y: p.y -. 34.,
+      }),
       Attr.title("the agent is here"),
     ],
     [
@@ -308,7 +308,10 @@ let view =
         Attr.create("width", fmt(lay.width)),
         Attr.create("height", fmt(lay.height)),
       ],
-      [defs, ...List.concat_map(edge_svg(~radius_of), lay.edges)],
+      [defs]
+      @ List.map(dep_link_svg, lay.dep_links)
+      @ List.map(formation_svg, lay.formations)
+      @ List.concat_map(edge_svg(~radius_of), lay.edges),
     );
   let loose =
     loose_tests == []

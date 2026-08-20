@@ -83,11 +83,13 @@
 }
 
 /* ---- nodes: absolutely positioned circles.
-   Positioned via left/top (never transform) so WAAPI FLIP transforms
-   compose cleanly. ---- */
+   Anchored via left/top at the node's center and centered with the
+   standalone CSS `translate` property — NOT `transform`, which the WAAPI
+   FLIP animation overrides mid-flight (translate composes with it). ---- */
 
 .canvas-node {
   position: absolute;
+  translate: -50% -50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,6 +145,27 @@
   background: transparent;
 }
 
+.canvas-node.kind-product {
+  border-width: 1.5px;
+  background: var(--BLACK, #333);
+  opacity: 0.75;
+}
+
+.canvas-formation {
+  stroke: var(--BLACK, #333);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  fill: none;
+  opacity: 0.45;
+}
+
+.canvas-dep {
+  stroke: #4a7a4a;
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.18;
+}
+
 .canvas-node.node-err {
   border-color: var(--ci-status-error-text, #c0392b);
   box-shadow: 0 0 6px 1px rgba(192, 57, 43, 0.5);
@@ -152,7 +175,7 @@
 
 .canvas-edge-label {
   position: absolute;
-  transform: translate(-50%, -100%);
+  translate: -50% -100%;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -225,7 +248,7 @@
 
 .canvas-value {
   position: absolute;
-  transform: translate(-100%, -50%);
+  translate: -100% -50%;
   font-size: 10px;
   opacity: 0.8;
   cursor: pointer;

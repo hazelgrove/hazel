@@ -3,7 +3,11 @@ open Haz3lcore;
 /* CanvasGraph — pure extraction of an architectural graph from a program's
    cached statics: type aliases become nodes, top-level functions become
    edges, values dock to their type's node, tests attach to the functions
-   they mention. See plans/agent-canvas.md. */
+   they mention. Multi-argument functions get an explicit Product node fed
+   by formation lines from the component types (shared between functions
+   with the same input tuple). Builtin types (Int, String, ...) duplicate
+   per use-site as small satellite terminals — like ground symbols in a
+   circuit diagram — so they never act as hubs. See plans/agent-canvas.md. */
 
 module Exp = Language.Exp;
 module Pat = Language.Pat;
@@ -19,8 +23,9 @@ module ConstructorMap = Language.ConstructorMap;
 type node_kind =
   | Alias /* top-level type alias */
   | Builtin /* Int, Bool, ... */
-  | Derived /* [T], anonymous prods/sums/arrows */
-  | Ghost; /* referenced but undefined, or hole */
+  | Derived /* [T], anonymous sums/arrows */
+  | Ghost /* referenced but undefined, or hole */
+  | Product; /* tuple-formation node for a multi-arg input */
 
 type tynode = {
   key: string,
@@ -30,7 +35,9 @@ type tynode = {
   ctrs: list(string), /* constructor names when alias body is a sum */
   n_doc: option(string),
   n_err: bool,
-  deps: list(string) /* alias keys this node's body references */
+  deps: list(string), /* node keys this node's body/components reference */
+  parts: list(string), /* Product: component node keys (formation lines) */
+  sat: option((string, bool)) /* satellite: (anchor node key, output side) */
 };
 
 type test_info = {
@@ -42,7 +49,7 @@ type edge = {
   e_name: string,
   e_id: Id.t, /* Let rep_id — jump anchor */
   e_ty: string, /* full pretty type, for tooltip */
-  srcs: list(string), /* arg node keys, tuple- and curry-flattened */
+  e_src: string, /* input node key (component, product, or satellite) */
   dst: string,
   e_doc: option(string),
   e_err: bool,
@@ -71,6 +78,32 @@ let empty: t = {
   edges: [],
   values: [],
   loose_tests: [],
+};
+
+let mk_node =
+    (
+      ~n_id=None,
+      ~ctrs=[],
+      ~n_doc=None,
+      ~n_err=false,
+      ~deps=[],
+      ~parts=[],
+      ~sat=None,
+      ~kind,
+      ~label,
+      key,
+    )
+    : tynode => {
+  key,
+  label,
+  n_id,
+  kind,
+  ctrs,
+  n_doc,
+  n_err,
+  deps,
+  parts,
+  sat,
 };
 
 /* ---------- spine walk ---------- */
@@ -217,15 +250,13 @@ let atom_name = (cls: Atom.cls): string =>
 let truncate = (n: int, s: string): string =>
   String.length(s) > n ? String.sub(s, 0, n - 1) ++ "…" : s;
 
-/* Node key + display kind for a type. ~anchor uniquifies holes so distinct
-   unknowns don't merge into one false hub. */
-let ty_node_key = (~anchor: string, ty: Typ.t): (string, string, node_kind) => {
+/* Shared label + kind for a type (holes uniquified by ~anchor so distinct
+   unknowns never merge into one false hub). */
+let ty_ref = (~anchor: string, ty: Typ.t): (string, node_kind) => {
   let ty = unwrap_ty(ty);
   switch (ty.term) {
-  | Var(name) => (name, name, Alias)
-  | Atom(cls) =>
-    let n = atom_name(cls);
-    (n, n, Builtin);
+  | Var(name) => (name, Alias)
+  | Atom(cls) => (atom_name(cls), Builtin)
   | List(t) =>
     let inner =
       switch (unwrap_ty(t).term) {
@@ -233,13 +264,14 @@ let ty_node_key = (~anchor: string, ty: Typ.t): (string, string, node_kind) => {
       | Atom(cls) => atom_name(cls)
       | _ => truncate(12, Typ.pretty_print(unwrap_ty(t)))
       };
-    ("[" ++ inner ++ "]", "[" ++ inner ++ "]", Derived);
-  | Unknown(_) => ("?" ++ anchor, "?", Ghost)
-  | _ =>
-    let label = truncate(20, Typ.pretty_print(ty));
-    (label, label, Derived);
+    ("[" ++ inner ++ "]", Derived);
+  | Unknown(_) => ("?" ++ anchor, Ghost)
+  | _ => (truncate(20, Typ.pretty_print(ty)), Derived)
   };
 };
+
+let display_label = (key: string): string =>
+  String.length(key) > 0 && key.[0] == '?' ? "?" : truncate(20, key);
 
 let ctr_names = (ty: Typ.t): list(string) =>
   switch (unwrap_ty(ty).term) {
@@ -282,8 +314,7 @@ let doc_of = (e_annotation: Language.IdTagged.IdTag.t): option(string) => {
 let err_owner =
     (~info_map: Language.Statics.Map.t, ~roots: list(Id.t), err_id: Id.t)
     : option(Id.t) => {
-  let root_set = roots;
-  let is_root = id => List.exists(r => Id.compare(r, id) == 0, root_set);
+  let is_root = id => List.exists(r => Id.compare(r, id) == 0, roots);
   if (is_root(err_id)) {
     Some(err_id);
   } else {
@@ -356,23 +387,56 @@ let extract =
             | Unknown(_) => true
             | _ => false
             };
-          Some({
-            key: name,
-            label: name,
-            n_id: Some(Exp.rep_id(term)),
-            kind: is_hole ? Ghost : Alias,
-            ctrs: ctr_names(ty),
-            n_doc: doc_of(term.annotation),
-            n_err: root_has_err(Some(Typ.rep_id(ty))),
-            deps: List.sort_uniq(compare, ty_vars(ty)),
-          });
+          Some(
+            mk_node(
+              ~n_id=Some(Exp.rep_id(term)),
+              ~kind=is_hole ? Ghost : Alias,
+              ~ctrs=ctr_names(ty),
+              ~n_doc=doc_of(term.annotation),
+              ~n_err=root_has_err(Some(Typ.rep_id(ty))),
+              ~deps=List.sort_uniq(compare, ty_vars(ty)),
+              ~label=name,
+              name,
+            ),
+          );
         }
       | _ => None,
       items,
     );
-  let alias_keys = List.map(n => n.key, alias_nodes);
+  let alias_keys = List.map((n: tynode) => n.key, alias_nodes);
 
-  /* Bindings: an edge if the ctx type is arrow-ish, else a value. */
+  /* Non-alias nodes accumulate as edges/values reference them. */
+  let extras: ref(list(tynode)) = ref([]);
+  let have = (key: string): bool =>
+    List.mem(key, alias_keys)
+    || List.exists((n: tynode) => n.key == key, extras^);
+  let ensure = (n: tynode): unit =>
+    if (!have(n.key)) {
+      extras := extras^ @ [n];
+    };
+
+  /* A grid node for a type reference (alias/derived/ghost — never dup'd). */
+  let ensure_grid = (key: string, kind: node_kind): unit => {
+    let kind =
+      switch (kind) {
+      | Alias when !List.mem(key, alias_keys) => Ghost /* undefined name */
+      | k => k
+      };
+    ensure(mk_node(~kind, ~label=display_label(key), key));
+  };
+
+  /* A builtin terminal duplicated per use-site, docked to [anchor_key]. */
+  let ensure_sat =
+      (~anchor_key: string, ~output: bool, ~dup: string, label: string)
+      : string => {
+    let key = label ++ "@" ++ dup;
+    ensure(
+      mk_node(~kind=Builtin, ~sat=Some((anchor_key, output)), ~label, key),
+    );
+    key;
+  };
+
+  /* Bindings, phase 1: names, types, metadata. */
   let bindings: list((string, Id.t, Typ.t, option(string), bool, bool)) =
     List.concat_map(
       fun
@@ -404,13 +468,15 @@ let extract =
   let use_count = (name: string): int =>
     List.length(List.filter(u => u == name, all_uses));
 
+  /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
       ((es, vs), (name, id, ty, doc, err, hole)) => {
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
-          let (v_key, _, _) = ty_node_key(~anchor=Id.to_string(id), ty);
+          let (v_key, v_kind) = ty_ref(~anchor=name, ty);
+          ensure_grid(v_key, v_kind);
           (
             es,
             vs
@@ -425,16 +491,80 @@ let extract =
             ],
           );
         | _ =>
-          let anchor = Id.to_string(id);
-          let srcs =
-            List.map(
-              a => {
-                let (k, _, _) = ty_node_key(~anchor, a);
-                k;
-              },
+          /* input node: single component, or a shared Product */
+          let comp_refs =
+            List.mapi(
+              (i, a) => ty_ref(~anchor=name ++ string_of_int(i), a),
               args,
             );
-          let (dst, _, _) = ty_node_key(~anchor, ret);
+          let (ret_key, ret_kind) = ty_ref(~anchor=name ++ "r", ret);
+          let input_key =
+            switch (comp_refs) {
+            | [(k, Builtin)] when ret_kind != Builtin =>
+              /* single builtin arg: terminal docked to the result node */
+              ensure_grid(ret_key, ret_kind);
+              ensure_sat(~anchor_key=ret_key, ~output=false, ~dup=name, k);
+            | [(k, kind)] =>
+              ensure_grid(k, kind);
+              k;
+            | comps =>
+              let product_key =
+                "("
+                ++ String.concat(
+                     ", ",
+                     List.map(((k, _)) => display_label(k), comps),
+                   )
+                ++ ")";
+              let part_keys =
+                List.map(
+                  ((k, kind)) =>
+                    switch (kind) {
+                    | Builtin =>
+                      ensure_sat(
+                        ~anchor_key=product_key,
+                        ~output=false,
+                        ~dup=product_key,
+                        k,
+                      )
+                    | _ =>
+                      ensure_grid(k, kind);
+                      k;
+                    },
+                  comps,
+                );
+              ensure(
+                mk_node(
+                  ~kind=Product,
+                  ~label="",
+                  ~parts=part_keys,
+                  ~deps=
+                    List.filter_map(
+                      ((k, kind)) =>
+                        switch (kind) {
+                        | Builtin => None
+                        | _ => Some(k)
+                        },
+                      comps,
+                    ),
+                  product_key,
+                ),
+              );
+              product_key;
+            };
+          /* result node: builtin results dock to the input node */
+          let dst_key =
+            switch (ret_kind) {
+            | Builtin =>
+              ensure_sat(
+                ~anchor_key=input_key,
+                ~output=true,
+                ~dup=name,
+                ret_key,
+              )
+            | _ =>
+              ensure_grid(ret_key, ret_kind);
+              ret_key;
+            };
           (
             es
             @ [
@@ -442,8 +572,8 @@ let extract =
                 e_name: name,
                 e_id: id,
                 e_ty: Typ.pretty_print(ty),
-                srcs,
-                dst,
+                e_src: input_key,
+                dst: dst_key,
                 e_doc: doc,
                 e_err: err,
                 e_hole: hole,
@@ -501,58 +631,8 @@ let extract =
       edges_raw,
     );
 
-  /* Nodes: aliases first (program order), then any endpoint/value type not
-     yet present, in first-use order. Alias references without a definition
-     become ghosts. */
-  let referenced_keys: list((string, (string, node_kind))) =
-    List.concat_map(e => e.srcs @ [e.dst], edges)
-    @ List.map(v => v.v_key, values)
-    |> List.map(k => {
-         let kind =
-           if (List.mem(k, alias_keys)) {
-             Alias;
-           } else if (String.length(k) > 0 && k.[0] == '?') {
-             Ghost;
-           } else if (List.mem(
-                        k,
-                        ["Int", "SInt", "Nat", "Float", "Bool", "String"],
-                      )) {
-             Builtin;
-           } else if (String.length(k) > 0 && k.[0] == '[') {
-             Derived;
-           } else {
-             Ghost;
-                  /* named but not defined here (Use import / tyvar) */
-           };
-         let label =
-           String.length(k) > 0 && k.[0] == '?' ? "?" : truncate(20, k);
-         (k, (label, kind));
-       });
-  let extra_nodes =
-    List.fold_left(
-      (acc, (k, (label, kind))) =>
-        List.mem(k, alias_keys)
-        || List.exists((n: tynode) => n.key == k, acc)
-          ? acc
-          : acc
-            @ [
-              {
-                key: k,
-                label,
-                n_id: None,
-                kind,
-                ctrs: [],
-                n_doc: None,
-                n_err: false,
-                deps: [],
-              },
-            ],
-      [],
-      referenced_keys,
-    );
-
   {
-    nodes: alias_nodes @ extra_nodes,
+    nodes: alias_nodes @ extras^,
     edges,
     values,
     loose_tests,
