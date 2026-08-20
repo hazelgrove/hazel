@@ -29,6 +29,10 @@ module Model = {
        updating live as the agent works) */
     [@sexp.default false] [@yojson.default false]
     canvas_split: bool,
+    /* canvas pane width in px within the main-area split, set at
+       divider-drag end (the drag itself updates styles imperatively) */
+    [@sexp.default None] [@yojson.default None]
+    canvas_pane_width: option(int),
   };
 
   let init = {
@@ -105,6 +109,7 @@ module Model = {
     show_row_lines: false,
     show_incremental_deco: false,
     canvas_split: false,
+    canvas_pane_width: None,
   };
 
   let fix_instructor_mode = settings =>
@@ -181,6 +186,7 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ToggleCanvasSplit
+    | SetCanvasPaneWidth(int)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
@@ -518,6 +524,10 @@ module Update = {
       | Quiver => {
           ...settings,
           quiver: !settings.quiver,
+        }
+      | SetCanvasPaneWidth(w) => {
+          ...settings,
+          canvas_pane_width: Some(w),
         }
       | ToggleCanvasSplit =>
         let enabling = !settings.canvas_split;

@@ -1013,26 +1013,137 @@ module View = {
           Attr.on_scroll(on_scroll),
         ],
         globals.settings.canvas_split
-          ? [
-            div(
-              ~attrs=[Attr.classes(["main-split-editors"])],
-              editors_view,
-            ),
-            div(
-              ~attrs=[Attr.id("canvas-main")],
-              [
-                CanvasSidebar.view(
-                  ~globals,
-                  ~editors,
-                  ~editors_inject=
-                    (a: Editors.Update.t) => inject(Editors(a)),
-                  ~editor=current_editor,
-                  ~use_sidebar_width=false,
-                  (),
-                ),
-              ],
-            ),
-          ]
+          ? {
+            let pane_w = globals.settings.canvas_pane_width;
+            let divider = {
+              /* imperative drag (no per-move renders); one settings action
+                 at drag end re-layouts the canvas and persists the width */
+              let dragged = ref(None: option(int));
+              let rec on_move = evt => {
+                switch (JsUtil.get_elem_by_id_opt("main")) {
+                | Some(main) =>
+                  let rect =
+                    Js.Unsafe.meth_call(main, "getBoundingClientRect", [||]);
+                  let right: float = Js.Unsafe.coerce(rect)##.right;
+                  let width: float = Js.Unsafe.coerce(rect)##.width;
+                  let x: int = Js.Unsafe.coerce(evt)##.clientX;
+                  let w =
+                    max(
+                      300,
+                      min(
+                        int_of_float(width) - 360,
+                        int_of_float(right) - x,
+                      ),
+                    );
+                  dragged := Some(w);
+                  let set = (sel, prop, v) =>
+                    switch (
+                      Js.Opt.to_option(
+                        Dom_html.document##querySelector(Js.string(sel)),
+                      )
+                    ) {
+                    | Some(el) =>
+                      Js.Unsafe.set(
+                        Js.Unsafe.coerce(el)##.style,
+                        prop,
+                        Js.string(v),
+                      )
+                    | None => ()
+                    };
+                  set(
+                    ".main-split-editors",
+                    "right",
+                    string_of_int(w) ++ "px",
+                  );
+                  set("#canvas-main", "width", string_of_int(w) ++ "px");
+                  set(
+                    "#canvas-divider",
+                    "right",
+                    string_of_int(w - 4) ++ "px",
+                  );
+                | None => ()
+                };
+                ();
+              }
+              and on_up = _ => {
+                let doc = Js.Unsafe.coerce(Dom_html.document);
+                let _ = doc##removeEventListener("mousemove", on_move);
+                let _ = doc##removeEventListener("mouseup", on_up);
+                switch (dragged^) {
+                | Some(w) =>
+                  Effect.Expert.handle_non_dom_event_exn(
+                    globals.inject_global(Set(SetCanvasPaneWidth(w))),
+                  )
+                | None => ()
+                };
+                ();
+              };
+              div(
+                ~attrs=[
+                  Attr.id("canvas-divider"),
+                  Attr.create(
+                    "style",
+                    switch (pane_w) {
+                    | Some(w) => Printf.sprintf("right: %dpx;", w - 4)
+                    | None => "right: calc(44% - 4px);"
+                    },
+                  ),
+                  Attr.on_mousedown(_ => {
+                    let doc = Js.Unsafe.coerce(Dom_html.document);
+                    let _ = doc##addEventListener("mousemove", on_move);
+                    let _ = doc##addEventListener("mouseup", on_up);
+                    Effect.Prevent_default;
+                  }),
+                ],
+                [],
+              );
+            };
+            [
+              div(
+                ~attrs=
+                  [Attr.classes(["main-split-editors"])]
+                  @ (
+                    switch (pane_w) {
+                    | Some(w) => [
+                        Attr.create(
+                          "style",
+                          Printf.sprintf("right: %dpx;", w),
+                        ),
+                      ]
+                    | None => []
+                    }
+                  ),
+                editors_view,
+              ),
+              div(
+                ~attrs=
+                  [Attr.id("canvas-main")]
+                  @ (
+                    switch (pane_w) {
+                    | Some(w) => [
+                        Attr.create(
+                          "style",
+                          Printf.sprintf("width: %dpx;", w),
+                        ),
+                      ]
+                    | None => []
+                    }
+                  ),
+                [
+                  CanvasSidebar.view(
+                    ~globals,
+                    ~editors,
+                    ~editors_inject=
+                      (a: Editors.Update.t) => inject(Editors(a)),
+                    ~editor=current_editor,
+                    ~use_sidebar_width=false,
+                    (),
+                  ),
+                ],
+              ),
+              divider,
+            ];
+          }
           : editors_view,
       ),
       sidebar,

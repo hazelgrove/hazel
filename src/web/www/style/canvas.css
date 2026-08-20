@@ -44,6 +44,19 @@
   flex-direction: column;
 }
 
+#canvas-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 6;
+}
+
+#canvas-divider:hover {
+  background: rgba(120, 160, 90, 0.25);
+}
+
 .canvas-split-btn {
   font-size: 10px;
   border: 1px solid var(--CREASE, #aaa);
@@ -97,6 +110,8 @@
 
 .canvas-root {
   position: relative;
+  /* center when the stretch cap leaves the graph narrower than the pane */
+  margin: 0 auto;
 }
 
 .canvas-edges {
