@@ -111,21 +111,45 @@ ci: setup-zarith
 generate-coverage-html:
 	bisect-ppx-report html
 
-# Guard: every .re/.ml under src/ must appear in the coverage report. A library
-# that loses its (instrumentation (backend bisect_ppx)) stanza does not fail any
-# test -- it silently drops out of the report, and its files stop being counted
-# at all, which reads as "no problem here". This turns that into an error.
-# Run after `make coverage`, which produces the data this reads.
+# Guard: every .re/.ml under src/ must appear in the coverage report, except the
+# files grouped below. Run after `make coverage`, which produces the data.
 #
-# The exclusions are the files that legitimately cannot appear:
-#   src/CLI/            an executable, so the test binary cannot depend on it
-#   Main.re, Worker.re  app entry points, excluded from the web library by design
-#   everything else     unreferenced modules. `-linkall` would pull them in, but
-#                       only at the cost of shipping them: on util/language/
-#                       haz3lcore it adds 5.5MB to worker.js. Each line here is a
-#                       dead-code candidate -- see `make dead-code`.
-COVERAGE_NOT_EXPECTED = \
-  --do-not-expect src/CLI/ \
+# This exists because a file ABSENT from the report is not a file at 0% -- it is
+# in neither the numerator nor the denominator. bisect_ppx registers a module's
+# points when the module initialises, and OCaml drops library modules that
+# nothing references. So a library which loses its
+# `(instrumentation (backend bisect_ppx))` stanza breaks no test: it silently
+# stops being measured and the summary reads as though nothing is wrong.
+# `--expect` turns that into an error.
+#
+# Deliberately NOT solved with `-linkall`. That works -- it forces unreferenced
+# modules into the link so they report at 0%, cutting these exclusions from 44
+# files to 14 -- but `library_flags` is profile-independent, so those modules
+# would ship in `make release` too, and on util/language/haz3lcore it adds 5.5MB
+# to worker.js (measured), which the browser refetches after a worker respawn.
+# Shipping dead code to improve a metric is the wrong trade. This list is the
+# honest version of the same information. See docs/coverage.md.
+
+# Not a library, so the test binary cannot depend on it. Untested by choice.
+COVERAGE_SKIP_CLI = --do-not-expect src/CLI/
+
+# Entry points: excluded from the web library by design, nothing to cover.
+COVERAGE_SKIP_ENTRY = \
+  --do-not-expect src/web/Main.re \
+  --do-not-expect src/web/Worker.re
+
+# Build variants: only whichever copy is in place gets compiled, never both.
+COVERAGE_SKIP_VARIANTS = \
+  --do-not-expect src/web/exercises/settings/ExerciseSettings_instructor.re \
+  --do-not-expect src/web/exercises/settings/ExerciseSettings_student.re \
+  --do-not-expect src/web/exercises/settings/TutorialSettings_instructor.re \
+  --do-not-expect src/web/exercises/settings/TutorialSettings_student.re
+
+# Unreferenced: compiled but not linked, so absent from the report. Every entry
+# here is a dead-code candidate -- cross-check with `make dead-code` before
+# adding one. src/pretty is an entire library that nothing references.
+COVERAGE_SKIP_UNREFERENCED = \
+  --do-not-expect src/pretty/ \
   --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re \
   --do-not-expect src/language/derivation/Drv.re \
   --do-not-expect src/language/term/FreeVariables.re \
@@ -135,8 +159,25 @@ COVERAGE_NOT_EXPECTED = \
   --do-not-expect src/util/Monads.re \
   --do-not-expect src/util/StateMonad.re \
   --do-not-expect src/util/Unicode.re \
-  --do-not-expect src/web/Main.re \
-  --do-not-expect src/web/Worker.re
+  --do-not-expect src/web/app/editors/stepper/AssumptionView.re \
+  --do-not-expect src/web/app/editors/stepper/StepInterface.re \
+  --do-not-expect src/web/app/input/FailedInput.re \
+  --do-not-expect src/web/app/LogEntry.re \
+  --do-not-expect src/web/app/sidebar/DebugSection.re \
+  --do-not-expect src/web/debug/DebugMode.re \
+  --do-not-expect src/web/exercises/examples/BlankCodeExercise.ml \
+  --do-not-expect src/web/exercises/examples/BlankDerivationExercise.ml \
+  --do-not-expect src/web/exercises/examples/BlankTheoremExercise.ml \
+  --do-not-expect src/web/exercises/ExerciseUtil.re \
+  --do-not-expect src/web/exercises/Specs.re \
+  --do-not-expect src/web/PersistentData.re \
+  --do-not-expect src/web/view/agentCore/AgentResult.re
+
+COVERAGE_NOT_EXPECTED = \
+  $(COVERAGE_SKIP_CLI) \
+  $(COVERAGE_SKIP_ENTRY) \
+  $(COVERAGE_SKIP_VARIANTS) \
+  $(COVERAGE_SKIP_UNREFERENCED)
 
 coverage-check:
 	bisect-ppx-report summary --expect src/ $(COVERAGE_NOT_EXPECTED)
