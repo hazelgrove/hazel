@@ -1007,11 +1007,31 @@ module View = {
           Attr.id("main"),
           Attr.classes(
             [Editors.Model.mode_string(editors)]
-            @ Editors.Model.extra_main_classes(editors),
+            @ Editors.Model.extra_main_classes(editors)
+            @ (globals.settings.canvas_split ? ["has-canvas-split"] : []),
           ),
           Attr.on_scroll(on_scroll),
         ],
-        editors_view,
+        globals.settings.canvas_split
+          ? [
+            div(
+              ~attrs=[Attr.classes(["main-split-editors"])],
+              editors_view,
+            ),
+            div(
+              ~attrs=[Attr.id("canvas-main")],
+              [
+                CanvasSidebar.view(
+                  ~globals,
+                  ~editors,
+                  ~editor=current_editor,
+                  ~use_sidebar_width=false,
+                  (),
+                ),
+              ],
+            ),
+          ]
+          : editors_view,
       ),
       sidebar,
       bottom_bar,

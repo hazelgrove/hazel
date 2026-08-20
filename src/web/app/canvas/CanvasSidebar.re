@@ -132,6 +132,10 @@ let view =
       ~globals: Globals.t,
       ~editors: Editors.Model.t,
       ~editor: CodeWithStatics.Model.t,
+      /* false when hosted in the main-area split, whose width is the
+         pane's own, not the sidebar setting's */
+      ~use_sidebar_width=true,
+      (),
     )
     : Node.t => {
   let test_results = test_results_of(editors);
@@ -140,7 +144,7 @@ let view =
      panel width is read from the (pre-patch) DOM, so the first render
      after a panel switch or drag-resize uses the previous width */
   let avail_width =
-    switch (globals.settings.sidebar.width) {
+    switch (use_sidebar_width ? globals.settings.sidebar.width : None) {
     | Some(w) => Some(float_of_int(w) -. 6.)
     | None =>
       switch (Util.JsUtil.get_elem_by_id_opt("canvas-sidebar")) {
@@ -202,11 +206,27 @@ let view =
         0,
         graph.edges,
       );
+  let split_btn = {
+    let split = globals.settings.canvas_split;
+    div(
+      ~attrs=[
+        clss(["canvas-split-btn"]),
+        Attr.on_click(_ => globals.inject_global(Set(ToggleCanvasSplit))),
+        Attr.title(
+          split
+            ? "dock the canvas back into the sidebar"
+            : "split view: canvas beside the editor, agent chat in the sidebar — watch the graph update live as the agent works",
+        ),
+      ],
+      [text(split ? {js|⇱ dock|js} : {js|⇲ split|js})],
+    );
+  };
   let header =
     div(
       ~attrs=[clss(["canvas-header"])],
       [
         div(~attrs=[clss(["canvas-title"])], [text("Constellation")]),
+        split_btn,
         div(
           ~attrs=[clss(["canvas-stats"])],
           [

@@ -8,6 +8,58 @@
   font-family: var(--code-font, monospace);
 }
 
+/* main-area split: editor left, canvas right, agent chat free in the sidebar */
+
+#main.has-canvas-split {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+#main.has-canvas-split .main-split-editors {
+  display: flex;
+  flex-direction: column;
+}
+
+.main-split-editors {
+  flex: 1 1 55%;
+  min-width: 0;
+  overflow: auto;
+}
+
+#canvas-main {
+  flex: 0 0 44%;
+  min-width: 320px;
+  border-left: 2px solid var(--CREASE, #ccc);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-split-btn {
+  font-size: 10px;
+  border: 1px solid var(--CREASE, #aaa);
+  border-radius: 8px;
+  padding: 1px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.canvas-split-btn:hover {
+  background: rgba(120, 160, 90, 0.15);
+  border-color: #4a7a4a;
+}
+
+.canvas-split-note {
+  padding: 1em;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  opacity: 0.85;
+}
+
 .canvas-header {
   display: flex;
   align-items: baseline;

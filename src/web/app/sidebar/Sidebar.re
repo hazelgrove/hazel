@@ -377,7 +377,26 @@ let view =
                 ~cursor,
                 ~editor,
               )
-            | Canvas => CanvasSidebar.view(~globals, ~editors, ~editor)
+            | Canvas =>
+              globals.settings.canvas_split
+                /* the canvas lives in the main-area split; avoid a second
+                   instance (duplicate DOM ids would break FLIP/jumps) */
+                ? div(
+                    ~attrs=[clss(["canvas-split-note"])],
+                    [
+                      text("The canvas is in split view beside the editor."),
+                      div(
+                        ~attrs=[
+                          clss(["canvas-split-btn"]),
+                          Attr.on_click(_ =>
+                            globals.inject_global(Set(ToggleCanvasSplit))
+                          ),
+                        ],
+                        [text({js|⇱ dock it back here|js})],
+                      ),
+                    ],
+                  )
+                : CanvasSidebar.view(~globals, ~editors, ~editor, ())
             | LogControl =>
               LogSidebar.view(
                 ~globals,

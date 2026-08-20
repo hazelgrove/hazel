@@ -24,6 +24,11 @@ module Model = {
     cap_undo_stack: bool,
     show_row_lines: bool,
     show_incremental_deco: bool,
+    /* Constellation canvas shown in a main-area split beside the editor
+       (frees the sidebar for the agent chat, so the graph can be watched
+       updating live as the agent works) */
+    [@sexp.default false] [@yojson.default false]
+    canvas_split: bool,
   };
 
   let init = {
@@ -98,6 +103,7 @@ module Model = {
     cap_undo_stack: false,
     show_row_lines: false,
     show_incremental_deco: false,
+    canvas_split: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -173,6 +179,7 @@ module Update = {
     | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
+    | ToggleCanvasSplit
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
@@ -502,6 +509,19 @@ module Update = {
           ...settings,
           quiver: !settings.quiver,
         }
+      | ToggleCanvasSplit =>
+        let enabling = !settings.canvas_split;
+        {
+          ...settings,
+          canvas_split: enabling,
+          /* the split exists to watch the agent work: entering it hands
+             the sidebar to the agent chat; leaving brings the canvas back */
+          sidebar: {
+            ...settings.sidebar,
+            show: true,
+            panel: enabling ? HelpfulAssistant : Canvas,
+          },
+        };
       | AutoprobeMode => {
           ...settings,
           autoprobe_mode: !settings.autoprobe_mode,
