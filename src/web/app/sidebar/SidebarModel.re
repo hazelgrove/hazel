@@ -177,10 +177,11 @@ module Settings = {
        (observed inhabitant values). Mutually exclusive with canvas_focus. */
     [@sexp.default None] [@yojson.default None]
     canvas_focus_ty: option(string),
-    /* Canvas connect mode: None = off; Some(None) = picking the source
-       node; Some(Some(key)) = source picked, awaiting the target. */
+    /* Canvas connect mode: None = off; Some(srcs) = collecting source
+       type syntax. Plain node clicks pick source-then-target (unary);
+       shift-clicks accumulate additional sources for a tuple input. */
     [@sexp.default None] [@yojson.default None]
-    canvas_connect: option(option(string)),
+    canvas_connect: option(list(string)),
     /* Canvas place mode: Some((kind, components)) where kind is
        "type"/"tuple"/"list"; node clicks collect component type syntax,
        a canvas click places the stub there. */
@@ -235,7 +236,7 @@ module Settings = {
     | ToggleWorkerEncoding(WorkerServer.encoding)
     | SetCanvasFocus(option(string))
     | SetCanvasFocusTy(option(string))
-    | SetCanvasConnect(option(option(string)))
+    | SetCanvasConnect(option(list(string)))
     | SetCanvasPlace(option((string, list(string))))
     | SetWidth(int);
 };

@@ -428,33 +428,36 @@ let view =
   };
   let on_node_mousedown = (n: CanvasGraph.tynode, evt) =>
     switch (connect, place) {
-    | (Some(None), _) =>
-      Effect.Many([
-        set_connect(Some(Some(n.key))),
-        Effect.Stop_propagation,
-        Effect.Prevent_default,
-      ])
-    | (Some(Some(src_key)), _) =>
-      let src =
-        List.find_opt(
-          (m: CanvasGraph.tynode) => m.key == src_key,
-          graph.nodes,
-        )
-        |> Option.map(ty_syntax)
-        |> Option.value(~default="?");
-      let stub =
-        Printf.sprintf(
-          "let %s : %s -> %s = ? in",
-          fresh_name("f"),
-          src,
-          ty_syntax(n),
-        );
-      Effect.Many([
-        insert_stub(stub),
-        set_connect(None),
-        Effect.Stop_propagation,
-        Effect.Prevent_default,
-      ]);
+    | (Some(srcs), _) =>
+      let shift = Js_of_ocaml.(Js.to_bool(Js.Unsafe.coerce(evt)##.shiftKey));
+      if (srcs == [] || shift) {
+        /* first click, or shift-click: accumulate another source */
+        Effect.Many([
+          set_connect(Some(srcs @ [ty_syntax(n)])),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ]);
+      } else {
+        /* plain click with sources collected: this is the target */
+        let src =
+          switch (srcs) {
+          | [a] => a
+          | many => "(" ++ String.concat(", ", many) ++ ")"
+          };
+        let stub =
+          Printf.sprintf(
+            "let %s : %s -> %s = ? in",
+            fresh_name("f"),
+            src,
+            ty_syntax(n),
+          );
+        Effect.Many([
+          insert_stub(stub),
+          set_connect(None),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ]);
+      };
     | (None, Some(("tuple", comps))) =>
       Effect.Many([
         set_place(Some(("tuple", comps @ [ty_syntax(n)]))),
@@ -687,22 +690,27 @@ let view =
         btn(
           ~cls=connect == None ? "" : "tool-active",
           "+ fn",
-          "draw a function: click a source node, then a target node; creates let f : A -> B = ? in",
-          set_connect(connect == None ? Some(None) : None),
+          "draw a function: click a source node then a target node (shift-click collects several sources into a tuple input); creates let f : A -> B = ? in",
+          set_connect(connect == None ? Some([]) : None),
         ),
       ]
       @ (
         switch (connect, place) {
-        | (Some(None), _) => [
+        | (Some([]), _) => [
             span(
               ~attrs=[clss(["tool-hint"])],
               [text({js|pick the source node…|js})],
             ),
           ]
-        | (Some(Some(src)), _) => [
+        | (Some(srcs), _) => [
             span(
               ~attrs=[clss(["tool-hint"])],
-              [text(src ++ {js| ⟶ pick the target node…|js})],
+              [
+                text(
+                  String.concat(", ", srcs)
+                  ++ {js| ⟶ click the target (shift-click adds a source)…|js},
+                ),
+              ],
             ),
           ]
         | (None, Some(("type", _))) => [
