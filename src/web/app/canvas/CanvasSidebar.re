@@ -226,27 +226,87 @@ let view =
       Effect.Stop_propagation,
     ]);
   /* ---- canvas authoring: stubs go through the agent's own edit tools
-     (same executor, guardrails, whitespace normalization); pathless
-     insert_after appends as the last binding before the tests/result ---- */
+     (same executor, guardrails, whitespace normalization). Stubs insert
+     after the LAST TOP-LEVEL binding; the path is resolved from the
+     binding's id and verified top-level, because a bare name can be
+     shadowed by a nested binding (which would land the stub inside a
+     function). ---- */
+  let node_map =
+    HighLevelNodeMap.build(
+      editor.editor.state.zipper,
+      editor.statics.info_map,
+    );
+  let insert_path: option(string) =
+    switch (graph.last_def, node_map) {
+    | (None, _) => None /* empty program: pathless is the documented case */
+    | (Some((name, _)), None) => Some(name)
+    | (Some((name, id)), Some(map)) =>
+      let top_level = rid =>
+        try(
+          HighLevelNodeMap.parent_of(map, HighLevelNodeMap.find(map, rid))
+          == None
+        ) {
+        | _ => false
+        };
+      /* exact: our binding id is a top-level node in the map */
+      let via_id =
+        try(
+          top_level(id) ? Some(HighLevelNodeMap.id_to_name(map, id)) : None
+        ) {
+        | _ => None
+        };
+      switch (via_id) {
+      | Some(p) => Some(p)
+      | None =>
+        /* probe name and name#k, requiring a top-level resolution */
+        [name]
+        @ List.map(k => name ++ "#" ++ string_of_int(k), [1, 2, 3, 4, 5])
+        |> List.find_opt(p =>
+             switch (HighLevelNodeMap.path_to_id_opt(map, p)) {
+             | Some(rid) => top_level(rid)
+             | None => false
+             }
+           )
+        |> (
+          fun
+          | Some(p) => Some(p)
+          | None => Some(name)
+        )
+      };
+    };
   let insert_stub = (code: string) =>
-    editors_inject(
-      Editors.Update.Scratch(
-        ScratchMode.Update.AgentAction(
-          Agent.Update.Action.DirectEdit(
-            "insert_after",
-            `Assoc(
-              [("code", `String(code))]
-              @ (
-                switch (graph.last_def) {
-                | Some(p) => [("path", `String(p))]
-                | None => [] /* empty program: pathless is the documented case */
-                }
+    Effect.Many([
+      editors_inject(
+        Editors.Update.Scratch(
+          ScratchMode.Update.AgentAction(
+            Agent.Update.Action.DirectEdit(
+              "insert_after",
+              `Assoc(
+                [("code", `String(code))]
+                @ (
+                  switch (insert_path) {
+                  | Some(p) => [("path", `String(p))]
+                  | None => []
+                  }
+                ),
               ),
             ),
           ),
         ),
       ),
-    );
+      /* the insert junction consumes leading linebreaks (regrout caret
+         trim), so run the canonical reformat to put the new binding on
+         its own line */
+      editors_inject(
+        Editors.Update.Scratch(
+          ScratchMode.Update.CellAction(
+            CellEditor.Update.MainEditor(
+              CodeEditable.Update.Perform(Format(Pretty)),
+            ),
+          ),
+        ),
+      ),
+    ]);
   let fresh_name = (prefix: string): string => {
     let used =
       List.map((n: CanvasGraph.tynode) => n.label, graph.nodes)

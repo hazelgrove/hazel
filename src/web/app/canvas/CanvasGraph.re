@@ -79,10 +79,12 @@ type t = {
   /* rep id of the first test / the result expression — canvas-authored
      function stubs paste just before it (after all definitions) */
   insert_anchor: option(Id.t),
-  /* name of the last top-level binding (let or alias): canvas-authored
-     stubs insert_after this path (pathless insert_after goes after the
-     trailing expression, which the statics guard rightly rejects) */
-  last_def: option(string),
+  /* the last top-level binding (name, term rep id): canvas-authored
+     stubs insert_after it (pathless insert_after goes after the trailing
+     expression, which the statics guard rightly rejects). The id lets the
+     insert path be resolved unambiguously when the name is shadowed by a
+     nested binding. */
+  last_def: option((string, Id.t)),
 };
 
 let empty: t = {
@@ -779,14 +781,14 @@ let extract =
     List.fold_left(
       (acc, item) =>
         switch (item) {
-        | IAlias(_, tpat, _) =>
+        | IAlias(term, tpat, _) =>
           switch (tpat.term) {
-          | Var(n) => Some(n)
+          | Var(n) => Some((n, Exp.rep_id(term)))
           | _ => acc
           }
-        | ILet(_, pat, _) =>
+        | ILet(term, pat, _) =>
           switch (pat_names(pat)) {
-          | [n, ..._] => Some(n)
+          | [n, ..._] => Some((n, Exp.rep_id(term)))
           | [] => acc
           }
         | _ => acc
