@@ -519,6 +519,16 @@
   background: rgba(120, 160, 90, 0.15);
 }
 
+.focus-ask-btn {
+  border-color: #2a2a2a;
+  color: #2a2a2a;
+  background: #ffd75e33;
+}
+
+.focus-ask-btn:hover {
+  background: #ffd75e66;
+}
+
 .focus-fn {
   display: flex;
   align-items: center;

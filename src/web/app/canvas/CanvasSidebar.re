@@ -131,6 +131,7 @@ let view =
     (
       ~globals: Globals.t,
       ~editors: Editors.Model.t,
+      ~editors_inject: Editors.Update.t => Effect.t(unit),
       ~editor: CodeWithStatics.Model.t,
       /* false when hosted in the main-area split, whose width is the
          pane's own, not the sidebar setting's */
@@ -208,6 +209,41 @@ let view =
     );
   let focused = globals.settings.sidebar.canvas_focus;
   let focused_ty = globals.settings.sidebar.canvas_focus_ty;
+  /* hand a hole-bodied function to the agent as an obligation */
+  let ask_agent =
+    switch (current_code(editors)) {
+    | Some({agent, _}) =>
+      Some(
+        (e: CanvasGraph.edge) => {
+          let doc =
+            switch (e.e_doc) {
+            | Some(d) => " Intent: " ++ d
+            | None => ""
+            };
+          let content =
+            Printf.sprintf(
+              "Please implement the unwritten function `%s : %s` — its body is currently a hole.%s",
+              e.e_name,
+              e.e_ty,
+              doc,
+            );
+          Effect.Many([
+            editors_inject(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.SendMessage(
+                    Message.Utils.mk_user_message(content),
+                    agent.chat_system.current,
+                  ),
+                ),
+              ),
+            ),
+            Effect.Stop_propagation,
+          ]);
+        },
+      )
+    | None => None
+    };
   let avatar =
     avatar_target(~editor, editors)
     |> Util.OptUtil.and_then(((id, state)) =>
@@ -298,6 +334,7 @@ let view =
         ~inject_jump,
         ~on_close=set_focus(None),
         ~dynamics=editor.dynamics,
+        ~ask_agent,
         ~graph,
         name,
       )

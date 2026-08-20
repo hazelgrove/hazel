@@ -340,6 +340,7 @@ let view =
       ~inject_jump,
       ~on_close: Effect.t(unit),
       ~dynamics: Language.Dynamics.Map.t,
+      ~ask_agent: option(CanvasGraph.edge => Effect.t(unit))=None,
       ~graph: CanvasGraph.t,
       name: string,
     )
@@ -373,6 +374,23 @@ let view =
              span(~attrs=[clss(["focus-ty"])], [text(" : " ++ e.e_ty)]),
              ...List.map(CanvasView.test_pip, e.tests),
            ]
+           @ (
+             switch (e.e_hole ? ask_agent : None) {
+             | Some(ask) => [
+                 div(
+                   ~attrs=[
+                     clss(["focus-probe-btn", "focus-ask-btn"]),
+                     Attr.on_click(_ => ask(e)),
+                     Attr.title(
+                       "post this unwritten function to the agent chat as a task",
+                     ),
+                   ],
+                   [text("@ ask agent to implement")],
+                 ),
+               ]
+             | None => []
+             }
+           )
            @ (
              probing
                ? []

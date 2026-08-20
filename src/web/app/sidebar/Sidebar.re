@@ -396,7 +396,13 @@ let view =
                       ),
                     ],
                   )
-                : CanvasSidebar.view(~globals, ~editors, ~editor, ())
+                : CanvasSidebar.view(
+                    ~globals,
+                    ~editors,
+                    ~editors_inject,
+                    ~editor,
+                    (),
+                  )
             | LogControl =>
               LogSidebar.view(
                 ~globals,

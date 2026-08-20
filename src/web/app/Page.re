@@ -1024,6 +1024,8 @@ module View = {
                 CanvasSidebar.view(
                   ~globals,
                   ~editors,
+                  ~editors_inject=
+                    (a: Editors.Update.t) => inject(Editors(a)),
                   ~editor=current_editor,
                   ~use_sidebar_width=false,
                   (),
