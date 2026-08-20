@@ -140,11 +140,15 @@ let view =
      panel width is read from the (pre-patch) DOM, so the first render
      after a panel switch or drag-resize uses the previous width */
   let avail_width =
-    switch (Util.JsUtil.get_elem_by_id_opt("canvas-sidebar")) {
-    | Some(el) =>
-      let w = Js_of_ocaml.Js.Unsafe.coerce(el)##.offsetWidth;
-      w > 50 ? Some(float_of_int(w)) : None;
-    | None => None
+    switch (globals.settings.sidebar.width) {
+    | Some(w) => Some(float_of_int(w) -. 6.)
+    | None =>
+      switch (Util.JsUtil.get_elem_by_id_opt("canvas-sidebar")) {
+      | Some(el) =>
+        let w = Js_of_ocaml.Js.Unsafe.coerce(el)##.offsetWidth;
+        w > 50 ? Some(float_of_int(w)) : None;
+      | None => None
+      }
     };
   let lay = {
     let base = CanvasLayout.layout(graph);

@@ -253,8 +253,9 @@ let resetElementStyles = () => {
   );
 };
 
-let resize_handle = (): Node.t => {
+let resize_handle = (~globals: Globals.t): Node.t => {
   let isResizing = ref(false);
+  let dragged_width = ref(None: option(int));
 
   let rec handle_mousemove = event => {
     if (isResizing^) {
@@ -263,6 +264,7 @@ let resize_handle = (): Node.t => {
       let persistent_width = 38.9;
       let new_width =
         max(400, window_width - current_x - int_of_float(persistent_width));
+      dragged_width := Some(new_width);
       updateElementStyles(new_width);
     };
     ();
@@ -272,6 +274,16 @@ let resize_handle = (): Node.t => {
     let doc = Js.Unsafe.coerce(Dom_html.document);
     let _ = doc##removeEventListener("mousemove", handle_mousemove);
     let _ = doc##removeEventListener("mouseup", handle_mouseup);
+    /* One action per drag: persist the width and trigger a re-render so
+       width-dependent panels (the canvas) re-layout. Dispatched out-of-band
+       since this is a raw document listener, not a vdom handler. */
+    switch (dragged_width^) {
+    | Some(w) =>
+      Effect.Expert.handle_non_dom_event_exn(
+        globals.inject_global(Set(Sidebar(SetWidth(w)))),
+      )
+    | None => ()
+    };
     ();
   };
 
@@ -333,9 +345,18 @@ let view =
   let sub =
     globals.settings.sidebar.show
       ? div(
-          ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
+          ~attrs=
+            [Attr.id("side-bar"), Attr.tabindex(1)]
+            @ (
+              switch (globals.settings.sidebar.width) {
+              | Some(w) => [
+                  Attr.create("style", Printf.sprintf("width: %dpx;", w)),
+                ]
+              | None => []
+              }
+            ),
           [
-            resize_handle(),
+            resize_handle(~globals),
             switch (globals.settings.sidebar.panel) {
             | LanguageDocumentation =>
               ExplainThis.view(

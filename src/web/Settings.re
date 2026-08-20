@@ -88,6 +88,7 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
       canvas_focus: None,
+      width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: false,
@@ -371,6 +372,13 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_focus: f,
+          },
+        }
+      | Sidebar(SetWidth(w)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            width: Some(w),
           },
         }
       | Sidebar(Problems(ToggleCollapsed(label, cat))) => {

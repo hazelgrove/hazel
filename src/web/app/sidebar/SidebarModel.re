@@ -172,6 +172,11 @@ module Settings = {
        Keyed by name (not id) so it survives re-parses. */
     [@sexp.default None] [@yojson.default None]
     canvas_focus: option(string),
+    /* Sidebar width in px, set at resize-drag end (the drag itself updates
+       styles imperatively). Model state so width-dependent panels (the
+       canvas) re-render, and so the width survives reloads. */
+    [@sexp.default None] [@yojson.default None]
+    width: option(int),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -214,5 +219,6 @@ module Settings = {
     | ToggleDebugRaw
     | ToggleDebugCollapsed(string)
     | ToggleWorkerEncoding(WorkerServer.encoding)
-    | SetCanvasFocus(option(string));
+    | SetCanvasFocus(option(string))
+    | SetWidth(int);
 };
