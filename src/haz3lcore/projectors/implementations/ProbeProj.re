@@ -31,7 +31,7 @@ let probe_model_of_sexp = sexp =>
   | exception _ => {active_renderer: None}
   };
 
-/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
+/* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
@@ -1500,7 +1500,15 @@ module M: Projector = {
 
   let focusable =
     Focusable.{
-      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
+      /* Absent when culled from the viewport */
+      pointer:
+        Some(
+          id =>
+            switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+            | None => ()
+            | Some(el) => el##focus
+            },
+        ),
       keyboard: None,
     };
 

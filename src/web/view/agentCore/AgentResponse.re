@@ -175,10 +175,9 @@ let handle_llm_response =
             tool_msgs,
           );
         (
-          AgentSend.dispatch_follow_up_llm(
+          AgentSend.defer_follow_up_llm(
             model_with_tool_msgs,
             chat_id,
-            settings,
             schedule_action,
           ),
           cell_editor_updated,
