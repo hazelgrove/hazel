@@ -196,8 +196,9 @@ module Selection = {
     };
   };
 
-  let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditable.Selection.jump_to_tile(tile, model.editor)
+  let jump_to_tile =
+      (~select=false, tile, model: Model.t): option((Update.t, t)) => {
+    CodeEditable.Selection.jump_to_tile(~select, tile, model.editor)
     |> Option.map(x => (Update.MainEditor(x), MainEditor));
   };
 };

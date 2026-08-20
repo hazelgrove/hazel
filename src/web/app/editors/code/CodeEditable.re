@@ -612,9 +612,16 @@ module Selection = {
     | None => handle_key_event(~selection, model, key)
     };
 
-  let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
+  let jump_to_tile =
+      (~select=false, id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
-    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
+    | Some(_) =>
+      select
+        /* select the definition with the caret at its front. Tile, not
+           Term: a let/type TERM includes its body (the rest of the
+           program); the TILE is just the `let … = … in` clause. */
+        ? Some(Perform(Select(Tile(Id(id, Left)))))
+        : Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
   };

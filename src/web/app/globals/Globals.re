@@ -58,7 +58,8 @@ module Action = {
     | SetFontMetrics(FontMetrics.t)
     | Set(Settings.Update.t)
     | SetAgentGlobals(AgentGlobals.Update.action)
-    | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
+    | JumpToTile(Haz3lcore.Id.t) // caret to tile: Perform(Move(Goal(TileId)))
+    | SelectTile(Haz3lcore.Id.t) // select the tile's term, caret at front
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
     | ExportForInit

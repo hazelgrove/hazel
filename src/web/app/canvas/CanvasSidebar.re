@@ -136,19 +136,43 @@ let view =
     : Node.t => {
   let test_results = test_results_of(editors);
   let graph = CanvasGraph.extract(~test_results?, editor.statics);
-  let lay = CanvasLayout.layout(graph);
+  /* stretch columns to fill the panel when the graph is narrower than it;
+     panel width is read from the (pre-patch) DOM, so the first render
+     after a panel switch or drag-resize uses the previous width */
+  let avail_width =
+    switch (Util.JsUtil.get_elem_by_id_opt("canvas-sidebar")) {
+    | Some(el) =>
+      let w = Js_of_ocaml.Js.Unsafe.coerce(el)##.offsetWidth;
+      w > 50 ? Some(float_of_int(w)) : None;
+    | None => None
+    };
+  let lay = {
+    let base = CanvasLayout.layout(graph);
+    switch (avail_width) {
+    | Some(avail) when base.width < avail -. 16. =>
+      let x_scale =
+        min(
+          1.8,
+          (avail -. 16. -. 2. *. CanvasLayout.margin)
+          /. (base.width -. 2. *. CanvasLayout.margin),
+        );
+      x_scale > 1.02 ? CanvasLayout.layout(~x_scale, graph) : base;
+    | _ => base
+    };
+  };
+  /* canvas clicks SELECT the definition (caret at front, cell focused) */
   let inject_jump = (id: Id.t) =>
     Effect.Many([
-      globals.inject_global(JumpToTile(id)),
+      globals.inject_global(SelectTile(id)),
       Effect.Stop_propagation,
     ]);
   let set_focus = (f: option(string)) =>
     globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
-  /* clicking a function: focus it in the detail strip AND jump to its def */
+  /* clicking a function: focus it in the detail strip AND select its def */
   let on_edge_click = (e: CanvasGraph.edge) =>
     Effect.Many([
       set_focus(Some(e.e_name)),
-      globals.inject_global(JumpToTile(e.e_id)),
+      globals.inject_global(SelectTile(e.e_id)),
       Effect.Stop_propagation,
     ]);
   let focused = globals.settings.sidebar.canvas_focus;
@@ -209,7 +233,14 @@ let view =
   let focus_strip =
     switch (focused) {
     | Some(name) =>
-      CanvasFocus.view(~inject_jump, ~on_close=set_focus(None), ~graph, name)
+      CanvasFocus.view(
+        ~globals,
+        ~inject_jump,
+        ~on_close=set_focus(None),
+        ~dynamics=editor.dynamics,
+        ~graph,
+        name,
+      )
       |> Option.to_list
     | None => []
     };

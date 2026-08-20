@@ -387,8 +387,46 @@
   min-width: 72px;
 }
 
+.focus-well.well-filled {
+  border-style: solid;
+  opacity: 0.9;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(120, 160, 90, 0.08);
+}
+
+.well-value {
+  white-space: nowrap;
+  border-right: 1px solid var(--CREASE, #ddd);
+  padding-right: 6px;
+}
+
+.well-value:last-of-type {
+  border-right: none;
+  padding-right: 0;
+}
+
+.well-more {
+  opacity: 0.6;
+}
+
 .well-glyph {
   font-weight: bold;
+}
+
+.focus-probe-btn {
+  font-size: 10px;
+  border: 1px solid #4a7a4a;
+  color: #3a6a3a;
+  border-radius: 8px;
+  padding: 1px 8px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.focus-probe-btn:hover {
+  background: rgba(120, 160, 90, 0.15);
 }
 
 .focus-fn {

@@ -56,6 +56,10 @@ type edge = {
   e_hole: bool, /* definition contains a hole => ghost/obligation styling */
   main: bool,
   tests: list(test_info),
+  /* probe-sample anchors: parameter pattern ids (aligned with the
+     flattened input components) and the function's body id */
+  e_arg_ids: list(Id.t),
+  e_out_id: option(Id.t),
 };
 
 type value = {
@@ -308,6 +312,42 @@ let doc_of = (e_annotation: Language.IdTagged.IdTag.t): option(string) => {
   };
 };
 
+/* ---------- function anatomy (probe-sample anchors) ---------- */
+
+let rec strip_pat = (p: Pat.t): Pat.t =>
+  switch (p.term) {
+  | Parens(p)
+  | Asc(p, _)
+  | TupLabel(_, p)
+  | Projector(_, p) => strip_pat(p)
+  | _ => p
+  };
+
+/* Parameter pattern ids (tuple components flattened, matching
+   flatten_arrow's input slots) and the body id of a function definition.
+   Probe samples at a pattern id carry the bound value; at the body id,
+   the return value. */
+let fun_anatomy = (def: Exp.t): (list(Id.t), option(Id.t)) => {
+  let pat_comps = (p: Pat.t): list(Id.t) => {
+    let p = strip_pat(p);
+    switch (p.term) {
+    | Tuple(ps) => List.map(p => Pat.rep_id(strip_pat(p)), ps)
+    | _ => [Pat.rep_id(p)]
+    };
+  };
+  let rec go = (acc, e: Exp.t): (list(Id.t), option(Id.t)) => {
+    let e = strip_exp(e);
+    switch (e.term) {
+    | Fun(p, body, _, _) => go(acc @ pat_comps(p), body)
+    | _ => (acc, Some(Exp.rep_id(e)))
+    };
+  };
+  switch (strip_exp(def).term) {
+  | Fun(_) => go([], def)
+  | _ => ([], None)
+  };
+};
+
 /* ---------- test attribution ---------- */
 
 /* Which top-level function is a test's subject? A test that mentions
@@ -493,18 +533,30 @@ let extract =
   };
 
   /* Bindings, phase 1: names, types, metadata. */
-  let bindings: list((string, Id.t, Typ.t, option(string), bool, bool)) =
+  let bindings:
+    list(
+      (
+        string,
+        Id.t,
+        Typ.t,
+        option(string),
+        bool,
+        bool,
+        (list(Id.t), option(Id.t)),
+      ),
+    ) =
     List.concat_map(
       fun
       | ILet(term, pat, def) => {
           let doc = doc_of(term.annotation);
           let err = root_has_err(Some(Exp.rep_id(def)));
           let hole = exp_has_hole(def);
+          let anatomy = fun_anatomy(def);
           pat_names(pat)
           |> List.filter_map(name =>
                lookup_type(name)
                |> Option.map(ty =>
-                    (name, Exp.rep_id(term), ty, doc, err, hole)
+                    (name, Exp.rep_id(term), ty, doc, err, hole, anatomy)
                   )
              );
         }
@@ -527,7 +579,7 @@ let extract =
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
-      ((es, vs), (name, id, ty, doc, err, hole)) => {
+      ((es, vs), (name, id, ty, doc, err, hole, (arg_ids, out_id))) => {
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
@@ -635,6 +687,8 @@ let extract =
                 e_hole: hole,
                 main: use_count(name) >= 2,
                 tests: [],
+                e_arg_ids: arg_ids,
+                e_out_id: out_id,
               },
             ],
             vs,

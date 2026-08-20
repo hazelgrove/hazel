@@ -102,7 +102,10 @@ type dock =
   | DockOut /* builtin terminal on the output side */
   | DockLoop; /* loop product: above-left of its result component */
 
-let layout = (g: CanvasGraph.t): t => {
+/* ~x_scale stretches grid columns so a small graph fills the available
+   panel width; dock offsets stay fixed (satellite distances shouldn't
+   stretch), and all edge/rim geometry derives from final positions. */
+let layout = (~x_scale=1., g: CanvasGraph.t): t => {
   /* ---- classify: grid vs docked ---- */
   let is_loop_product = (n: CanvasGraph.tynode): bool =>
     n.kind == Product
@@ -241,7 +244,10 @@ let layout = (g: CanvasGraph.t): t => {
               {
                 node: n,
                 p: {
-                  x: margin +. float_of_int(l) *. col_w +. col_w /. 2.,
+                  x:
+                    margin
+                    +. (float_of_int(l) *. col_w +. col_w /. 2.)
+                    *. x_scale,
                   y: y0 +. float_of_int(i) *. row_h,
                 },
                 r: node_radius(~fan=fan(n.key), n),

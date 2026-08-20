@@ -180,9 +180,15 @@ module Update = {
         },
       }
       |> Updated.return(~scroll_active=false);
-    | JumpToTile(id) =>
+    | JumpToTile(id)
+    | SelectTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
+          ~select=
+            switch (action) {
+            | SelectTile(_) => true
+            | _ => false
+            },
           ~settings=model.globals.settings,
           id,
           model.editors,

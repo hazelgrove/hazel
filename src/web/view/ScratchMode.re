@@ -1131,11 +1131,12 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings, tile, model: Model.t): option((Update.t, t)) => {
+      (~select=false, ~settings, tile, model: Model.t)
+      : option((Update.t, t)) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
     | Code({editor, _}) =>
-      CellEditor.Selection.jump_to_tile(tile, editor)
+      CellEditor.Selection.jump_to_tile(~select, tile, editor)
       |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)))
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
