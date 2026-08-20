@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: coverage-check all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -110,6 +110,36 @@ ci: setup-zarith
 
 generate-coverage-html:
 	bisect-ppx-report html
+
+# Guard: every .re/.ml under src/ must appear in the coverage report. A library
+# that loses its (instrumentation (backend bisect_ppx)) stanza does not fail any
+# test -- it silently drops out of the report, and its files stop being counted
+# at all, which reads as "no problem here". This turns that into an error.
+# Run after `make coverage`, which produces the data this reads.
+#
+# The exclusions are the files that legitimately cannot appear:
+#   src/CLI/            an executable, so the test binary cannot depend on it
+#   Main.re, Worker.re  app entry points, excluded from the web library by design
+#   everything else     unreferenced modules. `-linkall` would pull them in, but
+#                       only at the cost of shipping them: on util/language/
+#                       haz3lcore it adds 5.5MB to worker.js. Each line here is a
+#                       dead-code candidate -- see `make dead-code`.
+COVERAGE_NOT_EXPECTED = \
+  --do-not-expect src/CLI/ \
+  --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re \
+  --do-not-expect src/language/derivation/Drv.re \
+  --do-not-expect src/language/term/FreeVariables.re \
+  --do-not-expect src/util/BonsaiUtil.re \
+  --do-not-expect src/util/Either.re \
+  --do-not-expect src/util/FloatingElement.re \
+  --do-not-expect src/util/Monads.re \
+  --do-not-expect src/util/StateMonad.re \
+  --do-not-expect src/util/Unicode.re \
+  --do-not-expect src/web/Main.re \
+  --do-not-expect src/web/Worker.re
+
+coverage-check:
+	bisect-ppx-report summary --expect src/ $(COVERAGE_NOT_EXPECTED)
 
 clean:
 	dune clean

@@ -2,8 +2,16 @@
 
 (copy_files ../../hazel-programs/docs/b2t2/*.hz)
 
+; -linkall: without it, OCaml drops library modules nothing references, so they
+; never register bisect_ppx points and vanish from the coverage report entirely
+; (not at 0% -- absent). Applied only to libraries the worker does not link:
+; adding it to util/language/haz3lcore drags web-only modules and their vdom
+; deps into worker.js (+5.5MB, measured). See docs/coverage.md.
+
 (library
  (name b2t2)
+ (library_flags
+  (:standard -linkall))
  (libraries haz3lcore)
  (js_of_ocaml)
  (instrumentation

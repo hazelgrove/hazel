@@ -21,8 +21,16 @@
    ppx_deriving.show
    ppx_enumerate)))
 
+; -linkall: without it, OCaml drops library modules nothing references, so they
+; never register bisect_ppx points and vanish from the coverage report entirely
+; (not at 0% -- absent). Applied only to libraries the worker does not link:
+; adding it to util/language/haz3lcore drags web-only modules and their vdom
+; deps into worker.js (+5.5MB, measured). See docs/coverage.md.
+
 (library
  (name web)
+ (library_flags
+  (:standard -linkall))
  (instrumentation
   (backend bisect_ppx))
  (modules
