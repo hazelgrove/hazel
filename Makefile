@@ -130,13 +130,18 @@ generate-coverage-html:
 # Shipping dead code to improve a metric is the wrong trade. This list is the
 # honest version of the same information. See docs/coverage.md.
 
-# Not a library, so the test binary cannot depend on it. Untested by choice.
-COVERAGE_SKIP_CLI = --do-not-expect src/CLI/
-
-# Entry points: excluded from the web library by design, nothing to cover.
-COVERAGE_SKIP_ENTRY = \
+# Reachable only from a root the test binary does not link. Not dead -- Main
+# reaches DebugMode via the #debug fragment, CLI/Grade reaches Specs, and
+# BonsaiUtil/FloatingElement are used by Main -- but nothing a test can enter.
+# Covering these means linking an entry point, not writing a test.
+COVERAGE_SKIP_UNREACHABLE_ROOT = \
+  --do-not-expect src/CLI/ \
   --do-not-expect src/web/Main.re \
-  --do-not-expect src/web/Worker.re
+  --do-not-expect src/web/Worker.re \
+  --do-not-expect src/web/debug/DebugMode.re \
+  --do-not-expect src/web/exercises/Specs.re \
+  --do-not-expect src/util/BonsaiUtil.re \
+  --do-not-expect src/util/FloatingElement.re
 
 # Build variants: only whichever copy is in place gets compiled, never both.
 COVERAGE_SKIP_VARIANTS = \
@@ -146,50 +151,48 @@ COVERAGE_SKIP_VARIANTS = \
   --do-not-expect src/web/exercises/settings/TutorialSettings_student.re
 
 # Nothing to instrument. These declare rather than compute -- module types,
-# module aliases, bare type definitions, constant data, or (two of them) an empty
-# file. bisect_ppx instruments expressions, so these have no coverage points, and
-# `open Foo` for a signature is a compile-time dependency that generates no
-# runtime reference for the linker to follow. NOT dead code: StepInterface has 8
-# referrers and Drv is named on ~2000 lines. No test can cover them, and forcing
-# them into the link makes them report a vacuous 100% (0/0), which inflates the
-# total rather than measuring anything.
+# module aliases, bare type definitions, constant data. bisect_ppx instruments
+# expressions, so there are no points to register, and `open Foo` for a signature
+# is a compile-time dependency that leaves no runtime reference for the linker to
+# follow. NOT dead: StepInterface has 8 referrers, Drv is named on ~2000 lines.
+# No test can cover them; forcing them into the link reports a vacuous 100%.
+# `Either` belongs here for a subtler reason: callers use only its constructors,
+# and referencing a constructor does not create a link-time dependency.
 COVERAGE_SKIP_NO_CODE = \
   --do-not-expect src/web/app/editors/stepper/StepInterface.re \
   --do-not-expect src/web/app/sidebar/DebugSection.re \
   --do-not-expect src/language/derivation/Drv.re \
   --do-not-expect src/web/PersistentData.re \
   --do-not-expect src/web/view/agentCore/AgentResult.re \
-  --do-not-expect src/language/term/FreeVariables.re \
-  --do-not-expect src/web/app/editors/stepper/AssumptionView.re \
-  --do-not-expect src/web/exercises/Specs.re \
+  --do-not-expect src/util/Either.re \
   --do-not-expect src/web/exercises/examples/BlankCodeExercise.ml \
   --do-not-expect src/web/exercises/examples/BlankDerivationExercise.ml \
-  --do-not-expect src/web/exercises/examples/BlankTheoremExercise.ml \
-  --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re
+  --do-not-expect src/web/exercises/examples/BlankTheoremExercise.ml
+
+# Instrumentation deliberately switched off in the source with
+# `[@coverage exclude_file]`. That attribute stops bisect_ppx measuring the file
+# but does NOT satisfy `--expect`, so an opted-out file needs an entry here too.
+COVERAGE_SKIP_OPTED_OUT = \
+  --do-not-expect src/util/Unicode.re
 
 # Real code that nothing references, so it is compiled but never linked. THESE
-# are the dead-code candidates -- cross-check with `make dead-code` before adding
-# one. src/pretty is an entire library nothing references (its MemoTbl is
-# signature-only, but the whole directory is excluded here).
-COVERAGE_SKIP_UNREFERENCED = \
+# are the deletion candidates, and `make dead-code` independently reports every
+# function in them as dead. src/pretty is an entire unreferenced library.
+COVERAGE_SKIP_DEAD = \
   --do-not-expect src/pretty/ \
-  --do-not-expect src/util/BonsaiUtil.re \
-  --do-not-expect src/util/Either.re \
-  --do-not-expect src/util/FloatingElement.re \
   --do-not-expect src/util/Monads.re \
   --do-not-expect src/util/StateMonad.re \
-  --do-not-expect src/util/Unicode.re \
   --do-not-expect src/web/app/LogEntry.re \
   --do-not-expect src/web/app/input/FailedInput.re \
-  --do-not-expect src/web/debug/DebugMode.re \
-  --do-not-expect src/web/exercises/ExerciseUtil.re
+  --do-not-expect src/web/exercises/ExerciseUtil.re \
+  --do-not-expect src/haz3lcore/CompositionCore/ToolJsonDefinitions/ReadTools.re
 
 COVERAGE_NOT_EXPECTED = \
-  $(COVERAGE_SKIP_CLI) \
-  $(COVERAGE_SKIP_ENTRY) \
+  $(COVERAGE_SKIP_UNREACHABLE_ROOT) \
   $(COVERAGE_SKIP_VARIANTS) \
   $(COVERAGE_SKIP_NO_CODE) \
-  $(COVERAGE_SKIP_UNREFERENCED)
+  $(COVERAGE_SKIP_OPTED_OUT) \
+  $(COVERAGE_SKIP_DEAD)
 
 coverage-check:
 	bisect-ppx-report summary --expect src/ $(COVERAGE_NOT_EXPECTED)

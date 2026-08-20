@@ -23,20 +23,23 @@ and the file is in **neither the numerator nor the denominator** — it is absen
 not zero. OCaml drops library modules that nothing references, so "nobody calls
 this" and "this is fully covered" look identical in the summary: both are silence.
 
-44 of 519 files are absent for this reason. They are listed explicitly in
-`COVERAGE_NOT_EXPECTED` in the Makefile, in five groups — and the groups are not
-interchangeable, because "absent" has three different causes:
+42 of 517 files are absent, and they are grouped in the Makefile by *why*,
+because the reason determines what you would do about it — and for most of them
+the answer is nothing.
 
-| group | n | why |
-|---|---|---|
-| `src/CLI/` | 5 | an `executable`, so the test binary cannot depend on it. Untested by choice. |
-| `Main.re`, `Worker.re` | 2 | app entry points, excluded from the `web` library by design |
-| `ExerciseSettings_*`, `TutorialSettings_*` | 4 | build variants; only whichever copy is in place gets compiled |
-| **nothing to instrument** | 12 | declare rather than compute: module types, module aliases, bare types, constant data, or an empty file |
-| **unreferenced code** | 21 | real code nothing references, incl. all of `src/pretty/` |
+| group | n | why | action |
+|---|---|---|---|
+| unreachable root | 7 | reachable only from `src/CLI/`, `Main.re` or `Worker.re`, none of which the test binary links | link an entry point, not write a test |
+| build variants | 4 | only whichever `ExerciseSettings`/`TutorialSettings` copy is in place gets compiled | none possible |
+| nothing to instrument | 9 | module types, aliases, bare types, constant data | none possible |
+| opted out | 1 | `[@coverage exclude_file]` in the source | none — intentional |
+| dead | 21 | real code nothing references, incl. all of `src/pretty/` | **delete** |
 
-Only the last group is a list of dead-code candidates. Cross-check it with
-`make dead-code` before adding an entry.
+Only the last row is actionable, and `make dead-code` independently reports every
+function in those files as dead — two tools agreeing is a good signal to act on.
+`DebugMode` and `Specs` were in that group until traced properly: `DebugMode` is
+reached by `Main.re` via the `#debug` fragment and `Specs` by `CLI/Grade.re`, so
+labelling them dead would have pointed someone at deleting live code.
 
 ### Worked example: `StepInterface.re`
 
@@ -76,6 +79,11 @@ bisect-ppx-report summary --expect src/ $(COVERAGE_NOT_EXPECTED)
 
 `--expect` is a check, not a filler: it errors on a file that should be in the
 report and is not. It will **not** manufacture 0% rows for unlinked files.
+
+It also does **not** respect `[@coverage exclude_file]`. That attribute stops
+bisect_ppx measuring a file, but the file then fails `--expect` like any other
+absentee, so an intentionally-unmeasured file needs *both* the attribute and a
+`--do-not-expect` entry. `src/util/Unicode.re` is the one file in that state.
 
 What it buys is protection against the silent failure this whole page is about. A
 library that loses its `(instrumentation (backend bisect_ppx))` stanza breaks no
@@ -121,6 +129,12 @@ see docs/ui-architecture.md.
 `make coverage` runs `dune build @src/fmt @test/fmt --auto-promote` first. If
 anything needs reformatting it promotes the fix and exits non-zero, so the run
 stops before doing any work. That is not a failure — run it again.
+
+`_coverage/` is not cleaned between runs, so a stale page can outlive the data
+that produced it — after changing what gets linked, `rm -rf _coverage` before
+regenerating, or the file count you read will be the previous run's. (`index.html`
+and the generated pages agree at 477 on a clean run; they disagreed by 36 when I
+forgot.)
 
 `make coverage-check` reads the `.coverage` data `make coverage` leaves behind,
 so it has to follow it. A plain `make` or `./run_tests` in between rebuilds
