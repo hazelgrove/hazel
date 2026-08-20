@@ -195,6 +195,10 @@ module Update = {
             @ JsUtil.ids_with_prefix("varhl-")
             @ JsUtil.ids_with_prefix("errdec-")
             @ JsUtil.ids_with_prefix("warndec-")
+            @ JsUtil.ids_with_prefix("cnode-")
+            @ JsUtil.ids_with_prefix("cedge-")
+            @ JsUtil.ids_with_prefix("cval-")
+            @ JsUtil.ids_with_prefix("canvas-avatar")
             |> List.map(Animation.Actions.move)
           ),
         );

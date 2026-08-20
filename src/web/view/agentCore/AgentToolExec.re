@@ -120,6 +120,15 @@ let execute_one_tool_call =
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
+  /* Stage canvas FLIP: measure graph-element boxes before the edit lands
+     (agent edits bypass CodeEditable's staging site). */
+  Animation.request(
+    Util.JsUtil.ids_with_prefix("cnode-")
+    @ Util.JsUtil.ids_with_prefix("cedge-")
+    @ Util.JsUtil.ids_with_prefix("cval-")
+    @ Util.JsUtil.ids_with_prefix("canvas-avatar")
+    |> List.map(Animation.Actions.move),
+  );
   switch (
     CompositionUtils.Public.action_of(
       ~tool_name=tool_call.name,

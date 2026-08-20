@@ -1,0 +1,286 @@
+/* Constellation canvas panel (see plans/agent-canvas.md) */
+
+#canvas-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--code-font, monospace);
+}
+
+.canvas-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--CREASE, #ccc);
+  flex: 0 0 auto;
+}
+
+.canvas-title {
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.canvas-stats {
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.canvas-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.canvas-root {
+  position: relative;
+}
+
+.canvas-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+/* ---- edges ---- */
+
+.canvas-line,
+.canvas-orbit {
+  stroke: var(--BLACK, #333);
+  stroke-width: 1.4;
+  fill: none;
+  opacity: 0.75;
+}
+
+.canvas-line.edge-main,
+.canvas-orbit.edge-main {
+  stroke-width: 2.6;
+}
+
+.canvas-line.edge-input {
+  stroke-width: 1.1;
+  opacity: 0.5;
+}
+
+.canvas-line.edge-hole,
+.canvas-orbit.edge-hole {
+  stroke-dasharray: 5 4;
+  opacity: 0.45;
+}
+
+.canvas-line.edge-err,
+.canvas-orbit.edge-err {
+  stroke: var(--ci-status-error-text, #c0392b);
+}
+
+.canvas-arrowhead {
+  fill: var(--BLACK, #333);
+  opacity: 0.8;
+}
+
+/* ---- nodes: absolutely positioned circles.
+   Positioned via left/top (never transform) so WAAPI FLIP transforms
+   compose cleanly. ---- */
+
+.canvas-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--BLACK, #333);
+  background: var(--df-bg, #fdfdf4);
+  box-sizing: border-box;
+  z-index: 2;
+  overflow: visible;
+}
+
+.canvas-node.clickable {
+  cursor: pointer;
+}
+
+.canvas-node.clickable:hover {
+  box-shadow: 0 0 0 3px rgba(120, 160, 90, 0.35);
+}
+
+.canvas-node-label {
+  font-size: 11px;
+  white-space: nowrap;
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  text-shadow:
+    0 0 3px var(--df-bg, #fdfdf4),
+    0 0 3px var(--df-bg, #fdfdf4);
+}
+
+.canvas-node.kind-alias {
+  border-color: #4a7a4a;
+  background: #eaf3e6;
+}
+
+.canvas-node.kind-alias .canvas-node-label {
+  font-weight: bold;
+}
+
+.canvas-node.kind-builtin {
+  border-width: 1px;
+  opacity: 0.55;
+}
+
+.canvas-node.kind-derived {
+  border-style: dotted;
+  opacity: 0.8;
+}
+
+.canvas-node.kind-ghost {
+  border-style: dashed;
+  opacity: 0.5;
+  background: transparent;
+}
+
+.canvas-node.node-err {
+  border-color: var(--ci-status-error-text, #c0392b);
+  box-shadow: 0 0 6px 1px rgba(192, 57, 43, 0.5);
+}
+
+/* ---- edge labels ---- */
+
+.canvas-edge-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 7px;
+  background: var(--df-bg, #fdfdf4);
+  border: 1px solid var(--CREASE, #ccc);
+  cursor: pointer;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.canvas-edge-label:hover {
+  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+}
+
+.canvas-edge-label.edge-main {
+  font-weight: bold;
+}
+
+.canvas-edge-label.edge-hole {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.canvas-edge-label.edge-err {
+  border-color: var(--ci-status-error-text, #c0392b);
+  color: var(--ci-status-error-text, #c0392b);
+}
+
+/* ---- test pips ---- */
+
+.test-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+}
+
+.test-pip.pip-pass {
+  background: #4a9a4a;
+}
+
+.test-pip.pip-fail {
+  background: #d04030;
+}
+
+.test-pip.pip-indet {
+  background: #d0b040;
+}
+
+.test-pip.pip-unknown {
+  background: transparent;
+}
+
+.canvas-loose-tests {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ---- values ---- */
+
+.canvas-value {
+  position: absolute;
+  transform: translate(-100%, -50%);
+  font-size: 10px;
+  opacity: 0.8;
+  cursor: pointer;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.canvas-value:hover {
+  text-decoration: underline;
+}
+
+/* ---- the agent avatar ---- */
+
+.canvas-avatar {
+  position: absolute;
+  font-size: 15px;
+  font-weight: bold;
+  z-index: 5;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #ffd75e;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.canvas-avatar.avatar-err {
+  background: #7a2020;
+  color: #fff;
+  animation: canvas-avatar-shake 0.4s;
+}
+
+.canvas-avatar.avatar-edit {
+  animation: canvas-avatar-bob 1.2s ease-in-out infinite;
+}
+
+@keyframes canvas-avatar-bob {
+  0%,
+  100% {
+    margin-top: 0;
+  }
+  50% {
+    margin-top: -4px;
+  }
+}
+
+@keyframes canvas-avatar-shake {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+  25% {
+    margin-left: -3px;
+  }
+  75% {
+    margin-left: 3px;
+  }
+}

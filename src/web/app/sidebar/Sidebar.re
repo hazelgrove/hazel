@@ -77,6 +77,15 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let canvas_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Canvas,
+    ~cls=["canvas-button"],
+    ~icon=Icons.star,
+    ~tooltip="Switch to Constellation Canvas",
+    ~globals,
+  );
+
 let log_control_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=LogControl,
@@ -181,6 +190,7 @@ let persistent_view =
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          canvas_tab(~globals),
           problems_tab(~globals, ~counts),
         ]
         @ (
@@ -346,6 +356,7 @@ let view =
                 ~cursor,
                 ~editor,
               )
+            | Canvas => CanvasSidebar.view(~globals, ~editors, ~editor)
             | LogControl =>
               LogSidebar.view(
                 ~globals,
