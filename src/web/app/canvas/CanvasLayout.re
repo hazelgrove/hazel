@@ -560,25 +560,100 @@ let layout = (~x_scale=1., g: CanvasGraph.t): t => {
       g.values,
     );
 
-  /* ---- bounds from actual positions (docked nodes overflow the grid) ---- */
-  let (width, height) =
+  /* ---- normalize: translate the content bounding box (whatever actually
+     hangs furthest — satellites, labels, values) to a snug uniform pad, so
+     the internal grid margins never show up as whitespace ---- */
+  let pad = 26.;
+  let (min_x, min_y, max_x, max_y) = {
+    let b =
+      List.fold_left(
+        ((x0, y0, x1, y1), nl: node_layout) =>
+          (
+            min(x0, nl.p.x -. nl.r),
+            min(y0, nl.p.y -. nl.r),
+            max(x1, nl.p.x +. nl.r),
+            max(y1, nl.p.y +. nl.r +. 16.) /* name label below the node */
+          ),
+        (infinity, infinity, neg_infinity, neg_infinity),
+        node_layouts,
+      );
+    let b =
+      List.fold_left(
+        ((x0, y0, x1, y1), el: edge_layout) =>
+          (
+            min(x0, el.label_p.x -. 45.),
+            min(y0, el.label_p.y -. 18.),
+            max(x1, el.label_p.x +. 45.),
+            max(y1, el.label_p.y +. 4.),
+          ),
+        b,
+        edge_layouts,
+      );
     List.fold_left(
-      ((w, h), nl: node_layout) =>
-        (max(w, nl.p.x +. nl.r +. 90.), max(h, nl.p.y +. nl.r +. 60.)),
-      (
-        float_of_int(max_layer + 1) *. col_w +. 2. *. margin,
-        float_of_int(max_rows) *. row_h +. 2. *. margin,
-      ),
-      node_layouts,
+      ((x0, y0, x1, y1), vl: value_layout) =>
+        (
+          min(x0, vl.p.x -. 70.),
+          min(y0, vl.p.y -. 8.),
+          max(x1, vl.p.x),
+          max(y1, vl.p.y +. 8.),
+        ),
+      b,
+      value_layouts,
     );
-
-  {
-    nodes: node_layouts,
-    edges: edge_layouts,
-    values: value_layouts,
-    formations,
-    dep_links,
-    width,
-    height,
+  };
+  if (node_layouts == []) {
+    {
+      nodes: [],
+      edges: edge_layouts,
+      values: value_layouts,
+      formations,
+      dep_links,
+      width: 2. *. pad,
+      height: 2. *. pad,
+    };
+  } else {
+    let dx = pad -. min_x
+    and dy = pad -. min_y;
+    let sh = (p: pos): pos => {
+      x: p.x +. dx,
+      y: p.y +. dy,
+    };
+    {
+      nodes:
+        List.map(
+          (nl: node_layout) =>
+            {
+              ...nl,
+              p: sh(nl.p),
+            },
+          node_layouts,
+        ),
+      edges:
+        List.map(
+          (el: edge_layout) =>
+            {
+              ...el,
+              src_p: sh(el.src_p),
+              dst_p: sh(el.dst_p),
+              c1: sh(el.c1),
+              c2: sh(el.c2),
+              label_p: sh(el.label_p),
+            },
+          edge_layouts,
+        ),
+      values:
+        List.map(
+          (vl: value_layout) =>
+            {
+              ...vl,
+              p: sh(vl.p),
+            },
+          value_layouts,
+        ),
+      formations: List.map(((a, b)) => (sh(a), sh(b)), formations),
+      dep_links: List.map(((a, b)) => (sh(a), sh(b)), dep_links),
+      width: max_x -. min_x +. 2. *. pad,
+      height: max_y -. min_y +. 2. *. pad,
+    };
   };
 };

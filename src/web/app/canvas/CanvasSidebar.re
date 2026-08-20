@@ -153,14 +153,23 @@ let view =
   let lay = {
     let base = CanvasLayout.layout(graph);
     switch (avail_width) {
-    | Some(avail) when base.width < avail -. 16. =>
-      let x_scale =
-        min(
-          1.8,
-          (avail -. 16. -. 2. *. CanvasLayout.margin)
-          /. (base.width -. 2. *. CanvasLayout.margin),
-        );
-      x_scale > 1.02 ? CanvasLayout.layout(~x_scale, graph) : base;
+    | Some(avail) when base.width < avail -. 24. =>
+      /* stretching scales grid columns only (satellite/label extents are
+         fixed), so a first fit undershoots; one secant step closes most
+         of the gap */
+      let target = avail -. 24.;
+      let s1 = min(1.8, target /. base.width);
+      if (s1 <= 1.02) {
+        base;
+      } else {
+        let l1 = CanvasLayout.layout(~x_scale=s1, graph);
+        if (l1.width >= target -. 30. || s1 >= 1.8) {
+          l1;
+        } else {
+          let s2 = min(1.8, s1 *. target /. l1.width);
+          CanvasLayout.layout(~x_scale=s2, graph);
+        };
+      };
     | _ => base
     };
   };
