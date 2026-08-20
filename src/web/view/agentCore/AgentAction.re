@@ -6,6 +6,13 @@ open AgentModel;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | ChatSystemAction(ChatSystem.Update.Action.t)
+  | /** Run one edit tool outside the chat loop (canvas authoring): same
+        executor, guardrails, and formatting as agent edits, but no chat
+        message or tool-result bookkeeping. */
+    DirectEdit(
+      string,
+      API.Json.t,
+    )
   | /** Phase 1 of a send: append the message so it paints immediately;
         the expensive context/payload work is deferred to DispatchSend. */
     SendMessage(

@@ -39,6 +39,10 @@ module Model = {
        never rewrites them (no feedback/drift). */
     [@sexp.default []] [@yojson.default []]
     canvas_node_offsets: list(((string, string), (float, float))),
+    /* click-placed nodes: absolute positions in the layout's pre-
+       normalization frame (see CanvasLayout.origin) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_node_pins: list(((string, string), (float, float))),
   };
 
   let init = {
@@ -105,6 +109,7 @@ module Model = {
       canvas_focus: None,
       canvas_focus_ty: None,
       canvas_connect: None,
+      canvas_place: None,
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -118,6 +123,7 @@ module Model = {
     canvas_split: false,
     canvas_pane_width: None,
     canvas_node_offsets: [],
+    canvas_node_pins: [],
   };
 
   let fix_instructor_mode = settings =>
@@ -196,6 +202,7 @@ module Update = {
     | ToggleCanvasSplit
     | SetCanvasPaneWidth(int)
     | SetCanvasNodeOffset(string, string, float, float)
+    | SetCanvasNodePin(string, string, float, float)
     | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
@@ -412,6 +419,15 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_connect: c,
+            canvas_place: None,
+          },
+        }
+      | Sidebar(SetCanvasPlace(p)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_place: p,
+            canvas_connect: None,
           },
         }
       | Sidebar(SetWidth(w)) => {
@@ -553,12 +569,24 @@ module Update = {
             ...List.remove_assoc((slide, key), settings.canvas_node_offsets),
           ],
         }
+      | SetCanvasNodePin(slide, key, x, y) => {
+          ...settings,
+          canvas_node_pins: [
+            ((slide, key), (x, y)),
+            ...List.remove_assoc((slide, key), settings.canvas_node_pins),
+          ],
+        }
       | ClearCanvasNodeOffsets(slide) => {
           ...settings,
           canvas_node_offsets:
             List.filter(
               (((s, _), _)) => s != slide,
               settings.canvas_node_offsets,
+            ),
+          canvas_node_pins:
+            List.filter(
+              (((s, _), _)) => s != slide,
+              settings.canvas_node_pins,
             ),
         }
       | ToggleCanvasSplit =>

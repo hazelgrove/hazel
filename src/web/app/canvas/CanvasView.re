@@ -316,6 +316,7 @@ let view =
            Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)
          ) =>
          Effect.t(unit),
+      ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests: list(CanvasGraph.test_info),
@@ -416,18 +417,54 @@ let view =
           [text("tests: "), ...List.map(test_pip, loose_tests)],
         ),
       ];
+  let bg_attrs =
+    switch (on_canvas_click) {
+    | Some(f) => [
+        Attr.on_mousedown(evt => {
+          open Js_of_ocaml;
+          /* only true background presses (nodes/labels are their own
+             targets; the edges svg is pointer-events: none) */
+          let tgt = Js.Unsafe.coerce(evt)##.target;
+          let cur = Js.Unsafe.coerce(evt)##.currentTarget;
+          let same: bool =
+            Js.to_bool(
+              Js.Unsafe.coerce(
+                Js.Unsafe.meth_call(
+                  cur,
+                  "isSameNode",
+                  [|Js.Unsafe.inject(tgt)|],
+                ),
+              ),
+            );
+          if (same) {
+            let rect =
+              Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
+            let left: float = Js.Unsafe.coerce(rect)##.left;
+            let top: float = Js.Unsafe.coerce(rect)##.top;
+            let x: int = Js.Unsafe.coerce(evt)##.clientX;
+            let y: int = Js.Unsafe.coerce(evt)##.clientY;
+            f((float_of_int(x) -. left, float_of_int(y) -. top));
+          } else {
+            Effect.Ignore;
+          };
+        }),
+      ]
+    | None => []
+    };
   div(
-    ~attrs=[
-      clss(["canvas-root"]),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "width: %spx; height: %spx;",
-          fmt(lay.width),
-          fmt(lay.height),
+    ~attrs=
+      [
+        clss(["canvas-root"] @ (on_canvas_click == None ? [] : ["placing"])),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %spx; height: %spx;",
+            fmt(lay.width),
+            fmt(lay.height),
+          ),
         ),
-      ),
-    ],
+      ]
+      @ bg_attrs,
     [edges_svg]
     @ List.map(node_view(~on_node_mousedown), lay.nodes)
     @ List.map(

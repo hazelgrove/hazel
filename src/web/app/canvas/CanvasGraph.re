@@ -79,6 +79,10 @@ type t = {
   /* rep id of the first test / the result expression — canvas-authored
      function stubs paste just before it (after all definitions) */
   insert_anchor: option(Id.t),
+  /* name of the last top-level binding (let or alias): canvas-authored
+     stubs insert_after this path (pathless insert_after goes after the
+     trailing expression, which the statics guard rightly rejects) */
+  last_def: option(string),
 };
 
 let empty: t = {
@@ -87,6 +91,7 @@ let empty: t = {
   values: [],
   loose_tests: [],
   insert_anchor: None,
+  last_def: None,
 };
 
 let mk_node =
@@ -770,11 +775,31 @@ let extract =
       | _ => None,
       items,
     );
+  let last_def =
+    List.fold_left(
+      (acc, item) =>
+        switch (item) {
+        | IAlias(_, tpat, _) =>
+          switch (tpat.term) {
+          | Var(n) => Some(n)
+          | _ => acc
+          }
+        | ILet(_, pat, _) =>
+          switch (pat_names(pat)) {
+          | [n, ..._] => Some(n)
+          | [] => acc
+          }
+        | _ => acc
+        },
+      None,
+      items,
+    );
   {
     nodes: alias_nodes @ extras^,
     edges,
     values,
     loose_tests,
     insert_anchor,
+    last_def,
   };
 };

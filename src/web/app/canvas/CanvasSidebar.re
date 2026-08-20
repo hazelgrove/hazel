@@ -170,6 +170,9 @@ let view =
   let offsets =
     globals.settings.canvas_node_offsets
     |> List.filter_map((((s, k), d)) => s == slide ? Some((k, d)) : None);
+  let pins =
+    globals.settings.canvas_node_pins
+    |> List.filter_map((((s, k), d)) => s == slide ? Some((k, d)) : None);
   /* stretch columns to fill the panel when the graph is narrower than it;
      panel width is read from the (pre-patch) DOM, so the first render
      after a panel switch or drag-resize uses the previous width */
@@ -185,7 +188,7 @@ let view =
       }
     };
   let lay = {
-    let base = CanvasLayout.layout(~offsets, graph);
+    let base = CanvasLayout.layout(~offsets, ~pins, graph);
     switch (avail_width) {
     | Some(avail) when base.width < avail -. 24. =>
       /* stretching scales grid columns only (satellite/label extents are
@@ -196,12 +199,12 @@ let view =
       if (s1 <= 1.02) {
         base;
       } else {
-        let l1 = CanvasLayout.layout(~x_scale=s1, ~offsets, graph);
+        let l1 = CanvasLayout.layout(~x_scale=s1, ~offsets, ~pins, graph);
         if (l1.width >= target -. 30. || s1 >= 1.8) {
           l1;
         } else {
           let s2 = min(1.8, s1 *. target /. l1.width);
-          CanvasLayout.layout(~x_scale=s2, ~offsets, graph);
+          CanvasLayout.layout(~x_scale=s2, ~offsets, ~pins, graph);
         };
       };
     | _ => base
@@ -222,38 +225,28 @@ let view =
       globals.inject_global(SelectTile(e.e_id)),
       Effect.Stop_propagation,
     ]);
-  /* ---- canvas authoring: paste real code stubs into the program ---- */
-  let perform = (a: Haz3lcore.Action.t) =>
+  /* ---- canvas authoring: stubs go through the agent's own edit tools
+     (same executor, guardrails, whitespace normalization); pathless
+     insert_after appends as the last binding before the tests/result ---- */
+  let insert_stub = (code: string) =>
     editors_inject(
       Editors.Update.Scratch(
-        ScratchMode.Update.CellAction(
-          CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
+        ScratchMode.Update.AgentAction(
+          Agent.Update.Action.DirectEdit(
+            "insert_after",
+            `Assoc(
+              [("code", `String(code))]
+              @ (
+                switch (graph.last_def) {
+                | Some(p) => [("path", `String(p))]
+                | None => [] /* empty program: pathless is the documented case */
+                }
+              ),
+            ),
+          ),
         ),
       ),
     );
-  /* paste trims trailing whitespace, so the break after a stub is an
-     explicit linebreak insert (what Enter dispatches) */
-  let insert_at_start = (text: string) =>
-    Effect.Many([
-      perform(Move(Start)),
-      perform(Paste(text)),
-      perform(Insert(Haz3lcore.Token.linebreak)),
-    ]);
-  /* function stubs go after all definitions: just before the first test
-     or the result expression */
-  let insert_before_anchor = (text: string) =>
-    switch (graph.insert_anchor) {
-    | Some(id) =>
-      /* Goal(TileId) can land on the far side of the anchor's first token;
-         snapping to line start puts the paste before the whole anchor */
-      Effect.Many([
-        perform(Move(Goal(TileId(id)))),
-        perform(Move(Line(Left))),
-        perform(Paste(text)),
-        perform(Insert(Haz3lcore.Token.linebreak)),
-      ])
-    | None => insert_at_start(text)
-    };
   let fresh_name = (prefix: string): string => {
     let used =
       List.map((n: CanvasGraph.tynode) => n.label, graph.nodes)
@@ -268,6 +261,9 @@ let view =
   let connect = globals.settings.sidebar.canvas_connect;
   let set_connect = c =>
     globals.inject_global(Set(Sidebar(SetCanvasConnect(c))));
+  let place = globals.settings.sidebar.canvas_place;
+  let set_place = p =>
+    globals.inject_global(Set(Sidebar(SetCanvasPlace(p))));
   /* plain click (no drag, no connect mode): focus the type's values;
      aliases also select their definition */
   let click_effect = (n: CanvasGraph.tynode) =>
@@ -293,8 +289,30 @@ let view =
     open Js_of_ocaml;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
+    /* pinned nodes update their pin; others accumulate a drag delta */
+    let pin = List.assoc_opt(n.key, pins);
     let base =
       Option.value(~default=(0., 0.), List.assoc_opt(n.key, offsets));
+    let commit = ((dx, dy)) =>
+      switch (pin) {
+      | Some((px, py)) =>
+        globals.inject_global(
+          Set(SetCanvasNodePin(slide, n.key, px +. dx, py +. dy)),
+        )
+      | None =>
+        globals.inject_global(
+          Set(
+            SetCanvasNodeOffset(
+              slide,
+              n.key,
+              fst(base) +. dx,
+              snd(base) +. dy,
+            ),
+          ),
+        )
+      };
+    let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
+    let last_live = ref(now());
     let orig =
       switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(n.key))) {
       | Some(el) =>
@@ -325,6 +343,12 @@ let view =
           st##.top := Js.string(Printf.sprintf("%.1fpx", t +. dy));
         | None => ()
         };
+        /* throttled live commits so edges follow during the drag (a
+           re-render per mousemove would fight the whole-page vdom cost) */
+        if (now() -. last_live^ > 120.) {
+          last_live := now();
+          Effect.Expert.handle_non_dom_event_exn(commit((dx, dy)));
+        };
       };
       ();
     }
@@ -332,20 +356,8 @@ let view =
       let doc = Js.Unsafe.coerce(Dom_html.document);
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
-      let (dx, dy) = delta^;
       Effect.Expert.handle_non_dom_event_exn(
-        moved^
-          ? globals.inject_global(
-              Set(
-                SetCanvasNodeOffset(
-                  slide,
-                  n.key,
-                  fst(base) +. dx,
-                  snd(base) +. dy,
-                ),
-              ),
-            )
-          : click_effect(n),
+        moved^ ? commit(delta^) : click_effect(n),
       );
       ();
     };
@@ -355,14 +367,14 @@ let view =
     Effect.Prevent_default;
   };
   let on_node_mousedown = (n: CanvasGraph.tynode, evt) =>
-    switch (connect) {
-    | Some(None) =>
+    switch (connect, place) {
+    | (Some(None), _) =>
       Effect.Many([
         set_connect(Some(Some(n.key))),
         Effect.Stop_propagation,
         Effect.Prevent_default,
       ])
-    | Some(Some(src_key)) =>
+    | (Some(Some(src_key)), _) =>
       let src =
         List.find_opt(
           (m: CanvasGraph.tynode) => m.key == src_key,
@@ -378,12 +390,64 @@ let view =
           ty_syntax(n),
         );
       Effect.Many([
-        insert_before_anchor(stub),
+        insert_stub(stub),
         set_connect(None),
         Effect.Stop_propagation,
         Effect.Prevent_default,
       ]);
-    | None => start_node_drag(n, evt)
+    | (None, Some(("tuple", comps))) =>
+      Effect.Many([
+        set_place(Some(("tuple", comps @ [ty_syntax(n)]))),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
+    | (None, Some(("list", _))) =>
+      Effect.Many([
+        set_place(Some(("list", [ty_syntax(n)]))),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
+    | (None, Some(_)) =>
+      /* type mode ignores node clicks — only canvas clicks place */
+      Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+    | (None, None) => start_node_drag(n, evt)
+    };
+  /* a canvas-background click in place mode inserts the stub and pins the
+     new node where you clicked (pin recorded in the pre-normalization
+     frame via lay.origin) */
+  let on_canvas_click: option(((float, float)) => Effect.t(unit)) =
+    switch (place) {
+    | None => None
+    | Some((kind, comps)) =>
+      Some(
+        ((x, y)) => {
+          let name = fresh_name("T");
+          let body =
+            switch (kind, comps) {
+            | ("tuple", []) => "(?, ?)"
+            | ("tuple", [a]) => "(" ++ a ++ ", ?)"
+            | ("tuple", cs) => "(" ++ String.concat(", ", cs) ++ ")"
+            | ("list", [a]) => "[" ++ a ++ "]"
+            | ("list", _) => "[?]"
+            | _ => "?"
+            };
+          Effect.Many([
+            insert_stub(Printf.sprintf("type %s = %s in", name, body)),
+            globals.inject_global(
+              Set(
+                SetCanvasNodePin(
+                  slide,
+                  name,
+                  x -. lay.origin.x,
+                  y -. lay.origin.y,
+                ),
+              ),
+            ),
+            set_place(None),
+            Effect.Stop_propagation,
+          ]);
+        },
+      )
     };
   let focused = globals.settings.sidebar.canvas_focus;
   let focused_ty = globals.settings.sidebar.canvas_focus_ty;
@@ -529,29 +593,36 @@ let view =
         ],
         [text(label)],
       );
+    let mode_btn = (kind, label, tooltip) => {
+      let active =
+        switch (place) {
+        | Some((k, _)) => k == kind
+        | None => false
+        };
+      btn(
+        ~cls=active ? "tool-active" : "",
+        label,
+        tooltip,
+        set_place(active ? None : Some((kind, []))),
+      );
+    };
     div(
       ~attrs=[clss(["canvas-toolbar"])],
       [
-        btn(
+        mode_btn(
+          "type",
           "+ type",
-          "add a stub type alias: type T = ? in (rename it in the code)",
-          insert_at_start(
-            Printf.sprintf("type %s = ? in", fresh_name("T")),
-          ),
+          "stub type: click the canvas where it should go; creates type T = ? in",
         ),
-        btn(
+        mode_btn(
+          "tuple",
           "+ tuple",
-          "add a tuple former: type T = (?, ?) in — fill the holes with types",
-          insert_at_start(
-            Printf.sprintf("type %s = (?, ?) in", fresh_name("T")),
-          ),
+          "tuple former: click component nodes in order, then the canvas to place; creates type T = (A, B) in",
         ),
-        btn(
+        mode_btn(
+          "list",
           "+ list",
-          "add a list former: type T = [?] in",
-          insert_at_start(
-            Printf.sprintf("type %s = [?] in", fresh_name("T")),
-          ),
+          "list former: click the element node, then the canvas to place; creates type T = [A] in",
         ),
         btn(
           ~cls=connect == None ? "" : "tool-active",
@@ -561,24 +632,41 @@ let view =
         ),
       ]
       @ (
-        switch (connect) {
-        | Some(None) => [
+        switch (connect, place) {
+        | (Some(None), _) => [
             span(
               ~attrs=[clss(["tool-hint"])],
               [text({js|pick the source node…|js})],
             ),
           ]
-        | Some(Some(src)) => [
+        | (Some(Some(src)), _) => [
             span(
               ~attrs=[clss(["tool-hint"])],
               [text(src ++ {js| ⟶ pick the target node…|js})],
             ),
           ]
-        | None => []
+        | (None, Some(("type", _))) => [
+            span(
+              ~attrs=[clss(["tool-hint"])],
+              [text({js|click the canvas to place…|js})],
+            ),
+          ]
+        | (None, Some((_, comps))) => [
+            span(
+              ~attrs=[clss(["tool-hint"])],
+              [
+                text(
+                  (comps == [] ? "" : String.concat(", ", comps) ++ " — ")
+                  ++ {js|click nodes to add, the canvas to place…|js},
+                ),
+              ],
+            ),
+          ]
+        | (None, None) => []
         }
       )
       @ (
-        offsets == []
+        offsets == [] && pins == []
           ? []
           : [
             btn(
@@ -602,6 +690,7 @@ let view =
             ~inject_jump,
             ~on_edge_click,
             ~on_node_mousedown,
+            ~on_canvas_click,
             ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,

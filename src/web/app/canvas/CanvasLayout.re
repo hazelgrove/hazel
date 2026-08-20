@@ -44,6 +44,9 @@ type t = {
   dep_links: list((pos, pos)), /* alias-body dependency hints */
   width: float,
   height: float,
+  /* the normalization translation: final = pre-norm + origin. Click
+     placements convert final coords back to the pre-norm frame with it. */
+  origin: pos,
 };
 
 let col_w = 190.;
@@ -113,6 +116,7 @@ let layout =
     (
       ~x_scale=1.,
       ~offsets: list((string, (float, float)))=[],
+      ~pins: list((string, (float, float)))=[],
       g: CanvasGraph.t,
     )
     : t => {
@@ -368,19 +372,29 @@ let layout =
     },
     unresolved,
   );
-  /* ---- user drag deltas ---- */
+  /* ---- user drag deltas and click-placement pins ---- */
   let node_layouts =
     List.map(
       (nl: node_layout) =>
-        switch (List.assoc_opt(nl.node.key, offsets)) {
-        | Some((dx, dy)) => {
+        switch (
+          List.assoc_opt(nl.node.key, pins),
+          List.assoc_opt(nl.node.key, offsets),
+        ) {
+        | (Some((x, y)), _) => {
+            ...nl,
+            p: {
+              x,
+              y,
+            },
+          }
+        | (None, Some((dx, dy))) => {
             ...nl,
             p: {
               x: nl.p.x +. dx,
               y: nl.p.y +. dy,
             },
           }
-        | None => nl
+        | (None, None) => nl
         },
       grid_layouts @ docked_layouts^,
     );
@@ -656,6 +670,10 @@ let layout =
       dep_links,
       width: 2. *. pad,
       height: 2. *. pad,
+      origin: {
+        x: 0.,
+        y: 0.,
+      },
     };
   } else {
     let dx = pad -. min_x
@@ -700,6 +718,10 @@ let layout =
       dep_links: List.map(((a, b)) => (sh(a), sh(b)), dep_links),
       width: max_x -. min_x +. 2. *. pad,
       height: max_y -. min_y +. 2. *. pad,
+      origin: {
+        x: dx,
+        y: dy,
+      },
     };
   };
 };

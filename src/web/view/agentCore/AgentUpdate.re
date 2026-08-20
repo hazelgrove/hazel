@@ -26,6 +26,15 @@ let update =
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   switch (action) {
+  | DirectEdit(tool_name, args) =>
+    AgentToolExec.execute_direct(
+      ~tool_name,
+      ~args,
+      ~model,
+      ~cell_editor=editor,
+      ~settings,
+      ~chat_id=model.chat_system.current,
+    )
   | ChatSystemAction(chat_archive_action) =>
     let chat_system =
       ChatSystem.Update.update(chat_archive_action, model.chat_system);

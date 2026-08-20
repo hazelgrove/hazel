@@ -181,6 +181,11 @@ module Settings = {
        node; Some(Some(key)) = source picked, awaiting the target. */
     [@sexp.default None] [@yojson.default None]
     canvas_connect: option(option(string)),
+    /* Canvas place mode: Some((kind, components)) where kind is
+       "type"/"tuple"/"list"; node clicks collect component type syntax,
+       a canvas click places the stub there. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_place: option((string, list(string))),
     /* Sidebar width in px, set at resize-drag end (the drag itself updates
        styles imperatively). Model state so width-dependent panels (the
        canvas) re-render, and so the width survives reloads. */
@@ -231,5 +236,6 @@ module Settings = {
     | SetCanvasFocus(option(string))
     | SetCanvasFocusTy(option(string))
     | SetCanvasConnect(option(option(string)))
+    | SetCanvasPlace(option((string, list(string))))
     | SetWidth(int);
 };

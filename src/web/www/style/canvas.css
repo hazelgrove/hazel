@@ -152,6 +152,10 @@
   margin: 0 auto;
 }
 
+.canvas-root.placing {
+  cursor: crosshair;
+}
+
 .canvas-edges {
   position: absolute;
   left: 0;
