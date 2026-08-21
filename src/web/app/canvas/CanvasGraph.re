@@ -351,25 +351,44 @@ let rec strip_pat = (p: Pat.t): Pat.t =>
 /* Parameter pattern ids (tuple components flattened, matching
    flatten_arrow's input slots) and the body id of a function definition.
    Probe samples at a pattern id carry the bound value; at the body id,
-   the return value. */
-let fun_anatomy = (def: Exp.t): (list(Id.t), option(Id.t)) => {
-  let pat_comps = (p: Pat.t): list(Id.t) => {
-    let p = strip_pat(p);
-    switch (p.term) {
-    | Tuple(ps) => List.map(p => Pat.rep_id(strip_pat(p)), ps)
-    | _ => [Pat.rep_id(p)]
-    };
+   the return value. Two definition shapes: explicit `fun` chains on the
+   rhs, and funlet form (`let f(x: A, y: B): C = body`) where the params
+   live in the let pattern's Ap argument and the rhs IS the body. */
+let pat_comps = (p: Pat.t): list(Id.t) => {
+  let p = strip_pat(p);
+  switch (p.term) {
+  | Tuple(ps) => List.map(p => Pat.rep_id(strip_pat(p)), ps)
+  | _ => [Pat.rep_id(p)]
   };
+};
+
+/* Innermost expression a body evaluates through: descend let/seq headers
+   so the output anchor is a term that completes with the return value
+   (a `let` header itself never carries a sample). */
+let rec body_anchor = (e: Exp.t): Id.t => {
+  let e = strip_exp(e);
+  switch (e.term) {
+  | Let(_, _, body)
+  | Seq(_, body) => body_anchor(body)
+  | _ => Exp.rep_id(e)
+  };
+};
+
+let fun_anatomy = (~pat: Pat.t, def: Exp.t): (list(Id.t), option(Id.t)) => {
   let rec go = (acc, e: Exp.t): (list(Id.t), option(Id.t)) => {
     let e = strip_exp(e);
     switch (e.term) {
     | Fun(p, body, _, _) => go(acc @ pat_comps(p), body)
-    | _ => (acc, Some(Exp.rep_id(e)))
+    | _ => (acc, Some(body_anchor(e)))
     };
   };
   switch (strip_exp(def).term) {
   | Fun(_) => go([], def)
-  | _ => ([], None)
+  | _ =>
+    switch (strip_pat(pat).term) {
+    | Ap(_, arg) => (pat_comps(arg), Some(body_anchor(def)))
+    | _ => ([], None)
+    }
   };
 };
 
@@ -577,7 +596,7 @@ let extract =
           let doc = doc_of(term.annotation);
           let err = root_has_err(Some(Exp.rep_id(def)));
           let hole = exp_has_hole(def);
-          let anatomy = fun_anatomy(def);
+          let anatomy = fun_anatomy(~pat, def);
           pat_names(pat)
           |> List.filter_map(name =>
                lookup_type(name)

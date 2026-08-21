@@ -52,6 +52,7 @@ let (suite, _) =
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
+    @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
