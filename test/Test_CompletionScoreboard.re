@@ -502,7 +502,8 @@ let run_accept = (name: string, text: string): accept_outcome => {
               entries
               |> List.map(((_, _, _, tid)) => tid)
               |> List.fold_left(
-                   (seen, t) => List.mem(t, seen) ? seen : seen @ [t],
+                   (seen, t) =>
+                     List.exists(Id.equal(t), seen) ? seen : seen @ [t],
                    [],
                  )
               |> List.rev;

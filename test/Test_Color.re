@@ -45,7 +45,7 @@ let renders = ((name, c: C.t), ()) => {
     || String.starts_with(~prefix="color-mix(", css)
     || String.starts_with(~prefix="rgb(", css)
     || String.starts_with(~prefix="#", css)
-    || css == "oklch(0 0 0 / 0)",
+    || String.equal(css, "oklch(0 0 0 / 0)"),
   );
 };
 

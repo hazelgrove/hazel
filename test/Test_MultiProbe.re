@@ -34,7 +34,7 @@ let extract_line_comments = (code: string): (string, list(option(string))) => {
           |> String.trim;
 
         let expected =
-          if (comment_part == "no probe") {
+          if (String.equal(comment_part, "no probe")) {
             None;
           } else {
             Some(comment_part);

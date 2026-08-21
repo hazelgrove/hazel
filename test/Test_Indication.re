@@ -64,7 +64,7 @@ let mk = (init: string): list(Action.t) => {
     switch (rest) {
     | [] => Alcotest.fail("No caret in: " ++ init)
     | [hd, ...tl] =>
-      hd == caret_char
+      String.equal(hd, caret_char)
         ? (List.rev(before), tl) : split([hd, ...before], tl)
     };
   let (before, after) = split([], Token.to_list(init));
