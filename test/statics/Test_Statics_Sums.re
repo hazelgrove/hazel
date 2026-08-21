@@ -421,7 +421,9 @@ end
           );
 
         let error =
-          errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
+          errors(statics(exp))
+          |> (l => List.Assoc.find_exn(l, id2, ~equal=Poly.equal))
+          |> (ms => Marks(ms));
         Alcotest.(
           check(
             testable_issue,

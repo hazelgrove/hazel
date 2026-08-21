@@ -43,7 +43,7 @@ let strip_wrap =
 let make_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Parser.to_zipper(s, ~root=Exp)),
+      Option.value_exn(Haz3lcore.Parser.to_zipper(s, ~root=Exp)),
       ~root=Exp,
     ).
       term,
@@ -177,7 +177,7 @@ let qcheck_menhir_maketerm_equivalent_test =
            for single-id (evaluator-built) sums; tylr parses it back,
            menhir does not. */
         String.equal(msg, "Sum type has non-unique constructors")
-        || String.starts_with(~prefix="Exception MenhirParser", msg);
+        || String.is_prefix(~prefix="Exception MenhirParser", msg);
       };
     },
   );
@@ -226,7 +226,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       switch (Interface.parse_program(serialized)) {
       | exception (Failure(msg))
-          when String.starts_with(~prefix="Exception MenhirParser", msg) =>
+          when String.is_prefix(~prefix="Exception MenhirParser", msg) =>
         /* Menhir grammar gap (see above): bare sums with hole entries */
         print_endline("Skipping menhir grammar gap: " ++ serialized);
         true;

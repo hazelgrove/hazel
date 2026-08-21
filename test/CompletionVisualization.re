@@ -27,7 +27,7 @@ let resolve_position =
     (measured: Measured.t, ins: CanonicalCompletion.insertion)
     : option(positioned_insertion) =>
   CanonicalCompletion.anchor_point(measured, ins)
-  |> Option.map((anchor: Point.t) =>
+  |> Option.map(~f=(anchor: Point.t) =>
        {
          row: anchor.row,
          col: anchor.col,
@@ -39,7 +39,7 @@ let resolve_position =
 let format_delimiters =
     (delimiters: list(CanonicalCompletion.delimiter_info)): string =>
   delimiters
-  |> List.map((d: CanonicalCompletion.delimiter_info) => {
+  |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => {
        let suffix =
          switch (d.trailing_hole) {
          | Some(Convex) => " ?"
@@ -48,22 +48,23 @@ let format_delimiters =
          };
        (d.leading_hole ? "? " : "") ++ d.text ++ suffix;
      })
-  |> String.concat(" ");
+  |> String.concat(~sep=" ");
 
 /* Group positioned insertions by row */
 let group_by_row =
     (insertions: list(positioned_insertion))
     : IntMap.t(list(positioned_insertion)) =>
   List.fold_left(
-    (acc, ins) =>
-      IntMap.update(
-        ins.row,
-        fun
-        | None => Some([ins])
-        | Some(existing) => Some([ins, ...existing]),
-        acc,
-      ),
-    IntMap.empty,
+    ~f=
+      (acc, ins) =>
+        IntMap.update(
+          ins.row,
+          fun
+          | None => Some([ins])
+          | Some(existing) => Some([ins, ...existing]),
+          acc,
+        ),
+    ~init=IntMap.empty,
     insertions,
   );
 
@@ -88,51 +89,54 @@ let mockup = (seg: Segment.t): string => {
       Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty);
 
     /* Resolve positions for all insertions */
-    let positioned = List.filter_map(resolve_position(measured), insertions);
+    let positioned =
+      List.filter_map(~f=resolve_position(measured), insertions);
 
     let by_row = group_by_row(positioned);
 
     /* Process each line */
-    let lines = String.split_on_char('\n', original_text);
+    let lines = String.split(original_text, ~on='\n');
     let result_lines =
       List.mapi(
-        (row_idx, line) => {
-          switch (IntMap.find_opt(row_idx, by_row)) {
-          | None => line
-          | Some(row_insertions) =>
-            /* Sort insertions by column (right to left for insertion) */
-            let sorted =
-              List.sort(
-                (a, b) => Int.compare(b.col, a.col),
-                row_insertions,
-              );
+        ~f=
+          (row_idx, line) => {
+            switch (IntMap.find_opt(row_idx, by_row)) {
+            | None => line
+            | Some(row_insertions) =>
+              /* Sort insertions by column (right to left for insertion) */
+              let sorted =
+                List.sort(
+                  ~compare=(a, b) => Int.compare(b.col, a.col),
+                  row_insertions,
+                );
 
-            /* Insert dots at each position (right to left to preserve indices) */
-            let line_with_dots =
-              List.fold_left(
-                (current_line, ins) => {
-                  let grapheme_idx =
-                    Token.column_to_grapheme_index(current_line, ins.col);
-                  Token.insert_nth(grapheme_idx, dot, current_line);
-                },
-                line,
-                sorted,
-              );
+              /* Insert dots at each position (right to left to preserve indices) */
+              let line_with_dots =
+                List.fold_left(
+                  ~f=
+                    (current_line, ins) => {
+                      let grapheme_idx =
+                        Token.column_to_grapheme_index(current_line, ins.col);
+                      Token.insert_nth(grapheme_idx, dot, current_line);
+                    },
+                  ~init=line,
+                  sorted,
+                );
 
-            /* Get display texts for each insertion */
-            let all_texts =
-              sorted
-              |> List.rev  /* restore left-to-right order */
-              |> List.map(ins => format_delimiters(ins.delimiters))
-              |> String.concat(" ");
+              /* Get display texts for each insertion */
+              let all_texts =
+                sorted
+                |> List.rev  /* restore left-to-right order */
+                |> List.map(~f=ins => format_delimiters(ins.delimiters))
+                |> String.concat(~sep=" ");
 
-            /* Add offside comment: 4 spaces after content */
-            line_with_dots ++ "    // " ++ all_texts;
-          }
-        },
+              /* Add offside comment: 4 spaces after content */
+              line_with_dots ++ "    // " ++ all_texts;
+            }
+          },
         lines,
       );
 
-    String.concat("\n", result_lines);
+    String.concat(~sep="\n", result_lines);
   };
 };

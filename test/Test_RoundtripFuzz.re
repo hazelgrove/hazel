@@ -134,8 +134,8 @@ let fuzz_roundtrip =
     ns => {
       let z =
         List.fold_left(
-          (z, n) => apply(z, action_of(n)),
-          Zipper.init(),
+          ~f=(z, n) => apply(z, action_of(n)),
+          ~init=Zipper.init(),
           ns,
         );
       let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
@@ -149,10 +149,10 @@ let fuzz_roundtrip =
    shrunk int list instead. */
 let type_string = (s: string): Zipper.t =>
   s
-  |> String.to_seq
-  |> List.of_seq
-  |> List.map(c => Action.Insert(String.make(1, c)))
-  |> List.fold_left(apply, Zipper.init());
+  |> Stdlib.String.to_seq
+  |> Stdlib.List.of_seq
+  |> List.map(~f=c => Action.Insert(String.make(1, c)))
+  |> List.fold_left(~f=apply, ~init=Zipper.init());
 
 /* The property runs un-gated; suite runs are seeded (run_node.sh
    defaults QCHECK_SEED) so only explicit seed sweeps hunt new
@@ -209,8 +209,8 @@ let replay_case = (name, ns) =>
     () => {
       let z =
         List.fold_left(
-          (z, n) => apply(z, action_of(n)),
-          Zipper.init(),
+          ~f=(z, n) => apply(z, action_of(n)),
+          ~init=Zipper.init(),
           ns,
         );
       let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);

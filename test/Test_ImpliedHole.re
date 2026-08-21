@@ -11,7 +11,7 @@ let checked = z =>
   CachedStatics.init(
     ~settings,
     ~is_dynamic_term=true,
-    ~stitch=Fun.id,
+    ~stitch=Fn.id,
     ~root=Exp,
     z,
   );
@@ -144,13 +144,14 @@ let tests = [
           let z = zipper(let_input);
           let statics = checked(z);
           List.iter(
-            statics =>
-              check(
-                string,
-                "no speculative information",
-                "none",
-                ImpliedHole.at_caret(~statics, z) |> expected_type,
-              ),
+            ~f=
+              statics =>
+                check(
+                  string,
+                  "no speculative information",
+                  "none",
+                  ImpliedHole.at_caret(~statics, z) |> expected_type,
+                ),
             [
               {
                 ...statics,
@@ -179,7 +180,7 @@ let tests = [
               ~settings,
               ~is_edited,
               ~statics_mode,
-              ~stitch=Fun.id,
+              ~stitch=Fn.id,
               ~dynamics=Language.Dynamics.Map.empty,
               ~is_dynamic_term=true,
               model,
@@ -229,26 +230,31 @@ let tests = [
             bool,
             "ordinary indication stays unchanged",
             true,
-            cursor.info === normal,
+            phys_equal(cursor.info, normal),
           );
           check(
             bool,
             "quiver off",
             true,
-            CursorInspector.info_for_view(~quiver=false, cursor) === normal,
+            phys_equal(
+              CursorInspector.info_for_view(~quiver=false, cursor),
+              normal,
+            ),
           );
           check(
             bool,
             "read-only editor",
             true,
-            CursorInspector.info_for_view(
-              ~quiver=true,
-              {
-                ...cursor,
-                editor_read_only: true,
-              },
-            )
-            === normal,
+            phys_equal(
+              CursorInspector.info_for_view(
+                ~quiver=true,
+                {
+                  ...cursor,
+                  editor_read_only: true,
+                },
+              ),
+              normal,
+            ),
           );
         },
       ),
