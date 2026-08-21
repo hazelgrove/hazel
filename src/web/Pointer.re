@@ -1,5 +1,6 @@
 open Util;
 open Js_of_ocaml;
+open Poly;
 
 /* This provides various utility data structures and
  * functions for dealing with Mouse and Pointer Events */

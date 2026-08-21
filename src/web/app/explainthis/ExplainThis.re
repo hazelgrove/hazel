@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
  * which documents the simplest way to add a new form. */
@@ -130,12 +131,13 @@ let mk_translation =
     | Omd.Concat(_, items) =>
       let (nodes, mapping) =
         List.fold_left(
-          ((msg, mapping), item) => {
-            let (translated_item, mapping) =
-              translate_inline(item, [], mapping, ~inject);
-            (List.concat([msg, translated_item]), mapping);
-          },
-          ([], mapping),
+          ~f=
+            ((msg, mapping), item) => {
+              let (translated_item, mapping) =
+                translate_inline(item, [], mapping, ~inject);
+              (List.concat([msg, translated_item]), mapping);
+            },
+          ~init=([], mapping),
           items,
         );
       (List.append(msg, nodes), mapping);
@@ -178,30 +180,33 @@ let mk_translation =
           (doc: Omd.doc, mapping: ColorSteps.t)
           : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
-      ((msg, mapping), elem) => {
-        switch (elem) {
-        | Omd.Paragraph(_, d) =>
-          /* Each markdown paragraph renders as its own <p> so that blank
-             lines in the source produce visible paragraph breaks.
-             (Soft line breaks inside a paragraph are already handled by
-             [translate_inline] as <br>.) */
-          let (p_nodes, mapping) = translate_inline(d, [], mapping, ~inject);
-          (List.append(msg, [Node.p(p_nodes)]), mapping);
-        | Omd.List(_, _, _, items) =>
-          let (bullets, mapping) =
-            List.fold_left(
-              ((nodes, mapping), d) => {
-                let (n, mapping) = translate_block(d, mapping);
-                (List.append(nodes, [Node.li(n)]), mapping);
-              },
-              ([], mapping),
-              items,
-            );
-          (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
-        | _ => (msg, mapping)
-        }
-      },
-      ([], mapping),
+      ~f=
+        ((msg, mapping), elem) => {
+          switch (elem) {
+          | Omd.Paragraph(_, d) =>
+            /* Each markdown paragraph renders as its own <p> so that blank
+               lines in the source produce visible paragraph breaks.
+               (Soft line breaks inside a paragraph are already handled by
+               [translate_inline] as <br>.) */
+            let (p_nodes, mapping) =
+              translate_inline(d, [], mapping, ~inject);
+            (List.append(msg, [Node.p(p_nodes)]), mapping);
+          | Omd.List(_, _, _, items) =>
+            let (bullets, mapping) =
+              List.fold_left(
+                ~f=
+                  ((nodes, mapping), d) => {
+                    let (n, mapping) = translate_block(d, mapping);
+                    (List.append(nodes, [Node.li(n)]), mapping);
+                  },
+                ~init=([], mapping),
+                items,
+              );
+            (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
+          | _ => (msg, mapping)
+          }
+        },
+      ~init=([], mapping),
       doc,
     );
   };
@@ -258,7 +263,7 @@ let expander_deco =
         }
       };
     let specificity_pos =
-      Printf.sprintf(
+      Stdlib.Printf.sprintf(
         "position: absolute; top: %fpx;",
         font_metrics.row_height,
       );
@@ -271,7 +276,7 @@ let expander_deco =
       );
 
     let get_clss = segment =>
-      switch (List.nth(segment, 0)) {
+      switch (List.nth_exn(segment, 0)) {
       | Base.Tile({mold, _}) => [
           "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
         ]
@@ -285,18 +290,22 @@ let expander_deco =
           specificity_style,
         ],
         List.map(
-          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-            let code_view = CodeViewable.view_segment(~globals, segment);
-            let classes =
-              id == doc.id
-                ? ["selected"] @ get_clss(segment) : get_clss(segment);
-            let update_group_selection = _ =>
-              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
-            Node.div(
-              ~attrs=[clss(classes), Attr.on_click(update_group_selection)],
-              [code_view],
-            );
-          },
+          ~f=
+            ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+              let code_view = CodeViewable.view_segment(~globals, segment);
+              let classes =
+                id == doc.id
+                  ? ["selected"] @ get_clss(segment) : get_clss(segment);
+              let update_group_selection = _ =>
+                inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+              Node.div(
+                ~attrs=[
+                  clss(classes),
+                  Attr.on_click(update_group_selection),
+                ],
+                [code_view],
+              );
+            },
           options,
         ),
       );
@@ -352,49 +361,50 @@ let example_view =
       div(
         ~attrs=[Attr.id("examples")],
         List.mapi(
-          (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
-            let feedback =
-              globals.settings.explainThis.show_feedback
-                ? [
-                  example_feedback_view(
-                    ~inject,
-                    group_id,
-                    form_id,
-                    sub_id,
-                    model,
+          ~f=
+            (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
+              let feedback =
+                globals.settings.explainThis.show_feedback
+                  ? [
+                    example_feedback_view(
+                      ~inject,
+                      group_id,
+                      form_id,
+                      sub_id,
+                      model,
+                    ),
+                  ]
+                  : [];
+              div(
+                ~attrs=[clss(["example"])],
+                [
+                  CellEditor.View.view(
+                    ~globals,
+                    ~signal=_ => Ui_effect.Ignore,
+                    ~inject=_ => Ui_effect.Ignore,
+                    ~selected=None,
+                    ~caption=None,
+                    ~locked=true,
+                    {
+                      term
+                      |> Zipper.unzip
+                      |> Editor.Model.mk(~root=Exp)
+                      |> CellEditor.Model.mk
+                      |> CellEditor.Update.calculate(
+                           ~settings=globals.settings.core,
+                           ~is_edited=true,
+                           ~stitch=x => x,
+                           ~queue_worker=None,
+                         );
+                    },
                   ),
-                ]
-                : [];
-            div(
-              ~attrs=[clss(["example"])],
-              [
-                CellEditor.View.view(
-                  ~globals,
-                  ~signal=_ => Ui_effect.Ignore,
-                  ~inject=_ => Ui_effect.Ignore,
-                  ~selected=None,
-                  ~caption=None,
-                  ~locked=true,
-                  {
-                    term
-                    |> Zipper.unzip
-                    |> Editor.Model.mk(~root=Exp)
-                    |> CellEditor.Model.mk
-                    |> CellEditor.Update.calculate(
-                         ~settings=globals.settings.core,
-                         ~is_edited=true,
-                         ~stitch=x => x,
-                         ~queue_worker=None,
-                       );
-                  },
-                ),
-                div(
-                  ~attrs=[clss(["explanation"])],
-                  [text(message)] @ feedback,
-                ),
-              ],
-            );
-          },
+                  div(
+                    ~attrs=[clss(["explanation"])],
+                    [text(message)] @ feedback,
+                  ),
+                ],
+              );
+            },
           examples,
         ),
       ),
@@ -417,7 +427,8 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
 };
 
 /* Representative id of the nth element of a tuple/list child sequence. */
-let nth_rep_id = (elements, n) => IdTagged.rep_id(List.nth(elements, n));
+let nth_rep_id = (elements, n) =>
+  IdTagged.rep_id(List.nth_exn(elements, n));
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
@@ -493,7 +504,7 @@ let decide_deduction =
     | Some({res: Pending(p), _}) => DrvGrading.ExternalError.show(p)
     | Some({res: PartialCorrect(specced), _}) =>
       if (globals.settings.explainThis.highlight == All) {
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "❓ Correct until stop at a hole %s)",
           RuleVerify.show_linked(specced),
         );
@@ -504,63 +515,65 @@ let decide_deduction =
       (
         switch (failure) {
         | Mismatch(expected, actual) =>
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Expected %d premises, but found %d",
             expected,
             actual,
           )
         | FailMatch((spec, _) as specced) =>
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Could not match %s against expected form %s",
             RuleVerify.show_linked(specced),
             spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
           )
         | NotEqual(specced1, specced2) =>
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Matched terms %s and %s that should be equal were different",
             RuleVerify.show_linked(specced1),
             RuleVerify.show_linked(specced2),
           )
         | FailUnbox(specced, cls) =>
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Could not extract a %s from %s",
             cls |> Drv.Any.show_cls,
             RuleVerify.show_linked(specced),
           )
         | FailTest(map, test) =>
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Matched terms failed the test (hidden premise): %s",
             test
             |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
             |> List.map(
-                 Base.map_piece(~f_piece=(cont, piece) => {
-                   switch (piece) {
-                   | Tile(
-                       {
-                         children: [],
-                         mold:
-                           {
-                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
-                             _,
-                           },
-                         _,
-                       } as t,
-                     ) =>
-                     let label = t.label |> List.hd;
-                     let (_, syntax) = RuleVerify.Map.find(label, map);
-                     Tile({
-                       ...t,
-                       label: [
-                         Printf.sprintf(
-                           "[*%s*](%s)",
-                           label,
-                           syntax |> Drv.Any.rep_id |> Id.to_string,
-                         ),
-                       ],
-                     });
-                   | _ => cont(piece)
-                   }
-                 }),
+                 ~f=
+                   Base.map_piece(~f_piece=(cont, piece) => {
+                     switch (piece) {
+                     | Tile(
+                         {
+                           children: [],
+                           mold:
+                             {
+                               nibs:
+                                 ({shape: Convex, _}, {shape: Convex, _}),
+                               _,
+                             },
+                           _,
+                         } as t,
+                       ) =>
+                       let label = t.label |> List.hd_exn;
+                       let (_, syntax) = RuleVerify.Map.find(label, map);
+                       Tile({
+                         ...t,
+                         label: [
+                           Stdlib.Printf.sprintf(
+                             "[*%s*](%s)",
+                             label,
+                             syntax |> Drv.Any.rep_id |> Id.to_string,
+                           ),
+                         ],
+                       });
+                     | _ => cont(piece)
+                     }
+                   }),
                )
             |> Segment.to_string(
                  ~projector_to_segment=Triggers.projector_to_invoke,
@@ -569,7 +582,7 @@ let decide_deduction =
           )
         }
       )
-      |> Printf.sprintf("❌ %s")
+      |> Stdlib.Printf.sprintf("❌ %s")
     };
   {
     group,
@@ -647,7 +660,7 @@ let decide =
     (~docs: ExplainThisModel.t, info: option(Statics.Info.t)): decision => {
   let get_specificity_level = group_id =>
     Option.map(
-      (form: ExplainThisForm.form) => form.id,
+      ~f=(form: ExplainThisForm.form) => form.id,
       fst(ExplainThisModel.get_form_and_options(group_id, docs)),
     );
   let get_message =
@@ -1159,7 +1172,7 @@ let decide =
         let x_id = IdTagged.rep_id(x);
         let supplied_id = Id.mk();
         let deferred_id = {
-          let deferral = List.find(Exp.is_deferral, args);
+          let deferral = List.find_exn(args, ~f=Exp.is_deferral);
           IdTagged.rep_id(deferral);
         };
         /* Unlike every other branch, this one hand-builds its color map rather
@@ -1167,9 +1180,9 @@ let decide =
            the decision. Only the code highlighter reads it; the sidebar renders
            this doc exactly like any other. */
         let color_map = {
-          let color_fn = List.nth(ColorSteps.child_colors, 0);
-          let color_supplied = List.nth(ColorSteps.child_colors, 1);
-          let color_deferred = List.nth(ColorSteps.child_colors, 2);
+          let color_fn = List.nth_exn(ColorSteps.child_colors, 0);
+          let color_supplied = List.nth_exn(ColorSteps.child_colors, 1);
+          let color_deferred = List.nth_exn(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
             let arg_id = IdTagged.rep_id(arg);
             Haz3lcore.Id.Map.add(
@@ -1179,7 +1192,7 @@ let decide =
             );
           };
           let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
-          let mapping = List.fold_left(add, mapping, args);
+          let mapping = List.fold_left(~f=add, ~init=mapping, args);
           (mapping, List.length(args) + 1);
         };
         switch (
@@ -1590,11 +1603,11 @@ let view_doc =
       };
     let highlights =
       colorings
-      |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+      |> List.map(~f=((syntactic_form_id: Id.t, code_id: Id.t)) => {
            let (color, _) = ColorSteps.get_color(code_id, color_map);
            (syntactic_form_id, color);
          })
-      |> List.to_seq
+      |> Stdlib.List.to_seq
       |> Id.Map.of_seq
       |> Option.some;
     let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
@@ -1677,7 +1690,7 @@ let view =
       info: info,
     ) => {
   // This gets the info from the infomap before singleton autolabelling
-  let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
+  let info_cursor = Option.map(~f=Info.pre_labeled_info, info.cursor);
   let (syn_form, (explanation, _), example) =
     view_doc(
       ~globals,

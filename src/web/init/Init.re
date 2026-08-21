@@ -24,7 +24,7 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, content: PersistentZipper.t)) =>
+      |> List.map(~f=((name, content: PersistentZipper.t)) =>
            (
              name,
              {
@@ -39,8 +39,8 @@ let startup: Lazy.t(PersistentData.t) =
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
   |> snd
-  |> List.find_opt(((n, _)) => String.equal(n, name))
-  |> Option.map(snd);
+  |> List.find(~f=((n, _)) => String.equal(n, name))
+  |> Option.map(~f=snd);
 };
 
 let default_documentation_slide_name =
@@ -62,15 +62,15 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
     Ex_Shadowing_And_Closures.exercise,
     Ex_Type_Validation_Derivation.exercise,
   ]
-  |> List.map((spec: DerivationExercise.spec) =>
+  |> List.map(~f=(spec: DerivationExercise.spec) =>
        ("Derivations / " ++ spec.title, spec)
      );
 
 let find_documentation_drv_spec =
     (name: string): option(DerivationExercise.spec) =>
   documentation_drv_slides
-  |> List.find_opt(((n, _)) => String.equal(n, name))
-  |> Option.map(snd);
+  |> List.find(~f=((n, _)) => String.equal(n, name))
+  |> Option.map(~f=snd);
 
 let documentation_drv_slide_names = (): list(string) =>
-  List.map(fst, documentation_drv_slides);
+  List.map(~f=fst, documentation_drv_slides);

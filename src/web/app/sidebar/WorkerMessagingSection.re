@@ -67,7 +67,7 @@ let wm_metric_row = (m: WorkerMetrics.dir_metric): Node.t => {
    then a lighter response sub-header and its rows. */
 let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
   let req_label =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "#%d · %d %s · request",
       r.id,
       r.entries,
@@ -78,12 +78,12 @@ let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
     | [] => [wm_group_row(~cls="wm-note", "response pending / timed out")]
     | rows => [
         wm_group_row(~cls="wm-resp", "response"),
-        ...List.map(wm_metric_row, rows),
+        ...List.map(~f=wm_metric_row, rows),
       ]
     };
   [
     wm_group_row(~cls="wm-req", req_label),
-    ...List.map(wm_metric_row, r.request),
+    ...List.map(~f=wm_metric_row, r.request),
   ]
   @ response_rows;
 };
@@ -114,7 +114,7 @@ let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t =>
 let encoding_toggles = (~globals): Node.t =>
   div(
     ~attrs=[clss(["wm-toggles"])],
-    List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
+    List.map(~f=encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 
 /* Column legend: expand the abbreviations. The durations and size carry their
@@ -152,7 +152,7 @@ let view = (~globals: Globals.t): list(Node.t) =>
                   wm_head("size"),
                   wm_head("ok?"),
                 ]),
-                ...List.concat_map(wm_record_rows, records),
+                ...List.concat_map(~f=wm_record_rows, records),
               ],
             ),
           ],

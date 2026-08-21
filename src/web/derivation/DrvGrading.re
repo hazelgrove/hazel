@@ -29,7 +29,7 @@ module ExternalError = {
     | NotAJudgment => "Conclusion is not a judgement"
     | NoResult => "No result";
 
-  let show = e => show(e) |> Printf.sprintf("❓ %s");
+  let show = e => show(e) |> Stdlib.Printf.sprintf("❓ %s");
 };
 
 open DerivationExercise;
@@ -57,21 +57,22 @@ module ProofTree = {
 
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
-    List.map2(Tree.combine, stitched_results.trees, eds.trees)
+    List.map2_exn(stitched_results.trees, eds.trees, ~f=Tree.combine)
     |> List.map(
-         Tree.map(
-           fun
-           | (Some(result), Abbr.Just({rule, _})) =>
-             Abbr.Just({
-               jdmt: conclusion_of_result(result),
-               rule,
-             })
-           | (None, Abbr(i)) => Abbr(i)
-           | _ =>
-             failwith(
-               "DrvGrading.ProofTree.mk: editors/results inconsistent",
-             ),
-         ),
+         ~f=
+           Tree.map(
+             fun
+             | (Some(result), Abbr.Just({rule, _})) =>
+               Abbr.Just({
+                 jdmt: conclusion_of_result(result),
+                 rule,
+               })
+             | (None, Abbr(i)) => Abbr(i)
+             | _ =>
+               failwith(
+                 "DrvGrading.ProofTree.mk: editors/results inconsistent",
+               ),
+           ),
        );
   };
 };
@@ -106,10 +107,10 @@ module VerifiedTree = {
         concl: abbr(ProofTree.res),
         prems: list((tree(info), option(Drv.Exp.t))),
       ) => {
-    let (sub_trees, prems) = List.split(prems);
+    let (sub_trees, prems) = List.unzip(prems);
     let res =
       switch (concl) {
-      | Abbr(Some(i)) => List.nth(acc, i) |> fst |> Tree.value
+      | Abbr(Some(i)) => List.nth_exn(acc, i) |> fst |> Tree.value
       | Abbr(None) => {
           res: Pending(NoAbbr),
           rule: None,
@@ -132,9 +133,10 @@ module VerifiedTree = {
               let prems =
                 prems
                 |> List.map(
-                     fun
-                     | Some(prem) => prem
-                     | None => Drv.Exp.fresh(Hole(DrvGrammar.EmptyHole)),
+                     ~f=
+                       fun
+                       | Some(prem) => prem
+                       | None => Drv.Exp.fresh(Hole(DrvGrammar.EmptyHole)),
                    );
               let res = RuleVerify.verify(spec, (concl, prems));
               switch (res) {
@@ -142,7 +144,7 @@ module VerifiedTree = {
               | _ =>
                 switch (RuleVerify.all_partial_correct(res)) {
                 | Some(specced) => PartialCorrect(specced)
-                | None => Incorrect(res |> List.rev |> List.hd)
+                | None => Incorrect(res |> List.rev |> List.hd_exn)
                 }
               };
             | Error(e) => Pending(e)
@@ -159,7 +161,7 @@ module VerifiedTree = {
       };
     let concl =
       switch (concl) {
-      | Abbr(Some(i)) => List.nth(acc, i) |> snd
+      | Abbr(Some(i)) => List.nth_exn(acc, i) |> snd
       | Just({jdmt: Ok(jdmt), _}) => Some(jdmt)
       | _ => None
       };
@@ -170,12 +172,13 @@ module VerifiedTree = {
     (rule_set, ts) => {
       let folded =
         List.fold_left(
-          (acc, tree) =>
-            acc @ [Tree.fold_deep(verify_single(rule_set, acc), tree)],
-          [],
+          ~f=
+            (acc, tree) =>
+              acc @ [Tree.fold_deep(verify_single(rule_set, acc), tree)],
+          ~init=[],
           ts,
         );
-      List.map(fst, folded);
+      List.map(~f=fst, folded);
     };
 
   let mk =
