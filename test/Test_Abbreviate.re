@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let ellipsis = "…";
 
@@ -64,7 +65,7 @@ let check_monotonicity = (name: string, src: string): unit => {
       if (len < prev_len && violation^ == None) {
         violation :=
           Some(
-            Printf.sprintf(
+            Stdlib.Printf.sprintf(
               "%s: monotonicity violated at budget %d: len=%d < prev_len=%d (budget %d had len %d)",
               name,
               budget,
@@ -93,7 +94,7 @@ let run_abbreviation = (~available: int, exp: Exp.t): Exp.t => {
 
 let collect_labels = (elements: list(Exp.t)): list(string) =>
   elements
-  |> List.filter_map((element: Exp.t) =>
+  |> List.filter_map(~f=(element: Exp.t) =>
        switch (element.term) {
        | TupLabel(label_exp, _value_exp) =>
          switch (label_exp.term) {
@@ -120,7 +121,8 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
   } else {
     switch (exp.term) {
     | Tuple(elements)
-    | ListLit(elements) => List.exists(exp_contains_flat_ellipses, elements)
+    | ListLit(elements) =>
+      List.exists(~f=exp_contains_flat_ellipses, elements)
     | _ => false
     };
   };
@@ -129,10 +131,11 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
 
 let monotonicity_tests =
   List.map(
-    ((name, src)) =>
-      test_case("monotonicity: " ++ name, `Quick, () =>
-        check_monotonicity(name, src)
-      ),
+    ~f=
+      ((name, src)) =>
+        test_case("monotonicity: " ++ name, `Quick, () =>
+          check_monotonicity(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -188,7 +191,7 @@ let structural_tests = [
       switch (abbreviated_12.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "element count at 12", 2, List.length(elements));
-        switch (List.nth(elements, 0)) {
+        switch (List.nth_exn(elements, 0)) {
         | {term: TupLabel(label_exp, _), _} =>
           switch (label_exp.term) {
           | Label(name) =>
@@ -303,7 +306,7 @@ let check_hard_cap = (name: string, src: string): unit => {
       if (len > budget && violation^ == None) {
         violation :=
           Some(
-            Printf.sprintf(
+            Stdlib.Printf.sprintf(
               "%s: hard cap violated at budget %d: len=%d rendered=%s",
               name,
               budget,
@@ -325,10 +328,11 @@ let check_hard_cap = (name: string, src: string): unit => {
 
 let hard_cap_tests =
   List.map(
-    ((name, src)) =>
-      test_case("hard cap: " ++ name, `Quick, () =>
-        check_hard_cap(name, src)
-      ),
+    ~f=
+      ((name, src)) =>
+        test_case("hard cap: " ++ name, `Quick, () =>
+          check_hard_cap(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -384,7 +388,7 @@ let count_annotation_tests = [
                 Str.search_forward(Str.regexp({|\+[0-9]+|}), rendered, 0);
               true;
             }) {
-            | Not_found => false
+            | Stdlib.Not_found => false
             };
           has_plus;
         },
@@ -511,13 +515,14 @@ let module_abbreviation_tests = [
         let labels: list(string) = collect_labels(elements);
         check(Alcotest.int, "label count", 3, List.length(labels));
         List.iter(
-          (label: string) =>
-            check(
-              Alcotest.bool,
-              "label not empty",
-              true,
-              String.length(label) > 0,
-            ),
+          ~f=
+            (label: string) =>
+              check(
+                Alcotest.bool,
+                "label not empty",
+                true,
+                String.length(label) > 0,
+              ),
           labels,
         );
       | _ => fail("expected tuple after abbreviation")

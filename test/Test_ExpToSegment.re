@@ -383,7 +383,7 @@ let tests = (
       () => {
         let segment =
           Parser.to_term("1 |> 2 |> 3", ~root=Exp)
-          |> Option.get
+          |> Option.value_exn
           |> exp_to_segment;
         let serialized = print_seg(segment);
 
@@ -852,15 +852,11 @@ end|}),
 
    Legacy/experimental syntax:
    - BlockExp ({...}) - preliminary syntax for probe user study
-   - LogicalOrLegacy (\/) - legacy OR syntax
-
-   === REMAINING WORK (needs investigation) ===
+   - LogicalOrLegacy (\/) - legacy OR phys_equal(syntax, REMAINING) WORK (needs investigation) ===
 
    - Grout (convex and concave) - secondary preservation unclear
    - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
-   - LLMHole (??...??) - similar concerns to explicit holes
-
-   === CONFIGURABLE BEHAVIOR (addressed via settings) ===
+   - LLMHole (??...??) - similar concerns to explicit phys_equal(holes, CONFIGURABLE) BEHAVIOR (addressed via settings) ===
 
    Defensive Parenthesization (Settings.parenthesization):
    - Defensive: Adds parens for forms like rec/poly after `:` because they

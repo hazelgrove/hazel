@@ -62,10 +62,10 @@ let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
    but the fast path loads them in milliseconds.) */
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.map(((name, p: PersistentZipper.t)) =>
+  |> List.map(~f=((name, p: PersistentZipper.t)) =>
        (name, PersistentZipper.unpersist(p, ~root=Exp))
      )
-  |> List.map(slide_roundtrip_case);
+  |> List.map(~f=slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
   test_case(

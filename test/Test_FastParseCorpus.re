@@ -1,14 +1,15 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let rec find_hz = (dir: string): list(string) =>
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | entries =>
     entries
     |> Array.to_list
-    |> List.concat_map(entry => {
+    |> List.concat_map(~f=entry => {
          let path = Filename.concat(dir, entry);
-         switch (Sys.is_directory(path)) {
+         switch (Stdlib.Sys.is_directory(path)) {
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -18,10 +19,10 @@ let rec find_hz = (dir: string): list(string) =>
   };
 
 let read_file = (path: string): string => {
-  let ic = open_in_bin(path);
-  let n = in_channel_length(ic);
-  let s = really_input_string(ic, n);
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let n = Stdlib.in_channel_length(ic);
+  let s = Stdlib.really_input_string(ic, n);
+  Stdlib.close_in(ic);
   s;
 };
 
@@ -45,50 +46,56 @@ let tests = (
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]
-          |> List.concat_map(find_hz)
-          |> List.sort_uniq(compare);
-        let t0 = Sys.time();
+          |> List.concat_map(~f=find_hz)
+          |> List.dedup_and_sort(~compare=Poly.compare);
+        let t0 = Stdlib.Sys.time();
         let (ok, bail, worst) =
           List.fold_left(
-            ((ok, bail, worst), path) => {
-              /* mirror the production load path (of_slide_text flattens
-                 committed indentation; the reader strips only the file's
-                 final newline — other edge whitespace is content) */
-              let src =
-                read_file(path)
-                |> Util.StringUtil.trim_leading
-                |> Util.StringUtil.strip_final_newline;
-              let f0 = Sys.time();
-              let known_gap = List.mem(Filename.basename(path), known_gaps);
-              let r =
-                known_gap
-                  ? None
-                  : FastParse.of_text(
-                      ~materialize=Triggers.invoked_projector,
-                      ~collect_refractors=true,
-                      ~root=Exp,
-                      src,
-                    );
-              let ms = (Sys.time() -. f0) *. 1000.;
-              let worst =
-                ms > snd(worst) ? (Filename.basename(path), ms) : worst;
-              switch (r) {
-              | Some(_) => (ok + 1, bail, worst)
-              | None when known_gap => (ok, bail, worst)
-              | None =>
-                Printf.printf(
-                  "BAIL %s: %s\n",
-                  path,
-                  Option.value(FastParse.bail_note^, ~default="?"),
-                );
-                (ok, bail + 1, worst);
-              };
-            },
-            (0, 0, ("", 0.)),
+            ~f=
+              ((ok, bail, worst), path) => {
+                /* mirror the production load path (of_slide_text flattens
+                   committed indentation; the reader strips only the file's
+                   final newline — other edge whitespace is content) */
+                let src =
+                  read_file(path)
+                  |> Util.StringUtil.trim_leading
+                  |> Util.StringUtil.strip_final_newline;
+                let f0 = Stdlib.Sys.time();
+                let known_gap =
+                  List.mem(
+                    known_gaps,
+                    Filename.basename(path),
+                    ~equal=Poly.equal,
+                  );
+                let r =
+                  known_gap
+                    ? None
+                    : FastParse.of_text(
+                        ~materialize=Triggers.invoked_projector,
+                        ~collect_refractors=true,
+                        ~root=Exp,
+                        src,
+                      );
+                let ms = (Stdlib.Sys.time() -. f0) *. 1000.;
+                let worst =
+                  ms > snd(worst) ? (Filename.basename(path), ms) : worst;
+                switch (r) {
+                | Some(_) => (ok + 1, bail, worst)
+                | None when known_gap => (ok, bail, worst)
+                | None =>
+                  Stdlib.Printf.printf(
+                    "BAIL %s: %s\n",
+                    path,
+                    Option.value(FastParse.bail_note^, ~default="?"),
+                  );
+                  (ok, bail + 1, worst);
+                };
+              },
+            ~init=(0, 0, ("", 0.)),
             files,
           );
-        let total = (Sys.time() -. t0) *. 1000.;
-        Printf.printf(
+        let total = (Stdlib.Sys.time() -. t0) *. 1000.;
+        Stdlib.Printf.printf(
           "HZPROBE: %d files, %d fast-path OK, %d bail, total %.1fms, worst %s %.1fms\n",
           List.length(files),
           ok,

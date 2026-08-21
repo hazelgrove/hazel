@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /* Probe sample-selection over real evaluator output (vs Test_SampleSelection's
  * hand-crafted unit data) — catches evaluator/selection mismatches. */
@@ -17,11 +18,14 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
 };
 
 let get_all_samples = (code: string): list(Sample.t) =>
-  get_probes_map(code) |> Id.Map.bindings |> List.concat_map(snd);
+  get_probes_map(code) |> Id.Map.bindings |> List.concat_map(~f=snd);
 
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
-  List.partition((s: Sample.t) => List.length(s.call_stack) == 0, samples);
+  List.partition_tf(
+    ~f=(s: Sample.t) => List.length(s.call_stack) == 0,
+    samples,
+  );
 
 let mk_cursor =
     (~pinned=None, ~indicated_call=None, stack: CallStack.t): Sample.Focus.t => {
@@ -120,12 +124,13 @@ in f(5)|};
         /* Simulate step-into: cursor has same stack but with None name */
         let cursor_stack =
           List.map(
-            (f: CallStack.frame): CallStack.frame =>
-              {
-                id: f.id,
-                name: None,
-                fn_def_id: None,
-              },
+            ~f=
+              (f: CallStack.frame): CallStack.frame =>
+                {
+                  id: f.id,
+                  name: None,
+                  fn_def_id: None,
+                },
             s.call_stack,
           );
         let cursor = mk_cursor(~pinned=Some(cursor_stack), cursor_stack);
@@ -138,7 +143,8 @@ in f(5)|};
         );
       | _ =>
         fail(
-          "Expected 1 sample, got " ++ string_of_int(List.length(samples)),
+          "Expected 1 sample, got "
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -159,15 +165,16 @@ in f(1); f(2)|};
         List.length(samples),
       );
       /* Pick first sample's stack, simulate step-into with None names */
-      let first = List.hd(samples);
+      let first = List.hd_exn(samples);
       let pin_stack =
         List.map(
-          (f: CallStack.frame): CallStack.frame =>
-            {
-              id: f.id,
-              name: None,
-              fn_def_id: None,
-            },
+          ~f=
+            (f: CallStack.frame): CallStack.frame =>
+              {
+                id: f.id,
+                name: None,
+                fn_def_id: None,
+              },
           first.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
@@ -195,7 +202,7 @@ in f(5)|};
           List.length(s.call_stack) >= 1,
         );
         /* Cursor at the shallowest frame only */
-        let outermost_frame = List.rev(s.call_stack) |> List.hd;
+        let outermost_frame = List.rev(s.call_stack) |> List.hd_exn;
         let shallow_stack = [
           {
             ...outermost_frame,
@@ -214,7 +221,8 @@ in f(5)|};
         );
       | _ =>
         fail(
-          "Expected 1 sample, got " ++ string_of_int(List.length(samples)),
+          "Expected 1 sample, got "
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -232,16 +240,17 @@ let pin_integration_tests = [
 in f(1); f(2)|};
       let samples = get_all_samples(code);
       check(int, "should have 2 samples", 2, List.length(samples));
-      let (s1, s2) = (List.nth(samples, 0), List.nth(samples, 1));
+      let (s1, s2) = (List.nth_exn(samples, 0), List.nth_exn(samples, 1));
       /* Pin to s1's context, with None names (as step-into would) */
       let pin_stack =
         List.map(
-          (f: CallStack.frame): CallStack.frame =>
-            {
-              id: f.id,
-              name: None,
-              fn_def_id: None,
-            },
+          ~f=
+            (f: CallStack.frame): CallStack.frame =>
+              {
+                id: f.id,
+                name: None,
+                fn_def_id: None,
+              },
           s1.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
@@ -253,7 +262,7 @@ in f(1); f(2)|};
         );
       check(int, "pin should filter to 1 sample", 1, List.length(filtered));
       /* Verify it's s1, not s2 (by matching call stack) */
-      let kept = List.hd(filtered);
+      let kept = List.hd_exn(filtered);
       check(
         bool,
         "kept sample should match s1's call stack",
@@ -304,8 +313,8 @@ in ^^probe(f(5))|};
       );
       /* Top-level cursor should see top samples as Same/related */
       let cursor = mk_cursor([]);
-      let top_sample = List.hd(top_samples);
-      let inner_sample = List.hd(inner_samples);
+      let top_sample = List.hd_exn(top_samples);
+      let inner_sample = List.hd_exn(inner_samples);
       let top_rel =
         Sample.Focus.relation(
           ~trimmed=false,
@@ -371,7 +380,8 @@ in f(5)|};
         );
       | _ =>
         fail(
-          "Expected 1 sample, got " ++ string_of_int(List.length(samples)),
+          "Expected 1 sample, got "
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -450,13 +460,13 @@ in [f(1), f(2), f(3)]|};
         "all samples should have depth >= 1",
         true,
         List.for_all(
-          (s: Sample.t) => List.length(s.call_stack) >= 1,
+          ~f=(s: Sample.t) => List.length(s.call_stack) >= 1,
           inner_samples,
         ),
       );
       /* Simulate: user selected inner sample 1, then clicked outer probe.
        * Cursor has full stack from sample 1 but index lowered to outer level. */
-      let sample_1 = List.nth(inner_samples, 1);
+      let sample_1 = List.nth_exn(inner_samples, 1);
       let outer_index = max(0, List.length(sample_1.call_stack) - 2);
       let cursor =
         mk_cursor_at_index(~index=outer_index, sample_1.call_stack);
@@ -486,7 +496,7 @@ in [f(10), f(20), f(30)]|};
       let inner_samples = get_all_samples(code);
       check(int, "should have 3 samples", 3, List.length(inner_samples));
       /* Select sample 2, lower index to outer level */
-      let sample_2 = List.nth(inner_samples, 2);
+      let sample_2 = List.nth_exn(inner_samples, 2);
       let outer_index = max(0, List.length(sample_2.call_stack) - 2);
       let cursor =
         mk_cursor_at_index(~index=outer_index, sample_2.call_stack);
@@ -530,42 +540,43 @@ in ^^probe(f(1))
        * application site ID. Setting indicated_call to that ID should
        * cause most_aligned_index to find exactly that sample. */
       List.iteri(
-        (i, inner_sample: Sample.t) => {
-          check(
-            bool,
-            "inner sample should have 1-frame call stack",
-            true,
-            List.length(inner_sample.call_stack) == 1,
-          );
-          let app_id = List.hd(inner_sample.call_stack).id;
-          let cursor = mk_cursor(~indicated_call=Some(app_id), []);
-          let result =
-            Sample.Selection.most_aligned_index(
-              ~ap_id=None,
-              cursor,
-              inner_samples,
-            );
-          switch (result) {
-          | Some(idx) =>
-            let found = List.nth(inner_samples, idx);
+        ~f=
+          (i, inner_sample: Sample.t) => {
             check(
               bool,
-              Printf.sprintf(
-                "sample %d: aligned sample should match clicked call",
-                i,
-              ),
+              "inner sample should have 1-frame call stack",
               true,
-              List.hd(found.call_stack).id == app_id,
+              List.length(inner_sample.call_stack) == 1,
             );
-          | None =>
-            fail(
-              Printf.sprintf(
-                "sample %d: should find an aligned inner sample",
-                i,
-              ),
-            )
-          };
-        },
+            let app_id = List.hd_exn(inner_sample.call_stack).id;
+            let cursor = mk_cursor(~indicated_call=Some(app_id), []);
+            let result =
+              Sample.Selection.most_aligned_index(
+                ~ap_id=None,
+                cursor,
+                inner_samples,
+              );
+            switch (result) {
+            | Some(idx) =>
+              let found = List.nth_exn(inner_samples, idx);
+              check(
+                bool,
+                Stdlib.Printf.sprintf(
+                  "sample %d: aligned sample should match clicked call",
+                  i,
+                ),
+                true,
+                List.hd_exn(found.call_stack).id == app_id,
+              );
+            | None =>
+              fail(
+                Stdlib.Printf.sprintf(
+                  "sample %d: should find an aligned inner sample",
+                  i,
+                ),
+              )
+            };
+          },
         inner_samples,
       );
     },
@@ -587,8 +598,8 @@ in ^^probe(f(10))
         List.length(inner_samples),
       );
       /* Pick the second inner sample, set indicated_call to its app ID */
-      let target = List.nth(inner_samples, 1);
-      let app_id = List.hd(target.call_stack).id;
+      let target = List.nth_exn(inner_samples, 1);
+      let app_id = List.hd_exn(target.call_stack).id;
       let cursor = mk_cursor(~indicated_call=Some(app_id), []);
       let (selected, _) = run_select(~cursor, inner_samples);
       check(
@@ -603,7 +614,7 @@ in ^^probe(f(10))
           bool,
           "selected sample should match target call",
           true,
-          List.hd(s.call_stack).id == app_id,
+          List.hd_exn(s.call_stack).id == app_id,
         )
       | _ => fail("expected exactly 1 sample")
       };
@@ -657,9 +668,9 @@ let cur_var_ap_tests = [
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
-      let probe_id = List.hd(probe_ids);
+      let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
       | Some(info) =>
         let ap_id = Sample.Focus.cur_var_ap(info);
@@ -680,9 +691,9 @@ in ^^probe(f(2))|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x) + 1
 in f(2)|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
-      let probe_id = List.hd(probe_ids);
+      let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
       | Some(info) =>
         let ap_id = Sample.Focus.cur_var_ap(info);
@@ -706,7 +717,7 @@ in f(2)|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
       let (term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
+      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
@@ -719,25 +730,19 @@ in ^^probe(f(42))|};
       let probes_map = EvaluatorState.get_probes(state);
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
-        List.find(
-          id => {
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
-            | None => false
-            }
-          },
-          probe_ids,
-        );
+        List.find_exn(probe_ids, ~f=id => {
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
+          | None => false
+          }
+        });
       let inner_probe_id =
-        List.find(
-          id => {
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Sample.Focus.cur_var_ap(info) == None
-            | None => false
-            }
-          },
-          probe_ids,
-        );
+        List.find_exn(probe_ids, ~f=id => {
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(info) => Sample.Focus.cur_var_ap(info) == None
+          | None => false
+          }
+        });
       /* Get ap_id from call probe's statics */
       let ap_id =
         switch (Statics.Map.lookup(call_probe_id, info_map)) {
@@ -750,7 +755,7 @@ in ^^probe(f(42))|};
         true,
         Option.is_some(ap_id),
       );
-      let ap_id = Option.get(ap_id);
+      let ap_id = Option.value_exn(ap_id);
       let inner_samples =
         switch (Id.Map.find_opt(inner_probe_id, probes_map)) {
         | Some(samples) => samples
@@ -763,14 +768,14 @@ in ^^probe(f(42))|};
         List.length(inner_samples),
       );
       /* The inner sample's call stack frame ID should match ap_id */
-      let inner_sample = List.hd(inner_samples);
+      let inner_sample = List.hd_exn(inner_samples);
       check(
         bool,
         "inner sample should have 1-frame call stack",
         true,
         List.length(inner_sample.call_stack) == 1,
       );
-      let frame_id = List.hd(inner_sample.call_stack).id;
+      let frame_id = List.hd_exn(inner_sample.call_stack).id;
       check(
         bool,
         "call stack frame ID should match ap_id from cur_var_ap",
@@ -798,12 +803,17 @@ run(0, [1, 2, 3])|};
       /* The body probe's samples have the deeper stacks (inside update). */
       let depth = ((_, samples)) =>
         List.fold_left(
-          (acc, s: Sample.t) => max(acc, List.length(s.call_stack)),
-          0,
+          ~f=(acc, s: Sample.t) => max(acc, List.length(s.call_stack)),
+          ~init=0,
           samples,
         );
       let (call_probe, body_probe) =
-        switch (List.sort((a, b) => compare(depth(a), depth(b)), probes)) {
+        switch (
+          List.sort(
+            ~compare=(a, b) => compare(depth(a), depth(b)),
+            probes,
+          )
+        ) {
         | [shallow, deep] => (shallow, deep)
         | _ => failwith("expected exactly two probes")
         };
@@ -813,7 +823,7 @@ run(0, [1, 2, 3])|};
       check(int, "body probe has 3 samples", 3, List.length(body_samples));
       /* Pin the middle iteration the way ProbeProj.pin_call does:
        * prepend the probed ap's syntax id to the sample's stack. */
-      let target: Sample.t = List.nth(call_samples, 1);
+      let target: Sample.t = List.nth_exn(call_samples, 1);
       let pin_stack: CallStack.t = [
         {
           id: call_probe_id,
@@ -862,16 +872,17 @@ let dead_pin_tests = [
 let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
       let dynamics = get_probes_map(code);
-      let samples = dynamics |> Id.Map.bindings |> List.concat_map(snd);
+      let samples = dynamics |> Id.Map.bindings |> List.concat_map(~f=snd);
       /* Pick a deep sample: its stack passes through fold_left's internal
        * frames, which are absent from any user statics map. Pin it the way
        * pin_call does: prepend the probed ap's syntax id. */
       let sample =
         List.fold_left(
-          (best: Sample.t, s: Sample.t) =>
-            List.length(s.call_stack) > List.length(best.call_stack)
-              ? s : best,
-          List.hd(samples),
+          ~f=
+            (best: Sample.t, s: Sample.t) =>
+              List.length(s.call_stack) > List.length(best.call_stack)
+                ? s : best,
+          ~init=List.hd_exn(samples),
           samples,
         );
       let pin_stack: CallStack.t = [
@@ -940,7 +951,7 @@ run(0, [1, 2, 3])|};
   ),
 ];
 
-/* Repro: sample ids must differ across fold iterations. Hashtbl.hash
+/* Repro: sample ids must differ across fold iterations. Stdlib.Hashtbl.hash
  * truncates, so iterations sharing a long builtin-frame prefix once collided,
  * and the UI (which compares samples by id) merged them. */
 
@@ -954,8 +965,8 @@ let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) i
 run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
       let samples = get_all_samples(code);
       check(int, "16 samples (8 per probe)", 16, List.length(samples));
-      let ids = List.map((s: Sample.t) => s.id, samples);
-      let distinct = List.sort_uniq(compare, ids);
+      let ids = List.map(~f=(s: Sample.t) => s.id, samples);
+      let distinct = List.dedup_and_sort(ids, ~compare);
       check(
         int,
         "all sample ids distinct",
@@ -992,7 +1003,10 @@ let g = fun y -> ^^probe(f(y)) * 2 in
         | [] => (-1)
         };
       let sorted =
-        List.sort((a, b) => compare(depth_of(a), depth_of(b)), probes);
+        List.sort(
+          ~compare=(a, b) => compare(depth_of(a), depth_of(b)),
+          probes,
+        );
       switch (sorted) {
       | [(_, [outer]), (f_call_id, [f_call]), (_, [f_body])] =>
         let pin_stack: CallStack.t = [
@@ -1056,11 +1070,13 @@ in fold_left([10, 20, 30], go, 0)|},
       check(int, "three iteration samples", 3, List.length(samples));
       let by_step =
         List.sort(
-          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          ~compare=
+            (a: Sample.t, b: Sample.t) =>
+              compare(a.step_start, b.step_start),
           samples,
         );
-      let last = List.nth(by_step, 2);
-      let first = List.hd(by_step);
+      let last = List.nth_exn(by_step, 2);
+      let first = List.hd_exn(by_step);
       /* Reality check (empirical): fold iterations carry FRESH
        * worker-minted frame ids, so stacks are distinguishable within
        * a run — but those ids regenerate on re-execution, so they are
@@ -1085,7 +1101,7 @@ in fold_left([10, 20, 30], go, 0)|},
           int,
           "anchored cursor picks the clicked iteration (last, not first)",
           last.step_start,
-          List.nth(by_step, i).step_start,
+          List.nth_exn(by_step, i).step_start,
         )
       | None => fail("anchored cursor found no sample")
       };
@@ -1094,11 +1110,12 @@ in fold_left([10, 20, 30], go, 0)|},
        * still recover the exact iteration via its start step. */
       let stale_stack: CallStack.t =
         List.map(
-          (f: CallStack.frame) =>
-            {
-              ...f,
-              id: Id.mk(),
-            },
+          ~f=
+            (f: CallStack.frame) =>
+              {
+                ...f,
+                id: Id.mk(),
+              },
           last.call_stack,
         );
       let stale_anchor = {
@@ -1122,7 +1139,7 @@ in fold_left([10, 20, 30], go, 0)|},
           int,
           "stale-stack anchor recovers the iteration by step",
           last.step_start,
-          List.nth(by_step, i).step_start,
+          List.nth_exn(by_step, i).step_start,
         )
       | None => fail("stale-stack anchor found no sample")
       };
@@ -1140,9 +1157,10 @@ in fact(4)|};
       let probes = get_probes_map(code) |> Id.Map.bindings;
       /* The call probe sits on an Ap, so its samples carry args. */
       let (call_probes, body_probes) =
-        List.partition(
-          ((_, ss)) =>
-            List.exists((s: Sample.t) => Option.is_some(s.args), ss),
+        List.partition_tf(
+          ~f=
+            ((_, ss)) =>
+              List.exists(~f=(s: Sample.t) => Option.is_some(s.args), ss),
           probes,
         );
       let (call_id, call_samples) =
@@ -1157,8 +1175,9 @@ in fact(4)|};
         };
       let by_depth = (ss: list(Sample.t)) =>
         List.sort(
-          (a: Sample.t, b: Sample.t) =>
-            compare(List.length(a.call_stack), List.length(b.call_stack)),
+          ~compare=
+            (a: Sample.t, b: Sample.t) =>
+              compare(List.length(a.call_stack), List.length(b.call_stack)),
           ss,
         );
       let call_samples = by_depth(call_samples);
@@ -1167,7 +1186,7 @@ in fact(4)|};
       check(int, "body probe: 3 samples", 3, List.length(body_samples));
       /* The 6 sample (fact(3)'s value) is the shallowest call sample,
        * observed at the top invocation's stack. */
-      let six = List.hd(call_samples);
+      let six = List.hd_exn(call_samples);
       check(int, "6 sample at depth 1", 1, List.length(six.call_stack));
       /* Pin it the way ProbeProj.pin_call does. */
       let pin_stack: CallStack.t = [
@@ -1258,7 +1277,7 @@ in fact(4)|};
        * displays exactly that sample even when its coordinate
        * projections point elsewhere (deepest body sample here, with
        * top-level coordinates). */
-      let deep_body = List.nth(body_samples, 2);
+      let deep_body = List.nth_exn(body_samples, 2);
       let anchored = {
         ...mk_cursor([]),
         anchor: Some(Sample.ref_of_sample(deep_body)),
@@ -1277,7 +1296,7 @@ in fact(4)|};
           true,
           Sample.ref_matches(
             Sample.ref_of_sample(deep_body),
-            List.nth(body_samples, i),
+            List.nth_exn(body_samples, i),
           ),
         )
       | None => fail("anchored cursor found no sample")
@@ -1306,7 +1325,7 @@ in fact(4)|};
        * The legacy id-suffix rule cannot express this (it would keep
        * everything at-or-below the leaf's call level) — this is the
        * pin-anything semantics. */
-      let x3 = List.nth(body_samples, 1);
+      let x3 = List.nth_exn(body_samples, 1);
       check(
         int,
         "x3 is the depth-2 body sample",
@@ -1332,7 +1351,8 @@ in fact(4)|};
        * direct ref aligns to the candidate closest to the pin's level,
        * not the deepest previously-visited one. Body candidates under
        * the pin are depths {2,3}; deep history must not select 3. */
-      let deep_sightline: CallStack.t = List.nth(body_samples, 2).call_stack;
+      let deep_sightline: CallStack.t =
+        List.nth_exn(body_samples, 2).call_stack;
       let history_cursor = {
         ...
           mk_cursor_at_index(
@@ -1354,7 +1374,7 @@ in fact(4)|};
           int,
           "pinned view ignores click history (picks pin-level sample)",
           List.length(pin_stack),
-          List.length(List.nth(by_interval, i).call_stack),
+          List.length(List.nth_exn(by_interval, i).call_stack),
         )
       | None => fail("pinned history cursor found no sample")
       };

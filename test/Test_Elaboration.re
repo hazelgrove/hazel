@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -29,16 +30,16 @@ let assert_elab_ids_present = u => {
   let _ =
     Grammar.map_exp_annotation(
       ({ids, _}: IdTagged.IdTag.t) => {
-        if (Id.equal(List.hd(ids), Id.invalid)) {
+        if (Id.equal(List.hd_exn(ids), Id.invalid)) {
           Alcotest.fail(
             "Invalid elaborated id in expression: " ++ Exp.show(elab),
           );
         };
-        switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+        switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
         | Some(_) => ()
         | None =>
           Alcotest.fail(
-            "No info found for elaborated id: " ++ Id.show(List.hd(ids)),
+            "No info found for elaborated id: " ++ Id.show(List.hd_exn(ids)),
           )
         };
       },
@@ -61,8 +62,8 @@ let adt_node_ids = exp => {
       go(arg);
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
-      List.iter(go, es);
-    | ListLit(es) => List.iter(go, es)
+      List.iter(~f=go, es);
+    | ListLit(es) => List.iter(~f=go, es)
     | TupLabel(label, body) =>
       go(label);
       go(body);
@@ -101,7 +102,7 @@ let adt_node_ids = exp => {
     | FixF(_, body, _env) => go(body)
     | DeferredAp(fn, es) =>
       go(fn);
-      List.iter(go, es);
+      List.iter(~f=go, es);
     | _ => ()
     };
   go(exp);
@@ -854,17 +855,17 @@ in 1|},
           | _
               when
                 List.exists(
-                  (==)(msg),
+                  ~f=(==)(msg),
                   [
                     "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
                   ],
                 ) =>
-            print_endline("Known failure: " ++ Printexc.to_string(e));
+            print_endline("Known failure: " ++ Exn.to_string(e));
             true;
           | _ => raise(e)
           }
         | exception e =>
-          print_endline("Skipping statics: " ++ Printexc.to_string(e));
+          print_endline("Skipping statics: " ++ Exn.to_string(e));
           true;
         }
       }),
