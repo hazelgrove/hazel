@@ -152,7 +152,8 @@ let arb_exp_roundtrip =
       let text = render_exp_as_text(exp);
       switch (MarkerParse.of_text(~root=Exp, text)) {
       | None => false
-      | Some(z) => MarkerParse.to_text(z) == roundtripped_text(z)
+      | Some(z) =>
+        String.equal(MarkerParse.to_text(z), roundtripped_text(z))
       };
     },
   );

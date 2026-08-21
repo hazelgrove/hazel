@@ -66,7 +66,12 @@ let tests = (
         let m0 = mk_model();
         let t0 = text_of(m0);
         let m1 = apply(m0, insert("1"));
-        check(bool, "insert changed the program", true, text_of(m1) != t0);
+        check(
+          bool,
+          "insert changed the program",
+          true,
+          !String.equal(text_of(m1), t0),
+        );
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));

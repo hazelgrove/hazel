@@ -133,7 +133,7 @@ let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
   let chars = Token.to_list(init);
-  if (List.exists(c => c == selection_char, chars)) {
+  if (List.exists(c => String.equal(c, selection_char), chars)) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
   let rec split =
@@ -142,7 +142,7 @@ let mk = (init: string): list(Action.t) => {
     switch (rest) {
     | [] => Alcotest.fail("Failed to find caret in: " ++ init)
     | [hd, ...tl] =>
-      if (hd == caret_char) {
+      if (String.equal(hd, caret_char)) {
         (List.rev(before), tl);
       } else {
         split([hd, ...before], tl);
@@ -166,7 +166,7 @@ let mk = (init: string): list(Action.t) => {
  * 4. Apply Select(PointToPoint) to create the selection */
 let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
   let chars = Token.to_list(init);
-  let has_anchor = List.exists(c => c == selection_char, chars);
+  let has_anchor = List.exists(c => String.equal(c, selection_char), chars);
   if (!has_anchor) {
     /* No selection — just use mk */
     mk(init) |> perform(~settings, Zipper.init());
@@ -175,19 +175,21 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_a =
       chars
       |> List.map(c =>
-           if (c == selection_char) {
+           if (String.equal(c, selection_char)) {
              caret_char;
-           } else if (c == caret_char) {
+           } else if (String.equal(c, caret_char)) {
              "";
            } else {
              c;
            }
          )
-      |> List.filter(c => c != "")
+      |> List.filter(c => !String.equal(c, ""))
       |> Token.of_list;
     /* version_b: remove §, keep ¦ */
     let version_b =
-      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+      chars
+      |> List.filter(c => !String.equal(c, selection_char))
+      |> Token.of_list;
     /* Build zippers */
     let z_a = mk(version_a) |> perform(~settings, Zipper.init());
     let z_b = mk(version_b) |> perform(~settings, Zipper.init());
@@ -1230,9 +1232,15 @@ else f|});
       let result = printer_indented(z);
       /* Check selection was created (has both markers) */
       let has_anchor =
-        List.exists(c => c == selection_char, Token.to_list(result));
+        List.exists(
+          c => String.equal(c, selection_char),
+          Token.to_list(result),
+        );
       let has_caret =
-        List.exists(c => c == caret_char, Token.to_list(result));
+        List.exists(
+          c => String.equal(c, caret_char),
+          Token.to_list(result),
+        );
       if (!has_anchor || !has_caret) {
         Alcotest.fail("mk_zipper failed to create selection");
       };
@@ -4087,7 +4095,9 @@ let test_cut_paste =
            * the pasted text ends, which is at the original focus position */
           let chars = Token.to_list(init);
           let clean =
-            chars |> List.filter(c => c != selection_char) |> Token.of_list;
+            chars
+            |> List.filter(c => !String.equal(c, selection_char))
+            |> Token.of_list;
           clean;
         };
       let bp = Zipper.local_backpack(z);

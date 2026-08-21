@@ -172,7 +172,7 @@ let qcheck_menhir_maketerm_equivalent_test =
       | exception (Failure(msg)) =>
         print_endline("Error: " ++ msg);
         print_endline("Serialized: " ++ serialized);
-        msg == "Sum type has non-unique constructors";
+        String.equal(msg, "Sum type has non-unique constructors");
       };
     },
   );
