@@ -27,7 +27,7 @@ let single = (~arg_id: Id.t, ~fn_id: Id.t): Simple.t => {
     ),
   /* (D) The explanation which will appear in the sidebar below the abstract */
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Passes the [*argument*](%s) to the [*function*](%s).",
       arg_id |> Id.to_string,
       fn_id |> Id.to_string,

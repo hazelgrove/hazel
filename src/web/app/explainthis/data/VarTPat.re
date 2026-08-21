@@ -6,7 +6,7 @@ let var_typ_pat = (n: string): form => {
   syntactic_form: [n |> abbreviate |> tpat],
   colorings: [],
   expandable_id: None,
-  explanation: Printf.sprintf("`%s` binds a type variable.", n),
+  explanation: Stdlib.Printf.sprintf("`%s` binds a type variable.", n),
   examples: [],
 };
 

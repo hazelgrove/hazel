@@ -111,7 +111,7 @@ let add_premise = (m: p('a), ~pos, ~index): p('a) => {
   let (i, tree_pos) = get_trees_pos(pos);
   let trees =
     m.trees
-    |> List.nth(_, i)
+    |> List.nth_exn(_, i)
     |> Tree.insert(blank_deduction(~pos), index, _, tree_pos)
     |> ListUtil.put_nth(i, _, m.trees);
   {
@@ -127,7 +127,7 @@ let del_premise_internal = (m: p('a), ~pos): p('a) => {
   let (index, pos) = Tree.pos_split_last(pos);
   let trees =
     m.trees
-    |> List.nth(_, i)
+    |> List.nth_exn(_, i)
     |> Tree.remove(index, _, pos)
     |> snd
     |> ListUtil.put_nth(i, _, m.trees);
@@ -141,8 +141,8 @@ let add_abbr = (m: p('a), ~index): p('a) => {
   let abbr = Tree.empty(blank_deduction(~pos=Trees(0, Value)));
   let trees =
     m.trees
-    |> List.mapi(i =>
-         i >= index ? Tree.map(Abbr.update_before_add(index)) : Fun.id
+    |> List.mapi(~f=i =>
+         i >= index ? Tree.map(Abbr.update_before_add(index)) : Fn.id
        )
     |> ListUtil.insert(abbr, _, index);
   {
@@ -155,8 +155,8 @@ let del_abbr = (m: p('a), ~index): p('a) => {
   let trees =
     m.trees
     |> ListUtil.remove(_, index)
-    |> List.mapi(i =>
-         i >= index ? Tree.map(Abbr.update_after_del(index)) : Fun.id
+    |> List.mapi(~f=i =>
+         i >= index ? Tree.map(Abbr.update_after_del(index)) : Fn.id
        );
   {
     ...m,
@@ -174,11 +174,11 @@ let del_premise = (m: p('a), ~pos): p('a) =>
 
 let pop_premise = (m: p('a), ~pos): p('a) => {
   let (index, pos) = get_trees_pos(pos);
-  let abbr = m.trees |> List.nth(_, index) |> Tree.nth_node(_, pos);
+  let abbr = m.trees |> List.nth_exn(_, index) |> Tree.nth_node(_, pos);
   let trees =
     m.trees
-    |> List.mapi(i =>
-         i >= index ? Tree.map(Abbr.update_before_add(index)) : Fun.id
+    |> List.mapi(~f=i =>
+         i >= index ? Tree.map(Abbr.update_before_add(index)) : Fn.id
        )
     |> ListUtil.map_nth(
          index,
@@ -194,11 +194,11 @@ let pop_premise = (m: p('a), ~pos): p('a) => {
 let push_premise = (m: p('a), ~pos): p('a) => {
   let (index, pos) = get_trees_pos(pos);
   let addr_index =
-    switch (m.trees |> List.nth(_, index) |> Tree.nth(_, pos)) {
+    switch (m.trees |> List.nth_exn(_, index) |> Tree.nth(_, pos)) {
     | Abbr.Abbr(Some(i)) => i
     | _ => failwith("DerivationExercise.push_premise: not an abbreviation")
     };
-  let abbr = m.trees |> List.nth(_, addr_index);
+  let abbr = m.trees |> List.nth_exn(_, addr_index);
   let trees =
     m.trees |> ListUtil.map_nth(index, Tree.put_nth_node(abbr, _, pos));
   {
@@ -210,12 +210,12 @@ let push_premise = (m: p('a), ~pos): p('a) => {
 let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
   let root = root_of_pos(pos);
   let (i, pos) = get_trees_pos(pos);
-  let tree = List.nth(m.trees, i);
+  let tree = List.nth_exn(m.trees, i);
   let trees =
     tree
     |> Tree.nth(_, pos)
     |> Abbr.get_just_opt
-    |> Option.map(d => d.jdmt)
+    |> Option.map(~f=d => d.jdmt)
     |> Option.value(~default=init(~root))
     |> (
       jdmt =>
@@ -234,7 +234,7 @@ let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
 
 let switch_abbr = (m: p('a), ~pos: pos, ~index): p('a) => {
   let (i, pos) = get_trees_pos(pos);
-  let tree = List.nth(m.trees, i);
+  let tree = List.nth_exn(m.trees, i);
   let trees =
     Abbr.Abbr(index)
     |> Tree.empty
@@ -248,9 +248,9 @@ let switch_abbr = (m: p('a), ~pos: pos, ~index): p('a) => {
 
 /* Menu helpers: pre-pend [None] to a list of options so the UI can render
    a "no selection" choice before the real entries. */
-let with_none = l => [None, ...List.map(Option.some, l)];
+let with_none = l => [None, ...List.map(~f=Option.some, l)];
 let all_abbrs = pos =>
-  pos |> get_trees_pos |> fst |> List.init(_, Fun.id) |> with_none;
+  pos |> get_trees_pos |> fst |> List.init(_, ~f=Fn.id) |> with_none;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type hint = string;
@@ -267,7 +267,7 @@ let farthest_pos = (pos: pos, editors: p('a)): pos =>
   | Setup => Setup
   | Trees(i, pos) =>
     let i = min(i, List.length(editors.trees) - 1);
-    let tree = List.nth(editors.trees, i);
+    let tree = List.nth_exn(editors.trees, i);
     let farthest =
       Tree.farthest_cond(
         fun
@@ -289,7 +289,7 @@ let map = (p: p('a), f: 'a => 'b): p('b) => {
     prelude: p.prelude |> f,
     setup: p.setup |> f,
     rule_set: p.rule_set,
-    trees: p.trees |> List.map(Tree.map(map_jdmt(f))),
+    trees: p.trees |> List.map(~f=Tree.map(map_jdmt(f))),
   };
 };
 
@@ -305,7 +305,7 @@ let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
     rule_set: p.rule_set,
     trees:
       p.trees
-      |> List.mapi(i => Tree.mapi(pos => map_jdmt(f(Trees(i, pos))))),
+      |> List.mapi(~f=i => Tree.mapi(pos => map_jdmt(f(Trees(i, pos))))),
   };
 };
 
@@ -321,7 +321,7 @@ let main_editor_of_state = (~selection: pos, eds) =>
   | Setup => eds.setup
   | Trees(i, pos) =>
     eds.trees
-    |> List.nth(_, i)
+    |> List.nth_exn(_, i)
     |> Tree.nth(_, pos)
     |> Abbr.get_just
     |> (d => d.jdmt)
@@ -366,25 +366,25 @@ let editors = (eds: p('a)) =>
   [eds.prelude, eds.setup]
   @ (
     eds.trees
-    |> List.map(Tree.flatten)
+    |> List.map(~f=Tree.flatten)
     |> List.concat
-    |> List.filter_map(Abbr.get_just_opt)
-    |> List.map(d => d.jdmt)
+    |> List.filter_map(~f=Abbr.get_just_opt)
+    |> List.map(~f=d => d.jdmt)
   );
 
 let editor_positions = eds =>
   [Prelude, Setup]
   @ (
     eds.trees
-    |> List.mapi(i => Tree.mapi(pos => map_jdmt(_ => Trees(i, pos))))
-    |> List.map(Tree.flatten)
+    |> List.mapi(~f=i => Tree.mapi(pos => map_jdmt(_ => Trees(i, pos))))
+    |> List.map(~f=Tree.flatten)
     |> List.concat
-    |> List.filter_map(Abbr.get_just_opt)
-    |> List.map(d => d.jdmt)
+    |> List.filter_map(~f=Abbr.get_just_opt)
+    |> List.map(~f=d => d.jdmt)
   );
 
 let positioned_editors = state =>
-  List.combine(editor_positions(state), editors(state));
+  List.zip_exn(editor_positions(state), editors(state));
 
 let transition: transitionary_spec => spec =
   mapi(_, pos => zipper_of_code(_, ~root=root_of_pos(pos)));
@@ -418,7 +418,7 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   setup: s.setup |> f(Setup),
   trees:
     s.trees
-    |> List.mapi(i => Tree.mapi(pos => Option.map(f(Trees(i, pos))))),
+    |> List.mapi(~f=i => Tree.mapi(pos => Option.map(~f=f(Trees(i, pos))))),
 };
 
 let get_stitched = (pos, s: stitched('a)): 'a =>
@@ -427,7 +427,7 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
   | Setup => s.setup
   | Trees(i, pos) =>
     s.trees
-    |> List.nth(_, i)
+    |> List.nth_exn(_, i)
     |> Tree.nth(_, pos)
     |> OptUtil.value_exn(
          ~none=Invalid_argument("DerivationExercise.get_stitched"),
@@ -448,7 +448,7 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
       ...s,
       trees:
         s.trees
-        |> ListUtil.map_nth(i, Tree.map_nth(Option.map(_ => x), _, pos)),
+        |> ListUtil.map_nth(i, Tree.map_nth(Option.map(~f=_ => x), _, pos)),
     }
   };
 
@@ -469,17 +469,18 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     trees:
       eds.trees
       |> List.map(
-           Tree.map(
-             fun
-             | Abbr.Just(d) =>
-               Some(
-                 wrap(
-                   EditorUtil.append_exp(setup_term, d.jdmt |> term_of),
-                   d.jdmt,
-                 ),
-               )
-             | Abbr(_) => None,
-           ),
+           ~f=
+             Tree.map(
+               fun
+               | Abbr.Just(d) =>
+                 Some(
+                   wrap(
+                     EditorUtil.append_exp(setup_term, d.jdmt |> term_of),
+                     d.jdmt,
+                   ),
+                 )
+               | Abbr(_) => None,
+             ),
          ),
   };
 };
@@ -507,25 +508,26 @@ let pos_of_key = (key: string): pos =>
   switch () {
   | _ when String.equal(key, prelude_key) => Prelude
   | _ when String.equal(key, setup_key) => Setup
-  | _ when String.starts_with(key, ~prefix="derivation_") =>
-    let i = String.index(key, '_');
-    let key = String.sub(key, i + 1, String.length(key) - i - 1);
+  | _ when String.is_prefix(key, ~prefix="derivation_") =>
+    let i = Stdlib.String.index(key, '_');
+    let key = String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
     try({
-      let i = String.index(key, '_');
-      let n = String.sub(key, 0, i) |> int_of_string;
-      let key = String.sub(key, i + 1, String.length(key) - i - 1);
+      let i = Stdlib.String.index(key, '_');
+      let n = String.sub(key, ~pos=0, ~len=i) |> int_of_string;
+      let key = String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
       let rec aux = (key: string): Tree.pos =>
         try({
-          let i = String.index(key, '_');
-          let n = String.sub(key, 0, i) |> int_of_string;
-          let key = String.sub(key, i + 1, String.length(key) - i - 1);
+          let i = Stdlib.String.index(key, '_');
+          let n = String.sub(key, ~pos=0, ~len=i) |> int_of_string;
+          let key =
+            String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
           Children(n, aux(key));
         }) {
-        | Not_found => Children(key |> int_of_string, Value)
+        | Stdlib.Not_found => Children(key |> int_of_string, Value)
         };
       Trees(n, aux(key));
     }) {
-    | Not_found => Trees(key |> int_of_string, Value)
+    | Stdlib.Not_found => Trees(key |> int_of_string, Value)
     };
   | _ => failwith("invalid key")
   };

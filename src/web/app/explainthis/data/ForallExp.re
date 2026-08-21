@@ -20,7 +20,7 @@ let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: forall_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(tpat), [exp_arg])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The forall expression asserts that for every value of the [*variables*](%s) the inside of the forall always returns true [*inner type*](%s). This expression does not work at runtime (it would take forever if it did!), but is useful for specifying properties of functions and data types.",
       Id.to_string(pat_id),
       Id.to_string(body_id),

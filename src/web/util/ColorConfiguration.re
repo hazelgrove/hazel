@@ -373,14 +373,20 @@ let aliases: list(((string, string), list(string))) = [
    names are the point -- `menu.background` and `chrome.background` are two
    different colors and should not have to be spelled apart. */
 let field_names: list((string, string)) =
-  List.map(n => ("palette", n), CS.palette)
+  List.map(~f=n => ("palette", n), CS.palette)
   @ List.concat_map(
-      ((group, members)) => List.map(n => (group, n), members),
+      ~f=((group, members)) => List.map(~f=n => (group, n), members),
       CS.role_groups,
     );
 
 let targets_of = (group: string, name: string): list(string) =>
-  switch (List.assoc_opt((group, name), aliases)) {
+  switch (
+    List.Assoc.find(
+      aliases,
+      (group, name),
+      ~equal=Tuple2.equal(~eq1=String.equal, ~eq2=String.equal),
+    )
+  ) {
   | Some(targets) => targets
   | None => [name]
   };
@@ -400,7 +406,7 @@ let contrast_target = "hazel-contrast";
 let all_targets: list(string) = [
   polarity_target,
   contrast_target,
-  ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
+  ...List.concat_map(~f=((g, n)) => targets_of(g, n), field_names),
 ];
 
 /* The type the editor threads in as `~ana`, so a slide that stops matching
@@ -418,17 +424,18 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
 let colors_of_group =
     (group_name: string, group: Exp.t): list((string, string)) =>
   List.concat_map(
-    (entry: Exp.t) =>
-      switch (entry.term) {
-      | TupLabel(l, v) =>
-        switch (l.term, C.of_exp(v)) {
-        | (Label(name), Some(c)) =>
-          let css = C.to_css(c);
-          List.map(t => (t, css), targets_of(group_name, name));
+    ~f=
+      (entry: Exp.t) =>
+        switch (entry.term) {
+        | TupLabel(l, v) =>
+          switch (l.term, C.of_exp(v)) {
+          | (Label(name), Some(c)) =>
+            let css = C.to_css(c);
+            List.map(~f=t => (t, css), targets_of(group_name, name));
+          | _ => []
+          }
         | _ => []
-        }
-      | _ => []
-      },
+        },
     entries_of(group),
   );
 
@@ -437,36 +444,38 @@ let colors_of_group =
    palette is published too, because it is what a saved user theme writes. */
 let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
-    (section: Exp.t) =>
-      switch (section.term) {
-      | TupLabel(l, body) =>
-        switch (l.term) {
-        | Label("palette") => colors_of_group("palette", body)
-        | Label(l) when String.equal(l, CS.polarity_field) =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+    ~f=
+      (section: Exp.t) =>
+        switch (section.term) {
+        | TupLabel(l, body) =>
+          switch (l.term) {
+          | Label("palette") => colors_of_group("palette", body)
+          | Label(l) when String.equal(l, CS.polarity_field) =>
+            switch (Unboxing.unbox(Atom(Bool), body)) {
+            | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+            | _ => []
+            }
+          | Label(l) when String.equal(l, CS.contrast_field) =>
+            switch (Unboxing.unbox(Atom(Bool), body)) {
+            | Matches(b) => [(contrast_target, b ? "high" : "normal")]
+            | _ => []
+            }
+          /* roles nest one level deeper: group -> entries */
+          | Label("roles") =>
+            List.concat_map(
+              ~f=
+                (g: Exp.t) =>
+                  switch (g.term) {
+                  | TupLabel({term: Label(gname), _}, members) =>
+                    colors_of_group(gname, members)
+                  | _ => []
+                  },
+              entries_of(body),
+            )
           | _ => []
           }
-        | Label(l) when String.equal(l, CS.contrast_field) =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(contrast_target, b ? "high" : "normal")]
-          | _ => []
-          }
-        /* roles nest one level deeper: group -> entries */
-        | Label("roles") =>
-          List.concat_map(
-            (g: Exp.t) =>
-              switch (g.term) {
-              | TupLabel({term: Label(gname), _}, members) =>
-                colors_of_group(gname, members)
-              | _ => []
-              },
-            entries_of(body),
-          )
         | _ => []
-        }
-      | _ => []
-      },
+        },
     entries_of(value),
   );
 
@@ -479,8 +488,14 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
    honest answer to a slide that cannot fill the contract. */
 let css_vars_of_value = (value: Exp.t): list((string, string)) => {
   let vars = decoded_vars(value);
-  let produced = List.sort_uniq(compare, List.map(fst, vars));
-  produced == List.sort_uniq(compare, all_targets) ? vars : [];
+  let produced =
+    List.dedup_and_sort(~compare=String.compare, List.map(~f=fst, vars));
+  List.equal(
+    String.equal,
+    produced,
+    List.dedup_and_sort(~compare=String.compare, all_targets),
+  )
+    ? vars : [];
 };
 
 /* The whole load path for a Colors slide: parse, analyze, evaluate, read

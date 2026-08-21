@@ -28,7 +28,7 @@ let hinted_test_exp = (~hint_id: Id.t, ~body_id: Id.t): form => {
   colorings: hinted_test_exp_coloring_ids(~body_id, ~hint_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.",
       Id.to_string(hint_id),
       Id.to_string(body_id),

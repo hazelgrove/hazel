@@ -11,7 +11,7 @@ let title = "Statics";
 
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    Option.map(fst, f.perform)
+    Option.map(~f=fst, f.perform)
   ),
   {
     label: "time",
@@ -39,10 +39,11 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
     cell: f =>
       PerfFormat.opt_cell(
         Option.map(
-          o =>
-            PerfFormat.text_cell(
-              String.lowercase_ascii(PerfMetrics.show_statics_outcome(o)),
-            ),
+          ~f=
+            o =>
+              PerfFormat.text_cell(
+                String.lowercase(PerfMetrics.show_statics_outcome(o)),
+              ),
           f.statics_outcome,
         ),
       ),
@@ -53,5 +54,5 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   PerfFormat.view(
     ~columns,
     ~empty="No statics recorded yet — type in the editor.",
-    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+    List.map(~f=f => PerfFormat.Row(f), PerfMetrics.history^),
   );

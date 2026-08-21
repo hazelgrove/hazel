@@ -24,7 +24,7 @@ let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t, ~body_id: Id.t): form => {
   colorings: theorem_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Asserts that the [*goal*](%s) is true in the following expression, and [*names*](%s) the theorem for later reuse.",
       Id.to_string(pat_id),
       Id.to_string(thm_id),

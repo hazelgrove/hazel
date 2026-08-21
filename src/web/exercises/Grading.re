@@ -29,7 +29,7 @@ let score_view = ((earned: points, max: points)) => {
         Float.equal(earned, max) ? "all-pass" : "some-fail",
       ]),
     ],
-    [text(Printf.sprintf("%.1f / %.1f pts", earned, max))],
+    [text(Stdlib.Printf.sprintf("%.1f / %.1f pts", earned, max))],
   );
 };
 
@@ -47,6 +47,6 @@ let percentage_view = (p: percentage) => {
         Float.equal(p, 1.) ? "all-pass" : "some-fail",
       ]),
     ],
-    [text(Printf.sprintf("%.0f%%", 100. *. p))],
+    [text(Stdlib.Printf.sprintf("%.0f%%", 100. *. p))],
   );
 };

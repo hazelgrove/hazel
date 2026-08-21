@@ -19,35 +19,36 @@ type segment =
   | Grapheme(string, Unicode.Width.t)
   | Invisible(string, Unicode.Width.t);
 
-let px = (value: float): string => Printf.sprintf("%.3fpx", value);
+let px = (value: float): string => Stdlib.Printf.sprintf("%.3fpx", value);
 
 let segments_for_token = (token: string): list(segment) => {
   let clusters = Unicode.Width.graphemes(token);
   clusters
   |> List.fold_left(
-       (acc, cluster) =>
-         if (String.equal(cluster, "")) {
-           acc;
-         } else if (Unicode.is_invisible_cluster(cluster)) {
-           [
-             Invisible(cluster, Unicode.Width.classify_cluster(cluster)),
-             ...acc,
-           ];
-         } else if (Unicode.Width.is_wide_cluster(cluster)) {
-           [
-             Grapheme(cluster, Unicode.Width.classify_cluster(cluster)),
-             ...acc,
-           ];
-         } else {
-           switch (acc) {
-           | [Text(existing), ...rest] => [
-               Text(existing ++ cluster),
-               ...rest,
-             ]
-           | _ => [Text(cluster), ...acc]
-           };
-         },
-       [],
+       ~f=
+         (acc, cluster) =>
+           if (String.equal(cluster, "")) {
+             acc;
+           } else if (Unicode.is_invisible_cluster(cluster)) {
+             [
+               Invisible(cluster, Unicode.Width.classify_cluster(cluster)),
+               ...acc,
+             ];
+           } else if (Unicode.Width.is_wide_cluster(cluster)) {
+             [
+               Grapheme(cluster, Unicode.Width.classify_cluster(cluster)),
+               ...acc,
+             ];
+           } else {
+             switch (acc) {
+             | [Text(existing), ...rest] => [
+                 Text(existing ++ cluster),
+                 ...rest,
+               ]
+             | _ => [Text(cluster), ...acc]
+             };
+           },
+       ~init=[],
      )
   |> List.rev;
 };
@@ -60,7 +61,7 @@ let to_class = (width: Unicode.Width.t): string =>
 
 let render = (~font_metrics: FontMetrics.t, token: string): list(Node.t) =>
   segments_for_token(token)
-  |> List.map(segment =>
+  |> List.map(~f=segment =>
        switch (segment) {
        | Text(str) => Node.text(str)
        | Grapheme(grapheme, width) =>

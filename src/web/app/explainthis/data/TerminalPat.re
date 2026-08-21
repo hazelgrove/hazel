@@ -18,7 +18,7 @@ let sintlit_pat = (i: int): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions with value `%i` match the *`%i` pattern*.",
       i,
       i,
@@ -32,7 +32,7 @@ let intlit_pat = (i: string): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions with value `%s` match the *`%s` pattern*.",
       i,
       i,
@@ -46,7 +46,7 @@ let floatlit_pat = (f: float): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions with value `%f` match the *`%f` pattern*.",
       f,
       f,
@@ -60,7 +60,7 @@ let boollit_pat = (b: bool): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions with value `%b` match the *`%b` pattern*.",
       b,
       b,
@@ -74,7 +74,7 @@ let strlit_pat = (s: string): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions with value `%s` match the *`%s` pattern*.",
       s,
       s,
@@ -100,7 +100,7 @@ let var_pat = (name: string): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This *pattern variable* matches any expression, binding its value to variable `%s`.",
       name,
     ),
@@ -113,7 +113,7 @@ let ctr_pat = (name: string): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that match the *`%s` constructor* match this constructor pattern.",
       name,
     ),

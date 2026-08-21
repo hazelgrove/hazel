@@ -15,7 +15,7 @@ let typann_pat = (~pat_id: Id.t, ~typ_id: Id.t): form => {
   colorings: typann_pat_coloring_ids(~pat_id, ~typ_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.",
       Id.to_string(pat_id),
       Id.to_string(typ_id),

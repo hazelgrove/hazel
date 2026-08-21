@@ -12,7 +12,7 @@ let files = (main_snapshot: unit => option(string)): list(file) => {
     Printf.sprintf("hazel-%s-%s.coverage", stamp, context);
   let main =
     Option.to_list(main_snapshot())
-    |> List.map(contents =>
+    |> List.map(~f=contents =>
          {
            name: name("main"),
            contents,
@@ -20,7 +20,7 @@ let files = (main_snapshot: unit => option(string)): list(file) => {
        );
   let workers =
     WorkerClient.worker_coverage()
-    |> List.mapi((i, contents) =>
+    |> List.mapi(~f=(i, contents) =>
          {
            name: name(Printf.sprintf("worker%d", i)),
            contents,
@@ -31,7 +31,7 @@ let files = (main_snapshot: unit => option(string)): list(file) => {
 
 let files_js = main_snapshot =>
   files(main_snapshot)
-  |> List.map(({name, contents}) =>
+  |> List.map(~f=({name, contents}) =>
        Js.Unsafe.obj([|
          ("name", Js.Unsafe.inject(Js.string(name))),
          ("contents", Js.Unsafe.inject(Js.string(contents))),
@@ -41,20 +41,17 @@ let files_js = main_snapshot =>
   |> Js.array;
 
 let save = main_snapshot =>
-  List.iter(
-    ({name, contents}) =>
-      Util.JsUtil.download_string_file(
-        ~filename=name,
-        ~content_type="application/octet-stream",
-        ~contents,
-      ),
-    files(main_snapshot),
+  List.iter(files(main_snapshot), ~f=({name, contents}) =>
+    Util.JsUtil.download_string_file(
+      ~filename=name,
+      ~content_type="application/octet-stream",
+      ~contents,
+    )
   );
 
 let download =
-  Option.map(
-    (main_snapshot, ()) => save(main_snapshot),
-    CoverageHook.snapshot,
+  Option.map(CoverageHook.snapshot, ~f=(main_snapshot, ()) =>
+    save(main_snapshot)
   );
 
 let install = () =>
