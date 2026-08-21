@@ -1,4 +1,5 @@
-/** Tests for [[Agent.Update]]: Stop / flight sequence ignore, send queue flush,
+open Poly;
+/** Tests for [[Agent.Update]]: Stop / flight sequence ignore, send queue Stdlib.flush,
     and matching [[ApiErrorResponse]] ignore paths — deterministic (no HTTP). */
 open Alcotest;
 open Haz3lcore;
@@ -108,8 +109,8 @@ let rec drain_scheduled =
       scheduled := [];
       let agent' =
         List.fold_left(
-          (ag, act) => run_update(act, ag, scheduled),
-          agent,
+          ~f=(ag, act) => run_update(act, ag, scheduled),
+          ~init=agent,
           actions,
         );
       drain_scheduled(agent', scheduled, ~max_rounds=max_rounds - 1);
@@ -118,12 +119,16 @@ let rec drain_scheduled =
 
 let linear_contents = (agent: Agent.Model.t, chat_id: Id.t): list(string) => {
   let chat = ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
-  Chat.Utils.linearize(chat) |> List.map((m: Message.Model.t) => m.content);
+  Chat.Utils.linearize(chat)
+  |> List.map(~f=(m: Message.Model.t) => m.content);
 };
 
 let count_substring = (needle: string, haystack: list(string)): int =>
   List.length(
-    List.filter(c => StringUtil.plain_search(needle, c, 0) >= 0, haystack),
+    List.filter(
+      ~f=c => StringUtil.plain_search(needle, c, 0) >= 0,
+      haystack,
+    ),
   );
 
 let index_of_substring =
@@ -165,7 +170,7 @@ let test_stop_sets_ignore_and_clears_awaiting = () => {
     "cancel message present",
     true,
     List.exists(
-      c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
+      ~f=c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
       cs,
     ),
   );
@@ -180,11 +185,12 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let n_before =
     List.length(
       List.filter(
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+        ~f=
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
         ),
@@ -211,11 +217,12 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let n_after =
     List.length(
       List.filter(
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+        ~f=
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         msgs,
       ),
     );
@@ -231,9 +238,10 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     true,
     !
       List.exists(
-        c =>
-          StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
-        List.map((m: Message.Model.t) => m.content, msgs),
+        ~f=
+          c =>
+            StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
+        List.map(~f=(m: Message.Model.t) => m.content, msgs),
       ),
   );
 };
@@ -269,7 +277,7 @@ let test_api_error_main_ignored_for_stopped_flight = () => {
     true,
     !
       List.exists(
-        c => StringUtil.plain_search("should not append", c, 0) >= 0,
+        ~f=c => StringUtil.plain_search("should not append", c, 0) >= 0,
         cs,
       ),
   );
@@ -289,7 +297,11 @@ let test_stop_then_flush_queue_sends_user_after_cancel = () => {
     bool,
     "FlushPendingSend scheduled",
     true,
-    List.mem(Agent.Update.Action.FlushPendingSend(chat_id), scheduled^),
+    List.mem(
+      scheduled^,
+      Agent.Update.Action.FlushPendingSend(chat_id),
+      ~equal=Poly.equal,
+    ),
   );
   let after_drain = drain_scheduled(after_stop, scheduled, ~max_rounds=8);
   let chat = ChatSystem.Utils.find_chat(chat_id, after_drain.chat_system);
@@ -376,7 +388,11 @@ let test_send_appends_user_message_before_dispatch = () => {
     bool,
     "DispatchSend deferred",
     true,
-    List.mem(Agent.Update.Action.DispatchSend(chat_id), scheduled^),
+    List.mem(
+      scheduled^,
+      Agent.Update.Action.DispatchSend(chat_id),
+      ~equal=Poly.equal,
+    ),
   );
   check(
     bool,
@@ -457,7 +473,7 @@ let test_stop_during_dispatch_gap_cancels_send = () => {
     "cancel line present",
     true,
     List.exists(
-      c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
+      ~f=c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
       cs,
     ),
   );
@@ -508,7 +524,7 @@ let test_handle_compaction_reply_ignored_after_stop = () => {
     true,
     !
       List.exists(
-        c => StringUtil.plain_search("phantom summary", c, 0) >= 0,
+        ~f=c => StringUtil.plain_search("phantom summary", c, 0) >= 0,
         cs,
       ),
   );
