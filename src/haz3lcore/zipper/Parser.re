@@ -44,10 +44,11 @@ let try_segment_paste =
     (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
   let trim = Util.StringUtil.trim_leading;
   switch (segment_cache^) {
-  | Some((cached, seg)) when trim(cached) == trim(clipboard) =>
+  | Some((cached, seg)) when String.equal(trim(cached), trim(clipboard)) =>
     if (z.caret != Outer) {
       None;
-    } else if (trim(clipboard) != "" && !boundary_merges(trim(clipboard), z)) {
+    } else if (!String.equal(trim(clipboard), "")
+               && !boundary_merges(trim(clipboard), z)) {
       let seg = Segment.IDs.replace(seg);
       Some(Zipper.insert_segment(z, seg, ~root));
     } else {
@@ -63,7 +64,7 @@ let to_zipper =
     (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    try(String.equal(c, "\r") ? Some(z) : Insert.go(c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
@@ -114,7 +115,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
   let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    try(String.equal(c, "\r") ? Some(z) : Insert.go(c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -167,7 +168,7 @@ let has_balanced_delimiters = (s: string): bool => {
       | "]"
       | "}" =>
         switch (stack^) {
-        | [top, ...rest] when top == c => stack := rest
+        | [top, ...rest] when String.equal(top, c) => stack := rest
         | _ => ok := false
         }
       | _ => ()

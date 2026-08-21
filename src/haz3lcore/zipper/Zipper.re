@@ -432,7 +432,7 @@ let normalize_char_selection = (z: t): t =>
           switch (Piece.token_of(p)) {
           | Some(tok) =>
             let (rest, _) = Token.split_nth(tok, n + 1);
-            rest == "" ? None : Some(rest);
+            String.equal(rest, "") ? None : Some(rest);
           | None => None
           }
         }
@@ -449,7 +449,7 @@ let normalize_char_selection = (z: t): t =>
           switch (Piece.token_of(p)) {
           | Some(tok) =>
             let (_, rest) = Token.split_nth(tok, n + 1);
-            rest == "" ? None : Some(rest);
+            String.equal(rest, "") ? None : Some(rest);
           | None => None
           }
         }
@@ -511,7 +511,7 @@ let normalize_char_selection = (z: t): t =>
         caret: Outer,
       };
       let z = unselect(z);
-      if (combined == "") {
+      if (String.equal(combined, "")) {
         z;
       } else {
         let piece = mk_remainder_piece(combined);

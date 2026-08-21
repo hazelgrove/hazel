@@ -44,8 +44,8 @@ let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
-let is_comment = t => match(comment_regexp, t) || t == "#";
-let is_comment_delim = t => t == "#";
+let is_comment = t => match(comment_regexp, t) || String.equal(t, "#");
+let is_comment_delim = t => String.equal(t, "#");
 let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* STRINGS: special-case syntax */
@@ -64,8 +64,8 @@ let is_string_delim = (==)(string_delim);
 let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
-  } else if (String.sub(s, 0, 1) != quote
-             || String.sub(s, String.length(s) - 1, 1) != quote) {
+  } else if (!String.equal(String.sub(s, 0, 1), quote)
+             || !String.equal(String.sub(s, String.length(s) - 1, 1), quote)) {
     s;
   } else {
     String.sub(s, 1, String.length(s) - 2);
@@ -187,12 +187,15 @@ let is_potential_token = t =>
     /* This case is necessary due to the ambiguity between operators
      * beginning with `>` and `>` as closing delimiter for type ap;.
      * e.g. `map@<a>==1 has an ambiguous lex otherwise*/
-    t == ">" || t == ">=" || t == ">." || t == ">=.";
+    String.equal(t, ">")
+    || String.equal(t, ">=")
+    || String.equal(t, ">.")
+    || String.equal(t, ">=.");
   } else {
-    t == "()"
-    || t == "[]"
-    || t == "{}"
-    || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
+    String.equal(t, "()")
+    || String.equal(t, "[]")
+    || String.equal(t, "{}")
+    || String.equal(t, "¿")  /* implicit-hole marker; see Haz3lcore.MarkerParse */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -202,7 +205,8 @@ let is_potential_token = t =>
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
-let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
+let is_arbitary_float = x =>
+  !String.equal(x, ".") && !String.equal(x, "-") && is_float(x);
 let is_int = str =>
   match(int_regexp, str) && Bigint.of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
@@ -340,7 +344,7 @@ let bad_token_cls: string => bad_token_cls =
 let explicit_hole = "?";
 let llm_hole = "??";
 let llm_advanced_reasoning_hole = "?a";
-let is_explicit_hole = t => t == explicit_hole;
+let is_explicit_hole = t => String.equal(t, explicit_hole);
 
 /* Implicit-hole marker: the textual stand-in for a Grout piece used by
  * Haz3lcore.MarkerParse so decode|encode round-trips preserve Grout
@@ -348,8 +352,9 @@ let is_explicit_hole = t => t == explicit_hole;
  * tokeniser treats as its own atomic token (won't glue with adjacent
  * commas, semicolons, or identifiers). */
 let implicit_hole_marker = "¿";
-let is_implicit_hole_marker = t => t == implicit_hole_marker;
-let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
+let is_implicit_hole_marker = t => String.equal(t, implicit_hole_marker);
+let is_llm_hole = t =>
+  String.equal(t, llm_hole) || String.equal(t, llm_advanced_reasoning_hole);
 
 /* Projector invocation textual syntax */
 let projector_invoke_prefix = "^^";

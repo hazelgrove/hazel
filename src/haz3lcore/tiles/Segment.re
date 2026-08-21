@@ -996,7 +996,8 @@ let rescan = (seg: t): t => {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
-              let entries = List.filter(((k, _)) => k != tok, entries);
+              let entries =
+                List.filter(((k, _)) => !String.equal(k, tok), entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
                 switch (entries, stack) {

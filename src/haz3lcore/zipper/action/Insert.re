@@ -56,7 +56,8 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
-  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+  if (String.equal(t, ";")
+      && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else {
     /* Default: local-first with parent fallback */
@@ -296,7 +297,10 @@ let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
         |> insert_shard(~id, ~d=Left, l)
         |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
+    switch (
+      String.equal(Token.space, char)
+        ? grout_for_suppressed_space(z, ~root) : None
+    ) {
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
@@ -406,7 +410,9 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
  * token or secondary piece. */
 
 let is_opening_delimiter = (char: string): bool =>
-  char == "(" || char == "[" || char == "{";
+  String.equal(char, "(")
+  || String.equal(char, "[")
+  || String.equal(char, "{");
 
 let delimiter_label = (char: string): Label.t =>
   switch (char) {

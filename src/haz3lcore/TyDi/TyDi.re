@@ -131,7 +131,7 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
       String.length(current),
       String.length(candidate) - String.length(current),
     );
-  candidate_suffix == "" ? None : Some(candidate_suffix);
+  String.equal(candidate_suffix, "") ? None : Some(candidate_suffix);
 };
 
 /* Returns the text content of the suggestion buffer */
@@ -169,7 +169,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
    * come from different pipelines and may be ordered differently. */
   let has_exact_match =
     List.exists(
-      ({content, _}: TyDiSuggestion.t) => content == tok_to_left,
+      ({content, _}: TyDiSuggestion.t) =>
+        String.equal(content, tok_to_left),
       suggestions,
     );
   let* _ = has_exact_match ? None : Some();

@@ -1020,14 +1020,14 @@ let should_add_space = (s1, s2) =>
     false
   | _
       when
-        s1 == "."
+        String.equal(s1, ".")
         && (
           Token.is_quoted_label(s2) || Token.is_var(s2) || Token.is_ctr(s2)
         ) =>
     false
   | _
       when
-        s2 == "."
+        String.equal(s2, ".")
         && (
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
@@ -1194,7 +1194,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
       if (String.length(f_name) >= 2) {
         let len = String.length(f_name);
         let end_idx =
-          if (len >= 3 && f_name.[len - 2] == '+') {
+          if (len >= 3 && Char.equal(f_name.[len - 2], '+')) {
             len - 3;
           } else {
             len - 2;

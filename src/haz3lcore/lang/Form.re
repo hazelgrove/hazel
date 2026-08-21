@@ -632,7 +632,7 @@ let amiguous_polymorphs: list(Token.t) = {
     forms
     |> List.exists(((_, {label, _})) =>
          switch (label) {
-         | [token] when token == target_token => false
+         | [token] when String.equal(token, target_token) => false
          | label => List.mem(target_token, label)
          }
        );
@@ -813,7 +813,9 @@ module Expansion = {
   let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
     let matching =
       sorted_expansions
-      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+      |> List.find_opt(((tok, s, _, _)) =>
+           String.equal(tok, t) && s == sort
+         );
     switch (matching) {
     | Some((_, _, lbl, dir)) => Some((lbl, dir))
     | None => None
@@ -828,7 +830,9 @@ module Expansion = {
   let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
     let matching =
       sorted_expansions
-      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+      |> List.find_opt(((tok, s, _, _)) =>
+           String.equal(tok, t) && s == sort
+         );
     switch (matching) {
     | Some((_, _, lbl, dir)) => (lbl, dir)
     | None =>
@@ -837,7 +841,8 @@ module Expansion = {
         /* Rul context: fall back to any expansion since rules contain
            Exp/Pat operands but have no direct operand forms. */
         let any_match =
-          sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+          sorted_expansions
+          |> List.find_opt(((tok, _, _, _)) => String.equal(tok, t));
         switch (any_match) {
         | Some((_, _, lbl, dir)) => (lbl, dir)
         | None => ([t], Right)
