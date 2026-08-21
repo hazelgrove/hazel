@@ -43,15 +43,16 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (NoMeet(j1, s1), NoMeet(j2, s2)) =>
       j1 == j2 && List.equal(source_equal, s1, s2)
     | (DuplicateLabel(l1, t1), DuplicateLabel(l2, t2)) =>
-      l1 == l2 && Typ.fast_equal(t1, t2)
+      String.equal(l1, l2) && Typ.fast_equal(t1, t2)
     | (CompareFun(t1), CompareFun(t2)) => Typ.fast_equal(t1, t2)
     | (DuplicateVar(n1, t1), DuplicateVar(n2, t2)) =>
-      n1 == n2 && Typ.fast_equal(t1, t2)
-    | (BadToken(s1), BadToken(s2)) => s1 == s2
+      String.equal(n1, n2) && Typ.fast_equal(t1, t2)
+    | (BadToken(s1), BadToken(s2)) => String.equal(s1, s2)
     | (BadLabel(a1), BadLabel(a2)) => Any.fast_equal(a1, a2)
     | (InvalidLabel(l1, ls1), InvalidLabel(l2, ls2)) =>
-      l1 == l2 && ls1 == ls2
-    | (UnexpectedLabelSort(l1), UnexpectedLabelSort(l2)) => l1 == l2
+      String.equal(l1, l2) && ls1 == ls2
+    | (UnexpectedLabelSort(l1), UnexpectedLabelSort(l2)) =>
+      String.equal(l1, l2)
     | (
         TupleLabelError({
           malformed_labels: m1,
@@ -95,18 +96,18 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
         IsLivelitName({name: n1, exp_t: e1}),
         IsLivelitName({name: n2, exp_t: e2}),
       ) =>
-      n1 == n2 && Typ.fast_equal(e1, e2)
+      String.equal(n1, n2) && Typ.fast_equal(e1, e2)
     | (BadTrivAp(t1), BadTrivAp(t2)) => Typ.fast_equal(t1, t2)
     | (DotOperatorRequiresTuple, DotOperatorRequiresTuple) => true
     | (TupleExtensionRequiresTuples, TupleExtensionRequiresTuples) => true
     | (LabelNotFound(l1, ls1), LabelNotFound(l2, ls2)) =>
-      l1 == l2 && ls1 == ls2
-    | (BadOperator(s1), BadOperator(s2)) => s1 == s2
+      String.equal(l1, l2) && ls1 == ls2
+    | (BadOperator(s1), BadOperator(s2)) => String.equal(s1, s2)
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
     | (Redundant, Redundant) => true
     | (ExpectedConstructor, ExpectedConstructor) => true
-    | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => a == b
+    | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => String.equal(a, b)
     | (TypDuplicateConstructor(c1), TypDuplicateConstructor(c2)) =>
       Constructor.equal(c1, c2)
     | (TypDuplicateLabels(ls1, t1), TypDuplicateLabels(ls2, t2)) =>
@@ -119,7 +120,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TypWantConstructorFoundAp, TypWantConstructorFoundAp) => true
     | (TypParseFailure, TypParseFailure) => true
     | (TPatShadowsType(s1, src1), TPatShadowsType(s2, src2)) =>
-      s1 == s2 && src1 == src2
+      String.equal(s1, s2) && src1 == src2
     | (TPatNotAVar(e1), TPatNotAVar(e2)) => e1 == e2
     | _ => false
     };

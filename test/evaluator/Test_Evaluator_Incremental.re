@@ -64,7 +64,8 @@ let eval_incr =
 let replace_int_lit = (~from: int, ~to_: int, ~to_id=?, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     switch (e.term) {
-    | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) =>
+    | Atom(Int(n))
+        when String.equal(Bigint.to_string(n), string_of_int(from)) =>
       let new_term: Exp.term = Atom(Int(Bigint.of_int(to_)));
       {
         annotation: Option.value(~default=e.annotation, to_id),
@@ -95,7 +96,8 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
       | Let(_, def, body)
           when
             switch (def.term) {
-            | Atom(Int(n)) => Bigint.to_string(n) == string_of_int(rhs_val)
+            | Atom(Int(n)) =>
+              String.equal(Bigint.to_string(n), string_of_int(rhs_val))
             | _ => false
             } =>
         go(body)
@@ -267,7 +269,8 @@ let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
       switch (e.term) {
       | BinOp(Operators.Int(Operators.Plus), lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("u"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("u"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           changed := true;
           lhs;
         | _ => continue(e)
@@ -622,7 +625,7 @@ in
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "20" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "20") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1281,7 +1284,7 @@ f(8)|};
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "8" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "8") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1346,7 +1349,9 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
         | (Atom(Int(a)), Atom(Int(b)))
-            when Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
+            when
+              String.equal(Bigint.to_string(a), "1")
+              && String.equal(Bigint.to_string(b), "2") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1495,7 +1500,8 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
       switch (e.term) {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("x"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("x"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }

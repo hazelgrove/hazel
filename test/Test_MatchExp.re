@@ -29,7 +29,7 @@ let match_check =
       ),
       Option.equal(
         List.for_all2(((str1, (typ1, opt1)), (str2, (typ2, opt2))) =>
-          str1 == str2
+          String.equal(str1, str2)
           && Language.Typ.fast_equal(typ1, typ2)
           && Option.equal(Language.Exp.fast_equal, opt1, opt2)
         ),
