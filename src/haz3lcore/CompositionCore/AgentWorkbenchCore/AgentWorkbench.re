@@ -105,7 +105,8 @@ module Utils = {
 
     let is_active = (task: task, subtask_name: string): bool => {
       switch (task.active_subtask) {
-      | Some(active_subtask_name) => active_subtask_name == subtask_name
+      | Some(active_subtask_name) =>
+        String.equal(active_subtask_name, subtask_name)
       | None => false
       };
     };
@@ -204,7 +205,7 @@ module Utils = {
 
     let is_active = (model: t, task_name: string): bool => {
       switch (model.active_task) {
-      | Some(active_task_name) => active_task_name == task_name
+      | Some(active_task_name) => String.equal(active_task_name, task_name)
       | None => false
       };
     };
@@ -969,7 +970,7 @@ module Update = {
             | Some(d) => d
             | None => active_task.description
             };
-          let title_changed = new_title != active_task.title;
+          let title_changed = !String.equal(new_title, active_task.title);
           let updated_task = {
             ...active_task,
             title: new_title,
@@ -993,7 +994,8 @@ module Update = {
                   ...model.t_ui,
                   display_task:
                     switch (model.t_ui.display_task) {
-                    | Some(t) when t == active_task.title => Some(new_title)
+                    | Some(t) when String.equal(t, active_task.title) =>
+                      Some(new_title)
                     | other => other
                     },
                 },
@@ -1026,7 +1028,8 @@ module Update = {
               | Some(d) => d
               | None => active_subtask.description
               };
-            let title_changed = new_title != active_subtask.title;
+            let title_changed =
+              !String.equal(new_title, active_subtask.title);
             let updated_subtask = {
               ...active_subtask,
               title: new_title,
@@ -1050,7 +1053,8 @@ module Update = {
                   |> Maps.StringMap.add(new_title, updated_subtask);
                 let updated_ordering =
                   List.map(
-                    (t: string) => t == active_subtask.title ? new_title : t,
+                    (t: string) =>
+                      String.equal(t, active_subtask.title) ? new_title : t,
                     active_task.subtask_ordering,
                   );
                 let updated_task = {
@@ -1084,14 +1088,14 @@ module Update = {
             task_dict: Maps.StringMap.remove(title, model.task_dict),
             active_task:
               switch (model.active_task) {
-              | Some(t) when t == title => None
+              | Some(t) when String.equal(t, title) => None
               | other => other
               },
             t_ui: {
               ...model.t_ui,
               display_task:
                 switch (model.t_ui.display_task) {
-                | Some(t) when t == title => None
+                | Some(t) when String.equal(t, title) => None
                 | other => other
                 },
             },
@@ -1116,12 +1120,12 @@ module Update = {
               subtasks: Maps.StringMap.remove(title, active_task.subtasks),
               subtask_ordering:
                 List.filter(
-                  (t: string) => t != title,
+                  (t: string) => !String.equal(t, title),
                   active_task.subtask_ordering,
                 ),
               active_subtask:
                 switch (active_task.active_subtask) {
-                | Some(t) when t == title => None
+                | Some(t) when String.equal(t, title) => None
                 | other => other
                 },
             };

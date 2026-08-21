@@ -94,7 +94,8 @@ let is_body_introducing_shard = (shard: t): bool =>
   switch (shard.shards) {
   | [i] =>
     switch (List.nth_opt(label(shard), i)) {
-    | Some(token) => List.mem(token, ["in", "else", "end"])
+    | Some(token) =>
+      List.exists(String.equal(token), ["in", "else", "end"])
     | None => false
     }
   | _ => false

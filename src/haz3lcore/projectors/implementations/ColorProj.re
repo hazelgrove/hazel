@@ -302,7 +302,8 @@ module M: Projector = {
     let s = String.trim(s);
     let inside_oklch =
       switch (String.index_opt(s, '('), String.rindex_opt(s, ')')) {
-      | (Some(i), Some(j)) when j > i && String.sub(s, 0, i) == "oklch" =>
+      | (Some(i), Some(j))
+          when j > i && String.equal(String.sub(s, 0, i), "oklch") =>
         Some(String.sub(s, i + 1, j - i - 1))
       | _ => None
       };
@@ -312,13 +313,14 @@ module M: Projector = {
         let num = t => {
           let t = String.trim(t);
           let t =
-            String.length(t) > 0 && t.[String.length(t) - 1] == '%'
+            String.length(t) > 0
+            && Char.equal(t.[String.length(t) - 1], '%')
               ? String.sub(t, 0, String.length(t) - 1) : t;
           float_of_string_opt(t);
         };
         switch (
           String.split_on_char(' ', body)
-          |> List.filter(t => String.trim(t) != "")
+          |> List.filter(t => !String.equal(String.trim(t), ""))
           |> List.map(num)
         ) {
         | [Some(l), Some(c), Some(h), ..._] => Some(LOklch(l, c, h))

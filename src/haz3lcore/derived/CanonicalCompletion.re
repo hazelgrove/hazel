@@ -179,7 +179,7 @@ type completion_result = {
    them, delimiters kept in trace order */
 let coalesce_insertions = (ins: list(insertion)): list(insertion) => {
   let same = (j: insertion, i: insertion) =>
-    Id.equal(j.adjacent_id, i.adjacent_id) && j.side == i.side;
+    Id.equal(j.adjacent_id, i.adjacent_id) && Direction.equal(j.side, i.side);
   List.fold_left(
     (acc, i: insertion) => {
       let rec add = l =>
@@ -215,7 +215,7 @@ let leading_shards = (t: Tile.t): list(Piece.t) =>
  * grout, undefined tokens) fit everything: absence of a mold table
  * entry must never trigger clipping. */
 let sort_fits = (out: Sort.t, s: Sort.t): bool =>
-  out == s || out == Sort.Any || s == Sort.Any;
+  Sort.equal(out, s) || Sort.equal(out, Sort.Any) || Sort.equal(s, Sort.Any);
 
 /* Monotone possible-sorts frontier scan: a tile fits if some
  * form-table mold outs at a sort in the current set, and fitting
@@ -243,7 +243,7 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
             |> List.filter((m: Mold.t) =>
                  List.exists(sr => sort_fits(m.out, sr), sorts)
                );
-          if (fitting == []) {
+          if (List.is_empty(fitting)) {
             Some(j);
           } else {
             let opened =
@@ -260,7 +260,8 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
                  });
             let sorts =
               List.fold_left(
-                (acc, sr) => List.mem(sr, acc) ? acc : [sr, ...acc],
+                (acc, sr) =>
+                  List.exists(Sort.equal(sr), acc) ? acc : [sr, ...acc],
                 sorts,
                 opened,
               );
@@ -316,7 +317,7 @@ let is_prefix_witness =
     switch (Tile.single_token(t)) {
     | Some(tok) =>
       Token.length(tok) < Token.length(shard_text)
-      && String.sub(shard_text, 0, Token.length(tok)) == tok
+      && String.equal(String.sub(shard_text, 0, Token.length(tok)), tok)
       && (
         Mold.is_infix_op(Tile.mold(t))
         && Form.is_infix_delimiter_op_prefix(tok)
@@ -354,7 +355,7 @@ let prefix_of_witness =
 
 /* A whole span can inhabit a slot if the frontier scan never fires */
 let span_fits_sort = (ps: Segment.t, s: Sort.t): bool =>
-  scan_frontier(~start=s, ps) == None;
+  Option.is_none(scan_frontier(~start=s, ps));
 
 /* Only non-Exp slots clip: nearly every label has an Exp mold, so an
  * Exp frontier is vacuous. Rul defers to the case-wrap machinery. */
@@ -585,14 +586,14 @@ let opener_schedule =
          | Some(id) => Id.equal(t.id, id)
          }
        );
-  if (leading_incomplete == []) {
+  if (List.is_empty(leading_incomplete)) {
     [];
   } else {
     let index_of = (t: Tile.t) => {
       let rec go = (i, ps) =>
         switch (ps) {
         | [] => None
-        | [Piece.Tile(t'), ..._] when t'.id == t.id => Some(i)
+        | [Piece.Tile(t'), ..._] when Id.equal(t'.id, t.id) => Some(i)
         | [_, ...rest] => go(i + 1, rest)
         };
       go(0, subseg);
@@ -622,7 +623,8 @@ let opener_schedule =
       |> List.mapi((i, p: Piece.t) => (i, p))
       |> List.filter_map(((i, p)) =>
            switch (p) {
-           | Piece.Tile(t) when Tile.mold(t).out == Sort.Rul => Some(i)
+           | Piece.Tile(t) when Sort.equal(Tile.mold(t).out, Sort.Rul) =>
+             Some(i)
            | _ => None
            }
          );
@@ -825,7 +827,10 @@ let opener_schedule =
                  let tok = Tile.token(t, 0);
                  (Token.length(tok) >= 2 || corroborated(j))
                  && Token.length(tok) < Token.length(opener_text)
-                 && String.sub(opener_text, 0, Token.length(tok)) == tok
+                 && String.equal(
+                      String.sub(opener_text, 0, Token.length(tok)),
+                      tok,
+                    )
                    ? Some((j, tok, id)) : None;
                | _ => None
                }
@@ -1082,7 +1087,7 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
   let first_content = (sg: Segment.t) =>
     Segment.next_content(~skip=Segment.skip_space, sg, 0) |> Option.map(snd);
   switch (first_content(rest)) {
-  | Some(Tile(t)) when Tile.mold(t).out == Sort.Rul => true
+  | Some(Tile(t)) when Sort.equal(Tile.mold(t).out, Sort.Rul) => true
   /* (c) a line opening with a concave-LEFT piece — an infix or
      postfix operator, a comma, a stranded closer shard — requires a
      left operand from the previous line, so it cannot start anything
@@ -1104,7 +1109,7 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
          missing
          |> List.exists(dt =>
               Token.length(tok) < Token.length(dt)
-              && String.sub(dt, 0, Token.length(tok)) == tok
+              && String.equal(String.sub(dt, 0, Token.length(tok)), tok)
             );
        });
   | _ => false
@@ -1493,7 +1498,7 @@ let place_trailing_shards =
      own `end` (Rul slot) absorbs rules as its content. */
   let is_rule_piece = (p: Piece.t): bool =>
     switch (p) {
-    | Tile(t) => Tile.mold(t).out == Sort.Rul
+    | Tile(t) => Sort.equal(Tile.mold(t).out, Sort.Rul)
     | _ => false
     };
   let wall_position = (seg: Segment.t, ~from: int): option(int) => {
@@ -1535,7 +1540,7 @@ let place_trailing_shards =
       switch (ps) {
       | [] => None
       | [pc, ...rest] =>
-        Piece.id(pc) == t.id ? Some(j) : find_pos(j + 1, rest)
+        Id.equal(Piece.id(pc), t.id) ? Some(j) : find_pos(j + 1, rest)
       };
     switch (find_pos(0, seg)) {
     | None => (
@@ -1565,7 +1570,7 @@ let place_trailing_shards =
                 clippable_sort(l_nib.sort)
                   ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
               let wall =
-                l_nib.sort == Sort.Rul
+                Sort.equal(l_nib.sort, Sort.Rul)
                   ? None : wall_position(seg, ~from=cursor);
               switch (sort_clip, wall) {
               | (Some(a), Some(b)) => Some(min(a, b))
@@ -1689,7 +1694,7 @@ let place_trailing_shards =
                       /* rules are case-content, never severable:
                          mid-entry `case foo |` keeps its end after
                          the growing rule */
-                      && Tile.mold(tt).out != Sort.Rul
+                      && !Sort.equal(Tile.mold(tt).out, Sort.Rul)
                       && (
                         switch (snd(Tile.nibs(tt)).shape) {
                         | Concave(_) => true
@@ -1902,7 +1907,8 @@ let rec complete_segment =
          (
            subseg,
            incomplete,
-           has_incomplete_case || only_tile != None ? [] : wraps_of(subseg),
+           has_incomplete_case || Option.is_some(only_tile)
+             ? [] : wraps_of(subseg),
          );
        });
 
@@ -1920,7 +1926,7 @@ let rec complete_segment =
             )
        );
 
-  if (List.length(all_incomplete) == 0 && wrap_records == []) {
+  if (List.length(all_incomplete) == 0 && List.is_empty(wrap_records)) {
     {
       /* No structural changes — but still regrout: edits can leave
          stray grout (glom ( onto an orphan )) and Segment.skel
@@ -1938,7 +1944,8 @@ let rec complete_segment =
       let rec go = (i, ps) =>
         switch (ps) {
         | [] => None
-        | [pc, ...rest] => Piece.id(pc) == t.id ? Some(i) : go(i + 1, rest)
+        | [pc, ...rest] =>
+          Id.equal(Piece.id(pc), t.id) ? Some(i) : go(i + 1, rest)
         };
       go(0, subseg);
     };
@@ -2010,7 +2017,8 @@ let rec complete_segment =
              | Some(id) =>
                incomplete |> List.filter((t: Tile.t) => Id.equal(t.id, id))
              | None =>
-               wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list
+               !List.is_empty(wraps)
+                 ? [] : choose(subseg, incomplete) |> Option.to_list
              };
            let chosen_id =
              switch (chosen) {
@@ -2057,7 +2065,7 @@ let rec complete_segment =
                 );
            let static_ins =
              (
-               chosen_id == None
+               Option.is_none(chosen_id)
                  ? []
                  : leading_insertions(subseg, ~only=chosen_id, incomplete)
              )
@@ -2079,13 +2087,15 @@ let rec complete_segment =
              |> List.map((pc: Piece.t) =>
                   switch (pc) {
                   | Tile(t)
-                      when !Tile.is_complete(t) && chosen_id == Some(t.id) =>
+                      when
+                        !Tile.is_complete(t)
+                        && Option.equal(Id.equal, chosen_id, Some(t.id)) =>
                     Piece.Tile(complete_middle_shards(t))
                   | pc => pc
                   }
                 );
            let (subseg, opener_abs) =
-             chosen_id == None
+             Option.is_none(chosen_id)
                ? (subseg, [])
                : insert_openers(subseg, ~only=chosen_id, incomplete);
            let (subseg, trail_ins, abs) =
@@ -2175,8 +2185,8 @@ let rec complete_segment =
     /* materialization can capture still-broken remnants into the new
        tile's children; recurse until nothing incomplete remains */
     let remaining = Segment.incomplete_tiles_deep(completed_seg);
-    if (only_tile == None
-        && remaining != []
+    if (Option.is_none(only_tile)
+        && !List.is_empty(remaining)
         && List.length(remaining) < n_incomplete_in) {
       let rest =
         complete_segment_deep(~use_indent_heuristic, ~sort, completed_seg);
@@ -2219,7 +2229,8 @@ let rec complete_segment =
                  ? r.prefixes
                    |> List.filter_map(
                         (sp: Language.IdTagged.IdTag.shard_prefix) =>
-                        last == (sp.shard > 0) ? Some(sp.token_id) : None
+                        Bool.equal(last, sp.shard > 0)
+                          ? Some(sp.token_id) : None
                       )
                  : []
              );
@@ -2482,8 +2493,8 @@ let derive_insertions =
         let os = originals_of(t);
         let qualifies =
           right
-            ? os != [] && i == List.nth(os, List.length(os) - 1)
-            : os != [] && i == List.hd(os);
+            ? !List.is_empty(os) && i == List.nth(os, List.length(os) - 1)
+            : !List.is_empty(os) && i == List.hd(os);
         qualifies ? Some(t.id) : None;
       };
     };
@@ -2582,7 +2593,7 @@ let derive_insertions =
               | LPiece(_) => None
               }
             );
-       if (delims == []) {
+       if (List.is_empty(delims)) {
          None; /* pure grout: regrout debris */
        } else {
          /* witness runs anchor at the absorbed, still-visible token */
