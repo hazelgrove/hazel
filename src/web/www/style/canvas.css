@@ -162,6 +162,9 @@
 
 .canvas-root {
   position: relative;
+  /* browsers that can interpolate zoom smooth the auto-fit hops;
+     others snap (graceful) */
+  transition: zoom 0.35s ease-out;
   /* centering is grid-aligned inside the layout (center_within); an
      auto margin here would break dot-lattice alignment */
   margin: 0;
@@ -806,6 +809,54 @@
 
 .canvas-avatar.avatar-edit {
   animation: canvas-avatar-bob 1.2s ease-in-out infinite;
+}
+
+/* thinking: no edit landed yet — soft pulse instead of the work bob */
+.canvas-avatar.avatar-think {
+  animation: canvas-avatar-pulse 1.6s ease-in-out infinite;
+  opacity: 0.85;
+}
+
+@keyframes canvas-avatar-pulse {
+  0%,
+  100% {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 1px 4px rgba(0, 0, 0, 0.4),
+      0 0 10px 3px rgba(255, 215, 94, 0.55);
+  }
+}
+
+/* streaming chain-of-thought tail beside the avatar */
+.canvas-avatar-bubble {
+  position: absolute;
+  z-index: 5;
+  max-width: 190px;
+  padding: 2px 7px;
+  border-radius: 8px 8px 8px 2px;
+  background: rgba(42, 42, 42, 0.88);
+  color: #eee;
+  font-size: 9px;
+  line-height: 1.25;
+  font-style: italic;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: bubble-in 0.25s ease-out;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
 @keyframes canvas-avatar-bob {

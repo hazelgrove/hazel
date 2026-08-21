@@ -31,12 +31,32 @@ let last_seen: ref(option(CodeWithStatics.Model.t)) = ref(None);
 let last_beat: ref(float) = ref(0.);
 let tick_pending: ref(bool) = ref(false);
 
-let reset = (): unit => {
-  queue := [];
-  shown := None;
-  last_seen := None;
-  tick_pending := false;
-};
+let in_burst = (): bool => now() -. last_agent_action^ < burst_window_ms;
+
+let last_autofit: ref(float) = ref(0.);
+let autofit_due = (): bool =>
+  if (now() -. last_autofit^ > 900.) {
+    last_autofit := now();
+    true;
+  } else {
+    false;
+  };
+
+/* FLIP staging for a beat: graph elements at edit pace, the avatar on
+   the slow action so its hop reads as travel */
+let stage_beat = (): unit =>
+  Animation.request(
+    (
+      Util.JsUtil.ids_with_prefix("cnode-")
+      @ Util.JsUtil.ids_with_prefix("cedge-")
+      @ Util.JsUtil.ids_with_prefix("cval-")
+      |> List.map(Animation.Actions.move)
+    )
+    @ (
+      Util.JsUtil.ids_with_prefix("canvas-avatar")
+      |> List.map(Animation.Actions.move_slow)
+    ),
+  );
 
 /* Drop middle beats when over cap: keep the oldest pending (continuity
    from what is shown) and the newest (never fall behind the truth by
@@ -61,6 +81,22 @@ let coalesce = (q: list(CodeWithStatics.Model.t)) =>
   | q => q
   };
 
+/* Execution-time capture: a multi-tool reply runs all its calls inside
+   ONE app action, so only the final state ever renders — the canvas
+   would collapse N definitions into one beat. Each applied tool call
+   pushes its intermediate editor model here. */
+let push_snapshot = (m: CodeWithStatics.Model.t): unit => {
+  note_agent_action();
+  queue := coalesce(queue^ @ [m]);
+};
+
+let reset = (): unit => {
+  queue := [];
+  shown := None;
+  last_seen := None;
+  tick_pending := false;
+};
+
 /* Returns the model the canvas should render; schedules a re-render
    tick while beats remain pending. */
 let observe =
@@ -82,9 +118,17 @@ let observe =
       };
     if (fresh) {
       last_seen := Some(live);
-      let in_burst = t -. last_agent_action^ < burst_window_ms;
-      if (in_burst && shown^ != None) {
-        queue := coalesce(queue^ @ [live]);
+      /* the final rendered state usually equals the last exec-time push
+         (same statics ref) — don't double-queue it */
+      let already_queued =
+        switch (List.rev(queue^)) {
+        | [last, ..._] => last.statics === live.statics
+        | [] => false
+        };
+      if (in_burst() && shown^ != None) {
+        if (!already_queued) {
+          queue := coalesce(queue^ @ [live]);
+        };
       } else {
         shown := Some(live);
         last_beat := t;
@@ -93,6 +137,7 @@ let observe =
     };
     switch (queue^) {
     | [next, ...rest] when t -. last_beat^ >= cadence_ms =>
+      stage_beat();
       shown := Some(next);
       last_beat := t;
       queue := rest;

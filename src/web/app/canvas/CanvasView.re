@@ -375,6 +375,8 @@ let view =
       ~min_size: (float, float)=(0., 0.),
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
+      /* streaming reasoning tail shown in a small bubble by the avatar */
+      ~avatar_bubble: option(string)=None,
       ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
@@ -540,7 +542,29 @@ let view =
     @ List.map(value_view(~inject_jump), lay.values)
     @ (
       switch (avatar) {
-      | Some(a) => [avatar_view(a)]
+      | Some((p, _) as a) =>
+        [avatar_view(a)]
+        @ (
+          switch (avatar_bubble) {
+          | Some(txt) => [
+              div(
+                ~attrs=[
+                  clss(["canvas-avatar-bubble"]),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "left: %spx; top: %spx;",
+                      fmt(p.x +. 14.),
+                      fmt(p.y -. 26.),
+                    ),
+                  ),
+                ],
+                [text(txt)],
+              ),
+            ]
+          | None => []
+          }
+        )
       | None => []
       }
     ),

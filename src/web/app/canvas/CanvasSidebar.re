@@ -109,6 +109,13 @@ let install_zoom_listener = (): unit => {
   );
 };
 
+/* avatar continuity: hold the last successfully resolved site so the
+   avatar persists through interstitials (turn start, pathless tools,
+   paths gone stale mid-burst) instead of blinking out */
+let last_avatar_id: ref(option(Id.t)) = ref(None: option(Id.t));
+let last_avatar_pos: ref(option(CanvasLayout.pos)) =
+  ref(None: option(CanvasLayout.pos));
+
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
   | Scratch(m)
@@ -365,6 +372,34 @@ let view =
           ~pins,
           graph,
         );
+  };
+  /* auto-fit while the agent works: if the (paced) graph has outgrown
+     the pane at the current zoom, ease the zoom down one step toward
+     fitting. Discrete steps, rate-limited; CSS transitions smooth the
+     hop where supported. */
+  if (globals.settings.canvas_pace && CanvasBuffer.in_burst()) {
+    switch (avail_width, avail_height) {
+    | (Some(aw), Some(ah)) =>
+      let need =
+        min(
+          (aw -. 10.) /. max(1., lay.width),
+          (ah -. 10.) /. max(1., lay.height),
+        );
+      if (need < zoom -. 0.05 && CanvasBuffer.autofit_due()) {
+        let target = max(0.4, need);
+        let stepped = max(target, zoom -. 0.15);
+        let send = () =>
+          globals.inject_global(Set(SetCanvasZoom(stepped)))
+          |> Bonsai.Effect.Expert.handle;
+        ignore(
+          Js_of_ocaml.Js.Unsafe.global##setTimeout(
+            Js_of_ocaml.Js.Unsafe.callback(send),
+            80,
+          ),
+        );
+      };
+    | _ => ()
+    };
   };
   /* canvas clicks SELECT the definition (caret at front, cell focused) */
   let inject_jump = (id: Id.t) =>
@@ -713,12 +748,62 @@ let view =
       )
     | None => None
     };
-  let avatar =
-    avatar_target(~editor, editors)
-    |> Util.OptUtil.and_then(((id, state)) =>
-         locate(~info_map=editor.statics.info_map, lay, id)
-         |> Option.map(p => (p, state))
-       );
+  let (agent_busy, reasoning_tail) =
+    switch (current_code(editors)) {
+    | Some({agent, _}) => (
+        agent.awaiting_response == Some(agent.chat_system.current)
+        || agent.pending_dispatch_send == Some(agent.chat_system.current),
+        agent.pending_assistant_reasoning,
+      )
+    | None => (false, "")
+    };
+  let avatar = {
+    let resolved =
+      avatar_target(~editor, editors)
+      |> Util.OptUtil.and_then(((id, state)) =>
+           switch (locate(~info_map=editor.statics.info_map, lay, id)) {
+           | Some(p) =>
+             last_avatar_id := Some(id);
+             last_avatar_pos := Some(p);
+             Some((p, state));
+           | None =>
+             /* target no longer resolves (edits moved on): try the last
+                good id against the current layout, else hold position */
+             switch (
+               last_avatar_id^
+               |> Util.OptUtil.and_then(
+                    locate(~info_map=editor.statics.info_map, lay),
+                  )
+             ) {
+             | Some(p) =>
+               last_avatar_pos := Some(p);
+               Some((p, state));
+             | None => last_avatar_pos^ |> Option.map(p => (p, state))
+             }
+           }
+         );
+    switch (resolved) {
+    | Some((p, state)) =>
+      /* busy with no fresh edit landing = thinking */
+      Some((p, agent_busy && state == "" ? "think" : state))
+    | None =>
+      /* nothing ever resolved this session: while the agent works,
+         still embody it at the last known or a neutral spot */
+      agent_busy ? last_avatar_pos^ |> Option.map(p => (p, "think")) : None
+    };
+  };
+  /* streaming chain-of-thought tail for the avatar's bubble (rendered
+     only while busy; pace toggle governs the whole watch experience) */
+  let avatar_bubble =
+    if (agent_busy
+        && globals.settings.canvas_pace
+        && String.length(reasoning_tail) > 0) {
+      let n = String.length(reasoning_tail);
+      let tail_len = min(52, n);
+      Some(String.sub(reasoning_tail, n - tail_len, tail_len));
+    } else {
+      None;
+    };
   let split_btn = {
     let split = globals.settings.canvas_split;
     div(
@@ -929,6 +1014,7 @@ let view =
             ~on_node_mousedown,
             ~on_canvas_click,
             ~zoom,
+            ~avatar_bubble,
             ~min_size=(
               Option.value(~default=0., avail_width) /. zoom,
               Option.value(~default=0., avail_height) /. zoom,

@@ -228,4 +228,20 @@ module Actions = {
         },
     },
   };
+  /* slower, symmetric travel — used for the agent avatar, whose hops
+     across the canvas should read as movement, not teleporting */
+  let move_slow = id => {
+    id,
+    animate: change => {
+      options: {
+        duration: 450,
+        easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+      },
+      keyframes:
+        switch (change) {
+        | New(_) => Keyframes.scale_from_zero
+        | Existing(init, final) => Keyframes.translate(init, final)
+        },
+    },
+  };
 };
