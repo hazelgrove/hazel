@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Base;
+open Poly;
 
 let print_seg = Printer.of_segment(~holes="?", ~refractors=[]);
 

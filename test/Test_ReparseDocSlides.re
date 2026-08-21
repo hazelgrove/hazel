@@ -25,15 +25,15 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
       check(
         string,
         name ++ ": load path reproduces the committed text",
-        String.trim(text),
-        String.trim(MarkerParse.to_text(z)),
+        String.strip(text),
+        String.strip(MarkerParse.to_text(z)),
       );
       switch (
         FastParse.of_text(
           ~materialize=Triggers.invoked_projector,
           ~collect_refractors=true,
           ~root=Exp,
-          String.trim(text),
+          String.strip(text),
         ),
         ParsedCorpus.to_segment(~root=Exp, text),
       ) {
@@ -62,5 +62,8 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
 };
 
 let tests = [
-  ("DocSlides.ReparseBackuptext", List.map(doc_slide_reparses, doc_slides)),
+  (
+    "DocSlides.ReparseBackuptext",
+    List.map(~f=doc_slide_reparses, doc_slides),
+  ),
 ];

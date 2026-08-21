@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -171,14 +172,16 @@ let parse_exp = (s: string) => {
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
-      switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+      switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
       | Some(info) =>
         switch (Info.marks_of(info)) {
         | [] => None
         | ms => Some(Marks(ms))
         }
       | None =>
-        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+        Alcotest.fail(
+          "No info found for the id: " ++ Id.show(List.hd_exn(ids)),
+        )
       }
     },
     exp,
@@ -219,7 +222,7 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
     testable_typ,
     "Expected Type",
     expected_type,
-    Option.get(typ),
+    Option.value_exn(typ),
   );
 };
 
@@ -230,7 +233,8 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -249,12 +253,14 @@ let fully_consistent_typecheck =
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
       let actual_type =
         type_of(~static_map=s, exp)
         |> Option.map(
-             normalize
-               ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+             ~f=
+               normalize
+                 ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fn.id,
            );
       Alcotest.check(list(testable_issue), "Static Errors", [], errors);
       Alcotest.check(

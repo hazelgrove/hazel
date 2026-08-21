@@ -917,8 +917,7 @@ let labeled_tuple_tests = [
   ),
 ];
 
-/* === Trailing `in` body ===
-   The expression following a trailing `in` (let/in, type/in, filter/in)
+/* === Trailing `in` phys_equal(body, The) expression following a trailing `in` (let/in, type/in, filter/in)
    always lands on its own line, even when it would fit flat. Trailing
    holes (implicit empty grouts, explicit `?`) get the same treatment in
    non-binding positions too (e.g., `fun x -> ?`). */
@@ -1022,8 +1021,7 @@ fun y ->
   ),
 ];
 
-/* === Block forms on their own line ===
-   Block-like expressions (let/case/fun/if/...) always land on a new line
+/* === Block forms on their own phys_equal(line, Block)-like expressions (let/case/fun/if/...) always land on a new line
    when they appear as the body of another block form. This is the natural
    extension of the "trailing `in` body" rule to all contexts where a block
    form would otherwise share a line with a keyword like `then`. */

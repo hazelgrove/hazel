@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /**
  * Tests for probe sample call_stack behavior.
@@ -25,15 +26,15 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(snd);
+  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
 };
 
 /* Show call stack for debugging */
 let show_call_stack = (cs: CallStack.t): string =>
   "["
   ++ String.concat(
-       ", ",
-       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
+       ~sep=", ",
+       List.map(~f=(f: CallStack.frame) => Id.str3(f.id), cs),
      )
   ++ "]";
 
@@ -64,7 +65,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -85,7 +86,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -118,7 +119,7 @@ in ^^probe(celsius(72.)); ^^probe(celsius(100.))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -145,7 +146,7 @@ in f(5)|});
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -175,7 +176,7 @@ in f(1); f(2)|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -219,7 +220,7 @@ in ^^probe(f(5))|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -248,7 +249,7 @@ in m.f(5)|},
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -273,7 +274,7 @@ in m.f(3)|},
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -304,7 +305,7 @@ in m.f(1); m.f(2)|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },

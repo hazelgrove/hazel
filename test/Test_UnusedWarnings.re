@@ -13,7 +13,7 @@ let unused_warnings = (s: Statics.Map.t): list(string) =>
     s,
     [],
   )
-  |> List.sort(String.compare);
+  |> List.sort(~compare=String.compare);
 
 let check_unused = (name, input, expected_unused) =>
   test_case(
@@ -23,7 +23,7 @@ let check_unused = (name, input, expected_unused) =>
       let exp = parse_exp(input);
       let s = statics(exp);
       let actual = unused_warnings(s);
-      let expected = List.sort(String.compare, expected_unused);
+      let expected = List.sort(~compare=String.compare, expected_unused);
       check(list(string), name, expected, actual);
     },
   );

@@ -1,3 +1,4 @@
+open Poly;
 /* Checks that language claims made by the agent prompts in
    [CompositionCore/prompt_factory/] stay true: reserved words really are
    unusable as identifiers, and documented syntax parses statics-clean.
@@ -30,11 +31,11 @@ let diagnose_prog = (prog: string): option(string) =>
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
     if (!String.equal(squish(printed), squish(prog))) {
-      Some("token expands: " ++ String.trim(printed));
+      Some("token expands: " ++ String.strip(printed));
     } else {
       switch (statics_errors(z)) {
       | [] => None
-      | errs => Some("static errors: " ++ String.concat("; ", errs))
+      | errs => Some("static errors: " ++ String.concat(~sep="; ", errs))
       };
     };
   };
@@ -133,35 +134,40 @@ let usable = [
 
 let check_reserved = () =>
   List.iter(
-    w =>
-      switch (diagnose(w)) {
-      | Some(_) => ()
-      | None => failf("`%s` is usable as an identifier; unlist it", w)
-      },
+    ~f=
+      w =>
+        switch (diagnose(w)) {
+        | Some(_) => ()
+        | None => failf("`%s` is usable as an identifier; unlist it", w)
+        },
     reserved,
   );
 
 let check_usable = () =>
   List.iter(
-    w =>
-      switch (diagnose(w)) {
-      | None => ()
-      | Some(why) => failf("`%s` unusable as an identifier: %s", w, why)
-      },
+    ~f=
+      w =>
+        switch (diagnose(w)) {
+        | None => ()
+        | Some(why) => failf("`%s` unusable as an identifier: %s", w, why)
+        },
     soft_reserved @ usable,
   );
 
 let check_typ_position = () => {
   List.iter(
-    w =>
-      expands_in_typ(w)
-        ? () : failf("`%s` no longer expands in type position", w),
+    ~f=
+      w =>
+        expands_in_typ(w)
+          ? () : failf("`%s` no longer expands in type position", w),
     typ_reserved,
   );
   List.iter(
-    w =>
-      expands_in_typ(w)
-        ? failf("`%s` expands in type position; re-tier the warning", w) : (),
+    ~f=
+      w =>
+        expands_in_typ(w)
+          ? failf("`%s` expands in type position; re-tier the warning", w)
+          : (),
     typ_usable,
   );
 };
@@ -178,7 +184,7 @@ let assert_clean = (prog: string): unit =>
     switch (statics_errors(z)) {
     | [] => ()
     | errs =>
-      failf("static errors in %s: %s", prog, String.concat("; ", errs))
+      failf("static errors in %s: %s", prog, String.concat(~sep="; ", errs))
     };
   };
 
@@ -187,7 +193,7 @@ let assert_clean = (prog: string): unit =>
    without annotations, recursive or not. */
 let fn_sugar_clean = () =>
   List.iter(
-    assert_clean,
+    ~f=assert_clean,
     [
       "let add(x, y) = x + y in add(1, 2)",
       "let add(x: Int, y: Int): Int = x + y in add(1, 2)",
@@ -215,7 +221,7 @@ let fn_sugar_evaluates = () => {
 
 /* Parse + statics only (big samples may deliberately end in a hole). */
 let assert_parses_clean = (prog: string): unit => {
-  let head = String.sub(prog, 0, min(60, String.length(prog)));
+  let head = String.sub(prog, ~pos=0, ~len=min(60, String.length(prog)));
   switch (parse(prog)) {
   | None => failf("failed to parse sample starting: %s", head)
   | Some(z) =>
@@ -225,7 +231,7 @@ let assert_parses_clean = (prog: string): unit => {
       failf(
         "static errors in sample starting %s: %s",
         head,
-        String.concat("; ", errs),
+        String.concat(~sep="; ", errs),
       )
     }
   };
@@ -234,7 +240,7 @@ let assert_parses_clean = (prog: string): unit => {
 /* Language snippets documented across the prompt files. */
 let doc_examples_clean = () =>
   List.iter(
-    assert_clean,
+    ~f=assert_clean,
     [
       /* HazelSyntaxNotes: mod builtin, float ops, pipeline */
       "int_mod(7, 2)",
@@ -261,13 +267,13 @@ let doc_examples_clean = () =>
 /* Fenced ``` blocks inside a prompt string. */
 let fenced_blocks = (s: string): list(string) => {
   let parts = Util.StringUtil.plain_split(s, "```");
-  List.filteri((i, _) => i mod 2 == 1, parts);
+  List.filteri(~f=(i, _) => i mod 2 == 1, parts);
 };
 
 /* The complete sample programs shipped in HazelDocumentation. */
 let big_samples_clean = () => {
   List.iter(
-    s => List.iter(assert_parses_clean, fenced_blocks(s)),
+    ~f=s => List.iter(~f=assert_parses_clean, fenced_blocks(s)),
     [
       HazelDocumentation.sample_tic_tac_toe_program,
       HazelDocumentation.sample_emoji_paint,
@@ -275,11 +281,11 @@ let big_samples_clean = () => {
   );
   let poly_doc =
     HazelDocumentation.polymorphism_documentation
-    |> String.split_on_char('\n')
-    |> List.filter(l =>
+    |> String.split(~on='\n')
+    |> List.filter(~f=l =>
          Util.StringUtil.plain_search("polymorphismDocumentation", l, 0) < 0
        )
-    |> String.concat("\n");
+    |> String.concat(~sep="\n");
   assert_parses_clean(poly_doc);
 };
 

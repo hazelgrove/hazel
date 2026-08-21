@@ -18,20 +18,21 @@ open Language;
 
 /* Extract trailing comments from each line of code */
 let extract_line_comments = (code: string): (string, list(option(string))) => {
-  let lines = String.split_on_char('\n', code);
+  let lines = String.split(code, ~on='\n');
 
   let process_line = (line: string): (string, option(string)) => {
     /* Find the position of "#" comment delimiters */
-    switch (String.index_opt(line, '#')) {
+    switch (String.index(line, '#')) {
     | Some(first_hash) =>
       /* Look for the closing # after the first one */
       let after_first = first_hash + 1;
-      switch (String.index_from_opt(line, after_first, '#')) {
+      switch (Stdlib.String.index_from_opt(line, after_first, '#')) {
       | Some(second_hash) =>
-        let clean_line = String.sub(line, 0, first_hash) |> String.trim;
+        let clean_line =
+          String.sub(line, ~pos=0, ~len=first_hash) |> String.strip;
         let comment_part =
-          String.sub(line, after_first, second_hash - after_first)
-          |> String.trim;
+          String.sub(line, ~pos=after_first, ~len=second_hash - after_first)
+          |> String.strip;
 
         let expected =
           if (String.equal(comment_part, "no probe")) {
@@ -47,8 +48,8 @@ let extract_line_comments = (code: string): (string, list(option(string))) => {
   };
 
   let (clean_lines, comments) =
-    lines |> List.map(process_line) |> List.split;
-  let clean_code = String.concat("\n", clean_lines);
+    lines |> List.map(~f=process_line) |> List.unzip;
+  let clean_code = String.concat(~sep="\n", clean_lines);
   (clean_code, comments);
 };
 
@@ -56,7 +57,7 @@ let extract_line_comments = (code: string): (string, list(option(string))) => {
 let normalize_whitespace = (s: string): string => {
   let s = Str.global_replace(Str.regexp("[\n\r\t]+"), " ", s);
   let s = Str.global_replace(Str.regexp(" +"), " ", s);
-  String.trim(s);
+  String.strip(s);
 };
 
 /* Convert term ID to string representation using segment */
@@ -89,7 +90,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       let (clean_code, expected_comments) = extract_line_comments(code);
 
       /* Filter out lines with no expected probe and extract expected strings */
-      let expected_probes = expected_comments |> List.filter_map(Fun.id);
+      let expected_probes = expected_comments |> List.filter_map(~f=Fn.id);
 
       /* Parse the clean code into a zipper */
       let zipper =
@@ -117,31 +118,34 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       let target_ids = ProbePerform.target_subterm_ids(root_id, info_map);
       let probe_ids =
         List.concat_map(
-          target_id =>
-            switch (
-              MultiProbe.ids_to_multiprobe(
-                target_id,
-                syntax.term_data,
-                syntax.terms,
-                syntax.measured,
-                info_map,
-              )
-            ) {
-            | Some(ids) => List.filter_map(Fun.id, ids)
-            | None => fail("MultiProbe returned None")
-            },
+          ~f=
+            target_id =>
+              switch (
+                MultiProbe.ids_to_multiprobe(
+                  target_id,
+                  syntax.term_data,
+                  syntax.terms,
+                  syntax.measured,
+                  info_map,
+                )
+              ) {
+              | Some(ids) => List.filter_map(~f=Fn.id, ids)
+              | None => fail("MultiProbe returned None")
+              },
           target_ids,
         )
         |> List.fold_left(
-             (acc, id) => List.mem(id, acc) ? acc : [id, ...acc],
-             [],
+             ~f=
+               (acc, id) =>
+                 List.mem(acc, id, ~equal=Poly.equal) ? acc : [id, ...acc],
+             ~init=[],
            )
         |> List.rev;
 
       /* Convert probe IDs to string representations */
       let actual_probes =
         List.filter_map(
-          term_id_to_string(_, syntax.terms, syntax.term_data),
+          ~f=term_id_to_string(_, syntax.terms, syntax.term_data),
           probe_ids,
         );
 
@@ -150,15 +154,15 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
         print_endline(
           "Expected: "
           ++ String.concat(
-               ", ",
-               List.map(s => "'" ++ s ++ "'", expected_probes),
+               ~sep=", ",
+               List.map(~f=s => "'" ++ s ++ "'", expected_probes),
              ),
         );
         print_endline(
           "Actual: "
           ++ String.concat(
-               ", ",
-               List.map(s => "'" ++ s ++ "'", actual_probes),
+               ~sep=", ",
+               List.map(~f=s => "'" ++ s ++ "'", actual_probes),
              ),
         );
       };
@@ -170,13 +174,9 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       check(int, "Number of probes", expected_count, actual_count);
 
       /* Compare each probe string */
-      List.iter2(
-        (expected, actual) => {
-          check(string, "Probe content", expected, actual)
-        },
-        expected_probes,
-        actual_probes,
-      );
+      List.iter2_exn(expected_probes, actual_probes, ~f=(expected, actual) => {
+        check(string, "Probe content", expected, actual)
+      });
     },
   );
 };

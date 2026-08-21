@@ -1,18 +1,19 @@
 open Language;
 open Test_Statics_Prelude;
+open Poly;
 
 let is_known_statics_failure = msg =>
   List.exists(
-    (==)(msg),
+    ~f=(==)(msg),
     [
       "normalize exceeded 1000 recursive calls",
       "weak_head_normalize exceeded 1000 recursive calls",
       "Recursion limit exceeded in all_ctrs_of_typ",
     ],
   )
-  || String.starts_with(
-       ~prefix="all_ctrs_of_type called with a non-normalized type:",
+  || String.is_prefix(
        msg,
+       ~prefix="all_ctrs_of_type called with a non-normalized type:",
      );
 
 let qcheck_statics_does_not_crash =
@@ -174,7 +175,7 @@ let qcheck_elaboration_preserves_type_stats = () => {
     | Some(s) => s
     | None => ((_, _) => ())
     };
-  let rand = Random.State.make([|0xC0FFEE|]);
+  let rand = Stdlib.Random.State.make([|0xC0FFEE|]);
   let sample_differs = ref([]);
   let sample_limit = 20;
   for (_ in 1 to count) {
@@ -199,7 +200,7 @@ let qcheck_elaboration_preserves_type_stats = () => {
     };
   };
   let pct = n => 100. *. float_of_int(n) /. float_of_int(total^);
-  Printf.printf(
+  Stdlib.Printf.printf(
     "\n[elaboration preserves type] out of %d cases:\n"
     ^^ "  holds:              %4d (%.1f%%)\n"
     ^^ "  differs:            %4d (%.1f%%)\n"
@@ -222,13 +223,14 @@ let qcheck_elaboration_preserves_type_stats = () => {
     pct(no_type_elab^),
   );
   List.iter(
-    ((exp, ty1, ty2)) =>
-      Printf.printf(
-        "  sample differing case:\n    exp:      %s\n    ty(orig): %s\n    ty(elab): %s\n",
-        show_exp(exp),
-        show_typ(ty1),
-        show_typ(ty2),
-      ),
+    ~f=
+      ((exp, ty1, ty2)) =>
+        Stdlib.Printf.printf(
+          "  sample differing case:\n    exp:      %s\n    ty(orig): %s\n    ty(elab): %s\n",
+          show_exp(exp),
+          show_typ(ty1),
+          show_typ(ty2),
+        ),
     List.rev(sample_differs^),
   );
 };
@@ -321,16 +323,17 @@ let check_subexp_synthesis_agrees = (exp: Language.Exp.t): sub_outcome =>
       /* Pick the textually smallest differing sub to report. */
       let (sub, ty1, ty2) =
         List.fold_left(
-          (best, cur) => {
-            let (_, _, _) = best;
-            let (s_best, _, _) = best;
-            let (s_cur, _, _) = cur;
-            String.length(show_exp(s_cur))
-            < String.length(show_exp(s_best))
-              ? cur : best;
-          },
-          List.hd(subs),
-          List.tl(subs),
+          ~f=
+            (best, cur) => {
+              let (_, _, _) = best;
+              let (s_best, _, _) = best;
+              let (s_cur, _, _) = cur;
+              String.length(show_exp(s_cur))
+              < String.length(show_exp(s_best))
+                ? cur : best;
+            },
+          ~init=List.hd_exn(subs),
+          List.tl_exn(subs),
         );
       SubDiffers(sub, ty1, ty2);
     }
@@ -397,7 +400,7 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
     | Some(s) => s
     | None => ((_, _) => ())
     };
-  let rand = Random.State.make([|0xDECAF|]);
+  let rand = Stdlib.Random.State.make([|0xDECAF|]);
   let sample_differs = ref([]);
   let sample_limit = 20;
   for (_ in 1 to count) {
@@ -419,7 +422,7 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
     };
   };
   let pct = n => 100. *. float_of_int(n) /. float_of_int(total^);
-  Printf.printf(
+  Stdlib.Printf.printf(
     "\n[subexp synthesis agrees] out of %d cases:\n"
     ^^ "  holds:               %4d (%.1f%%)\n"
     ^^ "  differs:             %4d (%.1f%%)\n"
@@ -433,14 +436,15 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
     pct(skip_parent^),
   );
   List.iter(
-    ((exp, sub, ty1, ty2)) =>
-      Printf.printf(
-        "  sample differing case:\n    exp:         %s\n    sub:         %s\n    ty(parent):  %s\n    ty(sub):     %s\n",
-        show_exp(exp),
-        show_exp(sub),
-        show_typ(ty1),
-        show_typ(ty2),
-      ),
+    ~f=
+      ((exp, sub, ty1, ty2)) =>
+        Stdlib.Printf.printf(
+          "  sample differing case:\n    exp:         %s\n    sub:         %s\n    ty(parent):  %s\n    ty(sub):     %s\n",
+          show_exp(exp),
+          show_exp(sub),
+          show_typ(ty1),
+          show_typ(ty2),
+        ),
     List.rev(sample_differs^),
   );
 };
@@ -500,7 +504,7 @@ let check_elab_term_id_in_user_term = (exp: Language.Exp.t): elab_id_outcome =>
   };
 
 let qcheck_elab_term_id_in_user_term_stats = () => {
-  let rand = Random.State.make([|0xC0DE, 0xFEED|]);
+  let rand = Stdlib.Random.State.make([|0xC0DE, 0xFEED|]);
   let arb = QCheck_Util.arb_exp(~minimal_idents=true, 40);
   let gen = arb.QCheck.gen;
   let shrink =
@@ -538,7 +542,7 @@ let qcheck_elab_term_id_in_user_term_stats = () => {
     };
   };
   let pct = n => 100. *. float_of_int(n) /. float_of_int(total^);
-  Printf.printf(
+  Stdlib.Printf.printf(
     "\n[elab_term id is in user-term subexpressions] out of %d cases:\n"
     ^^ "  holds:           %4d (%.1f%%)\n"
     ^^ "  mismatches:      %4d (%.1f%%)\n"
@@ -552,13 +556,14 @@ let qcheck_elab_term_id_in_user_term_stats = () => {
     pct(skipped^),
   );
   List.iter(
-    ((exp, k, e)) =>
-      Printf.printf(
-        "  sample mismatch:\n    exp:           %s\n    info_map key:  %s\n    elab_rep_id:   %s\n",
-        show_exp(exp),
-        Id.to_string(k),
-        Id.to_string(e),
-      ),
+    ~f=
+      ((exp, k, e)) =>
+        Stdlib.Printf.printf(
+          "  sample mismatch:\n    exp:           %s\n    info_map key:  %s\n    elab_rep_id:   %s\n",
+          show_exp(exp),
+          Id.to_string(k),
+          Id.to_string(e),
+        ),
     List.rev(sample_mismatches^),
   );
 };
