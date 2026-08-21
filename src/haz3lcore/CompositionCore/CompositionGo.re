@@ -263,7 +263,8 @@ module Local = {
        to term ids. */
     let is_linebreak = (p: Piece.t): bool =>
       switch (p) {
-      | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
+      | Secondary({content: Whitespace(s), _}) =>
+        String.equal(s, Token.linebreak)
       | _ => false
       };
     let is_binding_tile = (p: Piece.t): bool =>
@@ -335,18 +336,18 @@ module Local = {
         && c <= 'Z'
         || c >= '0'
         && c <= '9'
-        || c == '_'
-        || c == '\'';
+        || Char.equal(c, '_')
+        || Char.equal(c, '\'');
       let (words, last) =
         String.fold_left(
           ((words, cur), c) =>
             is_id_char(c)
               ? (words, cur ++ String.make(1, c))
-              : cur == "" ? (words, "") : ([cur, ...words], ""),
+              : String.equal(cur, "") ? (words, "") : ([cur, ...words], ""),
           ([], ""),
           s,
         );
-      List.rev(last == "" ? words : [last, ...words]);
+      List.rev(String.equal(last, "") ? words : [last, ...words]);
     };
 
     /* Reserved word in binder position (after let/fun/type), or as the

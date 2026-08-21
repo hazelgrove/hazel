@@ -14,7 +14,7 @@ let get_column_type_from_ty = (ty: Typ.t, column: string) => {
       ty => {
         open OptUtil.Syntax;
         let* (label, value_ty) = Typ.match_tup_label(ty);
-        if (label == column) {
+        if (String.equal(label, column)) {
           Some(value_ty);
         } else {
           None;
@@ -82,7 +82,7 @@ let can_move_column =
     (columns_opt: option(list(string)), column: string, left: bool) =>
   switch (columns_opt) {
   | Some(columns) =>
-    switch (List.find_index(x => x == column, columns)) {
+    switch (List.find_index(x => String.equal(x, column), columns)) {
     | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
     | None => false
     }
@@ -408,7 +408,7 @@ let move_column =
   let columns_opt = Option.bind(dyn_type, get_columns);
   switch (columns_opt) {
   | Some(columns) =>
-    let idx_opt = List.find_index(x => x == column, columns);
+    let idx_opt = List.find_index(x => String.equal(x, column), columns);
     switch (idx_opt) {
     | Some(idx) =>
       let new_idx = left ? idx - 1 : idx + 1;

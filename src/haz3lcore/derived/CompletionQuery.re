@@ -66,7 +66,7 @@ let chips_at_caret =
       indexed
       |> List.filter(((_, ins: CanonicalCompletion.insertion)) =>
            Id.equal(ins.adjacent_id, id)
-           && List.mem(ins.side, sides)
+           && List.exists(Direction.equal(ins.side), sides)
            && (adjacent || !is_witness(ins))
          );
     let is_content = (p: Piece.t): bool =>
@@ -200,7 +200,11 @@ let chips_at_caret =
                     (j, d: CanonicalCompletion.delimiter_info) =>
                       j == List.length(ins.delimiters)
                       - 1
-                      && d.trailing_hole == right_hole
+                      && Option.equal(
+                           Grout.equal_shape,
+                           d.trailing_hole,
+                           right_hole,
+                         )
                         ? {
                           ...d,
                           trailing_hole: None,
@@ -261,14 +265,19 @@ let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
 let padding =
     (z: Zipper.t, d: CanonicalCompletion.delimiter_info): (string, string) => {
   let (l, r) = z.relatives.siblings;
-  let word = SpaceNormalize.spaced(d.text) || List.mem(d.text, ["=", "->"]);
+  let word =
+    SpaceNormalize.spaced(d.text)
+    || List.exists(String.equal(d.text), ["=", "->"]);
   /* no space between the hole and a closer or separator: `(1, ?)`, not
      `(1, ? )` (the marker is not a token SpaceNormalize.needs_space can
      judge, so the tight-before list is consulted directly) */
   let hole =
     d.leading_hole
       ? Token.implicit_hole_marker
-        ++ (List.mem(d.text, SpaceNormalize.tight_before) ? "" : " ")
+        ++ (
+          List.exists(String.equal(d.text), SpaceNormalize.tight_before)
+            ? "" : " "
+        )
       : "";
   let before =
     switch (List.rev(l)) {
@@ -277,7 +286,7 @@ let padding =
     | [p, ..._] =>
       switch (SpaceNormalize.last_token(p)) {
       | Some(t) =>
-        !List.mem(t, SpaceNormalize.tight_after)
+        !List.exists(String.equal(t), SpaceNormalize.tight_after)
         && (word || SpaceNormalize.needs_space(t, d.text))
           ? " " : ""
       | None => word ? " " : ""
