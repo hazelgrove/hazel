@@ -73,12 +73,12 @@ let slide_matches_contract = () => {
 
 let starts_with = (p, s) =>
   String.length(s) >= String.length(p)
-  && String.sub(s, 0, String.length(p)) == p;
+  && String.equal(String.sub(s, 0, String.length(p)), p);
 
 let contains = (needle, s) => {
   let (n, h) = (String.length(needle), String.length(s));
   let rec go = i =>
-    i + n <= h && (String.sub(s, i, n) == needle || go(i + 1));
+    i + n <= h && (String.equal(String.sub(s, i, n), needle) || go(i + 1));
   go(0);
 };
 
@@ -127,7 +127,7 @@ let strip_comments = (text: string) => {
   let inside = ref(false);
   String.iter(
     c =>
-      if (c == '#') {
+      if (Char.equal(c, '#')) {
         inside := ! inside^;
       } else if (! inside^) {
         Buffer.add_char(buf, c);
@@ -153,11 +153,12 @@ let words = text =>
      )
   |> String.of_seq
   |> String.split_on_char(' ')
-  |> List.filter(w => w != "");
+  |> List.filter(w => !String.equal(w, ""));
 
 let flags_are_read_once = () => {
   let ws = words(strip_comments(CC.source.backup_text));
-  let occurrences = w => List.length(List.filter(x => x == w, ws));
+  let occurrences = w =>
+    List.length(List.filter(x => String.equal(x, w), ws));
   /* one binding plus one use */
   check(
     int,
@@ -217,7 +218,7 @@ let split_on_string = (~needle, s) => {
   let rec go = (start, i, acc) =>
     if (i + n > h) {
       List.rev([String.sub(s, start, h - start), ...acc]);
-    } else if (String.sub(s, i, n) == needle) {
+    } else if (String.equal(String.sub(s, i, n), needle)) {
       go(i + n, i + n, [String.sub(s, start, i - start), ...acc]);
     } else {
       go(start, i + 1, acc);
@@ -416,7 +417,7 @@ let colors_match_golden = () => {
     /* Report the differing LINES, not a 40KB blob: alcotest would print both
        whole files and the actual change would be unfindable. */
     let split = t =>
-      String.split_on_char('\n', t) |> List.filter(l => l != "");
+      String.split_on_char('\n', t) |> List.filter(l => !String.equal(l, ""));
     let (e, a) = (split(expected), split(actual));
     let missing = List.filter(l => !List.mem(l, a), e);
     let extra = List.filter(l => !List.mem(l, e), a);
@@ -475,7 +476,7 @@ let a_partial_theme_yields_nothing = () => {
        not on a field name, so a rename does not silently turn this test into
        a no-op that always passes. */
     Str.replace_first(Str.regexp_string("= Transparent,"), "= 1,", text);
-  check(bool, "the edit applied", true, broken != text);
+  check(bool, "the edit applied", true, !String.equal(broken, text));
   check(
     list(pair(string, string)),
     "one undecodable color yields no theme at all",
