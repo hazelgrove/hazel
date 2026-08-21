@@ -29,9 +29,9 @@ type unsafe_any = Js.Unsafe.any;
    literal of the same data is several hundred lines after formatting. */
 let parse_ranges = (src: string): array(int) =>
   src
-  |> String.split_on_char(',')
-  |> List.concat_map(item =>
-       switch (String.split_on_char('-', item)) {
+  |> String.split(~on=',')
+  |> List.concat_map(~f=item =>
+       switch (String.split(item, ~on='-')) {
        | [lo, hi] => [int_of_string("0x" ++ lo), int_of_string("0x" ++ hi)]
        | [lo] =>
          let cp = int_of_string("0x" ++ lo);
@@ -69,7 +69,7 @@ let is_simple_ascii = (s: string): bool => {
   let i = ref(0);
   let ok = ref(true);
   while (ok^ && i^ < n) {
-    let c = Char.code(String.unsafe_get(s, i^));
+    let c = Stdlib.Char.code(String.unsafe_get(s, i^));
     if (c >= 0x80 || c == 0x0D) {
       ok := false;
     } else {
@@ -82,7 +82,7 @@ let is_simple_ascii = (s: string): bool => {
 /* Byte index just past the UTF-8 sequence starting at [i]. Malformed lead
    bytes advance by one so scans always terminate. */
 let next_offset = (s: string, i: int): int => {
-  let b0 = Char.code(String.unsafe_get(s, i));
+  let b0 = Stdlib.Char.code(String.unsafe_get(s, i));
   let len =
     if (b0 < 0xC0) {
       1;
@@ -100,8 +100,8 @@ let next_offset = (s: string, i: int): int => {
    degrade to their lead byte. */
 let codepoint_at = (s: string, i: int): int => {
   let n = String.length(s);
-  let cont = j => Char.code(String.unsafe_get(s, j)) land 0x3F;
-  let b0 = Char.code(String.unsafe_get(s, i));
+  let cont = j => Stdlib.Char.code(String.unsafe_get(s, j)) land 0x3F;
+  let b0 = Stdlib.Char.code(String.unsafe_get(s, i));
   if (b0 < 0xC0) {
     b0;
   } else if (b0 < 0xE0) {
@@ -223,11 +223,11 @@ let segmented = (s: string): array(string) => {
         ),
       )
     };
-  arr |> Js.to_array |> Array.map(Js.to_string);
+  arr |> Js.to_array |> Array.map(~f=Js.to_string);
 };
 
 let ascii_chars = (s: string): array(string) =>
-  Array.init(String.length(s), i =>
+  Array.init(String.length(s), ~f=i =>
     String.make(1, String.unsafe_get(s, i))
   );
 
@@ -237,7 +237,7 @@ let codepoint_chars = (s: string): array(string) => {
   let i = ref(0);
   while (i^ < n) {
     let next = next_offset(s, i^);
-    acc := [String.sub(s, i^, next - i^), ...acc^];
+    acc := [String.sub(s, ~pos=i^, ~len=next - i^), ...acc^];
     i := next;
   };
   acc^ |> List.rev |> Array.of_list;
@@ -264,7 +264,7 @@ let graphemes = (s: string): array(string) =>
   };
 
 let of_graphemes = (clusters: array(string)): string =>
-  clusters |> Array.to_list |> String.concat("");
+  clusters |> Array.to_list |> String.concat;
 
 let length = (s: string): int =>
   if (is_simple_ascii(s)) {
@@ -284,9 +284,15 @@ let remove_nth = (s: string, idx: int): string => {
   if (len == 1) {
     "";
   } else {
-    let result = Array.make(len - 1, "");
-    Array.blit(clusters, 0, result, 0, idx);
-    Array.blit(clusters, idx + 1, result, idx, len - idx - 1);
+    let result = Array.create(~len=len - 1, "");
+    Array.blit(~src=clusters, ~src_pos=0, ~dst=result, ~dst_pos=0, ~len=idx);
+    Array.blit(
+      ~src=clusters,
+      ~src_pos=idx + 1,
+      ~dst=result,
+      ~dst_pos=idx,
+      ~len=len - idx - 1,
+    );
     of_graphemes(result);
   };
 };
@@ -302,11 +308,23 @@ let insert_nth = (s: string, idx: int, fragment: string): string => {
   if (ins_len == 0) {
     s;
   } else {
-    let target = Array.make(len + ins_len, "");
+    let target = Array.create(~len=len + ins_len, "");
     let pos = idx;
-    Array.blit(clusters, 0, target, 0, pos);
-    Array.blit(insert, 0, target, pos, ins_len);
-    Array.blit(clusters, pos, target, pos + ins_len, len - pos);
+    Array.blit(~src=clusters, ~src_pos=0, ~dst=target, ~dst_pos=0, ~len=pos);
+    Array.blit(
+      ~src=insert,
+      ~src_pos=0,
+      ~dst=target,
+      ~dst_pos=pos,
+      ~len=ins_len,
+    );
+    Array.blit(
+      ~src=clusters,
+      ~src_pos=pos,
+      ~dst=target,
+      ~dst_pos=pos + ins_len,
+      ~len=len - pos,
+    );
     of_graphemes(target);
   };
 };
@@ -318,10 +336,16 @@ let split_nth = (s: string, idx: int): (string, string) => {
     invalid_arg("Grapheme.split_nth");
   };
   let pos = idx;
-  let left = Array.make(pos, "");
-  let right = Array.make(len - pos, "");
-  Array.blit(clusters, 0, left, 0, pos);
-  Array.blit(clusters, pos, right, 0, len - pos);
+  let left = Array.create(~len=pos, "");
+  let right = Array.create(~len=len - pos, "");
+  Array.blit(~src=clusters, ~src_pos=0, ~dst=left, ~dst_pos=0, ~len=pos);
+  Array.blit(
+    ~src=clusters,
+    ~src_pos=pos,
+    ~dst=right,
+    ~dst_pos=0,
+    ~len=len - pos,
+  );
   (of_graphemes(left), of_graphemes(right));
 };
 
@@ -337,7 +361,7 @@ let to_array = graphemes;
 
 let to_list = s => to_array(s) |> Array.to_list;
 
-let of_list = (lst: list(string)): string => String.concat("", lst);
+let of_list = (lst: list(string)): string => String.concat(lst);
 
 /* --- Normalization --------------------------------------------------- */
 
@@ -369,23 +393,25 @@ let nfc_outside_strings = (s: string): string =>
       if (stop > start) {
         Buffer.add_string(
           buf,
-          normalize_nfc(String.sub(s, start, stop - start)),
+          normalize_nfc(String.sub(s, ~pos=start, ~len=stop - start)),
         );
       };
     let i = ref(0);
     let code_start = ref(0);
     while (i^ < n) {
-      if (String.unsafe_get(s, i^) == '"') {
+      if (Char.equal(String.unsafe_get(s, i^), '"')) {
         flush_code(code_start^, i^);
         let j = ref(i^ + 1);
         while (j^ < n
-               && String.unsafe_get(s, j^) != '"'
-               && String.unsafe_get(s, j^) != '\n') {
+               && !Char.equal(String.unsafe_get(s, j^), '"')
+               && !Char.equal(String.unsafe_get(s, j^), '\n')) {
           j :=
-            String.unsafe_get(s, j^) == '\\' && j^ + 1 < n ? j^ + 2 : j^ + 1;
+            Char.equal(String.unsafe_get(s, j^), '\\') && j^ + 1 < n
+              ? j^ + 2 : j^ + 1;
         };
-        let stop = j^ < n && String.unsafe_get(s, j^) == '"' ? j^ + 1 : j^;
-        Buffer.add_string(buf, String.sub(s, i^, stop - i^));
+        let stop =
+          j^ < n && Char.equal(String.unsafe_get(s, j^), '"') ? j^ + 1 : j^;
+        Buffer.add_string(buf, String.sub(s, ~pos=i^, ~len=stop - i^));
         i := stop;
         code_start := stop;
       } else {
@@ -436,7 +462,7 @@ module Width = {
           ? true : has_vs16(cluster, next_offset(cluster, i));
 
   let classify_cluster = (cluster: string): t =>
-    if (cluster == "" || is_simple_ascii(cluster)) {
+    if (String.equal(cluster, "") || is_simple_ascii(cluster)) {
       One;
     } else if (is_wide_cp(codepoint_at(cluster, 0))) {
       Two;
@@ -447,7 +473,10 @@ module Width = {
     };
 
   let is_wide_cluster = (cluster: string): bool =>
-    classify_cluster(cluster) == Two;
+    switch (classify_cluster(cluster)) {
+    | Two => true
+    | One => false
+    };
 
   let columns_of_cluster = (cluster: string): int =>
     columns_of_width(classify_cluster(cluster));
@@ -472,27 +501,28 @@ module Width = {
       acc^;
     } else {
       segmented(s)
-      |> Array.fold_left((acc, c) => acc + columns_of_cluster(c), 0);
+      |> Array.fold(~init=0, ~f=(acc, c) => acc + columns_of_cluster(c));
     };
 
   let max_columns = (lines: list(string)): int =>
     lines
     |> List.fold_left(
-         (acc, line) => {
-           let width = columns_of_string(line);
-           width > acc ? width : acc;
-         },
-         0,
+         ~f=
+           (acc, line) => {
+             let width = columns_of_string(line);
+             width > acc ? width : acc;
+           },
+         ~init=0,
        );
 
   let split_lines = (s: string): list(string) =>
-    String.split_on_char('\n', s);
+    String.split_on_chars(~on=['\n'], s);
 
   let count_char = (c: char, s: string): int => {
     let n = String.length(s);
     let acc = ref(0);
     for (i in 0 to n - 1) {
-      if (String.unsafe_get(s, i) == c) {
+      if (Char.equal(String.unsafe_get(s, i), c)) {
         incr(acc);
       };
     };
@@ -507,7 +537,7 @@ module Width = {
       let best = ref(0);
       let start = ref(0);
       for (i in 0 to n - 1) {
-        if (String.unsafe_get(s, i) == '\n') {
+        if (Char.equal(String.unsafe_get(s, i), '\n')) {
           if (i - start^ > best^) {
             best := i - start^;
           };
