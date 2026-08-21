@@ -56,7 +56,7 @@ let case_name = (sort: Sort.t, label: Label.t): string =>
   Sort.to_string(sort) ++ " / " ++ Label.show(label);
 
 let is_compound_label = (label: Label.t): bool =>
-  Form.compound_defs(label) != [];
+  !List.is_empty(Form.compound_defs(label));
 
 /* The outer-nib shape-role of a mold, precedence-erased. */
 let shape_role = (m: Mold.t): (bool, bool) => {
@@ -278,7 +278,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     switch (label) {
     | [t] =>
       Form.is_infix_delimiter_op_prefix(t)
-      && List.mem(sort, [Sort.Exp, Pat, Typ, TPat])
+      && List.exists(Sort.equal(sort), [Sort.Exp, Pat, Typ, TPat])
     | _ => false
     };
   let tok_infix =
@@ -438,7 +438,10 @@ let tests = (
                 bool,
                 "mold sort in {sort, Any}: " ++ case_name(sort, [t]),
                 true,
-                List.mem(Form.mold_of(id, stored).out, [sort, Sort.Any]),
+                List.exists(
+                  Sort.equal(Form.mold_of(id, stored).out),
+                  [sort, Sort.Any],
+                ),
               );
               if (!is_compound_label([t])) {
                 check(
