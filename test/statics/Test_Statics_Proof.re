@@ -239,5 +239,72 @@ let tests = (
       {|theorem t = 1 == 1 proof assume 2 == 2 => ? in assume|},
       is_free_var,
     ),
+    /* --- Phase-5 hypothesis naming, at EDIT TIME ---------------------
+       (docs/prover-obligations.md, "Hypothesis naming".)
+
+       The statics installs an `as` name in the THEOREM namespace, so a
+       citation of it resolves while the user types rather than only when
+       the big-step checker runs. An `induction`'s `case_eq` has no
+       statics-side model — the checker owns it — which is precisely why
+       naming a split is what makes it visible here. */
+    expects_no_mark(
+      "an induction `as` name is a known hypothesis at edit time",
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => axiom h at 0 on n end | false => ? end in t|},
+      is_free_hyp,
+    ),
+    /* ...and it is visible in EVERY case, not just the first. */
+    expects_no_mark(
+      "an induction `as` name is visible in every case",
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => axiom h at 0 on n end end in t|},
+      is_free_hyp,
+    ),
+    /* An `as` name is scoped to its own form. */
+    expects_mark(
+      "an induction `as` name does not escape its form",
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => ? end; axiom h at 0 on n end in t|},
+      is_free_hyp,
+    ),
+    /* A DUPLICATE `as` name shadows rather than erroring: the inner
+       binding hides the outer, and the citation still resolves. */
+    expects_no_mark(
+      "a duplicate `as` name shadows without erroring",
+      {|theorem t = forall n -> forall m -> n == n proof induction n > 0 as h | true => induction m > 0 as h | true => axiom h at 0 on m end | false => ? end | false => ? end in t|},
+      is_free_hyp,
+    ),
+    /* `assume <e> as <h>` likewise. */
+    expects_no_mark(
+      "an assume `as` name is a known hypothesis at edit time",
+      {|theorem t = forall n -> n == n proof assume n == 1 as h => axiom h at 0 on n end in t|},
+      is_free_hyp,
+    ),
+    /* An `as`/`alias` name binds in the THEOREM namespace ONLY — it is
+       not a variable of the program, exactly like the auto-named ones. */
+    expects_mark(
+      "an `as` name is not an expression variable",
+      {|theorem t = 1 == 1 proof assume 2 == 2 as h => ? in h|},
+      is_free_var,
+    ),
+    /* `alias` re-binds an in-scope fact under a second name, and the
+       body sees it. */
+    expects_no_mark(
+      "an alias name is a known hypothesis at edit time",
+      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => axiom h at 0 on n end in t|},
+      is_free_hyp,
+    ),
+    /* The alias's FACT slot is a fact reference, not a program variable:
+       a bare name there must not read as free. (Body is `0`, not `t` —
+       a theorem's own name IS free in expression position, by the
+       namespace separation tested above, and would mask this.) */
+    expects_no_mark(
+      "an alias's fact slot resolves a hypothesis name",
+      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => ? in 0|},
+      is_free_var,
+    ),
+    /* ...and aliasing a name that is not a fact does mark. */
+    expects_mark(
+      "aliasing an unknown name marks at edit time",
+      {|theorem t = forall n -> n == n proof alias h = nosuchfact => ? in t|},
+      is_free_hyp,
+    ),
   ],
 );

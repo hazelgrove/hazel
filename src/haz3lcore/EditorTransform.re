@@ -104,13 +104,15 @@ let rewrite_proof =
           | Contradiction(_)
           | EvalStep(_) => p.term
           | Seq(p1, p2) => Seq(walk(p1), walk(p2))
-          | Induction(e, cases) =>
+          | Induction(e, as_name, cases) =>
             Induction(
               e,
+              as_name,
               List.map(((pt, body)) => (pt, walk(body)), cases),
             )
           | Forall(x, body) => Forall(x, walk(body))
-          | Assume(e, body) => Assume(e, walk(body))
+          | Assume(e, as_name, body) => Assume(e, as_name, walk(body))
+          | Alias(x, e, body) => Alias(x, e, walk(body))
           | Generalize(e, body) => Generalize(e, walk(body))
           | Revert(e, inst, body) => Revert(e, inst, walk(body))
           | Have(e, sub, body) => Have(e, walk(sub), walk(body))
@@ -156,15 +158,16 @@ let rec find_seq_parent =
       };
     }
   | Forall(_, body)
-  | Assume(_, body)
+  | Assume(_, _, body)
   | Generalize(_, body)
+  | Alias(_, _, body)
   | Revert(_, _, body) => find_seq_parent(~target_id, body)
   | Have(_, sub, body) =>
     switch (find_seq_parent(~target_id, sub)) {
     | Some(_) as r => r
     | None => find_seq_parent(~target_id, body)
     }
-  | Induction(_, cases) =>
+  | Induction(_, _, cases) =>
     List.find_map(((_, body)) => find_seq_parent(~target_id, body), cases)
   | EmptyHole
   | Invalid(_)

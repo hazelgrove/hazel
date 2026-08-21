@@ -382,6 +382,23 @@
   font-size: 0.9em;
 }
 
+/* A SHADOWED fact (AssumptionBox): a nearer introduction of the same
+   fixed hypothesis name is what that name now reaches, so this row's
+   rewrite buttons are disabled and the row reads as inert. It is still
+   LISTED — the fact is in scope and still true, and `alias` can give it
+   a name of its own (docs/prover-obligations.md, "Hypothesis naming"). */
+.assumption-box.shadowed {
+  opacity: 0.55;
+}
+
+.assumption-shadowed {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  font-size: 0.9em;
+  font-style: italic;
+}
+
 .step-placeholder {
   background-color: var(--test-panel-bkg)
 }

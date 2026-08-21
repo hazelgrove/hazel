@@ -55,10 +55,10 @@ let rec dump = (pm: ProofMap.t, p: Proof.t, ind: string): string => {
     switch (p.term) {
     | Seq(a, b) => [dump(pm, a, ind), dump(pm, b, ind)]
     | Forall(_, b)
-    | Assume(_, b)
+    | Assume(_, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump(pm, b, ind ++ "  ")]
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.map(((_, b)) => dump(pm, b, ind ++ "  "), cases)
     | _ => []
     };
@@ -113,7 +113,12 @@ let check_no_obligations = (msg, pm, proof) => {
  * McCarthy-collapses the implication. This is the ex-falso idiom the step
  * exists for: no absurdity rule, just "move it into the goal and
  * compute". */
-let ex_falso_src = "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => axiom assume at 0 on n end; eval 0 == 1 at 0 end; eval false ==> false at 0 end in t";
+/* `as h0` on the OUTER assumption is load-bearing. Both assumptions are
+   installed under the fixed name `assume`, and the inner one shadows the
+   outer (docs/prover-obligations.md, "Hypothesis naming"), so the bare
+   name here would rewrite `n` to `1` rather than to `0`. This proof wants
+   the `n == 0` fact, so it says which one it means. */
+let ex_falso_src = "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 as h0 => assume n == 1 => revert n == 1 => axiom h0 at 0 on n end; eval 0 == 1 at 0 end; eval false ==> false at 0 end in t";
 
 let test_ex_falso = () => {
   let (pm, proof) = run_named("t", ex_falso_src);

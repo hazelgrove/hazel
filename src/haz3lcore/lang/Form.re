@@ -441,7 +441,17 @@ type compound_form =
   | ProofEval
   | ProofInduction
   | ProofRule
-  | ProofHave;
+  | ProofHave
+  /* Phase-5 naming forms. Declaration ORDER IS LOAD-BEARING: this list
+     drives `Expansion.sorted_expansions`, and `Expansion.get` takes the
+     FIRST form whose leading token matches — so a variant sharing a
+     leading token with a plain form must come AFTER it, or typing that
+     token would expand to the variant's label. `ProofAssumeAs` /
+     `ProofInductionAs` share "assume" / "induction"; `ProofRevertWith`
+     and friends sit after `ProofRevert` for the same reason. */
+  | ProofAssumeAs
+  | ProofInductionAs
+  | ProofAlias;
 
 let get: compound_form => t =
   fun
@@ -569,6 +579,21 @@ let get: compound_form => t =
   | ProofSeq => mk_infix(";", Proof, P.semi)
   | ProofForall => mk_pre_c(L, ["forall", "=>"], P.fun_, Proof, [Pat])
   | ProofAssume => mk_pre_c(L, ["assume", "=>"], P.fun_, Proof, [Exp])
+  /* Phase-5 hypothesis naming (docs/prover-obligations.md, "Hypothesis
+   * naming"). Auto-installed facts take FIXED names and SHADOW, so these
+   * `as`/`alias` forms are how a fact stays citable past a shadowing
+   * re-introduction. They sit BESIDE the unnamed forms, the same choice
+   * `ForallWhere` and `ProofRevertWith` make.
+   *
+   * `assume <exp> as <name> => <proof>`. */
+  | ProofAssumeAs =>
+    mk_pre_c(L, ["assume", "as", "=>"], P.fun_, Proof, [Exp, Pat])
+  /* `alias <name> = <fact> => <proof>`: name first, then the fact it
+   * renames — the reading order of a definition. */
+  | ProofAlias =>
+    mk_pre_c(L, ["alias", "=", "=>"], P.fun_, Proof, [Pat, Exp])
+  | ProofInductionAs =>
+    mk_op_c(L, ["induction", "as", "end"], Proof, [Exp, PRul])
   | ProofGeneralize =>
     mk_pre_c(L, ["generalize", "=>"], P.fun_, Proof, [Exp])
   /* `revert <fact> => <proof>`: cash an in-scope fact into the goal. */
@@ -625,6 +650,18 @@ let get: compound_form => t =
     )
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])
   | ProofInduction => mk_op_c(L, ["induction", "end"], Proof, [PRul])
+  /* `induction <scrut> as <name> | ... end`.
+   *
+   * Three shards give two child slots, and the case rules already need a
+   * whole `PRul` slot of their own, so the NAME rides in the PRul slot's
+   * leading position — the position a plain `induction`'s PRul slot uses
+   * for the SCRUTINEE. `MakeTerm.prul` therefore parses
+   * `<name> | p => b | ...` into `ProofRules(<name>, cases)` with no new
+   * machinery, and `MakeTerm`/`ExpToSegment` translate that leading term
+   * between expression and pattern position at the boundary
+   * (`ProofHacks.exp_to_pat` / `Exp.of_pat`). The name is a bare
+   * identifier, so that translation is exact. */
+
   | ProofRule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, PRul, Exp, [Pat], Proof))
   /* `have <exp> proof <subproof> => <body>` (docs/prover-obligations.md

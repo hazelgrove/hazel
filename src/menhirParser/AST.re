@@ -192,6 +192,14 @@ and proof =
   | ProofSeq(proof, proof)
   | ProofForall(pat, proof)
   | ProofAssume(exp, proof)
+  /* `assume <exp> as <name> => <proof>` — the Phase-5 `as` clause names
+     the installed hypothesis instead of taking the fixed base name
+     `assume`. Separate constructor, mirroring the tile-level form. */
+  | ProofAssumeAs(exp, pat, proof)
+  /* `alias <name> = <fact> => <proof>` — retroactive naming: bind an
+     already-known fact to a second name, so it stays citable past a
+     shadowing re-introduction of its own name. */
+  | ProofAlias(pat, exp, proof)
   | ProofGeneralize(exp, proof)
   | ProofRevert(exp, proof)
   /* Phase-4d explicit instantiation: the extra (var, exp) pair is the
@@ -222,6 +230,9 @@ and proof =
   | ProofContradictionWith(exp, exp, exp)
   /* `induction <scrut> | <pat> => <proof> ... end` */
   | ProofInduction(exp, list((pat, proof)))
+  /* `induction <scrut> as <name> | <pat> => <proof> ... end` — names the
+     case-equality hypothesis this split installs in every case. */
+  | ProofInductionAs(exp, pat, list((pat, proof)))
 
 and mod_item =
   | ModItemLet(pat, exp)

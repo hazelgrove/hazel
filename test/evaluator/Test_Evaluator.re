@@ -42,4 +42,5 @@ let tests =
     Test_RootMissingRepro.tests,
     Test_ClosureLibrary.tests,
     Test_Have.tests,
+    Test_HypothesisNaming.tests,
   ];

@@ -838,6 +838,22 @@ in f(42)|},
       {|Ids stable: let/fun/case|},
       {|let f = fun x -> case x | A => 1 end in f(2)|},
     ),
+    /* Proof induction's `|`/`=>` RULE TILE ids. These tiles live inside
+       the induction's `PRul` child, so `MakeTerm` absorbs their ids onto
+       the `Induction` term and `ExpToSegment` re-emits them; before that
+       plumbing existed the printer minted fresh ones with `Id.mk()` and
+       every proof-induction round trip silently lost rule identity
+       (it passed the id-ignoring `segments` check and failed only
+       `equiv (strict mod grout)`). Both arities, because the as-variant
+       absorbs from a different child position. */
+    roundtrip_ids_test(
+      {|Ids stable: proof induction rules|},
+      {|theorem x = 1 proof induction y | a => axiom y at y on y end | b => ? end in x|},
+    ),
+    roundtrip_ids_test(
+      {|Ids stable: proof induction-as rules|},
+      {|theorem x = 1 proof induction y as h | a => axiom h at 0 on y end | b => ? end in x|},
+    ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
     /* Bare sums: the parse's id count distinguishes `A + B` from
@@ -1006,6 +1022,37 @@ end|}),
     roundtrip_test(
       {|Algebrite: `with` still belongs to rewrite|},
       {|theorem x = 1 proof rewrite y with z at 0 end in x|},
+    ),
+    /* Phase-5 hypothesis naming (docs/prover-obligations.md). The `as`
+       variants share their leading token with the plain forms, and "as"
+       is a PREFIX of "assume" — so these pin both that the named forms
+       survive a round trip and that the plain ones still do while an
+       `assume` is typed nearby (see `Insert.downgrade_as_clause`). */
+    roundtrip_test(
+      {|AssumeAs: names the hypothesis|},
+      {|theorem x = 1 proof assume y == 1 as h => axiom h at 0 on y end in x|},
+    ),
+    roundtrip_test(
+      {|InductionAs: names the case equation|},
+      {|theorem x = 1 proof induction y | true => ? | false => ? end in x|},
+    ),
+    roundtrip_test(
+      {|InductionAs: with an as-clause|},
+      {|theorem x = 1 proof induction y as h | true => axiom h at 0 on y end | false => ? end in x|},
+    ),
+    roundtrip_test(
+      {|Alias: retroactive naming|},
+      {|theorem x = 1 proof alias h = assume => axiom h at 0 on y end in x|},
+    ),
+    roundtrip_test(
+      {|Alias: fact spelled out as a proposition|},
+      {|theorem x = 1 proof alias h = y == 1 => axiom h at 0 on y end in x|},
+    ),
+    /* `assume` typed inside an induction must NOT leave an `as` shard
+       behind: the token passes through "as" on the way. */
+    roundtrip_test(
+      {|Induction: plain survives an assume in a case body|},
+      {|theorem x = 1 proof induction y | true => assume y == 1 => ? | false => ? end in x|},
     ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
@@ -1941,7 +1988,7 @@ let proof_embedded_paren_tests = (
     ),
     proof_paren_test(
       {|assume hypothesis: fun where in application head|},
-      Assume(built_fun_ap(~guard=true, ()), Proof.fresh(EmptyHole)),
+      Assume(built_fun_ap(~guard=true, ()), None, Proof.fresh(EmptyHole)),
       {|theorem t = 1 == 1 proof assume(fun x where x != 0 -> 100 / x)(y) => ? in t|},
     ),
     proof_paren_test(

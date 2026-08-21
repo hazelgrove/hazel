@@ -22,19 +22,34 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     | Some({label: ["case", "end"], _}) => true
     | _ => false
     };
+  /* Both induction labels: the `as` variant
+     (`induction <e> as <h> | ... end`) owns its case rules exactly as the
+     plain form does, so the `|` special case below has to recognise it
+     too — otherwise the rules never mold as `ProofRule` and detach from
+     the split (docs/prover-obligations.md, "Hypothesis naming"). */
+  let is_induction_label = (label: Label.t): bool =>
+    switch (label) {
+    | ["induction", "end"]
+    | ["induction", "as", "end"] => true
+    | _ => false
+    };
   let before_induction_shard = (z: t): bool =>
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Tile({label: ["induction", "end"], shards: [0], _}) => true
+        | Tile({label, shards: [0], _}) => is_induction_label(label)
+        /* `induction <e> as <h>`: shards 0 and 1 are down, the rules are
+           still to come. */
+        | Tile({label: ["induction", "as", "end"], shards: [0, 1], _}) =>
+          true
         | _ => false
         },
       z.relatives.siblings |> fst,
     );
   let inside_induction = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some({label: ["induction", "end"], _}) => true
-    | _ => false
+    | Some({label, _}) => is_induction_label(label)
+    | None => false
     };
   switch (t) {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
@@ -235,6 +250,100 @@ let upgrade_with_clause = (z: t): t => {
   };
 };
 
+/* Phase-5 `as` clauses on the naming forms: `assume <e> as <h> => ...`
+ * and `induction <e> as <h> | ... end` each have an as-variant sharing
+ * their leading token, so — exactly as for `with` above — the "as" token
+ * has to upgrade the tile after the fact
+ * (docs/prover-obligations.md, "Hypothesis naming"). */
+let upgrade_as_clause = (z: t): t => {
+  let (pre, suf) = z.relatives.siblings;
+  let upgraded = (tile: Tile.t, label: Label.t) => {
+    let mold = Form.Molds.get(Sort.Proof, label);
+    Piece.Tile({
+      ...tile,
+      label,
+      mold,
+    });
+  };
+  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
+    switch (rev_pre) {
+    | [] => None
+    | [Tile(t) as p, ...rest] =>
+      switch (t.label, t.shards) {
+      | (["assume", "=>"], [0]) =>
+        Some([upgraded(t, ["assume", "as", "=>"]), ...rest])
+      | (["induction", "end"], [0]) =>
+        Some([upgraded(t, ["induction", "as", "end"]), ...rest])
+      | _ when !Tile.is_complete(t) => None
+      | _ => go(rest) |> Option.map(rest' => [p, ...rest'])
+      }
+    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
+    };
+  switch (go(List.rev(pre))) {
+  | Some(rev_pre') => {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(rev_pre'), suf),
+      },
+    }
+  | None => z
+  };
+};
+
+/* The compensating DOWNGRADE, and why it is required.
+ *
+ * `upgrade_as_clause` rewrites a tile's LABEL destructively, and "as" is
+ * a PREFIX of "assume": typing `assume` walks the token through "a",
+ * "as", "ass", ... and each step is a real `insert_shard` call. So the
+ * "as" step upgrades whatever `assume`/`induction` tile is to its left —
+ * an enclosing one, which the user never meant to name — and the next
+ * keystroke (`replace_shard`) deletes the just-placed "as" shard again,
+ * leaving an As-LABELLED tile whose "as" shard is MISSING. That tile can
+ * no longer take its own "end"/"=>", so the whole form silently
+ * detaches. (`with`/`where` have the same latent hazard; no identifier in
+ * the language happens to start with them.)
+ *
+ * Hence the invariant: an As-form tile whose "as" shard is not down is
+ * not an As-form at all, so restore the plain label. The legitimate
+ * upgrade is safe under this rule because `insert_shard` places "as"
+ * in the same call that rewrote the label, with no insert in between. */
+let downgrade_as_clause = (z: t): t => {
+  let (pre, suf) = z.relatives.siblings;
+  let downgraded = (tile: Tile.t, label: Label.t) => {
+    let mold = Form.Molds.get(Sort.Proof, label);
+    Piece.Tile({
+      ...tile,
+      label,
+      mold,
+    });
+  };
+  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
+    switch (rev_pre) {
+    | [] => None
+    | [Tile(t) as p, ...rest] =>
+      switch (t.label, t.shards) {
+      | (["assume", "as", "=>"], [0]) =>
+        Some([downgraded(t, ["assume", "=>"]), ...rest])
+      | (["induction", "as", "end"], [0]) =>
+        Some([downgraded(t, ["induction", "end"]), ...rest])
+      | _ when !Tile.is_complete(t) => None
+      | _ => go(rest) |> Option.map(rest' => [p, ...rest'])
+      }
+    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
+    };
+  switch (go(List.rev(pre))) {
+  | Some(rev_pre') => {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(rev_pre'), suf),
+      },
+    }
+  | None => z
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -250,6 +359,9 @@ let insert_shard =
   let z =
     t == "with" && Zipper.find_missing_shard(t, z) == None
       ? upgrade_with_clause(z) : z;
+  let z =
+    t == "as" && Zipper.find_missing_shard(t, z) == None
+      ? upgrade_as_clause(z) : downgrade_as_clause(z);
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;

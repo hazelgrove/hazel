@@ -248,33 +248,11 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   };
 };
 
-let rec pat_to_exp = (pat: Pat.t): Exp.t => {
-  let term = pat |> Pat.term_of;
-  let rewrap: Exp.term => Exp.t =
-    term => {
-      term,
-      annotation: pat.annotation,
-    };
-  switch (term) {
-  | Invalid(x) => rewrap(Invalid(x))
-  | EmptyHole => rewrap(EmptyHole)
-  | MultiHole(xs) => rewrap(MultiHole(xs))
-  | Wild => rewrap(Atom(Bool(true)))
-  | Atom(a) => rewrap(Atom(a))
-  | ListLit(xs) => rewrap(ListLit(List.map(pat_to_exp, xs)))
-  | Constructor(c, t) => rewrap(Constructor(c, t))
-  | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
-  | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
-  | Parens(e) => rewrap(Parens(pat_to_exp(e)))
-  | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
-  | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
-  | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
-  | Label(l) => rewrap(Label(l))
-  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
-  | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
-  };
-};
+/* Read a pattern as an expression. The implementation lives in `Exp`
+   (`Exp.of_pat`) so the STATICS can share it: the statics' `induction`
+   arm builds the same `scrut == pat` case equation when an `as <name>`
+   clause renames it, and `Statics` is compiled before this module. */
+let pat_to_exp: Pat.t => Exp.t = Exp.of_pat;
 
 let add_wrapping_function = (~typ=?, pat: Pat.t): Exp.t => {
   Fun(pat, EmptyHole |> Exp.fresh, typ, None) |> Exp.fresh;

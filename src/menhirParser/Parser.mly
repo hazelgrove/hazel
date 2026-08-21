@@ -122,6 +122,8 @@ open AST
 %token HAVE
 %token REVERT
 %token INDUCTION
+%token ALIAS
+%token AS
 %token AXIOM
 %token AXIOM_REV
 %token REWRITE
@@ -375,6 +377,8 @@ proof:
     | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
     | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
     | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; AS; x = pat; EQUAL_ARROW; pf = proof { ProofAssumeAs(e, x, pf) } %prec PROOF_PRE
+    | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE
     | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
     | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
@@ -388,6 +392,7 @@ proof:
     | CONTRADICTION; e = exp; END { ProofContradiction(e) }
     | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
+    | INDUCTION; e = exp; AS; x = pat; cases = list(prul); END { ProofInductionAs(e, x, cases) }
 
 
 %inline ifExp:

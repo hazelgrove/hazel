@@ -1097,7 +1097,11 @@ and parenthesize_proof =
   | MultiHole(_) => proof
   | Seq(p1, p2) => Seq(go(p1), go(p2)) |> rewrap
   | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
-  | Assume(e, body) => Assume(go_exp(e), go(body)) |> rewrap
+  | Assume(e, as_name, body) =>
+    Assume(go_exp(e), Option.map(go_pat, as_name), go(body)) |> rewrap
+  /* The alias's name is a plain Pat slot and its fact a plain Exp slot,
+     so both defend at `min`, like assume's argument. */
+  | Alias(x, e, body) => Alias(go_pat(x), go_exp(e), go(body)) |> rewrap
   | Generalize(e, body) => Generalize(go_exp(e), go(body)) |> rewrap
   | Revert(e, inst, body) =>
     Revert(
@@ -1138,9 +1142,13 @@ and parenthesize_proof =
       at_exp: go_exp(at_exp),
     })
     |> rewrap
-  | Induction(scrut, cases) =>
+  | Induction(scrut, as_name, cases) =>
     Induction(
       go_exp(~level=Precedence.rule_sep, scrut),
+      /* An `as` name rides the PRul slot's leading position, where the
+         case tiles follow it exactly as they follow a scrutinee — so it
+         defends at the same level the scrutinee does. */
+      Option.map(go_pat, as_name),
       List.map(((pat, body)) => (go_pat(pat), go(body)), cases),
     )
     |> rewrap
@@ -3466,17 +3474,29 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
   let id = p |> Proof.rep_id;
   switch (p.term) {
   | EmptyHole =>
-    p_just(
-      wrap(
-        p,
-        [
-          Grout({
-            id,
-            shape: Convex,
-          }),
-        ],
-      ),
-    )
+    /* An EXPLICITLY TYPED hole (`?`) is a monotile with that lexeme
+       recorded on the term; only an unwritten hole is grout. Recovering
+       the lexeme is what every other sort's `EmptyHole` arm does
+       (`hole_lexeme`: Exp, Pat, Typ, TPat, and the module/sig/rule item
+       arms) — Proof was the one sort that dropped it and always emitted
+       grout, so a `?` proof body did not survive a segment round trip.
+       Only reachable now that proofs have holes in nested positions
+       (an induction case body), which is what exposed it. */
+    switch (hole_lexeme(p.annotation)) {
+    | Some(tok) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, tok)))
+    | None =>
+      p_just(
+        wrap(
+          p,
+          [
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ],
+        ),
+      )
+    }
   | Invalid(s) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, s)))
   | MultiHole(_) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, "?")))
   | Seq(p1, p2) =>
@@ -3500,10 +3520,20 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ x = pat_to_pretty(~settings, x)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofForall, id, [x])] @ b);
-  | Assume(e, body) =>
+  | Assume(e, None, body) =>
     let+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofAssume, id, [e])] @ b);
+  | Assume(e, Some(x), body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ x = pat_to_pretty(~settings, x)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofAssumeAs, id, [e, x])] @ b);
+  | Alias(x, e, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ e = exp_to_pretty(~settings, e)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofAlias, id, [x, e])] @ b);
   | Generalize(e, body) =>
     let+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);
@@ -3561,27 +3591,60 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ ae = exp_to_pretty(~settings, at_exp)
     and+ i = exp_to_pretty(~settings, at_idx);
     wrap(p, [mk_form(ProofEval, id, [ae, i])]);
-  | Induction(scrut, cases) =>
+  | Induction(scrut, as_name, cases) =>
     /* Tile-level induction rendering. The induction tile has a single PRul
        child slot containing `<scrut> | <pat1> => <body1> | <pat2> => ...`.
        We emit the scrutinee tiles first, then a `| pat => body` tile chain
-       for each case. */
+       for each case.
+
+       With an `as <name>` clause the tile is `ProofInductionAs`, whose
+       shards are ["induction", "as", "end"]: the scrutinee becomes this
+       form's own Exp child and the PRul slot leads with the NAME instead
+       (see `Form.ProofInductionAs`). The name is a bare identifier, so
+       rendering it in expression position via `Exp.of_pat` is exact and
+       `MakeTerm` reads it straight back as a pattern. */
     let+ s = exp_to_pretty(~settings, scrut)
+    and+ name_seg =
+      switch (as_name) {
+      | None => p_just([])
+      | Some(x) => exp_to_pretty(~settings, Exp.of_pat(x))
+      }
     and+ rendered_cases: list((Segment.t, Segment.t)) =
       cases
       |> List.map(((pat, body)) =>
            (pat_to_pretty(~settings, pat), proof_to_pretty(~settings, body))
          )
       |> all;
+    /* ID ORDER: the term's ids are [induction/end tile, ...rule tiles] —
+       `MakeTerm`'s induction arms ABSORB the `PRul` child's `|`/`=>` tile
+       ids, because those tiles live inside the child segment and nothing
+       else records them. Re-emit them here rather than minting fresh
+       ones, or every rule tile's identity is lost on a round trip (this
+       is the same scheme the `Match` arm above uses, and `pad_ids`
+       covers a term built without them, e.g. by the step picker). */
+    let all_proof_ids = IdTagged.ids(p);
+    let induction_id = id;
+    let rule_ids =
+      all_proof_ids
+      |> (l => List.length(l) > 1 ? List.tl(l) : [])
+      |> pad_ids(
+           ~forbidden=[induction_id],
+           ~base=induction_id,
+           List.length(rendered_cases),
+         );
     let cases_seg: Segment.t =
-      List.map(
-        ((pat_seg, body_seg)) =>
-          [mk_form(ProofRule, Id.mk(), [pat_seg])] @ body_seg,
+      List.map2(
+        (rule_id, (pat_seg, body_seg)) =>
+          [mk_form(ProofRule, rule_id, [pat_seg])] @ body_seg,
+        rule_ids,
         rendered_cases,
       )
       |> List.flatten;
-    let prul_child: Segment.t = s @ cases_seg;
-    wrap(p, [mk_form(ProofInduction, id, [prul_child])]);
+    switch (as_name) {
+    | None => wrap(p, [mk_form(ProofInduction, id, [s @ cases_seg])])
+    | Some(_) =>
+      wrap(p, [mk_form(ProofInductionAs, id, [s, name_seg @ cases_seg])])
+    };
   };
 }
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {

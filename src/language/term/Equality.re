@@ -948,6 +948,15 @@ let equality =
       | (None, Some(_))
       | (Some(_), None) => false
       };
+    /* Optional `as <name>` clauses (Phase 5 hypothesis naming). */
+    let as_name' =
+        (a1: option(TermBase.Pat.t), a2: option(TermBase.Pat.t)): bool =>
+      switch (a1, a2) {
+      | (None, None) => true
+      | (Some(x1), Some(x2)) => Option.is_some(pat'(x1, x2))
+      | (None, Some(_))
+      | (Some(_), None) => false
+      };
     let rec proof' = (p1: TermBase.Proof.t, p2: TermBase.Proof.t): bool =>
       switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
       | (EmptyHole, EmptyHole) => true
@@ -994,21 +1003,26 @@ let equality =
         ) =>
         exp'(i1, i2) && exp'(e1, e2)
       | (EvalStep(_), _) => false
-      | (Induction(e1, cs1), Induction(e2, cs2))
+      | (Induction(e1, a1, cs1), Induction(e2, a2, cs2))
           when List.length(cs1) == List.length(cs2) =>
         exp'(e1, e2)
+        && as_name'(a1, a2)
         && List.for_all2(
              ((pa, ba), (pb, bb)) =>
                Option.is_some(pat'(pa, pb)) && proof'(ba, bb),
              cs1,
              cs2,
            )
-      | (Induction(_, _), _) => false
+      | (Induction(_, _, _), _) => false
       | (Forall(x1, b1), Forall(x2, b2)) =>
         Option.is_some(pat'(x1, x2)) && proof'(b1, b2)
       | (Forall(_, _), _) => false
-      | (Assume(e1, b1), Assume(e2, b2)) => exp'(e1, e2) && proof'(b1, b2)
-      | (Assume(_, _), _) => false
+      | (Assume(e1, a1, b1), Assume(e2, a2, b2)) =>
+        exp'(e1, e2) && as_name'(a1, a2) && proof'(b1, b2)
+      | (Assume(_, _, _), _) => false
+      | (Alias(x1, e1, b1), Alias(x2, e2, b2)) =>
+        Option.is_some(pat'(x1, x2)) && exp'(e1, e2) && proof'(b1, b2)
+      | (Alias(_, _, _), _) => false
       | (Generalize(e1, b1), Generalize(e2, b2)) =>
         exp'(e1, e2) && proof'(b1, b2)
       | (Generalize(_, _), _) => false

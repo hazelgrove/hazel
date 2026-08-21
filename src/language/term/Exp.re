@@ -554,3 +554,41 @@ let add_name = (name: option(string), exp: t): t => {
   | _ => exp
   };
 };
+
+/* Read a PATTERN as an expression, position by position.
+ *
+ * Lives here (rather than in `Pat`, which must not depend on `Exp`) so
+ * that both the statics and the big-step checker can build a split's
+ * CASE EQUATION `scrut == pat` from the same code:
+ * `ProofHacks.pat_to_exp` is this function, and the statics' `induction`
+ * arm uses it to record the equation an `as <name>` clause installs.
+ *
+ * `Wild` has no expression counterpart; it becomes `true`, which is the
+ * proposition a wildcard case's equation degenerates to. */
+let rec of_pat = (pat: Pat.t): t => {
+  let term = pat |> Pat.term_of;
+  let rewrap: term => t =
+    term => {
+      term,
+      annotation: pat.annotation,
+    };
+  switch (term) {
+  | Invalid(x) => rewrap(Invalid(x))
+  | EmptyHole => rewrap(EmptyHole)
+  | MultiHole(xs) => rewrap(MultiHole(xs))
+  | Wild => rewrap(Atom(Bool(true)))
+  | Atom(a) => rewrap(Atom(a))
+  | ListLit(xs) => rewrap(ListLit(List.map(of_pat, xs)))
+  | Constructor(c, t) => rewrap(Constructor(c, t))
+  | Cons(e1, e2) => rewrap(Cons(of_pat(e1), of_pat(e2)))
+  | Var(x) => rewrap(Var(x))
+  | Tuple(xs) => rewrap(Tuple(List.map(of_pat, xs)))
+  | Parens(e) => rewrap(Parens(of_pat(e)))
+  | Projector(data, e) => rewrap(Projector(data, of_pat(e)))
+  | Ap(e1, e2) => rewrap(Ap(Forward, of_pat(e1), of_pat(e2)))
+  | Asc(e, t1) => rewrap(Asc(of_pat(e), t1))
+  | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
+  | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  };
+};

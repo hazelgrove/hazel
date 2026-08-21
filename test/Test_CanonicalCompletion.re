@@ -1856,7 +1856,21 @@ let clippable_guard_tests = {
     Alcotest.test_case("form-table sort coverage", `Quick, () =>
       Alcotest.(check(string))(
         "coverage",
-        "Exp 67/88 | Pat 8/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+        /* Repinned 2026-08-23. The form table drifted; per this
+           guard's contract the decision was RE-MADE rather than the
+           number blindly bumped, and `clippable_sort` is unchanged
+           (pinned by the next test): an Exp frontier is still vacuous
+           (69 of 106 labels carry an Exp mold), while Pat/TPat/Typ are
+           still the narrow, meaningful ones.
+
+           Of the denominator's +3 since the previous pin, three are the
+           hypothesis-naming forms `assume ... as`, `induction ... as`
+           and `alias` (docs/prover-obligations.md, "Hypothesis
+           naming"). Those are Proof-sorted, so they move only the
+           DENOMINATOR. The numerator drift (Exp 67->69, Typ 14->13) and
+           the rest of the denominator predate that change — this
+           snapshot had gone stale without being repinned. */
+        "Exp 69/106 | Pat 8/106 | Typ 13/106 | TPat 2/106 | Rul 1/106",
         table,
       )
     ),

@@ -47,7 +47,7 @@ let init = init_step => {
 /* The assumed expression, read from syntax (single source of truth). */
 let arg_of_proof = (proof: option(Proof.t)): option(Exp.t) =>
   switch (proof) {
-  | Some({term: Assume(e, _), _}) => Some(e)
+  | Some({term: Assume(e, _, _), _}) => Some(e)
   | _ => None
   };
 
@@ -106,7 +106,7 @@ module F =
      * would target / replace the Assume, destroying its structure). */
     let descend = (p: Proof.t): Proof.t =>
       switch (p) {
-      | {term: Assume(_, body), _} => body
+      | {term: Assume(_, _, body), _} => body
       | p => p
       };
     let inner_proof =
@@ -137,7 +137,7 @@ module F =
         let.calc ctx = ctx
         and.calc proof = proof;
         switch (proof.term) {
-        | Assume(e, _) =>
+        | Assume(e, _, _) =>
           let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
           SemanticCtx.add_hypothesis(ctx, "assume", hyp) |> fst;
         | _ => ctx

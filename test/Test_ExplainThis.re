@@ -111,10 +111,23 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
       ),
     ]
   | Induction => [
-      Proof.fresh(Induction(some_exp(), [(some_pat(), hole_proof())])),
+      Proof.fresh(
+        Induction(some_exp(), None, [(some_pat(), hole_proof())]),
+      ),
+      Proof.fresh(
+        Induction(
+          some_exp(),
+          Some(some_pat()),
+          [(some_pat(), hole_proof())],
+        ),
+      ),
     ]
   | Forall => [Proof.fresh(Forall(some_pat(), hole_proof()))]
-  | Assume => [Proof.fresh(Assume(some_exp(), hole_proof()))]
+  | Assume => [
+      Proof.fresh(Assume(some_exp(), None, hole_proof())),
+      Proof.fresh(Assume(some_exp(), Some(some_pat()), hole_proof())),
+    ]
+  | Alias => [Proof.fresh(Alias(some_pat(), some_exp(), hole_proof()))]
   | Generalize => [Proof.fresh(Generalize(some_exp(), hole_proof()))]
   | Revert => [
       Proof.fresh(Revert(some_exp(), None, hole_proof())),
@@ -143,7 +156,8 @@ let example_free = (cls: Proof.cls): bool =>
   | Generalize
   | Revert
   | Contradiction
-  | Have => false
+  | Have
+  | Alias => false
   };
 
 let check_doc =
@@ -254,6 +268,9 @@ let proof_sources = [
   "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof ? in 0",
   "let f = fun x -> x + 1 in theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in theorem g = f(2) == 3 proof axiom lem with n = 1 at 0 on f(2) end in 0",
   "let f = fun x -> x + 1 in theorem p = forall n: Int -> n + 0 == n proof ? in theorem g = f(2) == 3 proof revert p with n = 5 => ? in 0",
+  "theorem t = forall n: Int -> forall m: Int -> n == n proof induction n > 0 as hn | true => induction m > 0 | true => revert hn => ? | false => ? end | false => ? end in 0",
+  "theorem t = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x == x proof assume x == 1 => assume y == 2 as hy => revert hy => ? in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias hn = assume => axiom refl_eq at 0 on n == n end in 0",
   "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end end in 0",
 ];
 
@@ -265,6 +282,10 @@ let parse_exp = (s: string) =>
 
 let test_cursor_on_proof_step_explains = () => {
   let seen = ref(0);
+  /* The naming forms are the newest syntax here; assert the sources really
+     parse into them rather than degrading to holes, which the loop below
+     would otherwise skip in silence. */
+  let named = ref([]);
   List.iter(
     src => {
       let info_map = statics(parse_exp(src));
@@ -279,6 +300,13 @@ let test_cursor_on_proof_step_explains = () => {
             | Invalid(_) => ()
             | _ =>
               incr(seen);
+              switch (user_term.term) {
+              | Induction(_, Some(_), _) =>
+                named := ["induction as", ...named^]
+              | Assume(_, Some(_), _) => named := ["assume as", ...named^]
+              | Alias(_) => named := ["alias", ...named^]
+              | _ => ()
+              };
               let (_, (_, (color_map, _)), _) =
                 Web.ExplainThis.get_doc(
                   ~globals,
@@ -306,6 +334,16 @@ let test_cursor_on_proof_step_explains = () => {
     "the sources really contain proof steps",
     true,
     seen^ >= 20,
+  );
+  List.iter(
+    shape =>
+      Alcotest.check(
+        Alcotest.bool,
+        shape ++ ": source parsed into the named form",
+        true,
+        List.mem(shape, named^),
+      ),
+    ["induction as", "assume as", "alias"],
   );
 };
 

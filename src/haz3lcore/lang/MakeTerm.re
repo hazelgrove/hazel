@@ -1826,19 +1826,43 @@ and mpat_term: unsorted => TermBase.MPat.term = {
 }
 
 and proof = unsorted => {
-  let term = proof_term(unsorted);
-  let ids = ids(unsorted);
-  return(p => Proof(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  let (term, inner_ids) = proof_term(unsorted);
+  /* Consume the lexeme `proof_term` may have stashed — same order as
+     `exp` above (build the term first, then take). Without this the
+     spelling of an explicitly typed `?` was not just lost but LEAKED:
+     `pending_lexeme` is a global ref, so a `set_lexeme` with no matching
+     `take_lexeme` would surface on whichever term consumed next. */
+  let lexeme = take_lexeme();
+  /* ID ORDER: own tile ids first, absorbed child ids after — the order
+     `ExpToSegment`'s `Induction` arm reads them back in. */
+  let all_ids = ids(unsorted) @ inner_ids;
+  return(
+    p => Proof(p),
+    all_ids,
+    IdTagged.mk(~lexeme, all_ids, get_secondary(all_ids), term),
+  );
 }
-and proof_term: unsorted => TermBase.Proof.term = {
-  let ret = (term: TermBase.Proof.term) => term;
+/* Returns the term plus any ids ABSORBED from a child, exactly as
+   `exp_term` does. The induction arms absorb their `PRul` child's
+   `|`/`=>` tile ids: those tiles live inside the child segment, so
+   nothing else records them, and `ExpToSegment` has to re-emit them
+   rather than mint fresh ones or the round trip loses tile identity. */
+and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
+  let ret = (term: TermBase.Proof.term) => (term, []);
   let hole = unsorted => Proof.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      /* Record the hole's spelling, as every other sort's hole branch
+         does. An explicitly typed `?` must print back as a `?` MONOTILE,
+         not as grout: `ExpToSegment.proof_to_pretty` recovers it through
+         `hole_lexeme`, and without this the lexeme is never stored, so a
+         `?` proof body did not survive a segment round trip. */
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | (
           ["axiom", "at", "on", "end"],
           [Exp(equality), Exp(at_idx), Exp(at_exp)],
@@ -1922,10 +1946,32 @@ and proof_term: unsorted => TermBase.Proof.term = {
             at_exp,
           }),
         )
-      | (["induction", "end"], [PRul(pr)]) =>
-        /* Induction: body is a PRul term holding (scrut, cases). */
-        switch (pr.term) {
-        | ProofRules(scrut, cases) => ret(Induction(scrut, cases))
+      | (["induction", "end"], [PRul({term, annotation: {ids, _}})]) =>
+        /* Induction: body is a PRul term holding (scrut, cases).
+           Its `|`/`=>` tile ids are ABSORBED here (cf. the `Match`
+           absorption above), so the printer can re-emit them. */
+        switch (term) {
+        | ProofRules(scrut, cases) =>
+          adopted_ids := ids @ adopted_ids^;
+          (Induction(scrut, None, cases), ids);
+        | _ => ret(hole(tm))
+        }
+      /* `induction <scrut> as <name> | ... end`. The scrutinee is this
+       * form's own Exp child; the PRul slot's leading term is the `as`
+       * NAME, which a plain induction uses for the scrutinee (see
+       * `Form.ProofInductionAs`). It is a bare identifier, so reading it
+       * in pattern position is exact. */
+      | (
+          ["induction", "as", "end"],
+          [Exp(scrut), PRul({term, annotation: {ids, _}})],
+        ) =>
+        switch (term) {
+        | ProofRules(name, cases) =>
+          adopted_ids := ids @ adopted_ids^;
+          (
+            Induction(scrut, Some(ProofHacks.exp_to_pat(name)), cases),
+            ids,
+          );
         | _ => ret(hole(tm))
         }
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
@@ -1939,7 +1985,12 @@ and proof_term: unsorted => TermBase.Proof.term = {
     | ([(_id, (["forall", "=>"], [Pat(p)]))], []) =>
       ret(Forall(p, body))
     | ([(_id, (["assume", "=>"], [Exp(e)]))], []) =>
-      ret(Assume(e, body))
+      ret(Assume(e, None, body))
+    | ([(_id, (["assume", "as", "=>"], [Exp(e), Pat(x)]))], []) =>
+      ret(Assume(e, Some(x), body))
+    /* `alias <name> = <fact> => <proof>`: retroactive naming. */
+    | ([(_id, (["alias", "=", "=>"], [Pat(x), Exp(e)]))], []) =>
+      ret(Alias(x, e, body))
     | ([(_id, (["generalize", "=>"], [Exp(e)]))], []) =>
       ret(Generalize(e, body))
     | ([(_id, (["revert", "=>"], [Exp(e)]))], []) =>

@@ -204,11 +204,39 @@ and proof_term('a) =
       at_idx: exp_t('a),
       at_exp: exp_t('a),
     })
-  | Induction(exp_t('a), list((pat_t('a), proof_t('a))))
+  /* `induction <exp> | ... end`, or `induction <exp> as <name> | ... end`.
+   *
+   * The optional pattern is the Phase-5 `as` CLAUSE: it renames the
+   * case-equality hypothesis this split installs in EVERY case, from the
+   * fixed base name `case_eq` to the given bare identifier. One name for
+   * the whole split — the equation itself still differs case by case,
+   * exactly as before. Without it the split installs `case_eq`, which
+   * SHADOWS any enclosing `case_eq` (docs/prover-obligations.md,
+   * "Hypothesis naming"); naming is how a deeper leaf keeps citing an
+   * outer split's equation. */
+  | Induction(
+      exp_t('a),
+      option(pat_t('a)),
+      list((pat_t('a), proof_t('a))),
+    )
   | Forall(pat_t('a), proof_t('a))
-  /* `assume <exp> => <proof>`: hypothesize the boolean expression for the
-   * scope of the sub-proof, incurring an obligation to establish it. */
-  | Assume(exp_t('a), proof_t('a))
+  /* `assume <exp> => <proof>`, or `assume <exp> as <name> => <proof>`:
+   * hypothesize the boolean expression for the scope of the sub-proof,
+   * incurring an obligation to establish it. The optional pattern is the
+   * `as` clause: it names the installed hypothesis instead of the fixed
+   * base name `assume`, which would shadow an enclosing `assume`. */
+  | Assume(exp_t('a), option(pat_t('a)), proof_t('a))
+  /* `alias <name> = <fact> => <proof>`: RETROACTIVE naming. Resolves
+   * <fact> against the in-scope facts exactly as `revert` does (by bare
+   * name, or by spelling the proposition out) and installs the SAME
+   * proposition again under <name> for the scope of the sub-proof.
+   *
+   * Obligation-free and goal-preserving: nothing is assumed that was not
+   * already known, and the sub-proof's outgoing goal is the whole form's.
+   * This is the escape hatch for keeping a fact citable past a shadowing
+   * re-introduction of its fixed name. An unresolvable <fact> reuses the
+   * `UnknownFactReverted` mark family. */
+  | Alias(pat_t('a), exp_t('a), proof_t('a))
   /* `generalize <exp> => <proof>`: re-quantify an already-peeled binder
    * (the exp must be a bare in-scope variable) — the sub-proof's goal is
    * `forall x -> G` (with `x`'s `where` restriction travelling back onto
@@ -468,9 +496,10 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
             at_idx: map_exp_annotation(f, at_idx),
             at_exp: map_exp_annotation(f, at_exp),
           })
-        | Induction(e, cases) =>
+        | Induction(e, as_name, cases) =>
           Induction(
             map_exp_annotation(f, e),
+            Option.map(map_pat_annotation(f), as_name),
             List.map(
               ((p, body)) =>
                 (map_pat_annotation(f, p), map_proof_annotation(f, body)),
@@ -479,8 +508,18 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
           )
         | Forall(x, body) =>
           Forall(map_pat_annotation(f, x), map_proof_annotation(f, body))
-        | Assume(e, body) =>
-          Assume(map_exp_annotation(f, e), map_proof_annotation(f, body))
+        | Assume(e, as_name, body) =>
+          Assume(
+            map_exp_annotation(f, e),
+            Option.map(map_pat_annotation(f), as_name),
+            map_proof_annotation(f, body),
+          )
+        | Alias(x, e, body) =>
+          Alias(
+            map_pat_annotation(f, x),
+            map_exp_annotation(f, e),
+            map_proof_annotation(f, body),
+          )
         | Generalize(e, body) =>
           Generalize(
             map_exp_annotation(f, e),
@@ -1374,16 +1413,22 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         }),
       annotation: default_annotation(ann),
     };
-    let induction = (~ann=?, e, cases): proof_t(DefaultAnnotation.t) => {
-      term: Induction(e, cases),
+    let induction =
+        (~ann=?, ~as_name=None, e, cases): proof_t(DefaultAnnotation.t) => {
+      term: Induction(e, as_name, cases),
       annotation: default_annotation(ann),
     };
     let forall = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
       term: Forall(x, body),
       annotation: default_annotation(ann),
     };
-    let assume = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
-      term: Assume(e, body),
+    let assume =
+        (~ann=?, ~as_name=None, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Assume(e, as_name, body),
+      annotation: default_annotation(ann),
+    };
+    let alias = (~ann=?, x, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Alias(x, e, body),
       annotation: default_annotation(ann),
     };
     let generalize = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {

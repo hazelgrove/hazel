@@ -981,8 +981,9 @@ and Stepper: {
     | EvalStep(_)
     | Contradiction(_)
     | Forall(_, _)
-    | Induction(_, _)
-    | Assume(_, _)
+    | Induction(_, _, _)
+    | Assume(_, _, _)
+    | Alias(_, _, _)
     | Generalize(_, _)
     | Revert(_, _, _)
     | Have(_, _, _)
@@ -1017,7 +1018,7 @@ and Stepper: {
     | EvalStep(_) => Some(EvalStep())
     | Contradiction(_) => Some(ContradictionStep())
     | Forall(_, _) => Some(ForallStep(ForallStep.init(init_step)))
-    | Induction(scrut, _) =>
+    | Induction(scrut, _, _) =>
       /* Seed the scrutinee editor from the proof's scrutinee (freshening
        * ids so the step's editor is independent of the syntax copy);
        * otherwise the scrutinee shows only in the syntax and the empty
@@ -1029,7 +1030,10 @@ and Stepper: {
       )
     /* The wrapping forms own a body proof; their kinds descend into it on
      * their own `calculate` pass (see AssumeStep.calculate). */
-    | Assume(_, _) => Some(AssumeStep(AssumeStep.init(init_step)))
+    | Assume(_, _, _) => Some(AssumeStep(AssumeStep.init(init_step)))
+    /* No dedicated `alias` row: the form's own text carries it, exactly
+     * as for `have`. */
+    | Alias(_, _, _) => None
     | Revert(_, _, _) => Some(RevertStep(RevertStep.init(init_step)))
     | Generalize(_, _) =>
       Some(GeneralizeStep(GeneralizeStep.init(init_step)))
@@ -1056,8 +1060,8 @@ and Stepper: {
     | (EvalStep(_), EvalStep(_))
     | (Contradiction(_), ContradictionStep(_))
     | (Forall(_, _), ForallStep(_))
-    | (Induction(_, _), InductionStep(_))
-    | (Assume(_, _), AssumeStep(_))
+    | (Induction(_, _, _), InductionStep(_))
+    | (Assume(_, _, _), AssumeStep(_))
     | (Revert(_, _, _), RevertStep(_))
     | (Generalize(_, _), GeneralizeStep(_))
     | (Have(_, _, _), HaveStep(_)) => sk
@@ -1531,6 +1535,10 @@ and Stepper: {
       scrut
       |> Option.map(embed_exp)
       |> Option.value(~default=Exp.fresh(EmptyHole)),
+      /* The step picker builds an UNNAMED split, so its case equation
+       * takes the fixed name `case_eq`; an `as <name>` clause is authored
+       * by typing it (docs/prover-obligations.md, "Hypothesis naming"). */
+      None,
       /* Start with no cases; the user adds them via the InductionStep UI.
        * `MakeTerm.prul` accepts a bare scrutinee with no
        * `| <pat> => <body>` tiles. */
@@ -1548,7 +1556,7 @@ and Stepper: {
    * the intended reading (all three scope over the rest of the proof —
    * cf. `assume x == 1 => axiom assume ...; axiom ...`). */
   let assume_term = (~exp: Exp.t): TermBase.Proof.term =>
-    Assume(exp |> embed_exp, Proof.fresh(EmptyHole));
+    Assume(exp |> embed_exp, None, Proof.fresh(EmptyHole));
 
   let revert_term = (~exp: Exp.t): TermBase.Proof.term =>
     /* The step-picker UI builds plain `revert`; a Phase-4d `with` clause
@@ -1577,7 +1585,8 @@ and Stepper: {
    * arrives in the segment as a Grout carrying exactly this id. */
   let form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
     switch (t) {
-    | Assume(e, _)
+    | Assume(e, _, _)
+    | Alias(_, e, _)
     | Revert(e, _, _)
     | Generalize(e, _)
     /* `have`'s proposition is child 0 too, so the same caret jump and the
@@ -1587,7 +1596,7 @@ and Stepper: {
     | Invalid(_)
     | MultiHole(_)
     | Seq(_, _)
-    | Induction(_, _)
+    | Induction(_, _, _)
     | Forall(_, _)
     | AxiomStep(_)
     | AlgebriteStep(_)

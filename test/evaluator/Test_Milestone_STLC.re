@@ -79,6 +79,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | AlgebriteStep(_) => "rewrite"
     | EvalStep(_) => "eval"
     | Have(_, _, _) => "have"
+    | Alias(_) => "alias"
     };
   let here =
     indent
@@ -97,10 +98,11 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     switch (p.term) {
     | Seq(a, b) => [dump_proof(pm, a, indent), dump_proof(pm, b, indent)]
     | Forall(_, b)
-    | Assume(_, b)
+    | Assume(_, _, b)
+    | Alias(_, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump_proof(pm, b, indent ++ "  ")]
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.map(
         ((pat, body)) =>
           indent
@@ -520,8 +522,10 @@ let progress_consequent = "is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0
 
 /* One antecedent-falsified leaf: rewrite the remaining infer call by its
  * case_eq, collapse ap_result by evaluation, falsify, McCarthy-collapse.
- * `ceq` is the auto-generated prime-counted hypothesis name -- citing
- * these by prime-counting is itself a friction item. */
+ * `ceq` is the split's `as` NAME. Auto-installed facts take fixed names
+ * and shadow, so the prime-counted `case_eq''''` spellings this proof
+ * used to carry are gone; every split that gets cited says its own name
+ * (docs/prover-obligations.md, "Hypothesis naming"). */
 let noty_leaf = (ceq: string, pair: string): string =>
   "axiom "
   ++ ceq
@@ -541,44 +545,57 @@ let progress_src =
     ++ "| TmVar(m0) => forall t0 => eval infer(([], TmVar(m0))) at 0 end; eval nth_ty(([], m0)) at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> is_value(TmVar(m0)) || is_some_tm(step(TmVar(m0))) at 0 end "
     ++ "| TmLam(w0, q0) => forall t0 => assume infer(([], TmLam(w0, q0))) == SomeTy(t0) => eval is_value(TmLam(w0, q0)) at 0 end; eval true || is_some_tm(step(TmLam(w0, q0))) at 0 end "
     ++ "| TmAp(x0, y0) => forall t0 => "
+    /* This case gets TWO inductive hypotheses -- one per recursive
+     * sub-term -- and both are installed under the fixed name `ih`, so
+     * the second SHADOWS the first and only y0's is reachable by that
+     * name. `alias` names each one retroactively, by spelling out the
+     * proposition (which is how `revert` resolves a fact too), and the
+     * two leaves below then cite `ihx` / `ihy` unambiguously. This is
+     * the escape hatch fixed names need
+     * (docs/prover-obligations.md, "Hypothesis naming"). */
+    ++ "alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => "
+    ++ "alias ihy = forall t0 -> infer(([], y0)) == SomeTy(t0) ==> is_value(y0) || is_some_tm(step(y0)) => "
     ++ "eval infer(([], TmAp(x0, y0))) at 0 end; "
-    ++ "induction infer(([], x0)) "
-    ++ "| NoTy => axiom case_eq' at 0 on infer(([], x0)) end; "
-    ++ "induction infer(([], y0)) "
+    /* `as tx` names this split's case equation. Naming is what lets the
+     * two deep IH leaves below still cite it: without a name it would be
+     * `case_eq`, which the splits nested inside shadow. */
+    ++ "induction infer(([], x0)) as tx "
+    ++ "| NoTy => axiom tx at 0 on infer(([], x0)) end; "
+    ++ "induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("case_eq''", "NoTy, NoTy")
+    ++ noty_leaf("ty", "NoTy, NoTy")
     ++ " | SomeTy(s0) => "
-    ++ noty_leaf("case_eq''", "NoTy, SomeTy(s0)")
+    ++ noty_leaf("ty", "NoTy, SomeTy(s0)")
     ++ " end "
-    ++ "| SomeTy(tf0) => axiom case_eq' at 0 on infer(([], x0)) end; "
+    ++ "| SomeTy(tf0) => axiom tx at 0 on infer(([], x0)) end; "
     ++ "induction tf0 "
-    ++ "| TB => induction infer(([], y0)) "
+    ++ "| TB => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("case_eq'''", "SomeTy(TB), NoTy")
+    ++ noty_leaf("ty", "SomeTy(TB), NoTy")
     ++ " | SomeTy(s0) => "
-    ++ noty_leaf("case_eq'''", "SomeTy(TB), SomeTy(s0)")
+    ++ noty_leaf("ty", "SomeTy(TB), SomeTy(s0)")
     ++ " end "
-    ++ "| TArr(ta0, tb0) => induction infer(([], y0)) "
+    ++ "| TArr(ta0, tb0) => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("case_eq'''", "SomeTy(TArr(ta0, tb0)), NoTy")
-    ++ " | SomeTy(s0) => axiom case_eq''' at 0 on infer(([], y0)) end; eval ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) at 0 end; "
-    ++ "induction ty_eq((ta0, s0)) "
-    ++ "| false => axiom case_eq'''' at 0 on ty_eq((ta0, s0)) end; eval if false then SomeTy(tb0) else NoTy at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> "
+    ++ noty_leaf("ty", "SomeTy(TArr(ta0, tb0)), NoTy")
+    ++ " | SomeTy(s0) => axiom ty at 0 on infer(([], y0)) end; eval ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) at 0 end; "
+    ++ "induction ty_eq((ta0, s0)) as teq "
+    ++ "| false => axiom teq at 0 on ty_eq((ta0, s0)) end; eval if false then SomeTy(tb0) else NoTy at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> "
     ++ progress_consequent
     ++ " at 0 end "
-    ++ "| true => axiom case_eq'''' at 0 on ty_eq((ta0, s0)) end; eval if true then SomeTy(tb0) else NoTy at 0 end; "
+    ++ "| true => axiom teq at 0 on ty_eq((ta0, s0)) end; eval if true then SomeTy(tb0) else NoTy at 0 end; "
     ++ "assume SomeTy(tb0) == SomeTy(t0) => "
     /* The `is_value(x0)` split comes BEFORE the two goal-evaluating
      * steps: the ex-falso leaves below need the goal in its WRITTEN form
      * (`eval false || is_some_tm(step(...))` auto-steps `step` into an
      * inlined closure blob that no written at_exp can quote), so the
      * evaluation is pushed into the only branch that wants it. */
-    ++ "induction is_value(x0) "
+    ++ "induction is_value(x0) as vx "
     /* Congruence-1: the head steps, so the application steps. */
     ++ "| false => eval is_value(TmAp(x0, y0)) at 0 end; "
     ++ "eval false || is_some_tm(step(TmAp(x0, y0))) at 0 end; "
     ++ "axiom step_ap_val1 at 0 on step(TmAp(x0, y0)) end; "
-    ++ "induction step(x0) "
+    ++ "induction step(x0) as sx "
     /* Vacuous by the inductive hypothesis -- the leaf Phase 4d unlocked.
      * IH(x0) at t0 := tf0, with case_eq infer(([], x0)) == SomeTy(tf0)
      * and is_value(x0) == false, forces step(x0) == SomeTm(_), which
@@ -595,18 +612,18 @@ let progress_src =
      * occurrence first -- and `is_value`/`step` in the reverted IH are
      * addressable because the IH's inlined closures match written
      * at_exps under nth_exp_env. */
-    ++ "| NoTm => revert ih with t0 = tf0 => "
-    ++ "axiom case_eq' at 0 on infer(([], x0)) end; "
+    ++ "| NoTm => revert ihx with t0 = tf0 => "
+    ++ "axiom tx at 0 on infer(([], x0)) end; "
     ++ "axiom refl_eq at 0 on SomeTy(tf0) == SomeTy(tf0) end; "
     ++ "eval true ==> is_value(x0) || is_some_tm(step(x0)) at 0 end; "
-    ++ "axiom case_eq''''' at 0 on is_value(x0) end; "
+    ++ "axiom vx at 0 on is_value(x0) end; "
     ++ "eval false || is_some_tm(step(x0)) at 0 end; "
-    ++ "axiom case_eq'''''' at 1 on step(x0) end; "
+    ++ "axiom sx at 1 on step(x0) end; "
     ++ "eval is_some_tm(NoTm) at 0 end; "
     ++ "eval false ==> is_some_tm(case step(x0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
-    ++ "| SomeTm(u0) => axiom case_eq'''''' at 0 on step(x0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
+    ++ "| SomeTm(u0) => axiom sx at 0 on step(x0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
     ++ "end "
-    ++ "| true => induction x0 "
+    ++ "| true => induction x0 as hx0 "
     /* Vacuous by canonical forms -- is_value(x0) == true and
      * x0 == TmVar(m0) are contradictory. Phase 4e closes it in ONE
      * step: `contradiction` cites the value-ness fact and the `with`
@@ -621,28 +638,30 @@ let progress_src =
     ++ "| TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end "
     ++ "| TmLam(w0, q0) => eval is_value(TmAp(TmLam(w0, q0), y0)) at 0 end; "
     ++ "eval false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) at 0 end; "
-    ++ "induction is_value(y0) "
+    ++ "induction is_value(y0) as vy "
     /* Beta: the crown-jewel leaf -- the canonical-forms moment. */
     ++ "| true => axiom step_beta at 0 on step(TmAp(TmLam(w0, q0), y0)) end; axiom some_tm_is_some at 0 on is_some_tm(SomeTm(subst((0, y0, q0)))) end "
     /* Congruence-2 at a lambda head. */
     ++ "| false => axiom step_lam_ap2 at 0 on step(TmAp(TmLam(w0, q0), y0)) end; "
-    ++ "induction step(y0) "
-    /* The same IH leaf as above, at IH(y0) and t0 := s0. */
-    ++ "| NoTm => revert ih' with t0 = s0 => "
-    ++ "axiom case_eq''' at 0 on infer(([], y0)) end; "
+    ++ "induction step(y0) as sy "
+    /* The same IH leaf as above, at IH(y0) and t0 := s0 -- cited through
+     * the `ihy` alias, since the bare name `ih` here denotes whichever
+     * IH was installed innermost. */
+    ++ "| NoTm => revert ihy with t0 = s0 => "
+    ++ "axiom ty at 0 on infer(([], y0)) end; "
     ++ "axiom refl_eq at 0 on SomeTy(s0) == SomeTy(s0) end; "
     ++ "eval true ==> is_value(y0) || is_some_tm(step(y0)) at 0 end; "
-    ++ "axiom case_eq''''''' at 0 on is_value(y0) end; "
+    ++ "axiom vy at 0 on is_value(y0) end; "
     ++ "eval false || is_some_tm(step(y0)) at 0 end; "
-    ++ "axiom case_eq'''''''' at 1 on step(y0) end; "
+    ++ "axiom sy at 1 on step(y0) end; "
     ++ "eval is_some_tm(NoTm) at 0 end; "
     ++ "eval false ==> is_some_tm(case step(y0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
-    ++ "| SomeTm(u0) => axiom case_eq'''''''' at 0 on step(y0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
+    ++ "| SomeTm(u0) => axiom sy at 0 on step(y0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
     ++ "end "
     ++ "end "
     /* Same ex falso as the TmVar leaf: is_value(x0) == true with
      * x0 == TmAp(f0, a0). */
-    ++ "| TmAp(f0, a0) => revert is_value(x0) == true => axiom case_eq'''''' at 0 on x0 end; eval is_value(TmAp(f0, a0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) at 0 end "
+    ++ "| TmAp(f0, a0) => revert is_value(x0) == true => axiom hx0 at 0 on x0 end; eval is_value(TmAp(f0, a0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) at 0 end "
     ++ "end "
     ++ "end "
     ++ "end "
@@ -697,8 +716,10 @@ let test_progress_proven = () => {
   /* THE MILESTONE. Every leaf closes; `progress` for STLC is proven end
    * to end in the object language, from `theorem` to `Proven`. The last
    * two leaves were the vacuous ones that need the quantified inductive
-   * hypothesis at a type the split produced — `revert ih with t0 = tf0`
-   * and `revert ih' with t0 = s0` (docs/prover-obligations.md, 4d). */
+   * hypothesis at a type the split produced — `revert ihx with t0 = tf0`
+   * and `revert ihy with t0 = s0` (docs/prover-obligations.md, 4d), each
+   * naming its IH through an `alias` because the case's two IHs share the
+   * fixed name `ih`. */
   check_full_status("progress is fully Proven", ProofMap.Proven, pm, proof);
 };
 
@@ -830,7 +851,12 @@ let test_ih_citation_underdetermined_without_with = () => {
     run_named(
       "ihprobe",
       ih_probe_src(
-        "revert forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => axiom ih at 0 on is_value(x0) || is_some_tm(step(x0)) end",
+        /* `ihx`, not the bare `ih`: this case installs TWO inductive
+           hypotheses (one per sub-term) and both take the fixed name
+           `ih`, so the bare name denotes whichever was installed
+           innermost — y0's. An `alias` says which one this probe is
+           about (docs/prover-obligations.md, "Hypothesis naming"). */
+        "alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => revert ihx => axiom ihx at 0 on is_value(x0) || is_some_tm(step(x0)) end",
       ),
     );
   if (!

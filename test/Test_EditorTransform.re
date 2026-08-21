@@ -57,10 +57,11 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Contradiction(_)
     | EvalStep(_) => []
     | Seq(a, b) => find_proofs(pred, a) @ find_proofs(pred, b)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => find_proofs(pred, body), cases)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
+    | Alias(_, _, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_proofs(pred, body)
     | Have(_, sub, body) => find_proofs(pred, sub) @ find_proofs(pred, body)
@@ -288,7 +289,8 @@ let tests = (
         let z = parse_zipper("theorem t = 1 == 1 proof ? in t");
         let arg = Exp.fresh(EmptyHole);
         let arg_id = Exp.rep_id(arg);
-        let replacement = Proof.fresh(Assume(arg, Proof.fresh(EmptyHole)));
+        let replacement =
+          Proof.fresh(Assume(arg, None, Proof.fresh(EmptyHole)));
         let out =
           patch_proof_zipper(z, ~select=find_theorem_proof, replacement);
         check_contains(
@@ -1019,7 +1021,7 @@ let tests = (
         check_contains(~msg="false case", out, "false");
         check_contains(~msg="steps preserved", out, "eval 1 + 4 at 0 end");
         switch (find_theorem_proof(parse_exp(out))) {
-        | Some({term: Induction(_, cases), _}) =>
+        | Some({term: Induction(_, _, cases), _}) =>
           check(int, "two cases", 2, List.length(cases));
           switch (cases) {
           | [(_, true_body), (_, false_body)] =>
@@ -1109,7 +1111,10 @@ let tests = (
         let patch =
           require_patch(
             "have action available",
-            Panel.have_patch(~ctx, mk_obligation_reusing(~origin, ~var="n", z)),
+            Panel.have_patch(
+              ~ctx,
+              mk_obligation_reusing(~origin, ~var="n", z),
+            ),
           );
         let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
         check_no_duplicate_tile_ids(

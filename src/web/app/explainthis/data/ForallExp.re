@@ -58,7 +58,7 @@ let where_single = (~pat_id: Id.t, ~guard_id: Id.t, ~body_id: Id.t): Simple.t =>
     ),
     explanation:
       Printf.sprintf(
-        "Asserts that the [*body*](%s) denotes `true` for every total value of the [*variable*](%s) that satisfies the [*restriction*](%s) — sugar for `forall p -> g ==> e`, written on the binder. Inside the proof the restriction is a hypothesis citable as `where`, which is how obligations about the variable get discharged. Every use of the theorem incurs the restriction, instantiated at that use, as an obligation of its own — so a restricted theorem is a conditional rule.",
+        "Asserts that the [*body*](%s) denotes `true` for every total value of the [*variable*](%s) that satisfies the [*restriction*](%s) — sugar for `forall p -> g ==> e`, written on the binder. Inside the proof the restriction is a hypothesis citable as `where` — a fixed name, so an inner restricted binder shadows it and `alias` is what reaches past that — and citing it is how obligations about the variable get discharged. Every use of the theorem incurs the restriction, instantiated at that use, as an obligation of its own — so a restricted theorem is a conditional rule.",
         body_id |> Id.to_string,
         pat_id |> Id.to_string,
         guard_id |> Id.to_string,

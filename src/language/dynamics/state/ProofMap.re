@@ -112,8 +112,9 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | EvalStep(_) => true
     | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
     | Generalize(_, body)
+    | Alias(_, _, body)
     | Revert(_, _, body) => proof_is_clean(pm, body)
     | Contradiction(_) => true
     /* A `have` is clean only if its attached subproof is: an unfinished
@@ -121,7 +122,7 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
      * must not read as a clean proof (docs/prover-obligations.md §3.3). */
     | Have(_, sub, body) =>
       proof_is_clean(pm, sub) && proof_is_clean(pm, body)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
   );
@@ -171,13 +172,14 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Seq(p1, p2) =>
       obligations_of_proof(pm, p1) @ obligations_of_proof(pm, p2)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
     | Generalize(_, body)
+    | Alias(_, _, body)
     | Revert(_, _, body) => obligations_of_proof(pm, body)
     | Contradiction(_) => []
     | Have(_, sub, body) =>
       obligations_of_proof(pm, sub) @ obligations_of_proof(pm, body)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
   );
@@ -197,12 +199,13 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | EvalStep(_) => []
     | Seq(p1, p2) => rep_ids_of_proof(p1) @ rep_ids_of_proof(p2)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
     | Generalize(_, body)
+    | Alias(_, _, body)
     | Revert(_, _, body) => rep_ids_of_proof(body)
     | Contradiction(_) => []
     | Have(_, sub, body) => rep_ids_of_proof(sub) @ rep_ids_of_proof(body)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }
   );

@@ -1098,6 +1098,32 @@ let ex5 = list_of_mylist(x) in
         "Full program: ADT induction with a reverted IH",
         "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end; eval true ==> pos(S(b)) at 0 end; eval pos(S(b)) at 0 end end in t",
       ),
+      /* --- Phase-5 hypothesis naming (docs/prover-obligations.md) ----
+         The menhir grammar's `as`/`alias` productions must agree with the
+         tile-level forms, so these compare the two parsers directly. */
+      menhir_maketerm_equivalent_test(
+        "assume ... as <name>",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 as h => axiom h at 0 on n end; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "induction ... as <name>",
+        "theorem t = forall n: Int -> n == n proof induction n > 0 as h | true => axiom h at 0 on n > 0 end | false => ? end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "alias <name> = <fact>",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = assume => axiom h at 0 on n end; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "alias with a spelled-out proposition",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = n == 1 => axiom h at 0 on n end; ? in t",
+      ),
+      /* The plain forms keep parsing identically: "as" is a PREFIX of
+         "assume", and `induction`/`assume` share their leading token with
+         their as-variants. */
+      menhir_maketerm_equivalent_test(
+        "plain induction with an assume in a case body",
+        "theorem t = forall n: Int -> n == n proof induction n > 0 | true => assume n == 1 => ? | false => ? end in t",
+      ),
       /* Test_Contradiction.conflicting_src: the Phase-4e terminal form. */
       menhir_maketerm_equivalent_test(
         "Full program: contradiction step",

@@ -133,18 +133,26 @@ let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
    Nothing is added to the ENVIRONMENT either: a hypothesis is not a
    value, so it is invisible to `Substitution.in_exp` and to evaluation.
 
-   The auto-name is freshened against the theorem names only
-   (`Ctx.theorem_names`), matching `Statics`; a program variable called
-   `assume` no longer bumps the hypothesis to `assume'`. */
-/* The name `add_hypothesis` would pick for `base` in this scope. Exposed
-   separately so a caller installing SEVERAL entries for ONE hypothesis
-   (ProofCheck.add_where_facts, which also installs a conjunctive guard's
-   conjuncts) can put them all under that one name: the freshening is over
-   the SET of occupied theorem names, so re-using a name keeps every later
-   hypothesis's auto-name identical to what the statics predicted
-   (`Statics.proof_ctx_of_goal`). */
-let hypothesis_name = (t: t, base: Var.t): Var.t =>
-  Var.free_name(base, Ctx.theorem_names(t.ctx));
+   The auto-name is the BARE BASE NAME, never freshened: a second
+   `assume` in scope installs a second `assume` that SHADOWS the first
+   (docs/prover-obligations.md, "Hypothesis naming"). */
+/* The name `add_hypothesis` picks for `base`: `base` itself.
+
+   Auto-installed facts use FIXED names and SHADOW: an inner `case_eq`
+   hides the outer one rather than freshening to `case_eq'`. Citation
+   resolves innermost-first because `Ctx.extend` prepends and
+   `Ctx.lookup_theorem` takes the first match, so the fixed name always
+   denotes the nearest enclosing introduction. To keep a shadowed fact
+   citable, name it at introduction (`induction e as h`, `assume e as h`)
+   or re-bind it retroactively (`alias h = <fact> => ...`).
+
+   Kept as a named function rather than inlined because a caller
+   installing SEVERAL entries for ONE hypothesis
+   (`ProofCheck.add_where_facts`, which also installs a conjunctive
+   guard's conjuncts) routes them all through one name, and because the
+   statics-side mirrors (`Statics.proof_ctx_of_goal`, the `Assume`/`Have`
+   arms) must stay in lockstep with whatever this returns. */
+let hypothesis_name = (_t: t, base: Var.t): Var.t => base;
 
 /* Install under an EXACT name, no freshening. */
 let add_hypothesis_named = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {

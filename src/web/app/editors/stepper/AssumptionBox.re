@@ -35,7 +35,17 @@ module View = {
       | BoolFact(_) =>
         let (l, r) =
           switch (active_selection) {
-          | _ when model.ctx_entry.is_captured => (None, None) // TODO[Matt]: tooltip explaining why disabled
+          /* A SHADOWED entry is not citable: a nearer fact of the same
+           * name is what that name reaches (docs/prover-obligations.md,
+           * "Hypothesis naming"). The fact is still shown — it is in
+           * scope and still true — but offering a rewrite button would
+           * emit an `axiom <name>` step that rewrites with the OTHER
+           * fact, so the buttons come out disabled and the row is
+           * de-emphasised. */
+          | _ when model.ctx_entry.is_captured || model.ctx_entry.is_shadowed => (
+              None,
+              None,
+            ) // TODO[Matt]: tooltip explaining why disabled
           | Some((exp, _vars, signal)) =>
             let exp = exp |> DHExp.strip_ascriptions;
             let (l, r) =
@@ -54,13 +64,19 @@ module View = {
             // TODO[Matt]: tooltip
             Node.text("<=="),
             l |> Option.value(~default=Ui_effect.Ignore),
-            ~disabled=model.ctx_entry.is_captured || Option.is_none(l),
+            ~disabled=
+              model.ctx_entry.is_captured
+              || model.ctx_entry.is_shadowed
+              || Option.is_none(l),
           ),
           Widgets.button_d(
             // TODO[Matt]: tooltip
             Node.text("==>"),
             r |> Option.value(~default=Ui_effect.Ignore),
-            ~disabled=model.ctx_entry.is_captured || Option.is_none(r),
+            ~disabled=
+              model.ctx_entry.is_captured
+              || model.ctx_entry.is_shadowed
+              || Option.is_none(r),
           ),
         ];
       | _ => []
@@ -92,8 +108,30 @@ module View = {
           ),
         ]
       };
-    div_c(
-      "assumption-box",
+    /* Say WHY a shadowed row is inert, rather than just greying it: the
+     * name is taken by a nearer introduction of the same fixed name. */
+    let shadowed_note =
+      model.ctx_entry.is_shadowed
+        ? [
+          div_c(
+            "assumption-shadowed",
+            [
+              Node.text(
+                "shadowed — `"
+                ++ model.ctx_entry.name
+                ++ "` names a nearer fact; cite this one with `alias`",
+              ),
+            ],
+          ),
+        ]
+        : [];
+    Node.div(
+      ~attrs=[
+        Attr.classes(
+          ["assumption-box"]
+          @ (model.ctx_entry.is_shadowed ? ["shadowed"] : []),
+        ),
+      ],
       equality_buttons
       @ [
         Node.text(model.ctx_entry.name ++ ": "),
@@ -103,7 +141,8 @@ module View = {
           Exp(model.ctx_entry.exp),
         ),
       ]
-      @ reading_note,
+      @ reading_note
+      @ shadowed_note,
     );
   };
 };

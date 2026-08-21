@@ -177,7 +177,10 @@ type example_id =
   | ProofRevertWith1
   | ProofContradiction1
   | ProofContradictionWith1
-  | ProofHave1;
+  | ProofHave1
+  | ProofInductionAs1
+  | ProofAssumeAs1
+  | ProofAlias1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -338,7 +341,12 @@ type form_id =
   | ProofGeneralizeStep
   | ProofRevertStep
   | ProofContradictionStep
-  | ProofHaveStep;
+  | ProofHaveStep
+  /* Hypothesis naming: the `as` variants and `alias`
+     (docs/prover-obligations.md, "Hypothesis naming"). */
+  | ProofInductionAsStep
+  | ProofAssumeAsStep
+  | ProofAliasStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -480,7 +488,12 @@ type group_id =
   | ProofGeneralizeStep
   | ProofRevertStep
   | ProofContradictionStep
-  | ProofHaveStep;
+  | ProofHaveStep
+  /* Hypothesis naming: the `as` variants and `alias`
+     (docs/prover-obligations.md, "Hypothesis naming"). */
+  | ProofInductionAsStep
+  | ProofAssumeAsStep
+  | ProofAliasStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

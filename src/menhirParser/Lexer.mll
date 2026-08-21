@@ -153,6 +153,10 @@ rule token =
     | "revert" {REVERT}
     | "contradiction" {CONTRADICTION}
     | "induction" {INDUCTION}
+    (* Phase-5 hypothesis naming: `induction e as h`, `assume e as h`,
+       `alias h = f => ...`. Hard keywords, like every other prover form. *)
+    | "alias" {ALIAS}
+    | "as" {AS}
     | "axiomrev" {AXIOM_REV}
     | "axiom" {AXIOM}
     | "rewrite" {REWRITE}

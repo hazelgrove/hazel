@@ -1274,7 +1274,7 @@ let tests = (
           );
         switch (Test_ProofMap.find_theorem_proof(parse_exp(out))) {
         | Some({
-            term: Assume({term: EmptyHole, _}, {term: EmptyHole, _}),
+            term: Assume({term: EmptyHole, _}, None, {term: EmptyHole, _}),
             _,
           }) =>
           check(bool, "argument and body are both holes", true, true)
@@ -1490,7 +1490,7 @@ let tests = (
             StepperBase.Stepper.assume_term(~exp=parse_exp("x == 2")),
           );
         switch (Test_ProofMap.find_theorem_proof(parse_exp(out))) {
-        | Some({term: Assume(e, {term: EmptyHole, _}), _}) =>
+        | Some({term: Assume(e, None, {term: EmptyHole, _}), _}) =>
           check(
             bool,
             "the assumed expression round-trips",

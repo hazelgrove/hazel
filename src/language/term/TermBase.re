@@ -1477,16 +1477,24 @@ and Proof: {
             at_idx: exp_map_term(at_idx),
             at_exp: exp_map_term(at_exp),
           })
-        | Induction(e, cases) =>
+        | Induction(e, as_name, cases) =>
           Induction(
             exp_map_term(e),
+            Option.map(pat_map_term, as_name),
             List.map(
               ((pt, body)) => (pat_map_term(pt), proof_map_term(body)),
               cases,
             ),
           )
         | Forall(x, body) => Forall(pat_map_term(x), proof_map_term(body))
-        | Assume(e, body) => Assume(exp_map_term(e), proof_map_term(body))
+        | Assume(e, as_name, body) =>
+          Assume(
+            exp_map_term(e),
+            Option.map(pat_map_term, as_name),
+            proof_map_term(body),
+          )
+        | Alias(x, e, body) =>
+          Alias(pat_map_term(x), exp_map_term(e), proof_map_term(body))
         | Generalize(e, body) =>
           Generalize(exp_map_term(e), proof_map_term(body))
         | Revert(e, inst, body) =>

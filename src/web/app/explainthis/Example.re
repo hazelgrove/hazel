@@ -104,6 +104,9 @@ let mk_proof_rule = mk_tile(Form.get(ProofRule));
 let mk_contradiction = mk_tile(Form.get(ProofContradiction));
 let mk_contradiction_with = mk_tile(Form.get(ProofContradictionWith));
 let mk_have = mk_tile(Form.get(ProofHave));
+let mk_induction_as = mk_tile(Form.get(ProofInductionAs));
+let mk_assume_as = mk_tile(Form.get(ProofAssumeAs));
+let mk_alias = mk_tile(Form.get(ProofAlias));
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 

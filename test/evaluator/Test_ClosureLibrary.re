@@ -120,6 +120,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | AlgebriteStep(_) => "rewrite"
     | EvalStep(_) => "eval"
     | Have(_, _, _) => "have"
+    | Alias(_) => "alias"
     };
   let here =
     indent
@@ -138,10 +139,11 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     switch (p.term) {
     | Seq(a, b) => [dump_proof(pm, a, indent), dump_proof(pm, b, indent)]
     | Forall(_, b)
-    | Assume(_, b)
+    | Assume(_, _, b)
+    | Alias(_, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump_proof(pm, b, indent ++ "  ")]
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.mapi(
         (i, (_pat, body)) =>
           indent
@@ -431,8 +433,8 @@ let test_true_branch_is_really_closed = () => {
   let (pm, proof) = run_named("nonzero_of_pos_proved", src_nonzero_of_pos);
   let rec find_induction = (p: Proof.t): option(Proof.t) =>
     switch (p.term) {
-    | Induction(_, _) => Some(p)
-    | Assume(_, b)
+    | Induction(_, _, _) => Some(p)
+    | Assume(_, _, b)
     | Forall(_, b)
     | Generalize(_, b)
     | Revert(_, _, b) => find_induction(b)
@@ -444,7 +446,7 @@ let test_true_branch_is_really_closed = () => {
     | _ => None
     };
   switch (find_induction(proof)) {
-  | Some({term: Induction(_, [(_, true_body), (_, false_body)]), _}) =>
+  | Some({term: Induction(_, _, [(_, true_body), (_, false_body)]), _}) =>
     Alcotest.check(
       Alcotest.option(bool),
       "the true branch proves (outgoing is literal true)",
@@ -630,7 +632,11 @@ let ex_falso_src =
     "assume a1 > 0 => induction a1 != 0 "
     ++ "| true => ? "
     ++ "| false => induction a1 "
-    ++ "| 0 => revert a1 > 0 => axiom case_eq' at 0 on a1 end; "
+    /* Bare `case_eq`: fixed names SHADOW, so inside the inner `a1` split
+     * the name denotes THAT split's equation, not the enclosing
+     * `a1 != 0` one. This used to have to be spelled `case_eq'`
+     * (docs/prover-obligations.md, "Hypothesis naming"). */
+    ++ "| 0 => revert a1 > 0 => axiom case_eq at 0 on a1 end; "
     ++ "eval 0 > 0 at 0 end; eval false ==> false at 0 end "
     ++ "| n => ? end end",
   );
@@ -641,7 +647,7 @@ let test_zero_case_closes_by_ex_falso = () => {
   let rec find_revert = (p: Proof.t): option(Proof.t) =>
     switch (p.term) {
     | Revert(_, _, _) => Some(p)
-    | Assume(_, b)
+    | Assume(_, _, b)
     | Forall(_, b)
     | Generalize(_, b) => find_revert(b)
     | Seq(a, b) =>
@@ -649,7 +655,7 @@ let test_zero_case_closes_by_ex_falso = () => {
       | Some(x) => Some(x)
       | None => find_revert(b)
       }
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.fold_left(
         (acc, (_, body)) =>
           switch (acc) {

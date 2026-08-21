@@ -71,10 +71,10 @@ let rec dump = (pm: ProofMap.t, p: Proof.t, ind: string): string => {
     switch (p.term) {
     | Seq(a, b) => [dump(pm, a, ind), dump(pm, b, ind)]
     | Forall(_, b)
-    | Assume(_, b)
+    | Assume(_, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump(pm, b, ind ++ "  ")]
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.map(((_, b)) => dump(pm, b, ind ++ "  "), cases)
     | _ => []
     };
@@ -133,10 +133,11 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
     | None => find_contradiction(b)
     }
   | Forall(_, b)
-  | Assume(_, b)
+  | Assume(_, _, b)
+  | Alias(_, _, b)
   | Generalize(_, b)
   | Revert(_, _, b) => find_contradiction(b)
-  | Induction(_, cases) =>
+  | Induction(_, _, cases) =>
     List.find_map(((_, b)) => find_contradiction(b), cases)
   | Have(_, sub, body) =>
     switch (find_contradiction(sub)) {

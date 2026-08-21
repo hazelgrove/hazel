@@ -90,7 +90,7 @@ let axiom = (~name_id: Id.t, ~idx_id: Id.t, ~target_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Cites the [*fact*](%s) — a theorem, a built-in axiom, or a hypothesis in scope such as `where`, `assume`, `case_eq`, `ih` or `have` — and applies it left-to-right as a rewrite on the goal. The [*target*](%s) says which term to rewrite, and may use `$e` to match any expression and `$v` to match any value; the [*index*](%s) picks which occurrence matching that target, counting from 0. A cited fact whose statement is a bare boolean proposition `P` reads as `P == true`, so citing it rewrites `P` to `true`. Instantiating a quantified or restricted fact incurs its restrictions here as obligations, and add `with x = e` when the match cannot recover a binder on its own.",
+        "Cites the [*fact*](%s) — a theorem, a built-in axiom, or a hypothesis in scope such as `where`, `assume`, `case_eq`, `ih` or `have` — and applies it left-to-right as a rewrite on the goal. The [*target*](%s) says which term to rewrite, and may use `$e` to match any expression and `$v` to match any value; the [*index*](%s) picks which occurrence matching that target, counting from 0. A cited fact whose statement is a bare boolean proposition `P` reads as `P == true`, so citing it rewrites `P` to `true`. A bare name resolves to the innermost introduction still in scope, so at depth `case_eq` and `ih` mean this split's; a fact that a nearer name hides is still listed, greyed out, until an `alias` gives it a name of its own. Instantiating a quantified or restricted fact incurs its restrictions here as obligations, and add `with x = e` when the match cannot recover a binder on its own.",
         name_id |> Id.to_string,
         target_id |> Id.to_string,
         idx_id |> Id.to_string,
@@ -333,7 +333,7 @@ let induction = (~scrut_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Splits the goal into one case per pattern of the [*scrutinee*](%s). On a variable of an algebraic data type this is structural induction: the cases must cover the type exhaustively, and inside each case the pattern's equation is citable as `case_eq`, together with an inductive hypothesis `ih` for every sub-term of the scrutinee's own type. On a computed scrutinee, or a boolean one, it is case analysis instead — no `ih`, the split must still be exhaustive, the scrutinee's type must be known, and the scrutinee must be visibly terminating. Write `generalize` before the induction to get forall-quantified hypotheses, which can then be cited at other instantiations.",
+        "Splits the goal into one case per pattern of the [*scrutinee*](%s). On a variable of an algebraic data type this is structural induction: the cases must cover the type exhaustively, and inside each case the pattern's equation is citable as `case_eq`, together with an inductive hypothesis `ih` for every sub-term of the scrutinee's own type. On a computed scrutinee, or a boolean one, it is case analysis instead — no `ih`, the split must still be exhaustive, the scrutinee's type must be known, and the scrutinee must be visibly terminating. Both names are fixed and shadow the enclosing ones, so inside a nested split they mean this split's: write `induction <e> as <name>` to keep an outer equation citable at depth, and `alias` to reach a hypothesis a nearer `ih` hides. Write `generalize` before the induction to get forall-quantified hypotheses, which can then be cited at other instantiations.",
         scrut_id |> Id.to_string,
       ),
     examples: [
@@ -362,7 +362,7 @@ let forall_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Peels one quantifier off the goal, naming the quantified [*variable*](%s); the [*rest of the proof*](%s) then proves the body for that one arbitrary value. If the peeled binder carried a `where` restriction, the restriction becomes a hypothesis citable as `where` inside.",
+        "Peels one quantifier off the goal, naming the quantified [*variable*](%s); the [*rest of the proof*](%s) then proves the body for that one arbitrary value. If the peeled binder carried a `where` restriction, the restriction becomes a hypothesis inside under the fixed name `where`, which a more deeply peeled restricted binder shadows in turn.",
         pat_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -390,7 +390,7 @@ let assume = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Hypothesizes the [*proposition*](%s) for the [*rest of the proof*](%s), where it is citable as `assume`. When it is exactly the antecedent of an `==>` goal, this is implication introduction: the antecedent is stripped from the goal and nothing is owed. Otherwise the assumption incurs an obligation, which you can settle later — prove it here, float it onto an enclosing binder as a `where` restriction, or split on it.",
+        "Hypothesizes the [*proposition*](%s) for the [*rest of the proof*](%s), where it is citable as `assume`. When it is exactly the antecedent of an `==>` goal, this is implication introduction: the antecedent is stripped from the goal and nothing is owed. Otherwise the assumption incurs an obligation, which you can settle later — prove it here, float it onto an enclosing binder as a `where` restriction, or split on it. The name is fixed: a nested `assume` installs `assume` again and shadows this one, so write `assume <e> as <name>` when both have to stay citable.",
         exp_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -596,6 +596,107 @@ let have = (~exp_id: Id.t, ~sub_id: Id.t, ~body_id: Id.t): Simple.t => {
   };
 };
 
+/* --- hypothesis naming: the `as` variants and `alias` -------------------- */
+
+let induction_as = (~scrut_id: Id.t, ~name_id: Id.t): Simple.t => {
+  let (sc, nm, pt, bd) = (exp("e"), exp("h"), pat("p"), proof("proof"));
+  {
+    group_id: ProofInductionAsStep,
+    form_id: ProofInductionAsStep,
+    abstract: (
+      [
+        mk_induction_as([
+          slot(sc),
+          [space(), nm, space(), mk_proof_rule([slot(pt)]), space(), bd],
+        ]),
+      ],
+      [(Piece.id(sc), scrut_id), (Piece.id(nm), name_id)],
+    ),
+    explanation:
+      Printf.sprintf(
+        "Splits the goal into one case per pattern of the [*scrutinee*](%s), and gives this split's case equation the [*name*](%s) in place of the fixed `case_eq`. One name covers the whole split: the equation still differs case by case, only the name is shared. That is the point of writing it — a deeper split installs `case_eq` again and shadows the bare name, but it cannot shadow this one, so the equation stays citable from any leaf underneath. Everything else is as an unnamed `induction`: the cases must be exhaustive, each recursive sub-term still contributes a hypothesis under the fixed name `ih`, and a computed or boolean scrutinee makes this case analysis rather than induction. The name lives in the theorem namespace, never the variable one, and is visible only inside this form.",
+        scrut_id |> Id.to_string,
+        name_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofInductionAs1,
+        term:
+          mk_example(
+            "theorem t = forall n: Int -> forall m: Int -> n == n proof induction n > 0 as hn\n| true => induction m > 0\n  | true => revert hn => ?\n  | false => ? end\n| false => ? end in 0",
+          ),
+        message: "The inner split installs its own `case_eq`, which would hide the outer one. Naming the outer split `hn` keeps `n > 0` citable in the inner leaf, with no primes to count.",
+      },
+    ],
+  };
+};
+
+let assume_as = (~exp_id: Id.t, ~name_id: Id.t, ~body_id: Id.t): Simple.t => {
+  let (e, nm, bd) = (exp("e"), pat("h"), proof_body());
+  {
+    group_id: ProofAssumeAsStep,
+    form_id: ProofAssumeAsStep,
+    abstract: (
+      [mk_assume_as([slot(e), slot(nm)]), space(), bd],
+      [
+        (Piece.id(e), exp_id),
+        (Piece.id(nm), name_id),
+        (Piece.id(bd), body_id),
+      ],
+    ),
+    explanation:
+      Printf.sprintf(
+        "Hypothesizes the [*proposition*](%s) for the [*rest of the proof*](%s) under the [*name*](%s), in place of the fixed `assume`. The logic is unchanged: this is implication introduction, owing nothing, when the proposition is exactly the antecedent of an `==>` goal, and an obligation otherwise. What the name buys is reach — a nested `assume` installs `assume` again and shadows the bare name, but not this one, so the hypothesis stays citable however deep the proof goes. The name lives in the theorem namespace, never the variable one (a hypothesis is a judgment, not a value), and is visible only inside this form.",
+        exp_id |> Id.to_string,
+        body_id |> Id.to_string,
+        name_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofAssumeAs1,
+        term:
+          mk_example(
+            "theorem t = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x == x proof assume x == 1 => assume y == 2 as hy => revert hy => ? in 0",
+          ),
+        message: "Naming the inner assumption `hy` leaves the outer one reachable as the bare `assume`, and `hy` denotes the assumption it is attached to. Unnamed, the inner one would answer to `assume` and hide the outer.",
+      },
+    ],
+  };
+};
+
+let alias = (~name_id: Id.t, ~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
+  let (nm, e, bd) = (pat("h"), exp("fact"), proof_body());
+  {
+    group_id: ProofAliasStep,
+    form_id: ProofAliasStep,
+    abstract: (
+      [mk_alias([slot(nm), slot(e)]), space(), bd],
+      [
+        (Piece.id(nm), name_id),
+        (Piece.id(e), exp_id),
+        (Piece.id(bd), body_id),
+      ],
+    ),
+    explanation:
+      Printf.sprintf(
+        "Installs a fact that is ALREADY in scope under a second [*name*](%s), for the [*rest of the proof*](%s). The [*fact*](%s) is resolved exactly as `revert` resolves its argument — by its bare name, or by spelling the proposition out — and nothing else happens: no obligation, and no change to the goal, because nothing is assumed that was not already known. It is pure renaming, and it is the escape hatch for shadowing: take an alias of an outer `case_eq`, `assume` or `ih` just before the split or assumption that will install that name again, and the outer fact stays citable underneath. Spelling the proposition out is the only way to reach a fact that is already hidden where you are standing — which is how the second `ih` of a case with two recursive sub-terms is reached, since both are `ih`.",
+        name_id |> Id.to_string,
+        body_id |> Id.to_string,
+        exp_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofAlias1,
+        term:
+          mk_example(
+            "theorem t = forall n: Int -> forall m: Int -> n == n proof induction n > 0\n| true => alias hn = case_eq => induction m > 0\n  | true => revert hn => ?\n  | false => ? end\n| false => ? end in 0",
+          ),
+        message: "The alias is taken before the inner split reuses `case_eq`, so `hn` still denotes the outer equation `n > 0` in the inner leaf. Nothing is proven here — the goal passes straight through.",
+      },
+    ],
+  };
+};
+
 /* --- dispatch ------------------------------------------------------------ */
 
 /* Total over the Proof sort: the compiler is the completeness check that
@@ -640,11 +741,25 @@ let single = (p: Proof.t): Simple.t =>
     )
   | EvalStep({at_idx, at_exp}) =>
     eval_step(~target_id=Exp.rep_id(at_exp), ~idx_id=Exp.rep_id(at_idx))
-  | Induction(scrut, _cases) => induction(~scrut_id=Exp.rep_id(scrut))
+  | Induction(scrut, None, _cases) => induction(~scrut_id=Exp.rep_id(scrut))
+  | Induction(scrut, Some(h), _cases) =>
+    induction_as(~scrut_id=Exp.rep_id(scrut), ~name_id=Pat.rep_id(h))
   | Forall(pat, body) =>
     forall_step(~pat_id=Pat.rep_id(pat), ~body_id=Proof.rep_id(body))
-  | Assume(e, body) =>
+  | Assume(e, None, body) =>
     assume(~exp_id=Exp.rep_id(e), ~body_id=Proof.rep_id(body))
+  | Assume(e, Some(h), body) =>
+    assume_as(
+      ~exp_id=Exp.rep_id(e),
+      ~name_id=Pat.rep_id(h),
+      ~body_id=Proof.rep_id(body),
+    )
+  | Alias(h, e, body) =>
+    alias(
+      ~name_id=Pat.rep_id(h),
+      ~exp_id=Exp.rep_id(e),
+      ~body_id=Proof.rep_id(body),
+    )
   | Generalize(e, body) =>
     generalize(~exp_id=Exp.rep_id(e), ~body_id=Proof.rep_id(body))
   | Revert(e, None, body) =>

@@ -13,7 +13,8 @@ type cls =
   | Generalize
   | Revert
   | Contradiction
-  | Have;
+  | Have
+  | Alias;
 
 include TermBase.Proof;
 
@@ -35,13 +36,14 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | Seq(_, _) => Seq
   | AxiomStep(_) => AxiomStep
   | AlgebriteStep(_) => AlgebriteStep
-  | Induction(_, _) => Induction
+  | Induction(_, _, _) => Induction
   | Forall(_, _) => Forall
-  | Assume(_, _) => Assume
+  | Assume(_, _, _) => Assume
   | Generalize(_, _) => Generalize
   | Revert(_, _, _) => Revert
   | Contradiction(_) => Contradiction
   | Have(_, _, _) => Have
+  | Alias(_, _, _) => Alias
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -58,6 +60,7 @@ let show_cls: cls => string =
   | Generalize => "Generalize step"
   | Revert => "Revert step"
   | Contradiction => "Contradiction step"
+  | Alias => "Alias step"
   | Have => "Have step"
   | EvalStep => "Eval step";
 
@@ -75,6 +78,15 @@ let inst_equal =
   | (None, None) => true
   | (Some((v1, i1)), Some((v2, i2))) =>
     Equality.syntactic.exp(v1, v2) && Equality.syntactic.exp(i1, i2)
+  | (None, Some(_))
+  | (Some(_), None) => false
+  };
+
+/* Compare optional `as <name>` clauses (Phase 5 hypothesis naming). */
+let as_name_equal = (a1: option(Pat.t), a2: option(Pat.t)): bool =>
+  switch (a1, a2) {
+  | (None, None) => true
+  | (Some(x1), Some(x2)) => Equality.syntactic.pat(x1, x2)
   | (None, Some(_))
   | (Some(_), None) => false
   };
@@ -117,8 +129,9 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     && Equality.syntactic.exp(w1, w2)
   | (EvalStep({at_idx: i1, at_exp: e1}), EvalStep({at_idx: i2, at_exp: e2})) =>
     Equality.syntactic.exp(i1, i2) && Equality.syntactic.exp(e1, e2)
-  | (Induction(e1, cs1), Induction(e2, cs2)) =>
+  | (Induction(e1, a1, cs1), Induction(e2, a2, cs2)) =>
     Equality.syntactic.exp(e1, e2)
+    && as_name_equal(a1, a2)
     && List.length(cs1) == List.length(cs2)
     && List.for_all2(
          ((pa, ba), (pb, bb)) =>
@@ -128,8 +141,14 @@ let rec fast_equal = (p1: t, p2: t): bool => {
        )
   | (Forall(x1, b1), Forall(x2, b2)) =>
     Equality.syntactic.pat(x1, x2) && fast_equal(b1, b2)
-  | (Assume(e1, b1), Assume(e2, b2)) =>
-    Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
+  | (Assume(e1, a1, b1), Assume(e2, a2, b2)) =>
+    Equality.syntactic.exp(e1, e2)
+    && as_name_equal(a1, a2)
+    && fast_equal(b1, b2)
+  | (Alias(x1, e1, b1), Alias(x2, e2, b2)) =>
+    Equality.syntactic.pat(x1, x2)
+    && Equality.syntactic.exp(e1, e2)
+    && fast_equal(b1, b2)
   | (Generalize(e1, b1), Generalize(e2, b2)) =>
     Equality.syntactic.exp(e1, e2) && fast_equal(b1, b2)
   | (Revert(e1, n1, b1), Revert(e2, n2, b2)) =>
@@ -148,13 +167,14 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Seq(_, _), _)
   | (AxiomStep(_), _)
   | (AlgebriteStep(_), _)
-  | (Induction(_, _), _)
+  | (Induction(_, _, _), _)
   | (Forall(_, _), _)
-  | (Assume(_, _), _)
+  | (Assume(_, _, _), _)
   | (Generalize(_, _), _)
   | (Revert(_, _, _), _)
   | (Contradiction(_, _), _)
   | (Have(_, _, _), _)
+  | (Alias(_, _, _), _)
   | (EvalStep(_), _) => false
   };
 };
@@ -171,15 +191,16 @@ let rec has_hole = (p: t): bool =>
   | Seq(p1, p2) => has_hole(p1) || has_hole(p2)
   | AxiomStep(_)
   | AlgebriteStep(_) => false
-  | Induction(_, cases) =>
+  | Induction(_, _, cases) =>
     List.exists(((_, body)) => has_hole(body), cases)
   | Forall(_, body) => has_hole(body)
-  | Assume(_, body) => has_hole(body)
+  | Assume(_, _, body) => has_hole(body)
   | Generalize(_, body) => has_hole(body)
   | Revert(_, _, body) => has_hole(body)
+  | Alias(_, _, body) => has_hole(body)
   | Contradiction(_) => false
   /* Both children count: an unfinished `have` subproof is exactly the
-   * state the "prove here" action leaves behind. */
+     state the "prove here" action leaves behind. */
   | Have(_, sub, body) => has_hole(sub) || has_hole(body)
   | EvalStep(_) => false
   };
@@ -239,6 +260,14 @@ let inst_has_hole = (inst: option((Exp.t, Exp.t))): bool =>
   | Some((v, i)) => exp_has_hole(v) || exp_has_hole(i)
   };
 
+/* An `as <name>` clause whose name is still a hole is an unfinished
+   step, exactly like a hole in an `at`/`with` argument. */
+let as_name_has_hole = (as_name: option(Pat.t)): bool =>
+  switch (as_name) {
+  | None => false
+  | Some(x) => pat_has_hole(x)
+  };
+
 /* Do the step's OWN arguments contain a hole? Unlike `has_hole`, nested
  * sub-proofs are NOT inspected: a hole in a case body renders its own
  * "…" continuation row in the stepper, while a hole in an argument
@@ -259,11 +288,13 @@ let args_have_hole = (p: t): bool =>
     exp_has_hole(at_idx) || exp_has_hole(at_exp) || exp_has_hole(with_exp)
   | EvalStep({at_idx, at_exp}) =>
     exp_has_hole(at_idx) || exp_has_hole(at_exp)
-  | Induction(scrut, cases) =>
+  | Induction(scrut, as_name, cases) =>
     exp_has_hole(scrut)
+    || as_name_has_hole(as_name)
     || List.exists(((pat, _)) => pat_has_hole(pat), cases)
   | Forall(pat, _) => pat_has_hole(pat)
-  | Assume(e, _) => exp_has_hole(e)
+  | Assume(e, as_name, _) => exp_has_hole(e) || as_name_has_hole(as_name)
+  | Alias(x, e, _) => pat_has_hole(x) || exp_has_hole(e)
   | Generalize(e, _) => exp_has_hole(e)
   | Revert(e, inst, _) => exp_has_hole(e) || inst_has_hole(inst)
   | Contradiction(e, inst) => exp_has_hole(e) || inst_has_hole(inst)

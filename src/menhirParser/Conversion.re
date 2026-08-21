@@ -610,6 +610,18 @@ and Proof: {
       forall(Pat.of_menhir_ast(p), of_menhir_ast(body))
     | ProofAssume(e, body) =>
       assume(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofAssumeAs(e, x, body) =>
+      assume(
+        ~as_name=Some(Pat.of_menhir_ast(x)),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
+    | ProofAlias(x, e, body) =>
+      alias(
+        Pat.of_menhir_ast(x),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
     | ProofGeneralize(e, body) =>
       generalize(Exp.of_menhir_ast(e), of_menhir_ast(body))
     | ProofRevert(e, body) =>
@@ -683,6 +695,15 @@ and Proof: {
           cases,
         ),
       )
+    | ProofInductionAs(scrut, x, cases) =>
+      induction(
+        ~as_name=Some(Pat.of_menhir_ast(x)),
+        Exp.of_menhir_ast(scrut),
+        List.map(
+          ((p, body)) => (Pat.of_menhir_ast(p), of_menhir_ast(body)),
+          cases,
+        ),
+      )
     };
   };
 
@@ -695,7 +716,11 @@ and Proof: {
     | MultiHole(_) => EmptyHoleProof
     | Seq(p1, p2) => ProofSeq(of_core(p1), of_core(p2))
     | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
-    | Assume(e, body) => ProofAssume(Exp.of_core(e), of_core(body))
+    | Assume(e, None, body) => ProofAssume(Exp.of_core(e), of_core(body))
+    | Assume(e, Some(x), body) =>
+      ProofAssumeAs(Exp.of_core(e), Pat.of_core(x), of_core(body))
+    | Alias(x, e, body) =>
+      ProofAlias(Pat.of_core(x), Exp.of_core(e), of_core(body))
     | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
     | Have(e, sub, body) =>
       ProofHave(Exp.of_core(e), of_core(sub), of_core(body))
@@ -739,9 +764,15 @@ and Proof: {
         Exp.of_core(v),
         Exp.of_core(i),
       )
-    | Induction(scrut, cases) =>
+    | Induction(scrut, None, cases) =>
       ProofInduction(
         Exp.of_core(scrut),
+        List.map(((p, body)) => (Pat.of_core(p), of_core(body)), cases),
+      )
+    | Induction(scrut, Some(x), cases) =>
+      ProofInductionAs(
+        Exp.of_core(scrut),
+        Pat.of_core(x),
         List.map(((p, body)) => (Pat.of_core(p), of_core(body)), cases),
       )
     };

@@ -197,7 +197,7 @@ module F =
      * mutate-the-model behaviour for cell-level steppers. */
     let cases =
       switch (Calc.get_value(proof)) {
-      | {term: Induction(_, proof_cases), _} =>
+      | {term: Induction(_, _, proof_cases), _} =>
         let target = List.length(proof_cases);
         let current = List.length(cases);
         if (target == current) {
@@ -216,7 +216,7 @@ module F =
      * proof scope, so no caret state is lost. */
     let (scrut, scrut_src) =
       switch (Calc.get_value(proof)) {
-      | {term: Induction(proof_scrut, _), _} =>
+      | {term: Induction(proof_scrut, _, _), _} =>
         let src =
           Calc.set(~eq=Exp.fast_equal_with_lexemes, proof_scrut, scrut_src);
         let scrut =
@@ -289,7 +289,7 @@ module F =
       /* Missing body / non-Induction: EmptyHole sentinel (same idea as cell-level EmptyHole). */
       let descend = (p: Proof.t): Proof.t =>
         switch (p) {
-        | {term: Induction(_, proof_cases), _} =>
+        | {term: Induction(_, _, proof_cases), _} =>
           switch (List.nth_opt(proof_cases, i)) {
           | Some((_, body)) => body
           | None => Proof.fresh(EmptyHole)
@@ -306,7 +306,7 @@ module F =
     let case_pat = (i: int): Calc.t(option(Pat.t)) => {
       let descend = (p: Proof.t): option(Pat.t) =>
         switch (p) {
-        | {term: Induction(_, proof_cases), _} =>
+        | {term: Induction(_, _, proof_cases), _} =>
           List.nth_opt(proof_cases, i) |> Option.map(fst)
         | _ => None
         };
@@ -551,18 +551,18 @@ module F =
         (new_cases: list((Pat.t, Proof.t)))
         : option(Haz3lcore.EditorTransform.patch) =>
       switch (proof) {
-      | Some({term: Induction(scrut, _), _} as p) =>
+      | Some({term: Induction(scrut, as_name, _), _} as p) =>
         Some(
           Haz3lcore.EditorTransform.mk_proof_patch(
             ~target_id=Proof.rep_id(p),
-            Proof.fresh(Induction(scrut, new_cases)),
+            Proof.fresh(Induction(scrut, as_name, new_cases)),
           ),
         )
       | _ => None
       };
     let emit_add_case = () =>
       switch (proof) {
-      | Some({term: Induction(_, cases), _}) =>
+      | Some({term: Induction(_, _, cases), _}) =>
         let new_cases =
           cases @ [(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole))];
         switch (induction_patch(new_cases)) {
@@ -573,7 +573,7 @@ module F =
       };
     let emit_remove_case = (i: int) =>
       switch (proof) {
-      | Some({term: Induction(_, cases), _}) =>
+      | Some({term: Induction(_, _, cases), _}) =>
         switch (ListUtil.remove_nth(i, cases)) {
         | Some(new_cases) =>
           switch (induction_patch(new_cases)) {

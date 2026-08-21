@@ -6,6 +6,14 @@ type entry = {
   rule: ProofRule.t,
   exp: Exp.t,
   is_captured: bool,
+  /* An entry a NEARER entry of the same name hides. Hypothesis names are
+     fixed and shadow (docs/prover-obligations.md, "Hypothesis naming"),
+     so a scope can hold several `case_eq`s or `ih`s and only the
+     innermost is reachable by that name. `lookup_rule` takes the first
+     match and therefore never returns one of these; it is carried so the
+     UI can show the fact — it IS in scope, and its proposition is still
+     true — while saying honestly that the name no longer reaches it. */
+  is_shadowed: bool,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -21,6 +29,7 @@ let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
       rule,
       exp,
       is_captured: false,
+      is_shadowed: false,
     },
     ...ctx,
   ];
@@ -34,6 +43,7 @@ let add_exp = (name: string, exp: Exp.t, ctx: t) => {
       rule,
       exp,
       is_captured: false,
+      is_shadowed: false,
     },
     ...ctx,
   ];
@@ -57,8 +67,19 @@ let add_exp = (name: string, exp: Exp.t, ctx: t) => {
 let of_theorem_ctx = (~builtins, ctx: Ctx.t): t => {
   /* Entries are innermost-first, so walking them in that order and
    * accumulating the VARIABLE names seen so far gives, at each fact, the
-   * set of variables rebound strictly inside it. */
-  let (_, rules) =
+   * set of variables rebound strictly inside it.
+   *
+   * The result must STAY innermost-first, with the built-in axioms last.
+   * `lookup_rule` takes the first match by name, and hypothesis names are
+   * now FIXED and SHADOW (docs/prover-obligations.md, "Hypothesis
+   * naming"), so the order here decides what a shadowed name means to an
+   * `axiom` step. It has to be the same thing it means to `revert`, which
+   * resolves through `Ctx.lookup_theorem` — also first-match over these
+   * same innermost-first entries. (This fold used to PREPEND onto the
+   * accumulator, silently reversing the list to outermost-first. That was
+   * invisible while auto-names were freshened to be unique; under
+   * shadowing it made `axiom case_eq` and `revert case_eq` disagree.) */
+  let (_, rev_rules) =
     List.fold_left(
       ((seen_vars, rules), entry) =>
         switch (entry) {
@@ -71,6 +92,8 @@ let of_theorem_ctx = (~builtins, ctx: Ctx.t): t => {
             rule,
             exp: prop,
             is_captured,
+            /* Filled in below, once the whole list is known. */
+            is_shadowed: false,
           };
           (seen_vars, [entry, ...rules]);
         | Ctx.TheoremEntry({prop: None, _})
@@ -78,12 +101,35 @@ let of_theorem_ctx = (~builtins, ctx: Ctx.t): t => {
         | Ctx.TVarEntry(_)
         | Ctx.LivelitEntry(_) => (seen_vars, rules)
         },
-      ([], builtins),
+      ([], []),
       ctx.entries,
     );
-  rules;
+  let rules = List.rev(rev_rules) @ builtins;
+  /* Mark every entry a nearer one of the same name hides. The list is
+     innermost-first, so "nearer" is "earlier". */
+  let (_, marked) =
+    List.fold_left(
+      ((seen, acc), entry) =>
+        (
+          [entry.name, ...seen],
+          [
+            {
+              ...entry,
+              is_shadowed: List.mem(entry.name, seen),
+            },
+            ...acc,
+          ],
+        ),
+      ([], []),
+      rules,
+    );
+  List.rev(marked);
 };
 
+/* First match over an innermost-first list: a shadowed entry is never
+   returned, because the entry that shadows it comes first and has the
+   same name. (`is_shadowed` is not tested here for that reason — doing so
+   would change nothing, and the invariant is clearer stated once.) */
 let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
   ctx
   |> List.find_opt(e => e.name == name && e.is_captured == false)

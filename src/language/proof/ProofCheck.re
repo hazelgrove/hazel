@@ -114,6 +114,29 @@ let exp_to_equality_name = (e: Exp.t): option(string) =>
   | _ => None
   };
 
+/* The name an `as <name>` clause asks for, or the form's fixed base name
+ * when there is no clause (or the clause's pattern is not a bare
+ * identifier — a hole or a compound pattern names nothing, and falling
+ * back to the base name keeps the step working rather than silently
+ * dropping the hypothesis). Fixed base names SHADOW; see
+ * `SemanticCtx.hypothesis_name`. */
+let as_name_or = (~default: Var.t, as_name: option(Pat.t)): Var.t =>
+  switch (as_name) {
+  /* Read the name through `Pat.bound_vars` rather than matching `Var`
+     directly: the checker runs on the ELABORATED proof, where a bare
+     identifier pattern can arrive wrapped (`Parens`, `Asc`), and a
+     structural match on `Var` would silently fall back to the base name.
+     Exactly one bound variable is required — a hole or a compound
+     pattern names nothing, and falling back keeps the step working
+     rather than dropping the hypothesis. */
+  | Some(x) =>
+    switch (Pat.bound_vars(x)) {
+    | [h] => h
+    | _ => default
+    }
+  | None => default
+  };
+
 /* Does variable `name` occur (as a Var) anywhere in `e`? Used to detect
  * rule metavariables left unresolved by matching. Deliberately ignores
  * shadowing by binders inside `e`: rule metavariables and expression-level
@@ -1316,7 +1339,7 @@ let rec check =
       | _ => incoming
       };
     (outgoing, record(~marks=binder_marks, id, incoming, outgoing, m));
-  | Assume(e, body) =>
+  | Assume(e, as_name, body) =>
     /* Hypothesize `e` for the body's scope. Two readings, one form
      * (docs/prover-obligations.md §2.1):
      *
@@ -1367,7 +1390,16 @@ let rec check =
       | Some(b) => Some(b)
       | None => incoming
       };
-    let (ctx', _binding) = SemanticCtx.add_hypothesis(ctx, "assume", hyp);
+    /* `assume <e> as <h>` installs the hypothesis under `h`; without the
+     * clause it is the fixed name `assume`, which SHADOWS any enclosing
+     * one (`SemanticCtx.hypothesis_name`). Naming is how a nested
+     * assumption keeps the outer one citable. */
+    let (ctx', _binding) =
+      SemanticCtx.add_hypothesis(
+        ctx,
+        as_name_or(~default="assume", as_name),
+        hyp,
+      );
     let (out_body, m) =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
@@ -1771,7 +1803,53 @@ let rec check =
         }
       }
     };
-  | Induction(scrut, cases) =>
+  | Alias(x, e, body) =>
+    /* `alias <name> = <fact> => <body>` — RETROACTIVE naming
+     * (docs/prover-obligations.md, "Hypothesis naming").
+     *
+     * Auto-installed facts use FIXED names and SHADOW, so a nested split
+     * hides the enclosing one's `case_eq`. This form is the escape
+     * hatch: it resolves `<fact>` against the in-scope facts exactly as
+     * `revert` does — by bare name (`cited_fact`), or by spelling the
+     * proposition out — and installs the SAME proposition again under
+     * `<name>` for the body's scope.
+     *
+     * Sound for the shortest possible reason: nothing new is assumed.
+     * The proposition was already known here, and the body proves the
+     * same goal it would have proven without the wrapper. So: NO
+     * obligation, and the outgoing is the body's, untouched.
+     *
+     * An unresolvable fact reuses `UnknownFactReverted` — the same mark
+     * `revert` raises for the same mistake — and, as everywhere else in
+     * this checker, refusal is RECOVERY: the body is still checked
+     * against the unchanged goal so later steps stay meaningful. */
+    let fact = cited_fact(~ctx, e);
+    switch (lookup_fact(ctx, fact)) {
+    | None =>
+      let (_, m) = check(~step, ~info_map, ~ctx, incoming, body);
+      (
+        incoming,
+        record(
+          ~marks=[ProofMark.UnknownFactReverted],
+          id,
+          incoming,
+          incoming,
+          m,
+        ),
+      );
+    | Some(_fact_id) =>
+      /* A non-identifier name slot (hole, compound pattern) names
+       * nothing; the fact stays reachable under whatever it already was,
+       * and the step is a no-op rather than a broken one. */
+      let ctx' =
+        switch (Pat.bound_vars(x)) {
+        | [h] => SemanticCtx.add_hypothesis_named(ctx, h, fact) |> fst
+        | _ => ctx
+        };
+      let (out_body, m) = check(~step, ~info_map, ~ctx=ctx', incoming, body);
+      (out_body, record(id, incoming, out_body, m));
+    };
+  | Induction(scrut, as_name, cases) =>
     /* Split/induction gate (§4.1). Ordinary structural induction — a
      * bare quantified-variable scrutinee — emits nothing (quantifiers
      * range over total values). A COMPUTED scrutinee is the bool-split
@@ -1806,7 +1884,15 @@ let rec check =
         (gate_marks, gate_obligations);
       };
     let (out, marks, m) =
-      check_induction(~step, ~info_map, ~ctx, ~incoming, ~scrut, ~cases);
+      check_induction(
+        ~step,
+        ~info_map,
+        ~ctx,
+        ~incoming,
+        ~scrut,
+        ~as_name,
+        ~cases,
+      );
     (
       out,
       record(
@@ -1847,6 +1933,9 @@ and check_induction =
       ~ctx: SemanticCtx.t,
       ~incoming: option(Exp.t),
       ~scrut: Exp.t,
+      /* The split's `as <name>` clause, if any: it renames the
+       * case-equality hypothesis installed in EVERY case below. */
+      ~as_name: option(Pat.t),
       ~cases: list((Pat.t, Proof.t)),
     )
     : (option(Exp.t), list(ProofMark.t), ProofMap.t) => {
@@ -1902,7 +1991,17 @@ and check_induction =
         let ctx' =
           switch (case_eq) {
           | Some(eq) =>
-            let (ctx'', _) = SemanticCtx.add_hypothesis(ctx', "case_eq", eq);
+            /* `induction <e> as <h>` puts this equation under `h` in
+             * every case; the equation still differs case by case, only
+             * the NAME is shared. Unnamed, it is the fixed name
+             * `case_eq`, which SHADOWS any enclosing case equation
+             * (`SemanticCtx.hypothesis_name`). */
+            let (ctx'', _) =
+              SemanticCtx.add_hypothesis(
+                ctx',
+                as_name_or(~default="case_eq", as_name),
+                eq,
+              );
             ctx'';
           | None => ctx'
           };

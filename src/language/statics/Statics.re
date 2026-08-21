@@ -336,9 +336,9 @@ and uexp_to_info_map =
     | ForallWhere(fp, g, fbody) =>
       /* Like Forall, but the `where` restriction additionally enters the
          proof's scope as a citable hypothesis, under the same
-         deterministically-generated name the big-step checker will use
-         (`SemanticCtx.add_hypothesis` with base name "where", freshened
-         against the variables in scope) — mirroring the Assume statics
+         name the big-step checker will use
+         (`SemanticCtx.add_hypothesis` with base name "where", which is
+         now the bare name itself) — mirroring the Assume statics
          below. */
       let (fp', _, m) =
         upat_to_info_map(
@@ -351,7 +351,9 @@ and uexp_to_info_map =
           m,
         );
       let ctx = fp'.ctx;
-      let name = Var.free_name("where", Ctx.theorem_names(ctx));
+      /* FIXED name, no freshening: an inner `where` shadows an outer one
+         (`SemanticCtx.hypothesis_name`). */
+      let name = "where";
       let hyp_id = IdTagged.rep_id(g);
       let ctx =
         Ctx.extend_theorem(
@@ -4868,7 +4870,7 @@ and proof_to_info_map =
         }),
       );
     (CoCtx.empty, Proof(elab), add_proof_info(m));
-  | Induction(scrut, cases) =>
+  | Induction(scrut, as_name, cases) =>
     /* Synthesize scrutinee type, analyze each pattern against it, then
        typecheck each case body with the pattern bindings in scope. Run
        pattern-coverage analysis to flag non-exhaustive / redundant cases;
@@ -4876,6 +4878,26 @@ and proof_to_info_map =
     let (scrut_info, scrut_elab, m) =
       uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, scrut, m);
     let (ps, bodies) = List.split(cases);
+    /* The `as <name>` clause. The name is walked as a pattern so its
+       token gets an info entry, but — exactly as for a `theorem`'s own
+       name (see the `Theorem` arm) — the pattern's ctx is DISCARDED:
+       a hypothesis name binds in the THEOREM namespace only, never the
+       variable one. */
+    let (as_name_elab, m) =
+      switch (as_name) {
+      | None => (None, m)
+      | Some(x) =>
+        let (_, x_elab, m) =
+          upat_to_info_map(
+            ~is_synswitch=false,
+            ~ctx,
+            ~co_ctx=CoCtx.empty,
+            ~ancestors=ancestors_inclusive,
+            x,
+            m,
+          );
+        (Some(x_elab), m);
+      };
     /* First pass: gather pat infos with empty co_ctx so we can walk bodies. */
     let (pat_infos, pat_elabs, m) =
       List.fold_left(
@@ -4895,12 +4917,47 @@ and proof_to_info_map =
         ([], [], m),
         ps,
       );
+    /* With an `as <name>` clause, each case body additionally sees the
+       split's case equation `scrut == pat` under that name, so a
+       citation of it resolves AT EDIT TIME rather than only in the
+       big-step checker. The equation is built exactly as
+       `ProofCheck.check`'s induction arm builds it — same `Exp.of_pat`,
+       same operator — so the two sides agree on what the name denotes.
+       Unnamed splits install `case_eq`, which the statics does not model
+       (the checker owns it); naming is what makes it visible here. */
+    /* Read the `as` name through `Pat.bound_vars`, so a bare identifier
+       still resolves when it arrives wrapped in `Parens`/`Asc`. Kept in
+       lockstep with `ProofCheck.as_name_or`. */
+    let as_name_var =
+      switch (as_name_elab) {
+      | Some(x) =>
+        switch (Pat.bound_vars(x)) {
+        | [h] => Some(h)
+        | _ => None
+        }
+      | None => None
+      };
+    let case_eq_of = (pat: Pat.t): Exp.t =>
+      Exp.fresh(BinOp(Poly(Equals), scrut_elab, Exp.of_pat(pat)));
+    let body_ctx_of = (pat_ctx: Ctx.t, pat: Pat.t): Ctx.t =>
+      switch (as_name_var) {
+      | Some(h) =>
+        Ctx.extend_theorem(
+          pat_ctx,
+          {
+            name: h,
+            id: IdTagged.rep_id(pat),
+            prop: Some(case_eq_of(pat)),
+          },
+        )
+      | None => pat_ctx
+      };
     let (body_elabs, m) =
       List.fold_left2(
-        ((elabs, m), pat_info: Info.pat, body) => {
+        ((elabs, m), (pat_info: Info.pat, pat), body) => {
           let (_, body_elab, m) =
             any_to_info_map(
-              ~ctx=pat_info.ctx,
+              ~ctx=body_ctx_of(pat_info.ctx, pat),
               ~ancestors=ancestors_inclusive,
               Proof(body),
               m,
@@ -4908,11 +4965,17 @@ and proof_to_info_map =
           (elabs @ [proof_of_any(body_elab)], m);
         },
         ([], m),
-        pat_infos,
+        List.combine(pat_infos, pat_elabs),
         bodies,
       );
     let elab =
-      rewrap(Induction(scrut_elab, List.combine(pat_elabs, body_elabs)));
+      rewrap(
+        Induction(
+          scrut_elab,
+          as_name_elab,
+          List.combine(pat_elabs, body_elabs),
+        ),
+      );
     /* Coverage check: exhaustiveness + redundancy.
      *
      * Unlike an expression `case`, a proof by induction must be exhaustive to
@@ -4990,7 +5053,7 @@ and proof_to_info_map =
       );
     let elab = rewrap(Forall(pat_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
-  | Assume(e, body) =>
+  | Assume(e, as_name, body) =>
     /* The assumption is a proposition: analyze it against Bool. */
     let (_, e_elab, m) =
       uexp_to_info_map(
@@ -5000,12 +5063,35 @@ and proof_to_info_map =
         e,
         m,
       );
+    /* `as <name>`: walked for its info, ctx discarded (theorem namespace
+       only), exactly as in the `Induction` and `Theorem` arms. */
+    let (as_name_elab, m) =
+      switch (as_name) {
+      | None => (None, m)
+      | Some(x) =>
+        let (_, x_elab, m) =
+          upat_to_info_map(
+            ~is_synswitch=false,
+            ~ctx,
+            ~co_ctx=CoCtx.empty,
+            ~ancestors=ancestors_inclusive,
+            x,
+            m,
+          );
+        (Some(x_elab), m);
+      };
     /* The body sees the assumption as a citable hypothesis, under the
-       same deterministically-generated name the big-step checker will
-       use (`SemanticCtx.add_hypothesis` with base name "assume",
-       freshened against the THEOREM names in scope). Only the theorem
-       namespace is extended: an assumption is not a value. */
-    let name = Var.free_name("assume", Ctx.theorem_names(ctx));
+       fixed name the big-step checker will use
+       (`SemanticCtx.add_hypothesis` with base name "assume"); a nested
+       `assume` shadows it. Only the theorem namespace is extended: an
+       assumption is not a value. */
+    /* FIXED name, no freshening: a nested `assume` shadows the outer
+       one, exactly as `SemanticCtx.hypothesis_name` does. */
+    let name =
+      switch (Option.map(Pat.bound_vars, as_name_elab)) {
+      | Some([h]) => h
+      | _ => "assume"
+      };
     let hyp_id = IdTagged.rep_id(p_term);
     let body_ctx =
       Ctx.extend_theorem(
@@ -5023,7 +5109,102 @@ and proof_to_info_map =
         Proof(body),
         m,
       );
-    let elab = rewrap(Assume(e_elab, proof_of_any(body_elab)));
+    let elab =
+      rewrap(Assume(e_elab, as_name_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Alias(x, e, body) =>
+    /* `alias <name> = <fact> => <body>`: RETROACTIVE naming. The fact
+       slot is resolved by the big-step checker (by name, or by matching
+       the spelled-out proposition against the in-scope facts); here it
+       is analyzed against Bool like any proposition, with the same
+       hypothesis-name leniency the axiom step's equality slot gets — a
+       bare name in this slot is a FACT name, not a program variable, so
+       it must not read as a free variable.
+
+       The body sees the same proposition again under <name>. What is
+       recorded as that name's statement is the fact EXPRESSION as
+       written; when the user wrote a name rather than a proposition, the
+       named entry's own statement is copied instead, so the alias
+       denotes what it aliases. */
+    let (_, x_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors=ancestors_inclusive,
+        x,
+        m,
+      );
+    let head = unwrap_head(e);
+    let (e_elab, aliased_prop, m) =
+      switch (head.term) {
+      | Var(name) =>
+        let entry = Ctx.lookup_theorem(ctx, name);
+        let scratch_ctx =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name,
+              id: Id.invalid,
+              typ: Unknown(Internal) |> Typ.temp,
+              custom_statics: None,
+            }),
+          );
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx=Option.is_some(entry) ? scratch_ctx : ctx,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        let m =
+          switch (entry) {
+          | Some(_) => m
+          | None =>
+            replace_free_mark(
+              IdTagged.rep_id(head),
+              Mark.FreeHypothesis(name),
+              m,
+            )
+          };
+        let prop =
+          switch (entry) {
+          | Some({prop: Some(prop), _}) => prop
+          | _ => e_elab
+          };
+        (e_elab, prop, m);
+      | _ =>
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx,
+            ~ana=Atom(Bool) |> Typ.temp,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        (e_elab, e_elab, m);
+      };
+    let body_ctx =
+      switch (Pat.bound_vars(x_elab)) {
+      | [h] =>
+        Ctx.extend_theorem(
+          ctx,
+          {
+            name: h,
+            id: IdTagged.rep_id(x),
+            prop: Some(aliased_prop),
+          },
+        )
+      | _ => ctx
+      };
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=body_ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab = rewrap(Alias(x_elab, e_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
   | Generalize(e, body) =>
     /* `generalize x => body` re-quantifies an already-peeled binder: `x`
@@ -5045,15 +5226,58 @@ and proof_to_info_map =
        `F` is a proposition, so analyze it against Bool. The body is
        checked in the UNCHANGED ctx — reverting does not remove the fact
        from scope (it stays citable), and it introduces no new binding
-       (docs/prover-obligations.md, Phase 4c). */
-    let (_, e_elab, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana=Atom(Bool) |> Typ.temp,
-        ~ancestors=ancestors_inclusive,
-        e,
-        m,
-      );
+       (docs/prover-obligations.md, Phase 4c).
+
+       `F` may also be a bare FACT NAME rather than a spelled-out
+       proposition (`ProofCheck.cited_fact` accepts either). A name is not
+       a program variable, so it gets the same treatment as the axiom
+       step's equality slot and `alias`'s fact slot: walked in a ctx
+       carrying a dummy entry for it, with any `Free` mark repaired to
+       `FreeHypothesis`. Without this, `revert <name>` always read as an
+       unbound variable at edit time. */
+    let (e_elab, m) = {
+      let head = unwrap_head(e);
+      switch (head.term) {
+      | Var(name) =>
+        let known = Option.is_some(Ctx.lookup_theorem(ctx, name));
+        let scratch_ctx =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name,
+              id: Id.invalid,
+              typ: Unknown(Internal) |> Typ.temp,
+              custom_statics: None,
+            }),
+          );
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx=known ? scratch_ctx : ctx,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        let m =
+          known
+            ? m
+            : replace_free_mark(
+                IdTagged.rep_id(head),
+                Mark.FreeHypothesis(name),
+                m,
+              );
+        (e_elab, m);
+      | _ =>
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx,
+            ~ana=Atom(Bool) |> Typ.temp,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        (e_elab, m);
+      };
+    };
     /* Phase-4d `with <var> = <exp>`: `<var>` is a quantified binder of
        the reverted fact, which is written out in full right here, so the
        binder's declared type is recoverable from `e` itself. As in the
@@ -5133,7 +5357,8 @@ and proof_to_info_map =
       );
     let (_, sub_elab, m) =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(sub), m);
-    let name = Var.free_name("have", Ctx.theorem_names(ctx));
+    /* FIXED name, no freshening (`SemanticCtx.hypothesis_name`). */
+    let name = "have";
     let hyp_id = IdTagged.rep_id(p_term);
     let body_ctx =
       Ctx.extend_theorem(

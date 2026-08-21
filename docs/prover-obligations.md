@@ -97,9 +97,9 @@ aliases (`Ctx.filter_shadowed` gives them their own set). So:
   (`... in 0`). This is the visible cost of the separation and is accepted.
 - Hypotheses (`assume`/`where`/`case_eq`/`ih`/`have`) are invisible to
   expressions: naming one in expression position is a free variable.
-- Hypothesis auto-naming freshens against the theorem names only
-  (`Ctx.theorem_names`), so a program variable called `assume` no longer bumps
-  the hypothesis to `assume'`.
+- Hypothesis auto-naming uses FIXED names and SHADOWS — see
+  "Hypothesis naming" below. A program variable called `assume` does not
+  affect it either way; the two namespaces do not interact.
 
 Pinned by `Test_Statics_Proof` ("proof/value namespace separation") and
 `Test_ProofMap` ("namespace separation: ...").
@@ -892,9 +892,10 @@ on earlier ones.
     of OTHER definitions are). This blocks the three step-unfolding
     lemma proofs; the fix is an equality/substitution change, not
     trivially safe. Pinned by `test_pin_self_unrolled_unaddressable`.
-  - Annotated-`let` matching; prime-counted hypothesis names as a UX
-    problem (citing `case_eq''''''` by counting primes); obligation
-    display inlining.
+  - Annotated-`let` matching; obligation display inlining.
+    (Prime-counted hypothesis names — citing `case_eq''''''` by counting
+    primes — were resolved by the naming rework; see "Hypothesis
+    naming".)
   - Assume-intro's antecedent test re-substitutes an already-substituted
     goal antecedent, so introducing a *reverted* antecedent by `assume`
     fails to `fast_equal`. Worked around in the milestone by reverting in
@@ -983,9 +984,12 @@ on earlier ones.
   — is now **fully Proven**, with zero holes and zero marks, and exactly
   three obligations (the step-lemma antecedents), all discharged Remote
   through channel 1. The two leaves that were open after 4c are the ones
-  4d unlocked: `revert ih with t0 = tf0` and `revert ih' with t0 = s0`,
+  4d unlocked: `revert ihx with t0 = tf0` and `revert ihy with t0 = s0`,
   each followed by rewriting the instantiated antecedent to `false` with
   the case_eqs in scope and letting McCarthy `==>` collapse the goal.
+  (`ihx`/`ihy` are `alias` names: the `TmAp` case installs TWO inductive
+  hypotheses and both take the fixed name `ih`. See "Hypothesis
+  naming".)
   (The three step-unfolding LEMMAS are still partial for the unrelated
   `FixUnwrap` reason above; they are axioms of the development, which is
   what the milestone measures the proof language against.)
@@ -1146,3 +1150,133 @@ on earlier ones.
    (Phase 4 detail, direction decided).
 7. Sign-condition matrix for `*` monotonicity (Phase 5 detail, scope
    decided).
+
+## Hypothesis naming (decided 2026-08-23)
+
+Every fact the checker installs on the user's behalf — a split's case
+equation, an inductive hypothesis, a `where` restriction, an `assume`, a
+`have` — needs a NAME, because citing it (`axiom <name> at ...`,
+`revert <name>`, `contradiction <name>`) is how the proof language refers
+to it. This section fixes how those names are chosen.
+
+### The rule: fixed names, and shadowing
+
+Auto-installed facts take their **bare base name**, always:
+
+| form | name |
+| --- | --- |
+| `induction <e>` (per case) | `case_eq` |
+| `induction <e>` (per recursive sub-term) | `ih` |
+| `forall x where g -> ...` | `where` |
+| `assume <e> => ...` | `assume` |
+| `have <e> proof ... => ...` | `have` |
+
+There is **no freshening**. A second introduction of the same kind in an
+inner scope installs the same name again and **shadows** the outer one.
+`SemanticCtx.hypothesis_name` is the single point where this is decided;
+`Statics`' `ForallWhere`/`Assume`/`Have` arms mirror it, and the two must
+stay in lockstep — the statics predicts, at edit time, the names the
+big-step checker will install.
+
+**Citation resolves innermost-first.** `Ctx.extend` prepends, and both
+lookup paths take the first match:
+
+- `Ctx.lookup_theorem` — used by `revert`, `contradiction` and `alias`
+  through `ProofCheck.cited_fact`;
+- `ProofCtx.lookup_rule` over `ProofCtx.of_theorem_ctx` — used by the
+  `axiom` step.
+
+Those two must agree, or a name would mean one thing to `axiom` and
+another to `revert`. (`of_theorem_ctx` used to reverse its list into
+outermost-first order. That was invisible while auto-names were freshened
+to be unique; under shadowing it was a bug, and it is fixed.)
+
+Citing a shadowed bare name is **not an error**. It denotes the nearest
+enclosing introduction — that is the whole point, and it is what makes
+the common case short: inside a nested split, `case_eq` is *this* split's
+equation, with no primes to count.
+
+### What was rejected
+
+Prime-counted freshening (`case_eq`, `case_eq'`, `case_eq''`, …). It made
+every citation depend on the number of enclosing introductions, so a
+proof could not be read locally, an edit anywhere above a leaf
+renumbered its citations, and the STLC `progress` proof ended up citing
+`case_eq''''''`. Names that are stable and local beat names that are
+unique.
+
+### The escape hatches
+
+Shadowing hides. Two forms make a hidden fact reachable.
+
+**Naming at introduction.** The name is a bare identifier, installed in
+the THEOREM namespace only (never the variable one — a hypothesis is a
+judgment, not a value), and visible to the statics, so citations resolve
+while you type:
+
+    induction <e> as <name> | <pat> => <proof> | ... end
+    assume <e> as <name> => <proof>
+
+For `induction`, ONE name covers the whole split: the per-case equation
+still differs case by case, only the name is shared. This is the normal
+way to keep an outer split citable from a deeper leaf.
+
+**Retroactive naming.** When the fact is already shadowed where you are
+standing, bind it again:
+
+    alias <name> = <fact> => <proof>
+
+`<fact>` is resolved exactly as `revert` resolves its argument — by bare
+name, or by spelling the proposition out — and the same proposition is
+installed under `<name>` for the body. Obligation-free and
+goal-preserving: nothing is assumed that was not already known, and the
+body proves the goal the whole form was given. An unresolvable `<fact>`
+reuses the `UnknownFactReverted` mark.
+
+Spelling the proposition out is the only way to reach a fact that is
+*already* shadowed at the point of writing. The `TmAp` case of `progress`
+is exactly that situation: structural induction on `e0` installs **two**
+inductive hypotheses, one per recursive sub-term, and both are `ih`, so
+the x0 one is unreachable by name. `docs/stlc-progress-example.hazel`
+opens that case with two aliases.
+
+### Not implemented: naming the IHs
+
+The `as` clause names a split's case equation, not its inductive
+hypotheses; `ih` keeps its fixed name and shadows like everything else.
+
+A tempting extension is to derive IH names from the same clause — `as h`
+giving `h` for the case equation and `h_ih` for the hypothesis. It does
+not fall out, because the number of IHs per case is the number of
+RECURSIVE SUB-PATTERNS, which is a property of the constructor, not of
+the split: `TmAp(x0, y0)` yields two, `TmLam(w0, q0)` one, `TmVar(m0)`
+none. A single `h_ih` would name one of two and silently shadow the
+other — reproducing the problem this rework removes.
+
+The shape that would work is to name IHs after the sub-pattern variable
+they are about: `as h` giving `h` plus `h_x0` and `h_y0`. That reads well
+and is unambiguous, but it means the *set* of names a form introduces
+depends on the case patterns, which neither the statics' theorem-namespace
+extension nor the `as`-clause plumbing currently models (both assume one
+name per form). Deliberately left out of this change; `alias` covers the
+cases that need it today.
+
+### Display
+
+`AxiomsBox`/`AssumptionBox` still LIST a shadowed fact — it is in scope
+and still true — but render it de-emphasized, disable its rewrite
+buttons, and say why: the name reaches a nearer fact, and `alias` is how
+to cite this one. Offering a rewrite button would emit an
+`axiom <name>` step that rewrote with the other fact.
+`ProofCtx.entry.is_shadowed` carries the flag.
+
+### Pinned by
+
+`Test_HypothesisNaming` (innermost-first on both lookup paths, `as` on
+`induction`/`assume`, deep-leaf citation, duplicate `as` names,
+`alias` past a shadow and by spelled-out proposition, obligation-freedom,
+unknown names), `Test_Statics_Proof` (edit-time visibility and scoping of
+`as`/`alias` names), `Test_ExpToSegment` (round-trips, including that a
+plain `induction` survives an `assume` typed in a case body — "as" is a
+prefix of "assume"), and the migrated `progress` proof in
+`Test_Milestone_STLC`.

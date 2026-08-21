@@ -210,12 +210,13 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | EvalStep(_) => false
     | Seq(a, b) => proof_contains(~origin, a) || proof_contains(~origin, b)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
     | Generalize(_, body)
+    | Alias(_, _, body)
     | Revert(_, _, body) => proof_contains(~origin, body)
     | Have(_, sub, body) =>
       proof_contains(~origin, sub) || proof_contains(~origin, body)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       List.exists(((_, body)) => proof_contains(~origin, body), cases)
     }
   );
@@ -245,14 +246,15 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
       proof_contains(~origin, a)
         ? case_vars_to(~origin, ~acc, a) : case_vars_to(~origin, ~acc, b)
     | Forall(_, body)
-    | Assume(_, body)
+    | Assume(_, _, body)
     | Generalize(_, body)
+    | Alias(_, _, body)
     | Revert(_, _, body) => case_vars_to(~origin, ~acc, body)
     | Have(_, sub, body) =>
       proof_contains(~origin, sub)
         ? case_vars_to(~origin, ~acc, sub)
         : case_vars_to(~origin, ~acc, body)
-    | Induction(_, cases) =>
+    | Induction(_, _, cases) =>
       switch (
         List.find_opt(((_, body)) => proof_contains(~origin, body), cases)
       ) {
@@ -366,13 +368,14 @@ let float_patch =
 let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
   switch (p.term) {
   | Forall(_, body)
-  | Assume(_, body)
+  | Assume(_, _, body)
   | Generalize(_, body)
+  | Alias(_, _, body)
   | Revert(_, _, body) => proof_contains(~origin, body) ? Some(body) : None
   | Have(_, sub, body) =>
     proof_contains(~origin, body)
       ? Some(body) : proof_contains(~origin, sub) ? Some(sub) : None
-  | Induction(_, cases) =>
+  | Induction(_, _, cases) =>
     List.find_map(
       ((_, body)) => proof_contains(~origin, body) ? Some(body) : None,
       cases,
@@ -434,6 +437,7 @@ let split_patch =
          Proof.fresh(
            Induction(
              embed_goal(ob),
+             None,
              [
                (Pat.fresh(Atom(Bool(true))), region),
                (Pat.fresh(Atom(Bool(false))), Proof.fresh(EmptyHole)),
