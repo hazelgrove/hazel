@@ -368,7 +368,7 @@ let update_use_sites_of_var =
   List.fold_left(
     (acc_z, (var_name, entries)) =>
       // Only update variables that match the old_name
-      if (var_name == old_name) {
+      if (String.equal(var_name, old_name)) {
         // Iterate through all entries (IDs) for this variable
         List.fold_left(
           (acc_z', entry) => {

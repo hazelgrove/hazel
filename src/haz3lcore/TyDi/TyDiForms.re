@@ -112,7 +112,7 @@ module Delims = {
          | Some(molds) =>
            molds
            |> List.filter_map((_: Mold.t) =>
-                List.length(lbl) > 1 && token == List.hd(lbl)
+                List.length(lbl) > 1 && String.equal(token, List.hd(lbl))
                   ? Some(token ++ leading_expander) : None
               )
          };

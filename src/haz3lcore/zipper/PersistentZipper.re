@@ -114,7 +114,7 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
   };
 
 let unpersist = (persisted: t, ~root) =>
-  if (persisted.zipper == "") {
+  if (String.equal(persisted.zipper, "")) {
     from_backup_text(persisted.backup_text, ~root);
   } else {
     try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {

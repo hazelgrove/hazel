@@ -55,7 +55,7 @@ let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
   };
 
 let add_indents = (segment, measured, indent: string, rows: list(string)) =>
-  if (indent == "") {
+  if (String.equal(indent, "")) {
     /* If no indentation is needed, we don't need to bother calculating measured */
     rows;
   } else {

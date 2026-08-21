@@ -177,7 +177,7 @@ let projector_to_invoke = (pr: Base.projector): Segment.t =>
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
-      when Token.is_livelit(t) && w == Token.space =>
+      when Token.is_livelit(t) && String.equal(w, Token.space) =>
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
     let seg =
