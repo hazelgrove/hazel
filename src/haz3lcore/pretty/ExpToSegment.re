@@ -1270,7 +1270,11 @@ let rec drv_exp_to_pretty =
   | Ctx([x, ...xs]) =>
     let* x = go(x, ~sort=Prop)
     and* xs = xs |> List.map(go(~sort=Prop)) |> all;
-    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    let ids =
+      syntax
+      |> IdTagged.ids
+      |> List.tl
+      |> pad_ids(~base=syntax |> IdTagged.ids |> List.hd, List.length(xs));
     let map2_safe = (f, l1, l2) =>
       List.length(l1) == List.length(l2)
         ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
@@ -1421,6 +1425,7 @@ let rec drv_exp_to_pretty =
     let rule_ids =
       pad_ids(
         ~forbidden=[id],
+        ~base=id,
         2,
         switch (all_ids) {
         | [_, ...rest] => rest
@@ -1798,7 +1803,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -2144,7 +2151,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ es = es |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(es)),
     );
     wrap(
       exp,
@@ -2263,7 +2272,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       case_id,
       all_exp_ids
       |> List.tl
-      |> pad_ids(~forbidden=[case_id], List.length(rs)),
+      |> pad_ids(~forbidden=[case_id], ~base=case_id, List.length(rs)),
     );
     wrap(
       exp,
@@ -2352,7 +2361,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -2449,7 +2460,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(pat) |> List.hd,
-      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(pat)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(pat) |> List.hd, List.length(xs)),
     );
     wrap(
       pat,
