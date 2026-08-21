@@ -1,13 +1,14 @@
 open Util;
 open PrettySegment;
 open Base;
+open Poly;
 let mk_space = Secondary.mk_space;
 let mk_newline = Secondary.mk_newline;
 open Language;
 
 /* Convert a list of Secondary.t to a Segment.t */
 let secondary_to_segment = (secondaries: list(Secondary.t)): Segment.t =>
-  List.map(s => Piece.Secondary(s), secondaries);
+  List.map(~f=s => Piece.Secondary(s), secondaries);
 
 module Settings = {
   /* How to handle secondary (whitespace/comments) in output */
@@ -381,7 +382,10 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, Option.map(Option.map(paren_typ_at(Precedence.asc)), t))
+    Constructor(
+      c,
+      Option.map(~f=Option.map(~f=paren_typ_at(Precedence.asc)), t),
+    )
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -422,7 +426,9 @@ let rec parenthesize =
   | Tuple(es) =>
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+        es
+        |> List.map(~f=parenthesize)
+        |> List.map(~f=paren_at(Precedence.comma)),
       )
       |> rewrap;
 
@@ -447,7 +453,9 @@ let rec parenthesize =
     |> rewrap
   | ListLit(es) =>
     ListLit(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+      es
+      |> List.map(~f=parenthesize)
+      |> List.map(~f=paren_at(Precedence.comma)),
     )
     |> rewrap
   | Let(p, e1, e2) =>
@@ -509,7 +517,9 @@ let rec parenthesize =
   | DeferredAp(e, es) =>
     DeferredAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+      es
+      |> List.map(~f=parenthesize)
+      |> List.map(~f=paren_at(Precedence.comma)),
     )
     |> rewrap
   | If(e1, e2, e3) =>
@@ -589,7 +599,7 @@ let rec parenthesize =
     Match(
       parenthesize(e) |> paren_at(Precedence.min),
       rs
-      |> List.map(((p, e)) =>
+      |> List.map(~f=((p, e)) =>
            (
              parenthesize_pat(p) |> paren_pat_at(Precedence.min),
              parenthesize(e) |> paren_assoc_at(Precedence.case_),
@@ -600,7 +610,12 @@ let rec parenthesize =
   | MultiHole(xs) =>
     MultiHole(
       List.map(
-        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
         xs,
       ),
     )
@@ -658,8 +673,8 @@ and parenthesize_pat =
     let inner =
       Tuple(
         ps
-        |> List.map(parenthesize_pat)
-        |> List.map(paren_pat_at(Precedence.comma)),
+        |> List.map(~f=parenthesize_pat)
+        |> List.map(~f=paren_pat_at(Precedence.comma)),
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
@@ -671,8 +686,8 @@ and parenthesize_pat =
   | ListLit(ps) =>
     ListLit(
       ps
-      |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.comma)),
+      |> List.map(~f=parenthesize_pat)
+      |> List.map(~f=paren_pat_at(Precedence.comma)),
     )
     |> rewrap
   | Ap(p1, p2) =>
@@ -684,7 +699,12 @@ and parenthesize_pat =
   | MultiHole(xs) =>
     MultiHole(
       List.map(
-        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
         xs,
       ),
     )
@@ -761,8 +781,8 @@ and parenthesize_typ =
     let inner =
       Prod(
         ts
-        |> List.map(parenthesize_typ)
-        |> List.map(paren_typ_at(Precedence.comma)),
+        |> List.map(~f=parenthesize_typ)
+        |> List.map(~f=paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
@@ -813,8 +833,8 @@ and parenthesize_typ =
       ConstructorMap.map(
         ts =>
           ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
+          |> Option.map(~f=parenthesize_typ)
+          |> Option.map(~f=paren_typ_at(Precedence.type_plus)),
         ts,
       ),
     )
@@ -824,11 +844,12 @@ and parenthesize_typ =
       Hole(
         MultiHole(
           List.map(
-            parenthesize_any(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-            ),
+            ~f=
+              parenthesize_any(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+              ),
             xs,
           ),
         ),
@@ -858,7 +879,12 @@ and parenthesize_tpat =
   | MultiHole(xs) =>
     MultiHole(
       List.map(
-        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
         xs,
       ),
     )
@@ -884,21 +910,22 @@ and parenthesize_rul =
     Rules(
       parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e),
       List.map(
-        ((p, e)) =>
-          (
-            parenthesize_pat(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              p,
+        ~f=
+          ((p, e)) =>
+            (
+              parenthesize_pat(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                p,
+              ),
+              parenthesize(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                e,
+              ),
             ),
-            parenthesize(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              e,
-            ),
-          ),
         ps,
       ),
     )
@@ -906,7 +933,12 @@ and parenthesize_rul =
   | MultiHole(xs) =>
     MultiHole(
       List.map(
-        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
         xs,
       ),
     )
@@ -984,38 +1016,37 @@ and parenthesize_any =
 
 let should_add_space = (s1, s2) =>
   switch () {
-  | _ when String.ends_with(s1, ~suffix="(") => false
-  | _ when String.ends_with(s1, ~suffix="[") => false
-  | _ when String.starts_with(s2, ~prefix=")") => false
-  | _ when String.starts_with(s2, ~prefix="]") => false
-  | _ when String.starts_with(s2, ~prefix=",") => false
-  | _ when String.starts_with(s2, ~prefix=";") => false
-  | _ when String.starts_with(s2, ~prefix=":") => false
-  | _ when String.ends_with(s1, ~suffix="::") => true
-  | _ when String.ends_with(s1, ~suffix=":") =>
-    String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
-  | _ when String.ends_with(s1, ~suffix=" ") => false
-  | _ when String.starts_with(s2, ~prefix=" ") => false
-  | _ when String.ends_with(s1, ~suffix="\n") => false
-  | _ when String.starts_with(s2, ~prefix="\n") => false
+  | _ when String.is_suffix(s1, ~suffix="(") => false
+  | _ when String.is_suffix(s1, ~suffix="[") => false
+  | _ when String.is_prefix(s2, ~prefix=")") => false
+  | _ when String.is_prefix(s2, ~prefix="]") => false
+  | _ when String.is_prefix(s2, ~prefix=",") => false
+  | _ when String.is_prefix(s2, ~prefix=";") => false
+  | _ when String.is_prefix(s2, ~prefix=":") => false
+  | _ when String.is_suffix(s1, ~suffix="::") => true
+  | _ when String.is_suffix(s1, ~suffix=":") =>
+    String.is_prefix(s2, ~prefix="$") || String.is_prefix(s2, ~prefix="!")
+  | _ when String.is_suffix(s1, ~suffix=" ") => false
+  | _ when String.is_prefix(s2, ~prefix=" ") => false
+  | _ when String.is_suffix(s1, ~suffix="\n") => false
+  | _ when String.is_prefix(s2, ~prefix="\n") => false
   | _
       when
-        String.ends_with(s1, ~suffix="PROJECTOR")
-        && String.starts_with(s2, ~prefix="(") =>
+        String.is_suffix(s1, ~suffix="PROJECTOR")
+        && String.is_prefix(s2, ~prefix="(") =>
     false
   | _
       when
-        String.ends_with(s1, ~suffix=")")
-        && String.starts_with(s2, ~prefix="(") =>
+        String.is_suffix(s1, ~suffix=")")
+        && String.is_prefix(s2, ~prefix="(") =>
     false
   | _
       when
         Token.is_potential_operand(s1)
         && !Token.is_keyword(s1)
-        && String.starts_with(s2, ~prefix="(") =>
+        && String.is_prefix(s2, ~prefix="(") =>
     false
-  | _ when String.ends_with(s1, ~suffix="…") =>
+  | _ when String.is_suffix(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
   | _
@@ -1032,7 +1063,7 @@ let should_add_space = (s1, s2) =>
           Token.is_quoted_label(s1)
           || Token.is_var(s1)
           || Token.is_ctr(s1)
-          || String.ends_with(s1, ~suffix=")")
+          || String.is_suffix(s1, ~suffix=")")
         ) =>
     false
   | _ => true
@@ -1085,7 +1116,7 @@ let mk_form =
     id,
     label: form.label,
     mold: form.mold,
-    shards: List.init(List.length(children) + 1, n => n),
+    shards: List.init(List.length(children) + 1, ~f=n => n),
     children,
   });
 };
@@ -1119,11 +1150,11 @@ let pad_ids =
     };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => Id.mk());
+      ids @ List.init(n - List.length(ids), ~f=_ => Id.mk());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
-  List.map(replace, truncated);
+  List.map(~f=replace, truncated);
 };
 
 /* Save standard list concatenation before we shadow @ */
@@ -1199,7 +1230,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
           } else {
             len - 2;
           };
-        String.sub(f_name, 1, max(0, end_idx));
+        String.sub(f_name, ~pos=1, ~len=max(0, end_idx));
       } else {
         "";
       };
@@ -1269,18 +1300,19 @@ let rec drv_exp_to_pretty =
   | Ctx([]) => text_to_pretty(id, Sort.Drv(Ctx), "[]")
   | Ctx([x, ...xs]) =>
     let* x = go(x, ~sort=Prop)
-    and* xs = xs |> List.map(go(~sort=Prop)) |> all;
-    let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    and* xs = xs |> List.map(~f=go(~sort=Prop)) |> all;
+    let ids =
+      syntax |> IdTagged.ids |> List.tl_exn |> pad_ids(List.length(xs));
     let map2_safe = (f, l1, l2) =>
       List.length(l1) == List.length(l2)
-        ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
+        ? List.map2_exn(l1, l2, ~f) : raise(Invalid_argument("map2_safe"));
     [
       mk_form(
         Drv(List),
         id,
         [
           x
-          @ List.flatten(
+          @ List.concat(
               map2_safe(
                 (id, x) => [mk_form(Drv(CommaExp), id, [])] @ x,
                 ids,
@@ -1562,7 +1594,7 @@ and drv_type_hole_to_pretty =
   | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Token.space)
   | MultiHole(tm) =>
     let+ tm =
-      tm |> List.map(drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
+      tm |> List.map(~f=drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
     ListUtil.flat_intersperse(
       Grout({
         id,
@@ -1587,7 +1619,7 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
   (formula, sort) => {
     let mk_form = mk_form(~secondary=Settings.AutoFormat);
     let go = drv_formula_to_pretty;
-    let id = List.hd(formula.annotation.ids);
+    let id = List.hd_exn(formula.annotation.ids);
     let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
       let+ l = go(l, sort_l)
       and+ r = go(r, sort_r);
@@ -1795,10 +1827,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        IMPORTANT: Must align with MakeTerm.exp_term ListLit case,
        which produces IDs in this order during absorption. */
     let* x = go(x)
-    and* xs = xs |> List.map(go) |> all;
+    and* xs = xs |> List.map(~f=go) |> all;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(exp) |> List.hd_exn,
+      IdTagged.ids(exp) |> List.tl_exn |> pad_ids(List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -1806,11 +1838,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         id,
         [
           x
-          @ List.flatten(
-              List.map2(
-                (id, x) => [mk_form(CommaExp, id, [])] @ x,
-                ids,
-                xs,
+          @ List.concat(
+              List.map2_exn(ids, xs, ~f=(id, x) =>
+                [mk_form(CommaExp, id, [])] @ x
               ),
             ),
         ],
@@ -1861,7 +1891,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | MultiHole(es) =>
     // TODO: Add optional newlines
-    let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+    let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(es) - 1);
@@ -1871,18 +1901,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -1894,8 +1921,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
     let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
-        String.sub(name, 0, String.length(name) - 1);
+      if (settings.hide_fixpoints && String.is_suffix(name, ~suffix="+")) {
+        String.sub(name, ~pos=0, ~len=String.length(name) - 1);
       } else {
         name;
       };
@@ -1939,8 +1966,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
     let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
-        String.sub(name, 0, String.length(name) - 1);
+      if (settings.hide_fixpoints && String.is_suffix(name, ~suffix="+")) {
+        String.sub(name, ~pos=0, ~len=String.length(name) - 1);
       } else {
         name;
       };
@@ -1976,13 +2003,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
+    and+ xs = xs |> List.map(~f=go) |> all;
     let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
     wrap(
       exp,
       x
-      @ List.flatten(
-          List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+      @ List.concat(
+          List.map2_exn(ids, xs, ~f=(id, x) =>
+            [mk_form(CommaExp, id, [])] @ x
+          ),
         ),
     );
   | Label(l) =>
@@ -2016,7 +2045,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
 
     wrap(
       exp,
-      List.flatten([
+      List.concat([
         l,
         [
           Tile({
@@ -2031,7 +2060,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(e);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...e];
           } else {
             e;
@@ -2141,10 +2170,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
     let+ e = go(e)
-    and+ es = es |> List.map(go) |> all;
+    and+ es = es |> List.map(~f=go) |> all;
     let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
+      IdTagged.ids(exp) |> List.hd_exn,
+      IdTagged.ids(exp) |> List.tl_exn |> pad_ids(List.length(es)),
     );
     wrap(
       exp,
@@ -2154,12 +2183,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           ApExp,
           id,
           [
-            (es |> List.hd)
-            @ List.flatten(
-                List.map2(
-                  (id, e) => [mk_form(CommaExp, id, [])] @ e,
-                  ids |> List.tl,
-                  es |> List.tl,
+            (es |> List.hd_exn)
+            @ List.concat(
+                List.map2_exn(
+                  ids |> List.tl_exn, es |> List.tl_exn, ~f=(id, e) =>
+                  [mk_form(CommaExp, id, [])] @ e
                 ),
               ),
           ],
@@ -2251,18 +2279,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e = go(e)
     and+ rs: list((Segment.t, Segment.t)) = {
       rs
-      |> List.map(((p, e)) =>
+      |> List.map(~f=((p, e)) =>
            (pat_to_pretty(~settings: Settings.t, p), go(e))
          )
-      |> List.map(((x, y)) => (x, y))
+      |> List.map(~f=((x, y)) => (x, y))
       |> all;
     };
     let all_exp_ids = IdTagged.ids(exp);
-    let case_id = all_exp_ids |> List.hd;
+    let case_id = all_exp_ids |> List.hd_exn;
     let (id, ids) = (
       case_id,
       all_exp_ids
-      |> List.tl
+      |> List.tl_exn
       |> pad_ids(~forbidden=[case_id], List.length(rs)),
     );
     wrap(
@@ -2274,15 +2302,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           [
             e
             @ (
-              List.map2(
-                (id, (p, e)) =>
-                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                  @ [mk_form(Rule, id, [p])]
-                  @ (e |> fold_if(settings.fold_case_clauses)),
-                ids,
-                rs,
+              List.map2_exn(ids, rs, ~f=(id, (p, e)) =>
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                @ [mk_form(Rule, id, [p])]
+                @ (e |> fold_if(settings.fold_case_clauses))
               )
-              |> List.flatten
+              |> List.concat
             )
             @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
           ],
@@ -2298,7 +2323,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
-      |> List.map((item: Mod.t) =>
+      |> List.map(~f=(item: Mod.t) =>
            switch (item.term) {
            | ModLet(p, e) =>
              let+ p = pat_to_pretty(~settings, p)
@@ -2345,24 +2370,22 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
              );
            | MultiHole(es) =>
-             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.concat(es));
            }
          )
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(exp) |> List.tl_exn |> pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (semi_id, item) => [mk_form(ModSeq, semi_id, [])] @ item,
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(semi_id, item) =>
+              [mk_form(ModSeq, semi_id, [])] @ item
             ),
           )
       };
@@ -2446,10 +2469,10 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
        IMPORTANT: Must align with MakeTerm.pat_term ListLit case,
        which produces IDs in this order during absorption. */
     let* x = go(x)
-    and* xs = xs |> List.map(go) |> all;
+    and* xs = xs |> List.map(~f=go) |> all;
     let (id, ids) = (
-      IdTagged.ids(pat) |> List.hd,
-      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(pat) |> List.hd_exn,
+      IdTagged.ids(pat) |> List.tl_exn |> pad_ids(List.length(xs)),
     );
     wrap(
       pat,
@@ -2459,11 +2482,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           id,
           [
             x
-            @ List.flatten(
-                List.map2(
-                  (id, x) => [mk_form(CommaPat, id, [])] @ x,
-                  ids,
-                  xs,
+            @ List.concat(
+                List.map2_exn(ids, xs, ~f=(id, x) =>
+                  [mk_form(CommaPat, id, [])] @ x
                 ),
               ),
           ],
@@ -2478,13 +2499,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Tuple([]) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()"))
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
+    and+ xs = xs |> List.map(~f=go) |> all;
     let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
     wrap(
       pat,
       x
-      @ List.flatten(
-          List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
+      @ List.concat(
+          List.map2_exn(ids, xs, ~f=(id, x) =>
+            [mk_form(CommaPat, id, [])] @ x
+          ),
         ),
     );
   | TupLabel(l, p) =>
@@ -2506,7 +2529,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and* p = go(p);
     wrap(
       pat,
-      List.flatten([
+      List.concat([
         l,
         [
           Tile({
@@ -2521,7 +2544,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(p);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...p];
           } else {
             p;
@@ -2548,7 +2571,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
   | MultiHole(es) =>
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+    let+ es = es |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
     let num_grouts = max(0, List.length(es) - 1);
     let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
@@ -2557,18 +2580,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -2614,7 +2634,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ann, Some(x)) => {
         let+ constructor =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), List.nth_opt(ann.ids, 1)),
+            OptUtil.get(() => Id.mk(), List.nth(ann.ids, 1)),
             Sort.Typ,
             c,
           );
@@ -2652,7 +2672,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       },
     )
   | Unknown(Hole(MultiHole(es))) =>
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+    let+ es = es |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
     let num_grouts = max(0, List.length(es) - 1);
     let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
@@ -2661,18 +2681,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
-                ],
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ]
             ),
           )
       };
@@ -2702,15 +2719,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Prod([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()"))
   | Prod([t, ...ts]) =>
     let+ t = go(t)
-    and+ ts = ts |> List.map(go) |> all;
+    and+ ts = ts |> List.map(~f=go) |> all;
     wrap(
       typ,
       t
-      @ List.flatten(
-          List.map2(
-            (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
-            ts,
+      @ List.concat(
+          List.map2_exn(
+            IdTagged.ids(typ) |> pad_ids(ts |> List.length), ts, ~f=(id, t) =>
+            [mk_form(CommaTyp, id, [])] @ t
           ),
         ),
     );
@@ -2741,7 +2757,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 
     wrap(
       typ,
-      List.flatten([
+      List.concat([
         l,
         [
           Tile({
@@ -2756,7 +2772,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         | AutoFormat =>
           let first = Segment.first_string(t);
           if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
+              && !String.is_prefix(first, ~prefix="…")) {
             [Secondary(mk_space(Id.mk())), ...t];
           } else {
             t;
@@ -2825,16 +2841,18 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, [mk_form(TypSumSingle, id, [])] @ t);
   | Sum([t, ...ts]) =>
     let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
+    let id = List.hd_exn(ids);
+    let ids = List.tl_exn(ids);
     let+ t = go_constructor(t)
-    and+ ts = ts |> List.map(go_constructor) |> all;
+    and+ ts = ts |> List.map(~f=go_constructor) |> all;
     wrap(
       typ,
       [mk_form(TypSumSingle, id, [])]
       @ t
-      @ List.flatten(
-          List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+      @ List.concat(
+          List.map2_exn(ids, ts, ~f=(id, t) =>
+            [mk_form(TypPlus, id, [])] @ t
+          ),
         ),
     );
   | Sig([]) =>
@@ -2846,7 +2864,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
       items
-      |> List.map((item: Sig.t) =>
+      |> List.map(~f=(item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>
              let+ p = pat_to_pretty(~settings, p);
@@ -2879,24 +2897,22 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                ),
              )
            | MultiHole(es) =>
-             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
+             wrap_item(item, List.concat(es));
            }
          )
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(typ) |> List.tl_exn |> pad_ids(List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (semi_id, item) => [mk_form(SigSeq, semi_id, [])] @ item,
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(semi_id, item) =>
+              [mk_form(SigSeq, semi_id, [])] @ item
             ),
           )
       };
@@ -2921,7 +2937,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       ]),
     );
   | MultiHole(xs) =>
-    let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+    let+ xs = xs |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas.
        For N elements, we need N-1 grout pieces (one between each pair). */
     let num_grouts = max(0, List.length(xs) - 1);
@@ -2931,18 +2947,15 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (id, x) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...x,
-                ],
-              ids,
-              rest,
+        @ List.concat(
+            List.map2_exn(ids, rest, ~f=(id, x) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...x,
+              ]
             ),
           )
       };

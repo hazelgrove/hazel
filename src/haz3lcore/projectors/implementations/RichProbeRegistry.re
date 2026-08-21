@@ -15,7 +15,7 @@ let renderers: list(packed_renderer) = [
 ];
 
 let find = (id: string): option(packed_renderer) =>
-  List.find_opt((r: packed_renderer) => String.equal(r.id, id), renderers);
+  List.find(~f=(r: packed_renderer) => String.equal(r.id, id), renderers);
 
 exception Unknown_renderer(string);
 

@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open Poly;
 include ZipperBase;
 
 let init: unit => t =
@@ -67,17 +68,17 @@ let rescan_parent_shards = (z: t): t => {
   /* For each ancestor, compute its missing shards as (token, index) pairs */
   let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
     let all_shards = fst(a.shards) @ snd(a.shards);
-    List.init(List.length(a.label), Fun.id)
-    |> List.filter(i => !List.mem(i, all_shards))
-    |> List.map(i => (List.nth(a.label, i), i));
+    List.init(List.length(a.label), ~f=Fn.id)
+    |> List.filter(~f=i => !List.mem(all_shards, i, ~equal=Poly.equal))
+    |> List.map(~f=i => (List.nth_exn(a.label, i), i));
   };
 
   let convert_piece =
       (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
     switch (p) {
     | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
-      let tok = List.hd(Tile.effective_label(t));
-      switch (List.assoc_opt(tok, missing)) {
+      let tok = List.hd_exn(Tile.effective_label(t));
+      switch (List.Assoc.find(missing, tok, ~equal=Poly.equal)) {
       | Some(idx) =>
         Tile({
           ...t,
@@ -104,7 +105,7 @@ let rescan_parent_shards = (z: t): t => {
     } else {
       let convert = convert_piece(target, missing);
       let (l, r) = sibs;
-      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      let new_sibs = (List.map(~f=convert, l), List.map(~f=convert, r));
       if (new_sibs == sibs) {
         None;
       } else {
@@ -381,9 +382,9 @@ let split_char_selection = (z: t): (Segment.t, Segment.t, Segment.t) =>
       | None => ([], content, [])
       | Some(tok) =>
         let len = Token.length(tok);
-        let lo = Option.fold(~none=0, ~some=n => n + 1, left_offset);
+        let lo = Option.value_map(left_offset, ~default=0, ~f=n => n + 1);
         let lo = max(0, min(lo, len));
-        let hi = Option.fold(~none=len, ~some=n => n + 1, right_offset);
+        let hi = Option.value_map(right_offset, ~default=len, ~f=n => n + 1);
         let hi = max(lo, min(hi, len));
         let (head, rest) = cut(tok, lo);
         let (mid, tail) = cut(rest, hi - lo);
@@ -460,8 +461,8 @@ let normalize_char_selection = (z: t): t =>
      * add it back to the corresponding remainder. */
     let (left_remainder, right_remainder) =
       switch (content) {
-      | [p] when Piece.token_of(p) != None =>
-        let tok = Option.get(Piece.token_of(p));
+      | [p] when Option.is_some(Piece.token_of(p)) =>
+        let tok = Option.value_exn(Piece.token_of(p));
         if (Token.is_string_or_comment(tok)) {
           let tok_len = Token.length(tok);
           let (opening, _) = Token.split_nth(tok, 1);
@@ -696,7 +697,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   /* Inner(n) references the right neighbor. After unselect, if the
    * referenced piece ended up in left siblings instead, move it right. */
   switch (target_caret) {
-  | Inner(_) when Siblings.neighbor(Right, z.relatives.siblings) == None =>
+  | Inner(_)
+      when Option.is_none(Siblings.neighbor(Right, z.relatives.siblings)) =>
     switch (Relatives.pop(Left, z.relatives)) {
     | Some((p, relatives)) =>
       let relatives = Relatives.push(Right, p, relatives);
@@ -864,11 +866,11 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
        multi-delimiter forms. To give the singleton form a chance, we
        only match these to incomplete tiles to form their multi forms
        when they're on the top of the stack */
-    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+    backpack_hd(z) |> Option.map(~f=Tile.effective_label) == Some([tok])
       ? backpack_hd(z) : None;
   } else {
     List.find_map(
-      t => Tile.effective_label(t) == [tok] ? Some(t) : None,
+      ~f=t => Tile.effective_label(t) == [tok] ? Some(t) : None,
       local_backpack(z),
     );
   };
@@ -947,7 +949,7 @@ let put_down = (z: t, ~root): option(t) =>
     : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destroy_selection);
+  z |> select(d) |> Option.map(~f=destroy_selection);
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
@@ -981,7 +983,7 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
@@ -1078,7 +1080,7 @@ module Caret = {
         };
       let seg = Piece.disassemble(focus_piece);
       /* Always use the first shard to get origin */
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="caret_point_charsel", p, measured);
       let offset =
         switch (Piece.token_of(focus_piece)) {
@@ -1107,10 +1109,10 @@ let selection_trim_offsets = (z: t): (int, int) => {
   let left_trim = (inner_n, content, focus) => {
     let p =
       switch ((focus: Direction.t)) {
-      | Right => List.hd(content)
+      | Right => List.hd_exn(content)
       | Left => ListUtil.last(content)
       };
-    let shard = List.hd(Piece.disassemble(p));
+    let shard = List.hd_exn(Piece.disassemble(p));
     switch (Piece.token_of(shard)) {
     | Some(_) => Caret.inner_grapheme_offset(inner_n)
     | None => 0
@@ -1120,7 +1122,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
     let p =
       switch ((focus: Direction.t)) {
       | Right => ListUtil.last(content)
-      | Left => List.hd(content)
+      | Left => List.hd_exn(content)
       };
     let seg = Piece.disassemble(p);
     let last_shard = ListUtil.last(seg);
@@ -1306,7 +1308,7 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
     switch (z.selection.focus) {
     | Right =>
       /* Anchor is at the LEFT end */
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
       switch (anchor_caret) {
       | CaretBase.Outer => Some(m.origin)
@@ -1333,7 +1335,7 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
-        let p_first = List.hd(seg);
+        let p_first = List.hd_exn(seg);
         let m_first =
           Measured.find_p(
             ~msg="selection_anchor_point_origin",

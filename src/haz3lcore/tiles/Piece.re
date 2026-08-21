@@ -142,7 +142,7 @@ let mk_tile: (Form.t, list(list(t))) => t =
       id: Id.mk(),
       label: form.label,
       mold: form.mold,
-      shards: List.mapi((i, _) => i, form.label),
+      shards: List.mapi(~f=(i, _) => i, form.label),
       children,
     });
 

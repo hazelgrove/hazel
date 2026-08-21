@@ -11,10 +11,10 @@ type bad_token_cls =
 
 let compare = String.compare;
 let equal = String.equal;
-let concat = String.concat;
-let starts_with = String.starts_with;
-let split_on_char = String.split_on_char;
-let sort_uniq = List.sort_uniq(compare);
+let concat = (sep, xs) => String.concat(~sep, xs);
+let starts_with = (~prefix, s) => String.is_prefix(s, ~prefix);
+let split_on_char = (on, s) => String.split(s, ~on);
+let sort_uniq = xs => List.dedup_and_sort(xs, ~compare);
 let match = StringUtil.match;
 let regexp = StringUtil.regexp;
 let unicode_match = StringUtil.unicode_match;
@@ -46,7 +46,8 @@ let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
 let is_comment = t => match(comment_regexp, t) || String.equal(t, "#");
 let is_comment_delim = t => String.equal(t, "#");
-let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
+let is_secondary = t =>
+  List.mem([space, linebreak], t, ~equal=Poly.equal) || is_comment(t);
 
 /* STRINGS: special-case syntax */
 
@@ -57,18 +58,22 @@ let is_string = t =>
   match(string_regexp, t) && List.length(split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
-let is_string_delim = (==)(string_delim);
+let is_string_delim = y => String.equal(string_delim, y);
 /* Byte-based, which is exactly right here: every delimiter we quote with is
    a one-byte ASCII character, so the bytes stripped are the delimiters
    whatever the quoted content is. */
 let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
-  } else if (!String.equal(String.sub(s, 0, 1), quote)
-             || !String.equal(String.sub(s, String.length(s) - 1, 1), quote)) {
+  } else if (!String.equal(String.sub(s, ~pos=0, ~len=1), quote)
+             || !
+                  String.equal(
+                    String.sub(s, ~pos=String.length(s) - 1, ~len=1),
+                    quote,
+                  )) {
     s;
   } else {
-    String.sub(s, 1, String.length(s) - 2);
+    String.sub(s, ~pos=1, ~len=String.length(s) - 2);
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
@@ -94,7 +99,7 @@ let bounding_box = (t: t): Point.t => {
 let quoted_label_regexp = regexp("^`[^`\n]*`$");
 let is_quoted_label = t => match(quoted_label_regexp, t);
 let label_delim = "`";
-let is_quoted_label_delim = (==)(label_delim);
+let is_quoted_label_delim = y => String.equal(label_delim, y);
 let label_quote = s => label_delim ++ s ++ label_delim;
 
 let closing_stringlit_or_comment = (char, t: t): bool =>
@@ -208,7 +213,7 @@ let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
 let is_arbitary_float = x =>
   !String.equal(x, ".") && !String.equal(x, "-") && is_float(x);
 let is_int = str =>
-  match(int_regexp, str) && Bigint.of_string_opt(str) != None;
+  match(int_regexp, str) && Option.is_some(Bigint.of_string_opt(str));
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
 
@@ -221,7 +226,7 @@ let is_bad_int = str => match(int_regexp, str) && !is_int(str);
 let is_float = str =>
   !match(int_regexp, str)
   && is_arbitary_float(str)
-  && float_of_string_opt(str) != None;
+  && Option.is_some(float_of_string_opt(str));
 
 /* CASE. Hazel tells constructors from variables by capitalization, but most
  * of Unicode has no case at all. Caseless characters count as NON-uppercase,
@@ -392,7 +397,7 @@ let split_invoke_opt = (body: t): (t, option(t)) =>
    "^^probe"       ==> None
    "let"           ==> None   (not a trigger at all) */
 let of_projector_invoke_opt = (input: t): option(t) =>
-  Option.bind(of_projector_invoke(input), body =>
+  Option.bind(of_projector_invoke(input), ~f=body =>
     snd(split_invoke_opt(body))
   );
 
@@ -402,7 +407,7 @@ let of_projector_invoke_opt = (input: t): option(t) =>
    "let"           ==> None   (not a trigger at all) */
 let of_projector_invoke_base = (input: t): option(t) =>
   Option.map(
-    body => fst(split_invoke_opt(body)),
+    ~f=body => fst(split_invoke_opt(body)),
     of_projector_invoke(input),
   );
 

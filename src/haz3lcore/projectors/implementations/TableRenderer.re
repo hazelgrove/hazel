@@ -4,6 +4,7 @@ open ProjectorBase;
 open Language;
 open TableCore;
 open TableTransforms;
+open Poly;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 
@@ -62,8 +63,8 @@ let build_column_menu =
     )
     : menu_data => {
   let column_type =
-    dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
-  let columns_opt = dyn_type |> Option.bind(_, get_columns);
+    dyn_type |> Option.bind(_, ~f=ty => get_column_type_from_ty(ty, h));
+  let columns_opt = dyn_type |> Option.bind(_, ~f=get_columns);
   let can_move_left = can_move_column(columns_opt, h, true);
   let can_move_right = can_move_column(columns_opt, h, false);
   let apply = ts =>
@@ -72,7 +73,7 @@ let build_column_menu =
     | None => local(CloseMenu)
     };
 
-  let column_cls = Option.bind(column_type, atom_cls_of_typ);
+  let column_cls = Option.bind(column_type, ~f=atom_cls_of_typ);
 
   let filter_children = {
     let numeric_comparators: list((string, string, Operators.op_bin_num)) = [
@@ -102,9 +103,9 @@ let build_column_menu =
       | None => []
       | Some(cls) =>
         numeric_comparators
-        |> List.filter_map(((text, tooltip, op_num)) =>
+        |> List.filter_map(~f=((text, tooltip, op_num)) =>
              Operators.numeric_bin_op(cls, op_num)
-             |> Option.map(op =>
+             |> Option.map(~f=op =>
                   leaf(~tooltip, text, () =>
                     apply([filter_by_column(op, h)])
                   )
@@ -146,7 +147,7 @@ let build_column_menu =
       switch (column_cls) {
       | Some(cls) =>
         Atom.conversions_from(cls)
-        |> List.map(((func, to_)) => {
+        |> List.map(~f=((func, to_)) => {
              let display = Atom.show_cls(to_);
              leaf(~tooltip="Convert column values to " ++ display, display, () =>
                apply([convert_column(h, func)])
@@ -312,7 +313,7 @@ let items_for_column =
       col: int,
     )
     : menu_data =>
-  switch (List.nth_opt(headers, col) |> Option.value(~default=None)) {
+  switch (List.nth(headers, col) |> Option.value(~default=None)) {
   | None => []
   | Some(name) =>
     let dyn_type =
@@ -356,82 +357,83 @@ let render =
 
   let header_cells =
     List.mapi(
-      (i, h) => {
-        let (label_node, has_name) =
-          switch (h) {
-          | Some(name) => (
-              Node.span(
-                ~attrs=[Attr.classes(["column-label"])],
-                [Node.text(name)],
-              ),
-              true,
-            )
-          | None => (WebUtil.empty_hole_svg(), false)
-          };
-        let menu_button = make_menu_button(i);
-        let content = [
-          label_node,
-          is_readonly || !has_name ? Node.none : menu_button,
-        ];
+      ~f=
+        (i, h) => {
+          let (label_node, has_name) =
+            switch (h) {
+            | Some(name) => (
+                Node.span(
+                  ~attrs=[Attr.classes(["column-label"])],
+                  [Node.text(name)],
+                ),
+                true,
+              )
+            | None => (WebUtil.empty_hole_svg(), false)
+            };
+          let menu_button = make_menu_button(i);
+          let content = [
+            label_node,
+            is_readonly || !has_name ? Node.none : menu_button,
+          ];
 
-        let full_content =
-          switch (h, model.menu_state) {
-          | (Some(_), Some((j, menu_t))) when i == j =>
-            let items =
-              items_for_column(info, exp, headers, local, parent, j);
-            let menu_nodes =
-              Menu.render(
-                ~inject_action=thunk => thunk(),
-                ~inject_menu=a => local(MenuAction(a)),
-                ~item_class="named-menu-item",
-                ~items,
-                menu_t,
-              );
-            let dir =
-              Menu.direction_from_id(
-                ~menu_height=200.0,
-                ~menu_width=180.0,
-                menu_button_id(i),
-              );
-            let dir_class =
-              switch (dir) {
-              | {vertical: `Down, horizontal: `Right} => "cm-down-right"
-              | {vertical: `Down, horizontal: `Left} => "cm-down-left"
-              | {vertical: `Up, horizontal: `Right} => "cm-up-right"
-              | {vertical: `Up, horizontal: `Left} => "cm-up-left"
-              };
-            content
-            @ [
-              Node.div(
-                ~attrs=[
-                  Attr.id("column-menu-" ++ string_of_int(i)),
-                  Attr.classes([
-                    "context-menu",
-                    "nut-menu",
-                    "column-menu",
-                    dir_class,
-                  ]),
-                ],
-                [
-                  WebUtil.div_c(
-                    "group",
-                    [WebUtil.div_c("contents", menu_nodes)],
-                  ),
-                ],
-              ),
-            ];
-          | _ => content
-          };
-        let is_menu_open =
-          switch (model.menu_state) {
-          | Some((j, _)) => i == j
-          | None => false
-          };
-        Node.th(
-          ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
-          full_content,
-        );
-      },
+          let full_content =
+            switch (h, model.menu_state) {
+            | (Some(_), Some((j, menu_t))) when i == j =>
+              let items =
+                items_for_column(info, exp, headers, local, parent, j);
+              let menu_nodes =
+                Menu.render(
+                  ~inject_action=thunk => thunk(),
+                  ~inject_menu=a => local(MenuAction(a)),
+                  ~item_class="named-menu-item",
+                  ~items,
+                  menu_t,
+                );
+              let dir =
+                Menu.direction_from_id(
+                  ~menu_height=200.0,
+                  ~menu_width=180.0,
+                  menu_button_id(i),
+                );
+              let dir_class =
+                switch (dir) {
+                | {vertical: `Down, horizontal: `Right} => "cm-down-right"
+                | {vertical: `Down, horizontal: `Left} => "cm-down-left"
+                | {vertical: `Up, horizontal: `Right} => "cm-up-right"
+                | {vertical: `Up, horizontal: `Left} => "cm-up-left"
+                };
+              content
+              @ [
+                Node.div(
+                  ~attrs=[
+                    Attr.id("column-menu-" ++ string_of_int(i)),
+                    Attr.classes([
+                      "context-menu",
+                      "nut-menu",
+                      "column-menu",
+                      dir_class,
+                    ]),
+                  ],
+                  [
+                    WebUtil.div_c(
+                      "group",
+                      [WebUtil.div_c("contents", menu_nodes)],
+                    ),
+                  ],
+                ),
+              ];
+            | _ => content
+            };
+          let is_menu_open =
+            switch (model.menu_state) {
+            | Some((j, _)) => i == j
+            | None => false
+            };
+          Node.th(
+            ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
+            full_content,
+          );
+        },
       headers,
     );
 
@@ -472,7 +474,7 @@ let render =
       );
     };
   ColumnMenuListener.sync(
-    ~menu_open=model.menu_state != None,
+    ~menu_open=Option.is_some(model.menu_state),
     ~on_close=local(CloseMenu),
     ~handle_key,
     (),
@@ -481,17 +483,18 @@ let render =
     ~header_cells,
     ~rows=
       List.map(
-        row => {
-          let cells = row_cells(info.utility, view_seg, row);
-          is_readonly ? cells : cells @ [Node.td([])];
-        },
+        ~f=
+          row => {
+            let cells = row_cells(info.utility, view_seg, row);
+            is_readonly ? cells : cells @ [Node.td([])];
+          },
         rows,
       ),
   );
 };
 
 let menu_col = (st: menu_state): option(int) =>
-  Option.map(((c, _)) => c, st);
+  Option.map(~f=((c, _)) => c, st);
 
 let update: (model, action) => model =
   (model, action) => {

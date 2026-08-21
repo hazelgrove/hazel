@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Poly;
 
 /* ---------- Problem category ---------- */
 
@@ -50,8 +51,12 @@ type problem_context = {
    only forced if `id` itself is missing from `measured`. */
 let nearest_measured_id =
     (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) =>
-  Seq.cons(id, () => List.to_seq(Statics.Map.ancestors_of(id, info_map), ()))
-  |> Seq.find(anc => Measured.find_by_id(anc, measured) != None);
+  Stdlib.Seq.cons(id, () =>
+    Stdlib.List.to_seq(Statics.Map.ancestors_of(id, info_map), ())
+  )
+  |> Stdlib.Seq.find(anc =>
+       Option.is_some(Measured.find_by_id(anc, measured))
+     );
 
 let make_problem_context =
     (
@@ -66,12 +71,13 @@ let make_problem_context =
     let reversed = List.rev(measured.piece_rows);
     let (line_numbers_rev, _) =
       List.fold_left(
-        ((acc, line_count), row) =>
-          switch (row) {
-          | [] => ([None, ...acc], line_count)
-          | _ => ([Some(line_count), ...acc], line_count + 1)
-          },
-        ([], 1),
+        ~f=
+          ((acc, line_count), row) =>
+            switch (row) {
+            | [] => ([None, ...acc], line_count)
+            | _ => ([Some(line_count), ...acc], line_count + 1)
+            },
+        ~init=([], 1),
         reversed,
       );
     let mapping = Array.of_list(List.rev(line_numbers_rev));
@@ -82,46 +88,48 @@ let make_problem_context =
   let resolve_nearest = id => nearest_measured_id(~info_map, ~measured, id);
   let pos = id =>
     switch (
-      Option.bind(resolve_nearest(id), anc =>
+      Option.bind(resolve_nearest(id), ~f=anc =>
         Measured.find_by_id(anc, measured)
       )
     ) {
     | Some(m) => m.origin
     | None => {
-        row: max_int,
-        col: max_int,
+        row: Int.max_value,
+        col: Int.max_value,
       }
     };
   /* Statics may span multiple editors; restrict ids to this editor's
      own term so problems don't leak across groups. */
   let id_in_this_editor = id =>
-    TermData.root_piece(id, syntax.term_data) != None;
+    Option.is_some(TermData.root_piece(id, syntax.term_data));
   /* Partition error_ids into syntax and static in a single pass */
   let (syntax_error_ids, static_error_ids) =
     List.fold_right(
-      (id, (syn, stat)) =>
-        switch (Statics.Map.lookup(id, info_map)) {
-        | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
-          if (Info.is_syntax_error(ci)) {
-            ([(id, ci), ...syn], stat);
-          } else {
-            (syn, [(id, ci), ...stat]);
-          }
-        | _ => (syn, stat)
-        },
+      ~f=
+        (id, (syn, stat)) =>
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
+            if (Info.is_syntax_error(ci)) {
+              ([(id, ci), ...syn], stat);
+            } else {
+              (syn, [(id, ci), ...stat]);
+            }
+          | _ => (syn, stat)
+          },
+      ~init=([], []),
       statics.error_ids,
-      ([], []),
     );
   /* Collect warning ids with their info */
   let warning_ids =
     if (display_warnings) {
       List.filter_map(
-        id =>
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
-            Some((id, ci))
-          | _ => None
-          },
+        ~f=
+          id =>
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
+              Some((id, ci))
+            | _ => None
+            },
         statics.warning_ids,
       );
     } else {
@@ -130,7 +138,7 @@ let make_problem_context =
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
   let all_holes = Segment.holes(syntax.segment);
   let (hole_ids, concave_holes) =
-    List.partition((g: Grout.t) => g.shape == Convex, all_holes);
+    List.partition_tf(~f=(g: Grout.t) => g.shape == Convex, all_holes);
   /* Collect projector errors with their kinds */
   let projector_errors =
     Id.Map.fold(
@@ -161,13 +169,13 @@ let make_problem_context =
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =
-    (ctx: problem_context, cat: problem_category): Seq.t(problem) =>
+    (ctx: problem_context, cat: problem_category): Stdlib.Seq.t(problem) =>
   switch (cat) {
   | Syntax =>
     let grout_seq =
       ctx.concave_holes
-      |> List.to_seq
-      |> Seq.map((g: Grout.t) =>
+      |> Stdlib.List.to_seq
+      |> Stdlib.Seq.map((g: Grout.t) =>
            {
              id: g.id,
              category: Syntax,
@@ -176,14 +184,18 @@ let collect_category =
          );
     let incomplete_seq =
       Segment.incomplete_tiles_deep(ctx.segment)
-      |> List.to_seq
-      |> Seq.map((t: Tile.t) => {
-           let all_indices = List.init(List.length(t.label), Fun.id);
+      |> Stdlib.List.to_seq
+      |> Stdlib.Seq.map((t: Tile.t) => {
+           let all_indices = List.init(List.length(t.label), ~f=Fn.id);
            let missing_labels =
-             List.filter(i => !List.mem(i, t.shards), all_indices)
-             |> List.map(i => List.nth(t.label, i));
+             List.filter(
+               ~f=i => !List.mem(t.shards, i, ~equal=Poly.equal),
+               all_indices,
+             )
+             |> List.map(~f=i => List.nth_exn(t.label, i));
            let description =
-             "Incomplete: missing " ++ String.concat(", ", missing_labels);
+             "Incomplete: missing "
+             ++ String.concat(~sep=", ", missing_labels);
            {
              id: t.id,
              category: Syntax,
@@ -192,19 +204,22 @@ let collect_category =
          });
     let syntax_info_seq =
       ctx.syntax_error_ids
-      |> List.to_seq
-      |> Seq.map(((id, ci)) =>
+      |> Stdlib.List.to_seq
+      |> Stdlib.Seq.map(((id, ci)) =>
            {
              id,
              category: Syntax,
              source: FromInfo(ci),
            }
          );
-    Seq.append(grout_seq, Seq.append(incomplete_seq, syntax_info_seq));
+    Stdlib.Seq.append(
+      grout_seq,
+      Stdlib.Seq.append(incomplete_seq, syntax_info_seq),
+    );
   | Hole =>
     ctx.hole_ids
-    |> List.to_seq
-    |> Seq.map((g: Grout.t) =>
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map((g: Grout.t) =>
          {
            id: g.id,
            category: Hole,
@@ -213,8 +228,8 @@ let collect_category =
        )
   | Static =>
     ctx.static_error_ids
-    |> List.to_seq
-    |> Seq.map(((id, ci)) =>
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map(((id, ci)) =>
          {
            id,
            category: Static,
@@ -223,8 +238,8 @@ let collect_category =
        )
   | Warning =>
     ctx.warning_ids
-    |> List.to_seq
-    |> Seq.map(((id, ci)) =>
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map(((id, ci)) =>
          {
            id,
            category: Warning,
@@ -233,8 +248,8 @@ let collect_category =
        )
   | Projector =>
     ctx.projector_errors
-    |> List.to_seq
-    |> Seq.map(((id, kind, err)) =>
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map(((id, kind, err)) =>
          {
            id,
            category: Projector,
@@ -247,7 +262,9 @@ let collect_category =
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
   [Syntax, Hole, Static, Warning, Projector]
-  |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
+  |> List.concat_map(~f=cat =>
+       collect_category(ctx, cat) |> Stdlib.List.of_seq
+     );
 };
 
 /* ---------- Grouped multi-editor collection ---------- */
@@ -308,7 +325,8 @@ type problem_collection = {
 let make =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
-  let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);
+  let seen: Stdlib.Hashtbl.t((Id.t, problem_category), unit) =
+    Stdlib.Hashtbl.create(64);
   let collect_source = (source: editor_source) => {
     let ctx =
       make_problem_context(
@@ -318,85 +336,96 @@ let make =
       );
     let problems_by_category =
       List.map(
-        cat => {
-          let deduped =
-            collect_category(ctx, cat)
-            |> Seq.filter((p: problem) => {
-                 let key = (p.id, cat);
-                 if (Hashtbl.mem(seen, key)) {
-                   false;
-                 } else {
-                   Hashtbl.add(seen, key, ());
-                   true;
-                 };
-               })
-            |> List.of_seq;
-          let located =
-            deduped
-            |> List.map(p =>
-                 {
-                   problem: p,
-                   measured: ctx.measured,
-                   row_to_line: ctx.row_to_line,
-                   nearest_measured_id: ctx.nearest_measured_id,
-                   pos: ctx.pos(p.id),
-                 }
-               )
-            |> List.sort((a, b) => compare(a.pos, b.pos));
-          (cat, located);
-        },
+        ~f=
+          cat => {
+            let deduped =
+              collect_category(ctx, cat)
+              |> Stdlib.Seq.filter((p: problem) => {
+                   let key = (p.id, cat);
+                   if (Stdlib.Hashtbl.mem(seen, key)) {
+                     false;
+                   } else {
+                     Stdlib.Hashtbl.add(seen, key, ());
+                     true;
+                   };
+                 })
+              |> Stdlib.List.of_seq;
+            let located =
+              deduped
+              |> List.map(~f=p =>
+                   {
+                     problem: p,
+                     measured: ctx.measured,
+                     row_to_line: ctx.row_to_line,
+                     nearest_measured_id: ctx.nearest_measured_id,
+                     pos: ctx.pos(p.id),
+                   }
+                 )
+              |> List.sort(~compare=(a, b) => compare(a.pos, b.pos));
+            (cat, located);
+          },
         [Syntax, Hole, Static, Warning],
       );
     problems_by_category;
   };
   let groups =
     List.map(
-      (input: editor_group_input) => {
-        let per_source = List.map(collect_source, input.sources);
-        /* Concat per-source problems per category, preserving input
-           order across sources. */
-        let problems_by_category =
-          List.map(
-            cat =>
-              (
-                cat,
-                List.concat_map(
-                  pbc => Option.value(List.assoc_opt(cat, pbc), ~default=[]),
-                  per_source,
-                ),
-              ),
-            [Syntax, Hole, Static, Warning],
-          );
-        let counts =
-          List.map(
-            ((cat, ps)) => (cat, List.length(ps)),
+      ~f=
+        (input: editor_group_input) => {
+          let per_source = List.map(~f=collect_source, input.sources);
+          /* Concat per-source problems per category, preserving input
+             order across sources. */
+          let problems_by_category =
+            List.map(
+              ~f=
+                cat =>
+                  (
+                    cat,
+                    List.concat_map(
+                      ~f=
+                        pbc =>
+                          Option.value(
+                            List.Assoc.find(pbc, cat, ~equal=Poly.equal),
+                            ~default=[],
+                          ),
+                      per_source,
+                    ),
+                  ),
+              [Syntax, Hole, Static, Warning],
+            );
+          let counts =
+            List.map(
+              ~f=((cat, ps)) => (cat, List.length(ps)),
+              problems_by_category,
+            );
+          {
+            label: input.label,
+            single_source:
+              switch (input.sources) {
+              | []
+              | [_] => true
+              | _ => false
+              },
             problems_by_category,
-          );
-        {
-          label: input.label,
-          single_source:
-            switch (input.sources) {
-            | []
-            | [_] => true
-            | _ => false
-            },
-          problems_by_category,
-          counts,
-        };
-      },
+            counts,
+          };
+        },
       inputs,
     );
   let counts =
     [Syntax, Hole, Static, Warning]
-    |> List.map(cat =>
+    |> List.map(~f=cat =>
          (
            cat,
            groups
-           |> List.to_seq
-           |> Seq.map((g: problem_group) =>
-                Option.value(List.assoc_opt(cat, g.counts), ~default=0)
+           |> Stdlib.List.to_seq
+           |> Stdlib.Seq.map((g: problem_group) =>
+                Option.value(
+                  List.Assoc.find(g.counts, cat, ~equal=Poly.equal),
+                  ~default=0,
+                )
               )
-           |> Seq.fold_left((+), 0),
+           |> Stdlib.Seq.fold_left((+), 0),
          )
        );
   {

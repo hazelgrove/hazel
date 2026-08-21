@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 open Zipper;
+open Poly;
 
 let local = (d: Direction.t, z: t): option(t) =>
   if (z.caret == Outer) {
@@ -177,7 +178,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
     let p =
       switch (d) {
       | Right => ListUtil.last(z.selection.content)
-      | Left => List.hd(z.selection.content)
+      | Left => List.hd_exn(z.selection.content)
       };
     switch (piece_max_idx(p)) {
     | None => z
@@ -246,11 +247,11 @@ and shrink_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         n < max
           ? Some(Zipper.Caret.set(Inner(n + 1), z))
           : Zipper.shrink_selection(z)
-            |> Option.map(Zipper.Caret.set(Outer));
+            |> Option.map(~f=Zipper.Caret.set(Outer));
       | Left =>
         /* n == 0 but not at crossover: more pieces; pop focus-side
          * piece back to siblings and continue at Outer. */
-        Zipper.shrink_selection(z) |> Option.map(Zipper.Caret.set(Outer))
+        Zipper.shrink_selection(z) |> Option.map(~f=Zipper.Caret.set(Outer))
       };
     };
 
@@ -502,7 +503,7 @@ let piece_matches_shard = (piece: Piece.t, shard: Piece.t): bool =>
       Id.equal(t1.id, t2.id)
       && (
         switch (t2.shards) {
-        | [s] => List.mem(s, t1.shards)
+        | [s] => List.mem(t1.shards, s, ~equal=Poly.equal)
         | _ => false
         }
       )
@@ -788,7 +789,7 @@ let escalate_from_term =
      * Left siblings are in document order, so reverse to
      * find the nearest one first. */
     let enclosing_rule =
-      fst(z.relatives.siblings) |> List.rev |> List.find_opt(is_rule_tile);
+      fst(z.relatives.siblings) |> List.rev |> List.find(~f=is_rule_tile);
     switch (enclosing_rule) {
     | Some(p) => select_as_parent(Piece.id(p), z, term_data, info_map)
     | None => select_as_parent(parent_id, z, term_data, info_map)
@@ -815,7 +816,7 @@ let select_enclosing_term =
     current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z)
   | sel =>
     let z0 = Zipper.unselect(z);
-    if (List.exists(is_rule_tile, sel)) {
+    if (List.exists(~f=is_rule_tile, sel)) {
       /* Rule → case: rules aren't terms in term_data,
        * so escalate to the parent case expression */
       let* p = Zipper.parent(z0);

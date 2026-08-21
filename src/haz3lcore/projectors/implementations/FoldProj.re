@@ -92,7 +92,8 @@ module M: Projector = {
         div(
           ~attrs=[
             Attr.on_double_click(_ =>
-              status.indication != None ? local(Toggle) : Ui_effect.Ignore
+              Option.is_some(status.indication)
+                ? local(Toggle) : Ui_effect.Ignore
             ),
           ],
           [text(model.text)]

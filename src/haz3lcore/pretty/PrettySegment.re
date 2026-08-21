@@ -1,3 +1,4 @@
+open Poly;
 /* Pretty printer for Hazel segments.
 
    Uses a Wadler/Lindig-style document IR with a greedy layout algorithm.
@@ -74,14 +75,14 @@ let rec piece_width = (p: Piece.t): int =>
        pieces from decomposition it's just the shard's token. */
     let label_w =
       List.fold_left(
-        (acc, s) => acc + Token.length(s),
-        0,
+        ~f=(acc, s) => acc + Token.length(s),
+        ~init=0,
         Tile.effective_label(t),
       );
     let children_w =
       List.fold_left(
-        (acc, child) => acc + segment_flat_width(child),
-        0,
+        ~f=(acc, child) => acc + segment_flat_width(child),
+        ~init=0,
         t.children,
       );
     label_w + children_w;
@@ -90,7 +91,7 @@ let rec piece_width = (p: Piece.t): int =>
   | Projector(_) => 10
   }
 and segment_flat_width = (seg: Segment.t): int =>
-  List.fold_left((acc, p) => acc + piece_width(p), 0, seg);
+  List.fold_left(~f=(acc, p) => acc + piece_width(p), ~init=0, seg);
 
 /* === Greedy layout algorithm (Lindig-style for strict evaluation) === */
 
@@ -160,10 +161,11 @@ let layout = (width: int, col: int, cmds: list((mode, doc))): list(output) => {
 let output_to_segment = (outputs: list(output)): Segment.t =>
   List.rev(
     List.rev_map(
-      fun
-      | OPiece(p) => p
-      | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
-      | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
+      ~f=
+        fun
+        | OPiece(p) => p
+        | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
+        | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
       outputs,
     ),
   );
@@ -183,7 +185,7 @@ let is_linebreak = (p: Piece.t): bool =>
   };
 
 let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
-  List.filter(p => !is_whitespace(p), seg);
+  List.filter(~f=p => !is_whitespace(p), seg);
 
 /* Detect blank lines in original segment.
    Returns a set of piece IDs that had a blank line (2+ newlines) before them.
@@ -193,13 +195,17 @@ let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
 let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
   let (_, set) =
     List.fold_left(
-      ((newline_count, set), p) =>
-        if (is_whitespace(p)) {
-          (is_linebreak(p) ? newline_count + 1 : newline_count, set);
-        } else {
-          (0, newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set);
-        },
-      (0, Id.Map.empty),
+      ~f=
+        ((newline_count, set), p) =>
+          if (is_whitespace(p)) {
+            (is_linebreak(p) ? newline_count + 1 : newline_count, set);
+          } else {
+            (
+              0,
+              newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set,
+            );
+          },
+      ~init=(0, Id.Map.empty),
       seg,
     );
   set;
@@ -310,13 +316,14 @@ let piece_precedence = (p: Piece.t): option(int) =>
 /* Find the loosest (highest int) precedence among operators in pieces */
 let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
   List.fold_left(
-    (best, p) =>
-      switch (piece_precedence(p), best) {
-      | (Some(prec), None) => Some(prec)
-      | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
-      | _ => best
-      },
-    None,
+    ~f=
+      (best, p) =>
+        switch (piece_precedence(p), best) {
+        | (Some(prec), None) => Some(prec)
+        | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
+        | _ => best
+        },
+    ~init=None,
     pieces,
   );
 
@@ -474,8 +481,8 @@ let piece_doc = (p: Piece.t): doc => Piece(p, piece_width(p));
 /* Build doc for a piece followed by trailing comments (Space-separated) */
 let piece_with_comments = (p: Piece.t, comments: list(Piece.t)): doc =>
   List.fold_left(
-    (acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
-    piece_doc(p),
+    ~f=(acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
+    ~init=piece_doc(p),
     comments,
   );
 
@@ -847,7 +854,7 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
 
 /* Wrap accumulated prefix docs (reversed) around the terminal doc */
 and seg_finish = (acc_rev: list(doc), last: doc): doc =>
-  List.fold_left((acc, d) => Cat(d, acc), last, acc_rev)
+  List.fold_left(~f=(acc, d) => Cat(d, acc), ~init=last, acc_rev)
 
 and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   switch (pieces) {
@@ -886,8 +893,8 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
-        (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-        cats([piece_doc(p), piece_doc(comma)]),
+        ~f=(acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+        ~init=cats([piece_doc(p), piece_doc(comma)]),
         comments,
       );
     switch (rest_after) {
@@ -1007,8 +1014,8 @@ and build_infix_chain_doc =
         let operand_doc = Group(segment_to_doc(s, actual_operand));
         let comment_suffix =
           List.fold_left(
-            (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-            Empty,
+            ~f=(acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+            ~init=Empty,
             leading_comments,
           );
         let next =

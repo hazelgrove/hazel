@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -34,8 +35,8 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
   switch (p1, p2) {
   | (Grout({shape: Concave, _}), Grout({shape: Concave, _})) => true
   | (Tile(t1), Tile(t2)) =>
-    let lbl1 = (==)(t1.label);
-    let lbl2 = (==)(t2.label);
+    let lbl1 = y => List.equal(String.equal, t1.label, y);
+    let lbl2 = y => List.equal(String.equal, t2.label, y);
     lbl1(case_label)
     && lbl2(rule_label)
     || lbl1(rule_label)
@@ -130,7 +131,7 @@ module Stacks = {
           && Precedence.associativity(prec') != Some(Left) => stacks
     | (_, None) => stacks
     | (_, Some((l, r))) =>
-      let is = List.map(fst, chain);
+      let is = List.map(~f=fst, chain);
       let chain_len = List.length(chain);
       let split_kids = (n: int): (list(skel), list(skel)) =>
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
@@ -185,7 +186,10 @@ module Stacks = {
 let mk = (~sort=Sort.Exp, seg: list(ip)): t => {
   let stacks =
     seg
-    |> List.fold_left(Fun.flip(Stacks.push_shunted(~sort)), Stacks.empty)
+    |> List.fold_left(
+         ~f=Fun.flip(Stacks.push_shunted(~sort)),
+         ~init=Stacks.empty,
+       )
     |> Stacks.finish(~sort);
   ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };

@@ -116,7 +116,7 @@ let refresh_shapes =
   };
 };
 
-/* Physical equality on option(Exp.t): `None === None` holds (shared
+/* Physical equality on option(Exp.t): `phys_equal(None, None)` holds (shared
  * immediate), but `Some(x) === Some(y)` is always false (new box). Hit the
  * cache when the underlying Exp.t ref matches — same stability guarantee
  * as info_map/dyn_map, which are persistent Id.Maps compared by ref. */
@@ -124,7 +124,7 @@ let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
   | (None, None) => true
-  | (Some(x), Some(y)) => x === y
+  | (Some(x), Some(y)) => phys_equal(x, y)
   | _ => false
   };
 
@@ -135,8 +135,8 @@ let elaborated_phys_eq =
 let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);
-  } else if (info_map !== old.shape_info_map
-             || dyn_map !== old.shape_dyn_map
+  } else if (!phys_equal(info_map, old.shape_info_map)
+             || !phys_equal(dyn_map, old.shape_dyn_map)
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {

@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 include CaretBase;
 
@@ -104,7 +105,7 @@ module MapPiece = {
   type updater = Piece.t => Segment.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    seg |> List.concat_map(~f=p => f(p)) |> List.map(~f=of_piece(f));
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
@@ -117,7 +118,7 @@ module MapPiece = {
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
     {
       ...t,
-      children: List.map(of_segment(f), t.children),
+      children: List.map(~f=of_segment(f), t.children),
     };
   };
 
@@ -130,8 +131,8 @@ module MapPiece = {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
+        List.map(~f=of_segment(f), fst(ancestor.children)),
+        List.map(~f=of_segment(f), snd(ancestor.children)),
       ),
     };
   };
@@ -143,7 +144,7 @@ module MapPiece = {
   );
 
   let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(f), ancestors);
+    List.map(~f=of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {
@@ -176,7 +177,7 @@ module MapPiece = {
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
-    let sibs = (List.concat_map(f, l), List.concat_map(f, r));
+    let sibs = (List.concat_map(~f, l), List.concat_map(~f, r));
     put_siblings(sibs, z);
   };
 

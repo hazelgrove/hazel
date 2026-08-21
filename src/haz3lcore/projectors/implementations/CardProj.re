@@ -2,6 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -150,13 +151,13 @@ module SyntaxTerm = {
     let collection_to_exp = (collection: collection): Exp.t =>
       switch (collection) {
       | Card(card) => card_to_exp(card)
-      | Hand(hand) => Exp.list_lit(List.map(card_to_exp, hand))
+      | Hand(hand) => Exp.list_lit(List.map(~f=card_to_exp, hand))
       };
 
     let collection_to_pat = (collection: collection): pat =>
       switch (collection) {
       | Card(card) => card_to_pat(card)
-      | Hand(hand) => Pat.list_lit(List.map(card_to_pat, hand))
+      | Hand(hand) => Pat.list_lit(List.map(~f=card_to_pat, hand))
       };
 
     switch (sort) {
@@ -220,7 +221,7 @@ module SyntaxTerm = {
     | Exp(term) =>
       switch (strip_wraps_exp(term).term) {
       | ListLit(terms) =>
-        let+ cards = terms |> List.map(exp_to_card) |> OptUtil.sequence;
+        let+ cards = terms |> List.map(~f=exp_to_card) |> OptUtil.sequence;
         (Exp, Hand(cards));
       | _ =>
         let+ card = exp_to_card(term);
@@ -229,7 +230,7 @@ module SyntaxTerm = {
     | Pat(term) =>
       switch (strip_wraps_pat(term).term) {
       | ListLit(terms) =>
-        let+ cards = terms |> List.map(pat_to_card) |> OptUtil.sequence;
+        let+ cards = terms |> List.map(~f=pat_to_card) |> OptUtil.sequence;
         (Pat, Hand(cards));
       | _ =>
         let+ card = pat_to_card(term);
@@ -272,7 +273,7 @@ module SyntaxTerm = {
     | Some((_, Card(_)))
     | Some((_, Hand([_]))) => 4
     | Some((_, Hand(hand))) =>
-      Float.ceil(
+      Stdlib.ceil(
         3.5 +. 81. /. 100. *. (Float.of_int(List.length(hand)) -. 1.),
       )
       |> Float.to_int
@@ -329,7 +330,7 @@ module Card = {
         : card_to_offset(sort, card);
     Css_gen.create(
       ~field="background-position",
-      ~value=Printf.sprintf("%dpx %dpx", - offset_x, - offset_y),
+      ~value=Stdlib.Printf.sprintf("%dpx %dpx", - offset_x, - offset_y),
     );
   };
 
@@ -389,7 +390,7 @@ module Chooser = {
       ]
       @ maybe_rank;
     List.map(
-      (suit: suit) => List.map((rank: rank) => (suit, rank), ranks),
+      ~f=(suit: suit) => List.map(~f=(rank: rank) => (suit, rank), ranks),
       suits,
     );
   };
@@ -409,7 +410,7 @@ module Chooser = {
   let card_pos = (col: int, row: int) =>
     Attr.create(
       "style",
-      Printf.sprintf(
+      Stdlib.Printf.sprintf(
         "position: absolute; left: %dpx; top: %dpx; z-index: %d;",
         col * col_width,
         row * row_height,
@@ -434,19 +435,21 @@ module Chooser = {
     Node.div(
       ~attrs=[Attr.classes(["chooser", Sort.show(sort)])],
       List.mapi(
-        (r, row) =>
-          List.mapi(
-            (col, c) =>
-              card_wrapper(
-                replace_card(info, parent, _, index),
-                ~indicated=c == card,
-                sort,
-                col,
-                r,
-                c,
-              ),
-            row,
-          ),
+        ~f=
+          (r, row) =>
+            List.mapi(
+              ~f=
+                (col, c) =>
+                  card_wrapper(
+                    replace_card(info, parent, _, index),
+                    ~indicated=c == card,
+                    sort,
+                    col,
+                    r,
+                    c,
+                  ),
+              row,
+            ),
         grid(sort_of(sort)),
       )
       |> List.concat,
@@ -579,7 +582,7 @@ module Hand = {
         Attr.class_("card-wrapper"),
         Attr.create(
           "style",
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "position: absolute; left: %fpx; z-index: %d;",
             mode == Flipped ? 0. : float_of_int(index) *. 8.5,
             100 + index,
@@ -593,7 +596,7 @@ module Hand = {
     Node.div(
       ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
       List.mapi(
-        card_wrapper(info, info.id, mode, parent, local, sort),
+        ~f=card_wrapper(info, info.id, mode, parent, local, sort),
         hand,
       ),
     );
@@ -614,7 +617,7 @@ module M: Projector = {
   let elaborate_syntax = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+    Option.is_some(SyntaxTerm.get_opt(info)) ? Some({mode: Show}) : None;
 
   let placeholder = (_, info): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
