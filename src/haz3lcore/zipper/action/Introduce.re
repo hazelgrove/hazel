@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* Predicates for checking if a type can be introduced.
    Used by ContextMenu to show/hide the Introduce action. */
@@ -57,19 +58,22 @@ module IntroducePat: Introducable with type t = Pat.t = {
         Pat.(
           switch (ty.term) {
           | Prod([]) =>
-            Some(tuple([]) |> (pat => (pat, List.hd(pat.annotation.ids))))
+            Some(
+              tuple([]) |> (pat => (pat, List.hd_exn(pat.annotation.ids))),
+            )
           | Prod([_, ...ts]) =>
             let (head_element, head_id) =
-              empty_hole() |> (hole => (hole, List.hd(hole.annotation.ids)));
+              empty_hole()
+              |> (hole => (hole, List.hd_exn(hole.annotation.ids)));
 
             Some((
-              tuple([head_element, ...List.map(_ => empty_hole(), ts)]),
+              tuple([head_element, ...List.map(~f=_ => empty_hole(), ts)]),
               head_id,
             ));
           | Sum([Variant(c, _, None)]) =>
             Some(
               constructor(c, None)
-              |> (pat => (pat, List.hd(pat.annotation.ids))),
+              |> (pat => (pat, List.hd_exn(pat.annotation.ids))),
             )
           | Sum([Variant(c, _, Some(_))]) =>
             Some(
@@ -77,7 +81,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
               |> (
                 pat => (
                   ap(constructor(c, None), pat),
-                  List.hd(pat.annotation.ids),
+                  List.hd_exn(pat.annotation.ids),
                 )
               ),
             )
@@ -88,7 +92,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
       ):
         option((Pat.t, Id.t))
     )
-    |> Option.map(((a, b)) => (a, b, false));
+    |> Option.map(~f=((a, b)) => (a, b, false));
   let to_segment = (~settings, pattern, already_parenthesized) =>
     ExpToSegment.any_to_segment(
       ~already_paren=already_parenthesized,
@@ -115,12 +119,13 @@ module IntroduceExp: Introducable with type t = Exp.t = {
           let cursor_pat = Pat.empty_hole();
           Some((
             fn(cursor_pat, empty_hole(), None, None),
-            List.hd(cursor_pat.annotation.ids),
+            List.hd_exn(cursor_pat.annotation.ids),
             false,
           ));
         | Prod([]) =>
           Some(
-            tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids), false)),
+            tuple([])
+            |> (exp => (exp, List.hd_exn(exp.annotation.ids), false)),
           )
         | Prod([t, ...ts]) =>
           let tuple_entry = (t: TermBase.Typ.t) => {
@@ -131,7 +136,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
                 tup_label(label(l), hole)
               | _ => hole
               },
-              List.hd(hole.annotation.ids),
+              List.hd_exn(hole.annotation.ids),
             );
           };
 
@@ -140,7 +145,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
           Some((
             tuple([
               head_element,
-              ...List.map(t => t |> tuple_entry |> fst, ts),
+              ...List.map(~f=t => t |> tuple_entry |> fst, ts),
             ]),
             head_id,
             false,
@@ -148,7 +153,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
         | Sum([Variant(c, _, None)]) =>
           Some(
             constructor(c, None)
-            |> (exp => (exp, List.hd(exp.annotation.ids), false)),
+            |> (exp => (exp, List.hd_exn(exp.annotation.ids), false)),
           )
         | Sum([Variant(c, _, Some(_))]) =>
           Some(
@@ -156,7 +161,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             |> (
               exp => (
                 ap(Forward, constructor(c, None), exp),
-                List.hd(exp.annotation.ids),
+                List.hd_exn(exp.annotation.ids),
                 false,
               )
             ),
@@ -167,7 +172,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             |> (
               exp => (
                 typ_fun(exp, empty_hole(), None),
-                List.hd(exp.annotation.ids),
+                List.hd_exn(exp.annotation.ids),
                 false,
               )
             ),
@@ -175,17 +180,18 @@ module IntroduceExp: Introducable with type t = Exp.t = {
         | List(_) =>
           Some(
             list_lit([])
-            |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+            |> (exp => (exp, List.hd_exn(exp.annotation.ids), true)),
           )
         | Atom(String) =>
           Some(
-            string("") |> (exp => (exp, List.hd(exp.annotation.ids), true)),
+            string("")
+            |> (exp => (exp, List.hd_exn(exp.annotation.ids), true)),
           )
         | _ => None
         }
       )
     )
-    |> Option.map(((a, b, c)) => (a, b, c));
+    |> Option.map(~f=((a, b, c)) => (a, b, c));
   let to_segment = (~settings, expression, already_parenthesized) =>
     ExpToSegment.exp_to_segment(
       ~already_paren=already_parenthesized,
@@ -212,7 +218,7 @@ module Make =
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
-    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+    Option.map(~f=(p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
     && sibs
     |> (((l, r)) => l @ r)
     |> List.length(_) == 1;
@@ -223,7 +229,7 @@ module Make =
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
     |> move_right_until_id(id, _)
-    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id);
+    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fn.id);
   };
 
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {

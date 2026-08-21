@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */
@@ -88,14 +89,15 @@ module Typ = {
       )
       : list((Token.t, Typ.t)) =>
     List.filter_map(
-      delim =>
-        switch (List.assoc_opt(delim, self_tys)) {
-        | _ when Form.is_annoying_delim(delim) => None
-        | None => Some((delim, unk))
-        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
-          Some((delim, self_ty))
-        | Some(_) => None
-        },
+      ~f=
+        delim =>
+          switch (List.Assoc.find(self_tys, delim, ~equal=Poly.equal)) {
+          | _ when Form.is_annoying_delim(delim) => None
+          | None => Some((delim, unk))
+          | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
+            Some((delim, self_ty))
+          | Some(_) => None
+          },
       delims,
     );
 };
@@ -105,20 +107,21 @@ module Typ = {
 module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.map(token => {
+    |> List.map(~f=token => {
          let (lbl, _) = Form.Expansion.get(sort, token);
          switch (Form.Molds.try_get(sort, lbl)) {
          | None => []
          | Some(molds) =>
            molds
-           |> List.filter_map((_: Mold.t) =>
-                List.length(lbl) > 1 && String.equal(token, List.hd(lbl))
+           |> List.filter_map(~f=(_: Mold.t) =>
+                List.length(lbl) > 1
+                && String.equal(token, List.hd_exn(lbl))
                   ? Some(token ++ leading_expander) : None
               )
          };
        })
-    |> List.flatten
-    |> List.sort_uniq(compare);
+    |> List.concat
+    |> List.dedup_and_sort(~compare=Poly.compare);
 
   let leading_exp = leading(Exp);
   let leading_pat = leading(Pat);
@@ -145,18 +148,19 @@ module Delims = {
 
   let infix = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.map(token => {
+    |> List.map(~f=token => {
          List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
+           ~f=
+             (m: Mold.t) =>
+               m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
            switch (Form.Molds.compound([token])) {
            | Some(molds) => molds
            | None => []
            },
          )
        })
-    |> List.flatten
-    |> List.sort_uniq(compare);
+    |> List.concat
+    |> List.dedup_and_sort(~compare=Poly.compare);
   let infix_exp = infix(Exp);
   let infix_pat = infix(Pat);
   let infix_typ = infix(Typ);
@@ -178,18 +182,19 @@ module Delims = {
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
-    |> List.map(token => {
+    |> List.map(~f=token => {
          switch (Form.Molds.try_get(sort, [token])) {
          | None => []
          | Some(molds) =>
            molds
-           |> List.filter_map((_: Mold.t) =>
-                List.mem(token, Token.const_mono_delims) ? Some(token) : None
+           |> List.filter_map(~f=(_: Mold.t) =>
+                List.mem(Token.const_mono_delims, token, ~equal=Poly.equal)
+                  ? Some(token) : None
               )
          }
        })
-    |> List.flatten
-    |> List.sort_uniq(compare);
+    |> List.concat
+    |> List.dedup_and_sort(~compare=Poly.compare);
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
    * molds (as constructors) but no type entry in Typ.of_const_mono_delim.
@@ -198,9 +203,11 @@ module Delims = {
    * constructor suggestions come from TyDiCtx.bound_constructors instead.
    * They remain in Typ sort for type-position completion. */
   let const_mono_exp =
-    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
+    const_mono(Exp)
+    |> List.filter(~f=t => !List.mem(Token.base_typs, t, ~equal=Poly.equal));
   let const_mono_pat =
-    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
+    const_mono(Pat)
+    |> List.filter(~f=t => !List.mem(Token.base_typs, t, ~equal=Poly.equal));
   let const_mono_typ = const_mono(Typ);
   let const_mono_drv_exp = const_mono(Drv(Exp));
   let const_mono_drv_typ = const_mono(Drv(Typ));
@@ -229,25 +236,27 @@ let suggest_form =
   switch (sort) {
   | Exp =>
     List.map(
-      ((content, ty)) =>
-        TyDiSuggestion.{
-          content,
-          strategy: Exp(Common(NewForm(ty))),
-        },
+      ~f=
+        ((content, ty)) =>
+          TyDiSuggestion.{
+            content,
+            strategy: Exp(Common(NewForm(ty))),
+          },
       filtered,
     )
   | Pat =>
     List.map(
-      ((content, ty)) =>
-        TyDiSuggestion.{
-          content,
-          strategy: Pat(Common(NewForm(ty))),
-        },
+      ~f=
+        ((content, ty)) =>
+          TyDiSuggestion.{
+            content,
+            strategy: Pat(Common(NewForm(ty))),
+          },
       filtered,
     )
   | _ =>
     delims
-    |> List.map(content =>
+    |> List.map(~f=content =>
          TyDiSuggestion.{
            content,
            strategy: Typ(NewForm),
@@ -258,7 +267,7 @@ let suggest_form =
 
 let suggest_operator: Info.t => list(TyDiSuggestion.t) =
   suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+    List.map(~f=((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
     Delims.infix,
   );
 
