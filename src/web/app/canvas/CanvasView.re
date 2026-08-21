@@ -523,7 +523,10 @@ let view =
               "width: %spx; height: %spx; zoom: %s; --dot-pitch: %spx; --dot-r: %.3fpx; --dot-fade: %.3fpx;",
               fmt(max(lay.width, mw)),
               fmt(max(lay.height, mh)),
-              fmt(zoom),
+              /* zoom needs full precision: %.1f rounds a pane-fitting
+                 zoom up and the min_size-floored root overflows by the
+                 excess, re-summoning the scrollbars fit just removed */
+              Printf.sprintf("%.4f", zoom),
               fmt(pitch),
               /* dots keep a constant VISUAL size across zoom levels */
               0.75 /. zoom,

@@ -113,6 +113,14 @@ let install_zoom_listener = (): unit => {
    avatar persists through interstitials (turn start, pathless tools,
    paths gone stale mid-burst) instead of blinking out */
 let last_avatar_id: ref(option(Id.t)) = ref(None: option(Id.t));
+
+/* While a node drag is in progress the pane measurements are FROZEN:
+   any mid-drag change (scrollbar appearing, overlay quirks, content
+   growth) would otherwise re-derive the fit/centering frame and bounce
+   every node between adjacent grid cells under the user's cursor. */
+let drag_active: ref(bool) = ref(false);
+let cached_avail_w: ref(option(float)) = ref(None: option(float));
+let cached_avail_h: ref(option(float)) = ref(None: option(float));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 
@@ -330,6 +338,27 @@ let view =
       let h = Js_of_ocaml.Js.Unsafe.coerce(el)##.clientHeight;
       h > 100 ? Some(float_of_int(h)) : None;
     | None => None
+    };
+  /* frame freeze during drags (see drag_active) */
+  let avail_width =
+    if (drag_active^) {
+      switch (cached_avail_w^) {
+      | Some(_) as c => c
+      | None => avail_width
+      };
+    } else {
+      cached_avail_w := avail_width;
+      avail_width;
+    };
+  let avail_height =
+    if (drag_active^) {
+      switch (cached_avail_h^) {
+      | Some(_) as c => c
+      | None => avail_height
+      };
+    } else {
+      cached_avail_h := avail_height;
+      avail_height;
     };
   let lay = {
     /* ALL frame decisions (fit scales, normalization origin) derive
@@ -576,6 +605,7 @@ let view =
         ));
       | None => None
       };
+    drag_active := true;
     let moved = ref(false);
     let delta = ref((0., 0.));
     let rec on_move = e => {
@@ -613,6 +643,7 @@ let view =
       ();
     }
     and on_up = _ => {
+      drag_active := false;
       let doc = Js.Unsafe.coerce(Dom_html.document);
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
@@ -971,14 +1002,16 @@ let view =
           "fit",
           "zoom so the whole graph fits the pane",
           {
+            /* slack: equality lets sub-pixel rounding re-summon the
+               scrollbar the fit was meant to remove */
             let zw =
               switch (avail_width) {
-              | Some(w) => (w -. 10.) /. max(1., lay.width)
+              | Some(w) => (w -. 24.) /. max(1., lay.width)
               | None => 1.
               };
             let zh =
               switch (avail_height) {
-              | Some(h) => (h -. 10.) /. max(1., lay.height)
+              | Some(h) => (h -. 24.) /. max(1., lay.height)
               | None => 1.
               };
             globals.inject_global(
@@ -1017,8 +1050,8 @@ let view =
             ~zoom,
             ~avatar_bubble,
             ~min_size=(
-              Option.value(~default=0., avail_width) /. zoom,
-              Option.value(~default=0., avail_height) /. zoom,
+              (Option.value(~default=0., avail_width) -. 2.) /. zoom,
+              (Option.value(~default=0., avail_height) -. 2.) /. zoom,
             ),
             ~focused,
             ~avatar,
