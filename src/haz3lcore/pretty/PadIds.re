@@ -57,7 +57,7 @@ let pad_ids =
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
-  List.map(replace, truncated);
+  List.map(~f=replace, truncated);
 };
 
 let necessary_ids: Typ.t => int =
@@ -110,23 +110,24 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | Sum(variants) =>
       Sum(
         List.map(
-          fun
-          | ConstructorMap.Variant(c, ann, payload) => {
-              let v =
-                ConstructorMap.Variant(
-                  c,
-                  ann,
-                  Option.map(pad_variant_anns, payload),
-                );
-              pad_variant_ann(v);
-            }
-          | ConstructorMap.BadEntry(t) =>
-            ConstructorMap.BadEntry(pad_variant_anns(t)),
+          ~f=
+            fun
+            | ConstructorMap.Variant(c, ann, payload) => {
+                let v =
+                  ConstructorMap.Variant(
+                    c,
+                    ann,
+                    Option.map(~f=pad_variant_anns, payload),
+                  );
+                pad_variant_ann(v);
+              }
+            | ConstructorMap.BadEntry(t) =>
+              ConstructorMap.BadEntry(pad_variant_anns(t)),
           variants,
         ),
       )
     | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Prod(ts) => Prod(List.map(pad_variant_anns, ts))
+    | Prod(ts) => Prod(List.map(~f=pad_variant_anns, ts))
     | List(t) => List(pad_variant_anns(t))
     | TupLabel(t1, t2) =>
       TupLabel(pad_variant_anns(t1), pad_variant_anns(t2))

@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type state = {
@@ -108,38 +109,41 @@ let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
 /* Last linebreak (textual order) within a segment, deep */
 let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
   List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
-      | Tile(t) =>
-        switch (
-          List.fold_left(
-            (a, ch) =>
-              switch (last_lb_in_seg(ch)) {
-              | Some(id) => Some(id)
-              | None => a
-              },
-            None,
-            t.children,
-          )
-        ) {
-        | Some(id) => Some(id)
-        | None => acc
-        }
-      | _ => acc
-      },
-    None,
+    ~f=
+      (acc, p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
+        | Tile(t) =>
+          switch (
+            List.fold_left(
+              ~f=
+                (a, ch) =>
+                  switch (last_lb_in_seg(ch)) {
+                  | Some(id) => Some(id)
+                  | None => a
+                  },
+              ~init=None,
+              t.children,
+            )
+          ) {
+          | Some(id) => Some(id)
+          | None => acc
+          }
+        | _ => acc
+        },
+    ~init=None,
     seg,
   );
 
 let rec all_lbs_in_seg = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
-      | Tile(t) => List.concat_map(all_lbs_in_seg, t.children)
-      | _ => []
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+        | Tile(t) => List.concat_map(~f=all_lbs_in_seg, t.children)
+        | _ => []
+        },
     seg,
   );
 
@@ -151,9 +155,10 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
   | Some(id) => Some(id)
   | None =>
     List.fold_left(
-      (acc, (_, sibs): Ancestors.generation) =>
-        acc != None ? acc : last_lb_in_seg(fst(sibs)),
-      None,
+      ~f=
+        (acc, (_, sibs): Ancestors.generation) =>
+          acc != None ? acc : last_lb_in_seg(fst(sibs)),
+      ~init=None,
       z.relatives.ancestors,
     )
   };
@@ -170,7 +175,7 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
       }
     )
     @ all_lbs_in_seg(z.selection.content)
-    |> List.to_seq
+    |> Stdlib.List.to_seq
     |> Id.Set.of_seq;
   let line0 = first_line_lb == None;
   let indent = d == Direction.Right;
@@ -273,7 +278,7 @@ let rec go =
             ? Parser.splice_paste(clipboard, z, ~root)
             : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
         )
-        |> Option.map(finish)
+        |> Option.map(~f=finish)
         |> return(CantPaste);
       };
     };
@@ -363,8 +368,8 @@ let rec go =
     )
   | Project(a) =>
     let refractor_list =
-      List.map(fst, z.refractors.manuals)
-      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
+      List.map(~f=fst, z.refractors.manuals)
+      @ List.map(~f=fst, Id.Map.to_list(z.refractors.multis.ephemerals));
     ProjectorPerform.go(
       syntax.term_data,
       a,
@@ -396,13 +401,13 @@ let rec go =
     Move.go(
       ~statics=statics.info_map,
       ~problem_ids=
-        Seq.append(
-          List.to_seq(statics.error_ids),
-          Seq.append(
-            List.to_seq(statics.warning_ids),
-            Seq.filter_map(
+        Stdlib.Seq.append(
+          Stdlib.List.to_seq(statics.error_ids),
+          Stdlib.Seq.append(
+            Stdlib.List.to_seq(statics.warning_ids),
+            Stdlib.Seq.filter_map(
               (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              List.to_seq(Segment.holes(syntax.segment)),
+              Stdlib.List.to_seq(Segment.holes(syntax.segment)),
             ),
           ),
         ),
@@ -412,7 +417,7 @@ let rec go =
       d,
       z,
     )
-    |> Option.map(z' =>
+    |> Option.map(~f=z' =>
          !settings.indentation_ux
            ? z'
            : (
@@ -545,18 +550,21 @@ let rec go =
           : (
             switch (left_neighbor(z)) {
             | `Space =>
-              Option.bind(Destruct.go(d, z, ~root), del_run(~fuel=fuel - 1))
+              Option.bind(
+                Destruct.go(d, z, ~root),
+                ~f=del_run(~fuel=fuel - 1),
+              )
             | `Linebreak => Destruct.go(d, z, ~root)
             | `Other => Some(z)
             }
           );
       LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
-        del_run(z) |> Option.map(maybe_reassoc)
+        del_run(z) |> Option.map(~f=maybe_reassoc)
       )
       |> return(Cant_destruct);
     | None =>
       LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
-        Destruct.go(d, z, ~root) |> Option.map(maybe_reassoc)
+        Destruct.go(d, z, ~root) |> Option.map(~f=maybe_reassoc)
       )
       |> return(Cant_destruct)
     };
@@ -564,13 +572,13 @@ let rec go =
     LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
       z
       |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
-      |> Option.map(maybe_reassoc)
+      |> Option.map(~f=maybe_reassoc)
     )
     |> return(Cant_insert)
   | ApplyCompletion(Next) =>
     switch (
       CompletionQuery.chip_at_caret(z)
-      |> Option.bind(_, CompletionQuery.tab_text(z))
+      |> Option.bind(_, ~f=CompletionQuery.tab_text(z))
     ) {
     | None => Error(Cant_put_down)
     | Some(text) =>
@@ -584,7 +592,7 @@ let rec go =
           p => {
             switch (p) {
             | Tile({id, form: Tok(marker), _})
-                when String.equal(marker, Token.implicit_hole_marker) =>
+                when marker == Token.implicit_hole_marker =>
               old_markers := [id, ...old_markers^]
             | _ => ()
             };
@@ -597,16 +605,17 @@ let rec go =
       let protect_right = CompletionQuery.accepts_right_hole(z);
       let protect =
         List.map(
-          fun
-          | Piece.Grout({id, shape: Convex}) =>
-            Piece.Tile({
-              id,
-              form: Tok(Token.implicit_hole_marker),
-              sort: Exp,
-              shards: [0],
-              children: [],
-            })
-          | p => p,
+          ~f=
+            fun
+            | Piece.Grout({id, shape: Convex}) =>
+              Piece.Tile({
+                id,
+                form: Tok(Token.implicit_hole_marker),
+                sort: Exp,
+                shards: [0],
+                children: [],
+              })
+            | p => p,
         );
       LocalReformat.around(
         ~enabled=settings.auto_reindent,
@@ -622,20 +631,21 @@ let rec go =
           };
           Parser.to_zipper(~root, ~zipper_init=z, text)
           |> Option.map(
-               ZipperBase.MapPiece.go(p =>
-                 switch (p) {
-                 | Tile({id, form: Tok(marker), _})
-                     when
-                       String.equal(marker, Token.implicit_hole_marker)
-                       && !List.exists(Id.equal(id), old_markers^) => [
-                     Piece.Grout({
-                       id,
-                       shape: Convex,
-                     }),
-                   ]
-                 | p => [p]
-                 }
-               ),
+               ~f=
+                 ZipperBase.MapPiece.go(p =>
+                   switch (p) {
+                   | Tile({id, form: Tok(marker), _})
+                       when
+                         String.equal(marker, Token.implicit_hole_marker)
+                         && !List.mem(old_markers^, id, ~equal=Id.equal) => [
+                       Piece.Grout({
+                         id,
+                         shape: Convex,
+                       }),
+                     ]
+                   | p => [p]
+                   }
+                 ),
              );
         },
       )
@@ -648,8 +658,8 @@ let rec go =
   | Put_down =>
     LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
       Zipper.put_down(z, ~root)
-      |> Option.map(space_put_down_boundary)
-      |> Option.map(maybe_reassoc)
+      |> Option.map(~f=space_put_down_boundary)
+      |> Option.map(~f=maybe_reassoc)
     )
     |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))

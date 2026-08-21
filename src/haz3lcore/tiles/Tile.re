@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 include Base;
 
 exception Ambiguous_molds;
@@ -12,7 +13,7 @@ let label = (t: t): Label.t => Form.label_of(t.form);
 let mold = (t: t): Mold.t => Form.mold_of(t.form, t.sort);
 let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
 let arity = (t: t): int => List.length(label(t));
-let token = (t: t, i: int): Token.t => List.nth(label(t), i);
+let token = (t: t, i: int): Token.t => List.nth_exn(label(t), i);
 /* The token of a single-token tile */
 let single_token = (t: t): option(Token.t) =>
   switch (label(t)) {
@@ -93,9 +94,9 @@ let is_prefix_arrow_form = (t: t): bool =>
 let is_body_introducing_shard = (shard: t): bool =>
   switch (shard.shards) {
   | [i] =>
-    switch (List.nth_opt(label(shard), i)) {
+    switch (List.nth(label(shard), i)) {
     | Some(token) =>
-      List.exists(String.equal(token), ["in", "else", "end"])
+      List.mem(["in", "else", "end"], token, ~equal=String.equal)
     | None => false
     }
   | _ => false
@@ -138,7 +139,7 @@ let sorted_children = (t: t) => {
   let mold = mold(t);
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
+  |> List.map(~f=((l, child, r)) => {
        let (_, l) = Mold.nibs(~index=l, mold);
        let (r, _) = Mold.nibs(~index=r, mold);
        (l.sort == r.sort ? l.sort : Any, child);
@@ -148,7 +149,7 @@ let sorted_children = (t: t) => {
 let contained_children = (t: t): list((t, Base.segment, t)) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
+  |> List.map(~f=((l, child, r)) => {
        let l = {
          ...t,
          shards: [l],
@@ -170,7 +171,7 @@ let shard_of = (t: t, i: int): t => {
 
 let split_shards = (id, form, sort, shards) =>
   shards
-  |> List.map(i =>
+  |> List.map(~f=i =>
        {
          id,
          form,
@@ -181,15 +182,18 @@ let split_shards = (id, form, sort, shards) =>
      );
 
 let left_missing_shards = (t: t): list(t) =>
-  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.form, t.sort);
+  List.init(l_shard(t), ~f=Fn.id) |> split_shards(t.id, t.form, t.sort);
 
 let right_missing_shards = (t: t): list(t) =>
-  List.init(arity(t) - r_shard(t) - 1, i => r_shard(t) + i + 1)
+  List.init(arity(t) - r_shard(t) - 1, ~f=i => r_shard(t) + i + 1)
   |> split_shards(t.id, t.form, t.sort);
 
 /* Label indices not covered by this tile's shards */
 let missing_shard_indices = (t: t): list(int) =>
-  List.filter(i => !List.mem(i, t.shards), List.init(arity(t), Fun.id));
+  List.filter(
+    ~f=i => !List.mem(t.shards, i, ~equal=Int.equal),
+    List.init(arity(t), ~f=Fn.id),
+  );
 
 let missing_shards = (t: t): list(t) =>
   missing_shard_indices(t) |> split_shards(t.id, t.form, t.sort);
@@ -197,16 +201,16 @@ let missing_shards = (t: t): list(t) =>
 /* Index into t.children of the child preceding missing shard m
    (count of present shards < m, minus 1) */
 let child_index_before = (t: t, m: int): int =>
-  List.length(List.filter(sh => sh < m, t.shards)) - 1;
+  List.length(List.filter(~f=sh => sh < m, t.shards)) - 1;
 
 let effective_label = (t: t): list(string) =>
-  List.map(List.nth(label(t)), t.shards);
+  List.map(~f=List.nth_exn(label(t)), t.shards);
 
 // postcond: output segment is nonempty
 let disassemble = ({id, form, sort, shards, children}: t): segment => {
   let shards = split_shards(id, form, sort, shards);
   Aba.mk(shards, children)
-  |> Aba.join(s => [to_piece(s)], Fun.id)
+  |> Aba.join(s => [to_piece(s)], Fn.id)
   |> List.concat;
 };
 
@@ -221,7 +225,7 @@ let reassemble = (match: Aba.t(t, segment)): t => {
        );
   // check lengths
   let _ = Aba.mk(shards, children);
-  assert(List.sort(Int.compare, shards) == shards);
+  assert(List.sort(~compare=Int.compare, shards) == shards);
   {
     id: t.id,
     // discards forms/sorts on non-hd tiles; if they differ (pending

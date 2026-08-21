@@ -12,13 +12,14 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
     switch (SpaceNormalize.last_token(p)) {
     | Some(token) =>
       List.mem(
-        token ++ text,
         [
           Token.empty_tuple,
           Token.empty_list,
           Token.empty_module,
           Token.empty_string,
         ],
+        token ++ text,
+        ~equal=String.equal,
       )
     | None => false
     }
@@ -51,7 +52,7 @@ let chips_at_caret =
       | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
       };
     let result = CanonicalCompletion.for_editor(seg);
-    let indexed = List.mapi((i, ins) => (i, ins), result.insertions);
+    let indexed = List.mapi(~f=(i, ins) => (i, ins), result.insertions);
     /* a witness in progress (typed prefix of a delimiter): its Tab
        text is the token REMAINDER, which only extends the prefix when
        the caret abuts the typed token — past the hole after it
@@ -64,9 +65,9 @@ let chips_at_caret =
       };
     let matching = (~adjacent: bool, id: Id.t, sides: list(Direction.t)) =>
       indexed
-      |> List.filter(((_, ins: CanonicalCompletion.insertion)) =>
+      |> List.filter(~f=((_, ins: CanonicalCompletion.insertion)) =>
            Id.equal(ins.adjacent_id, id)
-           && List.exists(Direction.equal(ins.side), sides)
+           && List.mem(sides, ins.side, ~equal=Direction.equal)
            && (adjacent || !is_witness(ins))
          );
     let is_content = (p: Piece.t): bool =>
@@ -103,14 +104,14 @@ let chips_at_caret =
        anchor (an empty trailing line) change nothing and stay owned. */
     let parts =
       CanonicalCompletion.partition_segment(l @ r)
-      |> List.map(fst)
+      |> List.map(~f=fst)
       |> Array.of_list;
     let part_of = (id: Id.t): option(int) => {
       let rec go = k =>
         k >= Array.length(parts)
           ? None
           : List.exists(
-              (q: Piece.t) => Id.equal(Piece.id(q), id),
+              ~f=(q: Piece.t) => Id.equal(Piece.id(q), id),
               parts[k],
             )
               ? Some(k) : go(k + 1);
@@ -128,17 +129,17 @@ let chips_at_caret =
         j == k
         || j < k
         && List.for_all(
-             i => !List.exists(is_content, parts[i]),
-             List.init(k - j, i => j + 1 + i),
+             ~f=i => !List.exists(~f=is_content, parts[i]),
+             List.init(k - j, ~f=i => j + 1 + i),
            )
       | _ => false
       };
     probe(List.rev(l), ~facing=Direction.Right, ~adjacent=true)
     @ probe(r, ~facing=Direction.Left, ~adjacent=false)
-    |> List.filter(((_, ins)) => same_reading(ins))
-    |> List.sort(((i, _), (j, _)) => Int.compare(i, j))
-    |> List.map(snd)
-    |> List.mapi((k, ins: CanonicalCompletion.insertion) =>
+    |> List.filter(~f=((_, ins)) => same_reading(ins))
+    |> List.sort(~compare=((i, _), (j, _)) => Int.compare(i, j))
+    |> List.map(~f=snd)
+    |> List.mapi(~f=(k, ins: CanonicalCompletion.insertion) =>
          k != 0
            ? ins
            : (
@@ -146,7 +147,7 @@ let chips_at_caret =
              | [] => ins
              | [d, ...rest] =>
                let left =
-                 l |> List.rev |> List.find_opt(p => !Piece.is_secondary(p));
+                 l |> List.rev |> List.find(~f=p => !Piece.is_secondary(p));
                let leading_hole =
                  switch (left, d.of_shard, d.typed_len) {
                  | (Some(p), Some((id, shard)), None) =>
@@ -183,36 +184,38 @@ let chips_at_caret =
            across spaces/newlines. A hole already there is not an insertion.
            Keep holes BETWEEN delimiters: they belong to the completion. */
         let right_hole =
-          switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
+          switch (List.find(~f=p => !Piece.is_secondary(p), r)) {
           | Some(Grout({shape, _})) => Some(shape)
           | Some(Tile(t)) when Tile.is_explicit_hole(t) =>
             Some(Grout.Convex)
           | _ => None
           };
         List.mapi(
-          (i, ins: CanonicalCompletion.insertion) =>
-            Option.is_none(right_hole) || i != List.length(owned) - 1
-              ? ins
-              : {
-                ...ins,
-                delimiters:
-                  List.mapi(
-                    (j, d: CanonicalCompletion.delimiter_info) =>
-                      j == List.length(ins.delimiters)
-                      - 1
-                      && Option.equal(
-                           Grout.equal_shape,
-                           d.trailing_hole,
-                           right_hole,
-                         )
-                        ? {
-                          ...d,
-                          trailing_hole: None,
-                        }
-                        : d,
-                    ins.delimiters,
-                  ),
-              },
+          ~f=
+            (i, ins: CanonicalCompletion.insertion) =>
+              Option.is_none(right_hole) || i != List.length(owned) - 1
+                ? ins
+                : {
+                  ...ins,
+                  delimiters:
+                    List.mapi(
+                      ~f=
+                        (j, d: CanonicalCompletion.delimiter_info) =>
+                          j == List.length(ins.delimiters)
+                          - 1
+                          && Option.equal(
+                               Grout.equal_shape,
+                               d.trailing_hole,
+                               right_hole,
+                             )
+                            ? {
+                              ...d,
+                              trailing_hole: None,
+                            }
+                            : d,
+                      ins.delimiters,
+                    ),
+                },
           owned,
         );
       }
@@ -226,7 +229,7 @@ let chips_at_caret =
 let chip_at_caret =
     (~seg: option(Segment.t)=?, z: Zipper.t)
     : option(CanonicalCompletion.insertion) =>
-  List.nth_opt(chips_at_caret(~seg?, z), 0);
+  List.nth(chips_at_caret(~seg?, z), 0);
 
 /* Whether an existing operand hole can remain after this delimiter.
    Closers with convex right nibs consume trailing grout instead. */
@@ -251,7 +254,7 @@ let accepts_right_hole = (z: Zipper.t): bool =>
 
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
   chip_at_caret(z)
-  |> Option.map((ins: CanonicalCompletion.insertion) =>
+  |> Option.map(~f=(ins: CanonicalCompletion.insertion) =>
        switch (ins.delimiters) {
        | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
        | _ => None
@@ -267,7 +270,7 @@ let padding =
   let (l, r) = z.relatives.siblings;
   let word =
     SpaceNormalize.spaced(d.text)
-    || List.exists(String.equal(d.text), ["=", "->"]);
+    || List.mem(["=", "->"], d.text, ~equal=String.equal);
   /* no space between the hole and a closer or separator: `(1, ?)`, not
      `(1, ? )` (the marker is not a token SpaceNormalize.needs_space can
      judge, so the tight-before list is consulted directly) */
@@ -275,7 +278,7 @@ let padding =
     d.leading_hole
       ? Token.implicit_hole_marker
         ++ (
-          List.exists(String.equal(d.text), SpaceNormalize.tight_before)
+          List.mem(SpaceNormalize.tight_before, d.text, ~equal=String.equal)
             ? "" : " "
         )
       : "";
@@ -286,7 +289,7 @@ let padding =
     | [p, ..._] =>
       switch (SpaceNormalize.last_token(p)) {
       | Some(t) =>
-        !List.exists(String.equal(t), SpaceNormalize.tight_after)
+        !List.mem(SpaceNormalize.tight_after, t, ~equal=String.equal)
         && (word || SpaceNormalize.needs_space(t, d.text))
           ? " " : ""
       | None => word ? " " : ""
@@ -313,7 +316,7 @@ let tab_text =
   | [d, ..._] =>
     switch (d.typed_len) {
     | Some(n) when n < String.length(d.text) =>
-      Some(String.sub(d.text, n, String.length(d.text) - n))
+      Some(String.sub(d.text, ~pos=n, ~len=String.length(d.text) - n))
     | Some(_) => None
     | None =>
       let (before, after) = padding(z, d);
@@ -350,5 +353,6 @@ let tab_action = (~seg: option(Segment.t)=?, z: Zipper.t): option(Action.t) =>
   | Some({delimiters: [{text, typed_len: None, _}, ..._], _})
       when !fuses_empty(fst(z.relatives.siblings), text) =>
     Some(Action.ApplyCompletion(Next))
-  | Some(ins) => tab_text(z, ins) |> Option.map(text => Action.Paste(text))
+  | Some(ins) =>
+    tab_text(z, ins) |> Option.map(~f=text => Action.Paste(text))
   };

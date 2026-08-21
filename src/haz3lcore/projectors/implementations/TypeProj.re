@@ -3,6 +3,7 @@ open Node;
 open ProjectorBase;
 open Language;
 open Util;
+open Poly;
 
 /* The expectation statics holds a term to, where it holds it to one. A term in
    synthetic position is held to none: statics writes Unknown(SynSwitch) for the

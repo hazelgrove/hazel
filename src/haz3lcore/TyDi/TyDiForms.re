@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* This module generates TyDi suggestions which depend
  * neither on the typing context nor the missing shards */
@@ -10,14 +11,14 @@ let leading_expander = " ";
 module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.filter_map(token => {
+    |> List.filter_map(~f=token => {
          let (lbl, _) = Form.Expansion.get(sort, token);
          Form.remold_candidates(lbl, sort) != []
          && List.length(lbl) > 1
-         && token == List.hd(lbl)
+         && token == List.hd_exn(lbl)
            ? Some(token ++ leading_expander) : None;
        })
-    |> List.sort_uniq(compare);
+    |> Token.sort_uniq;
 
   let leading_exp = leading(Exp);
   let leading_pat = leading(Pat);
@@ -46,13 +47,13 @@ module Delims = {
    * (e.g. infix-delimiter prefixes) are not infix suggestions */
   let infix = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.filter(token =>
+    |> List.filter(~f=token =>
          Form.compound_defs([token])
-         |> List.exists(((_, m): (Form.family, Mold.t)) =>
+         |> List.exists(~f=((_, m): (Form.family, Mold.t)) =>
               m.out == sort && Mold.is_infix_op(m)
             )
        )
-    |> List.sort_uniq(compare);
+    |> Token.sort_uniq;
   let infix_exp = infix(Exp);
   let infix_pat = infix(Pat);
   let infix_typ = infix(Typ);
@@ -74,8 +75,8 @@ module Delims = {
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
-    |> List.filter(token => Form.remold_candidates([token], sort) != [])
-    |> List.sort_uniq(compare);
+    |> List.filter(~f=token => Form.remold_candidates([token], sort) != [])
+    |> Token.sort_uniq;
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
    * molds (as constructors) but derive Unknown self types (free
@@ -85,10 +86,10 @@ module Delims = {
    * type-position completion. */
   let const_mono_exp =
     const_mono(Exp)
-    |> List.filter(t => !List.exists(String.equal(t), Token.base_typs));
+    |> List.filter(~f=t => !List.mem(Token.base_typs, t, ~equal=String.equal));
   let const_mono_pat =
     const_mono(Pat)
-    |> List.filter(t => !List.exists(String.equal(t), Token.base_typs));
+    |> List.filter(~f=t => !List.mem(Token.base_typs, t, ~equal=String.equal));
   let const_mono_typ = const_mono(Typ);
   let const_mono_drv_exp = const_mono(Drv(Exp));
   let const_mono_drv_typ = const_mono(Drv(Typ));
@@ -157,8 +158,12 @@ module Typ = {
 
   let derive_table = (tokens: list(Token.t)): list((Token.t, Typ.t)) =>
     tokens
-    |> List.filter(t => !List.exists(String.equal(t), deliberately_untyped))
-    |> List.filter_map(t => derive_self_ty(t) |> Option.map(ty => (t, ty)));
+    |> List.filter(~f=t =>
+         !List.mem(deliberately_untyped, t, ~equal=String.equal)
+       )
+    |> List.filter_map(~f=t =>
+         derive_self_ty(t) |> Option.map(~f=ty => (t, ty))
+       );
 
   /* Lazy: each entry runs Parser + Statics per token, which is pure
    * startup cost for the worker/CLI; forced at the suggestion call
@@ -166,18 +171,13 @@ module Typ = {
   let of_const_mono_delim: Lazy.t(list((Token.t, Typ.t))) =
     lazy(
       derive_table(
-        List.sort_uniq(
-          compare,
-          Delims.const_mono(Exp) @ Delims.const_mono(Pat),
-        ),
+        Token.sort_uniq(Delims.const_mono(Exp) @ Delims.const_mono(Pat)),
       )
     );
 
   let of_infix_delim: Lazy.t(list((Token.t, Typ.t))) =
     lazy(
-      derive_table(
-        List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
-      )
+      derive_table(Token.sort_uniq(Delims.infix(Exp) @ Delims.infix(Pat)))
     );
 
   /* Leading delimiters (with expander) parse to their completed forms,
@@ -187,7 +187,7 @@ module Typ = {
   let of_leading_delim: Lazy.t(list((Token.t, Typ.t))) =
     lazy(
       derive_table(
-        List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
+        Token.sort_uniq(Delims.leading(Exp) @ Delims.leading(Pat)),
       )
     );
 
@@ -206,14 +206,15 @@ module Typ = {
       )
       : list((Token.t, Typ.t)) =>
     List.filter_map(
-      delim =>
-        switch (List.assoc_opt(delim, self_tys)) {
-        | _ when Form.is_annoying_delim(delim) => None
-        | None => Some((delim, unk))
-        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
-          Some((delim, self_ty))
-        | Some(_) => None
-        },
+      ~f=
+        delim =>
+          switch (List.Assoc.find(self_tys, delim, ~equal=Poly.equal)) {
+          | _ when Form.is_annoying_delim(delim) => None
+          | None => Some((delim, unk))
+          | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
+            Some((delim, self_ty))
+          | Some(_) => None
+          },
       delims,
     );
 };
@@ -232,25 +233,27 @@ let suggest_form =
   switch (sort) {
   | Exp =>
     List.map(
-      ((content, ty)) =>
-        TyDiSuggestion.{
-          content,
-          strategy: Exp(Common(NewForm(ty))),
-        },
+      ~f=
+        ((content, ty)) =>
+          TyDiSuggestion.{
+            content,
+            strategy: Exp(Common(NewForm(ty))),
+          },
       filtered,
     )
   | Pat =>
     List.map(
-      ((content, ty)) =>
-        TyDiSuggestion.{
-          content,
-          strategy: Pat(Common(NewForm(ty))),
-        },
+      ~f=
+        ((content, ty)) =>
+          TyDiSuggestion.{
+            content,
+            strategy: Pat(Common(NewForm(ty))),
+          },
       filtered,
     )
   | _ =>
     delims
-    |> List.map(content =>
+    |> List.map(~f=content =>
          TyDiSuggestion.{
            content,
            strategy: Typ(NewForm),
