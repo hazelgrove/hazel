@@ -21,8 +21,7 @@ type selection_anchor_info = {
 let get_selection_anchor_info = (z: Zipper.t): option(selection_anchor_info) =>
   switch (z.selection) {
   | {content: [], _} => None
-  | {mode: Buffer(_), _} => None
-  | {focus, content: [first_piece, ..._], mode: Normal, _} =>
+  | {focus, content: [first_piece, ..._], _} =>
     let anchor_id = Piece.id(first_piece);
     let anchor_shards =
       switch (first_piece) {

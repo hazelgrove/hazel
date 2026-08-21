@@ -28,6 +28,35 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* Inline ghost completion: (id, shard) marks of pieces spliced into
+   * `segment` at their insertion's anchor for display only — the
+   * zipper never contains them. Shard-precise so a ghost closer
+   * doesn't gray its tile's real opener. Empty = no ghost. */
+  ghost_marks: list((Id.t, option(int))),
+  /* Witness sub-token styling: (tile id, shard idx) -> typed_len. A
+   * witness delimiter (in / => / -> / then) is a REAL completed shard
+   * whose first typed_len chars the user typed; the view renders that
+   * prefix normal and the remainder ghost. */
+  typed_lens: list(((Id.t, int), int)),
+  /* Witness caret anchors (partial token id -> reified tile/shard +
+   * typed_len): a replaced-witness caret maps to the reified shard.
+   * DisplayCaret.point reads this. */
+  caret_witnesses: list((Id.t, (Id.t, int, int))),
+  /* Edit-armed ghost state: set by an edit, cleared by any other
+   * action (Editor.Update). While armed, a statics refresh re-forks
+   * the display — statics are DEBOUNCED during typing, so the frame
+   * that has fresh assist data is the deferred refresh, not the edit
+   * frame itself. Movement never arms: activation stays edit-only. */
+  ghost_armed: bool,
+  /* THE assist stream (A1 single source), assembled frame-fresh by
+   * PromiseRender.mk from this frame's syntax + statics' type facts.
+   * Cached here because it depends only on (erased segment,
+   * obligations) — caret-free — so movement frames reuse it.
+   * Chips, the inline ghost, and Tab all read this one list. */
+  assist: list(CanonicalCompletion.insertion),
+  /* insertions actually ghosted this frame (physical members of
+   * assist) — chip suppression matches exactly these */
+  ghosted: list(CanonicalCompletion.insertion),
 };
 
 // should not be serializing
@@ -36,10 +65,41 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
-  let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
+/* `obligations = None` means the assist machinery is off (settings
+ * gate, init paths): no assist stream, no ghost. Some(obs) threads
+ * the frame's type obligations to THE display projection
+ * (PromiseRender.mk), the single zipper→displayed-segment pipeline
+ * shared with the test harness. */
+let mk =
+    (
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      ~armed=false,
+      z,
+    )
+    : t => {
+  /* THE live display path is the PROMISE RENDER: the display projected
+   * from the single reified artifact (PromiseRender.mk), replacing the
+   * reconstruction fork. DisplayFork remains the shared home for the
+   * assist stream / view-policy layer both call. */
+  let fork =
+    switch (obligations) {
+    | Some(obligations) =>
+      PromiseRender.mk(~info_map, ~obligations, ~armed, z)
+    | None => DisplayFork.plain(z)
+    };
+  let DisplayFork.{
+    segment,
+    ghost_marks,
+    typed_lens,
+    caret_witnesses,
+    assist,
+    ghosted,
+    parsed,
+  } = fork;
+  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -66,6 +126,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    ghost_marks,
+    typed_lens,
+    caret_witnesses,
+    ghost_armed: false,
+    assist,
+    ghosted,
   };
 };
 
@@ -84,7 +150,14 @@ let mark_old: t => t =
  * so a full `mk` would be wasteful but shapes/measured need the new
  * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
-    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+    (
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      old: t,
+    ) => {
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -96,6 +169,17 @@ let refresh_shapes =
   let refractor_shape_map = Id.Map.empty;
   let measured =
     Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  /* the assist stream depends on obligations, which derive from
+   * statics — a statics refresh refreshes it too (a dyn/elaborated
+   * -only refresh recomputes the same value; obligations gone means
+   * assist off) */
+  let assist =
+    switch (obligations) {
+    | Some(obligations) when info_map !== old.shape_info_map =>
+      TypeObligations.assist_stream(z, ~info_map, obligations)
+    | Some(_) => old.assist
+    | None => []
+    };
   {
     ...old,
     shape_map,
@@ -104,6 +188,7 @@ let refresh_shapes =
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    assist,
   };
 };
 
@@ -123,13 +208,22 @@ let elaborated_phys_eq =
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate =
+    (
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      ~armed=false,
+      old: t,
+    ) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    mk(z, ~info_map, ~dyn_map, ~elaborated, ~obligations, ~armed);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
-    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
+    refresh_shapes(z, info_map, dyn_map, ~elaborated, ~obligations, old);
   } else {
     {
       ...old,

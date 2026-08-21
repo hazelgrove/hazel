@@ -2082,10 +2082,7 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
    * old caret-sensitive missing-shard dump. The ~root parameter matches the
    * dev signature; completion is invoked at Exp. */
   let _ = root;
-  let seg =
-    z
-    |> Zipper.clear_unparsed_buffer
-    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   go_impl(~masks, result.completed_seg);
@@ -2093,3 +2090,16 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+
+/* As from_zip_for_sem, but with a caller-supplied splice applied to
+ * the completed segment before term formation — the hook for
+ * reifying type-shape obligations (which need statics, computed a
+ * layer above). Unmemoized: the splice closure is part of the input. */
+let from_zip_for_sem_spliced =
+    (z: Zipper.t, ~root: Sort.t, ~splice: Segment.t => Segment.t) => {
+  let _ = root;
+  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+  go_impl(~masks, splice(result.completed_seg));
+};

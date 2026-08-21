@@ -35,7 +35,6 @@ let bools_ex : Tutorial.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -55,7 +54,6 @@ let bools_ex : Tutorial.spec =
               {
                 focus = Left;
                 content = [];
-                mode = Normal;
                 anchor_caret = Outer;
                 smart_rounded = false;
               };
@@ -347,7 +345,6 @@ let cond_ex : Tutorial.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -367,7 +364,6 @@ let cond_ex : Tutorial.spec =
               {
                 focus = Left;
                 content = [];
-                mode = Normal;
                 anchor_caret = Outer;
                 smart_rounded = false;
               };
@@ -503,7 +499,6 @@ let func_ex : Tutorial.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -523,7 +518,6 @@ let func_ex : Tutorial.spec =
               {
                 focus = Left;
                 content = [];
-                mode = Normal;
                 anchor_caret = Outer;
                 smart_rounded = false;
               };

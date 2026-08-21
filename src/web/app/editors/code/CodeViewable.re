@@ -9,7 +9,8 @@ let view =
       ~globals: Globals.t,
       ~measured,
       ~term_data,
-      ~buffer_ids,
+      ~ghost_marks=[],
+      ~typed_lens=[],
       ~shape_map,
       ~refractor_shape_map,
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
@@ -25,7 +26,8 @@ let view =
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~refine_sort,
-      ~buffer_ids,
+      ~ghost_marks,
+      ~typed_lens,
       segment,
     );
   div_c("code", [span_c("code-text", code)]);
@@ -39,7 +41,6 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
     ~globals,
     ~measured=Measured.of_segment(segment, shape_map, refractor_shape_map),
     ~term_data,
-    ~buffer_ids=[],
     ~shape_map,
     ~refractor_shape_map,
     segment,

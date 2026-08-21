@@ -24,6 +24,7 @@ let suggest_witnesses = (z: Zipper.t): list(t) =>
                Some({
                  content: text,
                  strategy: Any(FromMissingShards),
+                 tail: [],
                })
              | _ => None
              }
@@ -57,6 +58,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         TyDiSuggestion.{
           content: label,
           strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
+          tail: [],
         },
       dot_labels,
     )
@@ -70,6 +72,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         TyDiSuggestion.{
           content: label,
           strategy: Typ(FromCtx),
+          tail: [],
         },
       labels,
     )
@@ -105,61 +108,30 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   };
 };
 
-/* If there is a monotile to the left of the caret, return it. We
- * currently only make suggestions in such situations */
+/* The monotile to the left of the caret (with its id) — the anchor
+ * for suggestions; we currently only suggest in such situations */
+let anchor_to_left = (z: Zipper.t): option((Id.t, string)) =>
+  switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
+  | (Outer, [Tile({label: [tok_to_left], id, _}), ..._]) =>
+    Some((id, tok_to_left))
+  | _ => None
+  };
+
 let token_to_left = (z: Zipper.t): option(string) =>
-  switch (
-    z.caret,
-    z.relatives.siblings |> fst |> List.rev,
-    z.relatives.siblings |> snd,
-  ) {
-  | (Outer, [Tile({label: [tok_to_left], _}), ..._], _) =>
-    Some(tok_to_left)
-  | _ => None
-  };
+  anchor_to_left(z) |> Option.map(snd);
 
-/* The selection buffer used by TyDi is currently unstructured; it simply
- * holds an unparsed string, which is parsed via the same mechanism as
- * Paste only when a suggestion is accepted. */
-let mk_unparsed_buffer = (t: Token.t): Segment.t => {
-  [
-    Secondary({
-      id: Id.mk(),
-      content: Comment(t),
-    }),
-  ];
-};
-
-/* If 'current' is a proper prefix of 'candidate', return the
- * suffix such that current ++ suffix == candidate */
-let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
-  let candidate_suffix =
-    String.sub(
-      candidate,
-      String.length(current),
-      String.length(candidate) - String.length(current),
-    );
-  candidate_suffix == "" ? None : Some(candidate_suffix);
-};
-
-/* Returns the text content of the suggestion buffer */
-let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
-  switch (z.selection.mode, z.selection.content) {
-  | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
-    Some(completion)
-  | _ => None
-  };
-
-/* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
-  let* _ =
-    switch (z.selection.mode) {
-    /* Make sure not to populate the completion buffer if there is a non-empty
-     * selection, otherwise it will get clobbered by the buffer */
-    | Buffer(Unparsed | Parsed) => Some()
-    | Normal when Selection.is_empty(z.selection) => Some()
-    | Normal => None
-    };
+/* The top type-directed suggestion at the caret, STRUCTURED: the
+ * completed head token, the typed-prefix length, and any lookahead
+ * tail delimiters (")" / "::" / ","). Presentation and acceptance
+ * both run through the unified assist/ghost channel: DisplayFork
+ * appends this as a witness insertion (T2), so the inline ghost,
+ * chips, and Tab all read one stream — the selection-buffer
+ * mechanism this replaced is gone. */
+let suggestion =
+    (~ci: option(Info.t), z: Zipper.t)
+    : option((Token.t, int, list(TyDiSuggestion.tail_delim))) => {
+  /* no suggestion over a non-empty selection */
+  let* _ = Selection.is_empty(z.selection) ? Some() : None;
   let* tok_to_left = token_to_left(z);
   /* witness suggestions need no statics — ci is None on exactly the
      states they serve (completion consumed the prefix token) */
@@ -195,8 +167,13 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     );
   let* _ = has_exact_match ? None : Some();
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
-  let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
-  let content = mk_unparsed_buffer(suggestion_suffix);
-  let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
-  Some(z);
+  /* prefix-filtered and not exact ⇒ strictly longer than the prefix.
+     A typed prefix reaching into the tail's flat text can't happen
+     for current tails (token breaks at "(" "," "::"), but fall back
+     to the flat form rather than promise a malformed head */
+  let head = TyDiSuggestion.head_of(top_suggestion);
+  let (head, tail) =
+    String.length(tok_to_left) <= String.length(head)
+      ? (head, top_suggestion.tail) : (top_suggestion.content, []);
+  Some((head, String.length(tok_to_left), tail));
 };

@@ -66,7 +66,6 @@ module Update = {
              | Destruct(_)
              | Insert(_)
              | Put_down
-             | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
              | Cut
@@ -115,29 +114,28 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
+      /* caret pinned to a quiver chip: Tab dispatches one chunk of
+         THE assist stream (A1) — type-it-for-me through the normal
+         pipeline; spacing and caret land as if typed. tab_chip
+         prefers a witness remainder (the nearest promise) over
+         sibling chips. */
       let action: Action.t =
-        Selection.is_buffer(z.selection)
-          ? Buffer(Accept)
-          : (
-            /* caret pinned to a quiver chip: Tab dispatches that
-               obligation, whether or not an inline buffer is showing
-               (buffers only appear on edits; the chip is always live) */
-            switch (CanonicalCompletion.chip_at_caret(z)) {
-            | Some(ins) =>
-              /* Tab = "type it for me": one chunk through the normal
-                 pipeline — spacing and caret land exactly as if the
-                 user typed it; the chip re-derives */
-              switch (CanonicalCompletion.tab_text(z, ins)) {
-              | Some(text) => Paste(text)
-              | None =>
-                Zipper.can_put_down(z)
-                  ? Put_down : Move(Goal(NextProblem(Right)))
-              }
-            | None =>
-              Zipper.can_put_down(z)
-                ? Put_down : Move(Goal(NextProblem(Right)))
-            }
-          );
+        switch (CanonicalCompletion.tab_chip(z, model.editor.syntax.assist)) {
+        /* Inner caret (e.g. inside a string literal): the zone
+           matches for display, but Paste would land INSIDE the
+           token — fall through to hole navigation */
+        | Some(ins) when z.caret == Outer =>
+          switch (CanonicalCompletion.tab_text(z, ins)) {
+          | Some(text) => Paste(text)
+          | None =>
+            Zipper.can_put_down(z)
+              ? Put_down : Move(Goal(NextProblem(Right)))
+          }
+        | Some(_)
+        | None =>
+          Zipper.can_put_down(z)
+            ? Put_down : Move(Goal(NextProblem(Right)))
+        };
       perform(action, model);
     };
   };
@@ -272,13 +270,6 @@ module Selection = {
            ~section="Projection",
            ~action=action(Project(SetIndicated(ChooseLivelit))),
            "Livelit",
-         ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
          ),
          mk(
            ~section="Diagnostics",
@@ -504,6 +495,7 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
+        ~obligations: list(Haz3lcore.CanonicalCompletion.insertion)=[],
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
@@ -511,6 +503,7 @@ module View = {
     [
       CaretDec.view(
         ~measured=syntax.measured,
+        ~caret_witnesses=syntax.caret_witnesses,
         ~font_metrics=globals.font_metrics,
         z,
       ),
@@ -550,6 +543,7 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
+            ~assist=obligations,
             ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
@@ -620,12 +614,21 @@ module View = {
           ),
       (),
     );
+    /* a chip whose content is currently ghosted inline — by the chip
+       ghost or a TyDi witness — never also shows as a chip (ONE
+       policy home, shared with the harness) */
+    let obligations =
+      CanonicalCompletion.chips_displayed(
+        ~ghosted=model.editor.syntax.ghosted,
+        model.editor.syntax.assist,
+      );
     let edit_decos =
       selected
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
+            ~obligations,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),

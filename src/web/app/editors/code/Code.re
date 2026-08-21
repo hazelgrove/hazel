@@ -21,9 +21,16 @@ let of_delim' =
       plurality: int,
       sort: Sort.t,
       is_consistent: bool,
+      /* ghost witness shard: render the completed-remainder styling the
+         retired suggestion buffer used (fed only by ghost marks now) */
       is_in_buffer: bool,
       is_complete: bool,
       is_infix_var: bool,
+      /* WITNESS sub-token: how many leading chars of `token` the user
+         actually typed. -1 = not a witness (whole token). 0..len-1 =
+         render the [0, typed_len) prefix normal and the remainder
+         ghost (an incomplete-delimiter span continuing the token). */
+      typed_len: int,
       font_metrics: FontMetrics.t,
     ): t => {
       let base_cls =
@@ -40,6 +47,25 @@ let of_delim' =
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
       let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
+      /* string-lit rendering (grapheme-aware) never coincides with a
+         witness (delimiters aren't strings), so the split path is
+         plain text — safe for the caret overlay, which measures by
+         token column, not DOM span count */
+      let contents =
+        if (typed_len >= 0
+            && typed_len < String.length(token)
+            && base_cls != "string-lit") {
+          let typed = String.sub(token, 0, typed_len);
+          let ghost =
+            String.sub(token, typed_len, String.length(token) - typed_len);
+          /* the typed prefix inherits the parent token's color (bare
+             text, no wrapper); the remainder gets the ghost styling
+             the retired suggestion buffer used */
+          [text(typed), span_c("in-parsed-buffer", [text(ghost)])];
+        } else {
+          base_cls == "string-lit"
+            ? GraphemeView.render(~font_metrics, token) : [text(token)];
+        };
       span(
         ~attrs=[
           Attr.classes(
@@ -49,11 +75,7 @@ let of_delim' =
             @ keyword_class,
           ),
         ],
-        /* Currently only supporting emojis in strings; this is a
-           conservative choice to guard against perf regressions;
-           it can likely be relaxed. See also Token.bounding_box */
-        base_cls == "string-lit"
-          ? GraphemeView.render(~font_metrics, token) : [text(token)],
+        contents,
       );
     },
   );
@@ -81,7 +103,12 @@ let view =
          statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-      ~buffer_ids: list(Id.t),
+      /* (id, shard) marks of display-only ghost pieces spliced into the
+         segment (CachedSyntax.ghost_marks); shard-precise so a ghost
+         closer doesn't gray its tile's real opener */
+      ~ghost_marks: list((Id.t, option(int)))=[],
+      /* WITNESS sub-token styling: (tile id, shard idx) -> typed_len */
+      ~typed_lens: list(((Id.t, int), int))=[],
       segment: Segment.t,
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
@@ -89,11 +116,22 @@ let view =
   let g_convex = EmptyHoleDec.view(font_metrics, Convex);
   let g_concave = EmptyHoleDec.view(font_metrics, Concave);
 
+  /* Node.t's None/Some shadow option's, so match structurally */
+  let ghost_mark = (id: Id.t, shard: option(int)): bool =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && msh == shard,
+      ghost_marks,
+    );
+
   let of_grout = (g: Grout.t): t => {
-    switch (g.shape) {
-    | Convex => g_convex
-    | Concave => g_concave
-    };
+    let hole =
+      switch (g.shape) {
+      | Convex => g_convex
+      | Concave => g_concave
+      };
+    ghost_mark(g.id, Option.none)
+      ? span_c("in-parsed-buffer", [hole]) : hole;
   };
 
   let lb_icon = settings.secondary_icons ? "⏎" : "";
@@ -120,6 +158,22 @@ let view =
       }
     };
 
+  /* a tile whose shards are only display-ghosts is still INCOMPLETE
+     to the user — keep the incomplete-delimiter color it had before
+     the ghost spliced in */
+  let tile_ghosted = (t: Piece.tile): bool =>
+    List.exists(
+      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
+      ghost_marks,
+    );
+
+  let typed_len_of = (id: Id.t, i: int): int =>
+    List.fold_left(
+      (acc, ((tid, sh), n): ((Id.t, int), int)) =>
+        Id.equal(tid, id) && sh == i ? n : acc,
+      -1,
+      typed_lens,
+    );
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
@@ -127,10 +181,11 @@ let view =
       List.length(t.label),
       sort,
       is_consistent(sort, t),
-      List.mem(t.id, buffer_ids),
-      Tile.is_complete(t),
+      ghost_mark(t.id, Option.some(i)),
+      Tile.is_complete(t) && !tile_ghosted(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      typed_len_of(t.id, i),
       font_metrics,
     );
   };
@@ -145,7 +200,9 @@ let view =
       Node.text(lb_icon ++ token);
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
+    /* a ghost-marked comment is a witness-remainder ghost (spliced
+       by DisplayFork), styled like the retired suggestion buffer */
+    | Comment(str) when ghost_mark(secondary.id, Option.none) =>
       secondary_text("in-unparsed-buffer", str)
     | Comment(str) => secondary_text("comment", str)
     };

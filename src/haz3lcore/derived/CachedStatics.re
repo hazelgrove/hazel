@@ -8,7 +8,15 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
-  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
+  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  /* Type-shape obligations derived from the PRE-reification pass:
+     the view must show what is owed even though (with reification
+     on) the final info_map no longer exhibits the deficit. These
+     are the TYPE FACTS only, at statics cadence (debounce-stale
+     during typing) — the assist stream assembles from them
+     FRAME-FRESH in Editor.calculate (TypeObligations.assist_stream)
+     so anchors and counts never lag the syntax. */
+  obligations: list(TypeObligations.t),
 };
 
 let empty: t = {
@@ -24,6 +32,7 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
+  obligations: [],
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -120,6 +129,7 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
+    obligations: [],
   };
 };
 
@@ -151,7 +161,55 @@ let init =
   let term = make_term_result.term |> stitch;
   let probe_ids = probe_ids_of_zipper(z);
 
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
+  let statics =
+    init_from_term(
+      ~settings,
+      ~ctx?,
+      ~is_dynamic_term,
+      ~ana?,
+      ~probe_ids,
+      term,
+    );
+  /* Pass 2: reify type-shape obligations. The deficit is judged on
+     pass-1 statics; when owed and enabled, semantics reruns on the
+     spliced term (per-element ana, no arity error). Obligations are
+     kept from pass 1 for display either way. One step reaches the
+     fixpoint: the spliced tuples are complete. */
+  let with_obligations = (statics: t, obs: list(TypeObligations.t)): t => {
+    ...statics,
+    obligations: obs,
+  };
+  /* satisfied records (deficit 0, no junctions) are TYPE FACTS for
+     the frame assembly, not reification work — don't pay the second
+     statics pass for them */
+  let needs_reify = (obs: list(TypeObligations.t)) =>
+    obs
+    |> List.exists((ob: TypeObligations.t) =>
+         TypeObligations.deficit(ob) > 0 || ob.junctions
+       );
+  switch (TypeObligations.derive(statics.info_map)) {
+  | [] => with_obligations(statics, [])
+  | obs when !settings.reify_obligations || !needs_reify(obs) =>
+    with_obligations(statics, obs)
+  | obs =>
+    let make_term_result =
+      MakeTerm.from_zip_for_sem_spliced(
+        z,
+        ~root,
+        ~splice=TypeObligations.reify(obs),
+      );
+    let term = make_term_result.term |> stitch;
+    let statics =
+      init_from_term(
+        ~settings,
+        ~ctx?,
+        ~is_dynamic_term,
+        ~ana?,
+        ~probe_ids,
+        term,
+      );
+    with_obligations(statics, obs);
+  };
 };
 
 let init =

@@ -261,21 +261,10 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
   };
 };
 
-let clear_unparsed_buffer = (z: t) =>
-  switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
-      ...z,
-      selection: Selection.empty,
-    }
-  | _ => z
-  };
-
-let unselect = (~erase_buffer=false, z: t): t => {
-  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
-   * that is, the buffer style that just contains a single flat token.
-   * Erasing a buffer that contains arbitrary tiles would be more complex
-   * as we can't just empty the selection without regrouting */
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+let unselect = (~erase_buffer as _=false, z: t): t => {
+  /* The selection-buffer mechanism was retired (its last holdout, the
+   * orphaned LLM parsed buffer, is gone); ~erase_buffer is now a no-op
+   * kept only so the display-fork call sites read unchanged. */
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
@@ -913,15 +902,28 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
+    /* the representative piece is normally present in `measured`. On
+       the DISPLAY segment, though, a promise-render witness replaces
+       the user's partial token with a full completed shard, so the
+       zipper's representative id may be absent — fall back to its
+       measurement by id, then to (0,0), rather than crash.
+       DisplayCaret.point supplies the exact witness caret column where
+       it is wired; this keeps every other caret consumer safe. */
+    let safe = (p: Piece.t, pick): Point.t =>
+      switch (Measured.find_p(~msg="base_point", p, measured)) {
+      | m => pick(m)
+      | exception _ =>
+        switch (Measured.find_by_id(Piece.id(p), measured)) {
+        | Some(m) => pick(m)
+        | None => {
+            row: 0,
+            col: 0,
+          }
+        }
+      };
     switch (d) {
-    | Left =>
-      let p = ListUtil.last(seg);
-      let m = Measured.find_p(~msg="base_point", p, measured);
-      m.last;
-    | Right =>
-      let p = List.hd(seg);
-      let m = Measured.find_p(~msg="base_point", p, measured);
-      m.origin;
+    | Left => safe(ListUtil.last(seg), (m: Measured.measurement) => m.last)
+    | Right => safe(List.hd(seg), (m: Measured.measurement) => m.origin)
     };
   | None => {
       row: 0,
@@ -1300,11 +1302,6 @@ let serialize = (z: t): string => {
 
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
-};
-
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
-  ...z,
-  selection: Selection.mk_buffer(mode, content),
 };
 
 let is_linebreak_to_right_of_caret =

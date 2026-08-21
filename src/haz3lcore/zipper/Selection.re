@@ -1,23 +1,12 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type buffer =
-  | Parsed
-  | Unparsed;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type mode =
-  | Normal
-  | Buffer(buffer);
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type anchor_caret = CaretBase.t;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   focus: Direction.t,
   content: Segment.t,
-  mode,
   /* The position offset of the anchor caret during range selections */
   anchor_caret,
   /* Smart-rounded selection: when true, the anchor is rendered at the
@@ -30,7 +19,6 @@ type t = {
 
 let mk =
     (
-      ~mode=Normal,
       ~focus=Direction.Left,
       ~anchor_caret=CaretBase.Outer,
       ~smart_rounded=false,
@@ -38,33 +26,9 @@ let mk =
     ) => {
   focus,
   content,
-  mode,
   anchor_caret,
   smart_rounded,
 };
-
-let mk_buffer = buffer =>
-  mk(
-    ~mode=Buffer(buffer),
-    ~focus=Direction.Left,
-    ~anchor_caret=CaretBase.Outer,
-  );
-
-let is_buffer: t => bool =
-  fun
-  | {mode: Buffer(_), _} => true
-  | _ => false;
-
-let non_empty_parsed_buffer: t => bool =
-  fun
-  | {mode: Buffer(Parsed), content: [_, ..._], _} => true
-  | _ => false;
-
-let buffer_cls: t => string =
-  fun
-  | {mode: Buffer(Unparsed), _} => "buffer-unparsed"
-  | {mode: Buffer(Parsed), _} => "buffer-parsed"
-  | _ => "not-buffer";
 
 let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
@@ -98,8 +62,7 @@ let anchor_piece = (sel: t): option(Piece.t) =>
   | (Left, content) => ListUtil.last_opt(content)
   };
 
-let push =
-    (p: Piece.t, {focus, content, mode, anchor_caret, smart_rounded}: t): t => {
+let push = (p: Piece.t, {focus, content, anchor_caret, smart_rounded}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -110,7 +73,6 @@ let push =
   {
     focus,
     content,
-    mode,
     anchor_caret,
     smart_rounded,
   };
@@ -120,7 +82,7 @@ let push =
  * to prevent matching shards from merging into multi-shard tiles,
  * which would break Inner(n) position tracking. */
 let push_raw =
-    (p: Piece.t, {focus, content, mode, anchor_caret, smart_rounded}: t): t => {
+    (p: Piece.t, {focus, content, anchor_caret, smart_rounded}: t): t => {
   let content =
     switch (focus) {
     | Left => Segment.cons(p, content)
@@ -129,7 +91,6 @@ let push_raw =
   {
     focus,
     content,
-    mode,
     anchor_caret,
     smart_rounded,
   };

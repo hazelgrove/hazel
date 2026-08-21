@@ -69,6 +69,10 @@ plans/
 .cursor/
 AGENTS.md
 
+# local dev-server staging dir (built bundle + copied statics);
+# swept in by a broad `git add` on 2026-07-11, never intended to be tracked
+_serve/
+
 # Scratch build/test logs
 *.log
 
