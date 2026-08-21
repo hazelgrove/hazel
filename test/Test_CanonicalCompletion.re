@@ -1709,7 +1709,9 @@ let materialize_tests = [
       let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
       let case_id =
         Segment.incomplete_tiles_deep(seg)
-        |> List.find((t: Tile.t) => List.mem("case", Tile.label(t)))
+        |> List.find((t: Tile.t) =>
+             List.exists(String.equal("case"), Tile.label(t))
+           )
         |> ((t: Tile.t) => t.id);
       let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
       check(

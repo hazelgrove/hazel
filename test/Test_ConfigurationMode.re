@@ -103,7 +103,12 @@ let edited_source = () => {
       "^^check(true)",
       text,
     );
-  check(bool, "the edit actually changed the source", true, edited != text);
+  check(
+    bool,
+    "the edit actually changed the source",
+    true,
+    !String.equal(edited, text),
+  );
   Haz3lcore.PersistentZipper.of_slide_text(edited);
 };
 
@@ -140,8 +145,11 @@ let edited_key_differs = () =>
     bool,
     "an edited slide keys differently from the built-in one",
     true,
-    CM.theme_key(edited_persistent())
-    != CM.theme_key(CM.StoreConfig.default()),
+    !
+      String.equal(
+        CM.theme_key(edited_persistent()),
+        CM.theme_key(CM.StoreConfig.default()),
+      ),
   );
 
 /* The inline <head> script in index.html parses this format too, so the
