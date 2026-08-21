@@ -29,7 +29,10 @@ type t =
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
       (
-        [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
+        [@equal
+          (a, b) =>
+            Printf.(String.equal(sprintf("%f", a), sprintf("%f", b)))
+        ] float,
       )
   | Bool(bool)
   | String(string);

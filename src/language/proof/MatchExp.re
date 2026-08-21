@@ -5,21 +5,22 @@ open OptUtil.Syntax;
 type match_ctx = list((string, (Typ.t, option(Exp.t))));
 
 let match_ctx_has = (ctx: match_ctx, name: string): bool =>
-  List.exists(((n, (_, _))) => n == name, ctx);
+  List.exists(((n, (_, _))) => String.equal(n, name), ctx);
 
 type alphas = list((string, string));
 
 let rec are_alpha_equiv = (alphas: alphas, x: string, y: string): bool =>
   switch (alphas) {
-  | [] => x == y
-  | [(x1, y1), ..._] when x == x1 && y == y1 => true
-  | [(x1, _), ..._] when x == x1 => false
-  | [(_, y1), ..._] when y == y1 => false
+  | [] => String.equal(x, y)
+  | [(x1, y1), ..._] when String.equal(x, x1) && String.equal(y, y1) =>
+    true
+  | [(x1, _), ..._] when String.equal(x, x1) => false
+  | [(_, y1), ..._] when String.equal(y, y1) => false
   | [_, ...rest] => are_alpha_equiv(rest, x, y)
   };
 
 let is_in_alphas_l = (alphas: alphas, x: string): bool =>
-  List.exists(((x1, _)) => x == x1, alphas);
+  List.exists(((x1, _)) => String.equal(x, x1), alphas);
 
 /* Match exp against another pattern exp_r.
 
@@ -66,7 +67,7 @@ let rec match_exp =
         Some(
           List.map(
             ((n, (t, e))) =>
-              n == x ? (n, (t, Some(exp))) : (n, (t, e)),
+              String.equal(n, x) ? (n, (t, Some(exp))) : (n, (t, e)),
             ctx,
           ),
         )
@@ -80,7 +81,7 @@ let rec match_exp =
   | (Var(_), _) => None
   /* Forms with binders */
   /* Forms without binders */
-  | (Invalid(x), Invalid(y)) when x == y => Some(ctx)
+  | (Invalid(x), Invalid(y)) when String.equal(x, y) => Some(ctx)
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some(ctx)
   | (EmptyHole, _) => None
@@ -101,13 +102,15 @@ let rec match_exp =
   | (Deferral(_), _) => None
   | (Undefined, Undefined) => Some(ctx)
   | (Undefined, _) => None
-  | (Atom(Bool(b1)), Atom(Bool(b2))) when b1 == b2 => Some(ctx)
+  | (Atom(Bool(b1)), Atom(Bool(b2))) when Bool.equal(b1, b2) => Some(ctx)
   | (Atom(Bool(_)), _) => None
   | (Atom(Int(i1)), Atom(Int(i2))) when i1 == i2 => Some(ctx)
   | (Atom(Int(_)), _) => None
-  | (Atom(Float(f1)), Atom(Float(f2))) when f1 == f2 => Some(ctx)
+  | (Atom(Float(f1)), Atom(Float(f2))) when Float.equal(f1, f2) =>
+    Some(ctx)
   | (Atom(Float(_)), _) => None
-  | (Atom(String(s1)), Atom(String(s2))) when s1 == s2 => Some(ctx)
+  | (Atom(String(s1)), Atom(String(s2))) when String.equal(s1, s2) =>
+    Some(ctx)
   | (Atom(String(_)), _) => None
   | (Atom(SInt(i1)), Atom(SInt(i2))) when i1 == i2 => Some(ctx)
   | (Atom(SInt(_)), _) => None
@@ -120,7 +123,8 @@ let rec match_exp =
       List.combine(xs, ys),
     )
   | (ListLit(_), _) => None
-  | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some(ctx)
+  | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
+    Some(ctx)
   | (Constructor(_, _), _) => None
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
     let* alphas' = match_pat(p1, p2);
@@ -225,7 +229,7 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);
   | (BinOp(_, _, _), _) => None
-  | (BuiltinFun(f1), BuiltinFun(f2)) when f1 == f2 => Some(ctx)
+  | (BuiltinFun(f1), BuiltinFun(f2)) when String.equal(f1, f2) => Some(ctx)
   | (BuiltinFun(_), _) => None
   | (Match(e1, rs1), Match(e2, rs2))
       when List.length(rs1) == List.length(rs2) =>
@@ -239,7 +243,7 @@ let rec match_exp =
       List.combine(rs1, rs2),
     );
   | (Match(_, _), _) => None
-  | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
+  | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some(ctx)
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(ctx)
   | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
@@ -253,7 +257,8 @@ let rec match_exp =
   | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
   | (Dot(_, _), _) => None
-  | (LivelitName(l1), LivelitName(l2)) when l1 == l2 => Some(ctx)
+  | (LivelitName(l1), LivelitName(l2)) when String.equal(l1, l2) =>
+    Some(ctx)
   | (LivelitName(_), _) => None
   | (Use(t, e), Use(t2, e2)) =>
     let* () = match_typ(t, t2);
@@ -275,7 +280,7 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
-  | (Invalid(x), Invalid(y)) when x == y => Some([])
+  | (Invalid(x), Invalid(y)) when String.equal(x, y) => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])
   | (EmptyHole, _) => None
@@ -291,11 +296,13 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Var(_), _) => None
   | (Atom(Int(i1)), Atom(Int(i2))) when i1 == i2 => Some([])
   | (Atom(Int(_)), _) => None
-  | (Atom(Float(f1)), Atom(Float(f2))) when f1 == f2 => Some([])
+  | (Atom(Float(f1)), Atom(Float(f2))) when Float.equal(f1, f2) =>
+    Some([])
   | (Atom(Float(_)), _) => None
-  | (Atom(Bool(b1)), Atom(Bool(b2))) when b1 == b2 => Some([])
+  | (Atom(Bool(b1)), Atom(Bool(b2))) when Bool.equal(b1, b2) => Some([])
   | (Atom(Bool(_)), _) => None
-  | (Atom(String(s1)), Atom(String(s2))) when s1 == s2 => Some([])
+  | (Atom(String(s1)), Atom(String(s2))) when String.equal(s1, s2) =>
+    Some([])
   | (Atom(String(_)), _) => None
   | (Atom(SInt(i1)), Atom(SInt(i2))) when i1 == i2 => Some([])
   | (Atom(SInt(_)), _) => None
@@ -309,7 +316,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
       List.combine(xs, ys),
     )
   | (ListLit(_), _) => None
-  | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some([])
+  | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
+    Some([])
   | (Constructor(_, _), _) => None
   | (Cons(x1, x2), Cons(y1, y2)) =>
     let* alphas1 = match_pat(x1, y1);
@@ -329,7 +337,7 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(x2, y2);
     Some(alphas1 @ alphas2);
   | (Ap(_, _), _) => None
-  | (Label(l1), Label(l2)) when l1 == l2 => Some([])
+  | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some([])
   | (Label(_), _) => None
   | (TupLabel({term: ExplicitNonlabel, _}, pat_r), _) =>
     match_pat(pat_r, pat)
