@@ -1329,7 +1329,7 @@ let view =
               let reasoning_node: option(Node.t) =
                 switch (show_thinking, msg.reasoning) {
                 | (true, Some(text_content))
-                    when String.trim(text_content) != "" =>
+                    when !String.equal(String.trim(text_content), "") =>
                   let header_text =
                     switch (msg.reasoning_duration_ms) {
                     | Some(ms) => format_thinking_duration(ms)
@@ -1353,7 +1353,8 @@ let view =
                 | _ => None
                 };
               let content_node: option(Node.t) =
-                if (msg.content != "" && String.trim(msg.content) != "") {
+                if (!String.equal(msg.content, "")
+                    && !String.equal(String.trim(msg.content), "")) {
                   Some(
                     div(
                       ~attrs=[clss(["agent-message"])],
@@ -1549,7 +1550,7 @@ let view =
             let msg_id_opt =
               List.find_opt(
                 ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
-                  msg_tr.tool_call.id == tool_result.tool_call.id,
+                  String.equal(msg_tr.tool_call.id, tool_result.tool_call.id),
                 tool_result_messages,
               );
             let on_click = _ =>
@@ -1806,8 +1807,10 @@ let view =
               let pending_content = agent_model.pending_assistant_content;
               let pending_reasoning = agent_model.pending_assistant_reasoning;
               let has_reasoning =
-                show_thinking && String.trim(pending_reasoning) != "";
-              let has_content = String.trim(pending_content) != "";
+                show_thinking
+                && !String.equal(String.trim(pending_reasoning), "");
+              let has_content =
+                !String.equal(String.trim(pending_content), "");
               let reasoning_node: option(Node.t) =
                 if (has_reasoning) {
                   Some(

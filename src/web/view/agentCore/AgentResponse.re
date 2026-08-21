@@ -34,7 +34,7 @@ let handle_llm_response =
       cell_editor |> Updated.return_quiet,
     )
   | _ =>
-    let is_empty = String.trim(reply.content) == "";
+    let is_empty = String.equal(String.trim(reply.content), "");
 
     // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
     if (reply.tool_calls == [] && is_empty) {

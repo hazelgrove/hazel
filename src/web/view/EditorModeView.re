@@ -71,14 +71,17 @@ let indicator_select =
            Attr.string_property("value", selected),
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) =>
-             switch (List.find_opt(((_, n)) => n == name, options)) {
+             switch (
+               List.find_opt(((_, n)) => String.equal(n, name), options)
+             ) {
              | Some((i, _)) => signal(i)
              | None => Effect.Ignore
              }
            ),
          ],
          List.map(
-           ((_, name: string)) => option_view(name == selected, name),
+           ((_, name: string)) =>
+             option_view(String.equal(name, selected), name),
            options,
          ),
        )

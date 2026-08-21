@@ -26,7 +26,7 @@ let segments_for_token = (token: string): list(segment) => {
   clusters
   |> List.fold_left(
        (acc, cluster) =>
-         if (cluster == "") {
+         if (String.equal(cluster, "")) {
            acc;
          } else if (Unicode.is_invisible_cluster(cluster)) {
            [

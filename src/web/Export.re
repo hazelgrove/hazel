@@ -78,7 +78,7 @@ let import_all =
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Persist.import_all("scratch", all.scratch);
-  if (all.documentation != "") {
+  if (!String.equal(all.documentation, "")) {
     ScratchMode.Persist.import_all("doc", all.documentation);
   };
   ExercisesMode.Store.import(

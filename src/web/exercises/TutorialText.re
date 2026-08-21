@@ -240,7 +240,7 @@ let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
   /* Indentation is stored as whitespace in the editor, so preserve the
      leading spaces authored in the lesson source. */
   let code = String.trim(s.code);
-  let test = s.test == "" ? "test true end" : s.test;
+  let test = String.equal(s.test, "") ? "test true end" : s.test;
   {
     id:
       Option.get(

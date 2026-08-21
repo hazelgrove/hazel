@@ -94,7 +94,7 @@ module Utils = {
   let derive_slash_menu_from_content =
       (~prev: option(Model.slash_menu_state), content: string)
       : option(Model.slash_menu_state) =>
-    if (String.length(content) < 1 || content.[0] != '/') {
+    if (String.length(content) < 1 || !Char.equal(content.[0], '/')) {
       None;
     } else {
       let after_slash = String.sub(content, 1, String.length(content) - 1);
@@ -105,7 +105,7 @@ module Utils = {
           Option.map((s: Model.slash_menu_state) => s.filter, prev);
         let selected_index =
           switch (prev_filter) {
-          | Some(f) when f == after_slash =>
+          | Some(f) when String.equal(f, after_slash) =>
             Option.map((s: Model.slash_menu_state) => s.selected_index, prev)
             |> Option.value(~default=0)
           | _ => 0
