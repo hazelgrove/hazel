@@ -250,7 +250,7 @@ let text_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       [%blob "errors-using-tables-getonlyrow.hz"],
     ),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );
 
