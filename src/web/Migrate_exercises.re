@@ -178,15 +178,16 @@ let rec equal_segment = (a: Base.segment, b: Base.segment) =>
 and equal_piece = (a: Base.piece, b: Base.piece) =>
   switch (a, b) {
   | (Tile(t1), Tile(t2)) =>
-    Tile.label(t1) == Tile.label(t2)
+    Label.equal(Tile.label(t1), Tile.label(t2))
     && List.equal(equal_segment, t1.children, t2.children)
-    && Tile.mold(t1) == Tile.mold(t2)
-    && t1.shards == t2.shards
-  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
-  | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
+    && Mold.equal(Tile.mold(t1), Tile.mold(t2))
+    && List.equal(Int.equal, t1.shards, t2.shards)
+  | (Grout(g1), Grout(g2)) => Grout.equal_shape(g1.shape, g2.shape)
+  | (Secondary(s1), Secondary(s2)) =>
+    Language.Secondary.equal_secondary_content(s1.content, s2.content)
   | (Projector(p1), Projector(p2)) =>
-    p1.kind == p2.kind
-    && p1.model == p2.model
+    ProjectorCore.Kind.equal(p1.kind, p2.kind)
+    && String.equal(p1.model, p2.model)
     && equal_piece(p1.syntax, p2.syntax)
   | _ => false
   };
@@ -269,7 +270,7 @@ let check_field = ({label, root, zipper}: field): option(string) => {
   | None => Some(label ++ ": reparse FAILED (Parser.to_zipper => None)")
   | Some(z2) =>
     let code2 = PersistentZipper.to_string(z2);
-    if (code2 != code) {
+    if (!String.equal(code2, code)) {
       Some(
         label
         ++ ": fixpoint MISMATCH\n  original: "
@@ -325,7 +326,7 @@ let registry_warnings = (): list(string) => {
          | ThmEx(_, s) => s.id,
        );
   let missing = (kind, title, id) =>
-    List.mem(id, covered_ids)
+    List.exists(Id.equal(id), covered_ids)
       ? None
       : Some(
           "registered "
