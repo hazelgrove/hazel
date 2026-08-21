@@ -1,4 +1,5 @@
 open Cmdliner;
+open Poly;
 
 /* Read from stdin or file depending on argument */
 let read_input = path => {
@@ -31,9 +32,9 @@ let run_hazel = path => {
 };
 
 let strip_leading_whitespace = (s: string): string => {
-  let lines = String.split_on_char('\n', s);
-  let stripped = List.map(String.trim, lines);
-  String.concat("\n", stripped);
+  let lines = String.split(s, ~on='\n');
+  let stripped = List.map(~f=String.strip, lines);
+  String.concat(~sep="\n", stripped);
 };
 
 let format_hazel = (implicit_hole: string, width, path) => {
@@ -115,7 +116,7 @@ let analyze_hazel =
         static_map,
         [],
       )
-      |> List.sort_uniq(compare);
+      |> List.dedup_and_sort(~compare=Poly.compare);
 
     let formatted_warnings =
       if (show_warnings) {
@@ -135,7 +136,7 @@ let analyze_hazel =
           static_map,
           [],
         )
-        |> List.sort_uniq(compare);
+        |> List.dedup_and_sort(~compare=Poly.compare);
       } else {
         [];
       };
@@ -155,10 +156,11 @@ let analyze_hazel =
         );
         prerr_endline("");
         List.iter(
-          item => {
-            prerr_endline(item);
-            prerr_endline("");
-          },
+          ~f=
+            item => {
+              prerr_endline(item);
+              prerr_endline("");
+            },
           items,
         );
       };
@@ -306,19 +308,20 @@ let test_hazel =
     /* Format individual test results */
     let formatted_tests =
       List.filter_map(
-        ((id, reports)) =>
-          format_test_result(
-            ~source=program,
-            ~measured,
-            ~verbose,
-            id,
-            reports,
-          ),
+        ~f=
+          ((id, reports)) =>
+            format_test_result(
+              ~source=program,
+              ~measured,
+              ~verbose,
+              id,
+              reports,
+            ),
         test_results.test_map,
       );
 
     /* Print test results */
-    List.iter(line => print_endline(line), formatted_tests);
+    List.iter(~f=line => print_endline(line), formatted_tests);
 
     /* Return appropriate exit code */
     if (test_results.failing > 0) {
@@ -381,12 +384,13 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ) {
         | Some(ids) =>
           List.fold_left(
-            (acc, id_opt) =>
-              switch (id_opt) {
-              | Some(id) => Id.Map.add(id, (), acc)
-              | None => acc
-              },
-            Id.Map.empty,
+            ~f=
+              (acc, id_opt) =>
+                switch (id_opt) {
+                | Some(id) => Id.Map.add(id, (), acc)
+                | None => acc
+                },
+            ~init=Id.Map.empty,
             ids,
           )
         | None => Id.Map.empty
@@ -458,41 +462,42 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
     |> Js_of_ocaml.Js.float_of_number;
-  Printf.printf(
+  Stdlib.Printf.printf(
     "%-40s %8s %12s %12s\n",
     "File",
     "Iters",
     "Plain(ms)",
     "Incr(ms)",
   );
-  Printf.printf("%s\n", String.make(76, '-'));
+  Stdlib.Printf.printf("%s\n", String.make(76, '-'));
   List.iter(
-    path => {
-      let program = read_input(path);
-      let parsed = parse_program(program);
-      let (elab, eval_info) = Run.elab_and_eval_info(parsed);
-      ignore(Run.evaluate_elab(elab));
-      let t0 = now();
-      for (_ in 1 to iterations) {
+    ~f=
+      path => {
+        let program = read_input(path);
+        let parsed = parse_program(program);
+        let (elab, eval_info) = Run.elab_and_eval_info(parsed);
         ignore(Run.evaluate_elab(elab));
-      };
-      let t1 = now();
-      let plain = (t1 -. t0) /. float_of_int(iterations);
-      ignore(Run.evaluate_elab_incr(~eval_info, elab));
-      let t2 = now();
-      for (_ in 1 to iterations) {
+        let t0 = now();
+        for (_ in 1 to iterations) {
+          ignore(Run.evaluate_elab(elab));
+        };
+        let t1 = now();
+        let plain = (t1 -. t0) /. float_of_int(iterations);
         ignore(Run.evaluate_elab_incr(~eval_info, elab));
-      };
-      let t3 = now();
-      let incr = (t3 -. t2) /. float_of_int(iterations);
-      Printf.printf(
-        "%-40s %8d %12.1f %12.1f\n",
-        path,
-        iterations,
-        plain,
-        incr,
-      );
-    },
+        let t2 = now();
+        for (_ in 1 to iterations) {
+          ignore(Run.evaluate_elab_incr(~eval_info, elab));
+        };
+        let t3 = now();
+        let incr = (t3 -. t2) /. float_of_int(iterations);
+        Stdlib.Printf.printf(
+          "%-40s %8d %12.1f %12.1f\n",
+          path,
+          iterations,
+          plain,
+          incr,
+        );
+      },
     paths,
   );
 };
