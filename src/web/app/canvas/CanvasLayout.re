@@ -49,8 +49,6 @@ type t = {
   origin: pos,
 };
 
-let col_w = 190.;
-let row_h = 120.;
 let margin = 70.;
 
 let base_radius = 20.;
@@ -174,78 +172,10 @@ let layout =
   let find_grid = (k: string): option(CanvasGraph.tynode) =>
     List.find_opt((n: CanvasGraph.tynode) => n.key == k, grid_nodes);
 
-  /* ---- layer assignment (grid only) ---- */
-  let tbl: Hashtbl.t(string, int) = Hashtbl.create(16);
-  let rec layer_of = (~depth=0, k: string): int =>
-    switch (Hashtbl.find_opt(tbl, k)) {
-    | Some(l) => l
-    | None when depth > 32 => 0
-    | None =>
-      Hashtbl.replace(tbl, k, 0); /* cycle guard (Rec types) */
-      let l =
-        switch (find_grid(k)) {
-        | None => 0
-        | Some(n) =>
-          let dep_layers =
-            n.deps
-            |> List.filter(d => d != k && List.mem(d, grid_keys))
-            |> List.map(layer_of(~depth=depth + 1));
-          let inner =
-            switch (strip_brackets(k)) {
-            | Some(ik) when List.mem(ik, grid_keys) && ik != k => [
-                layer_of(~depth=depth + 1, ik),
-              ]
-            | _ => []
-            };
-          switch (dep_layers @ inner) {
-          | [] => 0
-          | ls => List.fold_left(max, 0, ls) + 1
-          };
-        };
-      Hashtbl.replace(tbl, k, l);
-      l;
-    };
-  List.iter(k => ignore(layer_of(k)), grid_keys);
-  /* flow constraint: a function's result sits right of its (grid) input */
-  for (_ in 1 to 3) {
-    List.iter(
-      (e: CanvasGraph.edge) =>
-        if (e.dst != e.e_src
-            && List.mem(e.dst, grid_keys)
-            && List.mem(e.e_src, grid_keys)) {
-          let src_l = layer_of(e.e_src);
-          switch (Hashtbl.find_opt(tbl, e.dst)) {
-          | Some(l) when l <= src_l => Hashtbl.replace(tbl, e.dst, src_l + 1)
-          | _ => ()
-          };
-        },
-      g.edges,
-    );
-  };
-  /* compact away empty columns */
-  let used_layers =
-    grid_keys
-    |> List.map(k => Option.value(~default=0, Hashtbl.find_opt(tbl, k)))
-    |> List.sort_uniq(compare);
-  let layer = (k: string): int => {
-    let raw = Option.value(~default=0, Hashtbl.find_opt(tbl, k));
-    let rec idx = (i, ls) =>
-      switch (ls) {
-      | [] => 0
-      | [l, ..._] when l == raw => i
-      | [_, ...rest] => idx(i + 1, rest)
-      };
-    idx(0, used_layers);
-  };
-
-  /* ---- grid slots ---- */
-  let max_layer = max(0, List.length(used_layers) - 1);
-  let by_layer =
-    List.init(max_layer + 1, l =>
-      List.filter((n: CanvasGraph.tynode) => layer(n.key) == l, grid_nodes)
-    );
-  let max_rows =
-    List.fold_left((m, ns) => max(m, List.length(ns)), 1, by_layer);
+  /* ---- placement: delegate to the GraphLayout engine ----
+     Rank constraints: alias-body deps (hidden ones included — they still
+     order columns), derived [T] after its element, and function flow
+     (input strictly left of result). Docked nodes become attachments. */
   let fan = (k: string): int =>
     List.length(
       List.filter(
@@ -253,128 +183,131 @@ let layout =
         g.edges,
       ),
     );
-  let grid_layouts: list(node_layout) =
-    List.concat(
-      List.mapi(
-        (l, ns) => {
-          let n_rows = List.length(ns);
-          let y0 =
-            margin
-            +. float_of_int(max_rows - n_rows)
-            *. row_h
-            /. 2.
-            +. row_h
-            /. 2.;
-          List.mapi(
-            (i, n: CanvasGraph.tynode) =>
-              {
-                node: n,
-                p: {
-                  x:
-                    margin
-                    +. (float_of_int(l) *. col_w +. col_w /. 2.)
-                    *. x_scale,
-                  y: y0 +. float_of_int(i) *. row_h,
-                },
-                r: node_radius(~fan=fan(n.key), n),
-              },
-            ns,
-          );
+  let r_of = (n: CanvasGraph.tynode): float =>
+    node_radius(~fan=fan(n.key), n);
+  let dep_edges =
+    List.concat_map(
+      (n: CanvasGraph.tynode) =>
+        n.deps
+        |> List.filter(d => d != n.key)
+        |> List.map(d =>
+             Util.GraphLayout.Spec.{
+               src: d,
+               dst: n.key,
+               ranked: true,
+             }
+           ),
+      grid_nodes,
+    );
+  let derived_edges =
+    List.filter_map(
+      (n: CanvasGraph.tynode) =>
+        switch (strip_brackets(n.key)) {
+        | Some(ik) when ik != n.key =>
+          Some(
+            Util.GraphLayout.Spec.{
+              src: ik,
+              dst: n.key,
+              ranked: true,
+            },
+          )
+        | _ => None
         },
-        by_layer,
-      ),
+      grid_nodes,
+    );
+  let flow_edges =
+    List.filter_map(
+      (e: CanvasGraph.edge) =>
+        e.e_src != e.dst
+          ? Some(
+              Util.GraphLayout.Spec.{
+                src: e.e_src,
+                dst: e.dst,
+                ranked: true,
+              },
+            )
+          : None,
+      g.edges,
+    );
+  let attachments =
+    List.map(
+      ((n: CanvasGraph.tynode, anchor, d)) => {
+        let (prefer, dist) =
+          switch (d) {
+          | DockIn => (
+              Util.GraphLayout.Spec.In,
+              n.kind == CanvasGraph.Product ? 36. : 62.,
+            )
+          | DockOut => (Util.GraphLayout.Spec.Out, 62.)
+          | DockLoop => (Util.GraphLayout.Spec.Above, 52.)
+          | DockDeriv => (Util.GraphLayout.Spec.Below, 42.)
+          };
+        Util.GraphLayout.Spec.{
+          id: n.key,
+          host: anchor,
+          /* labeled terminals hang text below the circle: pad the
+             collision radius so neighbors keep clear of the label */
+          radius: r_of(n) +. (n.label == "" || n.kind == Product ? 0. : 7.),
+          prefer,
+          dist,
+        };
+      },
+      docked,
+    );
+  /* formation links (component → product) are ordering-only: they pull
+     a product's components toward its row without constraining columns */
+  let formation_edges =
+    List.concat_map(
+      (n: CanvasGraph.tynode) =>
+        n.kind == CanvasGraph.Product
+          ? List.map(
+              pk =>
+                Util.GraphLayout.Spec.{
+                  src: pk,
+                  dst: n.key,
+                  ranked: false,
+                },
+              n.parts,
+            )
+          : [],
+      g.nodes,
+    );
+  let res =
+    Util.GraphLayout.layout({
+      nodes:
+        List.map(
+          (n: CanvasGraph.tynode) =>
+            Util.GraphLayout.Spec.{
+              id: n.key,
+              radius: r_of(n),
+            },
+          grid_nodes,
+        ),
+      edges: dep_edges @ derived_edges @ flow_edges @ formation_edges,
+      attachments,
+      col_gap: 96.,
+      row_gap: 48.,
+      margin,
+      x_stretch: x_scale,
+      order_sweeps: 4,
+    });
+  let placed_layouts: list(node_layout) =
+    List.filter_map(
+      (n: CanvasGraph.tynode) =>
+        Util.GraphLayout.pos_of(res, n.key)
+        |> Option.map((p: Util.GraphLayout.pos) =>
+             {
+               node: n,
+               p: {
+                 x: p.x,
+                 y: p.y,
+               },
+               r: r_of(n),
+             }
+           ),
+      g.nodes,
     );
 
-  /* ---- docked nodes: resolve anchors iteratively (a loop product can
-     anchor a builtin terminal of its own) ---- */
-  let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
-  List.iter(
-    (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
-    grid_layouts,
-  );
-  let dock_count: Hashtbl.t((string, dock), int) = Hashtbl.create(8);
-  let docked_layouts: ref(list(node_layout)) = ref([]);
-  let try_place = ((n: CanvasGraph.tynode, anchor: string, d: dock)): bool =>
-    switch (Hashtbl.find_opt(placed, n.key)) {
-    | Some(_) => true
-    | None =>
-      switch (Hashtbl.find_opt(placed, anchor)) {
-      | None => false
-      | Some((a, ar)) =>
-        let i =
-          Option.value(
-            ~default=0,
-            Hashtbl.find_opt(dock_count, (anchor, d)),
-          );
-        Hashtbl.replace(dock_count, (anchor, d), i + 1);
-        let fi = float_of_int(i);
-        /* formers ("()"/"[]") tuck close to their alias; labeled builtin
-           terminals need the wider berth */
-        let dock_dist = n.kind == CanvasGraph.Product ? 46. : 92.;
-        let p =
-          switch (d) {
-          | DockIn => {
-              x: a.x -. ar -. dock_dist,
-              y: a.y -. 20. +. fi *. 42.,
-            }
-          | DockOut => {
-              x: a.x +. ar +. dock_dist,
-              y: a.y -. 20. +. fi *. 42.,
-            }
-          | DockLoop =>
-            /* fan loop products at distinct angles around the anchor so
-               several feedback functions stay visually separate */
-            let th = (125. +. fi *. 42.) *. Float.pi /. 180.;
-            let dist = ar +. 62. +. fi *. 8.;
-            {
-              x: a.x +. cos(th) *. dist,
-              y: a.y -. sin(th) *. dist,
-            };
-          | DockDeriv => {
-              x: a.x,
-              y: a.y +. ar +. 52. +. fi *. 36.,
-            }
-          };
-        let r = node_radius(~fan=fan(n.key), n);
-        docked_layouts :=
-          docked_layouts^
-          @ [
-            {
-              node: n,
-              p,
-              r,
-            },
-          ];
-        Hashtbl.replace(placed, n.key, (p, r));
-        true;
-      }
-    };
-  /* two passes handle anchor chains; anything still unplaced parks at the
-     top-left corner rather than vanishing */
-  let unresolved =
-    docked
-    |> List.filter(x => !try_place(x))
-    |> List.filter(x => !try_place(x));
-  List.iteri(
-    (i, (n: CanvasGraph.tynode, _, _)) => {
-      let p = {
-        x: margin /. 2.,
-        y: margin /. 2. +. float_of_int(i) *. 30.,
-      };
-      let r = node_radius(~fan=fan(n.key), n);
-      docked_layouts :=
-        docked_layouts^
-        @ [
-          {
-            node: n,
-            p,
-            r,
-          },
-        ];
-      Hashtbl.replace(placed, n.key, (p, r));
-    },
-    unresolved,
-  );
   /* ---- user drag deltas and click-placement pins ---- */
   let node_layouts =
     List.map(
@@ -399,9 +332,9 @@ let layout =
           }
         | (None, None) => nl
         },
-      grid_layouts @ docked_layouts^,
+      placed_layouts,
     );
-  Hashtbl.reset(placed);
+  let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
     (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
     node_layouts,
