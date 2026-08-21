@@ -248,23 +248,24 @@ module Update = {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
-          let filename =
-            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-          let contents =
+          let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
-              let serialized =
-                Haz3lcore.(
-                  [%derive.show: (string, PersistentSegment.t)]((
-                    current.name,
-                    editor.editor.editor.state.zipper
-                    |> PersistentSegment.persist,
-                  ))
-                );
-              "let out : string * Haz3lcore.PersistentSegment.t = "
-              ++ serialized;
-            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+              /* Slides are text-backed: export the committed-.hz form
+                 (marker-printed content + one final newline). */
+              (
+                ".hz",
+                Haz3lcore.PersistentZipper.persist(
+                  editor.editor.editor.state.zipper,
+                ).
+                  backup_text,
+              )
+            | Drv(m) => (
+                ".ml",
+                DerivationExercise.export_doc_slide_module(m.editors),
+              )
             };
+          let filename = (current.name |> StringUtil.sanitize_filename) ++ ext;
           (filename, contents);
         | Tutorial(model) =>
           let current = TutorialsMode.Model.get_current(model);
@@ -373,7 +374,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -383,24 +384,11 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
-    };
-  };
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Globals(action) => Globals.Update.can_undo(action)
-    | Editors(action) => Editors.Update.can_undo(action)
-    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | MakeActive(_)
-    | Benchmark(_) => false
-    | Refresh => false
-    | Start => false
-    | Save => false
     };
   };
 
@@ -444,18 +432,16 @@ module Update = {
         ~selection=model.selection,
         editors,
       );
-    let color_highlights =
-      ExplainThis.get_color_map(
-        ~globals=model.globals,
-        ~explainThisModel=model.explain_this,
-        cursor_info.info,
-      );
     /* When the user's cursor is inside a derivation tree cell, the
        deduction-specific highlight map takes precedence over the generic
        ExplainThis one. We consult the live selection here (rather than
        Editors.Model.get_derivation_info, which reads the stale `model.pos`
        inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation. */
+       get misclassified as focus on the derivation.
+
+       Only the winning map is computed. Each of these runs the whole of
+       ExplainThis.decide, so computing the generic one unconditionally and then
+       discarding it cost a full pass on every frame with a derivation focused. */
     let derivation_info =
       Editors.Selection.get_derivation_info(
         ~selection=model.selection,
@@ -469,7 +455,12 @@ module Update = {
           ~explainThisModel=model.explain_this,
           derivation_info,
         )
-      | None => color_highlights
+      | None =>
+        ExplainThis.get_color_map(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          cursor_info.info,
+        )
       };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
