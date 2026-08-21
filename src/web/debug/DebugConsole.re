@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Poly;
 
 /* This is a place to add ad-hoc debugging print actions.
    It was originally directly in Keyboard, but that added a handler
@@ -40,10 +41,11 @@ let print =
       Id.Map.fold(
         (_, samples, acc) =>
           List.fold_left(
-            (acc, sample) =>
-              sample.Language.Sample.origin == Language.Sample.Print
-                ? [sample, ...acc] : acc,
-            acc,
+            ~f=
+              (acc, sample) =>
+                sample.Language.Sample.origin == Language.Sample.Print
+                  ? [sample, ...acc] : acc,
+            ~init=acc,
             samples,
           ),
         probes,
@@ -53,10 +55,10 @@ let print =
     let collect_print_outputs =
         (state: Language.EvaluatorState.t): list(string) =>
       collect_print_samples(state)
-      |> List.sort((a, b) =>
+      |> List.sort(~compare=(a, b) =>
            Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
          )
-      |> List.map(sample =>
+      |> List.map(~f=sample =>
            sample.Language.Sample.value
            |> ExpToSegment.exp_to_segment(
                 ~settings=
@@ -71,7 +73,7 @@ let print =
     let print_summary = (state: Language.EvaluatorState.t): option(string) =>
       switch (collect_print_outputs(state)) {
       | [] => None
-      | outputs => Some(String.concat("\n", outputs))
+      | outputs => Some(String.concat(~sep="\n", outputs))
       };
 
     let env_init = Language.Builtins.env_init;

@@ -27,11 +27,12 @@ let exp_of_section = (s: A.section): Exp.t => {
   IdTagged.FreshGrammar.Exp.(
     tuple(
       List.map(
-        a =>
-          tup_label(
-            label(A.label(a)),
-            projected_binding(A.default_binding(a)),
-          ),
+        ~f=
+          a =>
+            tup_label(
+              label(A.label(a)),
+              projected_binding(A.default_binding(a)),
+            ),
         A.in_section(s),
       ),
     )
@@ -42,7 +43,7 @@ let shortcut_theme = (): Exp.t => {
   IdTagged.FreshGrammar.Exp.(
     tuple(
       List.map(
-        s => tup_label(label(A.section_label(s)), exp_of_section(s)),
+        ~f=s => tup_label(label(A.section_label(s)), exp_of_section(s)),
         A.populated_sections,
       ),
     )
@@ -72,16 +73,17 @@ let expected_type = {
   IdTagged.FreshGrammar.Typ.(
     prod(
       List.map(
-        s =>
-          tup_label(
-            label(A.section_label(s)),
-            prod(
-              List.map(
-                a => tup_label(label(A.label(a)), var("Shortcut")),
-                A.in_section(s),
+        ~f=
+          s =>
+            tup_label(
+              label(A.section_label(s)),
+              prod(
+                List.map(
+                  ~f=a => tup_label(label(A.label(a)), var("Shortcut")),
+                  A.in_section(s),
+                ),
               ),
             ),
-          ),
         A.populated_sections,
       ),
     )
@@ -100,23 +102,25 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
    rather than falling back to it. */
 let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
   List.concat_map(
-    (section: Exp.t) =>
-      switch (section.term) {
-      | TupLabel(_, group) =>
-        List.filter_map(
-          (entry: Exp.t) =>
-            switch (entry.term) {
-            | TupLabel(l, v) =>
-              switch (l.term, S.binding_of_exp(v)) {
-              | (Label(action_name), Some(b)) =>
-                Some((action_name, S.string_of_binding(b)))
-              | _ => None
-              }
-            | _ => None
-            },
-          entries_of(group),
-        )
-      | _ => []
-      },
+    ~f=
+      (section: Exp.t) =>
+        switch (section.term) {
+        | TupLabel(_, group) =>
+          List.filter_map(
+            ~f=
+              (entry: Exp.t) =>
+                switch (entry.term) {
+                | TupLabel(l, v) =>
+                  switch (l.term, S.binding_of_exp(v)) {
+                  | (Label(action_name), Some(b)) =>
+                    Some((action_name, S.string_of_binding(b)))
+                  | _ => None
+                  }
+                | _ => None
+                },
+            entries_of(group),
+          )
+        | _ => []
+        },
     entries_of(value),
   );

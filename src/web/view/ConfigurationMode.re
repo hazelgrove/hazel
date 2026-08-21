@@ -26,7 +26,7 @@ module Model = {
   );
 
   let get_current_config = (model: t): (config_type, CellEditor.Model.t) => {
-    List.nth(model.configs, model.current);
+    List.nth_exn(model.configs, model.current);
   };
 
   let get_current_config_type = (model: t): config_type => {
@@ -36,7 +36,12 @@ module Model = {
   /* `configs` is built by mapping over `all_of_config_type`, so a config's
      position in that enumeration is its index into `configs`. */
   let switch_config = (config_type: config_type, model: t): t =>
-    switch (List.find_index(ct => ct == config_type, all_of_config_type)) {
+    switch (
+      List.findi(all_of_config_type, ~f=(_, ct) =>
+        Poly.equal(ct, config_type)
+      )
+      |> Option.map(~f=fst)
+    ) {
     | Some(current) => {
         ...model,
         current,
@@ -71,9 +76,8 @@ module Model = {
   };
 
   let type_of_persistence_key = (key: string): option(config_type) => {
-    List.find_opt(
-      config_type => String.equal(persistence_key(config_type), key),
-      all_of_config_type,
+    List.find(all_of_config_type, ~f=config_type =>
+      String.equal(persistence_key(config_type), key)
     );
   };
 
@@ -96,29 +100,30 @@ module Model = {
   let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((config_type: config_type, m: CellEditor.Model.t)) => {
-        let name = persistence_key(config_type);
-        let current_zipper = m.editor.editor.state.zipper;
-        /* Built-in sources are text-backed and mint fresh ids on every
-           parse, so id-sensitive segment equality can never match (same
-           reasoning as ScratchMode.Scratchpad.persist). Compare the text
-           projection instead, and store nothing for an untouched slide
-           so a later change to the default is picked up. */
-        let default_text =
-          default_source(config_type)
-          |> snd
-          |> ((z: PersistentZipper.t) => z.backup_text)
-          |> StringUtil.strip_final_newline;
-        let unchanged =
-          String.equal(
-            MarkerParse.seg_to_text(
-              ~refractors=current_zipper.refractors.manuals,
-              Zipper.zip(current_zipper),
-            ),
-            default_text,
-          );
-        (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
-      },
+      ~f=
+        ((config_type: config_type, m: CellEditor.Model.t)) => {
+          let name = persistence_key(config_type);
+          let current_zipper = m.editor.editor.state.zipper;
+          /* Built-in sources are text-backed and mint fresh ids on every
+             parse, so id-sensitive segment equality can never match (same
+             reasoning as ScratchMode.Scratchpad.persist). Compare the text
+             projection instead, and store nothing for an untouched slide
+             so a later change to the default is picked up. */
+          let default_text =
+            default_source(config_type)
+            |> snd
+            |> ((z: PersistentZipper.t) => z.backup_text)
+            |> StringUtil.strip_final_newline;
+          let unchanged =
+            String.equal(
+              MarkerParse.seg_to_text(
+                ~refractors=current_zipper.refractors.manuals,
+                Zipper.zip(current_zipper),
+              ),
+              default_text,
+            );
+          (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
+        },
       model.configs,
     ),
   );
@@ -131,7 +136,7 @@ module Model = {
         | Some(ct) => ct
         | None =>
           // Fallback to first config type if name is not recognized
-          List.hd(all_of_config_type)
+          List.hd_exn(all_of_config_type)
         };
       (
         config_type,
@@ -147,33 +152,34 @@ module Model = {
     };
     {
       current:
-        List.find_index(
-          config_type =>
-            String.equal(
-              persistence_key(config_type),
-              List.nth(slides, current) |> fst,
-            ),
-          all_of_config_type,
+        List.findi(all_of_config_type, ~f=(_, config_type) =>
+          String.equal(
+            persistence_key(config_type),
+            List.nth_exn(slides, current) |> fst,
+          )
         )
+        |> Option.map(~f=fst)
         |> Option.value(~default=0),
       configs:
         List.map(
-          (config_type: config_type) =>
-            List.find_map(
-              s =>
-                String.equal(fst(s), persistence_key(config_type))
-                  ? Some(get_persistent(s)) : None,
-              slides,
-            )
-            |> OptUtil.get(() =>
-                 (
-                   config_type,
-                   default_source(config_type)
-                   |> snd
-                   |> CellEditor.Model.from_persistent_zipper(~root=Exp)
-                   |> CellEditor.Model.unpersist(~settings),
-                 )
-               ),
+          ~f=
+            (config_type: config_type) =>
+              List.find_map(
+                ~f=
+                  s =>
+                    String.equal(fst(s), persistence_key(config_type))
+                      ? Some(get_persistent(s)) : None,
+                slides,
+              )
+              |> OptUtil.get(() =>
+                   (
+                     config_type,
+                     default_source(config_type)
+                     |> snd
+                     |> CellEditor.Model.from_persistent_zipper(~root=Exp)
+                     |> CellEditor.Model.unpersist(~settings),
+                   )
+                 ),
           all_of_config_type,
         ),
     };
@@ -188,12 +194,13 @@ module StoreConfig =
     let default = () => (
       0,
       List.map(
-        x =>
-          Model.default_source(x)
-          |> PairUtil.map_snd(
-               CellEditor.Model.from_persistent_zipper(~root=Exp),
-             )
-          |> PairUtil.map_snd(Option.some),
+        ~f=
+          x =>
+            Model.default_source(x)
+            |> PairUtil.map_snd(
+                 CellEditor.Model.from_persistent_zipper(~root=Exp),
+               )
+            |> PairUtil.map_snd(Option.some),
         Model.all_of_config_type,
       ),
     );
@@ -227,7 +234,13 @@ let theme_storage_key = "HAZEL_THEME";
    built-in source otherwise. One definition, used for both the cache key and
    the fallback evaluation, so those two can never disagree about the source. */
 let colors_source = ((_, slides): Model.persistent): PersistentZipper.t =>
-  switch (List.assoc_opt(Model.persistence_key(ColorScheme), slides)) {
+  switch (
+    List.Assoc.find(
+      slides,
+      Model.persistence_key(ColorScheme),
+      ~equal=String.equal,
+    )
+  ) {
   | Some(Some({editor: {zipper, _}, _}: CellEditor.Model.persistent)) => zipper
   | Some(None)
   | None => ColorConfiguration.source
@@ -245,19 +258,21 @@ let colors_source = ((_, slides): Model.persistent): PersistentZipper.t =>
 let theme_key = (persistent: Model.persistent): string =>
   Printf.sprintf(
     "%d:%d",
-    Hashtbl.hash(colors_source(persistent).backup_text),
+    Stdlib.Hashtbl.hash(colors_source(persistent).backup_text),
     /* Joined into one string on purpose: `Hashtbl.hash` samples only the
        first few nodes of a list, so a name added at the end of the
        contract would not change the hash. */
     /* The OUTPUT contract, not the slide's field names: a field can be
        re-pointed at different properties without its name changing, and the
        cache has to notice. */
-    Hashtbl.hash(String.concat(",", ColorConfiguration.all_targets)),
+    Stdlib.Hashtbl.hash(
+      String.concat(~sep=",", ColorConfiguration.all_targets),
+    ),
   );
 
 let apply_colors = (vars: list((string, string))): unit =>
   List.iter(
-    ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
+    ~f=((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
     vars,
   );
 
@@ -267,14 +282,14 @@ let apply_colors = (vars: list((string, string))): unit =>
    theme rather than an error. Test_ConfigurationMode round-trips it. */
 let encode_theme = (~key: string, vars: list((string, string))): string =>
   String.concat(
-    "\n",
-    [key, ...List.concat_map(((n, v)) => [n, v], vars)],
+    ~sep="\n",
+    [key, ...List.concat_map(~f=((n, v)) => [n, v], vars)],
   );
 
 /* Names are stored bare; every reader adds the `--`, as `apply_colors` does. */
 let decode_theme =
     (blob: string): option((string, list((string, string)))) =>
-  switch (String.split_on_char('\n', blob)) {
+  switch (String.split(blob, ~on='\n')) {
   | [] => None
   | [key, ...rest] =>
     let rec pairs = (
@@ -290,7 +305,7 @@ let write_theme_cache = (~key: string, vars: list((string, string))): unit =>
 
 let read_theme_cache = (): option((string, list((string, string)))) =>
   JsUtil.get_local_storage(theme_storage_key)
-  |> Option.map(decode_theme)
+  |> Option.map(~f=decode_theme)
   |> Option.join;
 
 /* Called before the app starts, so the first frame is already themed. */
@@ -300,7 +315,7 @@ let apply_theme_at_startup = (): unit => {
   let vars =
     switch (read_theme_cache()) {
     | Some((cached_key, vars))
-        when String.equal(cached_key, key) && vars != [] => vars
+        when String.equal(cached_key, key) && !List.is_empty(vars) => vars
     | _ => ColorConfiguration.vars_of_source(colors_source(persistent))
     };
   /* Nothing on failure -- deliberately. A slide that does not satisfy the
@@ -312,7 +327,7 @@ let apply_theme_at_startup = (): unit => {
      fires on a SUCCESSFUL evaluation, so a mid-edit broken slide already
      leaves the last good theme up. With no cache to fall back on there is
      nothing painted, and the literal defaults in variables.css show. */
-  if (vars != []) {
+  if (!List.is_empty(vars)) {
     apply_colors(vars);
     write_theme_cache(~key, vars);
   };
@@ -435,7 +450,9 @@ module Update = {
       EvalResult.Model.get_value(ed.result),
       applied_theme^,
     ) {
-    | (ColorScheme, Some(value), Some(painted)) when value === painted => ()
+    | (ColorScheme, Some(value), Some(painted))
+        when phys_equal(value, painted) =>
+      ()
     | (ColorScheme, Some(value), _) => apply_color_theme(model, value)
     | (ColorScheme, None, _)
     | (Shortcuts, _, _) => ()
@@ -454,7 +471,7 @@ module Update = {
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
         schedule_action(RefreshStatics)
       );
-    let (config_type, ed) = List.nth(model.configs, model.current);
+    let (config_type, ed) = List.nth_exn(model.configs, model.current);
     let worker_request = ref([]);
     let queue_worker =
       Some(
@@ -481,7 +498,7 @@ module Update = {
       ~pos_of_key=key => key,
       ~dispatch,
       ~on_timeout=
-        List.iter(((key, _)) =>
+        List.iter(~f=((key, _)) =>
           dispatch(key, UpdateResult(ResultFail(Timeout)))
         ),
     );
@@ -522,7 +539,7 @@ module Selection = {
         CellEditor.Selection.get_cursor_info(
           ~inject=a => inject(CellAction(a)),
           ~selection,
-          List.nth(model.configs, model.current) |> snd,
+          List.nth_exn(model.configs, model.current) |> snd,
         );
       Update.CellAction(a);
     | TextBox => empty
@@ -532,9 +549,9 @@ module Selection = {
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
     CellEditor.Selection.jump_to_tile(
       tile,
-      List.nth(model.configs, model.current) |> snd,
+      List.nth_exn(model.configs, model.current) |> snd,
     )
-    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
+    |> Option.map(~f=((x, y)) => (Update.CellAction(x), Cell(y)));
 };
 module View = {
   type event =
@@ -560,7 +577,7 @@ module View = {
           | _ => None
           },
         ~locked=false,
-        List.nth(model.configs, model.current) |> snd,
+        List.nth_exn(model.configs, model.current) |> snd,
       ),
     ];
   };
@@ -590,8 +607,9 @@ module View = {
           ~signal=i => inject(SwitchConfig(i)),
           model.current,
           List.map(
-            ((config_type, _)) =>
-              SlidePath.of_string(Model.config_name_of_type(config_type)),
+            ~f=
+              ((config_type, _)) =>
+                SlidePath.of_string(Model.config_name_of_type(config_type)),
             model.configs,
           ),
         ),

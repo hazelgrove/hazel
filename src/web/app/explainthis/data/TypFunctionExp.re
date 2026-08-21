@@ -32,7 +32,7 @@ let typfun_var = (~tpat_id: Id.t, ~body_id: Id.t): form => {
   colorings: typfun_var_coloring_ids(~tpat_id, ~body_id),
   expandable_id: Some((Piece.id(tp), [typfun_var_expandable])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).",
       Id.to_string(tpat_id),
       Id.to_string(body_id),

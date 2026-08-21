@@ -13,7 +13,7 @@ let proof_of_exp = (~typ_id: Id.t): form => {
   colorings: proof_of_exp_coloring_ids(~typ_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "A placeholder for a proof of [*goal*](%s).",
       Id.to_string(typ_id),
     ),

@@ -21,7 +21,7 @@ let rec_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   colorings: rec_typ_coloring_ids(~tpat_id, ~tbody_id),
   expandable_id: Some((Piece.id(tpat), [typ_arg])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This recursive type classifies the least fixed point of the polymorphic type over the [*type variable*](%s) of body [*instantiated type*](%s).",
       Id.to_string(tpat_id),
       Id.to_string(tbody_id),
