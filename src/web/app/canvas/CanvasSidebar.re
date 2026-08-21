@@ -439,6 +439,12 @@ let view =
         moved := true;
       };
       if (moved^) {
+        /* snap the drag itself to the dot lattice: the visual position
+           is always exactly what the committed layout will produce, so
+           the imperative style can never disagree with the re-render
+           (which skips patching when the snapped value is unchanged) */
+        let dx = CanvasLayout.snap(dx)
+        and dy = CanvasLayout.snap(dy);
         delta := (dx, dy);
         switch (orig) {
         | Some((el, l, t)) =>
