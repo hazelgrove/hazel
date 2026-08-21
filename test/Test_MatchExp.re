@@ -27,12 +27,13 @@ let match_check =
         | Some(x) => Language.MatchExp.show_match_ctx(x),
         Fmt.string,
       ),
-      Option.equal(
-        List.for_all2(((str1, (typ1, opt1)), (str2, (typ2, opt2))) =>
+      Option.equal((l1, l2) =>
+        List.for_all2_exn(
+          l1, l2, ~f=((str1, (typ1, opt1)), (str2, (typ2, opt2))) =>
           String.equal(str1, str2)
           && Language.Typ.fast_equal(typ1, typ2)
           && Option.equal(Language.Exp.fast_equal, opt1, opt2)
-        ),
+        )
       ),
     ),
     exp_r ++ " against " ++ exp,

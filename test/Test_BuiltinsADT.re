@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let ord_eq_testable: testable(DHExp.t) =
   testable(Fmt.using(DHExp.show, Fmt.string), (a, b) =>

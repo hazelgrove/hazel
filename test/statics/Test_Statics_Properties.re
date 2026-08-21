@@ -1,18 +1,19 @@
 open Language;
 open Test_Statics_Prelude;
+open Poly;
 
 let is_known_statics_failure = msg =>
   List.exists(
-    (==)(msg),
+    ~f=(==)(msg),
     [
       "normalize exceeded 1000 recursive calls",
       "weak_head_normalize exceeded 1000 recursive calls",
       "Recursion limit exceeded in all_ctrs_of_typ",
     ],
   )
-  || String.starts_with(
-       ~prefix="all_ctrs_of_type called with a non-normalized type:",
+  || String.is_prefix(
        msg,
+       ~prefix="all_ctrs_of_type called with a non-normalized type:",
      );
 
 let qcheck_statics_does_not_crash =
@@ -69,7 +70,7 @@ let check_no_violations =
         list(string),
         msg,
         [],
-        List.map(show, violations(info_map, exp)),
+        List.map(~f=show, violations(info_map, exp)),
       )
     )
   };
