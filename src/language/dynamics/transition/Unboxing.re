@@ -72,7 +72,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* $e and $v could have any type, but are indet */
-    | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
+    | (_, Constructor(c, _)) when String.is_prefix(c, ~prefix="$") =>
       IndetMatch
 
     /* proofs can also have any type, but are indet */
@@ -127,7 +127,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       };
 
       let entries: list(option((option(string), Exp.t))) =
-        List.map(unbox_tup_label, ds);
+        List.map(~f=unbox_tup_label, ds);
 
       switch (OptUtil.sequence(entries)) {
       | Some(entries) => Matches(entries)

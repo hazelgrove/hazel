@@ -3,23 +3,24 @@ open BuiltinsUtil;
 /* Built-in functions for Hazel. */
 
 let builtins =
-  List.map(fn_builtin, BuiltinsBase.misc_fns)
-  @ List.map(fn_builtin, BuiltinsBase.string_fns)
-  @ List.map(fn_builtin, BuiltinsBase.pair_fns)
-  @ List.map(of_atom_builtin, Atom.converter_builtins)
-  @ List.map(fn_builtin, BuiltinsADT.ord_builtins)
-  @ List.map(of_atom_builtin, Operators.builtins)
-  @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
-  @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
-  @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
-  @ List.map(const_builtin, BuiltinsBase.numeric_constants)
-  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
-  @ List.map(fn_builtin, BuiltinsColor.builtins);
+  List.map(~f=fn_builtin, BuiltinsBase.misc_fns)
+  @ List.map(~f=fn_builtin, BuiltinsBase.string_fns)
+  @ List.map(~f=fn_builtin, BuiltinsBase.pair_fns)
+  @ List.map(~f=of_atom_builtin, Atom.converter_builtins)
+  @ List.map(~f=fn_builtin, BuiltinsADT.ord_builtins)
+  @ List.map(~f=of_atom_builtin, Operators.builtins)
+  @ List.map(~f=hazel_fn_builtin, BuiltinsList.builtins)
+  @ List.map(~f=hazel_fn_builtin, BuiltinsADT.builtins)
+  @ List.map(~f=fn_builtin, BuiltinsBase.numeric_fns)
+  @ List.map(~f=const_builtin, BuiltinsBase.numeric_constants)
+  @ List.map(~f=fn_builtin, BuiltinsTupleOperations.builtins)
+  @ List.map(~f=fn_builtin, BuiltinsColor.builtins);
 
 let builtins =
   List.sort(
-    (a: builtin, b: builtin) =>
-      String.compare(name_of_builtin(b), name_of_builtin(a)),
+    ~compare=
+      (a: builtin, b: builtin) =>
+        String.compare(name_of_builtin(b), name_of_builtin(a)),
     builtins,
   );
 
@@ -27,13 +28,13 @@ let builtins =
 let _ = to_map(builtins);
 
 let ctx_entries =
-  List.map(ctx_entry_of_builtin, builtins)
-  @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
+  List.map(~f=ctx_entry_of_builtin, builtins)
+  @ List.map(~f=entry => Ctx.LivelitEntry(entry), Livelit.livelits)
   @ BuiltinsADT.constructor_entries
   /* Product types, so they get no constructors -- just names the config
      slide can annotate with. */
   @ List.map(
-      ((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
+      ~f=((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
       BuiltinsColorScheme.type_aliases,
     );
 
@@ -43,11 +44,11 @@ let ctx_init: option(Operators.mode) => Ctx.t =
     entries: ctx_entries,
   };
 
-let forms_init: forms = List.filter_map(form_of_builtin, builtins);
+let forms_init: forms = List.filter_map(~f=form_of_builtin, builtins);
 
 let env_init: Environment.t(Exp.t) =
   builtins
-  |> List.map(imp_of_builtin)
-  |> List.fold_left(Environment.extend, Environment.empty);
+  |> List.map(~f=imp_of_builtin)
+  |> List.fold_left(~f=Environment.extend, ~init=Environment.empty);
 
 let closure_env: Environment.t(Exp.t) = env_init;
