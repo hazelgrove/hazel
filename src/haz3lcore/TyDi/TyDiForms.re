@@ -84,9 +84,11 @@ module Delims = {
    * TyDiCtx.bound_constructors instead. They remain in Typ sort for
    * type-position completion. */
   let const_mono_exp =
-    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
+    const_mono(Exp)
+    |> List.filter(t => !List.exists(String.equal(t), Token.base_typs));
   let const_mono_pat =
-    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
+    const_mono(Pat)
+    |> List.filter(t => !List.exists(String.equal(t), Token.base_typs));
   let const_mono_typ = const_mono(Typ);
   let const_mono_drv_exp = const_mono(Drv(Exp));
   let const_mono_drv_typ = const_mono(Drv(Typ));
@@ -155,7 +157,7 @@ module Typ = {
 
   let derive_table = (tokens: list(Token.t)): list((Token.t, Typ.t)) =>
     tokens
-    |> List.filter(t => !List.mem(t, deliberately_untyped))
+    |> List.filter(t => !List.exists(String.equal(t), deliberately_untyped))
     |> List.filter_map(t => derive_self_ty(t) |> Option.map(ty => (t, ty)));
 
   /* Lazy: each entry runs Parser + Statics per token, which is pure
