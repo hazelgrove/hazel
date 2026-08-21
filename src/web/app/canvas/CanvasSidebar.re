@@ -282,6 +282,7 @@ let view =
   };
   let zoom = globals.settings.canvas_zoom;
   zoom_now := zoom;
+  CanvasBuffer.canvas_zoom := zoom;
   zoom_send :=
     Some(
       z =>

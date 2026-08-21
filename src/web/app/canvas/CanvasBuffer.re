@@ -33,6 +33,10 @@ let tick_pending: ref(bool) = ref(false);
 
 let in_burst = (): bool => now() -. last_agent_action^ < burst_window_ms;
 
+/* current canvas CSS zoom, set each render by CanvasSidebar; staged
+   animations divide their deltas by it */
+let canvas_zoom: ref(float) = ref(1.);
+
 let last_autofit: ref(float) = ref(0.);
 let autofit_due = (): bool =>
   if (now() -. last_autofit^ > 900.) {
@@ -44,19 +48,21 @@ let autofit_due = (): bool =>
 
 /* FLIP staging for a beat: graph elements at edit pace, the avatar on
    the slow action so its hop reads as travel */
-let stage_beat = (): unit =>
+let stage_beat = (): unit => {
+  let scale = canvas_zoom^;
   Animation.request(
     (
       Util.JsUtil.ids_with_prefix("cnode-")
       @ Util.JsUtil.ids_with_prefix("cedge-")
       @ Util.JsUtil.ids_with_prefix("cval-")
-      |> List.map(Animation.Actions.move)
+      |> List.map(Animation.Actions.move(~scale))
     )
     @ (
       Util.JsUtil.ids_with_prefix("canvas-avatar")
-      |> List.map(Animation.Actions.move_slow)
+      |> List.map(Animation.Actions.move_slow(~scale))
     ),
   );
+};
 
 /* Drop middle beats when over cap: keep the oldest pending (continuity
    from what is shown) and the newest (never fall behind the truth by

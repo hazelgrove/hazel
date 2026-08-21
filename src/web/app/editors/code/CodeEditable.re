@@ -195,14 +195,23 @@ module Update = {
             @ JsUtil.ids_with_prefix("varhl-")
             @ JsUtil.ids_with_prefix("errdec-")
             @ JsUtil.ids_with_prefix("warndec-")
-            @ JsUtil.ids_with_prefix("cnode-")
-            @ JsUtil.ids_with_prefix("cedge-")
-            @ JsUtil.ids_with_prefix("cval-")
             |> List.map(Animation.Actions.move)
           )
           @ (
+            JsUtil.ids_with_prefix("cnode-")
+            @ JsUtil.ids_with_prefix("cedge-")
+            @ JsUtil.ids_with_prefix("cval-")
+            |> List.map(
+                 Animation.Actions.move(~scale=CanvasBuffer.canvas_zoom^),
+               )
+          )
+          @ (
             JsUtil.ids_with_prefix("canvas-avatar")
-            |> List.map(Animation.Actions.move_slow)
+            |> List.map(
+                 Animation.Actions.move_slow(
+                   ~scale=CanvasBuffer.canvas_zoom^,
+                 ),
+               )
           ),
         );
         switch (action) {

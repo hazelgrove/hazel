@@ -106,6 +106,10 @@
   /* the transparent border insets the root (and its dot field) one
      grid cell from the panel edges */
   border: 14px solid transparent;
+  /* reserve scrollbar space ALWAYS: a scrollbar popping in mid-drag
+     changed the pane width, re-centered the frame, and made every
+     node bounce between adjacent grid cells */
+  scrollbar-gutter: stable;
 }
 
 /* ---- authoring toolbar ---- */
@@ -834,8 +838,8 @@
   position: absolute;
   z-index: 5;
   max-width: 190px;
-  padding: 2px 7px;
-  border-radius: 8px 8px 8px 2px;
+  padding: 3px 8px;
+  border-radius: 10px;
   background: rgba(42, 42, 42, 0.88);
   color: #eee;
   font-size: 9px;
@@ -843,9 +847,32 @@
   font-style: italic;
   pointer-events: none;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   animation: bubble-in 0.25s ease-out;
+}
+
+/* thought-bubble tail: two trailing circles toward the avatar */
+.canvas-avatar-bubble::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  bottom: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(42, 42, 42, 0.82);
+}
+
+.canvas-avatar-bubble::after {
+  content: "";
+  position: absolute;
+  left: -13px;
+  bottom: -9px;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: rgba(42, 42, 42, 0.7);
 }
 
 @keyframes bubble-in {

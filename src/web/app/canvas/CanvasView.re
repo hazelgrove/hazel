@@ -554,8 +554,8 @@ let view =
                     "style",
                     Printf.sprintf(
                       "left: %spx; top: %spx;",
-                      fmt(p.x +. 14.),
-                      fmt(p.y -. 26.),
+                      fmt(p.x +. 24.),
+                      fmt(p.y -. 40.),
                     ),
                   ),
                 ],

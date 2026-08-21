@@ -191,9 +191,16 @@ module Keyframes = {
     Printf.sprintf("translate(%fpx, %fpx)", left, top),
   );
 
-  let translate = (init: box, final: box): list(keyframe) => {
+  let translate = (~scale=1., init: box, final: box): list(keyframe) => {
     [
-      transform_translate(init.top -. final.top, init.left -. final.left),
+      /* rects are measured in screen px; the transform plays inside the
+         element's local space. When an ancestor applies CSS zoom, both
+         differ from local px by that factor — divide once so the visual
+         glide matches the measured hop (else motion plays at zoom^2). */
+      transform_translate(
+        (init.top -. final.top) /. scale,
+        (init.left -. final.left) /. scale,
+      ),
       transform_translate(0., 0.),
     ];
   };
@@ -214,7 +221,7 @@ let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
 let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
 
 module Actions = {
-  let move = id => {
+  let move = (~scale=1., id) => {
     id,
     animate: change => {
       options: {
@@ -224,13 +231,13 @@ module Actions = {
       keyframes:
         switch (change) {
         | New(_) => Keyframes.scale_from_zero
-        | Existing(init, final) => Keyframes.translate(init, final)
+        | Existing(init, final) => Keyframes.translate(~scale, init, final)
         },
     },
   };
   /* slower, symmetric travel — used for the agent avatar, whose hops
      across the canvas should read as movement, not teleporting */
-  let move_slow = id => {
+  let move_slow = (~scale=1., id) => {
     id,
     animate: change => {
       options: {
@@ -240,7 +247,7 @@ module Actions = {
       keyframes:
         switch (change) {
         | New(_) => Keyframes.scale_from_zero
-        | Existing(init, final) => Keyframes.translate(init, final)
+        | Existing(init, final) => Keyframes.translate(~scale, init, final)
         },
     },
   };
