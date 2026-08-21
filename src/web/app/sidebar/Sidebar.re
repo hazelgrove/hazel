@@ -186,7 +186,7 @@ let updateElementStyles = (new_width: int) => {
       switch (get_elem_by_id_opt(id)) {
       | Some(elem) =>
         let value =
-          style == "width"
+          String.equal(style, "width")
             ? string_of_int(new_width) ++ "px"
             : string_of_int(new_width + 20) ++ "px";
         let elem_style = Js.Unsafe.coerce(elem)##.style;

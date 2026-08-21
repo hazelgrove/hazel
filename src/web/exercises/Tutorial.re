@@ -226,8 +226,8 @@ let key_for_statics = (pos: pos): string =>
 
 let pos_of_key = (key: string): pos =>
   switch () {
-  | _ when key == user_impl_key => YourImpl
-  | _ when key == hidden_tests_key => HiddenTests
+  | _ when String.equal(key, user_impl_key) => YourImpl
+  | _ when String.equal(key, hidden_tests_key) => HiddenTests
   | _ => failwith("invalid key")
   };
 

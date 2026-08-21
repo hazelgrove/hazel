@@ -505,8 +505,8 @@ let key_for_statics = (pos: pos): string =>
 
 let pos_of_key = (key: string): pos =>
   switch () {
-  | _ when key == prelude_key => Prelude
-  | _ when key == setup_key => Setup
+  | _ when String.equal(key, prelude_key) => Prelude
+  | _ when String.equal(key, setup_key) => Setup
   | _ when String.starts_with(key, ~prefix="derivation_") =>
     let i = String.index(key, '_');
     let key = String.sub(key, i + 1, String.length(key) - i - 1);

@@ -244,7 +244,7 @@ let handle_compaction_reply =
       compaction_method_override: None,
     };
     let content = String.trim(reply.content);
-    if (content == "" && reply.tool_calls != []) {
+    if (String.equal(content, "") && reply.tool_calls != []) {
       let err =
         Message.Utils.mk_api_failure_message(
           "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
@@ -253,7 +253,7 @@ let handle_compaction_reply =
         Utils.append_message(~chat_id, err, model_cleared),
         editor |> Updated.return,
       );
-    } else if (content == "") {
+    } else if (String.equal(content, "")) {
       let err =
         Message.Utils.mk_api_failure_message(
           "Compaction returned an empty summary.",

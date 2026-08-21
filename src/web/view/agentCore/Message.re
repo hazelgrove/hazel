@@ -211,7 +211,8 @@ module Utils = {
     let sanitized_content = String.trim(content);
     let reasoning =
       switch (reasoning) {
-      | Some(s) when String.trim(s) != "" => Some(String.trim(s))
+      | Some(s) when !String.equal(String.trim(s), "") =>
+        Some(String.trim(s))
       | _ => None
       };
     {

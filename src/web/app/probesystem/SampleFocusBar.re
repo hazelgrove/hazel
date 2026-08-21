@@ -405,7 +405,7 @@ let view =
         @ (is_focused ? ["focused"] : [])
         @ (is_ghost ? ["ghost"] : [])
         @ (is_unknown ? ["unknown"] : [])
-        @ (position_class != "" ? [position_class] : []);
+        @ (!String.equal(position_class, "") ? [position_class] : []);
 
       let on_entry_click = evt =>
         switch (call_site_target) {
@@ -462,7 +462,7 @@ let view =
       let sep_classes =
         ["breadcrumb-separator"]
         @ (sep_ghost ? ["ghost"] : [])
-        @ (position_class != "" ? [position_class] : []);
+        @ (!String.equal(position_class, "") ? [position_class] : []);
       let sep =
         span(~attrs=[Attr.classes(sep_classes)], [text({js|❯|js})]);
 

@@ -501,7 +501,8 @@ module Indicated = {
       refractor_kind
       |> Option.map(ProjectorCore.Kind.name)
       |> Option.value(~default="");
-    let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
+    let cls =
+      String.equal(kind_cls, "") ? base_cls : base_cls ++ " " ++ kind_cls;
     div_c(cls, indicated_piece(~refine_sort, ~font_metrics, ~syntax, z));
   };
 };

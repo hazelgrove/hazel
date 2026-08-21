@@ -78,7 +78,8 @@ let cost_fallback_text = (p: Message.Model.cost_output): string => {
     | None => "(no model)"
     | Some(c) => Printf.sprintf("$%.4f", c)
     };
-  let model_str = p.cost_model == "" ? "(no model)" : p.cost_model;
+  let model_str =
+    String.equal(p.cost_model, "") ? "(no model)" : p.cost_model;
   Printf.sprintf(
     "Session cost: %d in / %d out tokens, est. %s (%s)",
     p.cost_input_tokens,
@@ -131,7 +132,8 @@ let help_fallback_text = (p: Message.Model.help_output): string => {
 };
 
 let key_fallback_text = (key: string): string =>
-  key == "" ? "No OpenRouter API key set." : "OpenRouter API key: " ++ key;
+  String.equal(key, "")
+    ? "No OpenRouter API key set." : "OpenRouter API key: " ++ key;
 
 /** Fire `/api/v1/credits`; on response (or failure), schedule
     [AppendSlashCommandOutput] so the result appears inline in the chat. */

@@ -62,7 +62,7 @@ let tick = () =>
   | None => ()
   | Some(container) =>
     let delta = compute_delta(last_client_y^);
-    if (delta != 0.0) {
+    if (!Float.equal(delta, 0.0)) {
       JsUtil.adjust_scroll(container, delta);
       switch (on_tick^) {
       | Some(f) => f()
@@ -87,7 +87,7 @@ let update = (~client_y: float, ~on_scroll: unit => unit) => {
   last_client_y := client_y;
   on_tick := Some(on_scroll);
   let delta = compute_delta(client_y);
-  if (delta != 0.0) {
+  if (!Float.equal(delta, 0.0)) {
     ensure_timer();
   } else {
     clear_timer();

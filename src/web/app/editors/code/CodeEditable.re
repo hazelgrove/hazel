@@ -576,7 +576,8 @@ module View = {
          sub-token string must re-parse on paste, not round-trip to the
          full segment. */
       let cache_for_paste =
-        str == full && !selection_has_refractors(z.refractors, segment)
+        String.equal(str, full)
+        && !selection_has_refractors(z.refractors, segment)
           ? Effect.of_sync_fun(
               () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
               (),

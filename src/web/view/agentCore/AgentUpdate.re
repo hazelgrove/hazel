@@ -298,7 +298,7 @@ let update =
     let disabled_tool_names =
       if (enabled) {
         List.filter(
-          (n: string) => n != name,
+          (n: string) => !String.equal(n, name),
           model.prompting.disabled_tool_names,
         );
       } else {
@@ -321,7 +321,8 @@ let update =
       CompositionUtils.Public.tools
       |> List.filter_map((tool: API.Json.t) =>
            switch (ToolUtils.get_name(tool)) {
-           | Some(name) when ToolUtils.category_of_tool(name) == category =>
+           | Some(name)
+               when String.equal(ToolUtils.category_of_tool(name), category) =>
              Some(name)
            | _ => None
            }
@@ -353,7 +354,10 @@ let update =
   | ToggleToolsViewExpanded(name) =>
     let tools_view_expanded =
       List.mem(name, model.tools_view_expanded)
-        ? List.filter((n: string) => n != name, model.tools_view_expanded)
+        ? List.filter(
+            (n: string) => !String.equal(n, name),
+            model.tools_view_expanded,
+          )
         : [name, ...model.tools_view_expanded];
     (
       {

@@ -76,7 +76,8 @@ let kv_row = (~k: string, ~v: string, ~strong=false, ()): Node.t =>
   );
 
 let view_cost = (p: Message.Model.cost_output): Node.t => {
-  let model_name = p.cost_model == "" ? "(no model selected)" : p.cost_model;
+  let model_name =
+    String.equal(p.cost_model, "") ? "(no model selected)" : p.cost_model;
   let cost_value =
     switch (p.cost_estimated_usd) {
     | None => "—"
@@ -114,7 +115,7 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
     ~kind="cost",
     ~title="Session cost",
     ~icon="$",
-    p.cost_model == ""
+    String.equal(p.cost_model, "")
       ? [
         stats,
         div(
@@ -216,7 +217,7 @@ let view_usage = (p: Message.Model.usage_output): Node.t => {
 };
 
 let view_key = (key: string): Node.t =>
-  if (key == "") {
+  if (String.equal(key, "")) {
     card(
       ~kind="key",
       ~title="OpenRouter API key",

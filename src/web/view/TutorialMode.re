@@ -437,7 +437,8 @@ module View = {
     //     div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     //   );
     let prompt_view = {
-      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+      let prompt_placeholder =
+        String.equal(eds.prompt, "") ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -482,7 +483,8 @@ module View = {
       );
     let hint_view = {
       let hint_placeholder =
-        eds.display_hint == "" ? "No hints available." : eds.display_hint;
+        String.equal(eds.display_hint, "")
+          ? "No hints available." : eds.display_hint;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -584,7 +586,7 @@ module View = {
         );
       };
     [title_view, prompt_view]
-    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ (String.equal(eds.display_hint, "") ? [] : [hint_view])
     @ render_cells(
         globals.settings,
         [

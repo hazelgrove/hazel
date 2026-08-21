@@ -214,7 +214,7 @@ module Update = {
       );
       model |> return_quiet;
     | SetMetaDown(meta_down) =>
-      model.globals.meta_down == meta_down
+      Bool.equal(model.globals.meta_down, meta_down)
         ? model |> return_quiet
         : {
             ...model,
@@ -625,7 +625,7 @@ module View = {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
-        model.globals.meta_down == meta_down
+        Bool.equal(model.globals.meta_down, meta_down)
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
