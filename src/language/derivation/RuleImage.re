@@ -162,7 +162,8 @@ type t =
   | Truth_I
   | Falsity_E;
 
-let show = rule => show(rule) |> String.map(c => c == '_' ? '-' : c);
+let show = rule =>
+  show(rule) |> String.map(c => Char.equal(c, '_') ? '-' : c);
 
 let repr =
   fun

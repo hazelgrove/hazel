@@ -177,7 +177,8 @@ let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
 
 /* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
  * a runtime dependency, so it should not participate in reuse provenance. */
-let is_runtime_dependency = (name: string): bool => name != "$hole";
+let is_runtime_dependency = (name: string): bool =>
+  !String.equal(name, "$hole");
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
@@ -330,7 +331,11 @@ let reuse_check =
     /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
        operator @@ -> @@@) change display and stuck-application semantics,
        so they must invalidate reuse too */
-    && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
+    && List.equal(
+         Option.equal(String.equal),
+         Exp.lexeme_trace(entry.prev_elab),
+         Exp.lexeme_trace(info.elab_term),
+       );
   let* () = OptUtil.some_if(elab_same, ());
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);

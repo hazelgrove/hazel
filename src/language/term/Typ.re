@@ -353,7 +353,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       let (tp2', ty') = avoid_capture(tp2, ty);
       Rec(tp2', subst(s, x, ty')) |> rewrap;
     | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => str == y ? s : Var(y) |> rewrap
+    | Var(y) => String.equal(str, y) ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
     | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
     | ProdProjection(t1, t2) =>
@@ -390,7 +390,7 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
     | None => None
     | Some(body') =>
       switch (TPat.tyvar_of_utpat(tp), term_of(body')) {
-      | (Some(w), Var(v)) when v == w => None
+      | (Some(w), Var(v)) when String.equal(v, w) => None
       | _ =>
         let (_, rewrap) = Annotated.unwrap(ty);
         unroll_to_non_rec(unroll(Grammar.Rec(tp, body') |> rewrap));
@@ -736,7 +736,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       let a = head(a);
       let b = head(b);
       switch (term_of(a), term_of(b)) {
-      | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
+      | (Var(n1), Var(n2)) => String.equal(n1, n2) /* both unresolvable in ctx */
       | (List(x), List(y)) => go(ctx, x, y)
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
@@ -749,7 +749,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (Rec(tp1, x), Rec(tp2, y))
       | (Poly(tp1, x), Poly(tp2, y)) =>
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
-        | (Some(n1), Some(n2)) when n1 == n2 =>
+        | (Some(n1), Some(n2)) when String.equal(n1, n2) =>
           go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
         | _ => fast_equal(a, b)
         }
@@ -784,7 +784,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
+    if (String.equal(n1, n2)) {
       Some(ty1);
     } else {
       let ty1' = Ctx.lookup_alias(ctx, n1);
