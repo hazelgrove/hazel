@@ -28,15 +28,15 @@ let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
   };
 let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
   List.fold_right(
-    (x, acc) => map2((y, ys) => [y, ...ys], f(x), acc),
+    ~f=(x, acc) => map2((y, ys) => [y, ...ys], f(x), acc),
+    ~init=Some([]),
     l,
-    Some([]),
   );
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   traverse(Fun.id, l);
 
-let and_then = (f, o) => Option.bind(o, f);
+let and_then = (f, o) => Option.bind(o, ~f);
 
 let replace = (f: 'a => option('a), o: 'a): 'a =>
   switch (f(o)) {
@@ -67,7 +67,7 @@ let filter = (f: 'a => bool, o: option('a)): option('a) =>
 let value_exn = (~none, o) => get(() => raise(none), o);
 
 module Syntax = {
-  let ( let* ) = Option.bind;
-  let (let+) = (o, f) => Option.map(f, o);
+  let ( let* ) = (o, f) => Option.bind(o, ~f);
+  let (let+) = (o, f) => Option.map(~f, o);
   let (and+) = zip;
 };
