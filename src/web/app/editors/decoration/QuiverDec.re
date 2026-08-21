@@ -128,7 +128,7 @@ let padding_nodes =
     : list(Node.t) =>
   Token.to_list(text)
   |> List.map(c =>
-       c == Token.implicit_hole_marker
+       String.equal(c, Token.implicit_hole_marker)
          ? EmptyHoleDec.view(
              FontMetrics.{
                col_width: font_metrics.col_width *. chip_font_scale,
@@ -425,7 +425,8 @@ let bubbles =
   let is_owned = (ins: CanonicalCompletion.insertion) =>
     List.exists(
       (o: CanonicalCompletion.insertion) =>
-        Id.equal(o.adjacent_id, ins.adjacent_id) && o.side == ins.side,
+        Id.equal(o.adjacent_id, ins.adjacent_id)
+        && Direction.equal(o.side, ins.side),
       owned,
     );
   let resting =

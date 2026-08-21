@@ -119,7 +119,10 @@ module Settings = {
       {
         ...settings,
         collapsed_editors:
-          List.filter(l => l != label, settings.collapsed_editors),
+          List.filter(
+            l => !String.equal(l, label),
+            settings.collapsed_editors,
+          ),
       };
     } else {
       {
@@ -185,7 +188,8 @@ module Settings = {
     if (is_debug_expanded(key, settings)) {
       {
         ...settings,
-        debug_expanded: List.filter(k => k != key, settings.debug_expanded),
+        debug_expanded:
+          List.filter(k => !String.equal(k, key), settings.debug_expanded),
       };
     } else {
       {

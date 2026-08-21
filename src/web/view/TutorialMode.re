@@ -562,7 +562,8 @@ module View = {
         | Video(file) => [video_node(file)];
       List.concat_map(render_seg, split_video(s));
     };
-    let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+    let prompt_placeholder =
+      String.equal(eds.prompt, "") ? "Empty Prompt" : eds.prompt;
     let prompt_clean = remove_all(prompt_placeholder, no_editor_marker);
     let (prompt_preamble, prompt_tasks) = split_tasks(prompt_clean);
     let prompt_view =
@@ -619,7 +620,8 @@ module View = {
       );
     let hint_view = {
       let hint_placeholder =
-        eds.display_hint == "" ? "No hints available." : eds.display_hint;
+        String.equal(eds.display_hint, "")
+          ? "No hints available." : eds.display_hint;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -732,7 +734,7 @@ module View = {
       | None => []
       }
     )
-    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ (String.equal(eds.display_hint, "") ? [] : [hint_view])
     @ render_cells(
         globals.settings,
         (text_only ? [] : [your_impl_view])

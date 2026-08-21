@@ -712,16 +712,16 @@ module View = {
             List.map(
               s =>
                 EditorModeView.option_view(
-                  (
+                  String.equal(
                     switch (editors) {
                     | Scratch(_) => "Scratch"
                     | Documentation(_) => "Documentation"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
                     | Config(_) => "Configuration"
-                    }
-                  )
-                  == s,
+                    },
+                    s,
+                  ),
                   s,
                 ),
               [
