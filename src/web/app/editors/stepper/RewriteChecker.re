@@ -79,7 +79,7 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   print_endline("To:   " ++ right_str);
   print_endline("e1: " ++ Exp.show(from_));
   print_endline("e2: " ++ Exp.show(to_));
-  if (left_str == "Unknown" || right_str == "Unknown") {
+  if (String.equal(left_str, "Unknown") || String.equal(right_str, "Unknown")) {
     false;
   } else {
     checkEquality(left_str, right_str);

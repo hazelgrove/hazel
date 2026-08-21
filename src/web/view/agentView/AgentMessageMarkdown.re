@@ -180,7 +180,7 @@ let rec translate_blocks = (blocks: Omd.doc): list(Node.t) => {
 let view = (markdown: string): Node.t => {
   let trimmed = String.trim(markdown);
   let children =
-    if (trimmed == "") {
+    if (String.equal(trimmed, "")) {
       [];
     } else {
       translate_blocks(Omd.of_string(markdown));
@@ -206,11 +206,17 @@ let close_dangling_inline = (s: string): string => {
     let len = String.length(s);
     let rec last_blank = i =>
       i <= 0
-        ? 0 : s.[i] == '\n' && s.[i - 1] == '\n' ? i + 1 : last_blank(i - 1);
+        ? 0
+        : Char.equal(s.[i], '\n') && Char.equal(s.[i - 1], '\n')
+            ? i + 1 : last_blank(i - 1);
     let para_start = last_blank(len - 1);
     let para = String.sub(s, para_start, len - para_start);
     let backticks =
-      String.fold_left((acc, c) => c == '`' ? acc + 1 : acc, 0, para);
+      String.fold_left(
+        (acc, c) => Char.equal(c, '`') ? acc + 1 : acc,
+        0,
+        para,
+      );
     if (backticks mod 2 == 1) {
       s ++ "`";
     } else {
@@ -223,7 +229,8 @@ let close_dangling_inline = (s: string): string => {
       let rec count_strong = (i, acc) =>
         if (i + 1 >= n) {
           acc;
-        } else if (outside_code.[i] == '*' && outside_code.[i + 1] == '*') {
+        } else if (Char.equal(outside_code.[i], '*')
+                   && Char.equal(outside_code.[i + 1], '*')) {
           count_strong(i + 2, acc + 1);
         } else {
           count_strong(i + 1, acc);
