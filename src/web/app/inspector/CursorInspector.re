@@ -35,7 +35,7 @@ let cls_view = (ci: Info.t): Node.t => {
       | Typ(EmptyHole)
       | Exp(EmptyHole)
       | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-      | cls => cls |> Cls.show
+      | _ => Info.cls_label(ci)
       }
     };
 

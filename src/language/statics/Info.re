@@ -196,6 +196,19 @@ let cls_of: t => Cls.t =
   | InfoMPat({cls, _})
   | Secondary({cls, _}) => cls;
 
+/* Display label for a term's cls. The parser always builds numeric
+   negation as the Int op; statics may re-kind it (replace_un_op_cls),
+   so UnOp labels come from the elaborated op. */
+let cls_label = (info: t): string =>
+  switch (cls_of(info), info) {
+  | (Exp(UnOp(_)) as cls, InfoExp({elab_term, _})) =>
+    switch (Exp.term_of(elab_term)) {
+    | UnOp(op, _) => Operators.show_unop(op)
+    | _ => Cls.show(cls)
+    }
+  | (cls, _) => Cls.show(cls)
+  };
+
 let any_of: t => option(Any.t) =
   fun
   | InfoDrv({term, _}) => Some(Drv(term))
