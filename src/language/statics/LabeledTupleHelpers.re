@@ -36,7 +36,7 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
         });
       let arranged =
         List.length(tys) == List.length(arranged)
-          ? List.map2(align_entry, tys, arranged) : arranged;
+          ? List.map2_exn(tys, arranged, ~f=align_entry) : arranged;
       {
         /* Preserve the input Tuple's id on the rearranged outer. This puts
          * the rearranged result under a user-source id that's in info_map,
@@ -85,19 +85,16 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
     | Parens(_) => false
     | Tuple(ds) =>
       List.length(tys) == List.length(ds)
-      && List.for_all2(
-           (expected_entry, exp_entry) =>
-             switch (Typ.match_tup_label(expected_entry)) {
-             | Some((label, inner_ty)) =>
-               switch (Exp.match_tup_label(exp_entry)) {
-               | Some((label', inner_exp)) when String.equal(label, label') =>
-                 is_aligned_exp(ctx, inner_ty, inner_exp)
-               | _ => false
-               }
-             | None => is_aligned_exp(ctx, expected_entry, exp_entry)
-             },
-           tys,
-           ds,
+      && List.for_all2_exn(tys, ds, ~f=(expected_entry, exp_entry) =>
+           switch (Typ.match_tup_label(expected_entry)) {
+           | Some((label, inner_ty)) =>
+             switch (Exp.match_tup_label(exp_entry)) {
+             | Some((label', inner_exp)) when String.equal(label, label') =>
+               is_aligned_exp(ctx, inner_ty, inner_exp)
+             | _ => false
+             }
+           | None => is_aligned_exp(ctx, expected_entry, exp_entry)
+           }
          )
     | _ => false
     }
@@ -112,8 +109,15 @@ let align_exp_if_needed = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
 let derive_label_inference_info = (original_labels, new_labels) => {
   let introduced_labels =
     List.filter(
-      l => !List.mem(l, List.filter_map(Fun.id, original_labels)),
-      List.filter_map(Fun.id, new_labels),
+      ~f=
+        l =>
+          !
+            List.mem(
+              List.filter_map(~f=Fn.id, original_labels),
+              l,
+              ~equal=String.equal,
+            ),
+      List.filter_map(~f=Fn.id, new_labels),
     );
   let reordered =
     !
@@ -121,7 +125,8 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         (a, b) => {
           switch (a, b) {
           | (Some(a), Some(b)) => String.equal(a, b)
-          | (Some(a), None) => List.mem(a, introduced_labels)
+          | (Some(a), None) =>
+            List.mem(introduced_labels, a, ~equal=String.equal)
           | (None, Some(_)) => false
           | (None, None) => true
           }

@@ -3181,7 +3181,7 @@ let go: ([?], [?], [?]) -> [?] =
   |> Util.ListUtil.map_with_history((prev, curr) =>
        switch (curr.imp) {
        | {term: Var(v), _} =>
-         switch (List.find_opt(b => String.equal(b.name, v), prev)) {
+         switch (List.find(~f=b => String.equal(b.name, v), prev)) {
          | Some(b: hazel_fn) => {
              ...curr,
              imp: b.imp,

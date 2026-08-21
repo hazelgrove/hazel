@@ -25,8 +25,8 @@ let ty = C.typ.term;
    negative values are meaningless. Hue wraps rather than clamps. */
 let clamp = (lo, hi, x) => Float.min(hi, Float.max(lo, x));
 let wrap_hue = h => {
-  let r = Float.rem(h, 360.);
-  r < 0. ? r +. 360. : r;
+  let r = Float.mod_float(h, 360.);
+  Float.(r < 0.) ? r +. 360. : r;
 };
 
 /* The OKLCH components of a color, where they can be known -- THE one place
@@ -71,7 +71,7 @@ let rec lightness = (c: C.t): float =>
 /* Shortest-path hue interpolation: going from 350 to 10 should cross 0, not
    sweep backwards through the whole wheel. */
 let mix_hue = (h1, h2, t) => {
-  let d = Float.rem(h2 -. h1 +. 540., 360.) -. 180.;
+  let d = Float.mod_float(h2 -. h1 +. 540., 360.) -. 180.;
   wrap_hue(h1 +. d *. t);
 };
 
@@ -85,7 +85,7 @@ let mix = (c1: C.t, c2: C.t, t: float): C.t => {
       mix_hue(h1, h2, t),
     )
   /* Nothing sensible to interpolate: pick the nearer endpoint. */
-  | _ => t < 0.5 ? c1 : c2
+  | _ => Float.(t < 0.5) ? c1 : c2
   };
 };
 

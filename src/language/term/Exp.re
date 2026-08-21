@@ -361,7 +361,7 @@ let dot_tuple_entry = (e1: t, e2: t): option(t) =>
   };
 
 let get_label: t => option(LabeledTuple.label) = {
-  e => match_tup_label(e) |> Option.map(fst);
+  e => match_tup_label(e) |> Option.map(~f=fst);
 };
 
 // Typfun should be treated as a function here as this is only used to
@@ -430,7 +430,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Parens(e)
     | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(is_fun)
+    | Tuple(es) => es |> List.for_all(~f=is_fun)
     | Dot(e1, e2) =>
       switch (dot_tuple_entry(e1, e2)) {
       | Some(exp) => is_tuple_of_functions(exp)
@@ -759,7 +759,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
     map_term(
       ~f_exp=
         (cont, exp) =>
-          if (rep_id(exp) == id) {
+          if (Id.equal(rep_id(exp), id)) {
             raise(M.Found(exp));
           } else {
             cont(exp);

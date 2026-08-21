@@ -134,9 +134,9 @@ let convert =
     | None => R(InvalidOperationError.IntegerTooBig)
     }
   | (Int, Nat) =>
-    v < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(v)
+    Bigint.(v < zero) ? R(InvalidOperationError.NegativeNat) : L(v)
   | (Int, Float) => L(Bigint.to_float(v))
-  | (Int, Bool) => L(v != Bigint.zero)
+  | (Int, Bool) => L(!Bigint.equal(v, Bigint.zero))
   | (Int, String) => L(Bigint.to_string(v))
 
   | (SInt, SInt) => L(v)
@@ -154,7 +154,7 @@ let convert =
     | None => R(InvalidOperationError.IntegerTooBig)
     }
   | (Nat, Int) => L(v)
-  | (Nat, Bool) => L(v != Bigint.zero)
+  | (Nat, Bool) => L(!Bigint.equal(v, Bigint.zero))
   | (Nat, Float) => L(Bigint.to_float(v))
   | (Nat, String) => L(Bigint.to_string(v))
 
@@ -162,8 +162,9 @@ let convert =
   | (Float, SInt) => L(int_of_float(v))
   | (Float, Int) => L(Bigint.of_float(v))
   | (Float, Nat) =>
-    v < 0.0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
-  | (Float, Bool) => L(v != 0.0)
+    Float.(v < 0.0)
+      ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
+  | (Float, Bool) => L(!Float.equal(v, 0.0))
   | (Float, String) => L(string_of_float(v))
 
   | (Bool, Bool) => L(v)
@@ -187,7 +188,7 @@ let convert =
   | (String, Nat) =>
     switch (Bigint.of_string_opt(v)) {
     | Some(i) =>
-      i < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(i)
+      Bigint.(i < zero) ? R(InvalidOperationError.NegativeNat) : L(i)
     | None => R(InvalidOperationError.InvalidOfString)
     }
   | (String, Float) =>
@@ -208,7 +209,7 @@ let to_literal = (e: t): string =>
   | Int(i) => i |> Bigint.to_string
   | Nat(i) => i |> Bigint.to_string
   | SInt(i) => i |> string_of_int
-  | Float(f) => Printf.sprintf("%f", f)
+  | Float(f) => Stdlib.Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
   };
@@ -244,19 +245,22 @@ let compare_of_cls: cls => option(compare_entry) =
   | Bool => None;
 
 let compare_builtin = (cls: cls): option(string) =>
-  compare_of_cls(cls) |> Option.map(_ => cls_string_lower(cls) ++ "_compare");
+  compare_of_cls(cls)
+  |> Option.map(~f=_ => cls_string_lower(cls) ++ "_compare");
 
 let compare_builtins: list((string, compare_entry)) =
   all_of_cls
-  |> List.filter_map(cls =>
+  |> List.filter_map(~f=cls =>
        compare_of_cls(cls)
-       |> Option.map(entry => (cls_string_lower(cls) ++ "_compare", entry))
+       |> Option.map(~f=entry =>
+            (cls_string_lower(cls) ++ "_compare", entry)
+          )
      );
 
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
-  |> List.filter_map(to_ =>
-       if (from_ == to_) {
+  |> List.filter_map(~f=to_ =>
+       if (equal_cls(from_, to_)) {
          None;
        } else {
          Some((
@@ -268,9 +272,9 @@ let conversions_from = (from_: cls): list((string, cls)) =>
 
 let converter_builtins =
   all_of_cls
-  |> List.concat_map(cls1 =>
+  |> List.concat_map(~f=cls1 =>
        conversions_from(cls1)
-       |> List.map(((name, cls2)) =>
+       |> List.map(~f=((name, cls2)) =>
             (
               name,
               {

@@ -1,11 +1,12 @@
 open Util;
 open OptUtil.Syntax;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type match_ctx = list((string, (Typ.t, option(Exp.t))));
 
 let match_ctx_has = (ctx: match_ctx, name: string): bool =>
-  List.exists(((n, (_, _))) => String.equal(n, name), ctx);
+  List.exists(~f=((n, (_, _))) => String.equal(n, name), ctx);
 
 type alphas = list((string, string));
 
@@ -20,7 +21,7 @@ let rec are_alpha_equiv = (alphas: alphas, x: string, y: string): bool =>
   };
 
 let is_in_alphas_l = (alphas: alphas, x: string): bool =>
-  List.exists(((x1, _)) => String.equal(x, x1), alphas);
+  List.exists(~f=((x1, _)) => String.equal(x, x1), alphas);
 
 /* Match exp against another pattern exp_r.
 
@@ -53,7 +54,8 @@ let rec match_exp =
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
-    let (typ, assigned_exp) = List.assoc(x, ctx);
+    let (typ, assigned_exp) =
+      List.Assoc.find_exn(ctx, x, ~equal=String.equal);
     let exp_typ = Statics.Map.ty_of(Exp.rep_id(exp), info_map);
     switch (exp_typ) {
     | Some(exp_typ)
@@ -66,8 +68,9 @@ let rec match_exp =
       | None =>
         Some(
           List.map(
-            ((n, (t, e))) =>
-              String.equal(n, x) ? (n, (t, Some(exp))) : (n, (t, e)),
+            ~f=
+              ((n, (t, e))) =>
+                String.equal(n, x) ? (n, (t, Some(exp))) : (n, (t, e)),
             ctx,
           ),
         )
@@ -90,12 +93,12 @@ let rec match_exp =
       ListUtil.fold_left_opt(
         ((), (x, y)) => match_any(ctx, x, y),
         (),
-        List.combine(xs, ys),
+        List.zip_exn(xs, ys),
       );
     Some(ctx);
   | (MultiHole(_), _) => None
   | (DynamicErrorHole(e1, err1), DynamicErrorHole(e2, err2))
-      when err1 == err2 =>
+      when InvalidOperationError.equal(err1, err2) =>
     match_exp(alphas, ctx, e1, e2)
   | (DynamicErrorHole(_, _), _) => None
   | (Deferral(_), Deferral(_)) => Some(ctx)
@@ -120,7 +123,7 @@ let rec match_exp =
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
       ctx,
-      List.combine(xs, ys),
+      List.zip_exn(xs, ys),
     )
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
@@ -143,7 +146,7 @@ let rec match_exp =
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
       ctx,
-      List.combine(xs, ys),
+      List.zip_exn(xs, ys),
     )
   | (Tuple(_), _) => None
   | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
@@ -186,7 +189,7 @@ let rec match_exp =
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
       ctx,
-      List.combine(es1, es2),
+      List.zip_exn(es1, es2),
     );
   | (DeferredAp(_, _), _) => None
   | (DrvQuote(e1, _), DrvQuote(e2, _))
@@ -240,7 +243,7 @@ let rec match_exp =
         match_exp(alphas' @ alphas, ctx, body1, body2);
       },
       ctx,
-      List.combine(rs1, rs2),
+      List.zip_exn(rs1, rs2),
     );
   | (Match(_, _), _) => None
   | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some(ctx)
@@ -311,9 +314,9 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (alphas, (x, y)) =>
-        match_pat(x, y) |> Option.map(alphas1 => alphas1 @ alphas),
+        match_pat(x, y) |> Option.map(~f=alphas1 => alphas1 @ alphas),
       [],
-      List.combine(xs, ys),
+      List.zip_exn(xs, ys),
     )
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
@@ -327,9 +330,9 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (alphas, (x, y)) =>
-        match_pat(x, y) |> Option.map(alphas1 => alphas1 @ alphas),
+        match_pat(x, y) |> Option.map(~f=alphas1 => alphas1 @ alphas),
       [],
-      List.combine(xs, ys),
+      List.zip_exn(xs, ys),
     )
   | (Tuple(_), _) => None
   | (Ap(x1, x2), Ap(y1, y2)) =>
@@ -376,8 +379,9 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
   Substitution.in_exp(
     Environment.of_bindings(
       List.filter_map(
-        ((name, (_, assigned_exp))) =>
-          assigned_exp |> Option.map(e => (name, e)),
+        ~f=
+          ((name, (_, assigned_exp))) =>
+            assigned_exp |> Option.map(~f=e => (name, e)),
         sub,
       ),
     ),
