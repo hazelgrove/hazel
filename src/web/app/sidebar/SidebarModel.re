@@ -187,6 +187,13 @@ module Settings = {
        a canvas click places the stub there. */
     [@sexp.default None] [@yojson.default None]
     canvas_place: option((string, list(string))),
+    /* Canvas focus strip: expanded sample view as (slot index, sample
+       index). Slots number the fn view's inputs left-to-right with the
+       output last; in the type view the first component indexes the
+       distinct-value list and the second is unused. Cleared on focus
+       change. */
+    [@sexp.default None] [@yojson.default None]
+    canvas_expand: option((int, int)),
     /* Sidebar width in px, set at resize-drag end (the drag itself updates
        styles imperatively). Model state so width-dependent panels (the
        canvas) re-render, and so the width survives reloads. */
@@ -238,5 +245,6 @@ module Settings = {
     | SetCanvasFocusTy(option(string))
     | SetCanvasConnect(option(list(string)))
     | SetCanvasPlace(option((string, list(string))))
+    | SetCanvasExpand(option((int, int)))
     | SetWidth(int);
 };

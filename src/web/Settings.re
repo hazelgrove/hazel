@@ -110,6 +110,7 @@ module Model = {
       canvas_focus_ty: None,
       canvas_connect: None,
       canvas_place: None,
+      canvas_expand: None,
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -404,6 +405,7 @@ module Update = {
             ...settings.sidebar,
             canvas_focus: f,
             canvas_focus_ty: None,
+            canvas_expand: None,
           },
         }
       | Sidebar(SetCanvasFocusTy(k)) => {
@@ -412,6 +414,14 @@ module Update = {
             ...settings.sidebar,
             canvas_focus_ty: k,
             canvas_focus: None,
+            canvas_expand: None,
+          },
+        }
+      | Sidebar(SetCanvasExpand(x)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_expand: x,
           },
         }
       | Sidebar(SetCanvasConnect(c)) => {

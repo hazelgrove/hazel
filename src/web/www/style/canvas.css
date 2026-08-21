@@ -455,18 +455,34 @@
   align-items: center;
   gap: 10px;
   margin-top: 6px;
+  min-width: 0;
 }
 
 .focus-inputs {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.focus-output {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .focus-slot {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+/* wells shrink before pushing the flow off-panel; excess chips scroll */
+.focus-well.well-filled {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .focus-chip {
@@ -530,6 +546,83 @@
 
 .well-glyph {
   font-weight: bold;
+}
+
+/* clickable sample values (chips + type values) */
+.well-pick {
+  cursor: pointer;
+}
+
+.well-pick:hover {
+  outline: 1.5px solid var(--G1, #7a9a5a);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* code-rendered chips: inline, sized to content */
+.well-value .code,
+.type-value .code,
+.focus-expand-body .code {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle;
+}
+
+/* ---- expanded 2D sample view ---- */
+
+.focus-expand {
+  margin-top: 7px;
+  border: 1.5px solid var(--CREASE, #bbb);
+  border-radius: 6px;
+  background: rgba(120, 160, 90, 0.06);
+  overflow: hidden;
+}
+
+.focus-expand-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 9px;
+  font-size: 10px;
+  border-bottom: 1px dashed var(--CREASE, #ccc);
+  opacity: 0.85;
+}
+
+.focus-expand-label {
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+
+.focus-expand-nav {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.focus-expand-nav:hover {
+  color: var(--G1, #5a7a3a);
+}
+
+.focus-expand-nav.nav-disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.focus-expand-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.focus-expand-head .focus-close {
+  margin-left: auto;
+}
+
+.focus-expand-body {
+  padding: 7px 10px;
+  overflow: auto;
+  max-height: 180px;
 }
 
 /* ---- type focus: observed inhabitant values ---- */
