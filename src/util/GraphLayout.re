@@ -15,6 +15,10 @@ module Spec = {
   type node = {
     id: string,
     radius: float,
+    /* extra reserved vertical clearance (e.g. a label legend attached
+       above the node): spacing and relief treat it as part of the halo */
+    extent_above: float,
+    extent_below: float,
   };
 
   type edge = {
@@ -27,6 +31,7 @@ module Spec = {
     | In
     | Out
     | Above
+    | AboveLeft /* diagonal: keeps the column straight above the host free */
     | Below;
 
   type attachment = {
@@ -217,13 +222,25 @@ let layout = (spec: Spec.t): result => {
   };
 
   /* ---- attachment extents: reserve room around hosts ---- */
-  let att_extent = (id: string, side: side): float =>
+  let att_extent = (id: string, side: side): float => {
+    let matches = (p: side): bool =>
+      switch (side, p) {
+      | (Above, Above)
+      | (Above, AboveLeft) => true /* diagonals still claim height */
+      | (s, p) => s == p
+      };
     spec.attachments
-    |> List.filter((a: attachment) => a.host == id && a.prefer == side)
+    |> List.filter((a: attachment) => a.host == id && matches(a.prefer))
     |> List.fold_left(
          (acc, a: attachment) => max(acc, a.dist +. a.radius *. 2.),
          0.,
        );
+  };
+  let node_extent = (id: string, side: side): float =>
+    switch (List.find_opt((n: node) => n.id == id, spec.nodes)) {
+    | Some(n) => side == Above ? n.extent_above : n.extent_below
+    | None => 0.
+    };
 
   /* ---- 3. coords ---- */
   /* y_stretch spreads rows apart (gap scaling) rather than scaling
@@ -260,7 +277,12 @@ let layout = (spec: Spec.t): result => {
     spec.margin +. (x_centers[l] -. spec.margin) *. spec.x_stretch;
   /* vertical slot: a node's height claim includes Above/Below extents */
   let v_half = (id: string): float =>
-    radius(id) +. max(att_extent(id, Above), att_extent(id, Below)) /. 2.;
+    radius(id)
+    +. max(
+         att_extent(id, Above) +. node_extent(id, Above),
+         att_extent(id, Below) +. node_extent(id, Below),
+       )
+    /. 2.;
   let col_height = l =>
     switch ((columns[l])^) {
     | [] => 0.
@@ -426,6 +448,7 @@ let layout = (spec: Spec.t): result => {
     | In => 180.
     | Out => 0.
     | Above => 90.
+    | AboveLeft => 135.
     | Below => 270.
     };
   /* candidate angles: preferred first, alternating outward in 30° steps */

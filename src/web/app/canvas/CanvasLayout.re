@@ -238,6 +238,27 @@ let layout =
           : None,
       g.edges,
     );
+  /* legend reservation: a hub's endo-family labels (orbits + loop fns)
+     stack directly above it; that column is part of the hub's halo so
+     neighbors can never occupy it and the legend never displaces */
+  let legend_count = (k: string): int =>
+    List.length(
+      List.filter(
+        (e: CanvasGraph.edge) => e.e_src == k && e.dst == k,
+        g.edges,
+      ),
+    )
+    + List.length(
+        List.filter(
+          ((n: CanvasGraph.tynode, anchor, d)) =>
+            d == DockLoop && anchor == k && n.key != "",
+          docked,
+        ),
+      );
+  let legend_extent = (k: string): float => {
+    let n = legend_count(k);
+    n == 0 ? 0. : float_of_int(n) *. 24. +. 28.;
+  };
   let attachments =
     List.map(
       ((n: CanvasGraph.tynode, anchor, d)) => {
@@ -248,7 +269,7 @@ let layout =
               n.kind == CanvasGraph.Product ? 36. : 62.,
             )
           | DockOut => (Util.GraphLayout.Spec.Out, 62.)
-          | DockLoop => (Util.GraphLayout.Spec.Above, 66.)
+          | DockLoop => (Util.GraphLayout.Spec.AboveLeft, 66.)
           | DockDeriv => (Util.GraphLayout.Spec.Below, 42.)
           };
         Util.GraphLayout.Spec.{
@@ -311,6 +332,8 @@ let layout =
             Util.GraphLayout.Spec.{
               id: n.key,
               radius: r_of(n),
+              extent_above: legend_extent(n.key),
+              extent_below: 0.,
             },
           grid_nodes,
         ),
@@ -682,8 +705,9 @@ let layout =
         switch (pos_of(hub)) {
         | None => ()
         | Some(hp) =>
-          /* stack bottom: clear of the hub's orbit rings and the loop
-             products hanging above it */
+          /* legend base: clear of orbit rings, and of loop products only
+             when they actually sit in the column above the hub (they
+             prefer up-LEFT precisely to keep this column free) */
           let ring_top =
             List.fold_left(
               (acc, el: edge_layout) =>
@@ -698,57 +722,23 @@ let layout =
                         *. 15.
                       ),
                     )
-                  : el.edge.dst == hub && is_loop_edge(el)
+                  : el.edge.dst == hub
+                    && is_loop_edge(el)
+                    && abs_float(el.src_p.x -. hp.x) < 56.
                       ? min(acc, el.src_p.y -. 14.) : acc,
               hp.y -. radius_of(hub),
               edge_layouts,
             );
-          /* the whole stack shifts sideways if any chip would sit on a
-             node (e.g. the next column's satellite chain overhead) */
-          let ring_bottom = hp.y +. (hp.y -. ring_top) /. 1. |> (b => b +. 6.);
-          let stack_at = (~below=false, x: float): list((edge_layout, pos)) =>
-            List.mapi(
-              (i, el: edge_layout) =>
-                (
-                  el,
-                  {
-                    x,
-                    y:
-                      below
-                        ? ring_bottom +. 24. +. float_of_int(i) *. 24.
-                        : ring_top -. 12. -. float_of_int(i) *. 24.,
-                  },
-                ),
-              members,
-            );
-          let clean = (ps: list((edge_layout, pos))): bool =>
-            List.for_all(
-              ((el: edge_layout, p: pos)) =>
-                !label_hits_node(p, label_half(el))
-                && !label_hits_ring(p, label_half(el)),
-              ps,
-            );
-          let placement = {
-            let cands = [
-              stack_at(hp.x),
-              stack_at(hp.x -. 52.),
-              stack_at(hp.x +. 52.),
-              stack_at(~below=true, hp.x),
-              stack_at(~below=true, hp.x -. 52.),
-              stack_at(~below=true, hp.x +. 52.),
-              stack_at(hp.x -. 96.),
-            ];
-            switch (List.find_opt(clean, cands)) {
-            | Some(ps) => ps
-            | None => stack_at(hp.x)
-            };
-          };
-          List.iter(
-            ((el: edge_layout, p: pos)) => {
+          List.iteri(
+            (i, el: edge_layout) => {
+              let p = {
+                x: hp.x,
+                y: ring_top -. 14. -. float_of_int(i) *. 24.,
+              };
               Hashtbl.replace(stacked, el.edge.e_name, p);
               placed_labels := [(p, label_half(el)), ...placed_labels^];
             },
-            placement,
+            members,
           );
         };
       },

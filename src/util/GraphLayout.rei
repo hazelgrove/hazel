@@ -25,6 +25,10 @@ module Spec: {
   type node = {
     id: string,
     radius: float,
+    /* extra reserved vertical clearance beyond attachments (e.g. an
+       attached label legend); spacing and relief treat it as halo */
+    extent_above: float,
+    extent_below: float,
   };
 
   /* ranked: constrains column order (src strictly left of dst) AND
@@ -40,6 +44,7 @@ module Spec: {
     | In /* left */
     | Out /* right */
     | Above
+    | AboveLeft /* diagonal up-left; keeps the column above the host free */
     | Below;
 
   /* An attachment is placed near `host` (which may itself be an
