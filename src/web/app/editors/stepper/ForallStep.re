@@ -111,7 +111,7 @@ module F =
         };
       }
       |> Calc.to_option
-      |> Option.map(Calc.to_pair);
+      |> Option.map(~f=Calc.to_pair);
     let (inner_stepper, last, validity) =
       Stepper.calculate(
         ~settings,

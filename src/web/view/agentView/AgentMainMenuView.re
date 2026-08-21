@@ -18,7 +18,7 @@ let view =
       if (Float.equal(per_million, 0.0)) {
         "Free";
       } else {
-        "$" ++ Printf.sprintf("%.4f", per_million);
+        "$" ++ Stdlib.Printf.sprintf("%.4f", per_million);
       };
     | None => "Unknown"
     };
@@ -295,36 +295,40 @@ let view =
               // Preserve the curated declaration order (most capable → cheapest).
               let recommended =
                 List.filter_map(
-                  ((id, _tagline)) =>
-                    List.find_opt(
-                      (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
-                        String.equal(llm.id, id),
-                      agent_globals.available_llms,
-                    ),
+                  ~f=
+                    ((id, _tagline)) =>
+                      List.find(
+                        ~f=
+                          (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                            String.equal(llm.id, id),
+                        agent_globals.available_llms,
+                      ),
                   OpenRouter.AvailableLLMs.recommended_entries,
                 );
               let master_sorted =
                 List.sort(
-                  (
-                    a: OpenRouter.AvailableLLMs.Model.llm_info,
-                    b: OpenRouter.AvailableLLMs.Model.llm_info,
-                  ) =>
-                    String.compare(a.name, b.name),
+                  ~compare=
+                    (
+                      a: OpenRouter.AvailableLLMs.Model.llm_info,
+                      b: OpenRouter.AvailableLLMs.Model.llm_info,
+                    ) =>
+                      String.compare(a.name, b.name),
                   agent_globals.available_llms,
                 );
               let filter = agent_globals.model_filter;
               let master_filtered =
                 List.filter(
-                  (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
-                    let name_match =
-                      String.length(filter) == 0
-                      || StringUtil.subseq_search(llm.name, filter)
-                      || StringUtil.subseq_search(llm.id, filter);
-                    let free_match =
-                      !agent_globals.only_free_models
-                      || OpenRouter.AvailableLLMs.is_free(llm);
-                    name_match && free_match;
-                  },
+                  ~f=
+                    (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
+                      let name_match =
+                        String.length(filter) == 0
+                        || StringUtil.subseq_search(llm.name, filter)
+                        || StringUtil.subseq_search(llm.id, filter);
+                      let free_match =
+                        !agent_globals.only_free_models
+                        || OpenRouter.AvailableLLMs.is_free(llm);
+                      name_match && free_match;
+                    },
                   master_sorted,
                 );
               let section_header = (label: string) =>
@@ -347,14 +351,15 @@ let view =
                           div(
                             ~attrs=[clss(["llm-list"])],
                             List.map(
-                              (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
-                                render_llm_item(
-                                  ~tagline=?
-                                    OpenRouter.AvailableLLMs.recommended_tagline(
-                                      llm,
-                                    ),
-                                  llm,
-                                ),
+                              ~f=
+                                (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                                  render_llm_item(
+                                    ~tagline=?
+                                      OpenRouter.AvailableLLMs.recommended_tagline(
+                                        llm,
+                                      ),
+                                    llm,
+                                  ),
                               recommended,
                             ),
                           ),
@@ -441,7 +446,7 @@ let view =
                           )
                         : div(
                             ~attrs=[clss(["llm-list"])],
-                            List.map(render_llm_item, master_filtered),
+                            List.map(~f=render_llm_item, master_filtered),
                           ),
                     ],
                   ),

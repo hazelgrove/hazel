@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Language;
+open Poly;
 
 let errc = "error";
 let warnc = "warning";
@@ -165,7 +166,10 @@ let core_mark_err_view =
         | [a] => [text("after automatically added label "), code(a)]
         | _ => [
             text("after automatically added labels "),
-            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+            ...ListUtil.join(
+                 text(","),
+                 List.map(~f=code, introduced_labels),
+               ),
           ]
         }
       )
@@ -175,7 +179,9 @@ let core_mark_err_view =
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
-      | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
+      | Other => [
+          text(Stdlib.Printf.sprintf("\"%s\" isn't a valid token", token)),
+        ]
       }
     | BadLabel(label) => [text("Malformed Label: "), view_any(label)]
     | FreeConstructor(name) => [code(name), text("not found")]
@@ -191,7 +197,7 @@ let core_mark_err_view =
           text("Invalid label: "),
           label_view(name),
           text(" is not part of the expected labels: "),
-          ...List.map(code, expected_labels),
+          ...List.map(~f=code, expected_labels),
         ]
       }
     | UnexpectedLabelSort(name) => [
@@ -207,7 +213,7 @@ let core_mark_err_view =
           ? []
           : [
             text("Malformed labels: "),
-            ...List.map(view_any, malformed_labels),
+            ...List.map(~f=view_any, malformed_labels),
           ]
       )
       @ (
@@ -215,13 +221,13 @@ let core_mark_err_view =
           ? []
           : [
             text("Duplicate labels: "),
-            ...List.map(code, duplicate_labels),
+            ...List.map(~f=code, duplicate_labels),
           ]
       )
       @ (
         List.is_empty(invalid_labels)
           ? []
-          : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
+          : [text("Invalid labels: "), ...List.map(~f=code, invalid_labels)]
       )
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
@@ -235,7 +241,7 @@ let core_mark_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
-             List.map(view_type, Typ.of_source(tys)),
+             List.map(~f=view_type, Typ.of_source(tys)),
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -364,7 +370,7 @@ let common_ok_view =
               text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
-                   List.map(label_view, introduced_labels),
+                   List.map(~f=label_view, introduced_labels),
                  ),
             ]
           }
@@ -400,7 +406,7 @@ let common_ok_view =
             text("by automatically adding labels "),
             ...ListUtil.join(
                  text(","),
-                 List.map(label_view, introduced_labels),
+                 List.map(~f=label_view, introduced_labels),
                ),
           ]
         }
@@ -414,7 +420,7 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -433,13 +439,13 @@ let underdetermined_typ_view =
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
     ]
   | ProdProjectionMissingLabel(label, labels) => [
       text("Cannot project label "),
       label_view(label),
       text(". Valid labels are: "),
-      ...List.map(code, labels),
+      ...List.map(~f=code, labels),
     ]
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
@@ -465,7 +471,7 @@ let underdetermined_typ_view =
     @ (
       ListUtil.join(
         [text(" and ")],
-        [product_error, label_error] |> List.filter(x => x != []),
+        [product_error, label_error] |> List.filter(~f=x => x != []),
       )
       |> List.concat
     );
@@ -529,12 +535,12 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         text("Member "),
         label_view(name),
         text(" not found. Available: "),
-        text(String.concat(", ", expected_labels)),
+        text(String.concat(~sep=", ", expected_labels)),
       ]
     }
   | TypDuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
-      ...List.map(label_view, labels),
+      ...List.map(~f=label_view, labels),
     ]
   | DuplicateLabel(name, _) => [
       text("Duplicate Label: "),
@@ -555,7 +561,7 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
 
 let rec automatic_inserted_labels_exp =
         (info: option(Info.exp)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
+  switch (Option.bind(info, ~f=i => i.label_inference)) {
   | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
   | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
@@ -564,7 +570,7 @@ let rec automatic_inserted_labels_exp =
 
 let rec automatic_inserted_labels_pat =
         (info: option(Info.pat)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
+  switch (Option.bind(info, ~f=i => i.label_inference)) {
   | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
   | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
@@ -627,11 +633,11 @@ let exp_mark_err_view =
         view_any(example),
       ])
     | Some(tys) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
+      let cls_str = String.uncapitalize(cls_str);
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(view_type, tys)),
+          ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
         ])
         |> code_box_container,
         text(
@@ -667,7 +673,7 @@ let exp_mark_err_view =
     | MissingLabels(labels) =>
       div_err([
         text("Labels not present in tuple: "),
-        ...List.map(label_view, labels),
+        ...List.map(~f=label_view, labels),
       ])
     | ToLvsMissingLabelsOnTuple(_) =>
       div_err([
@@ -678,7 +684,7 @@ let exp_mark_err_view =
     | ProjectLabelsMissingLabels(labels) =>
       div_err([
         text("Projected tuple does not have the following labels: "),
-        ...List.map(label_view, labels),
+        ...List.map(~f=label_view, labels),
       ])
     | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
     | AtLeast2Arguments =>
@@ -727,7 +733,7 @@ let exp_mark_err_view =
       text("Label "),
       label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
+      ...List.map(~f=label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>

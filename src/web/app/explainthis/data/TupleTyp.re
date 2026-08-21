@@ -6,7 +6,7 @@ let tuple_typ_id: form_id = TupleTyp;
 let tuple_typ_comma = comma_typ();
 let tuple_typ_form = [typ("ty1"), tuple_typ_comma, space(), typ("...")];
 let tuple_typ_explanation = (~n: int): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "This tuple type classifies %d-tuples with corresponding element types.",
     n,
   );
@@ -55,7 +55,7 @@ let tuple2_typ = (~elem1_id: Id.t, ~elem2_id: Id.t): form => {
       [typ("ty1"), comma_typ(), typ("ty2")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This tuple type classifies 2-tuples with the first element of the [first element type](%s) and second element of the [second element type](%s).",
       Id.to_string(elem1_id),
       Id.to_string(elem2_id),
@@ -92,7 +92,7 @@ let tuple3_typ = (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): form => {
       [typ("ty1"), comma_typ(), typ("ty2"), comma_typ(), typ("ty3")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This tuple type classifies 3-tuples with the first element of the [first element type](%s), second element of the [second element type](%s), and third element of the [third element type](%s).",
       Id.to_string(elem1_id),
       Id.to_string(elem2_id),

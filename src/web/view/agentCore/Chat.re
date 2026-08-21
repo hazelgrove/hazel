@@ -66,7 +66,7 @@ module Utils = {
 
   let api_messages_of_messages =
       (messages: list(Message.Model.t)): list(OpenRouter.Message.Model.t) => {
-    List.filter_map(Message.Utils.api_message_of_message, messages);
+    List.filter_map(~f=Message.Utils.api_message_of_message, messages);
   };
 
   let json_of_messages =
@@ -81,7 +81,7 @@ module Utils = {
       ),
       (
         "messages",
-        `List(List.map(Message.Utils.json_of_message, messages)),
+        `List(List.map(~f=Message.Utils.json_of_message, messages)),
       ),
     ]);
   };
@@ -102,12 +102,13 @@ module Utils = {
     // Note: It should hold that the caller knows the passed message id will have a parent
     let parent =
       List.find_map(
-        (message: Message.Model.t) =>
-          if (List.mem(message_id, message.children)) {
-            Some(message);
-          } else {
-            None;
-          },
+        ~f=
+          (message: Message.Model.t) =>
+            if (List.mem(message.children, message_id, ~equal=Poly.equal)) {
+              Some(message);
+            } else {
+              None;
+            },
         linearize(chat),
       );
     parent
@@ -277,13 +278,14 @@ module Utils = {
       msgs;
     } else {
       List.mapi(
-        (i, m: OpenRouter.Message.Model.t) =>
-          i == anchor_idx
-            ? {
-              ...m,
-              cache_anchor: true,
-            }
-            : m,
+        ~f=
+          (i, m: OpenRouter.Message.Model.t) =>
+            i == anchor_idx
+              ? {
+                ...m,
+                cache_anchor: true,
+              }
+              : m,
         msgs,
       );
     };
@@ -299,29 +301,35 @@ module Utils = {
     let messages = get(chat);
     let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
       List.fold_left(
-        (
-          (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
-          msg: Message.Model.t,
-        ) => {
-          let last_agent_idx' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(_)) => Some(i)
-            | _ => last_agent_idx
-            };
-          let last_agent_tokens' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
-            | _ => last_agent_tokens
-            };
-          let last_compaction_idx' =
-            switch (msg.role) {
-            | Message.Model.System(Message.Model.CompactionSummary(_)) =>
-              Some(i)
-            | _ => last_compaction_idx
-            };
-          (i + 1, last_agent_idx', last_agent_tokens', last_compaction_idx');
-        },
-        (0, None, None, None),
+        ~f=
+          (
+            (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
+            msg: Message.Model.t,
+          ) => {
+            let last_agent_idx' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(_)) => Some(i)
+              | _ => last_agent_idx
+              };
+            let last_agent_tokens' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
+              | _ => last_agent_tokens
+              };
+            let last_compaction_idx' =
+              switch (msg.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                Some(i)
+              | _ => last_compaction_idx
+              };
+            (
+              i + 1,
+              last_agent_idx',
+              last_agent_tokens',
+              last_compaction_idx',
+            );
+          },
+        ~init=(0, None, None, None),
         messages,
       );
     switch (last_compaction_idx, last_agent_idx, last_agent_tokens) {

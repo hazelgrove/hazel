@@ -10,11 +10,11 @@ let all_alphabetical: list((string, string)) = [
 ];
 
 let filtered = (filter: string): list((string, string)) => {
-  let f = String.lowercase_ascii(filter);
+  let f = String.lowercase(filter);
   all_alphabetical
-  |> List.filter(((name, _)) =>
+  |> List.filter(~f=((name, _)) =>
        String.length(f) == 0
-       || String.starts_with(~prefix=f, String.lowercase_ascii(name))
+       || String.is_prefix(~prefix=f, String.lowercase(name))
      );
 };
 
@@ -22,11 +22,12 @@ let filtered = (filter: string): list((string, string)) => {
 let help_payload = (): Message.Model.help_output => {
   let entries: list(Message.Model.help_entry) =
     List.map(
-      ((name, description)): Message.Model.help_entry =>
-        {
-          help_name: name,
-          help_description: description,
-        },
+      ~f=
+        ((name, description)): Message.Model.help_entry =>
+          {
+            help_name: name,
+            help_description: description,
+          },
       all_alphabetical,
     );
   {help_entries: entries};

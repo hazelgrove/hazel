@@ -35,7 +35,7 @@ let if_exp = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): form => {
   colorings: if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "If the [*condition*](%s) evaluates to `true`, evaluate the [*then branch*](%s). Otherwise, evaluate the [*else branch*](%s).",
       Id.to_string(cond_id),
       Id.to_string(then_id),

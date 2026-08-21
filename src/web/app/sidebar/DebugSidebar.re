@@ -256,7 +256,7 @@ let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
   | entries =>
     div(
       ~attrs=[clss(["debug-ctx"])],
-      List.map(ctx_entry_node(~globals), entries),
+      List.map(~f=ctx_entry_node(~globals), entries),
     )
   };
 
@@ -264,11 +264,12 @@ let co_ctx_entry_node =
     (~globals, name: Var.t, entries: list(CoCtx.entry)): Node.t => {
   let uses =
     List.map(
-      (e: CoCtx.entry) =>
-        div(
-          ~attrs=[clss(["debug-coctx-use"])],
-          [text(": "), typ_node(~globals, e.expected_ty)],
-        ),
+      ~f=
+        (e: CoCtx.entry) =>
+          div(
+            ~attrs=[clss(["debug-coctx-use"])],
+            [text(": "), typ_node(~globals, e.expected_ty)],
+          ),
       entries,
     );
   div(
@@ -284,7 +285,7 @@ let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
     div(
       ~attrs=[clss(["debug-coctx"])],
       List.map(
-        ((name, entries)) => co_ctx_entry_node(~globals, name, entries),
+        ~f=((name, entries)) => co_ctx_entry_node(~globals, name, entries),
         co_ctx,
       ),
     )
@@ -307,7 +308,7 @@ let ctx_entry_text = (entry: Ctx.entry): string =>
 let ctx_to_text = (ctx: Ctx.t): string =>
   switch (ctx.entries) {
   | [] => "(empty)"
-  | entries => String.concat("\n", List.map(ctx_entry_text, entries))
+  | entries => String.concat(~sep="\n", List.map(~f=ctx_entry_text, entries))
   };
 
 let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
@@ -315,19 +316,21 @@ let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
   | [] => "(empty)"
   | _ =>
     String.concat(
-      "\n",
+      ~sep="\n",
       List.map(
-        ((name, entries)) =>
-          name
-          ++ String.concat(
-               "",
-               List.map(
-                 (e: CoCtx.entry) =>
-                   "\n  : "
-                   ++ typ_to_text(~settings=code_settings, e.expected_ty),
-                 entries,
+        ~f=
+          ((name, entries)) =>
+            name
+            ++ String.concat(
+                 ~sep="",
+                 List.map(
+                   ~f=
+                     (e: CoCtx.entry) =>
+                       "\n  : "
+                       ++ typ_to_text(~settings=code_settings, e.expected_ty),
+                   entries,
+                 ),
                ),
-             ),
         co_ctx,
       ),
     )
@@ -378,14 +381,17 @@ let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
 let ancestors_str = (ancestors: Info.ancestors): string =>
   switch (ancestors) {
   | [] => "[]"
-  | _ => "[" ++ String.concat(", ", List.map(id_str, ancestors)) ++ "]"
+  | _ =>
+    "[" ++ String.concat(~sep=", ", List.map(~f=id_str, ancestors)) ++ "]"
   };
 
 let marks_str = (marks: list(Mark.t)): string =>
   switch (marks) {
   | [] => "[]"
   | _ =>
-    "[\n  " ++ String.concat(",\n  ", List.map(Mark.show, marks)) ++ "\n]"
+    "[\n  "
+    ++ String.concat(~sep=",\n  ", List.map(~f=Mark.show, marks))
+    ++ "\n]"
   };
 
 let warnings_str = (warnings: list(Warning.list_item)): string =>
@@ -393,7 +399,10 @@ let warnings_str = (warnings: list(Warning.list_item)): string =>
   | [] => "[]"
   | _ =>
     "[\n  "
-    ++ String.concat(",\n  ", List.map(Warning.show_list_item, warnings))
+    ++ String.concat(
+         ~sep=",\n  ",
+         List.map(~f=Warning.show_list_item, warnings),
+       )
     ++ "\n]"
   };
 
@@ -403,10 +412,10 @@ let label_inference_str = (li: option(Info.label_inference(_))): string =>
   | Some(SingletonLabelInference({label, _})) =>
     "SingletonLabelInference(" ++ label ++ ")"
   | Some(MultiLabelInference({reordered, introduced_labels})) =>
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "MultiLabelInference(reordered=%b, introduced=[%s])",
       reordered,
-      String.concat(", ", introduced_labels),
+      String.concat(~sep=", ", introduced_labels),
     )
   };
 
@@ -436,7 +445,7 @@ let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) =>
       field_str("label_sort", string_of_bool(info.label_sort)),
       field_str(
         "dot_labels",
-        "[" ++ String.concat(", ", info.dot_labels) ++ "]",
+        "[" ++ String.concat(~sep=", ", info.dot_labels) ++ "]",
       ),
     ]
   );
@@ -595,17 +604,22 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
         let (l, r) = Haz3lcore.Tile.shapes(t);
         [
           field_str("kind", "Tile"),
-          field_str("label", String.concat(" ", t.label)),
+          field_str("label", String.concat(~sep=" ", t.label)),
           field_str("mold.out", sort_str(t.mold.out)),
           field_str(
             "mold.in_",
-            "[" ++ String.concat(", ", List.map(sort_str, t.mold.in_)) ++ "]",
+            "["
+            ++ String.concat(~sep=", ", List.map(~f=sort_str, t.mold.in_))
+            ++ "]",
           ),
           field_str("nibs", shape_str(l) ++ " … " ++ shape_str(r)),
           field_str(
             "shards",
             "["
-            ++ String.concat(", ", List.map(string_of_int, t.shards))
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(~f=string_of_int, t.shards),
+               )
             ++ "]",
           ),
           field_str("children", string_of_int(List.length(t.children))),
@@ -646,11 +660,11 @@ let measured_fields =
   | Some({origin, last}) => [
       field_str(
         "origin",
-        Printf.sprintf("row %d, col %d", origin.row, origin.col),
+        Stdlib.Printf.sprintf("row %d, col %d", origin.row, origin.col),
       ),
       field_str(
         "last",
-        Printf.sprintf("row %d, col %d", last.row, last.col),
+        Stdlib.Printf.sprintf("row %d, col %d", last.row, last.col),
       ),
     ]
   };

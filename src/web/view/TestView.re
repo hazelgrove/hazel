@@ -17,7 +17,7 @@ let test_bar_segment = (~inject_jump, (id, reports)) => {
 let test_bar = (~inject_jump, ~test_results: TestResults.t) =>
   div(
     ~attrs=[Attr.class_("test-bar")],
-    List.map(test_bar_segment(~inject_jump), test_results.test_map),
+    List.map(~f=test_bar_segment(~inject_jump), test_results.test_map),
   );
 
 // result_summary_str and test_summary_str have been moved to haz3lcore/TestResults.re
@@ -27,7 +27,7 @@ let percent_view = (n: int, p: int): Node.t => {
     n == 0 ? 100. : 100. *. float_of_int(p) /. float_of_int(n);
   div(
     ~attrs=[clss(["test-percent", n == p ? "all-pass" : "some-fail"])],
-    [text(Printf.sprintf("%.0f%%", percentage))],
+    [text(Stdlib.Printf.sprintf("%.0f%%", percentage))],
   );
 };
 
