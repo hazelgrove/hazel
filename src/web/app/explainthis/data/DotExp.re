@@ -37,7 +37,7 @@ let dot_exp_form = (~lab_id: Id.t, ~tup_id: Id.t): form => {
   colorings: dot_coloring_ids(~tup_id, ~lab_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [*label*](%s) is being projected from the [*tuple*](%s).",
       Id.to_string(lab_id),
       Id.to_string(tup_id),

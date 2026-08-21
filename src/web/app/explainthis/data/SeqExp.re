@@ -27,7 +27,7 @@ let seq_exp = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
   colorings: seq_exp_coloring_ids(~exp1_id, ~exp2_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [left expression](%s) is evaluated, then the [right expression](%s) is evaluated.",
       Id.to_string(exp1_id),
       Id.to_string(exp2_id),

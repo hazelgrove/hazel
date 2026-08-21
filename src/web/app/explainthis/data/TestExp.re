@@ -24,7 +24,7 @@ let test_exp = (~body_id: Id.t): form => {
   colorings: test_exp_coloring_ids(~body_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.",
       Id.to_string(body_id),
     ),

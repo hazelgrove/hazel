@@ -24,7 +24,7 @@ let single = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
   /* (D) The explanation which will appear in the sidebar below the abstract */
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Recursively replaces all occurences of the [*pattern*](%s) inside the [*body*](%s) with the entire fixpoint itself, effectively creating an infinite expression. Unless [*body*](%s) is a function, it is likely to evaluate forever.",
       pat_id |> Id.to_string,
       body_id |> Id.to_string,
