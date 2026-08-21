@@ -10,5 +10,5 @@ module M =
       | _ => None
       };
     let to_atom = (v: string): Language.Atom.t => Float(float_of_string(v));
-    let to_string = Printf.sprintf("%.2f");
+    let to_string = Stdlib.Printf.sprintf("%.2f");
   });

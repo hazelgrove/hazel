@@ -278,7 +278,10 @@ let output_contract_sections = [
 ];
 
 let preamble =
-  String.concat("\n", preamble_sections @ [""] @ output_contract_sections);
+  String.concat(
+    ~sep="\n",
+    preamble_sections @ [""] @ output_contract_sections,
+  );
 
 /* Sections that define the domain terms a summary will use; deliberately
    omits the toolkit, task-planning, and few-shot sections (the summarizer

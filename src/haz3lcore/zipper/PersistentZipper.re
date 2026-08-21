@@ -83,7 +83,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       ++ " chars): "
       ++ why
       ++ " | head: "
-      ++ String.sub(text, 0, min(60, String.length(text))),
+      ++ String.sub(text, ~pos=0, ~len=min(60, String.length(text))),
     );
     switch (MarkerParse.of_text(~root, text)) {
     | None => None
