@@ -9,7 +9,8 @@ let simple_cell_item = (content: list(Node.t)) =>
 let caption = (~rest: option(string)=?, bolded: string) =>
   div(
     ~attrs=[Attr.classes(["cell-caption"])],
-    [strong([text(bolded)])] @ (rest |> Option.map(text) |> Option.to_list),
+    [strong([text(bolded)])]
+    @ (rest |> Option.map(~f=text) |> Option.to_list),
   );
 
 let simple_cell_view = (items: list(t)) =>

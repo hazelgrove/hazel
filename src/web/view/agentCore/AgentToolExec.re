@@ -140,7 +140,7 @@ let execute_one_tool_call =
       | Failure(msg) => Error(Failure.Info(msg))
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
-        Error(Failure.Info(Printexc.to_string(exn)))
+        Error(Failure.Info(Exn.to_string(exn)))
       }
     ) {
     | Ok((model, editor)) =>
@@ -176,7 +176,7 @@ let execute_one_tool_call =
       switch (diff_result) {
       | Error(exn) =>
         /* mk_diff can raise (e.g. path_to_id); report to agent, keep state */
-        let msg = Printexc.to_string(exn);
+        let msg = Exn.to_string(exn);
         let tool_result: AgentToolResult.tool_result = {
           tool_call,
           success: false,

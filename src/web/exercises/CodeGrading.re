@@ -3,6 +3,7 @@ open Util;
 open Virtual_dom.Vdom;
 open Node;
 open CodeExercise;
+open Poly;
 
 /* Grading for Code exercises. The generic score/percentage primitives live
    in [Grading.re]; this module plugs code-exercise reports (test validation,
@@ -34,7 +35,7 @@ module TestValidationReport = {
       let provided = float_of_int(report.provided);
       let num_passing = float_of_int(test_results.passing);
 
-      required -. provided <= 0.0 || num_tests <= 0.0
+      Float.(required -. provided <= 0.0) || Float.(num_tests <= 0.0)
         ? 0.0
         : num_passing
           /. num_tests
@@ -214,7 +215,7 @@ module TestValidationReport = {
             ? []
             : Option.to_list(
                 report.test_results
-                |> Option.map(test_results =>
+                |> Option.map(~f=test_results =>
                      TestView.test_bar(
                        ~inject_jump=signal_jump,
                        ~test_results,
@@ -245,7 +246,7 @@ module MutationTestingReport = {
 
       let found =
         hidden_bug_test_map
-        |> List.find_opt(((id, instance_reports)) => {
+        |> List.find(~f=((id, instance_reports)) => {
              let status = TestMap.joint_status(instance_reports);
              switch (status) {
              | TestStatus.Pass
@@ -280,13 +281,14 @@ module MutationTestingReport = {
         ~hidden_bugs,
       )
       : t => {
-    let results = List.map(hidden_bug_status(test_validation), hidden_bugs);
+    let results =
+      List.map(~f=hidden_bug_status(test_validation), hidden_bugs);
     let hints =
       List.map(
-        (wrong_impl: wrong_impl(Haz3lcore.Editor.t)) => wrong_impl.hint,
+        ~f=(wrong_impl: wrong_impl(Haz3lcore.Editor.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
-    let results = List.combine(results, hints);
+    let results = List.zip_exn(results, hints);
     {results: results};
   };
 
@@ -295,7 +297,9 @@ module MutationTestingReport = {
     let num_wrong_impls = List.length(results);
     let num_passed =
       results
-      |> List.find_all(((status, _)) => status == TestStatus.Pass)
+      |> List.filter(~f=((status, _)) =>
+           Poly.equal(status, TestStatus.Pass)
+         )
       |> List.length;
     switch (num_wrong_impls) {
     | 0 => 1.0
@@ -369,7 +373,7 @@ module MutationTestingReport = {
                         )##.value;
 
                       let new_hints =
-                        List.init(total, i =>
+                        List.init(total, ~f=i =>
                           Obj.magic(
                             Js_of_ocaml.Js.some(
                               JsUtil.get_elem_by_id(
@@ -420,14 +424,15 @@ module MutationTestingReport = {
     div(
       ~attrs=[Attr.classes(["test-bar"])],
       List.mapi(
-        (_id, (status, _)) =>
-          div(
-            ~attrs=[
-              Attr.classes(["segment", TestStatus.to_string(status)]),
-              // TODO: Wire up test ids.
-            ],
-            [],
-          ),
+        ~f=
+          (_id, (status, _)) =>
+            div(
+              ~attrs=[
+                Attr.classes(["segment", TestStatus.to_string(status)]),
+                // TODO: Wire up test ids.
+              ],
+              [],
+            ),
         instances,
       ),
     );
@@ -446,7 +451,7 @@ module MutationTestingReport = {
     let total = List.length(report.results);
     let found =
       List.length(
-        List.filter(((x: TestStatus.t, _)) => x == Pass, report.results),
+        List.filter(~f=((x: TestStatus.t, _)) => x == Pass, report.results),
       );
     let status_class =
       eval_pending ? "Indet" : total == found ? "Pass" : "Fail";
@@ -560,7 +565,7 @@ module MutationTestingReport = {
       ) =>
     div(
       coverage_results
-      |> List.mapi((i, (status, hint)) =>
+      |> List.mapi(~f=(i, (status, hint)) =>
            individual_report(
              ~i,
              ~hint,
@@ -633,13 +638,13 @@ module SyntaxReport = {
       ).
         term;
     let predicates =
-      List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
-    let hints = List.map(((h, _)) => h, tests);
+      List.map(~f=((_, p)) => SyntaxTest.predicate_fn(p), tests);
+    let hints = List.map(~f=((h, _)) => h, tests);
     let syntax_results = SyntaxTest.check(user_impl_term, predicates);
 
     {
       hinted_results:
-        List.map2((r, h) => (r, h), syntax_results.results, hints),
+        List.map2_exn(syntax_results.results, hints, ~f=(r, h) => (r, h)),
       percentage: syntax_results.percentage,
     };
   };
@@ -707,7 +712,7 @@ module SyntaxReport = {
       ) => {
     div(
       hinted_results
-      |> List.mapi((i, (status, hint)) =>
+      |> List.mapi(~f=(i, (status, hint)) =>
            individual_report(
              i,
              hint,
@@ -766,7 +771,7 @@ module SyntaxReport = {
                                       List.length(
                                         syntax_report.hinted_results,
                                       ),
-                                      i =>
+                                      ~f=i =>
                                       Obj.magic(
                                         Js_of_ocaml.Js.some(
                                           JsUtil.get_elem_by_id(
@@ -861,7 +866,7 @@ module ImplGradingReport = {
   let total = (report: t) => List.length(report.hinted_results);
   let num_passed = (report: t) => {
     report.hinted_results
-    |> List.find_all(((status, _)) => status == TestStatus.Pass)
+    |> List.filter(~f=((status, _)) => Poly.equal(status, TestStatus.Pass))
     |> List.length;
   };
 
@@ -1013,13 +1018,13 @@ module ImplGradingReport = {
        * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
-        |> List.mapi((i, (status, hint: hint)) =>
+        |> List.mapi(~f=(i, (status, hint: hint)) =>
              individual_report(
                i,
                ~signal_jump,
                ~hint,
                ~status,
-               List.nth(test_results.test_map, i),
+               List.nth_exn(test_results.test_map, i),
                ~editing_impl_grd_rep,
                ~globals,
                ~select_textbox,
@@ -1111,7 +1116,8 @@ module ImplGradingReport = {
 
                                     let new_hints =
                                       List.init(
-                                        List.length(report.hinted_results), i =>
+                                        List.length(report.hinted_results),
+                                        ~f=i =>
                                         Obj.magic(
                                           Js_of_ocaml.Js.some(
                                             JsUtil.get_elem_by_id(
@@ -1171,7 +1177,7 @@ module ImplGradingReport = {
                   ? []
                   : Option.to_list(
                       report.test_results
-                      |> Option.map(test_results =>
+                      |> Option.map(~f=test_results =>
                            TestView.test_bar(
                              ~inject_jump=signal_jump,
                              ~test_results,

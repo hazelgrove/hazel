@@ -13,6 +13,8 @@ module VisibleRows = {
     last: int,
   };
 
+  let equal = (a: t, b: t): bool => a.first == b.first && a.last == b.last;
+
   /* Compute visible row range from scroll container properties.
    * buffer: extra rows above/below to prevent popping */
   let compute =

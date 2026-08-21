@@ -35,13 +35,13 @@ let row_ends_attr = (measured: Measured.t): Attr.t => {
     | Some((r, _)) => r + 1
     | None => 0
     };
-  List.init(n, r =>
+  List.init(n, ~f=r =>
     switch (IntMap.find_opt(r, rows)) {
     | Some(row) => string_of_int(Measured.Rows.(row.max_col))
     | None => "0"
     }
   )
-  |> String.concat(",")
+  |> String.concat(~sep=",")
   |> Attr.create(row_ends_attr_name);
 };
 
@@ -51,8 +51,8 @@ let row_ends_of_container = (el: Js.t(Dom_html.element)): array(int) =>
     () => [||],
     s =>
       Js.to_string(s)
-      |> String.split_on_char(',')
-      |> List.map(s => Option.value(int_of_string_opt(s), ~default=0))
+      |> String.split(~on=',')
+      |> List.map(~f=s => Option.value(int_of_string_opt(s), ~default=0))
       |> Array.of_list,
   );
 
@@ -98,9 +98,10 @@ let items_of_container = (container: Js.t(Dom_html.element)): list(item) => {
     };
   };
   List.sort(
-    (a: item, b: item) =>
-      a.row == b.row
-        ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
+    ~compare=
+      (a: item, b: item) =>
+        a.row == b.row
+          ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
     items^,
   );
 };
@@ -108,52 +109,56 @@ let items_of_container = (container: Js.t(Dom_html.element)): list(item) => {
 let solve_container =
     (~font_metrics: FontMetrics.t, container: Js.t(Dom_html.element)): unit => {
   let items = items_of_container(container);
-  if (items != []) {
+  if (!List.is_empty(items)) {
     let row_ends = row_ends_of_container(container);
     let row_end = (r: int): int =>
       r >= 0 && r < Array.length(row_ends) ? row_ends[r] : 0;
     /* (first row, last row, left col, right col) of placed displays */
     let occupied: ref(list((int, int, int, int))) = ref([]);
     List.iter(
-      (it: item) => {
-        let rows_spanned =
-          max(
-            1,
-            int_of_float(
-              Float.ceil(it.h_px /. font_metrics.row_height -. 0.2),
-            ),
+      ~f=
+        (it: item) => {
+          let rows_spanned =
+            max(
+              1,
+              int_of_float(
+                Float.round_up(it.h_px /. font_metrics.row_height -. 0.2),
+              ),
+            );
+          let last_row = it.row + rows_spanned - 1;
+          let floor_col = ref(0);
+          for (r in it.row to last_row) {
+            floor_col := max(floor_col^, row_end(r) + offside_offset);
+          };
+          let w_cols =
+            int_of_float(Float.round_up(it.w_px /. font_metrics.col_width));
+          /* first-fit: slide into the leftmost gap at or after the floor —
+             a display can sit BEFORE one from a row above when the overhang
+             above leaves room (no unnecessary staggering) */
+          let blockers =
+            occupied^
+            |> List.filter(~f=((a, b, _, _)) =>
+                 !(last_row < a || b < it.row)
+               )
+            |> List.map(~f=((_, _, l, r)) => (l, r))
+            |> List.sort(~compare=((l1, _), (l2, _)) => compare(l1, l2));
+          let x = ref(floor_col^);
+          List.iter(
+            ~f=
+              ((l, r)) =>
+                if (x^ + w_cols + stack_gap <= l) {
+                  (); /* fits entirely before this blocker */
+                } else if (x^ < r + stack_gap) {
+                  x := r + stack_gap;
+                },
+            blockers,
           );
-        let last_row = it.row + rows_spanned - 1;
-        let floor_col = ref(0);
-        for (r in it.row to last_row) {
-          floor_col := max(floor_col^, row_end(r) + offside_offset);
-        };
-        let w_cols =
-          int_of_float(Float.ceil(it.w_px /. font_metrics.col_width));
-        /* first-fit: slide into the leftmost gap at or after the floor —
-           a display can sit BEFORE one from a row above when the overhang
-           above leaves room (no unnecessary staggering) */
-        let blockers =
-          occupied^
-          |> List.filter(((a, b, _, _)) => !(last_row < a || b < it.row))
-          |> List.map(((_, _, l, r)) => (l, r))
-          |> List.sort(((l1, _), (l2, _)) => compare(l1, l2));
-        let x = ref(floor_col^);
-        List.iter(
-          ((l, r)) =>
-            if (x^ + w_cols + stack_gap <= l) {
-              (); /* fits entirely before this blocker */
-            } else if (x^ < r + stack_gap) {
-              x := r + stack_gap;
-            },
-          blockers,
-        );
-        let left_px =
-          font_metrics.col_width *. float_of_int(x^ - it.origin_col);
-        Js.Unsafe.coerce(it.el)##.style##.left :=
-          Js.string(Printf.sprintf("%.1fpx", left_px));
-        occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
-      },
+          let left_px =
+            font_metrics.col_width *. float_of_int(x^ - it.origin_col);
+          Js.Unsafe.coerce(it.el)##.style##.left :=
+            Js.string(Printf.sprintf("%.1fpx", left_px));
+          occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
+        },
       items,
     );
   };
