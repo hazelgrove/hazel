@@ -165,8 +165,15 @@ let axiom_step_outgoing_result =
   switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
   | None => Error(UnknownEquality(equality))
   | Some(rule) =>
-    /* Phase 4c: a cited bare-boolean fact also reads as `F == true`. */
-    let rule = ProofRule.with_bool_fact_reading(rule);
+    /* A cited rule with a bare-boolean conclusion `P` reads as the
+     * equation `P == true` (docs/prover-obligations.md §2.1). Applies to
+     * every rule uniformly — hypotheses, user theorems and the built-in
+     * closure library alike — which is why `Axioms.re` states those
+     * lemmas as bare booleans. `~info_map` is the type evidence the gate
+     * needs for a conclusion whose shape does not settle it (a `where`
+     * guard that is a plain variable, a Bool-typed application). */
+    let rule =
+      ProofRule.with_bool_fact_reading(~info_map=Some(info_map), rule);
     /* Phase 4d: seed the explicit instantiation into the initial match
      * context. The supplied expression is env-substituted first, exactly
      * like every other expression the checker computes with. */
@@ -212,8 +219,19 @@ let axiom_step_outgoing_result =
           }),
         )
       | Some(e) =>
+        /* `~reverse=true`: this is an EXPLICIT citation, which names the
+         * direction and the occurrence, so the bare-boolean reading's
+         * `true |-> P` direction is offered here even though rule
+         * discovery suppresses it (`ProofRule.can_eq_inst`). */
         let (l, r) =
-          ProofRule.can_eq_inst(~info_map, ~env, ~bindings?, rule, e);
+          ProofRule.can_eq_inst(
+            ~info_map,
+            ~env,
+            ~bindings?,
+            ~reverse=true,
+            rule,
+            e,
+          );
         let with_exp =
           switch (direction) {
           | Direction.Left => l

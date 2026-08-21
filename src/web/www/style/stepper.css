@@ -370,6 +370,18 @@
   margin-left: 2em;
 }
 
+/* The bare-boolean reading a rule is used under, rendered alongside its
+   statement (AssumptionBox). De-emphasized to match the obligations
+   panel's receipt labels: it is a note about the statement, not a second
+   statement. */
+.assumption-reading {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
 .step-placeholder {
   background-color: var(--test-panel-bkg)
 }

@@ -23,7 +23,16 @@ module View = {
       ) => {
     let equality_buttons =
       switch (model.ctx_entry.rule.conclusion) {
-      | Equality(_) =>
+      /* `BoolFact` is a bare-boolean conclusion read as `P == true`
+       * (`ProofRule.with_bool_fact_reading`, granted by `AxiomsBox`).
+       * It gets the same buttons: `can_eq` supplies the forward
+       * rewrite (`P` |-> `true`) and `None` for the reverse, so `<==`
+       * simply comes out disabled — rule DISCOVERY does not offer
+       * `true` |-> `P`, which would match every `true` in the goal. The
+       * reverse direction is still available by writing an explicit
+       * `axiomrev` step. */
+      | Equality(_)
+      | BoolFact(_) =>
         let (l, r) =
           switch (active_selection) {
           | _ when model.ctx_entry.is_captured => (None, None) // TODO[Matt]: tooltip explaining why disabled
@@ -56,6 +65,33 @@ module View = {
         ];
       | _ => []
       };
+    let code_settings =
+      Haz3lcore.ExpToSegment.Settings.of_core(
+        ~inline=true,
+        ~fold_fn_bodies=`Text,
+        globals.settings.core,
+      );
+    /* Display honesty: a rule stated with a bare-boolean conclusion is
+     * USED as the equation `P == true`. Say so, in the same code
+     * rendering as the statement itself, rather than leaving the
+     * interpretation implicit (docs/prover-obligations.md §2.1). */
+    let reading_note =
+      switch (ProofRule.bool_reading_exp(model.ctx_entry.rule)) {
+      | None => []
+      | Some(reading) => [
+          div_c(
+            "assumption-reading",
+            [
+              Node.text("reads as: "),
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=code_settings,
+                Exp(reading),
+              ),
+            ],
+          ),
+        ]
+      };
     div_c(
       "assumption-box",
       equality_buttons
@@ -63,15 +99,11 @@ module View = {
         Node.text(model.ctx_entry.name ++ ": "),
         CodeViewable.view_any(
           ~globals,
-          ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=true,
-              ~fold_fn_bodies=`Text,
-              globals.settings.core,
-            ),
+          ~settings=code_settings,
           Exp(model.ctx_entry.exp),
         ),
-      ],
+      ]
+      @ reading_note,
     );
   };
 };

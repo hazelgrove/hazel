@@ -135,6 +135,19 @@ let view_goal = (~globals, exp: Exp.t) =>
     ],
   );
 
+/* A covering fact stated with a BARE-BOOLEAN conclusion is used as the
+ * equation `P == true` (docs/prover-obligations.md §2.1). The receipt
+ * shows that reading explicitly, so a statement in the panel is never
+ * quietly standing for a different proposition. `with_bool_fact_reading`
+ * is called without an info map — the panel has no statics — so the gate
+ * is the purely syntactic one and a fact whose shape does not settle the
+ * question simply gets no note. */
+let fact_reading = (fact: Exp.t): option(Exp.t) =>
+  fact
+  |> ProofRule.exp_to_rule
+  |> ProofRule.with_bool_fact_reading
+  |> ProofRule.bool_reading_exp;
+
 let receipt = (~globals, ob: Obligation.t): list(Node.t) => {
   let label =
     div(
@@ -144,13 +157,29 @@ let receipt = (~globals, ob: Obligation.t): list(Node.t) => {
   switch (Obligation.remote_fact(ob)) {
   /* The receipt proper: show the covering fact's statement, so "why is
    * this silent?" is answered in place rather than on a hover. */
-  | Some((_, fact)) => [
+  | Some((_, fact)) =>
+    [
       label,
       div(
         ~attrs=[clss(["obligation-fact"])],
         [view_goal(~globals, fact)],
       ),
     ]
+    @ (
+      switch (fact_reading(fact)) {
+      | None => []
+      | Some(reading) => [
+          div(
+            ~attrs=[clss(["obligation-receipt-label", "reading"])],
+            [text("reads as:")],
+          ),
+          div(
+            ~attrs=[clss(["obligation-fact"])],
+            [view_goal(~globals, reading)],
+          ),
+        ]
+      }
+    )
   | None => [label]
   };
 };

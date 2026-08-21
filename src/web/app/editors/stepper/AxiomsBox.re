@@ -69,8 +69,24 @@ module Update = {
                   StringUtil.subseq_search(name, filter)
                 )
           )
-          |> List.map(ctx_entry =>
-               AssumptionBox.Model.{ctx_entry: ctx_entry}
+          /* Grant the bare-boolean reading HERE, once, so the activity
+           * filter below and the box's own rendering agree on what each
+           * rule rewrites (`ProofRule.with_bool_fact_reading`). This is
+           * the same call `ProofCheck`'s axiom step makes, with the same
+           * `~info_map` gate — a rule shown as applicable is a rule the
+           * checker will accept. `AssumptionBox` renders the reading
+           * explicitly rather than passing it off as an equation. */
+          |> List.map((ctx_entry: ProofCtx.entry) =>
+               AssumptionBox.Model.{
+                 ctx_entry: {
+                   ...ctx_entry,
+                   rule:
+                     ProofRule.with_bool_fact_reading(
+                       ~info_map=Some(info_map),
+                       ctx_entry.rule,
+                     ),
+                 },
+               }
              )
           |> (
             filter == ""

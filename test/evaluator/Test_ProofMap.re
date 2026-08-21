@@ -905,6 +905,9 @@ let test_forall_where_parse_and_rule = () => {
     true,
     switch (rule.conclusion) {
     | Equality(_, _) => true
+    /* `classify` never grants the bare-boolean reading; only
+       `with_bool_fact_reading` does, at the point of use. */
+    | BoolFact(_)
     | Other(_) => false
     },
   );

@@ -124,6 +124,44 @@ arithmetic. The costs land elsewhere and are accepted:
 - `ProofRule.exp_to_rule` peels `==>` after `forall`s into a resurrected
   `assumptions` field (the commented-out hook at `ProofRule.re:11` and
   `:28-35`), making conditional rewrite rules first-class.
+- **Bare-boolean rule conclusions** (decided 2026-08-21). A rule that is known
+  to hold says its conclusion denotes `true`, so a conclusion that is a bare
+  boolean proposition `P` — a comparison, a connective, a `where` guard, a
+  Bool-typed application — is *read* as the equation `P == true` and is
+  usable as a rewrite rule with no `== true` written anywhere.
+  - **One implementation**: `ProofRule.with_bool_fact_reading`, applied where
+    a rule is USED (`ProofCheck`'s axiom step; the stepper's `AxiomsBox`) and
+    never inside `classify`/`exp_to_rule` — goal classification,
+    `conclusion_exp` round-tripping and the capture check must keep seeing the
+    proposition exactly as written. It turns `Other(P)` into a distinct
+    `BoolFact(P)` conclusion rather than into `Equality(P, true)`, precisely so
+    that the reading stays visible as a reading.
+  - **Gate**: a syntactic verdict (operator result types, exhaustively
+    enumerated) with `Statics.Map.ty_of` as the fallback for a shape that does
+    not settle it. Conservative: what cannot be shown boolean stays `Other`,
+    i.e. inert, and citing it marks rather than rewriting silently.
+  - **Directions**: forward (`axiom`) rewrites `P` to `true` — the direction
+    that does the work. Reverse (`axiomrev`) rewrites a `true` in the goal to
+    `P`; it is sound (the rule holds, so the two denote the same value at any
+    instantiation) but `true` occurs everywhere, so it is gated on an explicit
+    citation and suppressed during rule DISCOVERY, which would otherwise show
+    every bare-boolean rule as applicable at every `true`. This adds no new
+    hazard class: `or_true`/`impl_true`/`false_impl` are equations whose RHS is
+    literally `true`, so reverse-matching on `true` — with a Phase-4d `with`
+    clause supplying what the match cannot recover — is already how those are
+    used.
+  - **Display is explicit**: wherever a bare-boolean rule is shown, the reading
+    is shown with it ("reads as: `P == true`") — in the stepper's assumption
+    boxes and in an obligation's discharge receipt. The system is honest about
+    the interpretation; nobody has to write it.
+  - Consequence for the closure library: `Axioms.re`'s guarded lemmas are now
+    stated bare (`a != 0 ==> b != 0 ==> a * b != 0`). Axiom names are
+    unchanged, and citing them behaves identically (`Test_FunContracts`).
+    One visible side effect: an open branch of a partially-proven bare-boolean
+    lemma now carries the literal `false` as its goal rather than
+    `false == true`, which `ProofMap.status_of_proof` reads as Refuted — a
+    per-branch presentation question, pinned in `Test_ClosureLibrary`'s
+    `test_true_branch_is_really_closed`. Theorem-level status is unaffected.
 
 ### 2.2 Restricted binders (predicate-subtyping style)
 
@@ -280,6 +318,10 @@ instantiation is a later feature.
    Library placement (decided): built-in OCaml-side axioms in Phase 3 (like
    `refl_eq`), migrated to a self-hosted proven Hazel prelude once Phase 4
    makes them provable — trusted base grows temporarily, then shrinks.
+
+   Stated with **bare-boolean conclusions** since 2026-08-21 (§2.1): the
+   `((a * b != 0) == true)` spelling existed only to make the conclusion
+   classify as an Equality, and is now the reading rather than the notation.
 
    *Self-hosting status (2026-08-19, `test/evaluator/Test_ClosureLibrary.re`)*:
    the migration is **blocked, and not by a Phase-4 gap** — 0 of 6 are

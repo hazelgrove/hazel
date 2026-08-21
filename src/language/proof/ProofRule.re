@@ -3,6 +3,14 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type conclusion =
   | Equality(Exp.t, Exp.t)
+  /* A BARE-BOOLEAN conclusion `P`, read as the equation `P == true`
+   * (see `with_bool_fact_reading`). Kept as its own variant rather than
+   * collapsed into `Equality(P, true)` for two reasons: display must be
+   * able to state the reading explicitly instead of silently showing an
+   * equation nobody wrote, and the reverse (`true` |-> `P`) direction is
+   * gated separately from the forward one (`can_eq_inst`'s `~reverse`).
+   * `classify` never produces this; only the reading does. */
+  | BoolFact(Exp.t)
   | Other(Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,24 +151,164 @@ let exp_to_rule = (exp: Exp.t): t => {
   };
 };
 
-/* A CITED fact/rule is known to hold, i.e. its conclusion denotes `true`.
- * So a bare-boolean conclusion `F` (classified `Other` — a disjunction, an
- * application of a decision procedure, a `where` guard) additionally
- * admits the equality reading `F == true`, making it usable as a rewrite
- * rule: occurrences of `F` in the goal rewrite to `true`
- * (docs/prover-obligations.md, Phase 4c).
+/* --- The bare-boolean reading (docs/prover-obligations.md §2.1) -------
  *
- * Deliberately applied only where a fact is CITED (`ProofCheck`'s axiom
- * step), never in `classify`/`exp_to_rule`: goal classification and the
- * co-context machinery must keep seeing the proposition as written. */
-let with_bool_fact_reading = (rule: t): t =>
-  switch (rule.conclusion) {
-  | Equality(_, _) => rule
-  | Other(e) => {
-      ...rule,
-      conclusion: Equality(e, Exp.fresh(Atom(Bool(true)))),
+ * A rule/fact that is KNOWN TO HOLD says its conclusion denotes `true`.
+ * So a bare-boolean conclusion `P` — a comparison, a connective, a
+ * `where` guard, a Bool-typed application — admits the equality reading
+ * `P == true`, which is what makes it usable as a rewrite rule at all.
+ * Rule conclusions therefore do not need to be *written* as equations:
+ * `... ==> (a * b != 0)` is a rule, and the `== true` that the closure
+ * library used to carry existed purely to satisfy the checker.
+ *
+ * This is the ONE implementation of that reading. It is applied where a
+ * rule is USED — `ProofCheck`'s axiom step, and the stepper's rule
+ * display/activity filter — and never inside `classify`/`exp_to_rule`:
+ * goal classification, `conclusion_exp` round-tripping and the
+ * co-context machinery must keep seeing the proposition exactly as
+ * written.
+ *
+ * `~info_map` is optional type evidence. Without it the gate is purely
+ * syntactic, which is what a caller that has no statics available (the
+ * obligations panel) gets. */
+
+/* Does this operator produce a Bool? Spelled out rather than read off
+ * `Operators.semantics_of_bin_op` so that exhaustiveness checking is the
+ * guarantee: a newly added operator cannot silently acquire (or lose)
+ * the reading. */
+let bool_result_bin = (op: Operators.op_bin): bool =>
+  switch (op) {
+  | Bool(And | Or | Implies)
+  | Poly(Equals | NotEquals) => true
+  | Int(op)
+  | SInt(op)
+  | Nat(op) =>
+    switch (op) {
+    | LessThan
+    | LessThanOrEqual
+    | GreaterThan
+    | GreaterThanOrEqual => true
+    | Plus
+    | Minus
+    | Times
+    | Power
+    | Divide => false
+    }
+  | Float(op) =>
+    switch (op) {
+    | LessThan
+    | LessThanOrEqual
+    | GreaterThan
+    | GreaterThanOrEqual
+    | Equals
+    | NotEquals => true
+    | Plus
+    | Minus
+    | Times
+    | Power
+    | Divide => false
+    }
+  | String(Concat) => false
+  };
+
+let bool_result_un = (op: Operators.op_un): bool =>
+  switch (op) {
+  | Bool(Not) => true
+  | Int(Minus)
+  | Nat(Minus)
+  | SInt(Minus)
+  | Float(Minus) => false
+  };
+
+/* Three-way SYNTACTIC verdict on "is this expression boolean-valued?".
+ * `Unknown` is the honest answer for a variable, an application, a
+ * `case`, an `if` — forms whose type only statics knows. Deliberately
+ * three-way rather than two: `No` refuses the reading outright, while
+ * `Unknown` defers to `~info_map` and, absent one, also refuses. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type bool_shape =
+  | Boolean
+  | NotBoolean
+  | Unclear;
+
+let rec bool_shape = (e: Exp.t): bool_shape =>
+  switch (e |> Exp.term_of) {
+  /* Transparent wrappers. `classify` does not peel these, so a
+   * parenthesised equation still classifies `Other`; peeling here means
+   * `... ==> (P)` reads the same as `... ==> P`. */
+  | Parens(e)
+  | Projector(_, e)
+  | Asc(e, _) => bool_shape(e)
+  | Atom(Bool(_)) => Boolean
+  | Atom(Int(_) | Nat(_) | SInt(_) | Float(_) | String(_)) => NotBoolean
+  | UnOp(op, _) => bool_result_un(op) ? Boolean : NotBoolean
+  | BinOp(op, _, _) => bool_result_bin(op) ? Boolean : NotBoolean
+  | ListLit(_)
+  | Tuple(_)
+  | Cons(_, _)
+  | ListConcat(_, _)
+  | Fun(_, _, _, _)
+  | FunWhere(_, _, _)
+  | TypFun(_, _, _)
+  | ProofObject(_) => NotBoolean
+  | _ => Unclear
+  };
+
+/* Is `e` a boolean proposition — i.e. does the `e == true` reading
+ * apply? Mirrors `ProofCheck.is_float_typed`'s shape: the info map when
+ * it has an answer, the syntactic head otherwise. */
+let is_bool_prop = (~info_map: option(Statics.Map.t)=None, e: Exp.t): bool =>
+  switch (bool_shape(e)) {
+  | Boolean => true
+  | NotBoolean => false
+  | Unclear =>
+    switch (info_map) {
+    | None => false
+    | Some(info_map) =>
+      switch (Statics.Map.ty_of(Exp.rep_id(e), info_map)) {
+      | Some(ty) =>
+        switch (Typ.term_of(ty)) {
+        | Atom(Bool) => true
+        | _ => false
+        }
+      | None => false
+      }
     }
   };
+
+/* Grant the reading. `Other(P)` becomes `BoolFact(P)` when `P` is a
+ * boolean proposition; anything the gate cannot settle stays `Other`,
+ * i.e. inert — a rule we cannot type is not silently turned into a
+ * rewrite. */
+let with_bool_fact_reading =
+    (~info_map: option(Statics.Map.t)=None, rule: t): t =>
+  switch (rule.conclusion) {
+  | Equality(_, _)
+  | BoolFact(_) => rule
+  | Other(e) =>
+    is_bool_prop(~info_map, e)
+      ? {
+        ...rule,
+        conclusion: BoolFact(e),
+      }
+      : rule
+  };
+
+/* The proposition a rule is being read as `== true`, for display. */
+let bool_reading = (rule: t): option(Exp.t) =>
+  switch (rule.conclusion) {
+  | BoolFact(e) => Some(e)
+  | Equality(_, _)
+  | Other(_) => None
+  };
+
+/* ... and that reading as an expression, so display can render the
+ * equation the checker actually uses rather than describe it in prose. */
+let bool_reading_exp = (rule: t): option(Exp.t) =>
+  bool_reading(rule)
+  |> Option.map(e =>
+       Exp.fresh(BinOp(Poly(Equals), e, Exp.fresh(Atom(Bool(true)))))
+     );
 
 let typ_to_rule = (typ: Typ.t): option(t) =>
   switch (typ |> Typ.term_of) {
@@ -175,9 +323,14 @@ let wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
     body,
   );
 
+/* The rule's conclusion AS WRITTEN. A `BoolFact` prints as the bare
+ * boolean, not as the equation it is read as — the reading is an
+ * interpretation of the statement, not part of it, so `rule_to_exp` /
+ * `rule_to_typ` still round-trip to the user's own text. */
 let conclusion_exp = (rule: t): Exp.t =>
   switch (rule.conclusion) {
   | Equality(e1, e2) => Exp.fresh(BinOp(Poly(Equals), e1, e2))
+  | BoolFact(e)
   | Other(e) => e
   };
 
@@ -262,35 +415,56 @@ let seed_binding =
  * (all-unassigned) match context, which is how an explicit `with` clause
  * is seeded. */
 let can_eq_inst =
-    (~info_map, ~env, ~bindings=?, rule: t, exp: Exp.t)
+    (~info_map, ~env, ~bindings=?, ~reverse=false, rule: t, exp: Exp.t)
     : (
         option((Exp.t, MatchExp.match_ctx)),
         option((Exp.t, MatchExp.match_ctx)),
       ) => {
+  let bindings =
+    switch (bindings) {
+    | Some(b) => b
+    | None => get_empty_bindings(rule.bindings)
+    };
+  let via = (from, to_) =>
+    MatchExp.match_exp(
+      ~info_map,
+      ~exp_env=env,
+      ~exp_r_ctx=bindings,
+      from,
+      exp,
+    )
+    |> Option.map(mctx => (MatchExp.substitute_exp(mctx, to_), mctx));
   switch (rule.conclusion) {
-  | Equality(a, b) =>
-    let bindings =
-      switch (bindings) {
-      | Some(b) => b
-      | None => get_empty_bindings(rule.bindings)
-      };
-    let via = (from, to_) =>
-      MatchExp.match_exp(
-        ~info_map,
-        ~exp_env=env,
-        ~exp_r_ctx=bindings,
-        from,
-        exp,
-      )
-      |> Option.map(mctx => (MatchExp.substitute_exp(mctx, to_), mctx));
-    (via(b, a), via(a, b));
+  /* `Left`/`Right` are `axiomrev`/`axiom` (Conversion.re): Right matches
+   * the LHS and rewrites to the RHS. */
+  | Equality(a, b) => (via(b, a), via(a, b))
+  /* Read as `P == true`. Forward (`axiom`) matches `P` and rewrites it
+   * to `true` — the direction that does the work.
+   *
+   * Reverse (`axiomrev`) rewrites a `true` in the goal to `P`. It is
+   * SOUND — the rule holds, so `true` and `P` denote the same value at
+   * any instantiation — but `true` occurs everywhere, so offering it
+   * during rule DISCOVERY would make every bare-boolean rule "active"
+   * at every `true` in the goal. It is therefore gated on `~reverse`,
+   * which only an explicit citation turns on: an `axiomrev` step names
+   * the rule, the direction and the occurrence index, so the noise is
+   * the user's own choice. Note this direction adds no new hazard
+   * class: `or_true`/`impl_true`/`false_impl` are equations whose RHS
+   * is literally `true`, so reverse-matching on `true` (and leaving the
+   * rule's own metavariables to a Phase-4d `with` clause) is already
+   * how those are used. */
+  | BoolFact(p) => (
+      reverse ? via(Exp.fresh(Atom(Bool(true))), p) : None,
+      via(p, Exp.fresh(Atom(Bool(true)))),
+    )
   | Other(_) => (None, None)
   };
 };
 
 let can_eq =
-    (~info_map, ~env, rule: t, exp: Exp.t): (option(Exp.t), option(Exp.t)) => {
-  let (l, r) = can_eq_inst(~info_map, ~env, rule, exp);
+    (~info_map, ~env, ~reverse=false, rule: t, exp: Exp.t)
+    : (option(Exp.t), option(Exp.t)) => {
+  let (l, r) = can_eq_inst(~info_map, ~env, ~reverse, rule, exp);
   (Option.map(fst, l), Option.map(fst, r));
 };
 

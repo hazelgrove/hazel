@@ -49,8 +49,8 @@ open Test_Evaluator_Prelude;
  * distribution, and a `FRICTION:` note naming the precise missing
  * vocabulary. Plus, so the study is not purely negative:
  *   - each lemma's TRUE branch is genuinely closed in-language (the
- *     bool split does substitute in the goal, and `refl_eq` finishes),
- *     so exactly half of each proof is real;
+ *     bool split does substitute in the goal, leaving the literal
+ *     `true`), so exactly half of each proof is real;
  *   - `nonzero_of_pos`'s a1 == 0 sub-case closes outright by the
  *     Phase-4c ex-falso idiom (`test_zero_case_closes_by_ex_falso`);
  *   - every lemma's closed INSTANCES are fully proven by evaluation,
@@ -205,25 +205,36 @@ let is_evaluated = (ob: Obligation.t): bool => ob.discharge == Evaluated;
  * eye. `==>` is right-associative and the nested antecedent is written
  * WITHOUT parentheses on purpose — a `Parens` node there defeats
  * assume-intro (`test_pin_parens_defeat_assume_intro`), and the
- * paren-free form is also the exact shape `Axioms.foralls` builds. */
+ * paren-free form is also the exact shape `Axioms.foralls` builds.
+ *
+ * The conclusions are BARE BOOLEANS. They used to be written
+ * `((a1 != 0) == true)`, mirroring an `Axioms.re` that wrapped every
+ * closure lemma in `eq(..., tt)` so its conclusion would classify as an
+ * Equality and the checker would accept the rule. That `== true` is now
+ * the reading rather than the notation
+ * (`ProofRule.with_bool_fact_reading`), so both the library and these
+ * transcriptions say what they mean. The change is visible in the proof
+ * skeleton below: the bool split's true branch used to arrive at
+ * `true == true` and need a ceremonial `refl_eq`; it now arrives at
+ * `true` and is simply done. */
 
-/* forall("a", gt0(a) ==>> eq(neq0(a), tt)) */
-let stmt_nonzero_of_pos = "forall a1 -> a1 > 0 ==> ((a1 != 0) == true)";
+/* forall("a", gt0(a) ==>> neq0(a)) */
+let stmt_nonzero_of_pos = "forall a1 -> a1 > 0 ==> a1 != 0";
 
-/* forall("a", lt0(a) ==>> eq(neq0(a), tt)) */
-let stmt_nonzero_of_neg = "forall a1 -> a1 < 0 ==> ((a1 != 0) == true)";
+/* forall("a", lt0(a) ==>> neq0(a)) */
+let stmt_nonzero_of_neg = "forall a1 -> a1 < 0 ==> a1 != 0";
 
-/* foralls(["a","b"], neq0(a) ==>> (neq0(b) ==>> eq(neq0(mul(a,b)), tt))) */
-let stmt_nonzero_mul = "forall a1 -> forall b1 -> a1 != 0 ==> b1 != 0 ==> ((a1 * b1 != 0) == true)";
+/* foralls(["a","b"], neq0(a) ==>> (neq0(b) ==>> neq0(mul(a,b)))) */
+let stmt_nonzero_mul = "forall a1 -> forall b1 -> a1 != 0 ==> b1 != 0 ==> a1 * b1 != 0";
 
-/* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> eq(gt0(mul(a,b)), tt))) */
-let stmt_pos_mul = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> ((a1 * b1 > 0) == true)";
+/* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> gt0(mul(a,b)))) */
+let stmt_pos_mul = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> a1 * b1 > 0";
 
-/* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> eq(gt0(add(a,b)), tt))) */
-let stmt_pos_add = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> ((a1 + b1 > 0) == true)";
+/* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> gt0(add(a,b)))) */
+let stmt_pos_add = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> a1 + b1 > 0";
 
-/* foralls(["a","b"], gt0(a) ==>> (geq0(b) ==>> eq(gt0(pow(a,b)), tt))) */
-let stmt_pow_pos = "forall a1 -> forall b1 -> a1 > 0 ==> b1 >= 0 ==> ((a1 ** b1 > 0) == true)";
+/* foralls(["a","b"], gt0(a) ==>> (geq0(b) ==>> gt0(pow(a,b)))) */
+let stmt_pow_pos = "forall a1 -> forall b1 -> a1 > 0 ==> b1 >= 0 ==> a1 ** b1 > 0";
 
 let theorem = (name: string, stmt: string, proof: string): string =>
   "theorem " ++ name ++ " = " ++ stmt ++ " proof " ++ proof ++ " in " ++ name;
@@ -231,22 +242,27 @@ let theorem = (name: string, stmt: string, proof: string): string =>
 /* --- Section B: the six partial proofs ---------------------------------- */
 
 /* The shared proof skeleton. The goal core of every closure lemma is
- * `(P == true)`, so:
+ * the bare predicate `P`, so:
  *   1. assume-intro each antecedent (free: no obligation, §2.1);
  *   2. bool-split on P itself. The split DOES substitute in the goal
  *      here (P is written exactly as it appears, no env inlining
  *      involved, unlike the STLC milestone's computed scrutinees), so
- *      the branches come out as `true == true` and `false == true`;
- *   3. the true branch closes outright by `refl_eq`;
+ *      the branches come out as the literals `true` and `false`;
+ *   3. the true branch is then ALREADY the goal `true` and closes with
+ *      no step at all — the hole passes it through
+ *      (`ProofCheck`'s EmptyHole case). Under the old `(P == true)`
+ *      spelling this branch arrived at `true == true` and needed a
+ *      `refl_eq` step whose only job was to undo the `== true` the
+ *      statement never needed;
  *   4. the false branch is where the arithmetic content lives, and it
  *      is exactly where the vocabulary runs out.
  *
  * FRICTION (all six, one shared wall): in the false branch the goal is
- * `false == true` with the split's `case_eq` (`P == false`) and the
- * intro'd antecedents in scope. Closing it means deriving a
- * contradiction between two DIFFERENT arithmetic comparisons over a
- * symbolic Int (e.g. `a1 > 0` against `(a1 != 0) == false`). Every
- * available move fails, and for one reason each:
+ * `false` with the split's `case_eq` (`P == false`) and the intro'd
+ * antecedents in scope. Closing it means deriving a contradiction
+ * between two DIFFERENT arithmetic comparisons over a symbolic Int
+ * (e.g. `a1 > 0` against `(a1 != 0) == false`). Every available move
+ * fails, and for one reason each:
  *   - REWRITING needs an equation mentioning both comparisons. The only
  *     such equations in scope are the six closure lemmas themselves
  *     (circular); the Kleene axiom set is purely boolean and `refl_eq`
@@ -254,7 +270,7 @@ let theorem = (name: string, stmt: string, proof: string): string =>
  *   - EVALUATION (channel 2) is stuck: `a1 > 0` on a symbolic `a1`
  *     yields `NothingToStep`, so `revert`ing the antecedent into the
  *     goal (the Phase-4c ex-falso idiom) produces
- *     `a1 > 0 ==> (false == true)` and then cannot falsify the
+ *     `a1 > 0 ==> false` and then cannot falsify the
  *     antecedent. Ex falso works only once `a1` is a literal — see
  *     `test_zero_case_closes_by_ex_falso`, which closes the a1 == 0
  *     sub-case that way.
@@ -274,9 +290,7 @@ let partial_proof = (antecedents: list(string), predicate: string): string =>
   List.fold_right(
     (a, rest) => "assume " ++ a ++ " => " ++ rest,
     antecedents,
-    "induction "
-    ++ predicate
-    ++ " | true => axiom refl_eq at 0 on true == true end | false => ? end",
+    "induction " ++ predicate ++ " | true => ? | false => ? end",
   );
 
 let src_nonzero_of_pos =
@@ -393,7 +407,24 @@ let test_pow_pos_partial = () => {
 
 /* The half that IS proven: assert positively that the true branch of
  * each split reaches literal `true`, so "Incomplete" above is one open
- * branch rather than a proof that never started. */
+ * branch rather than a proof that never started. With the bare-boolean
+ * statement the branch is closed BY THE SPLIT — its goal is already
+ * `true` — which is the whole visible effect of retiring the `== true`
+ * notation.
+ *
+ * The false branch pins the OTHER visible effect, and it is worth
+ * stating plainly: its goal is now the literal `false` rather than
+ * `false == true`, and `ProofMap.status_of_proof` reads a `false`
+ * outgoing as Refuted. So the open branch of a partially-proven
+ * bare-boolean lemma reports `Some(false)`, not `None`. Nothing is
+ * unsound and the THEOREM's own status is unaffected (`check_partial`
+ * pins it Incomplete): the branch really has been driven to `false`,
+ * and what remains is to contradict it against the split's `case_eq`,
+ * which is exactly the missing Phase-5 vocabulary. But it means a
+ * partial proof of such a lemma shows a "disproven" branch in the
+ * stepper where the `== true` spelling showed an unknown one — a
+ * presentation question for whoever renders per-branch status, not a
+ * checker one. */
 let test_true_branch_is_really_closed = () => {
   let (pm, proof) = run_named("nonzero_of_pos_proved", src_nonzero_of_pos);
   let rec find_induction = (p: Proof.t): option(Proof.t) =>
@@ -420,8 +451,8 @@ let test_true_branch_is_really_closed = () => {
     );
     Alcotest.check(
       Alcotest.option(bool),
-      "the false branch is the open one",
-      None,
+      "the false branch is the open one, driven to the literal `false`",
+      Some(false),
       ProofMap.status_of_proof(pm, false_body),
     );
   | _ => Alcotest.fail("expected a two-case bool split\n" ++ dump(pm, proof))
@@ -481,7 +512,7 @@ let test_pin_no_numeric_induction_hypothesis = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = forall a1: Nat -> ((a1 != 0) == true) proof induction a1 "
+      "theorem t = forall a1: Nat -> a1 != 0 proof induction a1 "
       ++ "| 0 => ? | n => axiom ih at 0 on n != 0 end end in t",
     );
   if (!
@@ -522,8 +553,7 @@ let test_pin_algebrite_launders_the_lemma = () => {
       theorem(
         "t",
         stmt_nonzero_of_pos,
-        "assume a1 > 0 => rewrite a1 != 0 with true at 0 end; "
-        ++ "axiom refl_eq at 0 on true == true end",
+        "assume a1 > 0 => rewrite a1 != 0 with true at 0 end",
       ),
     );
   check_full_status(
@@ -547,7 +577,7 @@ let test_pin_algebrite_launders_the_lemma = () => {
  * used throughout this file avoids it. Cheap fix when someone wants it:
  * peel Parens in the intro test. */
 let test_pin_parens_defeat_assume_intro = () => {
-  let parenthesised = "forall a1 -> forall b1 -> a1 != 0 ==> (b1 != 0 ==> ((a1 * b1 != 0) == true))";
+  let parenthesised = "forall a1 -> forall b1 -> a1 != 0 ==> (b1 != 0 ==> a1 * b1 != 0)";
   let (pm, proof) =
     run_named(
       "t",
@@ -596,10 +626,10 @@ let ex_falso_src =
     "t",
     stmt_nonzero_of_pos,
     "assume a1 > 0 => induction a1 != 0 "
-    ++ "| true => axiom refl_eq at 0 on true == true end "
+    ++ "| true => ? "
     ++ "| false => induction a1 "
     ++ "| 0 => revert a1 > 0 => axiom case_eq' at 0 on a1 end; "
-    ++ "eval 0 > 0 at 0 end; eval false ==> (false == true) at 0 end "
+    ++ "eval 0 > 0 at 0 end; eval false ==> false at 0 end "
     ++ "| n => ? end end",
   );
 
@@ -670,18 +700,18 @@ let closed_instance = (name: string, fact: string): string =>
   );
 
 let instances: list((string, string)) = [
-  ("nonzero_of_pos_at_7", "7 > 0 ==> ((7 != 0) == true)"),
-  ("nonzero_of_pos_at_1", "1 > 0 ==> ((1 != 0) == true)"),
-  ("nonzero_of_neg_at_neg3", "-3 < 0 ==> ((-3 != 0) == true)"),
-  ("nonzero_of_neg_at_neg1", "-1 < 0 ==> ((-1 != 0) == true)"),
-  ("nonzero_mul_at_2_3", "2 != 0 ==> 3 != 0 ==> ((2 * 3 != 0) == true)"),
-  ("nonzero_mul_at_neg2_5", "-2 != 0 ==> 5 != 0 ==> ((-2 * 5 != 0) == true)"),
-  ("pos_mul_at_2_3", "2 > 0 ==> 3 > 0 ==> ((2 * 3 > 0) == true)"),
-  ("pos_mul_at_1_1", "1 > 0 ==> 1 > 0 ==> ((1 * 1 > 0) == true)"),
-  ("pos_add_at_2_3", "2 > 0 ==> 3 > 0 ==> ((2 + 3 > 0) == true)"),
-  ("pos_add_at_1_7", "1 > 0 ==> 7 > 0 ==> ((1 + 7 > 0) == true)"),
-  ("pow_pos_at_2_3", "2 > 0 ==> 3 >= 0 ==> ((2 ** 3 > 0) == true)"),
-  ("pow_pos_at_5_0", "5 > 0 ==> 0 >= 0 ==> ((5 ** 0 > 0) == true)"),
+  ("nonzero_of_pos_at_7", "7 > 0 ==> 7 != 0"),
+  ("nonzero_of_pos_at_1", "1 > 0 ==> 1 != 0"),
+  ("nonzero_of_neg_at_neg3", "-3 < 0 ==> -3 != 0"),
+  ("nonzero_of_neg_at_neg1", "-1 < 0 ==> -1 != 0"),
+  ("nonzero_mul_at_2_3", "2 != 0 ==> 3 != 0 ==> 2 * 3 != 0"),
+  ("nonzero_mul_at_neg2_5", "-2 != 0 ==> 5 != 0 ==> -2 * 5 != 0"),
+  ("pos_mul_at_2_3", "2 > 0 ==> 3 > 0 ==> 2 * 3 > 0"),
+  ("pos_mul_at_1_1", "1 > 0 ==> 1 > 0 ==> 1 * 1 > 0"),
+  ("pos_add_at_2_3", "2 > 0 ==> 3 > 0 ==> 2 + 3 > 0"),
+  ("pos_add_at_1_7", "1 > 0 ==> 7 > 0 ==> 1 + 7 > 0"),
+  ("pow_pos_at_2_3", "2 > 0 ==> 3 >= 0 ==> 2 ** 3 > 0"),
+  ("pow_pos_at_5_0", "5 > 0 ==> 0 >= 0 ==> 5 ** 0 > 0"),
 ];
 
 let check_instance = ((name, fact)): unit => {

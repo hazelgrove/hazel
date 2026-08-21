@@ -105,13 +105,19 @@ let axioms: list((string, Exp.t)) = [
   ("false_impl", forall("a", eq(ff ==>> a, tt))),
   /* --- Closure-lemma library (Phase 3b; §4.2 channel 3) ---------------
    *
-   * Guarded equality-form axioms: the conclusion is an Equality
-   * (`P == true`), so each is an ordinary CONDITIONAL rewrite rule
-   * applied through the same axiom-step machinery — rewriting `P` to
-   * `true` incurs the antecedents as obligations (Phase 2
-   * apply-with-obligation). Today they are manual axiom steps; the
-   * (!)-menu proposal UI is later. Note the compositional payoff:
-   * applying `nonzero_mul` incurs `a != 0` / `b != 0`, which are
+   * Guarded lemmas stated with BARE-BOOLEAN conclusions. Each is an
+   * ordinary CONDITIONAL rewrite rule applied through the same
+   * axiom-step machinery: a cited rule concluding `P` reads as
+   * `P == true` (`ProofRule.with_bool_fact_reading`), so rewriting `P`
+   * to `true` incurs the antecedents as obligations (Phase 2
+   * apply-with-obligation). These used to be written
+   * `... ==> ((a * b != 0) == true)` — notation that existed only so the
+   * conclusion would classify as an Equality and the checker would
+   * accept the rule. With the reading first-class the `== true` is
+   * gone; the lemmas now say what they mean. Today they are manual
+   * axiom steps; the (!)-menu proposal UI is later. Note the
+   * compositional payoff: applying `nonzero_mul` incurs
+   * `a != 0` / `b != 0`, which are
    * themselves discharged through the same channels — obligations about
    * obligations, one mechanism.
    *
@@ -124,38 +130,26 @@ let axioms: list((string, Exp.t)) = [
    * with any guard undefined/false the rule simply cannot be
    * legitimately applied (its obligation cannot be discharged).
    *
-   * Deliberately absent: `nonneg_pow : b >= 0 ==> ((a ** b >= 0) ==
-   * true)` is INVALID for negative bases — (-2) ** 3 == -8 < 0 — so the
+   * Deliberately absent: `nonneg_pow : b >= 0 ==> a ** b >= 0` is
+   * INVALID for negative bases — (-2) ** 3 == -8 < 0 — so the
    * positive-base `pow_pos` ships instead. */
   (
     "nonzero_mul",
-    foralls(
-      ["a", "b"],
-      neq0(a) ==>> (neq0(b) ==>> eq(neq0(mul(a, b)), tt)),
-    ),
+    foralls(["a", "b"], neq0(a) ==>> (neq0(b) ==>> neq0(mul(a, b)))),
   ),
-  ("nonzero_of_pos", forall("a", gt0(a) ==>> eq(neq0(a), tt))),
-  ("nonzero_of_neg", forall("a", lt0(a) ==>> eq(neq0(a), tt))),
+  ("nonzero_of_pos", forall("a", gt0(a) ==>> neq0(a))),
+  ("nonzero_of_neg", forall("a", lt0(a) ==>> neq0(a))),
   (
     "pos_mul",
-    foralls(
-      ["a", "b"],
-      gt0(a) ==>> (gt0(b) ==>> eq(gt0(mul(a, b)), tt)),
-    ),
+    foralls(["a", "b"], gt0(a) ==>> (gt0(b) ==>> gt0(mul(a, b)))),
   ),
   (
     "pos_add",
-    foralls(
-      ["a", "b"],
-      gt0(a) ==>> (gt0(b) ==>> eq(gt0(add(a, b)), tt)),
-    ),
+    foralls(["a", "b"], gt0(a) ==>> (gt0(b) ==>> gt0(add(a, b)))),
   ),
   (
     "pow_pos",
-    foralls(
-      ["a", "b"],
-      gt0(a) ==>> (geq0(b) ==>> eq(gt0(pow(a, b)), tt)),
-    ),
+    foralls(["a", "b"], gt0(a) ==>> (geq0(b) ==>> gt0(pow(a, b)))),
   ),
 ];
 
