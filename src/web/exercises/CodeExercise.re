@@ -87,7 +87,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     your_impl: f(p.your_impl),
     hidden_bugs:
       p.hidden_bugs
-      |> List.map(wrong_impl => {
+      |> List.map(~f=wrong_impl => {
            {
              impl: f_hidden(wrong_impl.impl),
              hint: wrong_impl.hint,
@@ -145,7 +145,7 @@ let main_editor_of_state = (~selection: pos, eds) =>
   | YourImpl => eds.your_impl
   | HiddenBugs(i) =>
     switch (clamp_idx(eds, i)) {
-    | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
+    | Some(idx) => List.nth_exn(eds.hidden_bugs, idx).impl
     | None => eds.your_impl
     }
   | HiddenTests => eds.hidden_tests.tests
@@ -179,7 +179,7 @@ let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
         Util.ListUtil.put_nth(
           n,
           {
-            ...List.nth(eds.hidden_bugs, n),
+            ...List.nth_exn(eds.hidden_bugs, n),
             impl: editor,
           },
           eds.hidden_bugs,
@@ -202,7 +202,7 @@ let editors = eds =>
     eds.your_tests.tests,
     eds.your_impl,
   ]
-  @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
+  @ List.map(~f=wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
 /* NOTE: YourTestsValidation is listed before YourTestsTesting because
@@ -213,11 +213,11 @@ let editors = eds =>
    one. */
 let editor_positions = (eds: p('a)) =>
   [Prelude, CorrectImpl, YourTestsValidation, YourTestsTesting, YourImpl]
-  @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
+  @ List.mapi(~f=(i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 
 let positioned_editors = state =>
-  List.combine(editor_positions(state), editors(state));
+  List.zip_exn(editor_positions(state), editors(state));
 
 let eds_of_spec =
     (
@@ -251,7 +251,7 @@ let eds_of_spec =
   let your_impl = editor_of_serialization(your_impl);
   let hidden_bugs =
     hidden_bugs
-    |> List.map(({impl, hint}) => {
+    |> List.map(~f=({impl, hint}) => {
          let impl = editor_of_serialization(impl);
          {
            impl,
@@ -326,7 +326,8 @@ let delete_buggy_impl = (state: state, index: int) => {
   {
     eds: {
       ...state.eds,
-      hidden_bugs: List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+      hidden_bugs:
+        List.filteri(~f=(i, _) => i != index, state.eds.hidden_bugs),
     },
   };
 };
@@ -356,16 +357,17 @@ let update_mut_test_rep =
     ({eds}: state, new_dist: int, new_hints: list(string)) => {
   let updated_bugs =
     List.mapi(
-      (i, bug) => {
-        let new_hint = List.nth_opt(new_hints, i);
-        switch (new_hint) {
-        | Some(hint_string) => {
-            ...bug,
-            hint: hint_string,
-          }
-        | None => bug
-        };
-      },
+      ~f=
+        (i, bug) => {
+          let new_hint = List.nth(new_hints, i);
+          switch (new_hint) {
+          | Some(hint_string) => {
+              ...bug,
+              hint: hint_string,
+            }
+          | None => bug
+          };
+        },
       eds.hidden_bugs,
     );
   {
@@ -402,13 +404,14 @@ let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
     ...eds,
     syntax_tests:
       List.mapi(
-        (i, (_, predicate)) => {
-          let new_hint = List.nth_opt(new_hints, i);
-          switch (new_hint) {
-          | Some(hint) => (hint, predicate)
-          | None => ("No Hint Provided", predicate)
-          };
-        },
+        ~f=
+          (i, (_, predicate)) => {
+            let new_hint = List.nth(new_hints, i);
+            switch (new_hint) {
+            | Some(hint) => (hint, predicate)
+            | None => ("No Hint Provided", predicate)
+            };
+          },
         eds.syntax_tests,
       ),
   },
@@ -451,7 +454,7 @@ let map_stitched = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) => {
   user_tests: f(YourTestsTesting, s.user_tests),
   prelude: f(Prelude, s.prelude),
   instructor: f(CorrectImpl, s.instructor),
-  hidden_bugs: List.mapi((i, p) => f(HiddenBugs(i), p), s.hidden_bugs),
+  hidden_bugs: List.mapi(~f=(i, p) => f(HiddenBugs(i), p), s.hidden_bugs),
   hidden_tests: f(HiddenTests, s.hidden_tests),
 };
 
@@ -462,7 +465,7 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
   | YourTestsTesting => s.user_tests
   | Prelude => s.prelude
   | CorrectImpl => s.instructor
-  | HiddenBugs(i) => List.nth(s.hidden_bugs, i)
+  | HiddenBugs(i) => List.nth_exn(s.hidden_bugs, i)
   | HiddenTests => s.hidden_tests
   };
 
@@ -564,8 +567,9 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     instructor: wrap(instructor, eds.correct_impl),
     hidden_bugs:
       List.map(
-        (t): TermItem.t =>
-          wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
+        ~f=
+          (t): TermItem.t =>
+            wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
         eds.hidden_bugs,
       ),
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
@@ -598,12 +602,12 @@ let pos_of_key = (key: string): pos =>
   | _ when String.equal(key, user_impl_key) => YourImpl
   | _ when String.equal(key, user_tests_key) => YourTestsTesting
   | _ when String.equal(key, instructor_key) => CorrectImpl
-  | _ when String.starts_with(key, ~prefix="hidden_bugs_") =>
+  | _ when String.is_prefix(key, ~prefix="hidden_bugs_") =>
     let n =
       String.sub(
         key,
-        String.length("hidden_bugs_"),
-        String.length(key) - String.length("hidden_bugs_"),
+        ~pos=String.length("hidden_bugs_"),
+        ~len=String.length(key) - String.length("hidden_bugs_"),
       );
     HiddenBugs(int_of_string(n));
   | _ when String.equal(key, hidden_tests_key) => HiddenTests
@@ -658,7 +662,7 @@ let blank_spec =
   let hidden_bugs =
     List.init(
       num_wrong_impls,
-      i => {
+      ~f=i => {
         let zipper = Zipper.init();
         {
           impl: zipper,
@@ -693,13 +697,13 @@ let blank_spec =
 let persist = (state: state, ~instructor_mode: bool) => {
   let zippers =
     positioned_editors(state.eds)
-    |> List.filter(((pos, _)) => is_editable(pos, ~instructor_mode))
-    |> List.map(((pos, editor: Editor.t)) => {
+    |> List.filter(~f=((pos, _)) => is_editable(pos, ~instructor_mode))
+    |> List.map(~f=((pos, editor: Editor.t)) => {
          (pos, PersistentZipper.persist(editor.state.zipper))
        });
   let persistent_hidden_bugs =
     state.eds.hidden_bugs
-    |> List.map(({impl, hint}: wrong_impl(Editor.t)) => {
+    |> List.map(~f=({impl, hint}: wrong_impl(Editor.t)) => {
          {
            impl: PersistentZipper.persist(impl.state.zipper),
            hint,
@@ -737,7 +741,7 @@ let unpersist =
     : state => {
   let lookup = (pos, default) =>
     if (is_editable(pos, ~instructor_mode)) {
-      switch (List.assoc_opt(pos, editors)) {
+      switch (List.Assoc.find(editors, pos, ~equal=Poly.equal)) {
       | Some(persisted_zipper) =>
         let zipper = PersistentZipper.unpersist(persisted_zipper, ~root=Exp);
         Editor.Model.mk(zipper, ~root=Exp);
@@ -752,7 +756,7 @@ let unpersist =
   let your_impl = lookup(YourImpl, spec.your_impl);
   let hidden_bugs =
     hidden_bugs
-    |> List.map(({impl, hint}) => {
+    |> List.map(~f=({impl, hint}) => {
          let impl =
            Editor.Model.mk(
              PersistentZipper.unpersist(impl, ~root=Exp),

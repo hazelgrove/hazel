@@ -56,7 +56,9 @@ let columns: list(PerfFormat.column(EvalMetrics.record)) = [
     label: "resp",
     tooltip: "Encoded response size — bytes of the Marshal payload received back.",
     cell: r =>
-      PerfFormat.opt_cell(Option.map(PerfFormat.bytes_cell, r.resp_bytes)),
+      PerfFormat.opt_cell(
+        Option.map(~f=PerfFormat.bytes_cell, r.resp_bytes),
+      ),
   },
 ];
 
@@ -71,5 +73,5 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
           EvalMetrics.restarts^,
         ),
       ),
-    List.map(r => PerfFormat.Row(r), EvalMetrics.history^),
+    List.map(~f=r => PerfFormat.Row(r), EvalMetrics.history^),
   );

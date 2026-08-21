@@ -75,9 +75,10 @@ let get_active_llm_id = (model: Model.t): option(string) => {
 let context_length_for_active = (model: Model.t): option(int) => {
   let from_catalog = (id: string): option(int) =>
     switch (
-      List.find_opt(
-        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
-          String.equal(m.id, id),
+      List.find(
+        ~f=
+          (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+            String.equal(m.id, id),
         model.available_llms,
       )
     ) {
@@ -101,14 +102,14 @@ let default_context_meter_max_tokens = 100_000;
 let effective_context_meter_limit = (raw_context_length: int): int => {
   let scaled = float_of_int(raw_context_length) *. 0.8;
   let rounded =
-    max(1000, int_of_float(Float.floor(scaled /. 1000.0)) * 1000);
+    max(1000, int_of_float(Stdlib.floor(scaled /. 1000.0)) * 1000);
   min(default_context_meter_max_tokens, rounded);
 };
 
 /** Like [context_length_for_active], but capped for UI / budgeting (see [effective_context_meter_limit]). */
 let context_meter_limit_for_active = (model: Model.t): option(int) =>
   Option.map(
-    effective_context_meter_limit,
+    ~f=effective_context_meter_limit,
     context_length_for_active(model),
   );
 
@@ -120,9 +121,10 @@ let active_supports_reasoning = (model: Model.t): bool => {
   | None => false
   | Some(llm) =>
     switch (
-      List.find_opt(
-        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
-          String.equal(m.id, llm.id),
+      List.find(
+        ~f=
+          (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+            String.equal(m.id, llm.id),
         model.available_llms,
       )
     ) {

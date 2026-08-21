@@ -43,35 +43,46 @@ let empty_sections = {
 
 let parse_flags = (s: sections, body: string): sections => {
   let toks =
-    String.split_on_char('\n', body)
-    |> List.concat_map(String.split_on_char(' '))
-    |> List.map(String.trim)
-    |> List.filter(t => t != "");
+    String.split(body, ~on='\n')
+    |> List.concat_map(~f=String.split(~on=' '))
+    |> List.map(~f=String.strip)
+    |> List.filter(~f=t => !String.equal(t, ""));
   List.fold_left(
-    (acc, tok) =>
-      switch (tok) {
-      | "wrapper" => {
-          ...acc,
-          wrapper: true,
-        }
-      | "show_report" => {
-          ...acc,
-          show_report: true,
-        }
-      | _ when String.length(tok) > 8 && String.sub(tok, 0, 8) == "version=" => {
-          ...acc,
-          version:
-            try(int_of_string(String.sub(tok, 8, String.length(tok) - 8))) {
-            | _ => acc.version
-            },
-        }
-      | _ when String.length(tok) > 3 && String.sub(tok, 0, 3) == "id=" => {
-          ...acc,
-          id: Some(String.sub(tok, 3, String.length(tok) - 3)),
-        }
-      | _ => acc
-      },
-    s,
+    ~f=
+      (acc, tok) =>
+        switch (tok) {
+        | "wrapper" => {
+            ...acc,
+            wrapper: true,
+          }
+        | "show_report" => {
+            ...acc,
+            show_report: true,
+          }
+        | _
+            when
+              String.length(tok) > 8
+              && String.equal(String.sub(tok, ~pos=0, ~len=8), "version=") => {
+            ...acc,
+            version:
+              try(
+                int_of_string(
+                  String.sub(tok, ~pos=8, ~len=String.length(tok) - 8),
+                )
+              ) {
+              | _ => acc.version
+              },
+          }
+        | _
+            when
+              String.length(tok) > 3
+              && String.equal(String.sub(tok, ~pos=0, ~len=3), "id=") => {
+            ...acc,
+            id: Some(String.sub(tok, ~pos=3, ~len=String.length(tok) - 3)),
+          }
+        | _ => acc
+        },
+    ~init=s,
     toks,
   );
 };
@@ -92,7 +103,7 @@ type marker =
   | Flags;
 
 let marker_of_line = (line: string): option(marker) =>
-  switch (String.trim(line)) {
+  switch (String.strip(line)) {
   | "@title" => Some(Title)
   | "@prompt" => Some(Prompt)
   | "@code" => Some(Code)
@@ -106,14 +117,15 @@ let marker_of_line = (line: string): option(marker) =>
 
 /* Every content line tagged with the section it fell in, in file order. */
 let tag_lines = (content: string): list((marker, string)) =>
-  String.split_on_char('\n', content)
+  String.split(content, ~on='\n')
   |> List.fold_left(
-       ((tagged, cur), line) =>
-         switch (marker_of_line(line)) {
-         | Some(m) => (tagged, m)
-         | None => ([(cur, line), ...tagged], cur)
-         },
-       ([], Code),
+       ~f=
+         ((tagged, cur), line) =>
+           switch (marker_of_line(line)) {
+           | Some(m) => (tagged, m)
+           | None => ([(cur, line), ...tagged], cur)
+           },
+       ~init=([], Code),
      )
   |> fst
   |> List.rev;
@@ -121,30 +133,30 @@ let tag_lines = (content: string): list((marker, string)) =>
 /* One section's lines, newline-terminated, in file order; "" if it has none. */
 let body = (tagged: list((marker, string)), m: marker): string =>
   tagged
-  |> List.filter_map(((m', line)) =>
+  |> List.filter_map(~f=((m', line)) =>
        equal_marker(m, m') ? Some(line ++ "\n") : None
      )
-  |> String.concat("");
+  |> String.concat(~sep="");
 
 let parse_sections = (content: string): sections => {
   let body = body(tag_lines(content));
   let trimmed_opt = (section: string): option(string) =>
-    switch (String.trim(section)) {
+    switch (String.strip(section)) {
     | "" => None
     | s => Some(s)
     };
   let s = {
     ...empty_sections,
-    title: String.trim(body(Title)),
-    prompt: String.trim(body(Prompt)),
+    title: String.strip(body(Title)),
+    prompt: String.strip(body(Prompt)),
     code: body(Code),
-    test: String.trim(body(Test)),
-    hint: String.trim(body(Hint)),
+    test: String.strip(body(Test)),
+    hint: String.strip(body(Hint)),
     reference: trimmed_opt(body(Reference)),
     hints:
-      String.split_on_char('\n', body(Hints))
-      |> List.map(String.trim)
-      |> List.filter(h => h != ""),
+      String.split(body(Hints), ~on='\n')
+      |> List.map(~f=String.strip)
+      |> List.filter(~f=h => !String.equal(h, "")),
   };
   parse_flags(s, body(Flags));
 };
@@ -158,58 +170,58 @@ let chop_lesson_ext = (rel: string): string =>
 
 let module_name_of = (rel: string): string => {
   let camel =
-    String.split_on_char('/', chop_lesson_ext(rel))
-    |> List.concat_map(String.split_on_char('-'))
-    |> List.map(String.capitalize_ascii)
-    |> String.concat("");
+    String.split(chop_lesson_ext(rel), ~on='/')
+    |> List.concat_map(~f=String.split(~on='-'))
+    |> List.map(~f=String.capitalize)
+    |> String.concat(~sep="");
   "TuGen_" ++ camel;
 };
 
 let cap_join = (words: list(string)): string =>
   words
-  |> List.filter(w => w != "")
-  |> List.map(String.capitalize_ascii)
-  |> String.concat(" ");
+  |> List.filter(~f=w => !String.equal(w, ""))
+  |> List.map(~f=String.capitalize)
+  |> String.concat(~sep=" ");
 
-let cap_words = (s: string): string =>
-  cap_join(String.split_on_char('-', s));
+let cap_words = (s: string): string => cap_join(String.split(s, ~on='-'));
 
 let starts_with_digit = (s: string): bool =>
   String.length(s) > 0
   && {
     let c = s.[0];
-    c >= '0' && c <= '9';
+    Char.(c >= '0' && c <= '9');
   };
 
 /* Fallback title when a slide has no `@title`: "01-holes" -> "01 - Holes";
    a category token ("task"/"extra") right after the number gets its own
    " - ": "26-task-grove-name" -> "26 - Task - Grove Name". Directory
    segments become the SlidePath folders the title sits in. */
-let is_category = (s: string): bool => s == "task" || s == "extra";
+let is_category = (s: string): bool =>
+  String.equal(s, "task") || String.equal(s, "extra");
 let title_of = (rel: string): string => {
-  let segs = String.split_on_char('/', chop_lesson_ext(rel));
+  let segs = String.split(chop_lesson_ext(rel), ~on='/');
   switch (List.rev(segs)) {
   | [] => ""
   | [last, ...rev_dirs] =>
     let file_title =
-      switch (String.split_on_char('-', last)) {
+      switch (String.split(last, ~on='-')) {
       | [num, cat, ...rest]
           when
             starts_with_digit(num)
             && is_category(cat)
-            && List.exists(w => w != "", rest) =>
-        num
-        ++ " - "
-        ++ String.capitalize_ascii(cat)
-        ++ " - "
-        ++ cap_join(rest)
+            && List.exists(~f=w => !String.equal(w, ""), rest) =>
+        num ++ " - " ++ String.capitalize(cat) ++ " - " ++ cap_join(rest)
       | [num, ...rest]
-          when starts_with_digit(num) && List.exists(w => w != "", rest) =>
+          when
+            starts_with_digit(num)
+            && List.exists(~f=w => !String.equal(w, ""), rest) =>
         num ++ " - " ++ cap_join(rest)
       | _ => cap_words(last)
       };
     let folders =
-      List.rev(rev_dirs) |> List.map(cap_words) |> List.filter(f => f != "");
+      List.rev(rev_dirs)
+      |> List.map(~f=cap_words)
+      |> List.filter(~f=f => !String.equal(f, ""));
     SlidePath.mk(~folders, file_title) |> SlidePath.to_string;
   };
 };
@@ -238,18 +250,19 @@ let zipper_of =
 let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
   let s = parse_sections(raw);
   /* Slide sources carry editor indentation; strip it (Hazel re-indents). */
-  let code = String.trim(Util.StringUtil.trim_leading(s.code));
+  let code = String.strip(Util.StringUtil.trim_leading(s.code));
   let test =
-    s.test == "" ? "test true end" : Util.StringUtil.trim_leading(s.test);
+    String.equal(s.test, "")
+      ? "test true end" : Util.StringUtil.trim_leading(s.test);
   {
     id:
-      Option.get(
+      Option.value_exn(
         Haz3lcore.Id.of_string(Option.value(s.id, ~default=id_string(i))),
       ),
-    title: s.title == "" ? title_of(rel) : s.title,
+    title: String.equal(s.title, "") ? title_of(rel) : s.title,
     version: s.version,
     module_name: module_name_of(rel),
-    prompt: s.prompt == "" ? default_prompt : s.prompt,
+    prompt: String.equal(s.prompt, "") ? default_prompt : s.prompt,
     display_hint: s.hint,
     task_reference: s.reference,
     your_impl:
@@ -263,4 +276,5 @@ let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
   };
 };
 
-let all: list(Tutorial.spec) = List.mapi(spec_of, Tutorialslides.Slides.all);
+let all: list(Tutorial.spec) =
+  List.mapi(~f=spec_of, Tutorialslides.Slides.all);
