@@ -47,11 +47,15 @@ and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
         let shape_eq = () => {
           let (la, ra) = ma.nibs;
           let (lb, rb) = mb.nibs;
-          la.shape == lb.shape && ra.shape == rb.shape;
+          Nib.Shape.equal(la.shape, lb.shape)
+          && Nib.Shape.equal(ra.shape, rb.shape);
         };
         switch (base) {
         | [] => shape_eq()
-        | _ => List.mem(ma, base) && List.mem(mb, base) || shape_eq()
+        | _ =>
+          List.exists(Mold.equal(ma), base)
+          && List.exists(Mold.equal(mb), base)
+          || shape_eq()
         };
       };
     ta.id == tb.id
@@ -517,7 +521,9 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          expression-level sequence inside a module. Future consideration: may want to remove
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
-          when Tile.is_semi(t) && List.exists((==)(Sort.Mod), parent_sorts) => (
+          when
+            Tile.is_semi(t)
+            && List.exists(Sort.equal(Sort.Mod), parent_sorts) => (
           [],
           shape,
           seg,
@@ -1063,7 +1069,8 @@ let rescan = (seg: t): t => {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
-              let entries = List.filter(((k, _)) => k != tok, entries);
+              let entries =
+                List.filter(((k, _)) => !String.equal(k, tok), entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
                 switch (entries, stack) {

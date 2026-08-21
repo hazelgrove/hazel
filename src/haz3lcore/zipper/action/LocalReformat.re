@@ -263,7 +263,13 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
         find_tiles(completed, full)
         |> List.filter_map((t: Tile.t) => {
              let child_plans = plan_tile(full, t);
-             List.exists(p => p != Leave, child_plans)
+             List.exists(
+               fun
+               | Leave => false
+               | Fix
+               | Shift(_) => true,
+               child_plans,
+             )
                ? Some((t.id, child_plans)) : None;
            })
         |> List.to_seq

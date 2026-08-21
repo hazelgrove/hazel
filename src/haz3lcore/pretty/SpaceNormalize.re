@@ -21,16 +21,17 @@ let tight_before = [")", "]", ",", ";", ">", "."];
 let self_delim = ["(", ")", "[", "]", ",", ";", "{", "}"];
 
 let is_symbolic = (t: Token.t): bool =>
-  !Token.is_wordish(t) && !List.mem(t, self_delim);
+  !Token.is_wordish(t) && !List.exists(String.equal(t), self_delim);
 
 /* Tokens that always deserve surrounding space when synthesized next
  * to something (keyword forms, rule delimiters) */
 let spaced = (t: Token.t): bool =>
-  Token.is_keyword(t) || List.mem(t, ["|", "=>"]);
+  Token.is_keyword(t) || List.exists(String.equal(t), ["|", "=>"]);
 
 /* Junctions where canonicalization deletes spacing entirely */
 let tight_junction = (prev: Token.t, next: Token.t): bool =>
-  List.mem(prev, tight_after) || List.mem(next, tight_before);
+  List.exists(String.equal(prev), tight_after)
+  || List.exists(String.equal(next), tight_before);
 
 /* An application/indexing opener: a `(`/`[` tile that takes a left
  * operand (concave left nib) hugs that operand: `f (x)` -> `f(x)`.
@@ -95,7 +96,8 @@ let canonical_sep =
   };
 
 let needs_space = (prev: Token.t, next: Token.t): bool =>
-  if (List.mem(prev, tight_after) || List.mem(next, tight_before)) {
+  if (List.exists(String.equal(prev), tight_after)
+      || List.exists(String.equal(next), tight_before)) {
     false;
   } else if (spaced(prev) || spaced(next)) {
     true;

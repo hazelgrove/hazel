@@ -31,14 +31,14 @@ let mk = (id: Id.t, content: string): t => {
 let is_space: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Token.space
+    | Whitespace(s) => String.equal(s, Token.space)
     | _ => false
     };
 
 let is_linebreak: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Token.linebreak
+    | Whitespace(s) => String.equal(s, Token.linebreak)
     | _ => false
     };
 
