@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let approx_eq = (a, b) => Float.abs(a -. b) < 0.01;
 
@@ -140,7 +141,7 @@ let documentation_drv_slide_full_credit_cases =
     ),
     ("Conjunction Commutativity", Web.Ex_Conjunction_Commutativity.exercise),
   ]
-  |> List.map(((name, spec)) =>
+  |> List.map(~f=((name, spec)) =>
        test_case(
          "doc slide full credit: " ++ name,
          `Quick,

@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* The fast path's contract: on success, the zipped segment IS the source —
    same tokens, same whitespace, same comments — with molds from
@@ -12,8 +13,8 @@ let print_seg = seg => Printer.of_segment(~holes="?", ~refractors=[], seg);
 let graph_module = {
   let src =
     switch (
-      List.find_opt(
-        Sys.file_exists,
+      List.find(
+        ~f=Stdlib.Sys.file_exists,
         [
           "hazel-programs/docs/livelits/graph-editor.hz",
           "../hazel-programs/docs/livelits/graph-editor.hz",
@@ -21,10 +22,10 @@ let graph_module = {
       )
     ) {
     | Some(p) =>
-      let ic = open_in_bin(p);
-      let n = in_channel_length(ic);
-      let s = really_input_string(ic, n);
-      close_in(ic);
+      let ic = Stdlib.open_in_bin(p);
+      let n = Stdlib.in_channel_length(ic);
+      let s = Stdlib.really_input_string(ic, n);
+      Stdlib.close_in(ic);
       Some(s);
     | None => None
     };
@@ -118,14 +119,15 @@ let tests = (
         let has = (pred, seg) => {
           let rec go = s =>
             List.exists(
-              (p: Piece.t) =>
-                pred(p)
-                || (
-                  switch (p) {
-                  | Tile({children, _}) => List.exists(go, children)
-                  | _ => false
-                  }
-                ),
+              ~f=
+                (p: Piece.t) =>
+                  pred(p)
+                  || (
+                    switch (p) {
+                    | Tile({children, _}) => List.exists(~f=go, children)
+                    | _ => false
+                    }
+                  ),
               s,
             );
           go(seg);
@@ -141,11 +143,12 @@ let tests = (
           | _ => false
           };
         let explicit =
-          FastParse.of_text(~root=Exp, "let x = ? in x") |> Option.get;
+          FastParse.of_text(~root=Exp, "let x = ? in x") |> Option.value_exn;
         check(bool, "? gives a tile", true, has(is_hole_tile, explicit));
         check(bool, "? gives no Grout", false, has(is_grout, explicit));
         let implicit =
-          FastParse.of_text(~root=Exp, "let x = \xc2\xbf in x") |> Option.get;
+          FastParse.of_text(~root=Exp, "let x = \xc2\xbf in x")
+          |> Option.value_exn;
         check(bool, "\xc2\xbf gives Grout", true, has(is_grout, implicit));
         check(
           bool,
@@ -203,21 +206,23 @@ let tests = (
       | Some(seg) =>
         let has_projector =
           List.exists(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
-                List.exists(
-                  List.exists(q =>
-                    switch ((q: Piece.t)) {
-                    | Projector(_) => true
-                    | _ => false
-                    }
-                  ),
-                  children,
-                )
-              | Projector(_) => true
-              | _ => false
-              },
+            ~f=
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile({children, _}) =>
+                  List.exists(
+                    ~f=
+                      List.exists(~f=q =>
+                        switch ((q: Piece.t)) {
+                        | Projector(_) => true
+                        | _ => false
+                        }
+                      ),
+                    children,
+                  )
+                | Projector(_) => true
+                | _ => false
+                },
             seg,
           );
         check(bool, "projector piece present", true, has_projector);
@@ -230,12 +235,12 @@ let tests = (
         let text = "let f = fun x -> x + 1 in\n^^probe(f(1));\n^^probe(f(2));";
         let z = PersistentZipper.from_backup_text(text, ~root=Exp);
         check(int, "two manual pins", 2, List.length(z.refractors.manuals));
-        let out = String.trim(MarkerParse.to_text(z));
+        let out = String.strip(MarkerParse.to_text(z));
         check(
           bool,
           "reprint ends with the materialized hole marker",
           true,
-          String.ends_with(~suffix="\xc2\xbf", out),
+          String.is_suffix(out, ~suffix="\xc2\xbf"),
         );
         let z2 = PersistentZipper.from_backup_text(out, ~root=Exp);
         check(
@@ -248,7 +253,7 @@ let tests = (
           string,
           "fixed point",
           out,
-          String.trim(MarkerParse.to_text(z2)),
+          String.strip(MarkerParse.to_text(z2)),
         );
       },
     ),
@@ -260,7 +265,7 @@ let tests = (
         let z = PersistentZipper.from_backup_text(text, ~root=Exp);
         check(int, "one manual pin", 1, List.length(z.refractors.manuals));
         let (_, entry: ZipperBase.Refractor.entry) =
-          List.hd(z.refractors.manuals);
+          List.hd_exn(z.refractors.manuals);
         check(
           bool,
           "pin is a Probe",
@@ -271,7 +276,7 @@ let tests = (
           string,
           "pin reprints as its trigger",
           text,
-          String.trim(MarkerParse.to_text(z)),
+          String.strip(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -303,22 +308,19 @@ let tests = (
           bool,
           "wrapped projector materialized",
           true,
-          List.exists(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
-                List.exists(
-                  List.exists((p: Piece.t) =>
-                    switch (p) {
-                    | Projector({kind: Slider, _}) => true
-                    | _ => false
-                    }
-                  ),
-                  children,
+          List.exists(parsed.segment, ~f=(p: Piece.t) =>
+            switch (p) {
+            | Tile({children, _}) =>
+              List.exists(children, ~f=child =>
+                List.exists(child, ~f=(p: Piece.t) =>
+                  switch (p) {
+                  | Projector({kind: Slider, _}) => true
+                  | _ => false
+                  }
                 )
-              | _ => false
-              },
-            parsed.segment,
+              )
+            | _ => false
+            }
           ),
         );
         /* end-to-end: the load path pins the probe and reprints verbatim */
@@ -328,7 +330,7 @@ let tests = (
           string,
           "nest reprints as written",
           text,
-          String.trim(MarkerParse.to_text(z)),
+          String.strip(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -339,7 +341,7 @@ let tests = (
         let text = "let a = 1 in\n^^probe_table(a + 1)";
         let z = PersistentZipper.from_backup_text(text, ~root=Exp);
         let (_, entry: ZipperBase.Refractor.entry) =
-          List.hd(z.refractors.manuals);
+          List.hd_exn(z.refractors.manuals);
         check(
           bool,
           "model selects the table renderer",
@@ -350,7 +352,7 @@ let tests = (
           string,
           "_table reprints",
           text,
-          String.trim(MarkerParse.to_text(z)),
+          String.strip(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -423,13 +425,16 @@ let tests = (
           Str.search_forward(Str.regexp_string("let ^graph"), src, 0);
         let stop =
           Str.search_forward(Str.regexp_string("} in"), src, start) + 4;
-        let src = String.sub(src, start, stop - start) ++ " ?";
-        let t0 = Sys.time();
+        let src = String.sub(src, ~pos=start, ~len=stop - start) ++ " ?";
+        let t0 = Stdlib.Sys.time();
         switch (FastParse.of_text(~root=Exp, src)) {
         | None => fail("fast path rejected the graph program")
         | Some(seg) =>
-          let ms = (Sys.time() -. t0) *. 1000.;
-          Printf.printf("FASTPARSE-PERF: graph program in %.1fms\n", ms);
+          let ms = (Stdlib.Sys.time() -. t0) *. 1000.;
+          Stdlib.Printf.printf(
+            "FASTPARSE-PERF: graph program in %.1fms\n",
+            ms,
+          );
           check(
             testable(Fmt.string, String.equal),
             "graph module chunk verbatim",

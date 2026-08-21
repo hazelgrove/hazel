@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -176,7 +177,7 @@ let parse_exp = (s: string) => {
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
-      switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+      switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
       | Some(info) =>
         switch (Info.marks_of(info), Info.warnings_of(info)) {
         | ([], []) => None
@@ -188,7 +189,9 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
           )
         }
       | None =>
-        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+        Alcotest.fail(
+          "No info found for the id: " ++ Id.show(List.hd_exn(ids)),
+        )
       }
     },
     exp,
@@ -255,7 +258,7 @@ let annotated_tree_test =
     testable_typ,
     "Expected Type",
     expected_type,
-    Option.get(type_of(~static_map=s, term)),
+    Option.value_exn(type_of(~static_map=s, term)),
   );
 };
 
@@ -266,7 +269,8 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -281,7 +285,7 @@ let inconsistent_typecheck = (name, exp) => {
 let synthesized_type = (~normalize=false, static_map, exp) =>
   type_of(~static_map, exp)
   |> Option.map(
-       normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+       ~f=normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fn.id,
      );
 
 let fully_consistent_typecheck =
@@ -292,7 +296,8 @@ let fully_consistent_typecheck =
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
       Alcotest.check(list(testable_issue), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),

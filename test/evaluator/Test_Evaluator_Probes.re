@@ -89,7 +89,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
           let line = start.row;
           let formatted_values =
             List.map(
-              (s: Sample.t) => format_sample_value(s.value),
+              ~f=(s: Sample.t) => format_sample_value(s.value),
               samples,
             );
           let existing =
@@ -114,17 +114,18 @@ let probe_line_test =
       let actual_by_line = get_samples_by_line(code);
 
       List.iter(
-        ((line, expected_values)) => {
-          let actual_values =
-            IntMap.find_opt(line, actual_by_line)
-            |> Option.value(~default=[]);
-          check(
-            list(string),
-            Printf.sprintf("Line %d", line),
-            expected_values,
-            actual_values,
-          );
-        },
+        ~f=
+          ((line, expected_values)) => {
+            let actual_values =
+              IntMap.find_opt(line, actual_by_line)
+              |> Option.value(~default=[]);
+            check(
+              list(string),
+              Stdlib.Printf.sprintf("Line %d", line),
+              expected_values,
+              actual_values,
+            );
+          },
         expected,
       );
     },
@@ -141,17 +142,18 @@ let probe_count_test =
       let actual_by_line = get_samples_by_line(code);
 
       List.iter(
-        ((line, expected_count)) => {
-          let actual_values =
-            IntMap.find_opt(line, actual_by_line)
-            |> Option.value(~default=[]);
-          check(
-            int,
-            Printf.sprintf("Line %d sample count", line),
-            expected_count,
-            List.length(actual_values),
-          );
-        },
+        ~f=
+          ((line, expected_count)) => {
+            let actual_values =
+              IntMap.find_opt(line, actual_by_line)
+              |> Option.value(~default=[]);
+            check(
+              int,
+              Stdlib.Printf.sprintf("Line %d sample count", line),
+              expected_count,
+              List.length(actual_values),
+            );
+          },
         expected,
       );
     },

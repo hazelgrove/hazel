@@ -4,6 +4,7 @@
  * (Form.forms / Form.defs_of / Form.compound_defs). */
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let mold_testable: testable(Mold.t) =
   testable(Fmt.using(Mold.show, Fmt.string), Mold.equal);
@@ -19,10 +20,10 @@ let family_testable: testable(Form.family) =
 /* All sorts, including Drv sorts. (Sort.all omits Mod/Sig/MPat.) */
 let all_sorts: list(Sort.t) =
   [Sort.Any, Pat, Typ, TPat, Rul, Exp, Mod, Sig, MPat]
-  @ List.map(s => Sort.Drv(s), Language.DrvSort.all);
+  @ List.map(~f=s => Sort.Drv(s), Language.DrvSort.all);
 
 let all_labels: list(Label.t) =
-  Form.forms |> List.map(snd) |> List.map((f: Form.def) => f.label);
+  Form.forms |> List.map(~f=snd) |> List.map(~f=(f: Form.def) => f.label);
 
 let token_corpus: list(Token.t) = [
   "x",
@@ -50,7 +51,7 @@ let token_corpus: list(Token.t) = [
   "then",
 ];
 
-let corpus_labels: list(Label.t) = List.map(t => [t], token_corpus);
+let corpus_labels: list(Label.t) = List.map(~f=t => [t], token_corpus);
 
 let case_name = (sort: Sort.t, label: Label.t): string =>
   Sort.to_string(sort) ++ " / " ++ Label.show(label);
@@ -125,44 +126,48 @@ let check_family_grouping = (): unit => {
    DotTyp/ProdProjection pair — is the one such case). */
 let check_family_uniqueness = (): unit =>
   List.iter(
-    (fam: Form.family) => {
-      let defs = Form.defs_of(fam);
-      check(
-        bool,
-        "every family is inhabited: " ++ Form.show_family(fam),
-        true,
-        defs != [],
-      );
-      List.iter(
-        (d1: Form.def) =>
-          List.iter(
-            (d2: Form.def) =>
-              if (d1.mold.out == d2.mold.out) {
-                check(
-                  mold_testable,
-                  "out->mold is a function in "
-                  ++ Form.show_family(fam)
-                  ++ " at "
-                  ++ Sort.to_string(d1.mold.out),
-                  d1.mold,
-                  d2.mold,
-                );
-              },
-            defs,
-          ),
-        defs,
-      );
-      List.iter(
-        (d: Form.def) =>
-          check(
-            label_testable,
-            "family label is row label: " ++ Form.show_family(fam),
-            Form.label_of_family(fam),
-            d.label,
-          ),
-        defs,
-      );
-    },
+    ~f=
+      (fam: Form.family) => {
+        let defs = Form.defs_of(fam);
+        check(
+          bool,
+          "every family is inhabited: " ++ Form.show_family(fam),
+          true,
+          defs != [],
+        );
+        List.iter(
+          ~f=
+            (d1: Form.def) =>
+              List.iter(
+                ~f=
+                  (d2: Form.def) =>
+                    if (d1.mold.out == d2.mold.out) {
+                      check(
+                        mold_testable,
+                        "out->mold is a function in "
+                        ++ Form.show_family(fam)
+                        ++ " at "
+                        ++ Sort.to_string(d1.mold.out),
+                        d1.mold,
+                        d2.mold,
+                      );
+                    },
+                defs,
+              ),
+          defs,
+        );
+        List.iter(
+          ~f=
+            (d: Form.def) =>
+              check(
+                label_testable,
+                "family label is row label: " ++ Form.show_family(fam),
+                Form.label_of_family(fam),
+                d.label,
+              ),
+          defs,
+        );
+      },
     Form.all_of_family,
   );
 
@@ -188,9 +193,10 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
     | Form.TokInfix(_) =>
       Form.remold_candidates(label, sort)
       |> List.for_all(
-           fun
-           | (Form.TokInfix(_), _) => true
-           | _ => false,
+           ~f=
+             fun
+             | (Form.TokInfix(_), _) => true
+             | _ => false,
          )
     | _ => true
     },
@@ -245,41 +251,43 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
   let name = case_name(sort, label);
   let cands = Form.remold_candidates(label, sort);
   List.iter(
-    ((c, st)) => {
-      check(sort_testable, "candidate sort: " ++ name, sort, st);
-      check(
-        sort_testable,
-        "candidate mold sort: " ++ name,
-        sort,
-        Form.mold_of(c, st).out,
-      );
-      check(
-        label_testable,
-        "candidate label: " ++ name,
-        label,
-        Form.label_of(c),
-      );
-    },
+    ~f=
+      ((c, st)) => {
+        check(sort_testable, "candidate sort: " ++ name, sort, st);
+        check(
+          sort_testable,
+          "candidate mold sort: " ++ name,
+          sort,
+          Form.mold_of(c, st).out,
+        );
+        check(
+          label_testable,
+          "candidate label: " ++ name,
+          label,
+          Form.label_of(c),
+        );
+      },
     cands,
   );
   let expected_compounds =
     Form.forms
-    |> List.filter(((_, def): (Form.family, Form.def)) =>
+    |> List.filter(~f=((_, def): (Form.family, Form.def)) =>
          def.label == label && def.mold.out == sort
        )
-    |> List.map(fst);
+    |> List.map(~f=fst);
   let actual_compounds =
     cands
     |> List.filter_map(
-         fun
-         | (Form.Compound(fam), _) => Some(fam)
-         | _ => None,
+         ~f=
+           fun
+           | (Form.Compound(fam), _) => Some(fam)
+           | _ => None,
        );
   check(
     list(family_testable),
     "compound families (multiset): " ++ name,
-    List.sort(compare, expected_compounds),
-    List.sort(compare, actual_compounds),
+    List.sort(~compare, expected_compounds),
+    List.sort(~compare, actual_compounds),
   );
   let rec phases_ok = (cands, phase) =>
     switch (cands) {
@@ -298,15 +306,16 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     switch (label) {
     | [t] =>
       Form.is_infix_delimiter_op_prefix(t)
-      && List.exists(Sort.equal(sort), [Sort.Exp, Pat, Typ, TPat])
+      && List.mem([Sort.Exp, Pat, Typ, TPat], sort, ~equal=Sort.equal)
     | _ => false
     };
   let tok_infix =
     cands
     |> List.filter(
-         fun
-         | (Form.TokInfix(_), _) => true
-         | _ => false,
+         ~f=
+           fun
+           | (Form.TokInfix(_), _) => true
+           | _ => false,
        );
   check(
     bool,
@@ -315,13 +324,14 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     tok_infix != [],
   );
   List.iter(
-    ((c, st)) =>
-      check(
-        mold_testable,
-        "TokInfix mold is the concave-grout bin: " ++ name,
-        Mold.mk_bin(Precedence.concave_grout, sort, []),
-        Form.mold_of(c, st),
-      ),
+    ~f=
+      ((c, st)) =>
+        check(
+          mold_testable,
+          "TokInfix mold is the concave-grout bin: " ++ name,
+          Mold.mk_bin(Precedence.concave_grout, sort, []),
+          Form.mold_of(c, st),
+        ),
     tok_infix,
   );
 };
@@ -334,9 +344,10 @@ let check_same_label_order = (): unit => {
   let compounds = (label: Label.t, sort: Sort.t): list(Form.family) =>
     Form.remold_candidates(label, sort)
     |> List.filter_map(
-         fun
-         | (Form.Compound(fam), _) => Some(fam)
-         | _ => None,
+         ~f=
+           fun
+           | (Form.Compound(fam), _) => Some(fam)
+           | _ => None,
        );
   let pin = (name, label, sort, expected) =>
     check(list(family_testable), name, expected, compounds(label, sort));
@@ -391,25 +402,27 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        (fam: Form.family) =>
-          List.iter(
-            (def: Form.def) => {
-              let name = Form.show_family(fam);
-              check(
-                label_testable,
-                name ++ " label",
-                def.label,
-                Form.label_of(Form.Compound(fam)),
-              );
-              check(
-                mold_testable,
-                name ++ " mold at " ++ Sort.to_string(def.mold.out),
-                def.mold,
-                Form.mold_of(Form.Compound(fam), def.mold.out),
-              );
-            },
-            Form.defs_of(fam),
-          ),
+        ~f=
+          (fam: Form.family) =>
+            List.iter(
+              ~f=
+                (def: Form.def) => {
+                  let name = Form.show_family(fam);
+                  check(
+                    label_testable,
+                    name ++ " label",
+                    def.label,
+                    Form.label_of(Form.Compound(fam)),
+                  );
+                  check(
+                    mold_testable,
+                    name ++ " mold at " ++ Sort.to_string(def.mold.out),
+                    def.mold,
+                    Form.mold_of(Form.Compound(fam), def.mold.out),
+                  );
+                },
+              Form.defs_of(fam),
+            ),
         Form.all_of_family,
       )
     ),
@@ -419,27 +432,29 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        label =>
-          List.iter(
-            sort => {
-              check_classify(sort, label);
-              let (id, stored) = Form.classify_label(sort, label);
-              /* a registered label may classify as Tok when an atomic
-                 class wins (e.g. "let" as a Var at Exp), but never as
-                 the (Tok, Any) unregistered fallback */
-              check(
-                bool,
-                "registered label never (Tok, Any): "
-                ++ case_name(sort, label),
-                true,
-                switch (id, stored) {
-                | (Form.Tok(_), Sort.Any) => false
-                | _ => true
+        ~f=
+          label =>
+            List.iter(
+              ~f=
+                sort => {
+                  check_classify(sort, label);
+                  let (id, stored) = Form.classify_label(sort, label);
+                  /* a registered label may classify as Tok when an atomic
+                     class wins (e.g. "let" as a Var at Exp), but never as
+                     the (Tok, Any) unregistered fallback */
+                  check(
+                    bool,
+                    "registered label never (Tok, Any): "
+                    ++ case_name(sort, label),
+                    true,
+                    switch (id, stored) {
+                    | (Form.Tok(_), Sort.Any) => false
+                    | _ => true
+                    },
+                  );
                 },
-              );
-            },
-            all_sorts,
-          ),
+              all_sorts,
+            ),
         all_labels,
       )
     ),
@@ -449,36 +464,39 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        t =>
-          List.iter(
-            sort => {
-              check_classify(sort, [t]);
-              let (id, stored) = Form.classify_label(sort, [t]);
-              check(
-                bool,
-                "mold sort in {sort, Any}: " ++ case_name(sort, [t]),
-                true,
-                List.exists(
-                  Sort.equal(Form.mold_of(id, stored).out),
-                  [sort, Sort.Any],
-                ),
-              );
-              if (!is_compound_label([t])) {
-                check(
-                  bool,
-                  "unregistered token never Compound: "
-                  ++ case_name(sort, [t]),
-                  true,
-                  switch (id) {
-                  | Form.Compound(_) => false
-                  | Form.Tok(_)
-                  | Form.TokInfix(_) => true
-                  },
-                );
-              };
-            },
-            all_sorts,
-          ),
+        ~f=
+          t =>
+            List.iter(
+              ~f=
+                sort => {
+                  check_classify(sort, [t]);
+                  let (id, stored) = Form.classify_label(sort, [t]);
+                  check(
+                    bool,
+                    "mold sort in {sort, Any}: " ++ case_name(sort, [t]),
+                    true,
+                    List.mem(
+                      [sort, Sort.Any],
+                      Form.mold_of(id, stored).out,
+                      ~equal=Sort.equal,
+                    ),
+                  );
+                  if (!is_compound_label([t])) {
+                    check(
+                      bool,
+                      "unregistered token never Compound: "
+                      ++ case_name(sort, [t]),
+                      true,
+                      switch (id) {
+                      | Form.Compound(_) => false
+                      | Form.Tok(_)
+                      | Form.TokInfix(_) => true
+                      },
+                    );
+                  };
+                },
+              all_sorts,
+            ),
         token_corpus,
       )
     ),
@@ -488,7 +506,9 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        label => List.iter(sort => check_remold(sort, label), all_sorts),
+        ~f=
+          label =>
+            List.iter(~f=sort => check_remold(sort, label), all_sorts),
         all_labels @ corpus_labels,
       )
     ),
