@@ -11,7 +11,7 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
       switch (Typ.match_tup_label(expected_entry)) {
       | Some((label, inner_ty)) =>
         switch (Exp.match_tup_label(exp_entry)) {
-        | Some((label', inner_exp)) when label == label' =>
+        | Some((label', inner_exp)) when String.equal(label, label') =>
           TupLabel(
             Label(label) |> Exp.fresh,
             align_exp(ctx, inner_ty, inner_exp),
@@ -51,7 +51,7 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
       | [ty] =>
         switch (Typ.match_tup_label(ty), Exp.match_tup_label(exp)) {
         | (Some((label, inner_ty)), Some((label', inner_exp)))
-            when label == label' =>
+            when String.equal(label, label') =>
           Tuple([
             TupLabel(
               Label(label) |> Exp.fresh,
@@ -90,7 +90,7 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
              switch (Typ.match_tup_label(expected_entry)) {
              | Some((label, inner_ty)) =>
                switch (Exp.match_tup_label(exp_entry)) {
-               | Some((label', inner_exp)) when label == label' =>
+               | Some((label', inner_exp)) when String.equal(label, label') =>
                  is_aligned_exp(ctx, inner_ty, inner_exp)
                | _ => false
                }
@@ -120,7 +120,7 @@ let derive_label_inference_info = (original_labels, new_labels) => {
       List.equal(
         (a, b) => {
           switch (a, b) {
-          | (Some(a), Some(b)) => a == b
+          | (Some(a), Some(b)) => String.equal(a, b)
           | (Some(a), None) => List.mem(a, introduced_labels)
           | (None, Some(_)) => false
           | (None, None) => true

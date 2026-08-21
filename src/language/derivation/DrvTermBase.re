@@ -270,9 +270,9 @@ and Exp: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
     | (Parens(e1), Parens(e2)) => eq(e1, e2)
     | (Parens(_), _) => false
@@ -408,7 +408,7 @@ and Exp: {
       | (HasType(a, _), HasType(b, _)) => eq(a, b)
       | (Syn(a, _), Syn(b, _)) => eq(a, b)
       | (Ana(a, _), Ana(b, _)) => eq(a, b)
-      | _ => show(p) == show(p')
+      | _ => String.equal(show(p), show(p'))
       };
     let rec insert =
       fun
@@ -481,9 +481,9 @@ and Pat: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     | (Parens(p1), Parens(p2)) => eq(p1, p2)
     | (Parens(_), _) => false
@@ -597,7 +597,7 @@ and Typ: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
     | (Num, Num) => true
     | (Num, _) => false
@@ -611,7 +611,7 @@ and Typ: {
     | (Unit, _) => false
     | (Sum(t1, t2), Sum(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Sum(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     | (Rec({term: Var(a1), _}, a2), Rec({term: Var(b1), _}, b2)) =>
       let rep_id = fresh(Var(Id.mk() |> Id.show));
@@ -693,9 +693,9 @@ and TPat: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     };
   };

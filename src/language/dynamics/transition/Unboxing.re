@@ -103,7 +103,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ListUtil.find_with_rest(
           exp => {
             switch (Exp.match_tup_label(DHExp.strip_ascriptions(exp))) {
-            | Some((name, {term: Atom(String(e)), _})) when name == l =>
+            | Some((name, {term: Atom(String(e)), _}))
+                when String.equal(name, l) =>
               Some(e)
             | _ => None
             }
@@ -159,13 +160,14 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(_), Tuple(_)) => IndetMatch
     /* Sum constructors can be either sum constructors or sum constructors
        applied to some value  */
-    | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
+    | (SumNoArg(name1), Constructor(name2, _))
+        when String.equal(name1, name2) =>
       Matches()
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
-        when name1 == name2 =>
+        when String.equal(name1, name2) =>
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     /* Function-like things can look like the following when values */
