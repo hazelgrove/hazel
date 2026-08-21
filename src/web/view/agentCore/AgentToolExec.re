@@ -76,7 +76,7 @@ let mk_diff =
     let new_segment = Select.all(new_editor.state.zipper).selection.content;
     let old_s = CompositionView.Public.print_segment(old_segment);
     let new_s = CompositionView.Public.print_segment(new_segment);
-    if (old_s == new_s) {
+    if (String.equal(old_s, new_s)) {
       None;
     } else {
       Some(

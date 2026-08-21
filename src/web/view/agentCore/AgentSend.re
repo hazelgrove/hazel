@@ -121,7 +121,8 @@ let send_llm_request =
     /* Suppress empty deltas (many providers emit role-only or
        keepalive-style chunks). StreamDelta gating by flight_seq still
        happens in the reducer. */
-    if (content_delta != "" || reasoning_delta != "") {
+    if (!String.equal(content_delta, "")
+        || !String.equal(reasoning_delta, "")) {
       schedule_action(
         Action.StreamDelta(
           chat_id,
@@ -193,7 +194,7 @@ let busy_for_send = (model: Model.t): bool =>
 let enqueue_while_busy =
     (model: Model.t, chat_id: Id.t, text: string): Model.t => {
   let trimmed = String.trim(text);
-  if (trimmed == "") {
+  if (String.equal(trimmed, "")) {
     model;
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
@@ -266,7 +267,7 @@ let dispatch_send =
     );
     let current_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
     let tail = Chat.Utils.current_tail(current_chat);
-    if (current_chat.title == "New Chat" && tail.role == User) {
+    if (String.equal(current_chat.title, "New Chat") && tail.role == User) {
       if (Option.is_none(model.awaiting_response)
           && Option.is_none(model.compaction_in_progress)) {
         request_chat_name(

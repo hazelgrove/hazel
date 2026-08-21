@@ -39,7 +39,7 @@ let startup: Lazy.t(PersistentData.t) =
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
   |> snd
-  |> List.find_opt(((n, _)) => n == name)
+  |> List.find_opt(((n, _)) => String.equal(n, name))
   |> Option.map(snd);
 };
 
@@ -69,7 +69,7 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
 let find_documentation_drv_spec =
     (name: string): option(DerivationExercise.spec) =>
   documentation_drv_slides
-  |> List.find_opt(((n, _)) => n == name)
+  |> List.find_opt(((n, _)) => String.equal(n, name))
   |> Option.map(snd);
 
 let documentation_drv_slide_names = (): list(string) =>
