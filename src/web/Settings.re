@@ -43,6 +43,9 @@ module Model = {
        normalization frame (see CanvasLayout.origin) */
     [@sexp.default []] [@yojson.default []]
     canvas_node_pins: list(((string, string), (float, float))),
+    /* canvas pinch-zoom factor (ctrl+wheel / trackpad pinch) */
+    [@sexp.default 1.0] [@yojson.default 1.0]
+    canvas_zoom: float,
     /* defaulted so settings blobs persisted before this field still load
        (a parse failure makes Store discard ALL settings) */
     [@sexp.default false] [@yojson.default false]
@@ -130,6 +133,7 @@ module Model = {
     canvas_pane_width: None,
     canvas_node_offsets: [],
     canvas_node_pins: [],
+    canvas_zoom: 1.0,
     simple_indication: false,
   };
 
@@ -210,6 +214,7 @@ module Update = {
     | SetCanvasPaneWidth(int)
     | SetCanvasNodeOffset(string, string, float, float)
     | SetCanvasNodePin(string, string, float, float)
+    | SetCanvasZoom(float)
     | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
@@ -597,6 +602,10 @@ module Update = {
             ((slide, key), (dx, dy)),
             ...List.remove_assoc((slide, key), settings.canvas_node_offsets),
           ],
+        }
+      | SetCanvasZoom(z) => {
+          ...settings,
+          canvas_zoom: max(0.4, min(2.5, z)),
         }
       | SetCanvasNodePin(slide, key, x, y) => {
           ...settings,

@@ -22,6 +22,64 @@ let current_code =
   | Exercises(_) => None
   };
 
+/* pinch-zoom plumbing: the wheel listener must be non-passive (to
+   preventDefault the browser's page zoom on ctrl+wheel), so it is
+   installed raw on the scroll element; these refs carry the current
+   zoom and dispatcher across renders */
+let zoom_now: ref(float) = ref(1.);
+let zoom_send: ref(option(float => unit)) =
+  ref(None: option(float => unit));
+let install_zoom_listener = (): unit => {
+  Js_of_ocaml.(
+    switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+    | None => ()
+    | Some(el) =>
+      let el' = Js.Unsafe.coerce(el);
+      let installed: bool =
+        Js.Optdef.test(Js.Unsafe.get(el', "__zoomInstalled"));
+      if (!installed) {
+        Js.Unsafe.set(el', "__zoomInstalled", Js.bool(true));
+        let last = ref(0.);
+        let cb =
+          Js.Unsafe.callback((evt: Js.t(Js.Unsafe.any)) => {
+            let ctrl: bool = Js.to_bool(Js.Unsafe.coerce(evt)##.ctrlKey);
+            if (ctrl) {
+              ignore(Js.Unsafe.meth_call(evt, "preventDefault", [||]));
+              let dy: float = Js.Unsafe.coerce(evt)##.deltaY;
+              let now: float =
+                Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
+              if (now -. last^ > 40.) {
+                last := now;
+                let z = zoom_now^ *. exp(-. dy *. 0.008);
+                /* detent at 1:1 so pinching back to normal lands exactly */
+                let z = abs_float(z -. 1.) < 0.06 ? 1. : z;
+                switch (zoom_send^) {
+                | Some(send) => send(max(0.4, min(2.5, z)))
+                | None => ()
+                };
+              };
+            };
+          });
+        ignore(
+          Js.Unsafe.meth_call(
+            el',
+            "addEventListener",
+            [|
+              Js.Unsafe.inject(Js.string("wheel")),
+              Js.Unsafe.inject(cb),
+              Js.Unsafe.inject(
+                Js.Unsafe.obj([|
+                  ("passive", Js.Unsafe.inject(Js.bool(false))),
+                |]),
+              ),
+            |],
+          ),
+        );
+      };
+    }
+  );
+};
+
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
   | Scratch(m)
@@ -167,6 +225,15 @@ let view =
   let test_results = test_results_of(editors);
   let graph = CanvasGraph.extract(~test_results?, editor.statics);
   let slide = current_slide(editors);
+  let zoom = globals.settings.canvas_zoom;
+  zoom_now := zoom;
+  zoom_send :=
+    Some(
+      z =>
+        globals.inject_global(Set(SetCanvasZoom(z)))
+        |> Bonsai.Effect.Expert.handle,
+    );
+  install_zoom_listener();
   let offsets =
     globals.settings.canvas_node_offsets
     |> List.filter_map((((s, k), d)) => s == slide ? Some((k, d)) : None);
@@ -223,13 +290,13 @@ let view =
       switch (avail_width) {
       | Some(avail) =>
         let target = avail -. 16.;
-        let s1 = min(1.8, max(0.62, target /. virgin.width));
-        if (s1 >= 1.8 || s1 <= 0.62) {
+        let s1 = min(1.8, max(0.7, target /. virgin.width));
+        if (s1 >= 1.8 || s1 <= 0.7) {
           s1;
         } else {
           let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
           v1.width >= target -. 30. && v1.width <= target +. 30.
-            ? s1 : min(1.8, max(0.62, s1 *. target /. v1.width));
+            ? s1 : min(1.8, max(0.7, s1 *. target /. v1.width));
         };
       | None => 1.
       };
@@ -430,8 +497,10 @@ let view =
     let rec on_move = e => {
       let x: int = Js.Unsafe.coerce(e)##.clientX;
       let y: int = Js.Unsafe.coerce(e)##.clientY;
-      let dx = float_of_int(x - sx)
-      and dy = float_of_int(y - sy);
+      /* CSS zoom scales screen deltas; convert to layout px */
+      let z = max(0.2, globals.settings.canvas_zoom);
+      let dx = float_of_int(x - sx) /. z
+      and dy = float_of_int(y - sy) /. z;
       if (abs_float(dx) +. abs_float(dy) > 4.) {
         moved := true;
       };
@@ -786,6 +855,7 @@ let view =
             ~on_edge_click,
             ~on_node_mousedown,
             ~on_canvas_click,
+            ~zoom,
             ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,

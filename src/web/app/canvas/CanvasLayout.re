@@ -353,8 +353,8 @@ let layout =
         @ former_rank_edges
         @ formation_edges,
       attachments,
-      col_gap: 96.,
-      row_gap: 48.,
+      col_gap: 108.,
+      row_gap: 56.,
       margin,
       x_stretch: x_scale,
       y_stretch: y_scale,
@@ -792,6 +792,34 @@ let layout =
             !label_hits_label(p, w)
             && !label_hits_node(p, w)
             && !label_hits_ring(p, w);
+          /* labels prefer LIVING ON THEIR EDGE: before jumping off,
+             slide along the curve to nearby parameters */
+          let curve_at = (t: float): pos => {
+            let u = 1. -. t;
+            let b = (a, b, c, d) =>
+              u
+              *. u
+              *. u
+              *. a
+              +. 3.
+              *. u
+              *. u
+              *. t
+              *. b
+              +. 3.
+              *. u
+              *. t
+              *. t
+              *. c
+              +. t
+              *. t
+              *. t
+              *. d;
+            {
+              x: b(el.src_p.x, el.c1.x, el.c2.x, el.dst_p.x),
+              y: b(el.src_p.y, el.c1.y, el.c2.y, el.dst_p.y) -. 6.,
+            };
+          };
           let snap_label = (p: pos): pos => {
             /* chip renders translate(-50%,-100%): its text center sits
                ~10px above label_p. Dot centers are at grid multiples
@@ -800,6 +828,13 @@ let layout =
             x: snap(p.x),
             y: snap(p.y -. grid /. 2. -. 9.) +. grid /. 2. +. 9.,
           };
+          let rec pick_abs = (ps: list(pos), fallback) =>
+            switch (ps) {
+            | [] => fallback()
+            | [p0, ...rest] =>
+              let p = snap_label(p0);
+              ok(p) ? p : pick_abs(rest, fallback);
+            };
           let rec pick = (cs: list((float, float))): pos =>
             switch (cs) {
             | [] => snap_label(el.label_p)
@@ -811,7 +846,11 @@ let layout =
                 });
               ok(p) ? p : pick(rest);
             };
-          let p = pick(candidates);
+          let on_curve =
+            el.endo
+              ? []
+              : List.map(curve_at, [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]);
+          let p = pick_abs(on_curve, () => pick(candidates));
           placed_labels := [(p, w), ...placed_labels^];
           {
             ...el,

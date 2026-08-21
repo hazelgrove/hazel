@@ -369,6 +369,7 @@ let view =
          ) =>
          Effect.t(unit),
       ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
+      ~zoom: float=1.,
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests as _: list(CanvasGraph.test_info),
@@ -488,7 +489,11 @@ let view =
             let top: float = Js.Unsafe.coerce(rect)##.top;
             let x: int = Js.Unsafe.coerce(evt)##.clientX;
             let y: int = Js.Unsafe.coerce(evt)##.clientY;
-            f((float_of_int(x) -. left, float_of_int(y) -. top));
+            /* CSS zoom scales client rects; map back to layout px */
+            f((
+              (float_of_int(x) -. left) /. zoom,
+              (float_of_int(y) -. top) /. zoom,
+            ));
           } else {
             Effect.Ignore;
           };
@@ -503,9 +508,10 @@ let view =
         Attr.create(
           "style",
           Printf.sprintf(
-            "width: %spx; height: %spx;",
+            "width: %spx; height: %spx; zoom: %s;",
             fmt(lay.width),
             fmt(lay.height),
+            fmt(zoom),
           ),
         ),
       ]
