@@ -187,13 +187,17 @@ module Settings = {
        a canvas click places the stub there. */
     [@sexp.default None] [@yojson.default None]
     canvas_place: option((string, list(string))),
-    /* Canvas focus strip: expanded sample view as (slot index, sample
-       index). Slots number the fn view's inputs left-to-right with the
-       output last; in the type view the first component indexes the
-       distinct-value list and the second is unused. Cleared on focus
-       change. */
+    /* RETIRED (kept so persisted settings still parse): the pre-probes-iv
+       expanded-sample view state. */
     [@sexp.default None] [@yojson.default None]
     canvas_expand: option((int, int)),
+    /* Canvas focus strip: per-anchor probe models (serialized ProbeProj
+       models — drawer mode, per-sample widths, active renderer), keyed by
+       a name-stable slot key ("fn/in0", "fn/out", "ty/Model"). The strip's
+       wells are real probe views; this is their model store, since canvas
+       anchors have no refractor entry to hold one. */
+    [@sexp.default []] [@yojson.default []]
+    canvas_probe_models: list((string, string)),
     /* Sidebar width in px, set at resize-drag end (the drag itself updates
        styles imperatively). Model state so width-dependent panels (the
        canvas) re-render, and so the width survives reloads. */
@@ -246,5 +250,6 @@ module Settings = {
     | SetCanvasConnect(option(list(string)))
     | SetCanvasPlace(option((string, list(string))))
     | SetCanvasExpand(option((int, int)))
+    | SetCanvasProbeModel(string, string)
     | SetWidth(int);
 };

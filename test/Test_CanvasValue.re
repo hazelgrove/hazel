@@ -2,8 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Every sampled value must render through the canvas well pipeline (chip
- * and expanded 2D view) without raising. Regression: abbreviated list
+/* Every sampled value must render through the canvas well pipeline (chip) without raising. Regression: abbreviated list
  * values ([…, …]) crashed Skel via ExpToSegment's table projection until
  * CanvasValue disabled project_tables. */
 
@@ -29,7 +28,7 @@ let fm: Web.FontMetrics.t = {
 };
 
 let tests = [
-  test_case("chips + expanded view render for all sampled values", `Quick, () => {
+  test_case("chips render for all sampled values", `Quick, () => {
     switch (Parser.to_zipper(~root=Exp, prog)) {
     | None => fail("parse failed")
     | Some(z) =>
@@ -64,12 +63,6 @@ let tests = [
                     Web.CanvasValue.chip(
                       ~font_metrics=fm,
                       ~available=24,
-                      s.value,
-                    );
-                  let _ =
-                    Web.CanvasValue.expanded(
-                      ~font_metrics=fm,
-                      ~cols=40,
                       s.value,
                     );
                   "ok";

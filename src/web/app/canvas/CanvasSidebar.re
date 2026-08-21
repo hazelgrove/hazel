@@ -629,7 +629,6 @@ let view =
           globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
         ~dynamics=editor.dynamics,
         ~info_map=editor.statics.info_map,
-        ~avail_width,
         ~graph,
         key,
       )
@@ -637,11 +636,10 @@ let view =
     | (None, Some(name)) =>
       CanvasFocus.view(
         ~globals,
+        ~editor,
         ~inject_jump,
         ~on_close=set_focus(None),
-        ~dynamics=editor.dynamics,
         ~ask_agent,
-        ~avail_width,
         ~graph,
         name,
       )

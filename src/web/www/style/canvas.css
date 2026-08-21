@@ -450,10 +450,14 @@
   margin: 2px 0 4px;
 }
 
+/* Real probe wells need row width: the flow stacks vertically — input
+   slots, the fn marker, then the output slot — each slot a full-width
+   [chip | probe] row. */
 .focus-flow {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
   margin-top: 6px;
   min-width: 0;
 }
@@ -461,28 +465,30 @@
 .focus-inputs {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  flex: 1 1 auto;
+}
+
+.focus-fn {
+  align-self: flex-start;
+  padding-left: 1.5em;
 }
 
 .focus-output {
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .focus-slot {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
   min-width: 0;
+  width: 100%;
 }
 
-/* wells shrink before pushing the flow off-panel; excess chips scroll */
-.focus-well.well-filled {
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+.focus-slot .focus-chip {
+  flex: none;
+  margin-top: 2px;
 }
 
 .focus-chip {
@@ -548,81 +554,41 @@
   font-weight: bold;
 }
 
-/* clickable sample values (chips + type values) */
-.well-pick {
-  cursor: pointer;
-}
-
-.well-pick:hover {
-  outline: 1.5px solid var(--G1, #7a9a5a);
-  outline-offset: 1px;
-  border-radius: 3px;
-}
-
-/* code-rendered chips: inline, sized to content */
-.well-value .code,
-.type-value .code,
-.focus-expand-body .code {
+/* code-rendered chips (type view): inline, sized to content */
+.type-value .code {
   display: inline-block;
   position: relative;
   vertical-align: middle;
 }
 
-/* ---- expanded 2D sample view ---- */
+/* ---- probe wells: real probe views embedded in the strip ---- */
 
-.focus-expand {
-  margin-top: 7px;
-  border: 1.5px solid var(--CREASE, #bbb);
-  border-radius: 6px;
-  background: rgba(120, 160, 90, 0.06);
-  overflow: hidden;
-}
-
-.focus-expand-head {
+/* Static-flow overrides for the in-editor probe CSS: the probe's nav-bar
+   is gutter-absolute (left: -1.85em), so reserve that gutter with padding;
+   .projector centers its (absolutely-placed) content in-editor — here the
+   probe flows statically and must top-left align; the drawer (.below
+   slot) stacks below the samples instead of under an editor row. */
+.canvas-probe {
+  position: relative;
+  padding-left: 1.9em;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 9px;
-  font-size: 10px;
-  border-bottom: 1px dashed var(--CREASE, #ccc);
-  opacity: 0.85;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.focus-expand-label {
-  font-weight: bold;
-  letter-spacing: 0.04em;
+.canvas-probe .live-offside {
+  position: static;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
-.focus-expand-nav {
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  padding: 0 4px;
-  user-select: none;
-}
-
-.focus-expand-nav:hover {
-  color: var(--G1, #5a7a3a);
-}
-
-.focus-expand-nav.nav-disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-
-.focus-expand-count {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
-}
-
-.focus-expand-head .focus-close {
-  margin-left: auto;
-}
-
-.focus-expand-body {
-  padding: 7px 10px;
-  overflow: auto;
-  max-height: 180px;
+.focus-slot {
+  width: 100%;
 }
 
 /* ---- type focus: observed inhabitant values ---- */

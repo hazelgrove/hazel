@@ -43,6 +43,9 @@ module Model = {
        normalization frame (see CanvasLayout.origin) */
     [@sexp.default []] [@yojson.default []]
     canvas_node_pins: list(((string, string), (float, float))),
+    /* defaulted so settings blobs persisted before this field still load
+       (a parse failure makes Store discard ALL settings) */
+    [@sexp.default false] [@yojson.default false]
     simple_indication: bool,
   };
 
@@ -112,6 +115,7 @@ module Model = {
       canvas_connect: None,
       canvas_place: None,
       canvas_expand: None,
+      canvas_probe_models: [],
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -427,6 +431,16 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_expand: x,
+          },
+        }
+      | Sidebar(SetCanvasProbeModel(key, model)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_probe_models: [
+              (key, model),
+              ...List.remove_assoc(key, settings.sidebar.canvas_probe_models),
+            ],
           },
         }
       | Sidebar(SetCanvasConnect(c)) => {
