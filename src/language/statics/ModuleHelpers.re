@@ -74,7 +74,7 @@ let single_bound_var = (p: Pat.t): option(Var.t) =>
 
 let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   switch (pat.term) {
-  | Var(n) when n == name => pat
+  | Var(n) when String.equal(n, name) => pat
   | Asc(inner, _) => pat_for_bound_name(name, inner)
   | Tuple(ps)
   | ListLit(ps) =>

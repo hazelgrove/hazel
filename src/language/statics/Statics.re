@@ -2745,7 +2745,8 @@ and uexp_to_info_map =
     let (e, _, m) = go(~ana=syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-    | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+    | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
+        when String.equal(l1, l2) =>
       default_case()
     | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
@@ -3137,7 +3138,7 @@ and upat_to_info_map =
           custom_statics: None,
         });
 
-      List.exists(l => name == l, duplicate_bindings)
+      List.exists(l => String.equal(name, l), duplicate_bindings)
         ? {
           add(
             ~elab_syn_ty=unknown,
@@ -3644,14 +3645,15 @@ and upat_to_info_map =
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
+          when String.equal(l1, l2) =>
         default_case()
       | Unknown(_) =>
         /* Unknown type could be a singleton labeled tuple. Only elaborate
            (destructure) if the pattern is a Var whose name matches the label.
            Otherwise, the pattern should have the full tuple type. */
         switch (upat.term) {
-        | Var(name) when name == l1 =>
+        | Var(name) when String.equal(name, l1) =>
           /* Pattern name matches label - this is destructuring */
           elaborate_singleton_tuple(upat, ana_ty, l1, m)
         | _ =>
@@ -3790,7 +3792,7 @@ and utyp_to_info_map =
     | (TypeExpected, Label(_))
     | (LabelExpected(Unique, _), Label(_)) => ok(Message.Type(utyp))
     | (LabelExpected(Duplicate, dupes), Label(name)) =>
-      List.exists(l => name == l, dupes)
+      List.exists(l => String.equal(name, l), dupes)
         ? err(DuplicateLabel(name, utyp)) : err(TypWantLabel)
     | (LabelProjectionExpected(Some(labels)), Label(name)) =>
       List.mem(name, labels)

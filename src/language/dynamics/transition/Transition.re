@@ -437,7 +437,7 @@ module Transition = (EV: EV_MODE) => {
       // | `Environment =>
       let. _ = otherwise(env, Var(x) |> rewrap);
       switch (Environment.lookup(env, x)) {
-      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
+      | Some({term: Var(y), _}) when String.equal(x, y) => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
         let is_value =
           switch (d |> Exp.term_of) {
@@ -737,7 +737,7 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          if (ident == "print") {
+          if (String.equal(ident, "print")) {
             /* Println for probes study */
             Step({
               expr: tuple([]),
@@ -974,7 +974,7 @@ module Transition = (EV: EV_MODE) => {
               List.filter_map(
                 d => {
                   switch (Exp.match_tup_label(d)) {
-                  | Some((s, e)) when name == s => Some(e)
+                  | Some((s, e)) when String.equal(name, s) => Some(e)
                   | _ => None
                   }
                 },

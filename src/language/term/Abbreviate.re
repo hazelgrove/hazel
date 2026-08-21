@@ -317,13 +317,15 @@ let is_comment_token = (s: string): bool => {
   let len: int = String.length(s);
   if (len == 1) {
     s == "#";
-  } else if (len >= 2 && s.[0] == '#' && s.[len - 1] == '#') {
+  } else if (len >= 2
+             && Char.equal(s.[0], '#')
+             && Char.equal(s.[len - 1], '#')) {
     let rec loop = (idx: int): bool =>
       if (idx >= len - 1) {
         true;
       } else {
         let ch: char = s.[idx];
-        ch == '#' || ch == '\n' ? false : loop(idx + 1);
+        Char.equal(ch, '#') || Char.equal(ch, '\n') ? false : loop(idx + 1);
       };
     loop(1);
   } else {
