@@ -12,7 +12,7 @@ let at_caret =
     let* snapshot = statics.completion;
     let source = MakeTerm.semantic_source(z);
     /* Include IDs: Segment.equal deliberately ignores tile identity. */
-    if (source != snapshot.source) {
+    if (!Poly.equal(source, snapshot.source)) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
       let* chip = CompletionQuery.chip_at_caret(~seg=source, z);
@@ -31,9 +31,9 @@ let at_caret =
         switch (piece) {
         | Tile(t) =>
           let* child =
-            List.nth_opt(t.children, Tile.child_index_before(t, shard));
+            List.nth(t.children, Tile.child_index_before(t, shard));
           switch (
-            List.find_opt(p => !Piece.is_secondary(p), List.rev(child))
+            List.find(~f=p => !Piece.is_secondary(p), List.rev(child))
           ) {
           | Some(p) =>
             let* info = Id.Map.find_opt(Piece.id(p), statics.info_map);

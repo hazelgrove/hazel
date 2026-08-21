@@ -224,7 +224,7 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Parens(pat)
   | Asc(pat, _) => var_names_of_pat(pat)
   | ListLit(pats)
-  | Tuple(pats) => List.concat_map(var_names_of_pat, pats)
+  | Tuple(pats) => List.concat_map(~f=var_names_of_pat, pats)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -298,11 +298,14 @@ let get_refs_to_after_pattern_edit =
           Option.is_some(sugar_head_name(p_old))
           && Option.is_some(FunctionSugar.detect(p_new)) =>
       let old_names = var_names_of_pat(p_old);
-      let head_name = Option.get(sugar_head_name(p_old));
+      let head_name = Option.value_exn(sugar_head_name(p_old));
       let def_refs =
         switch (exp_to_info(def)) {
         | InfoExp({co_ctx, _}) =>
-          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
+          VarMap.filter(
+            ((n, _)) => List.mem(old_names, n, ~equal=Poly.equal),
+            co_ctx,
+          )
         | _ => []
         };
       let body_refs =
@@ -338,7 +341,7 @@ let name_occurs_within =
     (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
   Id.Map.exists(
     (_id, info: Info.t) =>
-      List.mem(root_id, Info.ancestors_of(info))
+      List.mem(Info.ancestors_of(info), root_id, ~equal=Poly.equal)
       && (
         switch (info) {
         | InfoExp({user_term, _}) =>
@@ -366,29 +369,33 @@ let update_use_sites_of_var =
    */
   // Iterate through all variables in the co-context
   List.fold_left(
-    (acc_z, (var_name, entries)) =>
-      // Only update variables that match the old_name
-      if (String.equal(var_name, old_name)) {
-        // Iterate through all entries (IDs) for this variable
-        List.fold_left(
-          (acc_z', entry) => {
-            let id = entry.CoCtx.id;
-            switch (Select.tile(id, acc_z')) {
-            | Some(z') =>
-              switch (Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)) {
-              | Some(z'') => z''
-              | None => z'
-              }
-            | None => acc_z'
-            };
-          },
-          acc_z,
-          entries,
-        );
-      } else {
-        acc_z;
-      },
-    z,
+    ~f=
+      (acc_z, (var_name, entries)) =>
+        // Only update variables that match the old_name
+        if (String.equal(var_name, old_name)) {
+          // Iterate through all entries (IDs) for this variable
+          List.fold_left(
+            ~f=
+              (acc_z', entry) => {
+                let id = entry.CoCtx.id;
+                switch (Select.tile(id, acc_z')) {
+                | Some(z') =>
+                  switch (
+                    Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)
+                  ) {
+                  | Some(z'') => z''
+                  | None => z'
+                  }
+                | None => acc_z'
+                };
+              },
+            ~init=acc_z,
+            entries,
+          );
+        } else {
+          acc_z;
+        },
+    ~init=z,
     co_ctx,
   );
 };
@@ -422,9 +429,10 @@ let update_use_sites_of_pat =
     )
   | Some(pairs) =>
     List.fold_left(
-      (acc_z, (old_name, new_name)) =>
-        update_use_sites_of_var(acc_z, co_ctx, old_name, new_name),
-      z,
+      ~f=
+        (acc_z, (old_name, new_name)) =>
+          update_use_sites_of_var(acc_z, co_ctx, old_name, new_name),
+      ~init=z,
       pairs,
     )
   };

@@ -34,39 +34,45 @@ module M: Projector = {
       | CsvUtil.WithHeaders(rows) =>
         ListLit(
           List.map(
-            (row: list((string, string))) =>
-              Language.IdTagged.FreshGrammar.Exp.(
-                tuple(
-                  List.map(
-                    ((header: string, value: string)) =>
-                      tup_label(
-                        label(StringUtil.sanitize_for_label(header)),
-                        string(
-                          StringUtil.sanitize_for_string_expression(value),
-                        ),
-                      ),
-                    row,
-                  ),
-                )
-              ),
+            ~f=
+              (row: list((string, string))) =>
+                Language.IdTagged.FreshGrammar.Exp.(
+                  tuple(
+                    List.map(
+                      ~f=
+                        ((header: string, value: string)) =>
+                          tup_label(
+                            label(StringUtil.sanitize_for_label(header)),
+                            string(
+                              StringUtil.sanitize_for_string_expression(
+                                value,
+                              ),
+                            ),
+                          ),
+                      row,
+                    ),
+                  )
+                ),
             rows,
           ),
         )
       | CsvUtil.WithoutHeaders(rows) =>
         ListLit(
           List.map(
-            (row: list(string)) =>
-              Language.IdTagged.FreshGrammar.Exp.(
-                tuple(
-                  List.map(
-                    (value: string) =>
-                      string(
-                        StringUtil.sanitize_for_string_expression(value),
-                      ),
-                    row,
-                  ),
-                )
-              ),
+            ~f=
+              (row: list(string)) =>
+                Language.IdTagged.FreshGrammar.Exp.(
+                  tuple(
+                    List.map(
+                      ~f=
+                        (value: string) =>
+                          string(
+                            StringUtil.sanitize_for_string_expression(value),
+                          ),
+                      row,
+                    ),
+                  )
+                ),
             rows,
           ),
         )

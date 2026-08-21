@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type shape =
@@ -80,7 +81,7 @@ let redeem_space_from = (gs: list(t)): option(Secondary.t) =>
   switch (suppressed_space^) {
   | None => None
   | Some(owed_id) =>
-    if (List.exists((g: t) => g.id == owed_id, gs)) {
+    if (List.exists(~f=(g: t) => g.id == owed_id, gs)) {
       suppressed_space := None;
       Some(Secondary.mk_space(Id.mk()));
     } else {

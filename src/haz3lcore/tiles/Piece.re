@@ -177,7 +177,7 @@ let mk_tile: ((Form.t, Sort.t), list(list(t))) => t =
       id: Id.mk(),
       form,
       sort,
-      shards: List.mapi((i, _) => i, Form.label_of(form)),
+      shards: List.mapi(~f=(i, _) => i, Form.label_of(form)),
       children,
     });
 
