@@ -76,7 +76,8 @@ let context_length_for_active = (model: Model.t): option(int) => {
   let from_catalog = (id: string): option(int) =>
     switch (
       List.find_opt(
-        (m: OpenRouter.AvailableLLMs.Model.llm_info) => m.id == id,
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+          String.equal(m.id, id),
         model.available_llms,
       )
     ) {
@@ -120,7 +121,8 @@ let active_supports_reasoning = (model: Model.t): bool => {
   | Some(llm) =>
     switch (
       List.find_opt(
-        (m: OpenRouter.AvailableLLMs.Model.llm_info) => m.id == llm.id,
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+          String.equal(m.id, llm.id),
         model.available_llms,
       )
     ) {

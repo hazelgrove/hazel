@@ -60,13 +60,15 @@ module Scratchpad = {
         switch (original) {
         | None => false
         | Some(pce) =>
-          MarkerParse.seg_to_text(
-            ~refractors=current_zipper.refractors.manuals,
-            current_segment,
+          String.equal(
+            MarkerParse.seg_to_text(
+              ~refractors=current_zipper.refractors.manuals,
+              current_segment,
+            ),
+            Util.StringUtil.strip_final_newline(
+              pce.editor.zipper.backup_text,
+            ),
           )
-          == Util.StringUtil.strip_final_newline(
-               pce.editor.zipper.backup_text,
-             )
         };
       let editor_persist =
         if (unchanged) {
@@ -649,7 +651,8 @@ module Update = {
         model.scratchpads
         |> List.filter_map((s: Scratchpad.t) => {
              switch (String.split_on_char(' ', s.name)) {
-             | [p, num] when p == prefix => int_of_string_opt(num)
+             | [p, num] when String.equal(p, prefix) =>
+               int_of_string_opt(num)
              | _ => None
              }
            });

@@ -51,7 +51,7 @@ module ViewCache = {
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
-          && e.model == model =>
+          && String.equal(e.model, model) =>
       Some(e.view)
     | _ => None
     };

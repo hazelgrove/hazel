@@ -125,7 +125,7 @@ let view =
       : Node.t => {
     let is_active =
       switch (task.active_subtask) {
-      | Some(active_item) => active_item == subtask.title
+      | Some(active_item) => String.equal(active_item, subtask.title)
       | None => false
       };
     let is_completed =
@@ -409,12 +409,14 @@ let view =
                   (task: AgentWorkbench.Model.task) => {
                     let is_displayed =
                       switch (workbench.t_ui.display_task) {
-                      | Some(displayed_title) => displayed_title == task.title
+                      | Some(displayed_title) =>
+                        String.equal(displayed_title, task.title)
                       | None => false
                       };
                     let is_active =
                       switch (workbench.active_task) {
-                      | Some(active_title) => active_title == task.title
+                      | Some(active_title) =>
+                        String.equal(active_title, task.title)
                       | None => false
                       };
                     let is_completed =

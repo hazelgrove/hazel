@@ -597,7 +597,8 @@ module Indicated = {
       refractor_kind
       |> Option.map(ProjectorCore.Kind.name)
       |> Option.value(~default="");
-    let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
+    let cls =
+      String.equal(kind_cls, "") ? base_cls : base_cls ++ " " ++ kind_cls;
     /* Simplified style suppresses the shard hexagons: regular terms get just
      * the bare arm; refractor terms get nothing here, leaving only the
      * simplified arm and backing drawn by Arms.Refractors. */

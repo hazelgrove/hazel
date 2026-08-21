@@ -1194,7 +1194,9 @@ module View = {
 
     let option_view = (name, n) =>
       option(
-        ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
+        ~attrs=
+          String.equal(n, name)
+            ? [Attr.create("selected", "selected")] : [],
         [text(n)],
       );
 

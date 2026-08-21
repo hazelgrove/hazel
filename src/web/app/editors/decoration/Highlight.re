@@ -272,7 +272,7 @@ let outline_path =
                let next = List.nth(rows, i + 1);
                let rx_cur = rx(row);
                let rx_next = rx(next);
-               if (rx_cur == rx_next) {
+               if (Float.equal(rx_cur, rx_next)) {
                  [];
                } else {
                  [SvgUtil.Path.H({x: rx_next})];
@@ -296,7 +296,7 @@ let outline_path =
                let next_up = List.nth(rows_rev, i + 1);
                let lx_cur = lx(row);
                let lx_next = lx(next_up);
-               if (lx_cur == lx_next) {
+               if (Float.equal(lx_cur, lx_next)) {
                  [];
                } else {
                  [SvgUtil.Path.H({x: lx_next})];

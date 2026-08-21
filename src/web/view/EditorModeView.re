@@ -90,7 +90,10 @@ let indicator_select =
          |> Seq.map(PairUtil.map_snd(List.nth(_, prefix_depth)))
          // Deduplicate the matching names based on the path component
          |> List.of_seq
-         |> Util.ListUtil.dedup_f(((_, a), (_, b)) => a == b, _);
+         |> Util.ListUtil.dedup_f(
+              ((_, a), (_, b)) => String.equal(a, b),
+              _,
+            );
 
        // Create a dropdown (select element) for the current path component
        select(
@@ -102,7 +105,10 @@ let indicator_select =
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) => {
              signal(
-               List.find_opt(((_, n)) => n == name, matching_names)
+               List.find_opt(
+                 ((_, n)) => String.equal(n, name),
+                 matching_names,
+               )
                |> Option.get
                |> fst,
              )
@@ -111,7 +117,7 @@ let indicator_select =
          {
            List.map(
              ((_, name: string)) => {
-               option_view(name == slide_segment, name)
+               option_view(String.equal(name, slide_segment), name)
              },
              matching_names,
            );

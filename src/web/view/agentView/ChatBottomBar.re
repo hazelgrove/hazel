@@ -415,7 +415,7 @@ let view =
       };
     let parts = String.split_on_char('-', after_slash);
     let cap = (s: string): string =>
-      if (s == "") {
+      if (String.equal(s, "")) {
         s;
       } else {
         let first = String.sub(s, 0, 1) |> String.uppercase_ascii;
@@ -474,7 +474,7 @@ let view =
           ),
           Some(aid),
         )
-          when n > 0 && mid == aid => (
+          when n > 0 && String.equal(mid, aid) => (
           true,
           Printf.sprintf(
             "Prompt cache hit on last turn (%d cached tokens). Cache is per-model; switching models invalidates it.",
@@ -607,7 +607,7 @@ let view =
                 ~attrs=[clss(["chat-action-buttons-left"])],
                 [
                   // Prompt button
-                  if (chunked_chat.prompt != "") {
+                  if (!String.equal(chunked_chat.prompt, "")) {
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),
@@ -629,7 +629,7 @@ let view =
                     [Icons.wrench],
                   ),
                   // Context View button (shows agent editor view, static errors, and workbench)
-                  if (chunked_chat.context != "") {
+                  if (!String.equal(chunked_chat.context, "")) {
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),

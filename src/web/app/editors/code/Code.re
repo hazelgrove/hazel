@@ -145,11 +145,12 @@ let view =
 
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
-    | Whitespace(str) when str == Token.linebreak =>
+    | Whitespace(str) when String.equal(str, Token.linebreak) =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       Node.text(lb_icon ++ token);
-    | Whitespace(str) when str == Token.space => Node.text(ws_icon)
+    | Whitespace(str) when String.equal(str, Token.space) =>
+      Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     | Comment(str) when List.mem(secondary.id, buffer_ids) =>
       comment_text(~font_metrics, "in-unparsed-buffer", str)
