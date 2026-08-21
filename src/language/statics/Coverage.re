@@ -31,7 +31,7 @@ module Constraint = {
   let rec is_irrefutable =
     fun
     | Truth => true
-    | Tuple(cs) => List.for_all(is_irrefutable, cs)
+    | Tuple(cs) => List.for_all(~f=is_irrefutable, cs)
     | _ => false;
 };
 
@@ -50,12 +50,12 @@ module Ctr = {
           {ctr: _, num_args: _, string_key: string_key1},
           {ctr: _, num_args: _, string_key: string_key2},
         ) =>
-      compare(string_key1, string_key2);
+      String.compare(string_key1, string_key2);
   };
 
   include M;
   module Map = MapUtil.Make(M);
-  module Set = Set.Make(M);
+  module Set = Stdlib.Set.Make(M);
 
   let mk = (ctr, num_args) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
@@ -93,12 +93,14 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
-    | Infinite => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+    | Unknown =>
+      List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
+    | Infinite =>
+      List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+      | None => List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
       }
     };
 
@@ -112,12 +114,13 @@ module Ctr = {
       Finite(
         map
         |> List.filter_map(
-             fun
-             | ConstructorMap.Variant(ctr, _, None) =>
-               Some((mk(ctr, 0), []))
-             | Variant(ctr, _, Some(arg_ty)) =>
-               Some((mk(ctr, 1), [arg_ty]))
-             | BadEntry(_) => None,
+             ~f=
+               fun
+               | ConstructorMap.Variant(ctr, _, None) =>
+                 Some((mk(ctr, 0), []))
+               | Variant(ctr, _, Some(arg_ty)) =>
+                 Some((mk(ctr, 1), [arg_ty]))
+               | BadEntry(_) => None,
            )
         |> Map.of_list,
       )
@@ -166,9 +169,9 @@ module Ctr = {
     | Unknown => false
     | Infinite => false
     | Finite(all_ctrs) =>
-      List.split(Map.bindings(all_ctrs))
+      List.unzip(Map.bindings(all_ctrs))
       |> fst
-      |> List.for_all(ctr => Set.mem(ctr, seen_ctrs))
+      |> List.for_all(~f=ctr => Set.mem(ctr, seen_ctrs))
     };
   };
 };
@@ -191,17 +194,18 @@ module Matrix = {
 
   let of_constraints = (xis: list(Constraint.t)): t => {
     List.mapi(
-      (idx, xi) =>
-        {
-          idx,
-          cols: [xi],
-        },
+      ~f=
+        (idx, xi) =>
+          {
+            idx,
+            cols: [xi],
+          },
       xis,
     );
   };
 
   let contains_row = (idx: int, m: t): bool =>
-    List.exists((row: row) => row.idx == idx, m);
+    List.exists(~f=(row: row) => row.idx == idx, m);
 
   let rev = (m: t): t => List.rev(m);
 };
@@ -416,7 +420,7 @@ module UnseenPatternList: UnseenPatternList = {
         } else {
           // ctr has a " as the first character
           string(
-            String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
+            String.sub(ctr.ctr, ~pos=1, ~len=String.length(ctr.ctr) - 1),
           );
         },
         unseen_pattern,
@@ -445,9 +449,9 @@ module UnseenPatternList: UnseenPatternList = {
   let find_first_unseen_ctr = (seen_in_col: Seen.t, all_ctrs: Ctr.Map.t('a)) => {
     seen_in_col.seen_all_ctrs
       ? Ctr.default_ctr
-      : List.split(Ctr.Map.bindings(all_ctrs))
+      : List.unzip(Ctr.Map.bindings(all_ctrs))
         |> fst
-        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
+        |> List.find_exn(~f=ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
   };
 
   // add a sum type constructor to the unseen pattern list
@@ -648,7 +652,7 @@ module UnseenPatternList: UnseenPatternList = {
     let pat_list = unseen_pattern.pat;
     Grammar.Pat(
       switch (List.length(pat_list)) {
-      | 1 => List.hd(pat_list)
+      | 1 => List.hd_exn(pat_list)
       | 0 => wild()
       | _ => tuple(pat_list)
       },
@@ -791,8 +795,8 @@ module Submatrices = {
       };
     };
     List.fold_left(
-      (seen, row: Matrix.row) => {seen'(seen, row)},
-      Seen.init,
+      ~f=(seen, row: Matrix.row) => {seen'(seen, row)},
+      ~init=Seen.init,
       m,
     );
   };
@@ -855,7 +859,7 @@ module Submatrices = {
       };
 
     let ctr_set_of_list = (to_ctr, elts) => {
-      Ctr.Set.of_list(List.map(to_ctr, elts));
+      Ctr.Set.of_list(List.map(~f=to_ctr, elts));
     };
 
     let submatrices = {
@@ -885,7 +889,7 @@ module Submatrices = {
               update_ctrs(Ctr.of_string(s), row.idx, cols, submatrices.ctrs),
           }
         | [Tuple(xis), ...cols] =>
-          let cols' = List.map(cons => {cons}, xis) @ cols;
+          let cols' = List.map(~f=cons => {cons}, xis) @ cols;
           {
             ...submatrices,
             ctrs:
@@ -913,7 +917,8 @@ module Submatrices = {
             Ctr.Set.fold(
               (ctr, ctrs) => {
                 let num_args = Ctr.num_args_of(ctr);
-                let cols = List.init(num_args, _ => Constraint.Truth) @ cols;
+                let cols =
+                  List.init(num_args, ~f=_ => Constraint.Truth) @ cols;
                 update_ctrs(ctr, row.idx, cols, ctrs);
               },
               seen_ctrs,
@@ -959,7 +964,7 @@ module Submatrices = {
         };
       };
 
-      List.fold_left((sm, row) => {submatrix(sm, row)}, empty, m);
+      List.fold_left(~f=(sm, row) => {submatrix(sm, row)}, ~init=empty, m);
     };
 
     let submatrices = rev(submatrices); // needed so that rows show up in order for redundancy checking
@@ -1092,7 +1097,7 @@ module CheckMatrix: CheckMatrix = {
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
-          redundant_rows: List.init(List.length(m), i => i),
+          redundant_rows: List.init(List.length(m), ~f=i => i),
         }
       | all_ctrs =>
         let Submatrices.{
@@ -1144,10 +1149,15 @@ module CheckMatrix: CheckMatrix = {
 
                 let redundant_rows =
                   List.filter(
-                    (idx: int) => {
-                      !Matrix.contains_row(idx, submatrix)
-                      || List.mem(idx, submatrix_redundant_rows)
-                    },
+                    ~f=
+                      (idx: int) => {
+                        !Matrix.contains_row(idx, submatrix)
+                        || List.mem(
+                             submatrix_redundant_rows,
+                             idx,
+                             ~equal=Int.equal,
+                           )
+                      },
                     redundant_rows,
                   );
 

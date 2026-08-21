@@ -277,7 +277,7 @@ let marks_of: t => list(Mark.t) =
 let is_error = (ci: t): bool =>
   switch (ci) {
   | InfoDrv(drv) => DrvInfo.is_error(drv)
-  | _ => marks_of(ci) != []
+  | _ => !List.is_empty(marks_of(ci))
   };
 
 let warnings_of: t => list(Warning.list_item) =
@@ -292,7 +292,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoMPat(_)
   | Secondary(_) => [];
 
-let is_warning = (ci: t): bool => warnings_of(ci) != [];
+let is_warning = (ci: t): bool => !List.is_empty(warnings_of(ci));
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
    have a runtime value. This includes expressions and patterns, but excludes
@@ -359,20 +359,20 @@ let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* entry = Ctx.lookup_var(ctx, name);
-    entry.id == Id.invalid ? None : Some(entry.id);
+    Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
   | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, _}) =>
     switch (Ctx.lookup_ctr(ctx, name)) {
-    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
+    | Some(entry) when !Id.equal(entry.id, Id.invalid) => Some(entry.id)
     | _ =>
       /* Fallback: capitalized names (modules) parse as Constructor
          but bind as VarEntry via the Constructor-to-Var fallback */
       let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
+      Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
     }
   | InfoTyp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
-    id == Id.invalid ? None : Some(id);
+    Id.equal(id, Id.invalid) ? None : Some(id);
   | _ => None
   };
 };

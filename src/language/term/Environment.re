@@ -95,7 +95,7 @@ let t_of_yojson = (a: Yojson.Safe.t => 'a, yojson: Yojson.Safe.t) =>
 let id_equal = (x: t('a), y: t('a)) =>
   switch (x, y) {
   | (Empty, Empty) => true
-  | (E(e1), E(e2)) => e1.id == e2.id
+  | (E(e1), E(e2)) => Id.equal(e1.id, e2.id)
   | (Empty, E(_))
   | (E(_), Empty) => false
   };
@@ -105,7 +105,7 @@ let equal = _ => id_equal;
 let empty = Empty;
 
 let add_bindings = (type a, env: t(a), bindings: list(binding(a))): t(a) =>
-  List.fold_left(extend, env, bindings);
+  List.fold_left(~f=extend, ~init=env, bindings);
 
 let of_bindings = (type a, bindings: list(binding(a))): t(a) =>
   add_bindings(empty, bindings);
@@ -141,7 +141,7 @@ let free_name = (type a, base: Var.t, env: t(a)): Var.t => {
 };
 
 let of_list = (type a, lst: list(binding(a))): t(a) =>
-  List.fold_left(extend, empty, lst);
+  List.fold_left(~f=extend, ~init=empty, lst);
 
 let to_list = (type a, env: t(a)): list(binding(a)) =>
   fold((binding, acc) => [binding, ...acc], [], env);
