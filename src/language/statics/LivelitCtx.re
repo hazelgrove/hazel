@@ -70,8 +70,8 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   update: (action: action_exp, model: model_exp) =>
     B.model_to_hazel(
       B.update(
-        B.action_from_hazel(action) |> Option.get,
-        B.model_from_hazel(model) |> Option.get,
+        B.action_from_hazel(action) |> Option.value_exn,
+        B.model_from_hazel(model) |> Option.value_exn,
       ),
     ),
   view: (model: model_exp, send_action: send_action) => {
