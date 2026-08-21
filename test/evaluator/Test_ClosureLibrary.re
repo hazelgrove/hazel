@@ -226,14 +226,7 @@ let stmt_pos_add = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> ((a1 + b1 > 
 let stmt_pow_pos = "forall a1 -> forall b1 -> a1 > 0 ==> b1 >= 0 ==> ((a1 ** b1 > 0) == true)";
 
 let theorem = (name: string, stmt: string, proof: string): string =>
-  "theorem "
-  ++ name
-  ++ " = "
-  ++ stmt
-  ++ " proof "
-  ++ proof
-  ++ " in "
-  ++ name;
+  "theorem " ++ name ++ " = " ++ stmt ++ " proof " ++ proof ++ " in " ++ name;
 
 /* --- Section B: the six partial proofs ---------------------------------- */
 
@@ -335,12 +328,19 @@ let src_pow_pos =
 let check_partial = (name: string, src: string, expected_obs: int): unit => {
   let (pm, proof) = run_named(name, src);
   check_mark_free(name, pm, proof);
-  check_obligation_count(name ++ ": obligation count", expected_obs, pm, proof);
+  check_obligation_count(
+    name ++ ": obligation count",
+    expected_obs,
+    pm,
+    proof,
+  );
   if (List.exists(
         Obligation.is_pending,
         ProofMap.obligations_of_proof(pm, proof),
       )) {
-    Alcotest.fail(name ++ ": no obligation should be Pending\n" ++ dump(pm, proof));
+    Alcotest.fail(
+      name ++ ": no obligation should be Pending\n" ++ dump(pm, proof),
+    );
   };
   check_full_status(
     name ++ " pins as Incomplete (one documented false-branch hole)",
@@ -356,8 +356,10 @@ let test_nonzero_of_neg_partial = () =>
   check_partial("nonzero_of_neg_proved", src_nonzero_of_neg, 0);
 let test_nonzero_mul_partial = () =>
   check_partial("nonzero_mul_proved", src_nonzero_mul, 0);
-let test_pos_mul_partial = () => check_partial("pos_mul_proved", src_pos_mul, 0);
-let test_pos_add_partial = () => check_partial("pos_add_proved", src_pos_add, 0);
+let test_pos_mul_partial = () =>
+  check_partial("pos_mul_proved", src_pos_mul, 0);
+let test_pos_add_partial = () =>
+  check_partial("pos_add_proved", src_pos_add, 0);
 
 /* pow_pos is the only one of the six that incurs an obligation: the bool
  * split's domain scan (§4.1) sees `a1 ** b1` and emits `b1 >= 0`, which
@@ -382,7 +384,10 @@ let test_pow_pos_partial = () => {
       is_remote(ob),
     );
   | obs =>
-    Alcotest.fail("expected exactly one obligation, got " ++ string_of_int(List.length(obs)))
+    Alcotest.fail(
+      "expected exactly one obligation, got "
+      ++ string_of_int(List.length(obs)),
+    )
   };
 };
 
@@ -658,7 +663,11 @@ let test_zero_case_closes_by_ex_falso = () => {
  * the `b >= 0` guard exists to admit while excluding negatives). */
 
 let closed_instance = (name: string, fact: string): string =>
-  theorem(name, "1 == 1", "assume " ++ fact ++ " => axiom refl_eq at 0 on 1 == 1 end");
+  theorem(
+    name,
+    "1 == 1",
+    "assume " ++ fact ++ " => axiom refl_eq at 0 on 1 == 1 end",
+  );
 
 let instances: list((string, string)) = [
   ("nonzero_of_pos_at_7", "7 > 0 ==> ((7 != 0) == true)"),
@@ -725,7 +734,10 @@ let all_workload: list((string, string)) =
     ("pos_add_proved", src_pos_add),
     ("pow_pos_proved", src_pow_pos),
   ]
-  @ List.map(((name, fact)) => (name, closed_instance(name, fact)), instances);
+  @ List.map(
+      ((name, fact)) => (name, closed_instance(name, fact)),
+      instances,
+    );
 
 let test_channel_distribution = () => {
   let (remote, evaluated, local, pending) =

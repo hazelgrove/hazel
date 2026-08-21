@@ -1857,16 +1857,22 @@ let theorem_around = (pf: TermBase.Proof.term): Exp.t =>
     ),
   );
 
-let proof_paren_test = (name: string, pf: TermBase.Proof.term, expected: string) =>
-  test_case(name, `Quick, () => {
-    let printed = editable_print(theorem_around(pf));
-    check(string, "printed with defensive parens", expected, printed);
-    /* and it reparses to the same text */
-    switch (Parser.to_term(printed, ~root=Exp)) {
-    | Some(t) => check(string, "reparse fixed point", printed, editable_print(t))
-    | None => Alcotest.fail("failed to reparse: " ++ printed)
-    };
-  });
+let proof_paren_test =
+    (name: string, pf: TermBase.Proof.term, expected: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let printed = editable_print(theorem_around(pf));
+      check(string, "printed with defensive parens", expected, printed);
+      /* and it reparses to the same text */
+      switch (Parser.to_term(printed, ~root=Exp)) {
+      | Some(t) =>
+        check(string, "reparse fixed point", printed, editable_print(t))
+      | None => Alcotest.fail("failed to reparse: " ++ printed)
+      };
+    },
+  );
 
 let proof_embedded_paren_tests = (
   "Defensive Parens: Proof-Embedded Expressions",

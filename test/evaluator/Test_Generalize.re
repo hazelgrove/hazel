@@ -125,7 +125,12 @@ let test_captured_fact_does_not_discharge = () => {
   let src = {|theorem t = forall x -> x == x proof assume x != 0 => generalize x => forall x => assume x != 0 => axiom refl_eq at 0 on x == x end in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
-  Alcotest.check(Alcotest.int, "two assume obligations", 2, List.length(obs));
+  Alcotest.check(
+    Alcotest.int,
+    "two assume obligations",
+    2,
+    List.length(obs),
+  );
   Alcotest.check(
     Alcotest.bool,
     "both obligations are Pending (no remote discharge across generalize)",

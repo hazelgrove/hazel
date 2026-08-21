@@ -71,9 +71,7 @@ let rec match_exp =
           ),
         )
       | Some(e) =>
-        print_endline("ASSIGNED");
-        print_endline("assigned exp: " ++ Exp.show(e));
-        Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None;
+        Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None
       }
     };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)

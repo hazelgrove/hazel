@@ -92,11 +92,23 @@ module F =
       |> {
         let.calc exp = exp
         and.calc ctx = ctx;
-        switch (exp |> Exp.term_of) {
-        | Fun(p, d1, t, _) =>
-          let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-          Some((SemanticCtx.add_from_pattern(ctx, p, t), d1));
-        | _ => None
+        /* Peel the binder exactly as the checker does (Fun / Forall /
+         * ForallWhere / FunWhere): `generalize` re-quantifies goals as
+         * `Forall` nodes, so a `forall x =>` row inside a generalized
+         * proof sees a Forall-shaped goal, not a Fun. A `where` guard
+         * becomes a hypothesis, mirroring ProofCheck's free intro. */
+        switch (ProofCheck.peel_binder(Some(exp))) {
+        | Some((p, t, guard, d1)) =>
+          let ctx = SemanticCtx.add_from_pattern(ctx, p, t);
+          let ctx =
+            switch (guard) {
+            | Some(g) =>
+              let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+              SemanticCtx.add_hypothesis(ctx, "where", g) |> fst;
+            | None => ctx
+            };
+          Some((ctx, d1));
+        | None => None
         };
       }
       |> Calc.to_option
@@ -137,6 +149,9 @@ module F =
         | Some({outgoing: Some(last), _}) =>
           switch (exp |> Exp.term_of) {
           | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
+          | Forall(p, _) => DHExp.fresh(Forall(p, last))
+          | ForallWhere(p, g, _) => DHExp.fresh(ForallWhere(p, g, last))
+          | FunWhere(p, g, _) => DHExp.fresh(FunWhere(p, g, last))
           | _ =>
             DHExp.fresh(
               Fun(

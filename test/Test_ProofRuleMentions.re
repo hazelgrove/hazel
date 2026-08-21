@@ -27,10 +27,7 @@ let mentions = (name: string, src: string): bool =>
 let check_mentions = (~expected: bool, name, src, ()) =>
   check(
     bool,
-    (expected ? "mentions " : "does not mention ")
-    ++ name
-    ++ ": "
-    ++ src,
+    (expected ? "mentions " : "does not mention ") ++ name ++ ": " ++ src,
     expected,
     mentions(name, src),
   );
@@ -87,11 +84,7 @@ let tests = [
       test_case(
         "shadowed by a case branch's pattern",
         `Quick,
-        check_mentions(
-          ~expected=false,
-          "x",
-          "(case 1 | x => x end) == 1",
-        ),
+        check_mentions(~expected=false, "x", "(case 1 | x => x end) == 1"),
       ),
       test_case(
         "free in a case scrutinee that a branch shadows",
