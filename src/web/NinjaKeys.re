@@ -46,6 +46,6 @@ let of_contextual_action =
 };
 
 let initialize = (actions: list(ContextualAction.t)) => {
-  let opts = Array.of_list(List.map(of_contextual_action, actions));
+  let opts = Array.of_list(List.map(~f=of_contextual_action, actions));
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };

@@ -3,6 +3,7 @@ open Util;
 open WebUtil;
 open Calc.Syntax;
 open Haz3lcore;
+open Poly;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -185,17 +186,19 @@ module Update = {
           ctx
           |> SemanticCtx.get_env
           |> Environment.to_list
-          |> List.filter_map(((name, exp)) =>
+          |> List.filter_map(~f=((name, exp)) =>
                switch (Exp.term_of(exp)) {
                | Grammar.ProofObject(e) => Some((name, e))
                | _ => None
                }
              )
           |> List.fold_left(
-               (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
-               Axioms.v,
+               ~f=(acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
+               ~init=Axioms.v,
              )
-          |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
+          |> List.map(~f=ctx_entry =>
+               AssumptionBox.Model.{ctx_entry: ctx_entry}
+             );
         Some(proof_ctx);
       };
     let refls =
@@ -213,10 +216,10 @@ module Update = {
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
         ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
-        |> List.filter(e =>
+        |> List.filter(~f=e =>
              !
                List.exists(
-                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 ~f=s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
                  next_steps,
                )
            );
@@ -398,8 +401,7 @@ module View = {
           model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
         ) {
         | Some(selected_exp) =>
-          List.find_index(
-            x => x == (selected_exp |> Exp.rep_id),
+          List.findi(
             model.next_steps
             |> Calc.get_saved_exc(~print="next_steps")
             |> (
@@ -407,8 +409,11 @@ module View = {
               | AutoStep(_) => []
               | AvailableSteps(steps) => steps
             )
-            |> List.map(step => step |> EvaluatorStep.get_step_id),
+            |> List.map(~f=step => step |> EvaluatorStep.get_step_id),
+            ~f=(_, x) =>
+            x == (selected_exp |> Exp.rep_id)
           )
+          |> Option.map(~f=fst)
         | None => None
         };
 
@@ -417,12 +422,14 @@ module View = {
           model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
         ) {
         | Some(selected_exp) =>
-          List.find_index(
-            x => x == (selected_exp |> Exp.rep_id),
+          List.findi(
             model.refls
             |> Calc.get_saved_exc(~print="refls")
-            |> List.map(refl => refl |> Exp.rep_id),
+            |> List.map(~f=refl => refl |> Exp.rep_id),
+            ~f=(_, x) =>
+            x == (selected_exp |> Exp.rep_id)
           )
+          |> Option.map(~f=fst)
         | None => None
         };
 

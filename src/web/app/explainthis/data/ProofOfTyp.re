@@ -13,7 +13,7 @@ let proof_of_typ = (~body_id: Id.t): form => {
   colorings: proof_of_typ_coloring_ids(~body_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This type asserts that the [*enclosed boolean*](%s) is in fact true.",
       Id.to_string(body_id),
     ),

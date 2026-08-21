@@ -13,7 +13,7 @@ module Model = {
     redo_stack: list(Updated.t(state)),
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let load = () => {
     current: Page.Store.load(),
@@ -104,7 +104,7 @@ module Update = {
         ];
         let undo_stack =
           if (model.current.globals.settings.cap_undo_stack) {
-            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
+            List.filteri(~f=(i, _) => i < capped_undo_stack_size, new_stack);
           } else {
             new_stack;
           };
