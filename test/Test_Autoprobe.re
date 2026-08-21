@@ -5,14 +5,15 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open Action;
+open Poly;
 
 let caret_char = "¦";
 
 let string_to_ltr_actions = (s: string): list(Action.t) =>
-  s |> Token.to_list |> List.map(c => Action.Insert(c));
+  s |> Token.to_list |> List.map(~f=c => Action.Insert(c));
 
 let mv_l = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Left, ByChar)));
+  List.init(n, ~f=_ => Action.Move(Local(Left, ByChar)));
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) =>
@@ -28,13 +29,14 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
       },
     );
   List.fold_left(
-    (z: Zipper.t, a: Action.t) =>
-      switch (perform(a, z)) {
-      | Ok(z) => z
-      | Error(err) =>
-        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
-      },
-    zip,
+    ~f=
+      (z: Zipper.t, a: Action.t) =>
+        switch (perform(a, z)) {
+        | Ok(z) => z
+        | Error(err) =>
+          Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
+        },
+    ~init=zip,
     actions,
   );
 };
@@ -46,7 +48,7 @@ let mk = (init: string): list(Action.t) => {
     switch (rest) {
     | [] => Alcotest.fail("No caret in: " ++ init)
     | [hd, ...tl] =>
-      hd == caret_char
+      String.equal(hd, caret_char)
         ? (List.rev(before), tl) : split([hd, ...before], tl)
     };
   let (before, after) = split([], Token.to_list(init));
@@ -384,7 +386,7 @@ let all_probed_strs = (program: string): list(string) => {
   | None => []
   | Some(root_id) =>
     ProbeTargets.ids_from_term(~syntax, ~info_map, root_id)
-    |> List.filter_map(id =>
+    |> List.filter_map(~f=id =>
          switch (TermData.segment(id, syntax.term_data)) {
          | Some(seg) =>
            Some(
