@@ -72,7 +72,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           switch (term_of(exp)) {
           | TypFun(utpat, _, _) =>
             switch (TPat.tyvar_of_utpat(utpat)) {
-            | Some(x') when x == x' => exp
+            | Some(x') when String.equal(x, x') => exp
             | Some(_)
             | None => continue(exp)
             /* Capture avoidance inside embedded types is handled by
@@ -191,7 +191,7 @@ let rec ty_comparable = (d1, d2) => {
   | (Atom(_), _) => false
   | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
   | (DrvQuote(_, _), _) => false
-  | (Label(l1), Label(l2)) => l1 == l2
+  | (Label(l1), Label(l2)) => String.equal(l1, l2)
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
     ty_comparable(l1, l2) && ty_comparable(d1, d2)
@@ -291,11 +291,11 @@ let rec poly_equal = (d1, d2): option(bool) => {
       | (SInt(_), _) => false
       | (Nat(n1), Nat(n2)) => n1 == n2
       | (Nat(_), _) => false
-      | (Bool(b1), Bool(b2)) => b1 == b2
+      | (Bool(b1), Bool(b2)) => Bool.equal(b1, b2)
       | (Bool(_), _) => false
-      | (String(s1), String(s2)) => s1 == s2
+      | (String(s1), String(s2)) => String.equal(s1, s2)
       | (String(_), _) => false
-      | (Float(f1), Float(f2)) => f1 == f2
+      | (Float(f1), Float(f2)) => Float.equal(f1, f2)
       | (Float(_), _) => false
       }
     )
@@ -304,7 +304,7 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
     Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
-  | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
+  | (Label(l1), Label(l2)) => String.equal(l1, l2) ? Some(true) : None
   | (Label(_), _) => None
   | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)
   | (ExplicitNonlabel, _) => None
@@ -322,14 +322,14 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Tuple(ds1), Tuple(ds2)) when List.length(ds1) == List.length(ds2) =>
     ListUtil.forall2_opt(poly_equal, ds1, ds2)
   | (Tuple(_), _) => None
-  | (Constructor(c1, _), Constructor(c2, _)) => Some(c1 == c2)
+  | (Constructor(c1, _), Constructor(c2, _)) => Some(String.equal(c1, c2))
   // Note: Only Constructor Ap is comparable
   | (
       Ap(_, {term: Constructor(c1, _), _}, d1),
       Ap(_, {term: Constructor(c2, _), _}, d2),
     ) =>
     let* d_eq = poly_equal(d1, d2);
-    Some(c1 == c2 && d_eq);
+    Some(String.equal(c1, c2) && d_eq);
   | (Constructor(_), Ap(_, {term: Constructor(_), _}, _))
   | (Ap(_, {term: Constructor(_), _}, _), Constructor(_)) => Some(false)
   | (Ap(_), _) => None
