@@ -30,7 +30,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
-          | Some({term: Var(y), _}) when y == x => e
+          | Some({term: Var(y), _}) when String.equal(y, x) => e
           | Some(e) => e |> Exp.replace_all_ids |> in_exp(Environment.empty)
           | None => e
           }
@@ -126,7 +126,7 @@ and in_pat =
   // Variables: special case
   | Var(x) =>
     let x' = Environment.free_name(x, env_acc);
-    if (x == x') {
+    if (String.equal(x, x')) {
       (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
     } else {
       (

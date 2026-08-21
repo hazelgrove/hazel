@@ -55,8 +55,9 @@ module Alphas = {
     (x, y, alphas) =>
       switch (alphas) {
       | [] => Free
-      | [(a, b), ..._] when a == x => b == y ? Equiv : NotEquiv
-      | [(_, b), ..._] when b == y => NotEquiv
+      | [(a, b), ..._] when String.equal(a, x) =>
+        String.equal(b, y) ? Equiv : NotEquiv
+      | [(_, b), ..._] when String.equal(b, y) => NotEquiv
       | [(_, _), ...rest] => are_alpha_equiv(x, y, rest)
       };
 
@@ -175,7 +176,7 @@ let equality =
             let* env1 = env1;
             let v = Environment.lookup(env1, x);
             switch (v) {
-            | Some({term: Var(v), _}) when v == x => None
+            | Some({term: Var(v), _}) when String.equal(v, x) => None
             | _ => v
             };
           };
@@ -183,7 +184,7 @@ let equality =
             let* env2 = env2;
             let v = Environment.lookup(env2, y);
             switch (v) {
-            | Some({term: Var(v), _}) when v == y => None
+            | Some({term: Var(v), _}) when String.equal(v, y) => None
             | _ => v
             };
           };
@@ -194,7 +195,7 @@ let equality =
           | (None, None) =>
             switch (free_var_handler) {
             | Some(handler) => handler(alphas_exp, x, e2)
-            | None => x == y // If no handler, just check if they are equal.
+            | None => String.equal(x, y) // If no handler, just check if they are equal.
             }
           };
         }
@@ -316,13 +317,13 @@ let equality =
     | (Closure(_), _) => false
 
     // Constructors: might ignore constructor types.
-    | (Constructor(c1, _), Constructor(c2, _))
-        when ignore_constructor_types == true =>
-      c1 == c2
+    | (Constructor(c1, _), Constructor(c2, _)) when ignore_constructor_types =>
+      String.equal(c1, c2)
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
-      c1 == c2 && typ'(ty1, ty2)
+      String.equal(c1, c2) && typ'(ty1, ty2)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
-    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
+    | (Constructor(c1, None), Constructor(c2, None)) =>
+      String.equal(c1, c2)
     | (Constructor(_), _) => false
 
     // Holes: equal if provenance is ignored
@@ -338,7 +339,7 @@ let equality =
         when List.length(xs1) == List.length(xs2) =>
       List.equal(any', xs1, xs2)
     | (MultiHole(_), _) => false
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
 
     // Other forms: compare.
@@ -348,9 +349,9 @@ let equality =
     | (Deferral(_), _) => false
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Atom(_), _) => false
-    | (Label(l1), Label(l2)) => l1 == l2
+    | (Label(l1), Label(l2)) => String.equal(l1, l2)
     | (Label(_), _) => false
-    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
+    | (LivelitName(s1), LivelitName(s2)) => String.equal(s1, s2)
     | (LivelitName(_), _) => false
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
@@ -394,7 +395,7 @@ let equality =
     | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
       op1 == op2 && exp'(e11, e21) && exp'(e12, e22)
     | (BinOp(_, _, _), _) => false
-    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
+    | (BuiltinFun(f1), BuiltinFun(f2)) => String.equal(f1, f2)
     | (BuiltinFun(_), _) => false
     | (Match(e1, rs1), Match(e2, rs2))
         when List.length(rs1) == List.length(rs2) =>
@@ -449,7 +450,7 @@ let equality =
     switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     | (Parens(x), _) when ignore_parens => pne(x, p2)
     | (_, Parens(x)) when ignore_parens => pne(p1, x)
-    | (Var(x), Var(y)) => x == y
+    | (Var(x), Var(y)) => String.equal(x, y)
     | (Wild, Wild) => true
     | (EmptyHole, EmptyHole) => true
     | (Parens(x), Parens(y)) => pne(x, y)
@@ -457,7 +458,7 @@ let equality =
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
-    | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns
        compared unequal (reflexivity bug caught by the Menhir/MakeTerm
@@ -487,7 +488,7 @@ let equality =
     switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
@@ -537,18 +538,20 @@ let equality =
 
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when exp_alpha => Some(Alphas.singleton(x, y))
-    | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
+    | (Var(x), Var(y)) when String.equal(x, y) =>
+      Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
 
     // Constructors: might ignore constructor types.
     | (Constructor(c1, _), Constructor(c2, _))
-        when ignore_constructor_types == true && c1 == c2 =>
+        when ignore_constructor_types && String.equal(c1, c2) =>
       Some(Alphas.empty)
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2))))
-        when c1 == c2 && typ(alphas_exp, alphas_typ, ty1, ty2) =>
+        when String.equal(c1, c2) && typ(alphas_exp, alphas_typ, ty1, ty2) =>
       Some(Alphas.empty)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
-    | (Constructor(c1, None), Constructor(c2, None)) when c1 == c2 =>
+    | (Constructor(c1, None), Constructor(c2, None))
+        when String.equal(c1, c2) =>
       Some(Alphas.empty)
     | (Constructor(_, _), _) => None
 
@@ -561,7 +564,8 @@ let equality =
       Some(Alphas.empty)
     | (EmptyHole, EmptyHole) => Some(Alphas.empty)
     | (EmptyHole, _) => None
-    | (Invalid(s1), Invalid(s2)) when s1 == s2 => Some(Alphas.empty)
+    | (Invalid(s1), Invalid(s2)) when String.equal(s1, s2) =>
+      Some(Alphas.empty)
     | (Invalid(_), _) => None
     | (MultiHole(xs1), MultiHole(xs2))
         when
@@ -574,7 +578,7 @@ let equality =
     | (Wild, _) => None
     | (Atom(c1), Atom(c2)) when c1 == c2 => Some(Alphas.empty)
     | (Atom(_), _) => None
-    | (Label(l1), Label(l2)) when l1 == l2 => Some(Alphas.empty)
+    | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some(Alphas.empty)
     | (Label(_), _) => None
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       ListUtil.fold_left_opt(
@@ -660,7 +664,7 @@ let equality =
     | (Var(x), Var(y)) =>
       switch (Alphas.are_alpha_equiv(x, y, alphas_typ)) {
       | Equiv => true
-      | Free => x == y
+      | Free => String.equal(x, y)
       | NotEquiv => false
       }
     | (Var(_), _) => false
@@ -669,7 +673,8 @@ let equality =
     | (Unknown(_), Unknown(_)) when ignore_unknown_provenance => true
     | (Unknown(SynSwitch), Unknown(SynSwitch)) => true
     | (Unknown(SynSwitch), _) => false
-    | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) => s1 == s2
+    | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) =>
+      String.equal(s1, s2)
     | (Unknown(Hole(Invalid(_))), _) => false
     | (Unknown(Hole(EmptyHole)), Unknown(Hole(EmptyHole))) => true
     | (Unknown(Hole(EmptyHole)), _) => false
@@ -683,7 +688,7 @@ let equality =
     // Other forms: compare.
     | (Atom(a1), Atom(a2)) => a1 == a2
     | (Atom(_), _) => false
-    | (Label(l1), Label(l2)) => l1 == l2
+    | (Label(l1), Label(l2)) => String.equal(l1, l2)
     | (Label(_), _) => false
     | (List(ty1), List(ty2)) => typ'(ty1, ty2)
     | (List(_), _) => false
@@ -732,7 +737,7 @@ let equality =
     switch (s1 |> Annotated.term_of, s2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
@@ -758,7 +763,8 @@ let equality =
     switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => Some(Alphas.empty)
     | (EmptyHole, _) => None
-    | (Invalid(s1), Invalid(s2)) => s1 == s2 ? Some(Alphas.empty) : None
+    | (Invalid(s1), Invalid(s2)) =>
+      String.equal(s1, s2) ? Some(Alphas.empty) : None
     | (Invalid(_), _) => None
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
@@ -766,7 +772,8 @@ let equality =
     | (MultiHole(_), _) => None
     /* MPat.Var supports alpha-equivalence: module names are binders */
     | (Var(v1), Var(v2)) when exp_alpha => Some(Alphas.singleton(v1, v2))
-    | (Var(v1), Var(v2)) when v1 == v2 => Some(Alphas.singleton(v1, v1))
+    | (Var(v1), Var(v2)) when String.equal(v1, v2) =>
+      Some(Alphas.singleton(v1, v1))
     | (Var(_), _) => None
     | (Asc(mp1, t1), Asc(mp2, t2)) =>
       switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
@@ -781,7 +788,8 @@ let equality =
     switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
-    | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
+    | (Var(x), Var(y)) when String.equal(x, y) =>
+      Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
 
     // Holes: equal if provenance is ignored
@@ -793,7 +801,8 @@ let equality =
       Some(Alphas.empty)
     | (EmptyHole, EmptyHole) => Some(Alphas.empty)
     | (EmptyHole, _) => None
-    | (Invalid(s1), Invalid(s2)) when s1 == s2 => Some(Alphas.empty)
+    | (Invalid(s1), Invalid(s2)) when String.equal(s1, s2) =>
+      Some(Alphas.empty)
     | (Invalid(_), _) => None
     | (MultiHole(xs1), MultiHole(xs2))
         when
@@ -832,7 +841,7 @@ let equality =
     | (MultiHole(_) | Invalid(_), MultiHole(_) | Invalid(_))
         when ignore_unknown_provenance =>
       true
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2))
         when
