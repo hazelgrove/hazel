@@ -923,13 +923,6 @@ end|}),
     roundtrip_test({|Use: simple|}, {|use Nat in 1|}),
     roundtrip_test({|Use: spaced|}, {|use Nat  in  1|}),
     roundtrip_test({|Use: compact|}, {|use Nat in 1|}),
-    /* ProofOf (proof_of ... end) - type-level */
-    roundtrip_test({|ProofOf: simple|}, {|1 : proof_of 1 end|}),
-    roundtrip_test({|ProofOf: spaced|}, {|1 : proof_of  1  end|}),
-    /* ProofObject (proof_object ... end) - expression-level */
-    roundtrip_test({|ProofObject: simple|}, {|proof_object 1 end|}),
-    roundtrip_test({|ProofObject: spaced|}, {|proof_object  1  end|}),
-    roundtrip_test({|ProofObject: with expr|}, {|proof_object 1 + 2 end|}),
     /* Theorem expressions (theorem ... = ... proof ... in ...) */
     roundtrip_test(
       {|Theorem: simple|},

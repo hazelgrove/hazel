@@ -46,9 +46,10 @@ module Update = {
       model.all_rules
       |> {
         let.calc ctx = ctx;
-        let env = SemanticCtx.get_env(ctx);
-        let ctx = SemanticCtx.get_ctx(ctx);
-        ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
+        ProofCtx.of_theorem_ctx(
+          ~builtins=Axioms.v,
+          SemanticCtx.get_ctx(ctx),
+        );
       };
 
     let filtered_rewrites =

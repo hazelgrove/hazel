@@ -98,7 +98,6 @@ type typ =
   | InvalidTyp(string)
   | PolyType(tpat, typ)
   | RecType(tpat, typ)
-  | ProofOfType(exp)
   | LabelType(string)
   | ExplicitNonlabel
   | TupLabelType(typ, typ)
@@ -146,7 +145,6 @@ and exp =
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, proof, exp)
-  | ProofObject(exp)
   | Fun(pat, exp, option(string))
   /* `fun p where g -> e` (Grammar.re FunWhere): the guard is proof-layer
      metadata with no dynamic effect, but it is program text, so the
@@ -845,9 +843,6 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(Theorem(shrunk, e1, pf, e2));
           }
-        | ProofObject(t) =>
-          let* shrunk = shrink_exp(t);
-          return(ProofObject(shrunk));
         | ForallExp(pat, e) =>
           return(e)
           <+> (
@@ -1319,9 +1314,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             return(RecType(tpat, shrunk));
           }
         | ExplicitNonlabel => return(ExplicitNonlabel: typ)
-        | ProofOfType(e) =>
-          let* shrunk = shrink_exp(e);
-          return(ProofOfType(shrunk));
         | LabelType(x) =>
           shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>

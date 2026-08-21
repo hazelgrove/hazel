@@ -937,22 +937,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Theorem(p', e1', pf, e2');
         }
 
-      | ProofObject(t) =>
-        if (available^ < 8) {
-          available := available^ - ellipsis_cost;
-          Invalid(flat_ellipses);
-        } else if (available^ <= 12) {
-          Invalid("proof_object");
-        } else if (available^ <= 13) {
-          Invalid("proof_object…");
-        } else if (available^ <= 18) {
-          Invalid("proof_object…end");
-        } else {
-          available := available^ - 16;
-          let t' = abbreviate_exp(t);
-          ProofObject(t');
-        }
-
       | Use(t1, e1) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
@@ -1597,7 +1581,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       };
     };
 
-    let handle_unary =
+    let _handle_unary =
         (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
       if (available^ <= cost) {
         available := available^ - 1;
@@ -1797,12 +1781,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
-      | ProofOf(e) =>
-        handle_unary(
-          ~cost=13, // "proof_of " + " end"
-          ~make_term=e' => ProofOf(e'),
-          e,
-        )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
       | Sig(items) =>
         if (available^ <= 2) {

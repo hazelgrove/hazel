@@ -113,7 +113,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | BuiltinFun(_)
         | Asc(_)
         | LivelitName(_)
-        | ProofObject(_)
         | Undefined
         | Module(_)
         | ModuleExp(_) => cont(e)
@@ -125,7 +124,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
 // Updates a pattern to avoid variable capture
 and in_pat =
     (
-      env_outer: Environment.t(Exp.t), // The environment outside the binding form, used in ProofOfs
+      env_outer: Environment.t(Exp.t), // The environment outside the binding form
       env_acc: Environment.t(Exp.t), // The environment being built up to avoid capture
       p: Pat.t,
     )
@@ -230,7 +229,6 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Poly(_, _)
         | ProdProjection(_, _)
         | ProdExtension(_, _)
-        | ProofOf(_)
         | Sig(_)
         | DrvQuoteTy(_) => cont(t)
         };

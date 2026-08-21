@@ -144,7 +144,6 @@ rule token =
        that ProofCheck also uses as hypothesis names (`where`, `assume`)
        are additionally accepted in expression position by the parser. *)
     | "theorem" {THEOREM}
-    | "proof_object" {PROOF_OBJECT}
     | "proof" {PROOF}
     | "forall" {FORALL}
     | "where" {WHERE}

@@ -253,7 +253,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
-  | ProofObject(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -339,7 +338,6 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
-  | ProofOf(_)
   | List(_) => Precedence.max
 
   // Other forms
@@ -627,8 +625,6 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
-  | ProofObject(t) =>
-    ProofObject(parenthesize(t) |> paren_at(Precedence.min)) |> rewrap
   | FixF(p, e, c) =>
     FixF(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -875,7 +871,7 @@ and parenthesize_typ =
     parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_typ_at = paren_typ_at(~parenthesization);
   let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
-  let paren_at = paren_at(~parenthesization);
+  let _paren_at = paren_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
@@ -957,12 +953,6 @@ and parenthesize_typ =
     Poly(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
-    )
-    |> rewrap
-  | ProofOf(e) =>
-    ProofOf(
-      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
-      |> paren_at(Precedence.min),
     )
     |> rewrap
   | Arrow(t1, t2) =>
@@ -2431,10 +2421,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Theorem, id, [p, thm, pf])] @ e);
-  | ProofObject(t) =>
-    let id = exp |> Exp.rep_id;
-    let+ t = exp_to_pretty(~settings: Settings.t, t);
-    wrap(exp, [mk_form(ProofObject, id, [t])]);
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -3235,10 +3221,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     wrap(typ, [mk_form(Poly, id, [tp])] @ t);
-  | ProofOf(e) =>
-    let id = typ |> Typ.rep_id;
-    let+ e = exp_to_pretty(~settings, e);
-    wrap(typ, [mk_form(ProofOf, id, [e])]);
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

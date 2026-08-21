@@ -310,19 +310,10 @@ module Update = {
         let.calc _exp = selected_exp
         and.calc ctx = ctx;
         let proof_ctx =
-          ctx
-          |> SemanticCtx.get_env
-          |> Environment.to_list
-          |> List.filter_map(((name, exp)) =>
-               switch (Exp.term_of(exp)) {
-               | Grammar.ProofObject(e) => Some((name, e))
-               | _ => None
-               }
-             )
-          |> List.fold_left(
-               (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
-               Axioms.v,
-             )
+          ProofCtx.of_theorem_ctx(
+            ~builtins=Axioms.v,
+            SemanticCtx.get_ctx(ctx),
+          )
           |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
         Some(proof_ctx);
       };

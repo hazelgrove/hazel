@@ -23,7 +23,6 @@ type cls =
   | Projector
   | Rec
   | Poly
-  | ProofOf
   | ProdProjection
   | ProdExtension
   | Sig;
@@ -98,7 +97,6 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
-  | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
   | Sig(_) => Sig;
@@ -125,7 +123,6 @@ let show_cls: cls => string =
   | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
-  | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type";
@@ -146,7 +143,6 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | Sum(_)
   | Poly(_)
-  | ProofOf(_)
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
@@ -158,7 +154,6 @@ let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
   | DrvQuoteTy(_)
-  | ProofOf(_)
   | Parens(_)
   | Projector(_)
   | TupLabel(_)
@@ -184,8 +179,7 @@ let rec has_fun = (typ: t) =>
   | TupLabel(_, typ)
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
-  | Poly(_)
-  | ProofOf(_) => true
+  | Poly(_) => true
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -212,7 +206,6 @@ let rec is_poly = (typ: t) => {
   | Projector(_, typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
-  | ProofOf(_)
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -309,7 +302,6 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
-  | ProofOf(_) => []
   | Sig(_) => []
   };
 
@@ -339,7 +331,6 @@ let rec vars = (ty: t): list(Var.t) =>
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
-  | ProofOf(_) => []
   | ExplicitNonlabel
   | Label(_) => []
   | TupLabel(_, ty)
@@ -402,7 +393,6 @@ let rec num_nodes = (ty: t): int => {
   | ExplicitNonlabel
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
-  | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | Sig(_) => 1
@@ -435,7 +425,6 @@ let rec count_unknowns = (ty: t): int =>
   | Parens(ty)
   | Projector(_, ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
-  | ProofOf(_) => 0
   | ExplicitNonlabel
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
@@ -460,7 +449,6 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Parens(ty)
   | Projector(_, ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
-  | ProofOf(_) => false
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
   | ProdExtension(ty1, ty2) =>
     contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
@@ -520,7 +508,6 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProofOf(e) => ProofOf(e) |> rewrap
     | Sig(_) => ty
     | DrvQuoteTy(_) => ty
     };
@@ -727,7 +714,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(items) =>
     /* Desugar signature to labeled tuple type:
        { let x : Int; let y : Bool } => (x=Int, y=Bool)
@@ -930,9 +916,6 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = meet'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
-  | (ProofOf(e1), ProofOf(e2)) =>
-    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
-  | (ProofOf(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
@@ -957,7 +940,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (ExplicitNonlabel, _)
   | (Var(_), _)
   | (Rec(_), _)
-  | (ProofOf(_), _)
   | (ProdProjection(_), _)
   | (ProdExtension(_), _) => t1
   // These might
@@ -1064,7 +1046,6 @@ let rec is_syn = (ty: t): bool =>
   | Var(_)
   | Rec(_)
   | Poly(_)
-  | ProofOf(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -1088,7 +1069,6 @@ let rec is_ana_atom = (ty: t) =>
   | Var(_)
   | Rec(_)
   | Poly(_)
-  | ProofOf(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -1106,7 +1086,6 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
-  | ProofOf(_)
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -1143,7 +1122,6 @@ let rec needs_parens = (ty: t): bool =>
   | Label(_)
   | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
-  | ProofOf(_)
   | Var(_) => false
   | ProdProjection(_, _)
   | ProdExtension(_, _)
@@ -1211,7 +1189,6 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | ProofOf(_e) => "yes <e> indeed"
   | Sig(items) =>
     let sig_item_str = (item: Sig.t) =>
       switch (item.term) {

@@ -55,7 +55,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
-  | ProofObject(_)
   | Module(_)
   | ModuleExp(_)
   | Match(_) => mk_fresh(Seq(e1, e2))

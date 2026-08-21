@@ -65,7 +65,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         view_type(expansion_t),
       ],
     )
-  | HypothesisEntry({name, prop, _}) =>
+  | TheoremEntry({name, _}) =>
     div(
       ~attrs=[
         Attr.on_click(_ => globals.inject_global(jump_to(entry))),
@@ -74,10 +74,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
-        switch (prop) {
-        | Some(_) => div(~attrs=[clss(["prop"])], [text("hypothesis")])
-        | None => div(~attrs=[clss(["prop"])], [text("hypothesis")])
-        },
+        div(~attrs=[clss(["prop"])], [text("theorem")]),
       ],
     )
   };

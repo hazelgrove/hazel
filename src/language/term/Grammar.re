@@ -62,7 +62,6 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
-  | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
   /* Restricted binder `forall p where g -> e` (docs/prover-obligations.md
      §2.2). Kept distinct from Forall — program text is truth; the
@@ -129,7 +128,6 @@ and typ_term('a) =
   | Projector(projector_data, typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Poly(tpat_t('a), typ_t('a))
-  | ProofOf(exp_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
@@ -320,7 +318,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_proof_annotation(f, pf),
             map_exp_annotation(f, e2),
           )
-        | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | ForallWhere(p, g, e) =>
@@ -572,7 +569,6 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
@@ -896,10 +892,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Theorem(p, e1, pf, e2),
       annotation: default_annotation(ann),
     };
-    let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
-      term: ProofObject(t),
-      annotation: default_annotation(ann),
-    };
     let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
       term: Forall(p, e),
       annotation: default_annotation(ann),
@@ -1190,10 +1182,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
       term: Poly(tp, t),
-      annotation: default_annotation(ann),
-    };
-    let proof_of = (~ann=?, e): typ_t(DefaultAnnotation.t) => {
-      term: ProofOf(e),
       annotation: default_annotation(ann),
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {

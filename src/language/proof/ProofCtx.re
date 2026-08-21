@@ -1,11 +1,9 @@
 open Util;
-open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   name: string,
   rule: ProofRule.t,
-  typ: Typ.t,
   exp: Exp.t,
   is_captured: bool,
 };
@@ -16,43 +14,24 @@ type t = list(entry);
 let empty = [];
 
 let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
-  let typ = ProofRule.rule_to_typ(rule);
   let exp = ProofRule.rule_to_exp(rule);
   [
     {
       name,
       rule,
-      typ,
       exp,
       is_captured: false,
     },
     ...ctx,
   ];
-};
-
-let add_typ = (name: string, typ: Typ.t, ctx: t): option(t) => {
-  let* rule = ProofRule.typ_to_rule(typ);
-  let exp = ProofRule.rule_to_exp(rule);
-  Some([
-    {
-      name,
-      typ,
-      rule,
-      exp,
-      is_captured: false,
-    },
-    ...ctx,
-  ]);
 };
 
 let add_exp = (name: string, exp: Exp.t, ctx: t) => {
   let rule = ProofRule.exp_to_rule(exp);
-  let typ = ProofRule.rule_to_typ(rule);
   [
     {
       name,
       rule,
-      typ,
       exp,
       is_captured: false,
     },
@@ -60,62 +39,48 @@ let add_exp = (name: string, exp: Exp.t, ctx: t) => {
   ];
 };
 
-let of_ctx = (~builtins, ctx: Ctx.t): t => {
+/* The rules citable in a scope: the built-in axioms plus every fact in
+ * the scope's THEOREM NAMESPACE (`Ctx.TheoremEntry`), innermost first.
+ *
+ * This replaces the old `of_env` / `of_ctx` pair, which scooped
+ * `ProofObject(_)` environment values and `ProofOf(_)`-typed var entries
+ * respectively (both forms are now deleted) — the Curry-Howard reading the design has since decided
+ * against (docs/prover-obligations.md §0.1). Citation is now lookup in
+ * the theorem context, full stop.
+ *
+ * `is_captured` is carried over unchanged: a fact stated in terms of a
+ * name that an INNER binder has since rebound is about the old binding
+ * and must not be citable. The test is the same free-occurrence check as
+ * before (`ProofRule.mentions_any` against the variable names bound
+ * strictly inside the fact's own entry), so the capture semantics of
+ * generalize/citation are preserved. */
+let of_theorem_ctx = (~builtins, ctx: Ctx.t): t => {
+  /* Entries are innermost-first, so walking them in that order and
+   * accumulating the VARIABLE names seen so far gives, at each fact, the
+   * set of variables rebound strictly inside it. */
   let (_, rules) =
     List.fold_left(
       ((seen_vars, rules), entry) =>
         switch (entry) {
-        | Ctx.VarEntry({name, typ, _}) =>
-          switch (ProofRule.typ_to_rule(typ)) {
-          | Some(rule) =>
-            let is_captured = ProofRule.mentions_any(rule, seen_vars);
-            let entry = {
-              name,
-              rule,
-              typ,
-              exp: ProofRule.rule_to_exp(rule),
-              is_captured,
-            };
-            ([name, ...seen_vars], [entry, ...rules]);
-          | None => ([name, ...seen_vars], rules)
-          }
+        | Ctx.VarEntry({name, _}) => ([name, ...seen_vars], rules)
+        | Ctx.TheoremEntry({name, prop: Some(prop), _}) =>
+          let rule = ProofRule.exp_to_rule(prop);
+          let is_captured = ProofRule.mentions_any(rule, seen_vars);
+          let entry = {
+            name,
+            rule,
+            exp: prop,
+            is_captured,
+          };
+          (seen_vars, [entry, ...rules]);
+        | Ctx.TheoremEntry({prop: None, _})
         | Ctx.ConstructorEntry(_)
         | Ctx.TVarEntry(_)
-        | Ctx.LivelitEntry(_)
-        | Ctx.HypothesisEntry(_) => (seen_vars, rules)
+        | Ctx.LivelitEntry(_) => (seen_vars, rules)
         },
       ([], builtins),
       ctx.entries,
     );
-  rules;
-};
-
-/* `~ctx` is retained for API stability (and symmetry with `of_ctx`); the
- * capture test no longer needs a typing context now that it is a direct
- * free-variable check rather than a statics run. */
-let of_env = (~builtins, ~ctx as _: Ctx.t, env: Environment.t(Exp.t)) => {
-  let (_, rules) =
-    Environment.to_list(env)
-    |> List.rev
-    |> List.fold_left(
-         ((seen_vars, rules), (name, exp)) =>
-           switch (Exp.term_of(exp)) {
-           | Grammar.ProofObject(e) =>
-             let rule = ProofRule.exp_to_rule(e);
-             let typ = ProofRule.rule_to_typ(rule);
-             let is_captured = ProofRule.mentions_any(rule, seen_vars);
-             let entry = {
-               name,
-               rule,
-               typ,
-               exp: e,
-               is_captured,
-             };
-             ([name, ...seen_vars], [entry, ...rules]);
-           | _ => ([name, ...seen_vars], rules)
-           },
-         ([], builtins),
-       );
   rules;
 };
 

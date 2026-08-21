@@ -1205,6 +1205,66 @@ let test_pattern_metavar_not_free = () => {
   );
 };
 
+/* --- proof/value namespace separation (2026-08-21) -------------------
+ *
+ * docs/prover-obligations.md section 0.1: theorems and hypotheses live in
+ * their own context namespace, not as values. The statics side is pinned
+ * in Test_Statics_Proof; these two pin the BIG-STEP checker, which reads
+ * the same `Ctx.TheoremEntry` entries.
+ */
+
+/* A `let` of the same name after the theorem does not hide the theorem
+ * from a citation: `axiom lem` resolves in the theorem context, which the
+ * value binding cannot shadow. Before the separation the citation was an
+ * environment lookup, so `let lem = 5` shadowed the fact away. */
+let test_citation_survives_value_shadowing = () => {
+  /* `lem` states `1 + 1 == 2`, so citing it rewrites `1 + 1` to `2`;
+     `g`'s goal then evaluates to `true`. The `let lem = 5` in between
+     rebinds the NAME in the value namespace only. */
+  let src = {|theorem lem = 1 + 1 == 2 proof eval 1 + 1 at 0 end; axiom refl_eq at 0 on 2 == 2 end in let lem = 5 in theorem g = (1 + 1) + 1 == 3 proof axiom lem at 0 on 1 + 1 end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in lem|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of_named("g", elab);
+  /* The load-bearing part: the citation RESOLVES. A value binding of the
+     same name cannot hide a theorem, because the slot looks the name up
+     in the theorem context. */
+  Alcotest.check(
+    Alcotest.bool,
+    "`axiom lem` is not an unknown equality with `lem` rebound",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.UnknownEquality(_) => true
+      | _ => false,
+    ),
+  );
+  Alcotest.check(
+    Alcotest.option(bool),
+    "`axiom lem` still applies with `lem` rebound to a value",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof),
+  );
+};
+
+/* A theorem NAME is not a value, so `theorem t = ... in t` no longer
+ * returns a proof object; the body is an ordinary expression and the
+ * theorem is still checked. This pins the behavior change: the proof map
+ * is populated even though the body names nothing the theorem bound. */
+let test_theorem_body_is_ordinary_code = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in 7|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of_named("t", elab);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "the theorem is still checked when the body ignores its name",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof),
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
@@ -1396,6 +1456,16 @@ let tests = (
       "pattern target: metavariables are not free variables",
       `Quick,
       test_pattern_metavar_not_free,
+    ),
+    test_case(
+      "namespace separation: citation survives value shadowing",
+      `Quick,
+      test_citation_survives_value_shadowing,
+    ),
+    test_case(
+      "namespace separation: theorem body is ordinary code",
+      `Quick,
+      test_theorem_body_is_ordinary_code,
     ),
   ],
 );

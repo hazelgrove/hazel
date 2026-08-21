@@ -483,7 +483,6 @@ and Exp: {
             proof_map_term(pf),
             exp_map_term(e2),
           )
-        | ProofObject(t) => ProofObject(exp_map_term(t))
         | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | ForallWhere(p, g, e) =>
           ForallWhere(pat_map_term(p), exp_map_term(g), exp_map_term(e))
@@ -742,7 +741,7 @@ and Typ: {
         ~f_any,
         ~f_proof,
       );
-    let exp_map_term =
+    let _exp_map_term =
       Exp.map_term(
         ~f_exp,
         ~f_pat,
@@ -814,7 +813,6 @@ and Typ: {
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
-        | ProofOf(e) => ProofOf(exp_map_term(e))
         | Sig(items) =>
           Sig(
             List.map(

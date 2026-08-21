@@ -57,11 +57,11 @@ let arg_of_proof = (proof: option(Proof.t)): option(Exp.t) =>
 /* The body's scope under a `generalize x`: every fact whose statement
  * mentions x FREE becomes unavailable, because it is about the old,
  * ambient x rather than the newly-quantified binder. This mirrors the
- * removal `ProofCheck` performs (both the `ProofOf` ctx entries that
- * drive discharge-channel-1 lookup and the `ProofObject` env entries that
- * drive rule lookup); over-removal would be sound but needlessly hide
- * global lemmas that bind their own x, hence the FREE-occurrence test via
- * the same co-context machinery `ProofCtx.of_env` uses.
+ * removal `ProofCheck` performs — one filter over the THEOREM NAMESPACE,
+ * which is what both discharge-channel-1 lookup and rule lookup read;
+ * over-removal would be sound but needlessly hide global lemmas that bind
+ * their own x, hence the FREE-occurrence test via the same co-context
+ * machinery `ProofCtx.of_theorem_ctx` uses.
  *
  * Recovery: an argument that is not a bare in-scope variable is what
  * `ProofCheck` marks `MalformedGeneralize` and passes through, so the
@@ -79,24 +79,13 @@ let generalized_ctx = (ctx: SemanticCtx.t, arg: Exp.t): SemanticCtx.t => {
           List.filter(
             (entry: Ctx.entry) =>
               switch (entry) {
-              | VarEntry({typ, _}) =>
-                switch (Typ.term_of(typ)) {
-                | ProofOf(fact) => !mentions_x(fact)
-                | _ => true
-                }
+              | TheoremEntry({prop: Some(fact), _}) => !mentions_x(fact)
               | _ => true
               },
             base_ctx.entries,
           ),
       },
-      Environment.filter(
-        (_, v) =>
-          switch (Exp.term_of(v)) {
-          | Grammar.ProofObject(fact) => !mentions_x(fact)
-          | _ => true
-          },
-        SemanticCtx.get_env(ctx),
-      ),
+      SemanticCtx.get_env(ctx),
     );
   | _ => ctx
   };

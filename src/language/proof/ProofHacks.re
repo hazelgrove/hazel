@@ -86,6 +86,29 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
  * inlined `FixF` nodes). `Substitution.in_exp` preserves the ids on
  * wrapping nodes (`Ap`, `Tuple`, `BinOp`, ...) so the returned id is
  * guaranteed to be present in `e2`. */
+/* WHAT TARGET MATCHING QUOTIENTS BY (decided 2026-08-21,
+ * docs/prover-obligations.md section 0.4).
+ *
+ * `nth_exp` compares with `Equality.ignoring_ascriptions`, i.e. semantic
+ * equality plus ascription-blindness. So a written target is equal to a
+ * term of the goal up to: parens/projectors, ascriptions, alpha-renaming
+ * (expression and type), function NAMES, filters, and hole provenance.
+ *
+ * It is deliberately NOT quotiented by elaboration-supplied type
+ * information: constructor type annotations, function type annotations
+ * and fixpoint structure are all compared. Two same-named constructors
+ * at different types are different terms, and a proof step must not
+ * silently retarget across them.
+ *
+ * That choice imposes an INVARIANT on everything feeding either side:
+ * both sides must be POST-elaboration. An unelaborated term carries
+ * `Constructor(c, None)` where its elaborated twin carries
+ * `Constructor(c, Some(Some(ty)))`, and those are correctly unequal — so
+ * mixing the two reads as "target not found" rather than as the
+ * annotation mismatch it is. Concretely: the theorem context records
+ * elaborated statements (`Statics`' Theorem arm), because
+ * `ProofCtx.of_theorem_ctx` splices a cited rule's right-hand side into
+ * goals that are themselves elaborated. */
 let nth_exp_env = (~env: Environment.t(Exp.t), e1: Exp.t, n: int, e2: Exp.t) => {
   let e1' = Substitution.in_exp(env, e1);
   let e2' = Substitution.in_exp(env, e2);
@@ -636,7 +659,6 @@ let rec replace_exp =
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
-        | ProofObject(_)
         | Asc(_, _)
         | ExplicitNonlabel
         | Module(_)
@@ -698,13 +720,6 @@ let find_refls = (~info_map, ~env, e) => {
       e,
     );
   refls^;
-};
-
-let goal_of_typ = (ty: Typ.t): Exp.t => {
-  switch (ty.term) {
-  | ProofOf(e) => e
-  | _ => Exp.fresh(Invalid("Bad_Goal"))
-  };
 };
 
 let strip_theorems = (exp: Exp.t): Exp.t => {

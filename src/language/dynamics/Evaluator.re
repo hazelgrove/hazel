@@ -106,7 +106,7 @@ let rec evaluate =
      * the big-step proof_map agrees with the stepper. */
     let (sem_ctx, conclusion) =
       ProofCheck.peel_stmt_binders(
-        SemanticCtx.of_ctx_and_env(ctx, env),
+        SemanticCtx.of_program_state(ctx, env),
         goal,
       );
     /* Single-step callback injected into ProofCheck.
@@ -196,7 +196,7 @@ let rec evaluate =
     let def_pm =
       ProofCheck.definition_obligations(
         ~step,
-        ~ctx=SemanticCtx.of_ctx_and_env(ctx, env),
+        ~ctx=SemanticCtx.of_program_state(ctx, env),
         (),
       );
     parent_state :=

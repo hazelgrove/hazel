@@ -82,9 +82,7 @@ let mk_eval = mk_tile(Form.get(FilterEval));
 let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_theorem = mk_tile(Form.get(Theorem));
-let mk_proof_object = mk_tile(Form.get(ProofObject));
 let mk_forall = mk_tile(Form.get(Forall));
-let mk_proof_of = mk_tile(Form.get(ProofOf));
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 

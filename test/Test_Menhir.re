@@ -1115,10 +1115,9 @@ let ex5 = list_of_mylist(x) in
         "Full program: fun contract plus theorem",
         "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == 100 / y proof ? in t",
       ),
-      menhir_maketerm_equivalent_test(
-        "Proof object",
-        "let p = proof_object 1 == 1 end in p",
-      ),
+      /* (`proof_object … end` was deleted with the theorem-namespace
+       * separation — proofs are not values; see docs/prover-obligations.md,
+       * decision 2026-08-21.) */
       /* --- core -> menhir AST (Conversion.of_core) ---------------------- */
       of_core_renders_test("of_core: implies", "a ==> b ==> c"),
       of_core_renders_test(

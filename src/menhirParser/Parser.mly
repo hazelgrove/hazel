@@ -117,7 +117,6 @@ open AST
 %token FORALL
 %token THEOREM
 %token PROOF
-%token PROOF_OBJECT
 %token ASSUME
 %token GENERALIZE
 %token HAVE
@@ -447,7 +446,6 @@ exp:
     | f = funExp {f}
     | f = forallExp {f}
     | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
-    | PROOF_OBJECT; e = exp; END { ProofObject(e) }
     (* `where` and `assume` are the base names ProofCheck gives to
        where-guard and assume-intro hypotheses (ProofCheck.re
        add_hypothesis), so they show up in expression position as the name

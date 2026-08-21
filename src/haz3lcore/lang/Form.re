@@ -386,8 +386,6 @@ type compound_form =
   | ApExpTyp
   | Case
   | Test
-  | ProofOf
-  | ProofObject
   | HintedTest
   | Fun
   | Fix
@@ -526,7 +524,6 @@ let get: compound_form => t =
   | ForallWhere =>
     mk_pre_c(L, ["forall", "where", "->"], P.fun_, Exp, [Pat, Exp])
   | FunWhere => mk_pre_c(L, ["fun", "where", "->"], P.fun_, Exp, [Pat, Exp])
-  | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
@@ -548,7 +545,6 @@ let get: compound_form => t =
       Exp,
       [Pat, Exp, Proof],
     )
-  | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])

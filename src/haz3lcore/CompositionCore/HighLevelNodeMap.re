@@ -113,7 +113,6 @@ module Utils = {
     | TyAlias(_)
     | ExplicitNonlabel
     | Theorem(_, _, _, _)
-    | ProofObject(_)
     | Forall(_, _)
     | ForallWhere(_, _, _)
     | FunWhere(_, _, _)

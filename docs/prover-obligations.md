@@ -15,6 +15,150 @@ calculus encoded as a Hazel ADT).
 
 ---
 
+## 0. Proofs are not values (decided 2026-08-21)
+
+**Decision.** Theorems, axioms and hypotheses live in a **separate,
+judgment-level namespace**. They are never expressions, never values, and
+never have types. Citation is *lookup in a theorem context*, full stop.
+
+**Rationale (user, 2026-08-21).** Earlier work leaned Curry–Howard: a
+`theorem t = P` bound the VALUE `ProofObject(P)` in the environment at the
+type `ProofOf(P)`, a hypothesis was a `Ctx.VarEntry` typed `ProofOf(fact)`,
+and rule lookup scooped the environment for `ProofObject`s. That direction is
+explicitly rejected:
+
+> "while C-H is beautiful, it is very much not the way people think, and we
+> want to keep proof separate."
+
+**Consequences, binding on later work.**
+
+- No proof-valued expressions. The `ProofObject` expression form is deleted.
+- No `pexp` proof-term language later. Proofs are `Proof.t` (a separate sort),
+  checked against goals; they do not denote.
+- Citation (`axiom <name>`, `revert <name>`, `contradiction <name>`) resolves
+  its name in the theorem context and nowhere else.
+- A proof obligation's discharge receipt names a theorem-context entry, not a
+  variable binding.
+
+### 0.1 Representation: a `Ctx` entry kind, like type aliases
+
+The model is `Ctx.TVarEntry` — the type-alias namespace, which already lives
+as its own entry kind inside the single `Ctx.t` that the statics threads
+everywhere. Theorems get the parallel treatment:
+
+```
+type entry =
+  | VarEntry(var_entry)          /* values: name -> type            */
+  | ConstructorEntry(var_entry)
+  | TVarEntry(tvar_entry)        /* type aliases: name -> kind      */
+  | LivelitEntry(...)
+  | TheoremEntry(theorem_entry)  /* judgments: name -> proposition   */
+```
+
+`theorem_entry = {name, id, prop: option(exp)}`; `prop` is `None` only for the
+built-in axioms, whose statements are given as rules in `Axioms.re`
+(`Statics.initial_theorems`). Everything that used to be two parallel
+mechanisms is now one lookup:
+
+| before | after |
+| --- | --- |
+| `Theorem` binds `ProofObject` in the env (`Transition`) | `Statics` adds a `TheoremEntry` for the body; `Transition` only records the statement for the UI |
+| hypothesis = `VarEntry` typed `ProofOf(fact)` **and** env `ProofObject(fact)` | `SemanticCtx.add_hypothesis` adds one `TheoremEntry` |
+| `ProofCtx.of_env` / `of_ctx` | `ProofCtx.of_theorem_ctx` |
+| `lookup_fact` scans `ProofOf`-typed var entries | `lookup_fact` scans `SemanticCtx.facts` |
+| `cited_fact` reads the env | `cited_fact` reads `Ctx.lookup_theorem` |
+| generalize removes ctx entries *and* env entries | one filter over `TheoremEntry` |
+
+Chosen over a separate `theorem_ctx` value threaded alongside `Ctx.t` because
+(a) the user's own analogy is type aliases, which are an entry kind; (b) `Ctx.t`
+is already threaded through statics, `SemanticCtx`, `Obligation.bindings` and
+the context inspector, so an entry kind costs no plumbing; and (c) obligation
+receipts want the facts and the binders in ONE ordered list, which is exactly
+what `Ctx.entries` is.
+
+`SemanticCtx` therefore does **not** collapse: it stays `Ctx.t ×
+Environment.t`, because the environment is still genuinely needed (goals,
+targets and facts are env-substituted before discharge). What changed is that
+it stopped being the proof carrier — proofs live only in the `ctx` half now.
+Statements recorded by the statics are brought into env-inlined form once, at
+the entry point `SemanticCtx.of_program_state`.
+
+### 0.2 Shadowing (behavior change)
+
+Theorem names shadow **within their own namespace only**, exactly like type
+aliases (`Ctx.filter_shadowed` gives them their own set). So:
+
+- `let t = 5 in theorem t = ... in t` — no longer a collision. `t` in the body
+  is the value `5`; the theorem is still citable as `t` in proofs.
+- `theorem lem = ... in let lem = 5 in ... axiom lem ...` — the citation still
+  resolves; a value binding cannot hide a theorem.
+- `theorem t = ... in t` — **`t` is now a FREE VARIABLE.** Previously it
+  evaluated to a `ProofObject`. Theorem bodies must be ordinary code
+  (`... in 0`). This is the visible cost of the separation and is accepted.
+- Hypotheses (`assume`/`where`/`case_eq`/`ih`/`have`) are invisible to
+  expressions: naming one in expression position is a free variable.
+- Hypothesis auto-naming freshens against the theorem names only
+  (`Ctx.theorem_names`), so a program variable called `assume` no longer bumps
+  the hypothesis to `assume'`.
+
+Pinned by `Test_Statics_Proof` ("proof/value namespace separation") and
+`Test_ProofMap` ("namespace separation: ...").
+
+### 0.3 `ProofOf`: verdict
+
+The `ProofOf(exp)` TYPE form existed only to type `ProofObject` and the
+hypothesis var entries. With both gone, nothing in the prover produces or
+consumes it except `ProofRule.rule_to_typ` / `typ_to_rule`, which exist to
+fill a `ProofCtx.entry.typ` field no consumer reads. **Verdict: delete.** The
+statics of theorem names in citation slots does not want it — an `axiom`
+slot's name is resolved by `Ctx.lookup_theorem` and walked under a dummy
+`Unknown(Internal)` var entry purely to suppress the free-variable mark, which
+is unchanged by the separation.
+
+### 0.4 What proof-step target matching quotients by
+
+`eval`/`axiom`/`algebrite` steps name their target by writing a term
+(`... at <i> on <target> end`); the checker finds it with
+`ProofHacks.nth_exp_env`, which substitutes the env into BOTH the written
+target and the goal and then compares with
+`Equality.ignoring_ascriptions`. Resisting-place #2 of the namespace
+separation asked for this relation to be stated explicitly. It is:
+
+**Quotiented by** (a written target still finds the term):
+
+- parens and projectors;
+- ascriptions;
+- alpha-renaming, of expression and of type variables;
+- function *names* (`ignore_function_names`);
+- filters, and hole provenance (all holes are equal).
+
+**NOT quotiented by** (these are genuine distinctions):
+
+- constructor type annotations — two same-named constructors at different
+  types are different terms, and a step must not silently retarget across
+  them;
+- function type annotations;
+- fixpoint structure.
+
+**The invariant this imposes.** Because elaboration-supplied type
+information is compared, *both sides must be post-elaboration*. An
+unelaborated term carries `Constructor(c, None)` where its elaborated twin
+carries `Constructor(c, Some(Some(ty)))`; the relation correctly calls
+those unequal, but the symptom is a misleading "target not found" rather
+than "annotation mismatch". Anything that feeds a term into either side
+therefore has to feed the elaborated one. The namespace separation had to
+learn this the hard way: `Ctx.TheoremEntry.prop` used to be read only by
+`binder_typ_in_prop` (where the user's own unelaborated text was fine),
+but it is now the checker's rule set, whose right-hand sides get spliced
+into elaborated goals — so `Statics` records the elaborated statement.
+
+Proof-internal entries (`assume`/`have`/`where` added by
+`proof_ctx_of_goal` and the Assume/Have arms) keep the user term: they are
+statics-only, used for name resolution and `binder_typ_in_prop`, and never
+reach the checker, which builds its own facts from the elaborated proof.
+
+---
+
 ## 1. Semantics
 
 ### 1.1 The domain

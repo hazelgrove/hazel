@@ -291,16 +291,10 @@ let promote =
   );
 };
 
-/* The `ProofOf` facts a step's inner scope offers, by name. */
+/* The facts a step's inner scope offers, by name: the entries of the
+   THEOREM namespace (docs/prover-obligations.md section 0.1). */
 let facts_of_ctx = (ctx: SemanticCtx.t): list((string, Exp.t)) =>
-  SemanticCtx.get_ctx(ctx)
-  |> Ctx.get_var_entries
-  |> List.filter_map((e: Ctx.var_entry) =>
-       switch (Typ.term_of(e.typ)) {
-       | ProofOf(fact) => Some((e.name, fact))
-       | _ => None
-       }
-     );
+  SemanticCtx.facts(ctx) |> List.map(((name, _id, fact)) => (name, fact));
 
 let saved_exc = (~print: string, x: Calc.saved('a)): 'a =>
   switch (x) {

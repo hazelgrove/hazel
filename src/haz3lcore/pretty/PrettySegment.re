@@ -442,7 +442,7 @@ let is_trailing_hole = (p: Piece.t): bool =>
 
 /* A "block form" is a compound expression whose layout naturally spans
    multiple lines: compound prefixes (let/fun/if/...) and compound operand
-   forms ending in "end" (case/end, test/end, proof_of/end, ...). We use
+   forms ending in "end" (case/end, test/end, ...). We use
    this to decide when to force a HardBreak before an expression so that
    block-like expressions always land on their own line. */
 let is_block_form = (p: Piece.t): bool =>
@@ -1024,7 +1024,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* Other operand forms ending in "end": proof_of/end, proof_object/end.
+  /* Other operand forms ending in "end".
      Same treatment as case/end (Space after keyword, Break before end). */
   | [_, "end"] =>
     switch (triples) {

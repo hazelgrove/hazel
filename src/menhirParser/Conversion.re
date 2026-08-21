@@ -246,7 +246,6 @@ module rec Exp: {
         Proof.of_menhir_ast(pf),
         of_menhir_ast(e2),
       )
-    | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | ForallWhereExp(p, g, e) =>
       forall_where(
@@ -372,7 +371,6 @@ module rec Exp: {
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, pf, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), Proof.of_core(pf), of_core(e2))
-    | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | ForallWhere(p, g, e) =>
       ForallWhereExp(Pat.of_core(p), Exp.of_core(g), Exp.of_core(e))
@@ -516,7 +514,6 @@ and Typ: {
       parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
         term: Sig(List.map(SigItem.of_menhir_ast, items)),
@@ -551,7 +548,6 @@ and Typ: {
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
-    | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)

@@ -87,7 +87,6 @@ let adt_node_ids = exp => {
     | Projector(_, e)
     | Asc(e, _)
     | Use(_, e)
-    | ProofObject(e)
     | Closure(_, e) => go(e)
     | Deferral(_) => ()
     | Fun(_, body, _, _)

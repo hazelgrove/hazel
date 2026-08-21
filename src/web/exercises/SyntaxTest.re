@@ -109,7 +109,6 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
-  | ProofObject(u1)
   | HintedTest(u1, _)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
@@ -253,7 +252,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, _, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, thm)
-  | ProofObject(e) => var_mention(name, e)
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
@@ -354,7 +352,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, _, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, thm)
-  | ProofObject(e) => var_applied(name, e)
   | TypFun(_, u, _)
   | Test(u)
   | HintedTest(u, _)
@@ -476,7 +473,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, _, body) =>
     var_mention_upat(name, p) || var_mention(name, thm)
       ? false : tail_check(name, body)
-  | ProofObject(_) => false
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true

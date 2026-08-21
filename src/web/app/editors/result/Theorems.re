@@ -254,7 +254,7 @@ module Update = {
                      let.calc ctx = ctx
                      and.calc env = env;
                      ProofCheck.peel_stmt_binders(
-                       SemanticCtx.of_ctx_and_env(ctx, env),
+                       SemanticCtx.of_program_state(ctx, env),
                        stmt,
                      )
                      |> fst;

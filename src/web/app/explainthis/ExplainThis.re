@@ -2014,20 +2014,6 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
-      | ProofObject(exp) =>
-        let typ_id = List.nth(IdTagged.ids(exp), 0);
-        get_message(
-          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(typ_id),
-                ),
-            ),
-          ProofObjectExp.proof_of_exps,
-        );
       | Forall(pat, typ) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
         let body_id = List.nth(IdTagged.ids(typ), 0);
@@ -2809,20 +2795,6 @@ let get_doc =
               ),
           ),
         RecTyp.rec_,
-      );
-    | ProofOf(exp) =>
-      let body_id = List.nth(IdTagged.ids(exp), 0);
-      get_message(
-        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s"),
-                Id.to_string(body_id),
-              ),
-          ),
-        ProofOfTyp.proof_of,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);

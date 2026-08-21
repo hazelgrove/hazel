@@ -56,22 +56,21 @@ let display_goal_of = (ob: t): Exp.t => ob.display_goal;
 
 /* The receipt for a `Remote` discharge (docs/prover-obligations.md §4.2,
  * "receipts everywhere"): the covering fact's binder name and statement,
- * recovered from the obligation's own local context. Hypotheses are ctx
- * var entries typed `ProofOf(fact)` (`SemanticCtx.add_hypothesis`), and
- * `discharge` stores the entry's id, so no extra plumbing is needed to
- * show WHY an obligation is discharged. `None` for a non-Remote
- * discharge, or if the id is not among the recorded bindings. */
+ * recovered from the obligation's own local context. Hypotheses are
+ * entries of the ctx's THEOREM NAMESPACE (`Ctx.TheoremEntry`, installed
+ * by `SemanticCtx.add_hypothesis`), and `discharge` stores the entry's
+ * id, so no extra plumbing is needed to show WHY an obligation is
+ * discharged. `None` for a non-Remote discharge, or if the id is not
+ * among the recorded bindings. */
 let remote_fact = (ob: t): option((Var.t, Exp.t)) =>
   switch (ob.discharge) {
   | Remote(fact_id) =>
     ob.bindings
     |> List.find_map((e: Ctx.entry) =>
          switch (e) {
-         | VarEntry({id, name, typ, _}) when Id.compare(id, fact_id) == 0 =>
-           switch (Typ.term_of(typ)) {
-           | ProofOf(fact) => Some((name, fact))
-           | _ => None
-           }
+         | TheoremEntry({id, name, prop: Some(fact)})
+             when Id.compare(id, fact_id) == 0 =>
+           Some((name, fact))
          | _ => None
          }
        )

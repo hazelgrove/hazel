@@ -249,8 +249,7 @@ let rec bool_shape = (e: Exp.t): bool_shape =>
   | ListConcat(_, _)
   | Fun(_, _, _, _)
   | FunWhere(_, _, _)
-  | TypFun(_, _, _)
-  | ProofObject(_) => NotBoolean
+  | TypFun(_, _, _) => NotBoolean
   | _ => Unclear
   };
 
@@ -310,12 +309,6 @@ let bool_reading_exp = (rule: t): option(Exp.t) =>
        Exp.fresh(BinOp(Poly(Equals), e, Exp.fresh(Atom(Bool(true)))))
      );
 
-let typ_to_rule = (typ: Typ.t): option(t) =>
-  switch (typ |> Typ.term_of) {
-  | ProofOf(e) => Some(exp_to_rule(e))
-  | _ => None
-  };
-
 let wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
   List.fold_right(
     (a, acc) => Exp.fresh(BinOp(Bool(Implies), a, acc)),
@@ -352,8 +345,7 @@ let rule_to_exp = (rule: t): Exp.t => {
         ),
       )
     | [
-        ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_) |
-        HypothesisEntry(_),
+        ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_) | TheoremEntry(_),
         ...rs,
       ] =>
       wrap_foralls(rs, body)
@@ -363,10 +355,6 @@ let rule_to_exp = (rule: t): Exp.t => {
    * logically equivalent to the source, though not lexically identical
    * for restricted binders. */
   wrap_foralls(rule.bindings, core_exp(rule));
-};
-
-let rule_to_typ = (rule: t): Typ.t => {
-  rule |> rule_to_exp |> (x => Typ.fresh(ProofOf(x)));
 };
 
 let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
@@ -486,7 +474,7 @@ let binding_names = (bindings: list(Ctx.entry)): list(Var.t) =>
       | ConstructorEntry(_)
       | TVarEntry(_)
       | LivelitEntry(_)
-      | HypothesisEntry(_) => None
+      | TheoremEntry(_) => None
       },
     bindings,
   );
@@ -502,8 +490,8 @@ let binding_names = (bindings: list(Ctx.entry)): list(Var.t) =>
  * environment, which is exactly the blow-up this walk exists to avoid.
  *
  * Non-binding forms fall through to `map_term`'s generic traversal, which
- * also carries the walk into expressions nested inside types (`ProofOf`)
- * and patterns (`Asc`) under the enclosing scope — matching `in_pat`'s
+ * also carries the walk into expressions nested inside patterns (`Asc`)
+ * under the enclosing scope — matching `in_pat`'s
  * use of the outer environment there. */
 let occurs_free_any =
     (~bound: list(Var.t)=[], vs: list(Var.t), e: Exp.t): bool => {

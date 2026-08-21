@@ -87,7 +87,7 @@ let tests = (
        not as a hypothesis. */
     expects_no_mark(
       "forall binds a variable visible in body",
-      {|theorem t = true proof forall x => axiom refl_eq at 0 on x end in t|},
+      {|theorem t = true proof forall x => axiom refl_eq at 0 on x end in 0|},
       is_free_var,
     ),
     /* The theorem introduces the goal's outer `forall`-bound variables
@@ -95,7 +95,7 @@ let tests = (
        `forall x -> x == x` is not a free variable. */
     expects_no_mark(
       "theorem goal forall var is visible in proof",
-      {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t|},
+      {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in 0|},
       is_free_var,
     ),
     /* Proof induction must be exhaustive: a list induction with only the
@@ -168,7 +168,7 @@ let tests = (
        the body, and both analyze against Bool. */
     expects_no_mark(
       "forall-where binder scopes over guard and body",
-      {|theorem t = forall x where x == 1 -> x == 1 proof ? in t|},
+      {|theorem t = forall x where x == 1 -> x == 1 proof ? in 0|},
       is_free_var,
     ),
     expects_mark(
@@ -199,8 +199,45 @@ let tests = (
        hypothesis. */
     expects_no_mark(
       "forall-where restriction is citable as `where`",
-      {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end in t|},
+      {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end in 0|},
       is_free_hyp,
+    ),
+    /* --- proof/value namespace separation (2026-08-21) --------------
+       docs/prover-obligations.md section 0.1. Theorems, axioms and
+       hypotheses live in their OWN context namespace, like type
+       aliases. Three consequences, pinned here. */
+    /* (a) BEHAVIOR CHANGE. A theorem name is not a value, so naming it
+       in expression position is a free variable. Before the separation
+       `theorem t = ... in t` evaluated to a `ProofObject`. */
+    expects_mark(
+      "a theorem name in expression position is free",
+      {|theorem t = true proof ? in t|},
+      is_free_var,
+    ),
+    /* (b) ...and therefore a `let` and a `theorem` of the same name no
+       longer collide: `t` in the body is the VALUE 5, not the theorem,
+       and nothing is shadowed away. */
+    expects_no_mark(
+      "let-bound name and theorem name do not collide",
+      {|let t = 5 in theorem t = true proof ? in t|},
+      is_free_var,
+    ),
+    /* (c) ...and citation still resolves through the value namespace: a
+       later `let` of the same name does not hide the theorem from an
+       `axiom` slot, because the slot looks the name up in the theorem
+       context. */
+    expects_no_mark(
+      "citation finds a theorem shadowed by a later value binding",
+      {|theorem lem = 1 == 1 proof ? in let lem = 5 in theorem g = true proof axiom lem at 0 on 1 end in lem|},
+      is_free_hyp,
+    ),
+    /* (d) Hypotheses are invisible to expressions for the same reason:
+       the auto-named `assume` hypothesis is citable in a proof but is
+       not a variable of the program. */
+    expects_mark(
+      "an assume hypothesis is not an expression variable",
+      {|theorem t = 1 == 1 proof assume 2 == 2 => ? in assume|},
+      is_free_var,
     ),
   ],
 );

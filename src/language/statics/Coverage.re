@@ -120,7 +120,6 @@ module Ctr = {
       }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
-    | ProofOf(_) => Infinite
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
@@ -423,7 +422,6 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
@@ -562,7 +560,6 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
@@ -627,7 +624,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)

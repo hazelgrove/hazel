@@ -417,9 +417,7 @@ let have_patch =
   |> Option.map(region =>
        Haz3lcore.EditorTransform.mk_proof_patch(
          ~target_id=Proof.rep_id(region),
-         Proof.fresh(
-           Have(embed_goal(ob), Proof.fresh(EmptyHole), region),
-         ),
+         Proof.fresh(Have(embed_goal(ob), Proof.fresh(EmptyHole), region)),
        )
      );
 
@@ -521,7 +519,6 @@ let fact_reading = (fact: Exp.t): option(Exp.t) =>
   |> ProofRule.exp_to_rule
   |> ProofRule.with_bool_fact_reading
   |> ProofRule.bool_reading_exp;
-
 
 /* Receipts click-to-jump (UI-1's deferred stretch goal): a Remote row's
  * covering fact is a term of the program — the `where` guard on a binder,

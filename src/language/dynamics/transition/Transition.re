@@ -505,9 +505,14 @@ module Transition = (EV: EV_MODE) => {
     | Theorem({term: Var(n), _} as dp, e, _pf, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
-      let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
+      /* The theorem name binds NOTHING in the value environment
+         (2026-08-21 namespace separation, docs/prover-obligations.md
+         §0.1): a theorem is a judgment, not a value. The statement is
+         still recorded as a side effect — that is what the per-theorem
+         stepper UI (`Theorems.re`) reads — and citation resolves through
+         the theorem context in `Ctx`, not through `env`. */
       Step({
-        expr: subst_env(env', d1),
+        expr: subst_env(env, d1),
         side_effects: [
           RecordTheorem(DHExp.rep_id(d), n, env, e'),
           RecordPatMatch({
@@ -522,21 +527,6 @@ module Transition = (EV: EV_MODE) => {
     | Theorem(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | ProofObject(e) =>
-      let. _ = otherwise(env, d);
-      let e' = Substitution.in_exp(env, e);
-      switch (mode) {
-      | `Substitution => Value
-      | `Environment =>
-        Step({
-          expr: d,
-          side_effects: [
-            RecordTheorem(DHExp.rep_id(d), "<anon theorem>", env, e'),
-          ],
-          kind: RecordTheorem,
-          is_value: true,
-        })
-      };
     // Note[Matt]: we could make this spin, but for now it's indet
     | Forall(_)
     | ForallWhere(_) =>

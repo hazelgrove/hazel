@@ -165,7 +165,7 @@ let axiom_step_outgoing_result =
       incoming: Exp.t,
     )
     : result((Exp.t, list(Exp.t), list((Var.t, Exp.t))), ProofMark.t) => {
-  let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
+  let proof_ctx = ProofCtx.of_theorem_ctx(~builtins=Axioms.v, ctx);
   switch (ProofCtx.lookup_rule(equality, proof_ctx)) {
   | None => Error(UnknownEquality(equality))
   | Some(rule) =>
@@ -551,8 +551,8 @@ let eval_step_outgoing_ast =
 
 /* Discharge channel 1 (binder lookup): search the facts visible in the
  * given scope — hypotheses added via `SemanticCtx.add_hypothesis`
- * (`assume`, `case_eq`, `ih`, ...) live in the ctx as var entries typed
- * `ProofOf(fact)` — for one that syntactically covers `goal`. The
+ * (`assume`, `case_eq`, `ih`, ...) live in the ctx's THEOREM NAMESPACE
+ * (`Ctx.TheoremEntry`) — for one that syntactically covers `goal`. The
  * comparison is deliberately a dumb `Exp.fast_equal`: the design mandates
  * a transparent, lookup-only discharge relation
  * (docs/prover-obligations.md §4.2–4.3). Returns the covering fact's
@@ -589,17 +589,11 @@ let rec strip_eq_true = (e: Exp.t): Exp.t => {
 
 let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) => {
   let goal_nf = strip_eq_true(goal);
-  SemanticCtx.get_ctx(ctx)
-  |> Ctx.get_var_entries
-  |> List.find_map((e: Ctx.var_entry) =>
-       switch (Typ.term_of(e.typ)) {
-       | ProofOf(fact)
-           when
-             Exp.fast_equal(fact, goal)
-             || Exp.fast_equal(strip_eq_true(fact), goal_nf) =>
-         Some(e.id)
-       | _ => None
-       }
+  SemanticCtx.facts(ctx)
+  |> List.find_map(((_name, id, fact)) =>
+       Exp.fast_equal(fact, goal)
+       || Exp.fast_equal(strip_eq_true(fact), goal_nf)
+         ? Some(id) : None
      );
 };
 
@@ -713,9 +707,9 @@ let discharge_goal =
  *
  * The check is EXACTLY the lookup the harvest used to read equations out
  * of: `<var> == <exp>` (or `<exp> == <var>`, since `==` is symmetric)
- * must `Exp.fast_equal` an in-scope fact — a hypothesis whose ctx entry
- * is typed `ProofOf(_)`, which is what a split's `case_eq`, an `assume`
- * and an installed IH all are. Both sides are env-substituted first, to
+ * must `Exp.fast_equal` an in-scope fact — an entry of the theorem
+ * namespace (`Ctx.TheoremEntry`), which is what a split's `case_eq`, an
+ * `assume` and an installed IH all are. Both sides are env-substituted first, to
  * bring the user's vocabulary into the same inlined form the stored
  * facts have (the spelled-out path of `cited_fact` below).
  *
@@ -1016,31 +1010,34 @@ let result_to_outgoing =
 /* Resolve the expression a `revert` / `contradiction` cites to the
  * proposition to look up.
  *
- * A bare hypothesis NAME is read straight out of the environment, where
- * facts live as `ProofObject(fact)` — so `revert ih` names the same
- * thing `axiom ih` does. This deliberately does NOT go through
- * `Substitution.in_exp`: installed facts are ALREADY env-substituted
- * (Phase 4b), and substituting one a second time alpha-renames the
- * binders inside its inlined closures (`Environment.free_name` in
- * `Substitution.in_pat`), after which it no longer `fast_equal`s the
- * fact as stored — every by-name citation would miss.
+ * A bare hypothesis NAME is read out of the THEOREM NAMESPACE — so
+ * `revert ih` names the same thing `axiom ih` does. This deliberately
+ * does NOT go through `Substitution.in_exp`: installed facts are ALREADY
+ * env-substituted (Phase 4b), and substituting one a second time
+ * alpha-renames the binders inside its inlined closures
+ * (`Environment.free_name` in `Substitution.in_pat`), after which it no
+ * longer `fast_equal`s the fact as stored — every by-name citation would
+ * miss.
  *
  * A spelled-out proposition is substituted: it is written in the user's
  * vocabulary and has to be brought into the same inlined form as the
  * stored facts. */
-let cited_fact = (~env: Environment.t(Exp.t), e: Exp.t): Exp.t =>
-  switch (exp_to_equality_name(e)) {
-  | Some(name) =>
-    switch (Environment.lookup(env, name)) {
-    | Some(v) =>
-      switch (Exp.term_of(v)) {
-      | Grammar.ProofObject(inner) => inner
-      | _ => e |> Substitution.in_exp(env)
+let cited_fact = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t => {
+  let env = SemanticCtx.get_env(ctx);
+  let named =
+    switch (exp_to_equality_name(e)) {
+    | Some(name) =>
+      switch (Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), name)) {
+      | Some({prop: Some(prop), _}) => Some(prop)
+      | _ => None
       }
-    | None => e |> Substitution.in_exp(env)
-    }
+    | None => None
+    };
+  switch (named) {
+  | Some(prop) => prop
   | None => e |> Substitution.in_exp(env)
   };
+};
 
 let rec check =
         (
@@ -1405,14 +1402,14 @@ let rec check =
      * fact whose statement mentions x (assume-hypotheses, case_eq, IHs,
      * the where guard itself) is about the OLD x and must become
      * unavailable under the new binder. We REMOVE those entries from the
-     * body's semantic ctx — both the `ProofOf` ctx entries that drive
-     * discharge-channel-1 `lookup_fact`, and the `ProofObject` env
-     * entries that drive `ProofCtx.of_env` rule lookup — rather than
-     * relying on the env-shadowing `is_captured` machinery (which only
+     * body's semantic ctx — one filter over the THEOREM NAMESPACE now
+     * covers both channels (discharge-channel-1 `lookup_fact` and
+     * `ProofCtx.of_theorem_ctx` rule lookup read the same entries) —
+     * rather than relying on the `is_captured` machinery (which only
      * covers rule lookup, and only fires once the body re-peels the new
-     * binder). Removal covers both channels in one stroke. The mention
-     * test is FREE occurrence, via the same machinery
-     * `ProofCtx.of_env` uses for `is_captured` (`ProofRule.mentions_any`):
+     * binder). The mention test is FREE occurrence, via the same
+     * machinery `ProofCtx.of_theorem_ctx` uses for `is_captured`
+     * (`ProofRule.mentions_any`):
      * a global lemma `forall x -> ...` whose x is bound by its own
      * binder does NOT mention the generalized x and stays available.
      * (Over-removal would still be sound — it only weakens the fact
@@ -1458,7 +1455,7 @@ let rec check =
       let mentions_x = (fact: Exp.t) =>
         ProofRule.mentions_any(ProofRule.exp_to_rule(fact), [x]);
       /* A hypothesis name with base "where": "where", "where'", ... (see
-       * SemanticCtx.add_entry_free_name / Var.next_name). */
+       * SemanticCtx.add_hypothesis / Var.next_name). */
       let is_where_name = (name: string): bool =>
         String.length(name) >= 5
         && String.sub(name, 0, 5) == "where"
@@ -1467,13 +1464,9 @@ let rec check =
              String.sub(name, 5, String.length(name) - 5),
            );
       let guards =
-        Ctx.get_var_entries(base_ctx)
-        |> List.filter_map((ve: Ctx.var_entry) =>
-             switch (Typ.term_of(ve.typ)) {
-             | ProofOf(fact) when is_where_name(ve.name) && mentions_x(fact) =>
-               Some(fact)
-             | _ => None
-             }
+        SemanticCtx.facts(ctx)
+        |> List.filter_map(((name, _id, fact)) =>
+             is_where_name(name) && mentions_x(fact) ? Some(fact) : None
            );
       let binder = Pat.fresh(Var(x));
       let body_goal =
@@ -1500,24 +1493,13 @@ let rec check =
               List.filter(
                 (entry: Ctx.entry) =>
                   switch (entry) {
-                  | VarEntry({typ, _}) =>
-                    switch (Typ.term_of(typ)) {
-                    | ProofOf(fact) => !mentions_x(fact)
-                    | _ => true
-                    }
+                  | TheoremEntry({prop: Some(fact), _}) => !mentions_x(fact)
                   | _ => true
                   },
                 base_ctx.entries,
               ),
           },
-          Environment.filter(
-            (_, v) =>
-              switch (Exp.term_of(v)) {
-              | Grammar.ProofObject(fact) => !mentions_x(fact)
-              | _ => true
-              },
-            SemanticCtx.get_env(ctx),
-          ),
+          SemanticCtx.get_env(ctx),
         );
       let (out_body, m) =
         check(~step, ~info_map, ~ctx=ctx', Some(body_goal), body);
@@ -1559,7 +1541,7 @@ let rec check =
     let env_of_ctx = SemanticCtx.get_env(ctx);
     /* Resolve the argument to the proposition to look up (see
      * `cited_fact`, shared with the `contradiction` step). */
-    let fact = cited_fact(~env=env_of_ctx, e);
+    let fact = cited_fact(~ctx, e);
     switch (incoming) {
     | None =>
       let (_, m) = check(~step, ~info_map, ~ctx, None, body);
@@ -1677,7 +1659,7 @@ let rec check =
      * `substitutions` field: with the rework it is exactly what the user
      * wrote, which is a better receipt than a derived set. */
     let env_of_ctx = SemanticCtx.get_env(ctx);
-    let fact = cited_fact(~env=env_of_ctx, e);
+    let fact = cited_fact(~ctx, e);
     switch (incoming) {
     | None => (
         None,

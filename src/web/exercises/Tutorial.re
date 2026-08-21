@@ -321,7 +321,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Module(_)
   | ModuleExp(_)
   | Asc(_)
-  | ProofObject(_)
   | Forall(_)
   | ForallWhere(_)
   | FunWhere(_)

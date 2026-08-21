@@ -433,8 +433,6 @@ let equality =
     | (ListConcat(e11, e12), ListConcat(e21, e22)) =>
       exp'(e11, e21) && exp'(e12, e22)
     | (ListConcat(_, _), _) => false
-    | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
-    | (ProofObject(_), _) => false
     | (Module(items1), Module(items2)) =>
       List.length(items1) == List.length(items2)
       && List.for_all2(mod', items1, items2)
@@ -625,7 +623,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
     let any' = any(alphas_exp, alphas_typ);
-    let exp' = exp(alphas_exp, alphas_typ);
+    let _exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Annotated.term_of, t2 |> Annotated.term_of) {
@@ -715,8 +713,6 @@ let equality =
     | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
       typ'(t1, t1') && typ'(t2, t2')
     | (ProdExtension(_), _) => false
-    | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
-    | (ProofOf(_), _) => false
     | (Sig(items1), Sig(items2)) =>
       List.length(items1) == List.length(items2)
       && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)

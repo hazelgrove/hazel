@@ -342,26 +342,11 @@ and uexp_to_info_map =
           m,
         );
       let ctx = fp'.ctx;
-      let name =
-        Var.free_name(
-          "where",
-          List.map(
-            (ve: Ctx.var_entry) => ve.name,
-            Ctx.get_var_entries(ctx),
-          ),
-        );
+      let name = Var.free_name("where", Ctx.theorem_names(ctx));
       let hyp_id = IdTagged.rep_id(g);
       let ctx =
-        Ctx.extend_hypothesis(
-          Ctx.extend(
-            ctx,
-            VarEntry({
-              name,
-              id: hyp_id,
-              typ: Typ.fresh(ProofOf(g)),
-              custom_statics: None,
-            }),
-          ),
+        Ctx.extend_theorem(
+          ctx,
           {
             name,
             id: hyp_id,
@@ -2335,14 +2320,13 @@ and uexp_to_info_map =
     | Theorem({term: Var(x), _} as p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      /* The theorem's NAME is not a value binder (2026-08-21 namespace
+         separation, docs/prover-obligations.md §0.1): `theorem t = ...`
+         binds `t` in the THEOREM namespace only. The pattern is still
+         walked so its own info is recorded, but nothing it binds reaches
+         the body's variable context. */
       let (p', _, _) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=CoCtx.empty,
-          ~ana=Typ.fresh(ProofOf(e1)),
-          p,
-          m,
-        );
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       /* Proof `pf` does not see the theorem's own name `x` (body_only
          self-reference rule), but does see the goal's outer `forall`-bound
          variables, which the theorem introduces automatically. */
@@ -2359,15 +2343,32 @@ and uexp_to_info_map =
         | Proof(p) => p
         | _ => pf
         };
-      /* Body `e2` sees the theorem's name both as the usual VarEntry
-         (via [p'.ctx]) and as a HypothesisEntry bound to the proposition. */
+      /* Body `e2` sees the theorem's name in the THEOREM namespace only.
+         A reference to `x` in expression position is therefore free (or
+         resolves to whatever VALUE `x` names) — that is the point of the
+         separation.
+
+         The recorded statement is the ELABORATED one. This entry is the
+         checker's rule set: `ProofCtx.of_theorem_ctx` turns it into a
+         citable rule whose right-hand side is spliced into goals, and
+         goals are elaborated terms, so the two sides have to agree on
+         elaboration-supplied annotations (constructor types, function
+         types). The unelaborated `e1` carries `Constructor(c, None)`
+         where the goal carries `Constructor(c, Some(Some(ty)))`, and
+         `Equality.ignoring_ascriptions` — rightly — does not equate
+         those, so an `eval ... at` target written after such a rewrite
+         would not be found. (Before the namespace separation this field
+         was only read by `binder_typ_in_prop` at citation sites, where
+         the unelaborated form was harmless; the rule set came from
+         `Transition`, which runs on the elaborated program and so used
+         the elaborated statement. This keeps that.) */
       let body_ctx =
-        Ctx.extend_hypothesis(
-          p'.ctx,
+        Ctx.extend_theorem(
+          ctx,
           {
             name: x,
             id: IdTagged.rep_id(p),
-            prop: Some(e1),
+            prop: Some(e1_elab),
           },
         );
       let (e2, e2_elab, m) = go(~ctx=body_ctx, ~ana, e2, m);
@@ -2378,13 +2379,9 @@ and uexp_to_info_map =
         ~elab_term=Theorem(p_elab, e1_elab, pf_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
-        ~co_ctx=
-          CoCtx.union([
-            p'.co_ctx,
-            e1'.co_ctx,
-            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
-            pat_typ_refs,
-          ]),
+        /* No `CoCtx.mk(ctx, p.ctx, ...)`: the theorem pattern binds no
+           variable, so the body's uses are not closed off here. */
+        ~co_ctx=CoCtx.union([p'.co_ctx, e1'.co_ctx, e2.co_ctx, pat_typ_refs]),
         ~probe_targets=
           SubexpProbeTargets.union_all([
             p.probe_targets,
@@ -2431,15 +2428,6 @@ and uexp_to_info_map =
           SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
         m,
       );
-    | ProofObject(e) =>
-      let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
-      add(
-        ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~elab_syn_ty=Typ.temp(ProofOf(e)),
-        ~marks=[],
-        ~co_ctx=CoCtx.empty,
-        m,
-      ); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, env) =>
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -4153,16 +4141,6 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | ProofOf(e) =>
-    let (_, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        ~ana=Atom(Bool) |> Typ.temp,
-        e,
-        m,
-      );
-    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
@@ -4651,7 +4629,7 @@ and proof_to_info_map =
         /* Suppress the usual `Free` by extending the ctx with a dummy
            VarEntry for this name while walking the slot, then repair marks
            based on hypothesis lookup. */
-        let hypothesis_ok = Option.is_some(Ctx.lookup_hypothesis(ctx, name));
+        let hypothesis_ok = Option.is_some(Ctx.lookup_theorem(ctx, name));
         let scratch_ctx =
           Ctx.extend(
             ctx,
@@ -4733,7 +4711,7 @@ and proof_to_info_map =
         let binder_typ =
           switch (var_name, head.term) {
           | (Some(x), Var(eq_name)) =>
-            switch (Ctx.lookup_hypothesis(ctx, eq_name)) {
+            switch (Ctx.lookup_theorem(ctx, eq_name)) {
             | Some({prop: Some(prop), _}) => binder_typ_in_prop(x, prop)
             | _ => None
             }
@@ -5016,27 +4994,13 @@ and proof_to_info_map =
     /* The body sees the assumption as a citable hypothesis, under the
        same deterministically-generated name the big-step checker will
        use (`SemanticCtx.add_hypothesis` with base name "assume",
-       freshened against the variables in scope). Extend both namespaces:
-       the hypothesis namespace (so `axiom assume ...` resolves) and the
-       variable namespace (mirroring the checker's ctx shape and keeping
-       the freshening in sync for nested assumes). */
-    let name =
-      Var.free_name(
-        "assume",
-        List.map((ve: Ctx.var_entry) => ve.name, Ctx.get_var_entries(ctx)),
-      );
+       freshened against the THEOREM names in scope). Only the theorem
+       namespace is extended: an assumption is not a value. */
+    let name = Var.free_name("assume", Ctx.theorem_names(ctx));
     let hyp_id = IdTagged.rep_id(p_term);
     let body_ctx =
-      Ctx.extend_hypothesis(
-        Ctx.extend(
-          ctx,
-          VarEntry({
-            name,
-            id: hyp_id,
-            typ: Typ.fresh(ProofOf(e)),
-            custom_statics: None,
-          }),
-        ),
+      Ctx.extend_theorem(
+        ctx,
         {
           name,
           id: hyp_id,
@@ -5160,23 +5124,11 @@ and proof_to_info_map =
       );
     let (_, sub_elab, m) =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(sub), m);
-    let name =
-      Var.free_name(
-        "have",
-        List.map((ve: Ctx.var_entry) => ve.name, Ctx.get_var_entries(ctx)),
-      );
+    let name = Var.free_name("have", Ctx.theorem_names(ctx));
     let hyp_id = IdTagged.rep_id(p_term);
     let body_ctx =
-      Ctx.extend_hypothesis(
-        Ctx.extend(
-          ctx,
-          VarEntry({
-            name,
-            id: hyp_id,
-            typ: Typ.fresh(ProofOf(e)),
-            custom_statics: None,
-          }),
-        ),
+      Ctx.extend_theorem(
+        ctx,
         {
           name,
           id: hyp_id,
@@ -5198,9 +5150,10 @@ and proof_to_info_map =
   };
 };
 
-/* Seed the initial context with built-in hypothesis entries (axioms) that
-   every program has access to. Keep this in sync with [Axioms.re]. */
-let initial_hypotheses: list(Ctx.hypothesis_entry) =
+/* Seed the initial context with built-in theorem entries (axioms) that
+   every program has access to. Keep this in sync with [Axioms.re]. Their
+   statements live there as rules, hence `prop: None` here. */
+let initial_theorems: list(Ctx.theorem_entry) =
   [
     "refl_eq",
     "impl_def",
@@ -5235,14 +5188,14 @@ let initial_hypotheses: list(Ctx.hypothesis_entry) =
        }
      );
 
-let with_initial_hypotheses = (ctx: Ctx.t): Ctx.t =>
-  List.fold_left(Ctx.extend_hypothesis, ctx, initial_hypotheses);
+let with_initial_theorems = (ctx: Ctx.t): Ctx.t =>
+  List.fold_left(Ctx.extend_theorem, ctx, initial_theorems);
 
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
     ((ana, ctx, e, probe_ids)) => {
-      let ctx = with_initial_hypotheses(ctx);
+      let ctx = with_initial_theorems(ctx);
       let (_, elab, m) =
         uexp_to_info_map(
           ~ana,
