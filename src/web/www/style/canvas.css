@@ -580,11 +580,21 @@
   min-width: 0;
 }
 
+/* No scroll clipping: probes hang pins/badges slightly outside their box
+   (position:absolute offsets), which under overflow:auto reads as tiny
+   scrollbars. Wrap samples onto extra lines instead. */
 .canvas-probe .live-offside {
   position: static;
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: visible;
+  flex-wrap: wrap;
+  row-gap: 5px;
+}
+
+.canvas-probe .sample-groups,
+.canvas-probe .sample-group {
+  flex-wrap: wrap;
+  row-gap: 5px;
 }
 
 .focus-slot {

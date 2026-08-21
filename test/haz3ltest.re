@@ -54,6 +54,7 @@ let (suite, _) =
     @ [Test_SampleSelection.tests]
     @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
     @ [("Canvas values", Test_CanvasValue.tests)]
+    @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
