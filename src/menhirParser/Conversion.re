@@ -618,6 +618,8 @@ and Proof: {
       generalize(Exp.of_menhir_ast(e), of_menhir_ast(body))
     | ProofRevert(e, body) =>
       revert(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofHave(e, sub, body) =>
+      have(Exp.of_menhir_ast(e), of_menhir_ast(sub), of_menhir_ast(body))
     | ProofRevertWith(e, v, i, body) =>
       revert(
         ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
@@ -699,6 +701,8 @@ and Proof: {
     | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
     | Assume(e, body) => ProofAssume(Exp.of_core(e), of_core(body))
     | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
+    | Have(e, sub, body) =>
+      ProofHave(Exp.of_core(e), of_core(sub), of_core(body))
     | Revert(e, None, body) => ProofRevert(Exp.of_core(e), of_core(body))
     | Revert(e, Some((v, i)), body) =>
       ProofRevertWith(

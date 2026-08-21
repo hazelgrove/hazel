@@ -1508,6 +1508,8 @@ and Proof: {
               inst,
             ),
           )
+        | Have(e, sub, body) =>
+          Have(exp_map_term(e), proof_map_term(sub), proof_map_term(body))
         },
     };
     x |> f_proof(proof_map_term);

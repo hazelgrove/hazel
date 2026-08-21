@@ -138,6 +138,11 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
   | Revert(_, _, b) => find_contradiction(b)
   | Induction(_, cases) =>
     List.find_map(((_, b)) => find_contradiction(b), cases)
+  | Have(_, sub, body) =>
+    switch (find_contradiction(sub)) {
+    | Some(_) as s => s
+    | None => find_contradiction(body)
+    }
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)

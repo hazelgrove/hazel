@@ -442,7 +442,8 @@ type compound_form =
   | ProofContradictionWith
   | ProofEval
   | ProofInduction
-  | ProofRule;
+  | ProofRule
+  | ProofHave;
 
 let get: compound_form => t =
   fun
@@ -629,7 +630,15 @@ let get: compound_form => t =
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])
   | ProofInduction => mk_op_c(L, ["induction", "end"], Proof, [PRul])
   | ProofRule =>
-    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, PRul, Exp, [Pat], Proof));
+    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, PRul, Exp, [Pat], Proof))
+  /* `have <exp> proof <subproof> => <body>` (docs/prover-obligations.md
+   * §3.3, the "prove here" exit). A wrapping form like `assume`, but with
+   * a second child holding the proof OF the asserted proposition. Shards
+   * ["have", "proof", "=>"]: `proof` is already a shard of `theorem` and
+   * `=>` of the other wrapping forms, and the label triple is unique, so
+   * this parses without a new keyword. */
+  | ProofHave =>
+    mk_pre_c(L, ["have", "proof", "=>"], P.fun_, Proof, [Exp, Proof]);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

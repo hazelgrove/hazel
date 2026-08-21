@@ -244,6 +244,13 @@ and proof_term('a) =
    * docs/prover-obligations.md, Phase 4e). v1 takes one binding per
    * step, as on the other with-forms. */
   | Contradiction(exp_t('a), option((exp_t('a), exp_t('a))))
+  /* `have <exp> proof <subproof> => <body>`: forward reasoning, the
+   * "lemma cut" idiom (docs/prover-obligations.md §3.3's "prove here"
+   * exit). The subproof's goal is <exp>; when it closes, <exp> becomes a
+   * citable hypothesis (base name "have") for <body> with no obligation,
+   * and while it is unfinished the have carries the pending obligation
+   * for <exp> itself. `assume` with a proof attached. */
+  | Have(exp_t('a), proof_t('a), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -500,6 +507,12 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
                 (map_exp_annotation(f, v), map_exp_annotation(f, i)),
               inst,
             ),
+          )
+        | Have(e, sub, body) =>
+          Have(
+            map_exp_annotation(f, e),
+            map_proof_annotation(f, sub),
+            map_proof_annotation(f, body),
           )
         },
       annotation: new_annotation,
@@ -1397,6 +1410,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let contradiction =
         (~ann=?, ~instantiation=None, e): proof_t(DefaultAnnotation.t) => {
       term: Contradiction(e, instantiation),
+      annotation: default_annotation(ann),
+    };
+    let have = (~ann=?, e, sub, body): proof_t(DefaultAnnotation.t) => {
+      term: Have(e, sub, body),
       annotation: default_annotation(ann),
     };
   };

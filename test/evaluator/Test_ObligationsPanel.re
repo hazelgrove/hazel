@@ -28,6 +28,14 @@ let bool_check = (msg, expected, actual) =>
 let int_check = (msg, expected, actual) =>
   Alcotest.check(Alcotest.int, msg, expected, actual);
 
+let contains_substring = (haystack: string, needle: string): bool => {
+  let hl = String.length(haystack);
+  let nl = String.length(needle);
+  let rec go = i =>
+    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+  nl == 0 || go(0);
+};
+
 let str_check = (msg, expected, actual) =>
   Alcotest.check(Alcotest.string, msg, expected, actual);
 
@@ -364,9 +372,245 @@ let test_display_goal_agrees_when_nothing_to_inline = () => {
   );
 };
 
+/* --- the (!) action menu (§3.3) -------------------------------------- */
+
+/* Availability is computed from the obligation's own data plus the
+ * theorem's syntax, so these tests run the real checker and read the real
+ * float target. (The patch/round-trip side is Test_EditorTransform's: ids
+ * are per-parse, so patches must be applied to the zipper they were built
+ * from.) */
+
+let stmt_of = (elab: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Theorem(_, stmt, _, _) when found^ == None =>
+      found := Some(stmt);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, elab);
+  found^;
+};
+
+let run_with_ctx =
+    (src: string): (ProofMap.t, Proof.t, ObligationsPanel.action_ctx) => {
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let proof = proof_of(elab);
+  (
+    EvaluatorState.get_proof_map(state),
+    proof,
+    ObligationsPanel.{
+      stmt: stmt_of(elab),
+      proof: Some(proof),
+    },
+  );
+};
+
+let pending_of = (pm, proof): list(Obligation.t) =>
+  ProofMap.obligations_of_proof(pm, proof)
+  |> List.filter(Obligation.is_pending);
+
+let one_pending = (msg, pm, proof): Obligation.t =>
+  switch (pending_of(pm, proof)) {
+  | [ob] => ob
+  | obs =>
+    Alcotest.fail(
+      msg
+      ++ ": expected exactly one pending obligation, got "
+      ++ string_of_int(List.length(obs)),
+    )
+  };
+
+/* A pending obligation over a THEOREM binder floats: the target is that
+ * binder, and all three exits are live. */
+let test_float_available_at_theorem_binder = () => {
+  let (pm, proof, ctx) = run_with_ctx(repro);
+  let ob = one_pending("repro", pm, proof);
+  switch (ObligationsPanel.float_target_of(~ctx, ob)) {
+  | FloatTo(b) =>
+    str_check(
+      "the float target is the binder of the goal's variable",
+      "z",
+      String.concat(",", b.vars),
+    )
+  | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
+  };
+  let actions = ObligationsPanel.actions_of(~ctx, ob);
+  int_check("three exits offered", 3, List.length(actions));
+  bool_check(
+    "all three are enabled",
+    true,
+    List.for_all((a: ObligationsPanel.action) => a.patch != None, actions),
+  );
+  str_check(
+    "labels, in menu order",
+    "Add to statement|Prove here|Split on it",
+    String.concat(
+      "|",
+      List.map((a: ObligationsPanel.action) => a.label, actions),
+    ),
+  );
+};
+
+/* The innermost mentioned binder wins (§3.3: "the float target is
+ * computed, not chosen"). Both `a` and `b` are theorem binders; the goal
+ * mentions only `b`, so the guard lands on `b`'s binder. */
+let inner_binder_src = {|theorem t = forall a: Int -> forall b: Int -> a + 8 / b == a + 8 / b
+proof axiom refl_eq at 0 on a + 8 / b == a + 8 / b end
+in t|};
+
+let test_float_target_is_innermost = () => {
+  let (pm, proof, ctx) = run_with_ctx(inner_binder_src);
+  let ob = one_pending("inner binder", pm, proof);
+  switch (ObligationsPanel.float_target_of(~ctx, ob)) {
+  | FloatTo(b) =>
+    str_check("target is the inner binder", "b", String.concat(",", b.vars))
+  | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
+  };
+};
+
+/* §3.3's UNSOUND cell: the obligation arises inside an induction case and
+ * mentions that case's own binder, so floating it would put a restriction
+ * on a case and break exhaustiveness. The option must be OFFERED and
+ * DISABLED, with the reason — never silently dropped, never enabled. */
+let case_scoped_src = {|theorem t = forall n: Int -> 8 / n == 8 / n
+proof induction n | 0 => ? | m => axiom refl_eq at 0 on 8 / m == 8 / m end end
+in t|};
+
+let test_float_disabled_at_case_binder = () => {
+  let (pm, proof, ctx) = run_with_ctx(case_scoped_src);
+  let obs = pending_of(pm, proof);
+  let ob =
+    switch (
+      List.find_opt(
+        (ob: Obligation.t) =>
+          ProofRule.occurs_free_any(["m"], Obligation.display_goal_of(ob)),
+        obs,
+      )
+    ) {
+    | Some(ob) => ob
+    | None =>
+      Alcotest.fail(
+        "expected a pending obligation mentioning the case binder `m`, got "
+        ++ string_of_int(List.length(obs)),
+      )
+    };
+  bool_check(
+    "the float target is the unsound one",
+    true,
+    ObligationsPanel.float_target_of(~ctx, ob) == UnsoundAtCase,
+  );
+  switch (ObligationsPanel.actions_of(~ctx, ob)) {
+  | [float, prove, split] =>
+    bool_check("float is disabled", true, float.patch == None);
+    bool_check(
+      "and says why",
+      true,
+      contains_substring(float.title, "unsound"),
+    );
+    /* The other two exits stay available at a case (§3.3's table). */
+    bool_check("prove here is available", true, prove.patch != None);
+    bool_check("split is available", true, split.patch != None);
+  | actions =>
+    Alcotest.fail(
+      "expected three actions, got " ++ string_of_int(List.length(actions)),
+    )
+  };
+  /* And the wrapping region is INSIDE the case, so the emitted `have`'s
+   * proposition can mention `m` at all. */
+  switch (ObligationsPanel.region_of(~ctx, ob)) {
+  | Some(region) =>
+    bool_check(
+      "the region is the case body, not the whole proof",
+      false,
+      Id.compare(Proof.rep_id(region), Proof.rep_id(proof)) == 0,
+    );
+    bool_check(
+      "and it contains the incurring step",
+      true,
+      ObligationsPanel.proof_contains(~origin=ob.origin, region),
+    );
+  | None => Alcotest.fail("no wrapping region found for a case obligation")
+  };
+};
+
+/* Discharged rows carry no menu: they are receipts. */
+let test_no_actions_on_discharged_rows = () => {
+  let (pm, proof, ctx) = run_with_ctx(repro);
+  let discharged =
+    ProofMap.obligations_of_proof(pm, proof)
+    |> List.filter(ob => !Obligation.is_pending(ob));
+  bool_check(
+    "the repro has discharged rows to check",
+    true,
+    List.length(discharged) > 0,
+  );
+  List.iter(
+    ob =>
+      int_check(
+        "no actions on a discharged obligation",
+        0,
+        List.length(ObligationsPanel.actions_of(~ctx, ob)),
+      ),
+    discharged,
+  );
+};
+
+/* With no syntax to act on — the definition-time section, whose
+ * obligations belong to no proof tree — float reports NoBinder and the
+ * wrapping actions are unavailable rather than misdirected. */
+let test_no_context_degrades = () => {
+  let (pm, proof, _) = run_with_ctx(repro);
+  let ob = one_pending("repro", pm, proof);
+  let ctx = ObligationsPanel.no_action_ctx;
+  bool_check(
+    "no statement means nothing to float onto",
+    true,
+    ObligationsPanel.float_target_of(~ctx, ob) == NoBinder,
+  );
+  switch (ObligationsPanel.actions_of(~ctx, ob)) {
+  | [float, prove, split] =>
+    bool_check("float disabled", true, float.patch == None);
+    bool_check("prove here disabled", true, prove.patch == None);
+    bool_check("split disabled", true, split.patch == None);
+  | actions =>
+    Alcotest.fail(
+      "expected three actions, got " ++ string_of_int(List.length(actions)),
+    )
+  };
+};
+
 let tests = (
   "ObligationsPanel",
   [
+    test_case(
+      "float is available at a theorem binder, all three exits live",
+      `Quick,
+      test_float_available_at_theorem_binder,
+    ),
+    test_case(
+      "the float target is the innermost mentioned binder",
+      `Quick,
+      test_float_target_is_innermost,
+    ),
+    test_case(
+      "float is greyed out (with reason) at an induction-case binder",
+      `Quick,
+      test_float_disabled_at_case_binder,
+    ),
+    test_case(
+      "discharged rows carry no action menu",
+      `Quick,
+      test_no_actions_on_discharged_rows,
+    ),
+    test_case(
+      "no syntax context degrades to disabled actions",
+      `Quick,
+      test_no_context_degrades,
+    ),
     test_case(
       "the four statuses map to four distinct chips",
       `Quick,

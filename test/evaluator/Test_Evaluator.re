@@ -41,4 +41,5 @@ let tests =
     Test_Milestone_STLC.tests,
     Test_RootMissingRepro.tests,
     Test_ClosureLibrary.tests,
+    Test_Have.tests,
   ];

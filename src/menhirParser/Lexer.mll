@@ -150,6 +150,7 @@ rule token =
     | "where" {WHERE}
     | "assume" {ASSUME}
     | "generalize" {GENERALIZE}
+    | "have" {HAVE}
     | "revert" {REVERT}
     | "contradiction" {CONTRADICTION}
     | "induction" {INDUCTION}

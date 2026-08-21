@@ -113,6 +113,7 @@ let rewrite_proof =
           | Assume(e, body) => Assume(e, walk(body))
           | Generalize(e, body) => Generalize(e, walk(body))
           | Revert(e, inst, body) => Revert(e, inst, walk(body))
+          | Have(e, sub, body) => Have(e, walk(sub), walk(body))
           },
       };
     };
@@ -158,6 +159,11 @@ let rec find_seq_parent =
   | Assume(_, body)
   | Generalize(_, body)
   | Revert(_, _, body) => find_seq_parent(~target_id, body)
+  | Have(_, sub, body) =>
+    switch (find_seq_parent(~target_id, sub)) {
+    | Some(_) as r => r
+    | None => find_seq_parent(~target_id, body)
+    }
   | Induction(_, cases) =>
     List.find_map(((_, body)) => find_seq_parent(~target_id, body), cases)
   | EmptyHole

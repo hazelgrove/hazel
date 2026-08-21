@@ -12,7 +12,8 @@ type cls =
   | Assume
   | Generalize
   | Revert
-  | Contradiction;
+  | Contradiction
+  | Have;
 
 include TermBase.Proof;
 
@@ -40,6 +41,7 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | Generalize(_, _) => Generalize
   | Revert(_, _, _) => Revert
   | Contradiction(_) => Contradiction
+  | Have(_, _, _) => Have
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -56,6 +58,7 @@ let show_cls: cls => string =
   | Generalize => "Generalize step"
   | Revert => "Revert step"
   | Contradiction => "Contradiction step"
+  | Have => "Have step"
   | EvalStep => "Eval step";
 
 let temp: term => t =
@@ -135,6 +138,10 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     && fast_equal(b1, b2)
   | (Contradiction(e1, n1), Contradiction(e2, n2)) =>
     Equality.syntactic.exp(e1, e2) && inst_equal(n1, n2)
+  | (Have(e1, s1, b1), Have(e2, s2, b2)) =>
+    Equality.syntactic.exp(e1, e2)
+    && fast_equal(s1, s2)
+    && fast_equal(b1, b2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -147,6 +154,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Generalize(_, _), _)
   | (Revert(_, _, _), _)
   | (Contradiction(_, _), _)
+  | (Have(_, _, _), _)
   | (EvalStep(_), _) => false
   };
 };
@@ -170,6 +178,9 @@ let rec has_hole = (p: t): bool =>
   | Generalize(_, body) => has_hole(body)
   | Revert(_, _, body) => has_hole(body)
   | Contradiction(_) => false
+  /* Both children count: an unfinished `have` subproof is exactly the
+   * state the "prove here" action leaves behind. */
+  | Have(_, sub, body) => has_hole(sub) || has_hole(body)
   | EvalStep(_) => false
   };
 
@@ -256,4 +267,7 @@ let args_have_hole = (p: t): bool =>
   | Generalize(e, _) => exp_has_hole(e)
   | Revert(e, inst, _) => exp_has_hole(e) || inst_has_hole(inst)
   | Contradiction(e, inst) => exp_has_hole(e) || inst_has_hole(inst)
+  /* The asserted proposition is the have's own argument; its subproof is
+   * a nested proof and reports its own holes (cf. Induction bodies). */
+  | Have(e, _, _) => exp_has_hole(e)
   };

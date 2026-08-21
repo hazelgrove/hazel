@@ -137,6 +137,7 @@ and violations_of_kind =
     violations_of_root(path ++ "/generalize", m.inner_stepper)
   | AxiomStep(_)
   | AlgebriteStep(_)
+  | ContradictionStep(_)
   | EvalStep(_) => []
   };
 

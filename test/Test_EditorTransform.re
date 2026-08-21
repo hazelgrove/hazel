@@ -63,6 +63,7 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Assume(_, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_proofs(pred, body)
+    | Have(_, sub, body) => find_proofs(pred, sub) @ find_proofs(pred, body)
     };
   (pred(p) ? [p] : []) @ kids;
 };
@@ -77,6 +78,141 @@ let is_eval_step = (p: Proof.t): bool =>
   switch (p.term) {
   | EvalStep(_) => true
   | _ => false
+  };
+
+/* --- the (!) action-menu patches (docs/prover-obligations.md §3.3) ----
+ *
+ * `Web.ObligationsPanel` owns the pure patch builders for the three exits;
+ * these tests drive them end to end through `apply_patch` and read the
+ * resulting program text. The obligations are built by hand rather than
+ * run through the checker on purpose: ids are per-parse, so a patch must
+ * target ids from the SAME zipper it is applied to (the checker's
+ * elaborated copy has its own id space — that path is covered by the
+ * model-level tests in Test_ObligationsPanel). */
+
+module Panel = Web.ObligationsPanel;
+
+/* The first Theorem's statement sub-term. */
+let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Theorem(_, stmt, _, _) when found^ == None =>
+      found := Some(stmt);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
+/* An obligation as the panel sees one: only `origin` (the incurring step)
+ * and `display_goal` (what the user wrote) drive the actions. */
+let mk_obligation = (~origin: Id.t, ~goal: string): Obligation.t => {
+  origin,
+  bindings: [],
+  goal: parse_exp(goal),
+  display_goal: parse_exp(goal),
+  discharge: Pending,
+};
+
+/* An obligation whose `display_goal` REUSES ids from the program `z`,
+   the way the real panel's goals do (they are slices of the checked
+   program). `<var> != 0`, built around the program's own `var` tile. */
+let find_var = (~name: Var.t, e: Exp.t): Exp.t => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Var(x) when x == name && found^ == None =>
+      found := Some(e);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  switch (found^) {
+  | Some(e) => e
+  | None => Alcotest.fail("no `" ++ name ++ "` in the program")
+  };
+};
+
+let mk_obligation_reusing =
+    (~origin: Id.t, ~var: Var.t, z: Haz3lcore.Zipper.t): Obligation.t => {
+  let goal =
+    Exp.fresh(
+      BinOp(
+        Poly(NotEquals),
+        find_var(~name=var, zipper_term(z)),
+        Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+      ),
+    );
+  {
+    origin,
+    bindings: [],
+    goal,
+    display_goal: goal,
+    discharge: Pending,
+  };
+};
+
+/* Every tile id in the zipper's segment, children included. A tile id
+   appearing twice is the shard-mismatch crash in latent form. */
+let rec tile_ids = (seg: Haz3lcore.Segment.t): list(Id.t) =>
+  List.concat_map(
+    (p: Haz3lcore.Piece.t) =>
+      switch (p) {
+      | Tile(t) => [
+          Haz3lcore.Piece.id(p),
+          ...tile_ids(List.concat(t.children)),
+        ]
+      | Grout(_)
+      | Secondary(_)
+      | Projector(_) => []
+      },
+    seg,
+  );
+
+let duplicate_tile_ids = (z: Haz3lcore.Zipper.t): list(Id.t) => {
+  let seen = Hashtbl.create(64);
+  List.filter(
+    id =>
+      switch (Hashtbl.find_opt(seen, id)) {
+      | Some () => true
+      | None =>
+        Hashtbl.add(seen, id, ());
+        false;
+      },
+    tile_ids(Haz3lcore.Zipper.unselect_and_zip(z)),
+  );
+};
+
+let check_no_duplicate_tile_ids = (~msg: string, z: Haz3lcore.Zipper.t) => {
+  let dups = duplicate_tile_ids(z);
+  check(
+    int,
+    msg
+    ++ " — duplicated tile ids: "
+    ++ String.concat(", ", List.map(Id.to_string, dups))
+    ++ "\nin:\n"
+    ++ Haz3lcore.Printer.of_zipper(~holes="?", z),
+    0,
+    List.length(dups),
+  );
+};
+
+let action_ctx_of = (z: Haz3lcore.Zipper.t): Panel.action_ctx => {
+  let term = zipper_term(z);
+  {
+    stmt: find_theorem_stmt(term),
+    proof: find_theorem_proof(term),
+  };
+};
+
+let require_patch =
+    (msg: string, p: option(Haz3lcore.EditorTransform.patch))
+    : Haz3lcore.EditorTransform.patch =>
+  switch (p) {
+  | Some(p) => p
+  | None => Alcotest.fail(msg)
   };
 
 let serialize = (z: Haz3lcore.Zipper.t): string =>
@@ -720,6 +856,304 @@ let tests = (
           "an empty proof (hole) remains",
           true,
           Proof.has_hole(reparsed),
+        );
+      },
+    ),
+    /* --- exit 1: float the restriction onto the theorem's binder ------ */
+    test_case(
+      "float patch turns `forall z` into `forall z where <goal>`",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof) {
+          | Some(p) => Proof.rep_id(p)
+          | None => Alcotest.fail("no proof")
+          };
+        let patch =
+          require_patch(
+            "float action should be available for a theorem binder",
+            Panel.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="binder now carries the guard", out, "where");
+        check_contains(
+          ~msg="the guard is the obligation goal",
+          out,
+          "n != 0",
+        );
+        check_contains(~msg="the binder survives", out, "forall n");
+        check_contains(~msg="the body survives", out, "8 / n == 8 / n");
+        /* Reparse: the statement is a restricted binder now. */
+        switch (find_theorem_stmt(parse_exp(out))) {
+        | Some({term: ForallWhere(_, _, _), _}) => ()
+        | Some(other) =>
+          Alcotest.fail(
+            "expected a ForallWhere statement, got: " ++ Exp.show(other),
+          )
+        | None => Alcotest.fail("no statement after patch: " ++ out)
+        };
+      },
+    ),
+    test_case(
+      "float patch AND-extends an existing where guard",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int where n > 0 -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof) {
+          | Some(p) => Proof.rep_id(p)
+          | None => Alcotest.fail("no proof")
+          };
+        let patch =
+          require_patch(
+            "float action available",
+            Panel.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="old guard kept", out, "n > 0");
+        check_contains(~msg="new guard conjoined", out, "&&");
+        check_contains(~msg="new guard present", out, "n != 0");
+      },
+    ),
+    /* --- exit 2: prove here, via the new `have` form ------------------ */
+    test_case(
+      "have patch wraps the enclosing proof region",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 5 == 5 at 0 end in t",
+          );
+        let ctx = action_ctx_of(z);
+        /* Incurred by the FIRST step; the region is the whole chain. */
+        let origin =
+          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
+          | Some([first, ..._]) => Proof.rep_id(first)
+          | _ => Alcotest.fail("no eval steps")
+          };
+        let patch =
+          require_patch(
+            "have action should be available",
+            Panel.have_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="the have keyword landed", out, "have");
+        check_contains(~msg="its proposition is the goal", out, "2 != 0");
+        check_contains(~msg="subproof slot is a hole", out, "proof");
+        check_contains(
+          ~msg="first step preserved",
+          out,
+          "eval 1 + 4 at 0 end",
+        );
+        check_contains(
+          ~msg="second step preserved",
+          out,
+          "eval 5 == 5 at 0 end",
+        );
+        /* Reparse: a Have whose body still holds both steps. */
+        switch (find_theorem_proof(parse_exp(out))) {
+        | Some({term: Have(_, sub, body), _}) =>
+          check(
+            bool,
+            "subproof is a hole",
+            true,
+            switch (sub.term) {
+            | EmptyHole => true
+            | _ => false
+            },
+          );
+          check(
+            int,
+            "both steps live in the have's body",
+            2,
+            List.length(find_proofs(is_eval_step, body)),
+          );
+        | Some(other) =>
+          Alcotest.fail(
+            "expected a Have proof, got: "
+            ++ Proof.show_cls(Proof.cls_of_term(other.term))
+            ++ "\nin:\n"
+            ++ out,
+          )
+        | None => Alcotest.fail("no proof after patch: " ++ out)
+        };
+      },
+    ),
+    /* --- exit 3: split on the obligation ----------------------------- */
+    test_case(
+      "split patch wraps the region in a true/false induction",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 5 == 5 at 0 end in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
+          | Some([first, ..._]) => Proof.rep_id(first)
+          | _ => Alcotest.fail("no eval steps")
+          };
+        let patch =
+          require_patch(
+            "split action should be available",
+            Panel.split_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="an induction landed", out, "induction");
+        check_contains(~msg="on the obligation goal", out, "2 != 0");
+        check_contains(~msg="true case", out, "true");
+        check_contains(~msg="false case", out, "false");
+        check_contains(~msg="steps preserved", out, "eval 1 + 4 at 0 end");
+        switch (find_theorem_proof(parse_exp(out))) {
+        | Some({term: Induction(_, cases), _}) =>
+          check(int, "two cases", 2, List.length(cases));
+          switch (cases) {
+          | [(_, true_body), (_, false_body)] =>
+            check(
+              int,
+              "the original chain is the true branch",
+              2,
+              List.length(find_proofs(is_eval_step, true_body)),
+            );
+            check(
+              bool,
+              "the false branch is open",
+              true,
+              Proof.has_hole(false_body),
+            );
+          | _ => ()
+          };
+        | Some(other) =>
+          Alcotest.fail(
+            "expected an Induction proof, got: "
+            ++ Proof.show_cls(Proof.cls_of_term(other.term))
+            ++ "\nin:\n"
+            ++ out,
+          )
+        | None => Alcotest.fail("no proof after patch: " ++ out)
+        };
+      },
+    ),
+    /* --- id hygiene: patched syntax must not duplicate tile ids ------
+     *
+     * In the browser the obligation's `display_goal` is a slice of the
+     * CHECKED program, so its exps carry the very ids the program's
+     * tiles were parsed from (the `z` var tile in the crash report).
+     * Embedding that slice verbatim puts one id on two tiles;
+     * `Measured.find_shards` then returns BOTH occurrences' shards for a
+     * single tile and `Highlight.of_tile` dies with
+     *   "shard mismatch: ... label = [\"z\"] ... tile_Shards:2".
+     * The view isn't testable headlessly, but the duplicate is. */
+    test_case(
+      "float patch on a program-sourced goal mints fresh tile ids",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof) {
+          | Some(p) => Proof.rep_id(p)
+          | None => Alcotest.fail("no proof")
+          };
+        let patch =
+          require_patch(
+            "float action available for a program-sourced goal",
+            Panel.float_patch(
+              ~ctx,
+              mk_obligation_reusing(~origin, ~var="n", z),
+            ),
+          );
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="float patch reused the goal's program ids",
+          patched,
+        );
+        check_contains(
+          ~msg="the guard still landed",
+          serialize(patched),
+          "where",
+        );
+      },
+    ),
+    test_case(
+      "have patch on a program-sourced goal mints fresh tile ids",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof eval 8 / n at 0 end in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
+          | Some([first, ..._]) => Proof.rep_id(first)
+          | _ => Alcotest.fail("no eval steps")
+          };
+        let patch =
+          require_patch(
+            "have action available",
+            Panel.have_patch(~ctx, mk_obligation_reusing(~origin, ~var="n", z)),
+          );
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="have patch reused the goal's program ids",
+          patched,
+        );
+        check_contains(
+          ~msg="the have still landed",
+          serialize(patched),
+          "have",
+        );
+      },
+    ),
+    test_case(
+      "split patch on a program-sourced goal mints fresh tile ids",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof eval 8 / n at 0 end in t",
+          );
+        let ctx = action_ctx_of(z);
+        let origin =
+          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
+          | Some([first, ..._]) => Proof.rep_id(first)
+          | _ => Alcotest.fail("no eval steps")
+          };
+        let patch =
+          require_patch(
+            "split action available",
+            Panel.split_patch(
+              ~ctx,
+              mk_obligation_reusing(~origin, ~var="n", z),
+            ),
+          );
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="split patch reused the goal's program ids",
+          patched,
+        );
+        check_contains(
+          ~msg="the induction still landed",
+          serialize(patched),
+          "induction",
         );
       },
     ),

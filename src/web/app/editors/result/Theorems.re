@@ -23,6 +23,11 @@ module Model = {
      * `proof_mark` above is left exactly as it was: it is the legacy
      * bool status and still what `get_score` grades on. */
     full_status: Calc.saved(ProofMap.full_status),
+    /* The theorem's STATEMENT as written, lifted from the same syntax
+     * node as `proof`. The obligations panel's float-to-binder action
+     * rewrites one of its `forall` binders, so it needs the syntactic
+     * term (ids and all), not the substituted one from dynamics. */
+    stmt: Calc.saved(option(Exp.t)),
   };
 
   let theorem_init = name => {
@@ -35,6 +40,7 @@ module Model = {
     stepper_view: StepperView.Model.init,
     proof_mark: Calc.Pending,
     full_status: Calc.Pending,
+    stmt: Calc.Pending,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -212,6 +218,7 @@ module Update = {
                    stepper_view,
                    proof_mark,
                    full_status,
+                   stmt: stmt_saved,
                  } =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
@@ -257,15 +264,29 @@ module Update = {
                   * Calc.set keeps OldValue when the term is unchanged so
                   * the stepper only rebuilds when the proof actually
                   * changes. Shared with proof_mark's lookup below. */
-                 let proof_lookup =
+                 let theorem_syntax =
                    switch (Statics.Map.lookup_exp(id, info_map)) {
                    | Some({user_term, _}) =>
                      switch (user_term |> Exp.term_of) {
-                     | Theorem(_, _, proof, _) => Some(proof)
+                     | Theorem(_, stmt, proof, _) => Some((stmt, proof))
                      | _ => None
                      }
                    | None => None
                    };
+                 let proof_lookup = Option.map(snd, theorem_syntax);
+                 /* Same lift, statement side (see Model.stmt). */
+                 let stmt_saved =
+                   Calc.set(
+                     ~eq=
+                       (a, b) =>
+                         switch (a, b) {
+                         | (Some(a), Some(b)) => Exp.fast_equal(a, b)
+                         | (None, None) => true
+                         | _ => false
+                         },
+                     Option.map(fst, theorem_syntax),
+                     stmt_saved,
+                   );
                  let proof =
                    Calc.set(
                      ~eq=
@@ -338,6 +359,7 @@ module Update = {
                    stepper_view,
                    proof_mark: proof_mark |> Calc.save,
                    full_status: full_status |> Calc.save,
+                   stmt: stmt_saved |> Calc.save,
                  });
                },
                acc,
@@ -441,7 +463,7 @@ module View = {
         );
       List.mapi(
         (idx, id) => {
-          let Model.{stepper_view, name, full_status, proof, _} =
+          let Model.{stepper_view, name, full_status, proof, stmt, _} =
             Id.Map.find(id, model.thm_map);
           /* Status now comes from the obligation-aware
            * `full_status_of_proof`, so ProvenModulo reads distinctly from
@@ -460,14 +482,27 @@ module View = {
               ],
               [Node.text(ObligationsPanel.status_label(full_status))],
             );
-          /* This theorem's own obligations, with their receipts. */
+          /* This theorem's own obligations, with their receipts and the
+           * three-exit action menu on each pending row. The action context
+           * is this theorem's own statement and proof syntax: the float
+           * action rewrites a binder of the former, the wrapping actions a
+           * region of the latter. Patches are routed out through
+           * `edit_syntax`, the same channel the proof-step views use. */
+          let this_proof = proof |> Calc.get_saved_opt |> Option.join;
+          let action_ctx =
+            ObligationsPanel.{
+              stmt: stmt |> Calc.get_saved_opt |> Option.join,
+              proof: this_proof,
+            };
           let obligations =
             ObligationsPanel.view(
               ~globals,
+              ~edit_syntax,
+              ~action_ctx,
+              ~main_editor,
               ObligationsPanel.group_of(
                 ~pm=proof_map,
-                ~proofs=
-                  proof |> Calc.get_saved_opt |> Option.join |> Option.to_list,
+                ~proofs=this_proof |> Option.to_list,
               ),
             );
           let header =

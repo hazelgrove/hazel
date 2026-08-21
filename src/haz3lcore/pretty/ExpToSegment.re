@@ -1116,6 +1116,9 @@ and parenthesize_proof =
       go(body),
     )
     |> rewrap
+  /* The asserted proposition sits in its own child slot, so it defends at
+   * `min` like assume's argument; both proof children are plain slots. */
+  | Have(e, sub, body) => Have(go_exp(e), go(sub), go(body)) |> rewrap
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     AxiomStep({
       at_idx: go_exp(at_idx),
@@ -3533,6 +3536,11 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ inst = exp_to_pretty(~settings, inst)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofRevertWith, id, [e, v, inst])] @ b);
+  | Have(e, sub, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ sub = proof_to_pretty(~settings, sub)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofHave, id, [e, sub])] @ b);
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)

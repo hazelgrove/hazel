@@ -531,7 +531,6 @@ module rec StepKind:
       ContradictionStep.view_content(
         ~globals,
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -708,7 +707,6 @@ module rec StepKind:
         ~inject=x => inject(ContradictionStep(x)),
         ~take_focus=x => take_focus(ContradictionStep(x)),
         ~hide_stepper,
-        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -926,6 +924,7 @@ and Stepper: {
     | Assume(_, _)
     | Generalize(_, _)
     | Revert(_, _, _)
+    | Have(_, _, _)
     | Seq(_, _) => false
     };
 
@@ -973,6 +972,11 @@ and Stepper: {
     | Revert(_, _, _) => Some(RevertStep(RevertStep.init(init_step)))
     | Generalize(_, _) =>
       Some(GeneralizeStep(GeneralizeStep.init(init_step)))
+    /* No dedicated `have` row yet: the form's own text carries it, its
+     * checker semantics and obligations are live, and an un-kinded row
+     * degrades to the step-picking row rather than breaking (a HaveStep
+     * view module modelled on AssumeStep is the follow-up). */
+    | Have(_, _, _)
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -1504,7 +1508,7 @@ and Stepper: {
   let form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
     switch (t) {
     | Assume(e, _)
-    | Revert(e, _)
+    | Revert(e, _, _)
     | Generalize(e, _) => Some(Exp.rep_id(e))
     | EmptyHole
     | Invalid(_)
@@ -1514,6 +1518,8 @@ and Stepper: {
     | Forall(_, _)
     | AxiomStep(_)
     | AlgebriteStep(_)
+    | Contradiction(_, _)
+    | Have(_, _, _)
     | EvalStep(_) => None
     };
 

@@ -5142,6 +5142,59 @@ and proof_to_info_map =
     let elab =
       rewrap(Revert(e_elab, instantiation_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Have(e, sub, body) =>
+    /* `have <exp> proof <subproof> => <body>` (docs/prover-obligations.md
+       §3.3). The asserted proposition is analyzed against Bool, exactly
+       like assume's. The SUBPROOF is checked in the enclosing ctx — it
+       proves the proposition, so it may not cite it — while the BODY sees
+       it as a citable hypothesis under the deterministic auto-name
+       "have", mirroring the Assume arm above and the big-step checker's
+       `SemanticCtx.add_hypothesis(ctx, "have", hyp)`. */
+    let (_, e_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        e,
+        m,
+      );
+    let (_, sub_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(sub), m);
+    let name =
+      Var.free_name(
+        "have",
+        List.map((ve: Ctx.var_entry) => ve.name, Ctx.get_var_entries(ctx)),
+      );
+    let hyp_id = IdTagged.rep_id(p_term);
+    let body_ctx =
+      Ctx.extend_hypothesis(
+        Ctx.extend(
+          ctx,
+          VarEntry({
+            name,
+            id: hyp_id,
+            typ: Typ.fresh(ProofOf(e)),
+            custom_statics: None,
+          }),
+        ),
+        {
+          name,
+          id: hyp_id,
+          prop: Some(e),
+        },
+      );
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=body_ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab =
+      rewrap(
+        Have(e_elab, proof_of_any(sub_elab), proof_of_any(body_elab)),
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   };
 };
 

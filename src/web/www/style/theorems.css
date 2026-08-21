@@ -173,3 +173,51 @@
   display: flex;
   align-items: center;
 }
+
+/* --- the (!) action menu (docs/prover-obligations.md §3.3) ----------- */
+
+/* Three exits per pending obligation: float the restriction onto the
+ * theorem's binder, prove it here with `have`, or split on it. The row
+ * already wraps, so the menu just joins the flex flow. */
+.obligation-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.obligation-action {
+  font-family: inherit;
+  font-size: 0.85em;
+  padding: 0.15em 0.5em;
+  border: 1px solid color-mix(in srgb, var(--BR4) 70%, transparent);
+  border-radius: 0.9em;
+  background-color: var(--BR1);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.obligation-action:hover:not(.disabled) {
+  background-color: var(--BR3);
+  border-color: var(--BR4);
+}
+
+/* An unsound float (a restriction at an induction case) is GREYED OUT,
+ * never hidden: the reason lives in the title attribute. */
+.obligation-action.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* Receipts click-to-jump: a covering fact that resolves to a tile of the
+ * main editor moves the caret there. */
+.obligation-fact.jumpable {
+  cursor: pointer;
+  border-radius: 0.2em;
+}
+
+.obligation-fact.jumpable:hover {
+  background-color: color-mix(in srgb, var(--test-pass) 20%, transparent);
+}

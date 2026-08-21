@@ -275,6 +275,11 @@ let rec find_marked_sub =
     | Assume(_, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_marked_sub(pm, body)
+    | Have(_, sub, body) =>
+      switch (find_marked_sub(pm, sub)) {
+      | Some(_) as s => s
+      | None => find_marked_sub(pm, body)
+      }
     | Induction(_, cases) =>
       let rec scan = (
         fun

@@ -1022,6 +1022,9 @@ let equality =
       | (Contradiction(e1, n1), Contradiction(e2, n2)) =>
         exp'(e1, e2) && inst'(n1, n2)
       | (Contradiction(_, _), _) => false
+      | (Have(e1, s1, b1), Have(e2, s2, b2)) =>
+        exp'(e1, e2) && proof'(s1, s2) && proof'(b1, b2)
+      | (Have(_, _, _), _) => false
       };
     proof'(p1, p2);
   };

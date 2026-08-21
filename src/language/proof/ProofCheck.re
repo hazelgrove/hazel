@@ -557,15 +557,51 @@ let eval_step_outgoing_ast =
  * a transparent, lookup-only discharge relation
  * (docs/prover-obligations.md §4.2–4.3). Returns the covering fact's
  * stable entry id. */
-let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) =>
+/* The one sanctioned piece of slack in the discharge relation
+ * (docs/prover-obligations.md §4.3: "a small, NAMED, documented normal
+ * form ... e.g. comparison symmetry + constant folding, nothing else").
+ *
+ * NORMAL FORM: `P == true` and `true == P` normalise to `P`, recursively.
+ *
+ * It exists because §3.3's "split" exit depends on it: `induction P | true
+ * => ... | false => ...` installs the case equation `P == true` as the
+ * true branch's hypothesis, and the obligation the branch has to retire is
+ * the bare `P`. Without this the split action emits correct text that
+ * discharges nothing.
+ *
+ * Sound in the flat domain of §1.1: a hypothesis is a fact ASSERTED to
+ * denote `true`, and `P == true` denotes `true` only when `P` does (if `P`
+ * is `false` the equation is `false`; if `P` is `err` or `⊥` the equation
+ * is `err`/`⊥`). So `P == true` in scope entails `P`. Note the direction:
+ * the folding is applied to BOTH sides, which is fine — it is an
+ * equivalence, not a weakening. Nothing else is normalised: no symmetry,
+ * no arithmetic, no entailment. */
+let rec strip_eq_true = (e: Exp.t): Exp.t => {
+  let is_true = (x: Exp.t) =>
+    Exp.fast_equal(x, Exp.temp(Atom(Bool(true))));
+  switch (Exp.term_of(e)) {
+  | BinOp(Poly(Equals), a, b) when is_true(b) => strip_eq_true(a)
+  | BinOp(Poly(Equals), a, b) when is_true(a) => strip_eq_true(b)
+  | Parens(e') => strip_eq_true(e')
+  | _ => e
+  };
+};
+
+let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) => {
+  let goal_nf = strip_eq_true(goal);
   SemanticCtx.get_ctx(ctx)
   |> Ctx.get_var_entries
   |> List.find_map((e: Ctx.var_entry) =>
        switch (Typ.term_of(e.typ)) {
-       | ProofOf(fact) when Exp.fast_equal(fact, goal) => Some(e.id)
+       | ProofOf(fact)
+           when
+             Exp.fast_equal(fact, goal)
+             || Exp.fast_equal(strip_eq_true(fact), goal_nf) =>
+         Some(e.id)
        | _ => None
        }
      );
+};
 
 /* --- Discharge channel 2: closed evaluation (§4.2) -------------------
  *
@@ -1293,6 +1329,65 @@ let rec check =
     let (out_body, m) =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
+  | Have(e, sub, body) =>
+    /* `have <exp> proof <subproof> => <body>` — forward reasoning, the
+     * "lemma cut" idiom, and the target of §3.3's "prove here" exit
+     * (docs/prover-obligations.md).
+     *
+     * `assume` with a proof attached, and deliberately the same shape:
+     *
+     * - the SUBPROOF's incoming goal is `<exp>` itself, checked in the
+     *   ENCLOSING scope (it may not cite the have's own hypothesis);
+     * - the BODY sees `<exp>` as a citable hypothesis under the auto-name
+     *   "have", unconditionally — that is what lets an obligation inside
+     *   the body discharge against it through ordinary channel-1 lookup
+     *   (§4.2) the moment the wrapper is written, before the subproof is
+     *   finished;
+     * - the have's OWN obligation for `<exp>` is dropped exactly when the
+     *   subproof discharges it (literal `true`, clean subtree — the same
+     *   test `ProofMap.status_of_proof` applies to a whole proof), and
+     *   otherwise runs the ordinary discharge channels and typically
+     *   stays Pending. So the wrapper never launders anything: it MOVES
+     *   the obligation from the incurring step up to the have, where the
+     *   attached proof can retire it.
+     *
+     * Pass-through and mark-free, like assume: the outgoing is the
+     * body's, and an unfinished subproof is an incomplete proof, not a
+     * broken step. */
+    let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let (out_sub, m_sub) = check(~step, ~info_map, ~ctx, Some(hyp), sub);
+    let true_exp = Exp.temp(Atom(Bool(true)));
+    let sub_proves =
+      switch (out_sub) {
+      | Some(o) =>
+        Exp.fast_equal(o, true_exp) && ProofMap.proof_is_clean(m_sub, sub)
+      | None => false
+      };
+    let obligations =
+      sub_proves
+        ? []
+        : [
+          Obligation.{
+            origin: id,
+            bindings: SemanticCtx.get_ctx(ctx).entries,
+            goal: hyp,
+            display_goal: e,
+            discharge: discharge_goal(~step, ~ctx, hyp),
+          },
+        ];
+    let (ctx', _binding) = SemanticCtx.add_hypothesis(ctx, "have", hyp);
+    let (out_body, m_body) =
+      check(~step, ~info_map, ~ctx=ctx', incoming, body);
+    (
+      out_body,
+      record(
+        ~obligations,
+        id,
+        incoming,
+        out_body,
+        ProofMap.union(m_sub, m_body),
+      ),
+    );
   | Generalize(e, body) =>
     /* Re-quantify an already-peeled binder x (docs/prover-obligations.md,
      * Phase 4b): with incoming goal G, the body's incoming goal is

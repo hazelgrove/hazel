@@ -200,6 +200,10 @@ and proof =
      `with <var> = <exp>` clause (docs/prover-obligations.md, open item
      3). Kept as separate constructors, mirroring the tile-level forms. */
   | ProofRevertWith(exp, exp, exp, proof)
+  /* `have <exp> proof <subproof> => <body>` (docs/prover-obligations.md
+     §3.3): the asserted proposition, its proof, and the body it is a
+     hypothesis for. */
+  | ProofHave(exp, proof, proof)
   /* (equality, at_idx, at_exp) — argument order follows the surface
      syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
   | ProofAxiom(exp, exp, exp)

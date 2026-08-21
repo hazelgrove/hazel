@@ -120,6 +120,7 @@ open AST
 %token PROOF_OBJECT
 %token ASSUME
 %token GENERALIZE
+%token HAVE
 %token REVERT
 %token INDUCTION
 %token AXIOM
@@ -376,6 +377,7 @@ proof:
     | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
     | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
     | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
+    | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
     | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }

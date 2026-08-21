@@ -116,6 +116,11 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | Generalize(_, body)
     | Revert(_, _, body) => proof_is_clean(pm, body)
     | Contradiction(_) => true
+    /* A `have` is clean only if its attached subproof is: an unfinished
+     * subproof leaves the have's obligation pending, but a BROKEN one
+     * must not read as a clean proof (docs/prover-obligations.md §3.3). */
+    | Have(_, sub, body) =>
+      proof_is_clean(pm, sub) && proof_is_clean(pm, body)
     | Induction(_, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -170,6 +175,8 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Generalize(_, body)
     | Revert(_, _, body) => obligations_of_proof(pm, body)
     | Contradiction(_) => []
+    | Have(_, sub, body) =>
+      obligations_of_proof(pm, sub) @ obligations_of_proof(pm, body)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
@@ -194,6 +201,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | Generalize(_, body)
     | Revert(_, _, body) => rep_ids_of_proof(body)
     | Contradiction(_) => []
+    | Have(_, sub, body) => rep_ids_of_proof(sub) @ rep_ids_of_proof(body)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }

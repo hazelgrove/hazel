@@ -119,6 +119,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | AxiomStep(_) => "axiom"
     | AlgebriteStep(_) => "rewrite"
     | EvalStep(_) => "eval"
+    | Have(_, _, _) => "have"
     };
   let here =
     indent
