@@ -555,13 +555,6 @@ let view =
          locate(~info_map=editor.statics.info_map, lay, id)
          |> Option.map(p => (p, state))
        );
-  let n_tests =
-    List.length(graph.loose_tests)
-    + List.fold_left(
-        (acc, e: CanvasGraph.edge) => acc + List.length(e.tests),
-        0,
-        graph.edges,
-      );
   let split_btn = {
     let split = globals.settings.canvas_split;
     div(
@@ -580,23 +573,7 @@ let view =
   let header =
     div(
       ~attrs=[clss(["canvas-header"])],
-      [
-        div(~attrs=[clss(["canvas-title"])], [text("Constellation")]),
-        split_btn,
-        div(
-          ~attrs=[clss(["canvas-stats"])],
-          [
-            text(
-              Printf.sprintf(
-                "%d types · %d functions · %d tests",
-                List.length(graph.nodes),
-                List.length(graph.edges),
-                n_tests,
-              ),
-            ),
-          ],
-        ),
-      ],
+      [div(~attrs=[clss(["canvas-title"])], [text("Constellation")])],
     );
   let legend = {
     let item = (cls, glyph, label) =>
@@ -743,7 +720,8 @@ let view =
               globals.inject_global(Set(ClearCanvasNodeOffsets(slide))),
             ),
           ]
-      ),
+      )
+      @ [div(~attrs=[clss(["toolbar-spacer"])], []), split_btn],
     );
   };
   div(

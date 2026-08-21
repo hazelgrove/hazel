@@ -69,6 +69,21 @@ let edge_classes =
   @ (e.e_err ? ["edge-err"] : [])
   @ (focused == Some(e.e_name) ? ["edge-focused"] : []);
 
+/* End curves at the arrowhead BASE: pull the path end back along its
+   final tangent so the marker (refX=0) occupies the gap and the tip
+   lands where the rim point was. */
+let pull_back =
+    (p: CanvasLayout.pos, toward: CanvasLayout.pos, d: float)
+    : CanvasLayout.pos => {
+  let dx = toward.x -. p.x
+  and dy = toward.y -. p.y;
+  let len = max(1., Float.hypot(dx, dy));
+  {
+    x: p.x +. dx /. len *. d,
+    y: p.y +. dy /. len *. d,
+  };
+};
+
 let edge_svg =
     (
       ~focused: option(string),
@@ -93,6 +108,10 @@ let edge_svg =
       ),
     ];
   } else {
+    let dst = pull_back(el.dst_p, el.c2, 7.);
+    let marker =
+      List.mem("edge-focused", cls)
+        ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";
     [
       svg(
         "path",
@@ -108,11 +127,11 @@ let edge_svg =
               fmt(el.c1.y),
               fmt(el.c2.x),
               fmt(el.c2.y),
-              fmt(el.dst_p.x),
-              fmt(el.dst_p.y),
+              fmt(dst.x),
+              fmt(dst.y),
             ),
           ),
-          Attr.create("marker-end", "url(#cnv-arrow)"),
+          Attr.create("marker-end", marker),
         ],
         [],
       ),
@@ -123,6 +142,15 @@ let edge_svg =
 let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
   /* gentle curve from component toward its product */
   let mx = (cp.x +. pp.x) /. 2.;
+  let pp' =
+    pull_back(
+      pp,
+      {
+        x: mx,
+        y: pp.y,
+      },
+      5.,
+    );
   svg(
     "path",
     [
@@ -137,8 +165,8 @@ let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => 
           fmt(cp.y),
           fmt(mx),
           fmt(pp.y),
-          fmt(pp.x),
-          fmt(pp.y),
+          fmt(pp'.x),
+          fmt(pp'.y),
         ),
       ),
       Attr.create("marker-end", "url(#cnv-arrow-sm)"),
@@ -147,19 +175,21 @@ let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => 
   );
 };
 
-let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t =>
+let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
+  let np' = pull_back(np, dp, 5.);
   svg(
     "line",
     [
       clss(["canvas-dep"]),
       Attr.create("x1", fmt(dp.x)),
       Attr.create("y1", fmt(dp.y)),
-      Attr.create("x2", fmt(np.x)),
-      Attr.create("y2", fmt(np.y)),
+      Attr.create("x2", fmt(np'.x)),
+      Attr.create("y2", fmt(np'.y)),
       Attr.create("marker-end", "url(#cnv-arrow-dep)"),
     ],
     [],
   );
+};
 
 let edge_label =
     (
@@ -337,7 +367,7 @@ let view =
         Attr.id(id),
         Attr.create("markerWidth", fmt(size)),
         Attr.create("markerHeight", fmt(size)),
-        Attr.create("refX", fmt(size *. 0.8)),
+        Attr.create("refX", "0"),
         Attr.create("refY", fmt(size /. 2.)),
         Attr.create("orient", "auto"),
         Attr.create("markerUnits", "userSpaceOnUse"),
@@ -364,6 +394,7 @@ let view =
   let small_markers = [
     mk_marker(~id="cnv-arrow-sm", ~size=6., ~cls="canvas-arrowhead-sm"),
     mk_marker(~id="cnv-arrow-dep", ~size=6., ~cls="canvas-arrowhead-dep"),
+    mk_marker(~id="cnv-arrow-focus", ~size=9., ~cls="canvas-arrowhead-focus"),
   ];
   let defs =
     svg(
@@ -377,7 +408,7 @@ let view =
             Attr.id("cnv-arrow"),
             Attr.create("markerWidth", "9"),
             Attr.create("markerHeight", "9"),
-            Attr.create("refX", "7"),
+            Attr.create("refX", "0"),
             Attr.create("refY", "4.5"),
             Attr.create("orient", "auto"),
             Attr.create("markerUnits", "userSpaceOnUse"),

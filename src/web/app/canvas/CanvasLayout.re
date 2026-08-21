@@ -62,7 +62,7 @@ let node_radius = (~fan: int, n: CanvasGraph.tynode): float => {
   | Builtin => 11.
   | Ghost => 14.
   | Derived => 15.
-  | Product => 7.
+  | Product => 10.
   | Alias => base_radius +. ctr_bump +. fan_bump
   };
 };
@@ -308,14 +308,17 @@ let layout =
           );
         Hashtbl.replace(dock_count, (anchor, d), i + 1);
         let fi = float_of_int(i);
+        /* formers ("()"/"[]") tuck close to their alias; labeled builtin
+           terminals need the wider berth */
+        let dock_dist = n.kind == CanvasGraph.Product ? 46. : 92.;
         let p =
           switch (d) {
           | DockIn => {
-              x: a.x -. ar -. 92.,
+              x: a.x -. ar -. dock_dist,
               y: a.y -. 20. +. fi *. 42.,
             }
           | DockOut => {
-              x: a.x +. ar +. 92.,
+              x: a.x +. ar +. dock_dist,
               y: a.y -. 20. +. fi *. 42.,
             }
           | DockLoop =>
@@ -424,7 +427,24 @@ let layout =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
         switch (n.kind) {
-        | Product => n.parts |> List.filter_map(pk => rim_pair(pk, n.key))
+        | Product =>
+          (n.parts |> List.filter_map(pk => rim_pair(pk, n.key)))
+          /* alias-body formers dock at their alias and feed it */
+          @ (
+            switch (n.sat) {
+            | Some((anchor, _)) => rim_pair(n.key, anchor) |> Option.to_list
+            | None => []
+            }
+          )
+        | Derived =>
+          /* a docked [T] node forms from its element type */
+          switch (strip_brackets(n.key)) {
+          | Some(ik)
+              when
+                List.exists((m: CanvasGraph.tynode) => m.key == ik, g.nodes) =>
+            rim_pair(ik, n.key) |> Option.to_list
+          | _ => []
+          }
         | _ => []
         },
       g.nodes,
@@ -435,7 +455,7 @@ let layout =
         switch (n.kind) {
         | Alias =>
           n.deps
-          |> List.filter(d => d != n.key)
+          |> List.filter(d => d != n.key && !List.mem(d, n.hidden_deps))
           |> List.filter_map(dk => rim_pair(dk, n.key))
         | _ => []
         },

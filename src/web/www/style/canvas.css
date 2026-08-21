@@ -38,7 +38,7 @@
   right: 0;
   width: 44%;
   min-width: 320px;
-  border-left: 2px solid var(--CREASE, #ccc);
+  border-left: 0.6px solid var(--BR2, #ccc);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -86,7 +86,7 @@
   align-items: baseline;
   justify-content: space-between;
   padding: 0.5em 0.8em;
-  border-bottom: 1px solid var(--CREASE, #ccc);
+  border-bottom: 0.6px solid var(--BR2, #ccc);
   flex: 0 0 auto;
 }
 
@@ -95,12 +95,7 @@
   letter-spacing: 0.06em;
   font-size: 0.85em;
   text-transform: uppercase;
-  opacity: 0.75;
-}
-
-.canvas-stats {
-  font-size: 0.75em;
-  opacity: 0.6;
+  color: var(--ui-header-text, #6b5330);
 }
 
 .canvas-scroll {
@@ -117,8 +112,12 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 4px 10px;
-  border-bottom: 1px solid var(--CREASE, #ccc);
+  border-bottom: 0.6px solid var(--BR2, #ccc);
   font-size: 11px;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
 }
 
 .canvas-tool-btn {
@@ -273,9 +272,25 @@
 }
 
 .canvas-node.kind-product {
-  border-width: 1.5px;
-  background: var(--BLACK, #333);
-  opacity: 0.75;
+  border-width: 2px;
+  border-color: var(--BLACK, #111);
+  background: #fff;
+  opacity: 1;
+}
+
+/* former labels ("()" / "[]") sit INSIDE the node as bold delimiters */
+.canvas-node.kind-product .canvas-node-label {
+  top: 0;
+  inset: 0;
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--BLACK, #111);
+  text-shadow: none;
 }
 
 .canvas-formation {
@@ -395,6 +410,10 @@
   opacity: 1;
 }
 
+.canvas-arrowhead-focus {
+  fill: #3a7a3a;
+}
+
 .canvas-edge-label.edge-focused {
   border-color: #3a7a3a;
   box-shadow: 0 0 0 2px rgba(74, 122, 74, 0.35);
@@ -404,7 +423,7 @@
 
 .canvas-focus {
   flex: 0 0 auto;
-  border-top: 2px solid var(--CREASE, #ccc);
+  border-top: 0.6px solid var(--BR2, #ccc);
   padding: 6px 12px 10px;
   max-height: 240px;
   overflow: auto;

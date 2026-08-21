@@ -37,6 +37,9 @@ type tynode = {
   n_doc: option(string),
   n_err: bool,
   deps: list(string), /* node keys this node's body/components reference */
+  /* deps that are displayed through former nodes instead of plain dep
+     links (they still participate in layer ordering) */
+  hidden_deps: list(string),
   parts: list(string), /* Product: component node keys (formation lines) */
   sat: option((string, bool)) /* satellite: (anchor node key, output side) */
 };
@@ -100,6 +103,7 @@ let mk_node =
       ~n_doc=None,
       ~n_err=false,
       ~deps=[],
+      ~hidden_deps=[],
       ~parts=[],
       ~sat=None,
       ~kind,
@@ -116,6 +120,7 @@ let mk_node =
   n_doc,
   n_err,
   deps,
+  hidden_deps,
   parts,
   sat,
 };
@@ -577,6 +582,75 @@ let extract =
     key;
   };
 
+  /* ---- alias-body former expansion ----
+     An alias whose body is a tuple or list renders its structure through
+     former nodes instead of a bare "made of" link: components feed a
+     docked former ("()" / "[]") which feeds the alias — so Model =
+     ([Todo], Int) reads Todo ┈▶ [] ┈▶ () ┈▶ Model. The replaced deps
+     go to hidden_deps (still ordering the columns, no longer drawn). */
+  let expanded_aliases: Hashtbl.t(string, unit) = Hashtbl.create(8);
+  let resolve_former_comp = (~former_key, ~anchor, comp: Typ.t): string => {
+    let (k, kind) = ty_ref(~anchor, comp);
+    switch (kind) {
+    | Builtin =>
+      ensure_sat(~anchor_key=former_key, ~output=false, ~dup=former_key, k)
+    | _ =>
+      ensure_grid(k, kind);
+      k;
+    };
+  };
+  List.iter(
+    fun
+    | IAlias(_, tpat, ty) => {
+        let name =
+          switch (tpat.term) {
+          | Var(n) => n
+          | _ => "?"
+          };
+        switch (unwrap_ty(ty).term) {
+        | Prod(comps) when List.length(comps) > 1 =>
+          let former_key = "()@" ++ name;
+          let parts =
+            List.mapi(
+              (i, c) =>
+                resolve_former_comp(
+                  ~former_key,
+                  ~anchor=name ++ "c" ++ string_of_int(i),
+                  c,
+                ),
+              comps,
+            );
+          ensure(
+            mk_node(
+              ~kind=Product,
+              ~label="()",
+              ~parts,
+              ~sat=Some((name, false)),
+              former_key,
+            ),
+          );
+          Hashtbl.replace(expanded_aliases, name, ());
+        | List(el) =>
+          let former_key = "[]@" ++ name;
+          let part =
+            resolve_former_comp(~former_key, ~anchor=name ++ "el", el);
+          ensure(
+            mk_node(
+              ~kind=Product,
+              ~label="[]",
+              ~parts=[part],
+              ~sat=Some((name, false)),
+              former_key,
+            ),
+          );
+          Hashtbl.replace(expanded_aliases, name, ());
+        | _ => ()
+        };
+      }
+    | _ => (),
+    items,
+  );
+
   /* Bindings, phase 1: names, types, metadata. */
   let bindings:
     list(
@@ -688,7 +762,7 @@ let extract =
               ensure(
                 mk_node(
                   ~kind=Product,
-                  ~label="",
+                  ~label="()",
                   ~parts=part_keys,
                   ~deps=
                     List.filter_map(
@@ -802,6 +876,17 @@ let extract =
         },
       None,
       items,
+    );
+  let alias_nodes =
+    List.map(
+      (n: tynode) =>
+        Hashtbl.mem(expanded_aliases, n.key)
+          ? {
+            ...n,
+            hidden_deps: n.deps,
+          }
+          : n,
+      alias_nodes,
     );
   {
     nodes: alias_nodes @ extras^,
