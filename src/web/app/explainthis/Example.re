@@ -18,7 +18,8 @@ let operand = (sort, v) => {
   switch (p) {
   | Tile(t) =>
     let (l, r) = Tile.mold(t).nibs;
-    if (l.shape != Convex || r.shape != Convex) {
+    if (!Nib.Shape.equal(l.shape, Convex)
+        || !Nib.Shape.equal(r.shape, Convex)) {
       failwith("Example: placeholder is not an operand: " ++ v);
     };
   | _ => ()

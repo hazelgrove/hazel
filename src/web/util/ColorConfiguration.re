@@ -442,12 +442,12 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
       | TupLabel(l, body) =>
         switch (l.term) {
         | Label("palette") => colors_of_group("palette", body)
-        | Label(l) when l == CS.polarity_field =>
+        | Label(l) when String.equal(l, CS.polarity_field) =>
           switch (Unboxing.unbox(Atom(Bool), body)) {
           | Matches(b) => [(polarity_target, b ? "dark" : "light")]
           | _ => []
           }
-        | Label(l) when l == CS.contrast_field =>
+        | Label(l) when String.equal(l, CS.contrast_field) =>
           switch (Unboxing.unbox(Atom(Bool), body)) {
           | Matches(b) => [(contrast_target, b ? "high" : "normal")]
           | _ => []
