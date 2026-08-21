@@ -186,7 +186,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       when
         Tile.arity(lt) == 1
         && Token.is_livelit(Tile.token(lt, 0))
-        && w == Token.space =>
+        && String.equal(w, Token.space) =>
     let t = Tile.token(lt, 0);
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
