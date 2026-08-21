@@ -49,7 +49,7 @@ let opened: t =
     selected_idx: 0,
     path: [],
   });
-let is_open = (m: t): bool => m != None;
+let is_open = (m: t): bool => Option.is_some(m);
 let path = (m: t): list(string) =>
   switch (m) {
   | None => []
@@ -120,10 +120,11 @@ let rec items_at =
   | [] => items
   | [name, ...rest] =>
     let child =
-      List.find_opt(
-        fun
-        | Submenu({label, _}) => label == name
-        | _ => false,
+      List.find(
+        ~f=
+          fun
+          | Submenu({label, _}) => String.equal(label, name)
+          | _ => false,
         items,
       );
     switch (child) {
@@ -177,8 +178,8 @@ let to_visible = (it: item('a)): visible_item('a) =>
 let visible_items =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let p = path(model);
-  let here = items_at(p, items) |> List.map(to_visible);
-  p == [] ? here : [VBack, ...here];
+  let here = items_at(p, items) |> List.map(~f=to_visible);
+  List.is_empty(p) ? here : [VBack, ...here];
 };
 
 let is_visible_selectable = (v: visible_item('a)): bool =>
@@ -190,7 +191,11 @@ let is_visible_selectable = (v: visible_item('a)): bool =>
   };
 
 let count_selectable_visible = (vs: list(visible_item('a))): int =>
-  List.fold_left((n, v) => is_visible_selectable(v) ? n + 1 : n, 0, vs);
+  List.fold_left(
+    ~f=(n, v) => is_visible_selectable(v) ? n + 1 : n,
+    ~init=0,
+    vs,
+  );
 
 let nth_selectable_visible =
     (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
@@ -345,53 +350,55 @@ let render =
   let vs = visible_items(~items, model);
   let selected_idx = clamp_visible(vs, selected(model));
   let (_, rendered) =
-    List.fold_left_map(
-      (sel_idx, v) =>
-        switch (v) {
-        | VDivider => (sel_idx, divider_view())
-        | VBack => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip=None,
-              ~decoration=None,
-              ~on_pointerdown=() => inject_menu(BackSubmenu),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              "← Back",
-            ),
-          )
-        | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=enabled && sel_idx == selected_idx,
-              ~enabled,
-              ~tooltip,
-              ~decoration,
-              ~on_pointerdown=
-                () => enabled ? inject_action(action) : Effect.Ignore,
-              ~on_hover=
-                on_hover ? Some(inject_menu(SetSelected(sel_idx))) : None,
-              label,
-            ),
-          )
-        | VSubmenu({label, tooltip, submenu_name}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip,
-              ~decoration=Some("→"),
-              ~on_pointerdown=() => inject_menu(EnterSubmenu(submenu_name)),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              label,
-            ),
-          )
-        },
-      0,
+    List.fold_map(
+      ~f=
+        (sel_idx, v) =>
+          switch (v) {
+          | VDivider => (sel_idx, divider_view())
+          | VBack => (
+              sel_idx + 1,
+              row_view(
+                ~item_class,
+                ~is_selected=sel_idx == selected_idx,
+                ~enabled=true,
+                ~tooltip=None,
+                ~decoration=None,
+                ~on_pointerdown=() => inject_menu(BackSubmenu),
+                ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+                "← Back",
+              ),
+            )
+          | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
+              sel_idx + 1,
+              row_view(
+                ~item_class,
+                ~is_selected=enabled && sel_idx == selected_idx,
+                ~enabled,
+                ~tooltip,
+                ~decoration,
+                ~on_pointerdown=
+                  () => enabled ? inject_action(action) : Effect.Ignore,
+                ~on_hover=
+                  on_hover ? Some(inject_menu(SetSelected(sel_idx))) : None,
+                label,
+              ),
+            )
+          | VSubmenu({label, tooltip, submenu_name}) => (
+              sel_idx + 1,
+              row_view(
+                ~item_class,
+                ~is_selected=sel_idx == selected_idx,
+                ~enabled=true,
+                ~tooltip,
+                ~decoration=Some("→"),
+                ~on_pointerdown=
+                  () => inject_menu(EnterSubmenu(submenu_name)),
+                ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+                label,
+              ),
+            )
+          },
+      ~init=0,
       vs,
     );
   rendered;
@@ -429,7 +436,8 @@ let handle_key =
         MenuUpdate(EnterSubmenu(submenu_name))
       | _ => Unhandled
       }
-    | Key.D("ArrowLeft") => path == [] ? Unhandled : MenuUpdate(BackSubmenu)
+    | Key.D("ArrowLeft") =>
+      List.is_empty(path) ? Unhandled : MenuUpdate(BackSubmenu)
     | Key.D("Enter") =>
       switch (selected_item) {
       | Some(VAction({enabled: true, action, _})) => RunAction(action)
@@ -517,8 +525,8 @@ let space_from =
 let direction_of =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
-  vertical: space.below >= menu_height ? `Down : `Up,
-  horizontal: space.right >= menu_width ? `Right : `Left,
+  vertical: Float.(space.below >= menu_height) ? `Down : `Up,
+  horizontal: Float.(space.right >= menu_width) ? `Right : `Left,
 };
 
 let direction_from_elem =
