@@ -69,7 +69,7 @@ module ImplGradingReport = {
   let percentage = (report: t): float => {
     let passed = float_of_int(num_passed(report));
     let total = float_of_int(total(report));
-    if (total == 0.0) {
+    if (Float.equal(total, 0.0)) {
       0.0; // Avoid division by zero
     } else {
       passed /. total; // Return percentage as a float

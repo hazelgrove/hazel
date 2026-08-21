@@ -72,7 +72,7 @@ module Model = {
 
   let type_of_persistence_key = (key: string): option(config_type) => {
     List.find_opt(
-      config_type => persistence_key(config_type) == key,
+      config_type => String.equal(persistence_key(config_type), key),
       all_of_config_type,
     );
   };
@@ -110,11 +110,13 @@ module Model = {
           |> ((z: PersistentZipper.t) => z.backup_text)
           |> StringUtil.strip_final_newline;
         let unchanged =
-          MarkerParse.seg_to_text(
-            ~refractors=current_zipper.refractors.manuals,
-            Zipper.zip(current_zipper),
-          )
-          == default_text;
+          String.equal(
+            MarkerParse.seg_to_text(
+              ~refractors=current_zipper.refractors.manuals,
+              Zipper.zip(current_zipper),
+            ),
+            default_text,
+          );
         (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
       },
       model.configs,
@@ -147,8 +149,10 @@ module Model = {
       current:
         List.find_index(
           config_type =>
-            persistence_key(config_type)
-            == (List.nth(slides, current) |> fst),
+            String.equal(
+              persistence_key(config_type),
+              List.nth(slides, current) |> fst,
+            ),
           all_of_config_type,
         )
         |> Option.value(~default=0),
@@ -157,7 +161,7 @@ module Model = {
           (config_type: config_type) =>
             List.find_map(
               s =>
-                s |> fst == persistence_key(config_type)
+                String.equal(fst(s), persistence_key(config_type))
                   ? Some(get_persistent(s)) : None,
               slides,
             )
@@ -295,7 +299,8 @@ let apply_theme_at_startup = (): unit => {
   let key = theme_key(persistent);
   let vars =
     switch (read_theme_cache()) {
-    | Some((cached_key, vars)) when cached_key == key && vars != [] => vars
+    | Some((cached_key, vars))
+        when String.equal(cached_key, key) && vars != [] => vars
     | _ => ColorConfiguration.vars_of_source(colors_source(persistent))
     };
   /* Nothing on failure -- deliberately. A slide that does not satisfy the

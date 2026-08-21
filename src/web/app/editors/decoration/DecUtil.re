@@ -142,7 +142,7 @@ let code_svg =
   create_svg(
     "svg",
     ~attrs=
-      (id == "" ? [] : [Attr.id(id)])
+      (String.equal(id, "") ? [] : [Attr.id(id)])
       @ [
         Attr.classes(base_cls),
         abs_pos
