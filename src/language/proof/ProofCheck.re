@@ -195,7 +195,15 @@ let axiom_step_outgoing_result =
     switch (seeded) {
     | Error(m) => Error(m)
     | Ok(bindings) =>
-      switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
+      switch (
+        ProofHacks.nth_exp_env_target(
+          ~info_map,
+          ~env,
+          at_exp,
+          at_idx,
+          incoming,
+        )
+      ) {
       | None =>
         Error(
           PatternNotFound({
@@ -366,18 +374,36 @@ let is_float_typed = (~info_map: Statics.Map.t, e: Exp.t): bool =>
   };
 
 let algebrite_step_outgoing =
-    (~at_idx: int, ~at_exp: Exp.t, ~with_exp: Exp.t, incoming: Exp.t)
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      ~at_idx: int,
+      ~at_exp: Exp.t,
+      ~with_exp: Exp.t,
+      incoming: Exp.t,
+    )
     : option(Exp.t) =>
-  switch (ProofHacks.nth_exp(at_exp, at_idx, incoming)) {
+  switch (
+    ProofHacks.nth_exp_target(~info_map, ~env, at_exp, at_idx, incoming)
+  ) {
   | None => None
   | Some(e) =>
     Some(ProofHacks.replace_exp_id(Exp.rep_id(e), incoming, with_exp))
   };
 
 let algebrite_step_outgoing_result =
-    (~at_idx: int, ~at_exp: Exp.t, ~with_exp: Exp.t, incoming: Exp.t)
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      ~at_idx: int,
+      ~at_exp: Exp.t,
+      ~with_exp: Exp.t,
+      incoming: Exp.t,
+    )
     : result(Exp.t, ProofMark.t) =>
-  switch (ProofHacks.nth_exp(at_exp, at_idx, incoming)) {
+  switch (
+    ProofHacks.nth_exp_target(~info_map, ~env, at_exp, at_idx, incoming)
+  ) {
   | None =>
     Error(
       PatternNotFound({
@@ -390,12 +416,26 @@ let algebrite_step_outgoing_result =
   };
 
 let algebrite_step_outgoing_ast =
-    (~at_idx: Exp.t, ~at_exp: Exp.t, ~with_exp: Exp.t, incoming: Exp.t)
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      ~at_idx: Exp.t,
+      ~at_exp: Exp.t,
+      ~with_exp: Exp.t,
+      incoming: Exp.t,
+    )
     : result(Exp.t, ProofMark.t) =>
   switch (exp_to_int(at_idx)) {
   | None => Error(MalformedIndex)
   | Some(idx) =>
-    algebrite_step_outgoing_result(~at_idx=idx, ~at_exp, ~with_exp, incoming)
+    algebrite_step_outgoing_result(
+      ~info_map,
+      ~env,
+      ~at_idx=idx,
+      ~at_exp,
+      ~with_exp,
+      incoming,
+    )
   };
 
 /* Canonical eval-step outgoing: locate the `at_idx`-th occurrence of
@@ -404,13 +444,16 @@ let algebrite_step_outgoing_ast =
 let eval_step_outgoing =
     (
       ~step: step_fn,
+      ~info_map: Statics.Map.t=Statics.Map.empty,
       ~env: Environment.t(Exp.t),
       ~at_idx: int,
       ~at_exp: Exp.t,
       incoming: Exp.t,
     )
     : option(Exp.t) =>
-  switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
+  switch (
+    ProofHacks.nth_exp_env_target(~info_map, ~env, at_exp, at_idx, incoming)
+  ) {
   | None => None
   | Some(e) =>
     switch (step(~env, e)) {
@@ -423,13 +466,16 @@ let eval_step_outgoing =
 let eval_step_outgoing_result =
     (
       ~step: step_fn,
+      ~info_map: Statics.Map.t=Statics.Map.empty,
       ~env: Environment.t(Exp.t),
       ~at_idx: int,
       ~at_exp: Exp.t,
       incoming: Exp.t,
     )
     : result(step_result, ProofMark.t) =>
-  switch (ProofHacks.nth_exp_env(~env, at_exp, at_idx, incoming)) {
+  switch (
+    ProofHacks.nth_exp_env_target(~info_map, ~env, at_exp, at_idx, incoming)
+  ) {
   | None =>
     Error(
       PatternNotFound({
@@ -461,6 +507,7 @@ let eval_step_outgoing_result =
 let eval_step_outgoing_ast =
     (
       ~step: step_fn,
+      ~info_map: Statics.Map.t=Statics.Map.empty,
       ~env: Environment.t(Exp.t),
       ~at_idx: Exp.t,
       ~at_exp: Exp.t,
@@ -470,7 +517,14 @@ let eval_step_outgoing_ast =
   switch (exp_to_int(at_idx)) {
   | None => Error(MalformedIndex)
   | Some(idx) =>
-    eval_step_outgoing_result(~step, ~env, ~at_idx=idx, ~at_exp, incoming)
+    eval_step_outgoing_result(
+      ~step,
+      ~info_map,
+      ~env,
+      ~at_idx=idx,
+      ~at_exp,
+      incoming,
+    )
   };
 
 /* Discharge channel 1 (binder lookup): search the facts visible in the
@@ -910,7 +964,14 @@ let rec check =
           (Some(inc), [ProofMark.FloatAlgebrite], []);
         } else {
           switch (
-            algebrite_step_outgoing_ast(~at_idx, ~at_exp, ~with_exp, inc)
+            algebrite_step_outgoing_ast(
+              ~info_map,
+              ~env=SemanticCtx.get_env(ctx),
+              ~at_idx,
+              ~at_exp,
+              ~with_exp,
+              inc,
+            )
           ) {
           | Ok(out) =>
             /* Domain scan of BOTH sides (§4.1): the CAS reasons in a
@@ -952,6 +1013,7 @@ let rec check =
         switch (
           eval_step_outgoing_ast(
             ~step,
+            ~info_map,
             ~env=SemanticCtx.get_env(ctx),
             ~at_idx,
             ~at_exp,

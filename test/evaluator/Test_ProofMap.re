@@ -1077,6 +1077,125 @@ let test_kleene_axiom_impl_def = () => {
   );
 };
 
+/* ---- Pattern targets in `on`/`at` slots ----------------------------
+ *
+ * The target slot of a proof step accepts a pattern with `$e`/`$v`/`$x`
+ * metavariables (MetaVar), reusing the stepper filter convention. The
+ * matched *concrete* subterm is what gets rewritten or evaluated, so
+ * these tests assert the same outcomes as their ground-quote
+ * neighbours above.
+ */
+
+/* `axiom refl_eq at 0 on $e == $e` in place of the exact quote: the
+ * pattern locates the equation, and the axiom still applies to the
+ * concrete `1 == 1` it matched. Compare test_refl_checkmark. */
+let test_pattern_refl_checkmark = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e == $e end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "pattern-target refl proof should be checkmark",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof_of(elab)),
+  );
+};
+
+/* The same under a binder: the pattern does not have to name `x`, which
+ * is the point — editing the statement's variable no longer breaks the
+ * proof. Compare test_refl_forall_checkmark. */
+let test_pattern_refl_forall_checkmark = () => {
+  let src = {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on $e == $e end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "pattern-target forall refl proof should be checkmark",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof_of(elab)),
+  );
+};
+
+/* An eval step whose target is a pattern: `$e + $e` locates `1 + 2`
+ * and the concrete subterm is what steps. Compare
+ * test_leading_auto_step_trace, which quotes `(1 + 2)` exactly. */
+let test_pattern_eval_step_outgoing = () => {
+  let src = {|theorem t = (1 + 2) == 3 proof eval $e + $e at 0 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "pattern-target eval step reaches the same outgoing",
+    "3 == 3",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
+/* `$v` is value-restricted, so it discriminates where `$e` would not:
+ * in `(1 + 2) + (3 + 4)` the outer sum has non-value operands, so it is
+ * not a `$v + $v` match and only the two inner sums are. This also
+ * exercises `at <idx>` indexing among *pattern* matches; the index
+ * counts in `nth_exp`'s existing traversal order, which reaches a
+ * binary operator's right operand first, so `at 1` is the left sum. */
+let test_pattern_value_metavar_indexing = () => {
+  let src = {|theorem t = (1 + 2) + (3 + 4) == 10 proof eval $v + $v at 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "second $v + $v match is the left-hand sum",
+    "3 + (3 + 4) == 10",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
+/* A pattern that matches nothing is reported exactly like a missing
+ * exact quote. Compare the PatternNotFound test for `5 == 5`. */
+let test_pattern_not_found = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e + $e end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.bool,
+    "unmatched pattern target is a PatternNotFound",
+    true,
+    has_mark_kind(
+      pm,
+      proof_of(elab),
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* Metavariables in a target slot must not read as free variables: the
+ * statics case that covers stepper filters now covers these slots too,
+ * so the program has no free-variable mark. */
+let test_pattern_metavar_not_free = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e == $e end in t|};
+  let (statics, _) = statics_and_elab(parse_exp(src));
+  let free =
+    Id.Map.exists(
+      (_, info) =>
+        switch (info) {
+        | Info.InfoExp({marks, _}) =>
+          List.exists(
+            fun
+            | Mark.Free(name) => MetaVar.is_meta_name(name)
+            | _ => false,
+            marks,
+          )
+        | _ => false
+        },
+      statics,
+    );
+  Alcotest.check(
+    Alcotest.bool,
+    "no metavariable is marked free",
+    false,
+    free,
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
@@ -1238,6 +1357,36 @@ let tests = (
       "Kleene axiom impl_def is usable",
       `Quick,
       test_kleene_axiom_impl_def,
+    ),
+    test_case(
+      "pattern target: $e == $e proves reflexivity",
+      `Quick,
+      test_pattern_refl_checkmark,
+    ),
+    test_case(
+      "pattern target: $e == $e under a binder",
+      `Quick,
+      test_pattern_refl_forall_checkmark,
+    ),
+    test_case(
+      "pattern target: eval $e + $e reaches the same outgoing",
+      `Quick,
+      test_pattern_eval_step_outgoing,
+    ),
+    test_case(
+      "pattern target: $v is value-restricted and `at` indexes matches",
+      `Quick,
+      test_pattern_value_metavar_indexing,
+    ),
+    test_case(
+      "pattern target: an unmatched pattern is PatternNotFound",
+      `Quick,
+      test_pattern_not_found,
+    ),
+    test_case(
+      "pattern target: metavariables are not free variables",
+      `Quick,
+      test_pattern_metavar_not_free,
     ),
   ],
 );

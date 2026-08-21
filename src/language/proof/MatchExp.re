@@ -34,13 +34,14 @@ let is_in_alphas_l = (alphas: alphas, x: string): bool =>
 let rec match_exp =
         (
           ~info_map: Statics.Map.t,
+          ~meta: option(MetaVar.env)=None,
           alphas: alphas,
           ctx: match_ctx,
           exp_r: Exp.t,
           exp: Exp.t,
         )
         : option(match_ctx) => {
-  let match_exp = match_exp(~info_map);
+  let match_exp = match_exp(~info_map, ~meta);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
   | (Parens(e1), _)
@@ -50,6 +51,25 @@ let rec match_exp =
   // TODO: Better cast logic
   | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  /* Pattern metavariables ($e / $v), enabled only when the caller opts
+   * in by supplying `meta`. These are the non-linear kinds: they match
+   * without recording anything, exactly as the stepper's filter
+   * patterns do (Equality's `use_expr_wildcards` cases). Named
+   * metavariables ($x) are deliberately absent here — they are seeded
+   * into `ctx` by the caller and so flow through the ordinary
+   * match_ctx path below, which gives them linearity for free. */
+  | (Var(x), _)
+      when
+        switch (meta, MetaVar.of_name(x)) {
+        | (Some(_), Some(Any | Value)) => true
+        | _ => false
+        } =>
+    MetaVar.matches(
+      ~env=Option.get(meta),
+      Option.get(MetaVar.of_name(x)),
+      exp,
+    )
+      ? Some(ctx) : None
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
     let (typ, assigned_exp) = List.assoc(x, ctx);
@@ -404,3 +424,61 @@ let match_exp =
   let exp = Substitution.in_exp(exp_env, exp);
   match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
 };
+
+/* ---- Pattern matching for proof-step target slots -------------------
+ *
+ * A "pattern" here is just an Exp that may contain metavariables (see
+ * MetaVar). A pattern with no metavariables is a ground pattern and
+ * matches only expressions it is structurally equal to, so the exact
+ * targets users write today are the degenerate case of this.
+ *
+ * Named metavariables ($x) get their linearity from `match_ctx`: we
+ * seed one unassigned entry per distinct name, and the existing
+ * `Var(x) when match_ctx_has(ctx, x)` case both records the first
+ * occurrence and requires later occurrences to agree with it.
+ */
+
+/* The value notion is the stepper's, injected rather than reimplemented
+ * — the same predicate FilterMatcher hands to Equality. */
+let meta_env = (~env: Environment.t(Exp.t)): MetaVar.env =>
+  MetaVar.{
+    is_value: exp => ValueChecker.check_value(env, exp) != ValueChecker.Expr,
+  };
+
+/* One unassigned match_ctx entry per distinct named metavariable. */
+let meta_ctx = (pat: Exp.t): match_ctx =>
+  pat
+  |> MetaVar.named_names
+  |> List.map(name => (name, (Unknown(Internal) |> Typ.temp, None)));
+
+/* Match `pat` against `exp`, returning the metavariable assignments.
+ * `env` is used only to decide `$v`; unlike `match_exp` this does not
+ * substitute it into `exp` (callers that need that do it themselves, so
+ * that they can map the match back to the un-substituted term). */
+let match_pattern =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      ~alphas: alphas=[],
+      pat: Exp.t,
+      exp: Exp.t,
+    )
+    : option(match_ctx) =>
+  match_exp'(
+    ~info_map,
+    ~meta=Some(meta_env(~env)),
+    alphas,
+    meta_ctx(pat),
+    pat,
+    exp,
+  );
+
+let matches_pattern =
+    (
+      ~info_map=Statics.Map.empty,
+      ~env=Environment.empty,
+      pat: Exp.t,
+      exp: Exp.t,
+    )
+    : bool =>
+  match_pattern(~info_map, ~env, pat, exp) |> Option.is_some;

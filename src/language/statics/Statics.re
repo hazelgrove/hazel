@@ -739,9 +739,13 @@ and uexp_to_info_map =
           m,
         )
       };
-    | Var(("$e" | "$v") as name) when is_in_filter =>
-      /* Inside a filter, the meta-variables `$e` and `$v` stand for any
-         expression/value, so we synthesize to `?` without consulting the ctx. */
+    | Var(name) when is_in_filter && MetaVar.is_meta_name(name) =>
+      /* Inside a pattern (a stepper filter, or a proof-step `on`/`at`
+         target slot), a metavariable stands for any expression/value, so
+         we synthesize to `?` without consulting the ctx. Returning an
+         empty co_ctx is what keeps it from reading as a free variable.
+         `MetaVar` owns the naming convention: `$e`, `$v`, and the named
+         `$x` used by proof-step patterns. */
       add(
         ~elab_term=Var(name) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -4624,8 +4628,20 @@ and proof_to_info_map =
         at_idx,
         m,
       );
+    /* The target slot is a *pattern*: it may contain `$e`/`$v`/`$x`
+       metavariables (MetaVar), which must not read as free variables.
+       `is_in_filter` is the existing flag for "we are inside a
+       metavariable-bearing pattern"; the name is historical (filters
+       were the first such slot) and the behavior is exactly what a
+       target slot needs. */
     let (_, at_exp_elab, m) =
-      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+      uexp_to_info_map(
+        ~ctx,
+        ~is_in_filter=true,
+        ~ancestors=ancestors_inclusive,
+        at_exp,
+        m,
+      );
     /* The equality slot must refer to a hypothesis by name, not an
        arbitrary expression. */
     let head = unwrap_head(equality);
@@ -4758,8 +4774,20 @@ and proof_to_info_map =
         at_idx,
         m,
       );
+    /* The target slot is a *pattern*: it may contain `$e`/`$v`/`$x`
+       metavariables (MetaVar), which must not read as free variables.
+       `is_in_filter` is the existing flag for "we are inside a
+       metavariable-bearing pattern"; the name is historical (filters
+       were the first such slot) and the behavior is exactly what a
+       target slot needs. */
     let (_, at_exp_elab, m) =
-      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+      uexp_to_info_map(
+        ~ctx,
+        ~is_in_filter=true,
+        ~ancestors=ancestors_inclusive,
+        at_exp,
+        m,
+      );
     let (_, with_exp_elab, m) =
       uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, with_exp, m);
     let elab =
@@ -4780,8 +4808,20 @@ and proof_to_info_map =
         at_idx,
         m,
       );
+    /* The target slot is a *pattern*: it may contain `$e`/`$v`/`$x`
+       metavariables (MetaVar), which must not read as free variables.
+       `is_in_filter` is the existing flag for "we are inside a
+       metavariable-bearing pattern"; the name is historical (filters
+       were the first such slot) and the behavior is exactly what a
+       target slot needs. */
     let (_, at_exp_elab, m) =
-      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+      uexp_to_info_map(
+        ~ctx,
+        ~is_in_filter=true,
+        ~ancestors=ancestors_inclusive,
+        at_exp,
+        m,
+      );
     let elab =
       rewrap(
         EvalStep({

@@ -93,6 +93,99 @@ let nth_exp_env = (~env: Environment.t(Exp.t), e1: Exp.t, n: int, e2: Exp.t) => 
   find_exp_id(Exp.rep_id(matched), e2);
 };
 
+/* ---- Pattern-aware target resolution --------------------------------
+ *
+ * `nth_exp`/`nth_exp_env` above locate the (n+1)th subterm *equal to* a
+ * given expression. The variants below locate the (n+1)th subterm that
+ * *matches* a pattern, i.e. an expression that may contain `$e`/`$v`/
+ * `$x` metavariables (see MetaVar). Since a metavariable-free pattern
+ * matches exactly the terms it is structurally equal to, indexing among
+ * pattern matches generalizes indexing among occurrences.
+ *
+ * Traversal order and the "don't descend into a counted match" rule are
+ * deliberately identical to `nth_exp`, so `at <idx>` keeps meaning what
+ * it means today.
+ */
+let nth_exp_pat =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      pat: Exp.t,
+      n: int,
+      e2: Exp.t,
+    ) => {
+  let count = ref(0);
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (MatchExp.matches_pattern(~info_map, ~env, pat, exp)) {
+            if (count^ == n) {
+              raise(Found(exp));
+            } else {
+              count := count^ + 1;
+              exp;
+            };
+          } else {
+            cont(exp);
+          },
+      e2,
+    )
+  ) {
+  | exception (Found(x)) => Some(x)
+  | _ => None
+  };
+};
+
+/* Env-aware pattern variant, mirroring `nth_exp_env`: pre-substitute
+ * both sides so inlined recursive bindings line up, then map the match
+ * back to the original `e2` by id. Metavariables are untouched by
+ * `Substitution.in_exp` (no binding can be named `$...`). */
+let nth_exp_env_pat =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t),
+      pat: Exp.t,
+      n: int,
+      e2: Exp.t,
+    ) => {
+  let pat' = Substitution.in_exp(env, pat);
+  let e2' = Substitution.in_exp(env, e2);
+  let* matched = nth_exp_pat(~info_map, ~env, pat', n, e2');
+  find_exp_id(Exp.rep_id(matched), e2);
+};
+
+/* The entry points the checker uses for an `on`/`at` target slot.
+ *
+ * Ground targets keep their existing code path byte for byte: pattern
+ * matching (MatchExp) and structural equality (Equality) are not the
+ * same relation, so routing today's exact quotes through the matcher
+ * would be a silent behavior change rather than a generalization. We
+ * therefore dispatch on whether the target actually uses the pattern
+ * language. */
+let nth_exp_target =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      at_exp: Exp.t,
+      n: int,
+      e2: Exp.t,
+    ) =>
+  MetaVar.has_meta(at_exp)
+    ? nth_exp_pat(~info_map, ~env, at_exp, n, e2) : nth_exp(at_exp, n, e2);
+
+let nth_exp_env_target =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t),
+      at_exp: Exp.t,
+      n: int,
+      e2: Exp.t,
+    ) =>
+  MetaVar.has_meta(at_exp)
+    ? nth_exp_env_pat(~info_map, ~env, at_exp, n, e2)
+    : nth_exp_env(~env, at_exp, n, e2);
+
 let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
     ~f_exp=

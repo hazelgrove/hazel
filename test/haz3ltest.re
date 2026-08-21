@@ -59,6 +59,7 @@ let (suite, _) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
+    @ Test_MatchExp.pattern_tests
     @ Test_Polarity.tests
     @ Test_ProofRuleMentions.tests
     @ Test_RefractorSerialization.tests
