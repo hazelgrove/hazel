@@ -18,7 +18,7 @@ let structure_share_sexp_of_t = (key_f, sexp_of_t, thing: 'a): Sexplib.Sexp.t =>
       ();
     } else {
       let sexp = sexp_of_t(thing);
-      let m = structure_share_map^ |> Option.get;
+      let m = structure_share_map^ |> Option.value_exn;
       structure_share_map := Some(Id.Map.update(key, _ => Some(sexp), m));
     };
     Id.sexp_of_t(key);
@@ -46,7 +46,7 @@ let structure_share_t_of_sexp = (t_of_sexp, sexp: Sexplib.Sexp.t): 'a => {
             Id.Map.update(
               id,
               _ => Some(Obj.repr(v)),
-              pre_deserialized_map^ |> Option.get,
+              pre_deserialized_map^ |> Option.value_exn,
             ),
           );
         v;
@@ -66,7 +66,7 @@ let structure_share_in = (sexp_of_t, t_of_sexp) => {
       let sexp = sexp_of_t(thing);
       let result: structure_shared = (
         sexp,
-        structure_share_map^ |> Option.get,
+        structure_share_map^ |> Option.value_exn,
       );
       structure_share_map := None;
       sexp_of_structure_shared(result);

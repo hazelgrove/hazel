@@ -7,12 +7,13 @@ open Js_of_ocaml;
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
-let totals: Hashtbl.t(string, (float, int)) = Hashtbl.create(16);
+let totals: Stdlib.Hashtbl.t(string, (float, int)) =
+  Stdlib.Hashtbl.create(16);
 
 let record = (label: string, ms: float): unit => {
   let (t, n) =
-    Option.value(Hashtbl.find_opt(totals, label), ~default=(0., 0));
-  Hashtbl.replace(totals, label, (t +. ms, n + 1));
+    Option.value(Stdlib.Hashtbl.find_opt(totals, label), ~default=(0., 0));
+  Stdlib.Hashtbl.replace(totals, label, (t +. ms, n + 1));
 };
 
 let time = (label: string, f: unit => 'a): 'a => {
@@ -22,18 +23,21 @@ let time = (label: string, f: unit => 'a): 'a => {
   r;
 };
 
-let reset = (): unit => Hashtbl.reset(totals);
+let reset = (): unit => Stdlib.Hashtbl.reset(totals);
 
 /* "statics 312ms×2 | node-map 40ms×2 | edit 205ms×1", biggest first */
 let summary = (): string => {
   let rows =
-    Hashtbl.fold((k, (t, n), acc) => [(k, t, n), ...acc], totals, [])
-    |> List.sort(((_, a, _), (_, b, _)) => compare(b, a));
+    Stdlib.Hashtbl.fold(
+      (k, (t, n), acc) => [(k, t, n), ...acc],
+      totals,
+      [],
+    )
+    |> List.sort(~compare=((_, a, _), (_, b, _)) => Float.compare(b, a));
   String.concat(
-    " | ",
-    List.map(
-      ((k, t, n)) => Printf.sprintf("%s %.0fms×%d", k, t, n),
-      rows,
+    ~sep=" | ",
+    List.map(rows, ~f=((k, t, n)) =>
+      Stdlib.Printf.sprintf("%s %.0fms×%d", k, t, n)
     ),
   );
 };

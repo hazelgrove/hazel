@@ -102,7 +102,7 @@ module TextArea = {
     /* precondition: lines nonempty */
     let lines = textarea |> lines;
     let {row, col} = caret_pos(textarea);
-    let full_row = List.nth(lines, row);
+    let full_row = List.nth_exn(lines, row);
     {
       rows: rel(row, List.length(lines) - 1),
       cols: rel(col, String.length(full_row)),
@@ -111,7 +111,7 @@ module TextArea = {
 
   let caret_at_start = (textarea: t): bool => {
     let {rows, cols} = caret_rel_pos(textarea);
-    rows == First && cols == First;
+    Poly.equal(rows, First) && Poly.equal(cols, First);
   };
 
   let caret_at_end = (textarea: t): bool => {
