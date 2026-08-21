@@ -24,11 +24,11 @@ let rec pos_split_last =
 
 let rec farthest_cond = (f, Node(_, c)) =>
   fun
-  | _ when c == [] => Value
+  | _ when List.is_empty(c) => Value
   | Value => Value
   | Children(i, pos) => {
       let i = min(i, List.length(c) - 1);
-      let Node(v, _) as p = List.nth(c, i);
+      let Node(v, _) as p = List.nth_exn(c, i);
       f(v) ? Children(i, pos |> farthest_cond(f, p)) : Value;
     };
 
@@ -38,7 +38,7 @@ let value = (Node(v, _)) => v;
 let rec nth_node = (Node(v, c)) =>
   fun
   | Value => Node(v, c)
-  | Children(i, pos) => pos |> nth_node(List.nth(c, i));
+  | Children(i, pos) => pos |> nth_node(List.nth_exn(c, i));
 
 // @raise `Failure` if pos not exists in the tree
 let nth = (t, pos) => nth_node(t, pos) |> value;
@@ -46,28 +46,29 @@ let nth = (t, pos) => nth_node(t, pos) |> value;
 let empty = v => Node(v, []);
 
 let rec flatten = (Node(v, c)) =>
-  [v] @ (c |> List.map(flatten) |> List.concat);
+  [v] @ (c |> List.map(~f=flatten) |> List.concat);
 
 /* Two Tree */
 
 // @raise `Invalid_argument` if the two trees have different structures
 let rec combine = (Node(v1, c1), Node(v2, c2)) =>
-  Node((v1, v2), List.map2(combine, c1, c2));
+  Node((v1, v2), List.map2_exn(~f=combine, c1, c2));
 
 /* Iterators */
 
-let rec map = (f, Node(v, c)) => Node(f(v), c |> List.map(map(f)));
+let rec map = (f, Node(v, c)) => Node(f(v), c |> List.map(~f=map(f)));
 
 let mapi = f => {
   let rec aux = (f, acc_pos, Node(v, c)) =>
     Node(
       v |> f(acc_pos(Value)),
-      c |> List.mapi(i => aux(f, pos => acc_pos(Children(i, pos)))),
+      c |> List.mapi(~f=i => aux(f, pos => acc_pos(Children(i, pos)))),
     );
   aux(f, Fun.id);
 };
 
-let rec fold_deep = (f, Node(v, c)) => f(v, c |> List.map(fold_deep(f)));
+let rec fold_deep = (f, Node(v, c)) =>
+  f(v, c |> List.map(~f=fold_deep(f)));
 
 /* Position */
 
@@ -90,7 +91,7 @@ let rec split_n = (f, Node(v, c)) =>
   fun
   | Value => f(Node(v, c))
   | Children(i, pos) => {
-      let (v', t) = pos |> split_n(f, List.nth(c, i));
+      let (v', t) = pos |> split_n(f, List.nth_exn(c, i));
       (v', Node(v, c |> ListUtil.put_nth(i, t)));
     };
 
@@ -100,5 +101,5 @@ let insert = (v', i) =>
 
 let remove = i =>
   split_n((Node(v, c)) =>
-    (List.nth(c, i), Node(v, ListUtil.remove(c, i)))
+    (List.nth_exn(c, i), Node(v, ListUtil.remove(c, i)))
   );

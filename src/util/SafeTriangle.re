@@ -106,8 +106,8 @@ let point_in_triangle = (p: point, a: point, b: point, c: point): bool => {
   let d2 = sign(p, b, c);
   let d3 = sign(p, c, a);
 
-  let has_neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
-  let has_pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
+  let has_neg = Float.(d1 < 0.0) || Float.(d2 < 0.0) || Float.(d3 < 0.0);
+  let has_pos = Float.(d1 > 0.0) || Float.(d2 > 0.0) || Float.(d3 > 0.0);
 
   !(has_neg && has_pos);
 };
@@ -242,7 +242,7 @@ module Debug = {
     let path = create_svg_element("path");
 
     let d =
-      Printf.sprintf(
+      Stdlib.Printf.sprintf(
         "M %.1f %.1f L %.1f %.1f L %.1f %.1f Z",
         apex.x,
         apex.y,
@@ -265,19 +265,23 @@ module Debug = {
 
     rect_elem##setAttribute(
       Js.string("x"),
-      Js.string(Printf.sprintf("%.1f", menu_rect.left)),
+      Js.string(Stdlib.Printf.sprintf("%.1f", menu_rect.left)),
     );
     rect_elem##setAttribute(
       Js.string("y"),
-      Js.string(Printf.sprintf("%.1f", menu_rect.top)),
+      Js.string(Stdlib.Printf.sprintf("%.1f", menu_rect.top)),
     );
     rect_elem##setAttribute(
       Js.string("width"),
-      Js.string(Printf.sprintf("%.1f", menu_rect.right -. menu_rect.left)),
+      Js.string(
+        Stdlib.Printf.sprintf("%.1f", menu_rect.right -. menu_rect.left),
+      ),
     );
     rect_elem##setAttribute(
       Js.string("height"),
-      Js.string(Printf.sprintf("%.1f", menu_rect.bottom -. menu_rect.top)),
+      Js.string(
+        Stdlib.Printf.sprintf("%.1f", menu_rect.bottom -. menu_rect.top),
+      ),
     );
     rect_elem##setAttribute(Js.string("fill"), Js.string("none"));
     rect_elem##setAttribute(
@@ -295,11 +299,11 @@ module Debug = {
 
     circle##setAttribute(
       Js.string("cx"),
-      Js.string(Printf.sprintf("%.1f", apex.x)),
+      Js.string(Stdlib.Printf.sprintf("%.1f", apex.x)),
     );
     circle##setAttribute(
       Js.string("cy"),
-      Js.string(Printf.sprintf("%.1f", apex.y)),
+      Js.string(Stdlib.Printf.sprintf("%.1f", apex.y)),
     );
     circle##setAttribute(Js.string("r"), Js.string("5"));
     circle##setAttribute(
@@ -329,14 +333,16 @@ let is_in_safe_zone = (mouse: point): bool =>
     /* Check if inside the menu itself (with padding) */
     let padding = Config.padding^;
     let in_menu =
-      mouse.x >= state.menu_rect.left
-      -. padding
-      && mouse.x <= state.menu_rect.right
-      +. padding
-      && mouse.y >= state.menu_rect.top
-      -. padding
-      && mouse.y <= state.menu_rect.bottom
-      +. padding;
+      Float.(
+        mouse.x >= state.menu_rect.left
+        -. padding
+        && mouse.x <= state.menu_rect.right
+        +. padding
+        && mouse.y >= state.menu_rect.top
+        -. padding
+        && mouse.y <= state.menu_rect.bottom
+        +. padding
+      );
 
     if (in_menu) {
       true;
@@ -545,7 +551,7 @@ module Handlers = {
         state.is_over_trigger = true;
         clear_timeout(state);
         clear_show_timeout(state);
-        if (state.show_delay <= 0.0 || state.skip_delay()) {
+        if (Float.(state.show_delay <= 0.0) || state.skip_delay()) {
           do_show();
         } else {
           state.show_timeout =
@@ -635,8 +641,8 @@ module CSSDropdown = {
   let active_id: ref(option(string)) = ref(None);
 
   /* Cached handler instances by menu ID */
-  let instances: Hashtbl.t(string, Handlers.instance_state) =
-    Hashtbl.create(50);
+  let instances: Stdlib.Hashtbl.t(string, Handlers.instance_state) =
+    Stdlib.Hashtbl.create(50);
 
   /* Helper to add/remove CSS class on element by ID */
   let set_class = (elem_id: string, add: bool): unit =>
@@ -655,7 +661,7 @@ module CSSDropdown = {
 
   /* Get or create handler instance for a menu ID */
   let get_instance = (menu_id: string): Handlers.instance_state =>
-    switch (Hashtbl.find_opt(instances, menu_id)) {
+    switch (Stdlib.Hashtbl.find_opt(instances, menu_id)) {
     | Some(inst) => inst
     | None =>
       let inst =
@@ -664,7 +670,8 @@ module CSSDropdown = {
             () => {
               /* Hide previous dropdown if different */
               switch (active_id^) {
-              | Some(prev) when prev != menu_id => set_class(prev, false)
+              | Some(prev) when !String.equal(prev, menu_id) =>
+                set_class(prev, false)
               | _ => ()
               };
               set_class(menu_id, true);
@@ -673,15 +680,15 @@ module CSSDropdown = {
           ~on_hide=
             () => {
               set_class(menu_id, false);
-              if (active_id^ == Some(menu_id)) {
+              if (Option.equal(String.equal, active_id^, Some(menu_id))) {
                 active_id := None;
               };
             },
           ~show_delay=Config.show_delay^,
-          ~skip_delay=() => active_id^ != None,
+          ~skip_delay=() => Option.is_some(active_id^),
           (),
         );
-      Hashtbl.add(instances, menu_id, inst);
+      Stdlib.Hashtbl.add(instances, menu_id, inst);
       inst;
     };
 
