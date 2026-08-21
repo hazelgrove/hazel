@@ -31,7 +31,7 @@ let rec find_in_let =
   | (_, Parens(ue))
   | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
-  | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
+  | (Var(x), Fun(_)) => String.equal(x, name) ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
@@ -146,7 +146,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
  */
 let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | EmptyHole
   | Wild
   | Invalid(_)
@@ -175,7 +175,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
 
 let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
   switch (mp.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | Asc(inner, _) => var_mention_mpat(name, inner)
   | EmptyHole
   | Invalid(_)
@@ -188,7 +188,7 @@ let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
  */
 let rec var_mention = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
@@ -334,7 +334,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
-    | Var(x) => x == name ? true : false
+    | Var(x) => String.equal(x, name) ? true : false
     | _ => var_applied(name, u)
     }
   | DynamicErrorHole(_) => false
@@ -344,12 +344,13 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Asc(d, _) => var_applied(name, d)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : var_applied(name, u2)
+    | Var(x) => String.equal(x, name) ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | DeferredAp(u1, us) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : List.exists(var_applied(name), us)
+    | Var(x) =>
+      String.equal(x, name) ? true : List.exists(var_applied(name), us)
     | _ => List.exists(var_applied(name), us)
     }
   | Cons(u1, u2)
