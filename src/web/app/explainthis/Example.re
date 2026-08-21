@@ -83,6 +83,27 @@ let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_theorem = mk_tile(Form.get(Theorem));
 let mk_forall = mk_tile(Form.get(Forall));
+/* Prover forms (docs/prover-obligations.md): the restricted binders and
+ * the Proof sort's step forms. */
+let mk_forall_where = mk_tile(Form.get(ForallWhere));
+let mk_fun_where = mk_tile(Form.get(FunWhere));
+let proof_seq = () => mk_monotile(Form.get(ProofSeq));
+let mk_proof_forall = mk_tile(Form.get(ProofForall));
+let mk_assume = mk_tile(Form.get(ProofAssume));
+let mk_generalize = mk_tile(Form.get(ProofGeneralize));
+let mk_revert = mk_tile(Form.get(ProofRevert));
+let mk_revert_with = mk_tile(Form.get(ProofRevertWith));
+let mk_axiom = mk_tile(Form.get(ProofAxiom));
+let mk_axiom_with = mk_tile(Form.get(ProofAxiomWith));
+let mk_axiomrev = mk_tile(Form.get(ProofAxiomRev));
+let mk_axiomrev_with = mk_tile(Form.get(ProofAxiomRevWith));
+let mk_rewrite_step = mk_tile(Form.get(ProofAlgebrite));
+let mk_eval_step = mk_tile(Form.get(ProofEval));
+let mk_induction = mk_tile(Form.get(ProofInduction));
+let mk_proof_rule = mk_tile(Form.get(ProofRule));
+let mk_contradiction = mk_tile(Form.get(ProofContradiction));
+let mk_contradiction_with = mk_tile(Form.get(ProofContradictionWith));
+let mk_have = mk_tile(Form.get(ProofHave));
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 

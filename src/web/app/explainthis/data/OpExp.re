@@ -740,7 +740,7 @@ let bool_implies_exp_coloring_ids =
     ~right_id,
   );
 let bool_implies_exp: form = {
-  let explanation = "Material implication. If the [*left operand*](%s) evaluates to `false`, the whole expression evaluates to `true` without evaluating the [*right operand*](%s). Otherwise, evaluates to the right operand.";
+  let explanation = "Material implication. If the [*left operand*](%s) evaluates to `false`, the whole expression evaluates to `true` without evaluating the [*right operand*](%s). Otherwise, evaluates to the right operand. In a proof the connectives are read symmetrically (Kleene), so their laws — `impl_def` (`a ==> b` is `!a || b`), commutativity, associativity, De Morgan, `impl_true` — are built-in axioms you can cite. A goal `a ==> b` is also what `assume a` introduces, and what `revert` produces from a fact in scope.";
   {
     id: BinOpExp(Bool(Implies)),
     syntactic_form: [exp1, space(), logical_implies(), space(), exp2],

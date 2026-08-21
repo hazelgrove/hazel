@@ -158,7 +158,26 @@ type example_id =
   | SigLet1
   | SigType1
   | ModuleKeyword1
-  | ModuleKeywordDecl1;
+  | ModuleKeywordDecl1
+  /* Prover forms (docs/prover-obligations.md) */
+  | ForallWhere1
+  | FunWhere1
+  | ProofSeq1
+  | ProofAxiom1
+  | ProofAxiomWith1
+  | ProofAxiomRev1
+  | ProofAxiomRevWith1
+  | ProofRewrite1
+  | ProofEval1
+  | ProofInduction1
+  | ProofForall1
+  | ProofAssume1
+  | ProofGeneralize1
+  | ProofRevert1
+  | ProofRevertWith1
+  | ProofContradiction1
+  | ProofContradictionWith1
+  | ProofHave1;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -300,7 +319,26 @@ type form_id =
   | SigLetDecl
   | SigTypeDecl
   | ModuleKeywordExp
-  | ModuleKeywordDecl;
+  | ModuleKeywordDecl
+  /* Prover forms (docs/prover-obligations.md). The Proof sort's own
+     steps, plus the two restricted binders. */
+  | ForallWhereExp
+  | FunWhereExp
+  | ProofEmptyHole
+  | ProofMultiHole
+  | ProofInvalid
+  | ProofSeqStep
+  | ProofAxiomStep
+  | ProofAxiomRevStep
+  | ProofRewriteStep
+  | ProofEvalStep
+  | ProofInductionStep
+  | ProofForallStep
+  | ProofAssumeStep
+  | ProofGeneralizeStep
+  | ProofRevertStep
+  | ProofContradictionStep
+  | ProofHaveStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -423,7 +461,26 @@ type group_id =
   | SigLetDecl
   | SigTypeDecl
   | ModuleKeywordExp
-  | ModuleKeywordDecl;
+  | ModuleKeywordDecl
+  /* Prover forms (docs/prover-obligations.md). The Proof sort's own
+     steps, plus the two restricted binders. */
+  | ForallWhereExp
+  | FunWhereExp
+  | ProofEmptyHole
+  | ProofMultiHole
+  | ProofInvalid
+  | ProofSeqStep
+  | ProofAxiomStep
+  | ProofAxiomRevStep
+  | ProofRewriteStep
+  | ProofEvalStep
+  | ProofInductionStep
+  | ProofForallStep
+  | ProofAssumeStep
+  | ProofGeneralizeStep
+  | ProofRevertStep
+  | ProofContradictionStep
+  | ProofHaveStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

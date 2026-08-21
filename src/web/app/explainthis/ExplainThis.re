@@ -743,7 +743,8 @@ let get_doc =
     | _ => simple("Signature item")
     }
   | Some(InfoMPat(_)) => simple("Module name")
-  | Some(InfoProof(_)) => simple("Proof term")
+  | Some(InfoProof({user_term, _})) =>
+    message_single(ProofDoc.single(user_term))
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
@@ -854,25 +855,16 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
-      /* Function contract: reuse the generic function docs (pat + body);
-         the guard has no dedicated coloring yet — mirrors ForallWhere
-         below. */
-      | FunWhere(pat, _guard, body) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        get_message(
-          ~colorings=FunctionExp.function_exp_coloring_ids(~pat_id, ~body_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(pat_id),
-                  Id.to_string(body_id),
-                ),
-            ),
-          FunctionExp.functions,
-        );
+      /* Function contract (docs/prover-obligations.md, Phase 3b): its own
+         docs, since the guard is the whole point of the form. */
+      | FunWhere(pat, guard, body) =>
+        message_single(
+          FunWhereExp.single(
+            ~pat_id=Pat.rep_id(pat),
+            ~guard_id=Exp.rep_id(guard),
+            ~body_id=Exp.rep_id(body),
+          ),
+        )
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2006,10 +1998,11 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s%s"),
+                  Scanf.format_from_string(msg, "%s%s%s%s"),
                   Id.to_string(thm_id),
                   Id.to_string(proof_id),
                   Id.to_string(pat_id),
+                  Id.to_string(body_id),
                 ),
             ),
           TheoremExp.tests,
@@ -2030,24 +2023,17 @@ let get_doc =
             ),
           ForallExp.forall,
         );
-      /* Restricted binder: reuse the forall docs (pat + body), the guard
-         has no dedicated coloring yet. */
-      | ForallWhere(pat, _guard, typ) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(typ), 0);
-        get_message(
-          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(pat_id),
-                  Id.to_string(body_id),
-                ),
-            ),
-          ForallExp.forall,
-        );
+      /* Restricted binder (docs/prover-obligations.md, Phase 2): its own
+         docs, since the restriction is citable in the proof and incurred
+         at every use. */
+      | ForallWhere(pat, guard, body) =>
+        message_single(
+          ForallExp.where_single(
+            ~pat_id=Pat.rep_id(pat),
+            ~guard_id=Exp.rep_id(guard),
+            ~body_id=Exp.rep_id(body),
+          ),
+        )
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(

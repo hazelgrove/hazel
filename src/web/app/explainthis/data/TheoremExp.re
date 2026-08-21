@@ -15,7 +15,7 @@ let test_exp_coloring_ids =
   (Piece.id(exp_body), body_id),
 ];
 let theorem_exp: form = {
-  let explanation = "Asserts that the [*goal*](%s) is true via the following [*proof*](%s), and [*names*](%s) the theorem for later reuse in the body.";
+  let explanation = "Asserts that the [*statement*](%s) denotes `true`, checked by the following [*proof*](%s), and binds the [*name*](%s) in the theorem namespace, where later proofs can cite it as a rule. Theorem names are not values: they have no type, they never evaluate, and they shadow only each other. The [*body*](%s) is ordinary code, so using the theorem's name there is an unbound variable.";
   {
     id: TheoremExp,
     syntactic_form: [
@@ -29,7 +29,16 @@ let theorem_exp: form = {
     ],
     expandable_id: None,
     explanation,
-    examples: [],
+    examples: [
+      {
+        sub_id: Theorem,
+        term:
+          mk_example(
+            "theorem lem = 1 + 1 == 2 proof eval 1 + 1 at 0 end; axiom refl_eq at 0 on 2 == 2 end in 0",
+          ),
+        message: "The statement `1 + 1 == 2` is proven by evaluating the sum and closing the resulting `2 == 2` by reflexivity. `lem` is now citable in the proofs of later theorems; the body is the ordinary expression `0`.",
+      },
+    ],
   };
 };
 
