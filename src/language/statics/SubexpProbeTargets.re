@@ -9,7 +9,8 @@ let union = (a: t, b: t): t => {
   probe_ids: MerkleSet.union(a.probe_ids, b.probe_ids),
 };
 
-let union_all = (xs: list(t)): t => List.fold_left(union, empty, xs);
+let union_all = (xs: list(t)): t =>
+  List.fold_left(~f=union, ~init=empty, xs);
 
 let equal = (a: t, b: t): bool => MerkleSet.equal(a.probe_ids, b.probe_ids);
 

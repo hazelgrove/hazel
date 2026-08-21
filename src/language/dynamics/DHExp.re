@@ -189,7 +189,7 @@ let rec ty_comparable = (d1, d2) => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
-  | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
+  | (DrvQuote(_, t1), DrvQuote(_, t2)) => DrvSort.equal(t1, t2)
   | (DrvQuote(_, _), _) => false
   | (Label(l1), Label(l2)) => String.equal(l1, l2)
   | (Label(_), _) => false
@@ -205,12 +205,12 @@ let rec ty_comparable = (d1, d2) => {
   | (ListLit(ds1), ListLit(ds2)) =>
     switch (ds1 @ ds2) {
     | [] => true
-    | [hd, ...tl] => List.for_all(ty_comparable(hd), tl)
+    | [hd, ...tl] => List.for_all(~f=ty_comparable(hd), tl)
     }
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(ty_comparable, ds1, ds2)
+    && List.for_all2_exn(ds1, ds2, ~f=ty_comparable)
   | (Tuple(_), _) => false
   | (
       Constructor(_, Some(Some(t1))) |
@@ -285,11 +285,11 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Atom(t1), Atom(t2)) =>
     (
       switch (t1, t2) {
-      | (Int(n1), Int(n2)) => n1 == n2
+      | (Int(n1), Int(n2)) => Bigint.equal(n1, n2)
       | (Int(_), _) => false
       | (SInt(n1), SInt(n2)) => n1 == n2
       | (SInt(_), _) => false
-      | (Nat(n1), Nat(n2)) => n1 == n2
+      | (Nat(n1), Nat(n2)) => Bigint.equal(n1, n2)
       | (Nat(_), _) => false
       | (Bool(b1), Bool(b2)) => Bool.equal(b1, b2)
       | (Bool(_), _) => false

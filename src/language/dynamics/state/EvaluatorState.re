@@ -79,7 +79,7 @@ let append = (base: t, ext: t): t => {
           if (delta == 0) {
             ext_samples;
           } else {
-            List.map(shift_sample(delta), ext_samples);
+            List.map(~f=shift_sample(delta), ext_samples);
           };
         let existing =
           switch (Id.Map.find_opt(id, acc)) {
@@ -93,13 +93,14 @@ let append = (base: t, ext: t): t => {
     );
   let tests =
     List.fold_left(
-      (acc, (id, reports)) =>
-        List.fold_left(
-          (acc, report) => TestMap.extend((id, report), acc),
-          acc,
-          reports,
-        ),
-      base.tests,
+      ~f=
+        (acc, (id, reports)) =>
+          List.fold_left(
+            ~f=(acc, report) => TestMap.extend((id, report), acc),
+            ~init=acc,
+            reports,
+          ),
+      ~init=base.tests,
       ext.tests,
     );
   {
@@ -145,7 +146,9 @@ let add_sample = (state: t, sample: Sample.t) => {
     switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
     | Some(existing) =>
       List.exists(
-        (s: Sample.t) => sample.call_stack != [] && s.call_stack == [],
+        ~f=
+          (s: Sample.t) =>
+            !List.is_empty(sample.call_stack) && List.is_empty(s.call_stack),
         existing,
       )
     | None => false
@@ -198,79 +201,84 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: CallStack.state, state: t), effect: effect) =>
-      switch (effect) {
-      | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
-        let app_id = DHExp.rep_id(init);
-        /* Only store argument value if this app_id is a probe target.
-         * This avoids accumulating massive app_args data for programs
-         * with many function calls but no probes on those calls. */
-        let call_stack =
-          switch (arg_opt) {
-          | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
-            let elided_arg = elide_arg(env, arg);
-            CallStack.add_app_arg(call_stack, app_id, elided_arg);
-          | Some(_)
-          | None => call_stack
-          };
-        (
-          CallStack.add_entry(
-            call_stack,
-            {
-              id: app_id,
-              name: fn_name,
-              fn_def_id,
-            },
-          ),
-          state,
-        );
-      | RecordTest(instance_report) => (
-          call_stack,
-          add_test(state, instance_report),
-        )
-      | RecordPatMatch({samples: sample_closures, _}) =>
-        /* Pattern probes are recorded at the current step, then we
-         * increment to ensure patterns don't share step boundaries
-         * with subsequent expressions (which would cause incorrect
-         * containment classification in StepRange mode) */
-        let step = state.step_count;
-        let state =
-          List.fold_left(
-            (state: t, sample_closure: (CallStack.t, int, int) => Sample.t) =>
-              add_sample(
-                state,
-                sample_closure(call_stack.stack, step, step),
-              ),
+    ~f=
+      ((call_stack: CallStack.state, state: t), effect: effect) =>
+        switch (effect) {
+        | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
+          let app_id = DHExp.rep_id(init);
+          /* Only store argument value if this app_id is a probe target.
+           * This avoids accumulating massive app_args data for programs
+           * with many function calls but no probes on those calls. */
+          let call_stack =
+            switch (arg_opt) {
+            | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
+              let elided_arg = elide_arg(env, arg);
+              CallStack.add_app_arg(call_stack, app_id, elided_arg);
+            | Some(_)
+            | None => call_stack
+            };
+          (
+            CallStack.add_entry(
+              call_stack,
+              {
+                id: app_id,
+                name: fn_name,
+                fn_def_id,
+              },
+            ),
             state,
-            sample_closures,
           );
-        /* Advance step count past pattern evaluation */
-        let state = {
-          ...state,
-          step_count: state.step_count + 1,
-        };
-        (call_stack, state);
-      | RecordPrint(value) =>
-        /* Print happens in a single step */
-        let step = state.step_count;
-        let sample =
-          Sample.mk(
-            ~origin=Sample.Print,
-            ~step_start=step,
-            ~step_end=step,
-            DHExp.rep_id(init),
-            value,
-            env,
-            call_stack.stack,
-            Sample.empty_capture_spec,
-          );
-        (call_stack, add_sample(state, sample));
-      | RecordTheorem(id, name, env, goal) => (
-          call_stack,
-          add_theorem(state, id, name, env, goal),
-        )
-      },
-    (call_stack, state),
+        | RecordTest(instance_report) => (
+            call_stack,
+            add_test(state, instance_report),
+          )
+        | RecordPatMatch({samples: sample_closures, _}) =>
+          /* Pattern probes are recorded at the current step, then we
+           * increment to ensure patterns don't share step boundaries
+           * with subsequent expressions (which would cause incorrect
+           * containment classification in StepRange mode) */
+          let step = state.step_count;
+          let state =
+            List.fold_left(
+              ~f=
+                (
+                  state: t,
+                  sample_closure: (CallStack.t, int, int) => Sample.t,
+                ) =>
+                  add_sample(
+                    state,
+                    sample_closure(call_stack.stack, step, step),
+                  ),
+              ~init=state,
+              sample_closures,
+            );
+          /* Advance step count past pattern evaluation */
+          let state = {
+            ...state,
+            step_count: state.step_count + 1,
+          };
+          (call_stack, state);
+        | RecordPrint(value) =>
+          /* Print happens in a single step */
+          let step = state.step_count;
+          let sample =
+            Sample.mk(
+              ~origin=Sample.Print,
+              ~step_start=step,
+              ~step_end=step,
+              DHExp.rep_id(init),
+              value,
+              env,
+              call_stack.stack,
+              Sample.empty_capture_spec,
+            );
+          (call_stack, add_sample(state, sample));
+        | RecordTheorem(id, name, env, goal) => (
+            call_stack,
+            add_theorem(state, id, name, env, goal),
+          )
+        },
+    ~init=(call_stack, state),
     side_effects,
   );
 };

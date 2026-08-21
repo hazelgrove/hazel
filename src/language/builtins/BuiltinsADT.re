@@ -4,7 +4,7 @@ open Fresh.Typ;
 
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
-  |> List.map(((name, typ_opt)) =>
+  |> List.map(~f=((name, typ_opt)) =>
        ConstructorMap.Variant(
          name,
          ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
@@ -212,25 +212,26 @@ let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
 
 // Convert type aliases to context entries
 let types: list(Ctx.entry) =
-  List.map(((name, typ)) => create_type_alias(name, typ), type_aliases);
+  List.map(~f=((name, typ)) => create_type_alias(name, typ), type_aliases);
 
 // Add constructors for type aliases to the context
 let constructors: Ctx.t = {
   List.fold_left(
-    (ctx, (name, typ)) => {
-      let cons_map =
-        switch (Typ.term_of(typ)) {
-        | Sum(cons_map) => cons_map
-        | Rec(_, tbody) =>
-          switch (Typ.term_of(tbody)) {
+    ~f=
+      (ctx, (name, typ)) => {
+        let cons_map =
+          switch (Typ.term_of(typ)) {
           | Sum(cons_map) => cons_map
+          | Rec(_, tbody) =>
+            switch (Typ.term_of(tbody)) {
+            | Sum(cons_map) => cons_map
+            | _ => failwith("Type alias must be a sum type")
+            }
           | _ => failwith("Type alias must be a sum type")
-          }
-        | _ => failwith("Type alias must be a sum type")
-        };
-      Ctx.add_ctrs(ctx, name, cons_map);
-    },
-    Ctx.empty,
+          };
+        Ctx.add_ctrs(ctx, name, cons_map);
+      },
+    ~init=Ctx.empty,
     type_aliases,
   );
 };
@@ -282,4 +283,4 @@ let invert_ord: BuiltinsUtil.fn =
   };
 
 let ord_builtins: list(BuiltinsUtil.fn) =
-  [invert_ord] @ List.map(of_atom_compare, Atom.compare_builtins);
+  [invert_ord] @ List.map(~f=of_atom_compare, Atom.compare_builtins);

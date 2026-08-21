@@ -11,7 +11,7 @@
 open Util;
 open RuleSpec;
 
-module Map = Map.Make(String);
+module Map = Stdlib.Map.Make(String);
 
 /* A [specced] is a spec term paired with the concrete term it was matched
    against during verification. */
@@ -19,7 +19,7 @@ module Map = Map.Make(String);
 type specced = (Drv.Any.t, Drv.Any.t);
 
 let show_linked = ((spec, syntax): specced): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "[*%s*](%s)",
     switch (spec) {
     | Exp({term: Var(s), _})
@@ -128,7 +128,8 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
       | (NumLit(_), _) => raise(Unreachable)
       | (Neg(sa), Neg(a)) => info |> go_exp(sa, a)
       | (Neg(_), _) => failunbox
-      | (BinOp(sop, sa, sb), BinOp(op, a, b)) when sop == op =>
+      | (BinOp(sop, sa, sb), BinOp(op, a, b))
+          when DrvGrammar.equal_op_bin(sop, op) =>
         info |> go_exp(sa, a) |> go_exp(sb, b)
       | (BinOp(_), _) => failunbox
       | (True, True) => info
@@ -363,8 +364,8 @@ let partial_correct_specced: failure => option(specced) =
    [specced]s; otherwise [None]. Requires [res] to be non-empty. */
 let all_partial_correct: res => option(specced) =
   res => {
-    let ss = List.map(partial_correct_specced, res);
-    List.exists(Option.is_none, ss) ? None : List.hd(ss);
+    let ss = List.map(~f=partial_correct_specced, res);
+    List.exists(~f=Option.is_none, ss) ? None : List.hd_exn(ss);
   };
 
 let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
@@ -387,13 +388,13 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
     let res = res @ (m != n ? [Mismatch(m, n)] : []);
 
     let go_tests: (map, list(failure), list(test)) => list(failure) =
-      map =>
-        List.fold_left((res, test) => {
+      (map, init, tests) =>
+        List.fold_left(tests, ~init, ~f=(res, test) =>
           switch (go_test(map, test)) {
           | None => res
           | Some(failure) => [failure, ...res]
           }
-        });
+        );
     List.is_empty(res) ? go_tests(map, res, tests) : res;
   };
 
@@ -401,10 +402,13 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
    to stdout. Handy when adding or tweaking a rule. */
 let __print_all_specs_and_tests = () => {
   Rule.all
-  |> List.iter(rule => {
+  |> List.iter(~f=rule => {
        let Spec.{concl, prems, tests} = of_spec(rule);
-       List.iter(prem => print_endline("  " ++ Drv.Exp.show(prem)), prems);
-       List.iter(_test => print_endline("  {Test} "), tests);
+       List.iter(
+         ~f=prem => print_endline("  " ++ Drv.Exp.show(prem)),
+         prems,
+       );
+       List.iter(~f=_test => print_endline("  {Test} "), tests);
        print_endline(
          "——————————————————————["
          ++ Rule.show(rule)

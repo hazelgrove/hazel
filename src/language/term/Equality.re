@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 module Exp = TermBase.Exp;
 module Pat = TermBase.Pat;
@@ -153,7 +154,7 @@ let equality =
 
     // Expression Wildcards:
     | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
-      let check_value = Option.get(use_expr_wildcards);
+      let check_value = Option.value_exn(use_expr_wildcards);
       check_value(Option.value(env2, ~default=Environment.empty), e2);
     | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
     | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
@@ -227,11 +228,12 @@ let equality =
 
     // Wrappers otherwise: compare.
     | (DynamicErrorHole(x, err1), DynamicErrorHole(y, err2)) =>
-      err1 == err2 && exp'(x, y)
+      InvalidOperationError.equal(err1, err2) && exp'(x, y)
     | (DynamicErrorHole(_), _) => false
     | (Parens(x), Parens(y)) => exp'(x, y)
     | (Parens(_), _) => false
-    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && exp'(x, y)
+    | (Projector(d1, x), Projector(d2, y)) =>
+      Grammar.equal_projector_data(d1, d2) && exp'(x, y)
     | (Projector(_), _) => false
     | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
     | (Asc(_), _) => false
@@ -422,7 +424,7 @@ let equality =
     | (ProofObject(_), _) => false
     | (Module(items1), Module(items2)) =>
       List.length(items1) == List.length(items2)
-      && List.for_all2(mod', items1, items2)
+      && List.for_all2_exn(items1, items2, ~f=mod')
     | (Module(_), _) => false
     | (ModuleExp(mp1, def1, body1), ModuleExp(mp2, def2, body2)) =>
       switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
@@ -456,7 +458,8 @@ let equality =
     | (Parens(x), Parens(y)) => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
     | (Tuple(ps1), Tuple(ps2)) =>
-      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+      List.length(ps1) == List.length(ps2)
+      && List.for_all2_exn(ps1, ps2, ~f=pne)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
     | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
     /* Non-name-binding pattern forms still need structural equality —
@@ -466,7 +469,8 @@ let equality =
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Cons(h1, t1), Cons(h2, t2)) => pne(h1, h2) && pne(t1, t2)
     | (ListLit(ps1), ListLit(ps2)) =>
-      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+      List.length(ps1) == List.length(ps2)
+      && List.for_all2_exn(ps1, ps2, ~f=pne)
     | (Ap(f1, a1), Ap(f2, a2)) => pne(f1, f2) && pne(a1, a2)
     | _ => false
     };
@@ -491,7 +495,8 @@ let equality =
     | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2)) =>
-      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(xs1, xs2, ~f=any')
     | (MultiHole(_), _) => false
     /* ModLet pattern names become labels (like labeled tuples),
        so compare literally, not with alpha-equiv. */
@@ -583,17 +588,17 @@ let equality =
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       ListUtil.fold_left_opt(
         (alphas, (x, y)) =>
-          pat'(x, y) |> Option.map(Alphas.combine(_, alphas)),
+          pat'(x, y) |> Option.map(~f=Alphas.combine(_, alphas)),
         Alphas.empty,
-        List.combine(xs1, xs2),
+        List.zip_exn(xs1, xs2),
       )
     | (Tuple(_), _) => None
     | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
       ListUtil.fold_left_opt(
         (alphas, (x, y)) =>
-          pat'(x, y) |> Option.map(Alphas.combine(_, alphas)),
+          pat'(x, y) |> Option.map(~f=Alphas.combine(_, alphas)),
         Alphas.empty,
-        List.combine(xs1, xs2),
+        List.zip_exn(xs1, xs2),
       )
     | (ListLit(_), _) => None
     | (Cons(p1, p2), Cons(p3, p4)) =>
@@ -717,7 +722,7 @@ let equality =
     | (ProofOf(_), _) => false
     | (Sig(items1), Sig(items2)) =>
       List.length(items1) == List.length(items2)
-      && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
+      && List.for_all2_exn(items1, items2, ~f=sig_(alphas_exp, alphas_typ))
     | (Sig(_), _) => false
     | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
     | (DrvQuoteTy(_), _) => false
@@ -740,7 +745,8 @@ let equality =
     | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2)) =>
-      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(xs1, xs2, ~f=any')
     | (MultiHole(_), _) => false
     /* SigLet names become labels, like ModLet */
     | (SigLet(p1), SigLet(p2)) =>
@@ -767,7 +773,8 @@ let equality =
       String.equal(s1, s2) ? Some(Alphas.empty) : None
     | (Invalid(_), _) => None
     | (MultiHole(xs1), MultiHole(xs2)) =>
-      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(xs1, xs2, ~f=any')
         ? Some(Alphas.empty) : None
     | (MultiHole(_), _) => None
     /* MPat.Var supports alpha-equivalence: module names are binders */
@@ -820,20 +827,12 @@ let equality =
     | (Rules(e1, rls1), Rules(e2, rls2))
         when List.length(rls1) == List.length(rls2) =>
       exp'(e1, e2)
-      && List.for_all2(
-           ((p1, e1), (p2, e2)) =>
-             switch (pat'(p1, p2)) {
-             | Some(alphas_exp') =>
-               exp(
-                 Alphas.combine(alphas_exp', alphas_exp),
-                 alphas_typ,
-                 e1,
-                 e2,
-               )
-             | None => false
-             },
-           rls1,
-           rls2,
+      && List.for_all2_exn(rls1, rls2, ~f=((p1, e1), (p2, e2)) =>
+           switch (pat'(p1, p2)) {
+           | Some(alphas_exp') =>
+             exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+           | None => false
+           }
          )
     | (Rules(_, _), _) => false
 

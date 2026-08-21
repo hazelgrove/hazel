@@ -160,7 +160,9 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
 let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
+  Id.equal(a.source, b.source)
+  && Poly.equal(a.path, b.path)
+  && Poly.equal(a.flag, b.flag);
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
   Maps.StringMap.map(
@@ -182,36 +184,38 @@ let is_runtime_dependency = (name: string): bool =>
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
-    (projected, (name, _)) =>
-      if (!is_runtime_dependency(name)) {
-        projected;
-      } else {
-        switch (Maps.StringMap.find_opt(name, reuse_map)) {
-        | Some(prov) => Maps.StringMap.add(name, prov, projected)
-        | None => projected
-        };
-      },
-    empty_reuse_map,
+    ~f=
+      (projected, (name, _)) =>
+        if (!is_runtime_dependency(name)) {
+          projected;
+        } else {
+          switch (Maps.StringMap.find_opt(name, reuse_map)) {
+          | Some(prov) => Maps.StringMap.add(name, prov, projected)
+          | None => projected
+          };
+        },
+    ~init=empty_reuse_map,
     VarMap.to_list(co_ctx),
   );
 
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_left(
-    (acc, (name, _)) =>
-      if (!is_runtime_dependency(name)) {
-        acc;
-      } else {
-        switch (acc) {
-        | None => None
-        | Some(projected) =>
-          switch (Maps.StringMap.find_opt(name, reuse_map)) {
-          | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
+    ~f=
+      (acc, (name, _)) =>
+        if (!is_runtime_dependency(name)) {
+          acc;
+        } else {
+          switch (acc) {
           | None => None
-          }
-        };
-      },
-    Some(empty_reuse_map),
+          | Some(projected) =>
+            switch (Maps.StringMap.find_opt(name, reuse_map)) {
+            | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
+            | None => None
+            }
+          };
+        },
+    ~init=Some(empty_reuse_map),
     VarMap.to_list(co_ctx),
   );
 
@@ -220,23 +224,24 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   env
   |> Environment.to_list
   |> List.fold_left(
-       (acc, (name, _)) =>
-         Maps.StringMap.add(
-           name,
-           {
-             source: Id.invalid,
-             path: [],
-             flag: Clean,
-           },
-           acc,
-         ),
-       empty_reuse_map,
+       ~f=
+         (acc, (name, _)) =>
+           Maps.StringMap.add(
+             name,
+             {
+               source: Id.invalid,
+               path: [],
+               flag: Clean,
+             },
+             acc,
+           ),
+       ~init=empty_reuse_map,
      );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
   List.fold_left(
-    (acc, name) => Maps.StringMap.remove(name, acc),
-    reuse_map,
+    ~f=(acc, name) => Maps.StringMap.remove(name, acc),
+    ~init=reuse_map,
     Pat.bound_vars(pat),
   );
 
@@ -280,17 +285,17 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.concat;
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([ListIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([ListIndex(arity, i), ...path], p))
+      |> List.concat;
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat) |> List.to_seq |> Maps.StringMap.of_seq;
+  go([], pat) |> Stdlib.List.to_seq |> Maps.StringMap.of_seq;
 };
 
 let with_pat_provenance =
@@ -322,7 +327,8 @@ let reuse_check =
     : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
+  let* () =
+    OptUtil.some_if(List.is_empty(call_stack.stack) && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
