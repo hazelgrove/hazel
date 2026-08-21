@@ -46,6 +46,14 @@ module Model = {
     /* canvas pinch-zoom factor (ctrl+wheel / trackpad pinch) */
     [@sexp.default 1.0] [@yojson.default 1.0]
     canvas_zoom: float,
+    /* pace agent edits on the canvas: bursts of tool calls play as
+       distinct animated beats instead of one jump-cut */
+    [@sexp.default true] [@yojson.default true]
+    canvas_pace: bool,
+    /* bumped by the pacing timer purely to trigger a re-render while
+       buffered beats remain (value itself is meaningless) */
+    [@sexp.default 0] [@yojson.default 0]
+    canvas_tick: int,
     /* defaulted so settings blobs persisted before this field still load
        (a parse failure makes Store discard ALL settings) */
     [@sexp.default false] [@yojson.default false]
@@ -134,6 +142,8 @@ module Model = {
     canvas_node_offsets: [],
     canvas_node_pins: [],
     canvas_zoom: 1.0,
+    canvas_pace: true,
+    canvas_tick: 0,
     simple_indication: false,
   };
 
@@ -215,6 +225,8 @@ module Update = {
     | SetCanvasNodeOffset(string, string, float, float)
     | SetCanvasNodePin(string, string, float, float)
     | SetCanvasZoom(float)
+    | ToggleCanvasPace
+    | CanvasTick
     | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
@@ -606,6 +618,14 @@ module Update = {
       | SetCanvasZoom(z) => {
           ...settings,
           canvas_zoom: max(0.4, min(2.5, z)),
+        }
+      | ToggleCanvasPace => {
+          ...settings,
+          canvas_pace: !settings.canvas_pace,
+        }
+      | CanvasTick => {
+          ...settings,
+          canvas_tick: settings.canvas_tick + 1,
         }
       | SetCanvasNodePin(slide, key, x, y) => {
           ...settings,

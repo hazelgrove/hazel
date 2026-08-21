@@ -370,6 +370,9 @@ let view =
          Effect.t(unit),
       ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
       ~zoom: float=1.,
+      /* pane size in layout px: the root grows to fill it so the dot
+         field covers the whole visible canvas */
+      ~min_size: (float, float)=(0., 0.),
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       ~loose_tests as _: list(CanvasGraph.test_info),
@@ -507,12 +510,21 @@ let view =
         clss(["canvas-root"] @ (on_canvas_click == None ? [] : ["placing"])),
         Attr.create(
           "style",
-          Printf.sprintf(
-            "width: %spx; height: %spx; zoom: %s;",
-            fmt(lay.width),
-            fmt(lay.height),
-            fmt(zoom),
-          ),
+          {
+            /* dot pitch loops across zoom levels: as cells visually
+               outgrow ~1.4x the base pitch the grid subdivides, and
+               below ~0.7x it coarsens — apparent density stays put */
+            let lvl = 2. ** Float.round(Float.log2(zoom));
+            let pitch = 14. /. lvl;
+            let (mw, mh) = min_size;
+            Printf.sprintf(
+              "width: %spx; height: %spx; zoom: %s; --dot-pitch: %spx;",
+              fmt(max(lay.width, mw)),
+              fmt(max(lay.height, mh)),
+              fmt(zoom),
+              fmt(pitch),
+            );
+          },
         ),
       ]
       @ bg_attrs,

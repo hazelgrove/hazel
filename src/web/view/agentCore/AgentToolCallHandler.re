@@ -135,6 +135,9 @@ let update =
       chat_id: Id.t,
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+  /* stamp agent activity so the canvas paces the resulting updates
+     into distinct beats (CanvasBuffer) */
+  CanvasBuffer.note_agent_action();
   switch (action) {
   | EditorAction(agent_editor_action) =>
     let action = Action.Structural(agent_editor_action);

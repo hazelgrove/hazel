@@ -275,11 +275,11 @@ let layout =
           switch (d) {
           | DockIn => (
               Util.GraphLayout.Spec.In,
-              n.kind == CanvasGraph.Product ? 36. : 62.,
+              n.kind == CanvasGraph.Product ? 44. : 72.,
             )
-          | DockOut => (Util.GraphLayout.Spec.Out, 62.)
-          | DockLoop => (Util.GraphLayout.Spec.In, 56.)
-          | DockDeriv => (Util.GraphLayout.Spec.Below, 42.)
+          | DockOut => (Util.GraphLayout.Spec.Out, 72.)
+          | DockLoop => (Util.GraphLayout.Spec.In, 64.)
+          | DockDeriv => (Util.GraphLayout.Spec.Below, 52.)
           };
         Util.GraphLayout.Spec.{
           id: n.key,
@@ -353,8 +353,8 @@ let layout =
         @ former_rank_edges
         @ formation_edges,
       attachments,
-      col_gap: 108.,
-      row_gap: 56.,
+      col_gap: 126.,
+      row_gap: 72.,
       margin,
       x_stretch: x_scale,
       y_stretch: y_scale,

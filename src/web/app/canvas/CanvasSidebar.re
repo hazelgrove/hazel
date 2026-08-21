@@ -50,11 +50,40 @@ let install_zoom_listener = (): unit => {
                 Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
               if (now -. last^ > 40.) {
                 last := now;
-                let z = zoom_now^ *. exp(-. dy *. 0.008);
+                let z0 = zoom_now^;
+                let z = z0 *. exp(-. dy *. 0.008);
                 /* detent at 1:1 so pinching back to normal lands exactly */
                 let z = abs_float(z -. 1.) < 0.06 ? 1. : z;
+                let z = max(0.4, min(2.5, z));
                 switch (zoom_send^) {
-                | Some(send) => send(max(0.4, min(2.5, z)))
+                | Some(send) =>
+                  send(z);
+                  /* keep the content point under the CURSOR fixed:
+                     correct the scroll once the new zoom has rendered */
+                  let rect =
+                    Js.Unsafe.meth_call(el', "getBoundingClientRect", [||]);
+                  let mx: float =
+                    Js.Unsafe.coerce(evt)##.clientX
+                    -.
+                    Js.Unsafe.coerce(rect)##.left;
+                  let my: float =
+                    Js.Unsafe.coerce(evt)##.clientY
+                    -.
+                    Js.Unsafe.coerce(rect)##.top;
+                  let sl: float = Js.Unsafe.coerce(el')##.scrollLeft
+                  and st: float = Js.Unsafe.coerce(el')##.scrollTop;
+                  ignore(
+                    Js.Unsafe.global##setTimeout(
+                      Js.Unsafe.callback(() => {
+                        let r = z /. z0;
+                        Js.Unsafe.coerce(el')##.scrollLeft :=
+                          (sl +. mx) *. r -. mx;
+                        Js.Unsafe.coerce(el')##.scrollTop :=
+                          (st +. my) *. r -. my;
+                      }),
+                      60,
+                    ),
+                  );
                 | None => ()
                 };
               };
@@ -225,6 +254,25 @@ let view =
   let test_results = test_results_of(editors);
   let graph = CanvasGraph.extract(~test_results?, editor.statics);
   let slide = current_slide(editors);
+  /* temporal pacing: within an agent burst the canvas renders queued
+     snapshots at a max rate so each tool call reads as its own beat */
+  let editor = {
+    let schedule_tick = (delay: float) => {
+      open Js_of_ocaml;
+      let cb =
+        Js.Unsafe.callback(() => {
+          CanvasBuffer.tick_fired();
+          globals.inject_global(Set(CanvasTick))
+          |> Bonsai.Effect.Expert.handle;
+        });
+      ignore(Js.Unsafe.global##setTimeout(cb, delay));
+    };
+    CanvasBuffer.observe(
+      ~enabled=globals.settings.canvas_pace,
+      ~schedule_tick,
+      editor,
+    );
+  };
   let zoom = globals.settings.canvas_zoom;
   zoom_now := zoom;
   zoom_send :=
@@ -828,6 +876,31 @@ let view =
       )
       @ [
         btn(
+          ~cls=globals.settings.canvas_pace ? "tool-active" : "",
+          "pace",
+          "play bursts of agent edits as separate animated beats (max ~1.4/s) instead of one jump-cut",
+          globals.inject_global(Set(ToggleCanvasPace)),
+        ),
+        btn(
+          "fit",
+          "zoom so the whole graph fits the pane",
+          {
+            let zw =
+              switch (avail_width) {
+              | Some(w) => (w -. 10.) /. max(1., lay.width)
+              | None => 1.
+              };
+            let zh =
+              switch (avail_height) {
+              | Some(h) => (h -. 10.) /. max(1., lay.height)
+              | None => 1.
+              };
+            globals.inject_global(
+              Set(SetCanvasZoom(max(0.4, min(2.5, min(zw, zh))))),
+            );
+          },
+        ),
+        btn(
           ~cls=offsets == [] && pins == [] ? "tool-disabled" : "",
           "reset layout",
           offsets == [] && pins == []
@@ -856,6 +929,10 @@ let view =
             ~on_node_mousedown,
             ~on_canvas_click,
             ~zoom,
+            ~min_size=(
+              Option.value(~default=0., avail_width) /. zoom,
+              Option.value(~default=0., avail_height) /. zoom,
+            ),
             ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,

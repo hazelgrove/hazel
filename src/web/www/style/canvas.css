@@ -103,22 +103,9 @@
   overflow: auto;
   /* dot-grid backdrop over the whole panel; pattern starts one cell in
      from the top-left corner */
-  /* pitch mirrored in CanvasLayout.grid; dots sit at the centers of
-     14px tiles, so with a 7px offset dot centers land on multiples of
-     14 — the lattice node centers snap to */
-  background-image: radial-gradient(
-    var(--BR1, #d8c9a3) 0.75px,
-    transparent 1.1px
-  );
-  background-size: 14px 14px;
-  background-position: 7px 7px;
-  /* keep dots off the panel edges: the transparent border clips the
-     dot field one grid cell in (background paints the padding box) */
+  /* the transparent border insets the root (and its dot field) one
+     grid cell from the panel edges */
   border: 14px solid transparent;
-  background-clip: padding-box;
-  /* dots travel WITH the graph when the panel scrolls (and stay
-     lattice-aligned with node positions) */
-  background-attachment: local;
 }
 
 /* ---- authoring toolbar ---- */
@@ -178,6 +165,17 @@
   /* centering is grid-aligned inside the layout (center_within); an
      auto margin here would break dot-lattice alignment */
   margin: 0;
+  /* dot grid lives ON the root so it zooms and scrolls with the graph;
+     --dot-pitch is set inline and loops across zoom levels. Dots sit
+     at tile centers: with the half-pitch offset their centers land on
+     lattice multiples, where node centers snap. */
+  background-image: radial-gradient(
+    var(--BR1, #d8c9a3) 0.75px,
+    transparent 1.1px
+  );
+  background-size: var(--dot-pitch, 14px) var(--dot-pitch, 14px);
+  background-position: calc(var(--dot-pitch, 14px) / 2)
+    calc(var(--dot-pitch, 14px) / 2);
 }
 
 .canvas-root.placing {
