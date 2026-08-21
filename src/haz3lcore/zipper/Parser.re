@@ -1,4 +1,5 @@
 open Util.OptUtil.Syntax;
+open Poly;
 
 /* Segment cache for paste optimization. When a copy/cut captures a
    complete segment, it's cached here. On paste, if the clipboard text
@@ -21,7 +22,7 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
   switch (chars) {
   | [] => false
   | _ =>
-    let first_char = List.hd(chars);
+    let first_char = List.hd_exn(chars);
     let last_char = Util.ListUtil.last(chars);
     let left =
       switch (Zipper.neighbor_token(Left, z)) {
@@ -70,11 +71,14 @@ let to_zipper =
         ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)
     ) {
     | exn =>
-      print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
+      print_endline("WARN: Parser.to_zipper: " ++ Exn.to_string(exn));
       None;
     };
   };
-  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  let+ z =
+    str
+    |> Token.to_list
+    |> List.fold_left(~f=insert, ~init=Some(zipper_init));
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
@@ -126,27 +130,28 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
         ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)
     ) {
     | exn =>
-      print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
+      print_endline("WARN: Parser.to_segment: " ++ Exn.to_string(exn));
       None;
     };
   };
 
   List.iter(
-    c => {
-      current_z := insert_char(current_z^, c);
-      incr(chars_since_split);
-      switch (current_z^) {
-      | None => ()
-      | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
-          let z = Zipper.remold_regrout(Left, z, ~root);
-          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-          segments := [strip_trailing_grout(seg), ...segments^];
-          current_z := Some(Zipper.init());
-          chars_since_split := 0;
-        }
-      };
-    },
+    ~f=
+      c => {
+        current_z := insert_char(current_z^, c);
+        incr(chars_since_split);
+        switch (current_z^) {
+        | None => ()
+        | Some(z) =>
+          if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+            let z = Zipper.remold_regrout(Left, z, ~root);
+            let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+            segments := [strip_trailing_grout(seg), ...segments^];
+            current_z := Some(Zipper.init());
+            chars_since_split := 0;
+          }
+        };
+      },
     chars,
   );
 
@@ -168,20 +173,21 @@ let has_balanced_delimiters = (s: string): bool => {
   let stack = ref([]);
   let ok = ref(true);
   List.iter(
-    c =>
-      switch (c) {
-      | "(" => stack := [")", ...stack^]
-      | "[" => stack := ["]", ...stack^]
-      | "{" => stack := ["}", ...stack^]
-      | ")"
-      | "]"
-      | "}" =>
-        switch (stack^) {
-        | [top, ...rest] when String.equal(top, c) => stack := rest
-        | _ => ok := false
-        }
-      | _ => ()
-      },
+    ~f=
+      c =>
+        switch (c) {
+        | "(" => stack := [")", ...stack^]
+        | "[" => stack := ["]", ...stack^]
+        | "{" => stack := ["}", ...stack^]
+        | ")"
+        | "]"
+        | "}" =>
+          switch (stack^) {
+          | [top, ...rest] when String.equal(top, c) => stack := rest
+          | _ => ok := false
+          }
+        | _ => ()
+        },
     chars,
   );
   ok^ && stack^ == [];
@@ -229,7 +235,7 @@ let fast_paste =
         ~materialize=Triggers.invoked_projector,
         ~collect_refractors=true,
         ~root,
-        String.trim(clipboard),
+        String.strip(clipboard),
       )
     ) {
     | Error(why) => Error("parse bailed — " ++ why)
@@ -269,7 +275,7 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   && has_balanced_delimiters(clipboard)
   && {
     let chars = Token.to_list(clipboard);
-    let first_char = List.hd(chars);
+    let first_char = List.hd_exn(chars);
     let last_char = Util.ListUtil.last(chars);
     let no_left_merge =
       switch (Zipper.neighbor_token(Left, z)) {

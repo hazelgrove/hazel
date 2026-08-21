@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open Poly;
 
 [@deriving show]
 type relation =

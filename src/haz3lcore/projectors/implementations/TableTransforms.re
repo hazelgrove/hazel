@@ -11,15 +11,16 @@ let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
     List.find_map(
-      ty => {
-        open OptUtil.Syntax;
-        let* (label, value_ty) = Typ.match_tup_label(ty);
-        if (String.equal(label, column)) {
-          Some(value_ty);
-        } else {
-          None;
-        };
-      },
+      ~f=
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, value_ty) = Typ.match_tup_label(ty);
+          if (String.equal(label, column)) {
+            Some(value_ty);
+          } else {
+            None;
+          };
+        },
       tys,
     )
   | _ => None
@@ -70,11 +71,12 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   |> Id.Map.find_opt(_, info_map)
   |> Option.bind(
        _,
-       fun
-       | InfoExp(e) => {
-           Some(e.ty);
-         }
-       | _ => None,
+       ~f=
+         fun
+         | InfoExp(e) => {
+             Some(e.ty);
+           }
+         | _ => None,
      );
 };
 
@@ -82,7 +84,10 @@ let can_move_column =
     (columns_opt: option(list(string)), column: string, left: bool) =>
   switch (columns_opt) {
   | Some(columns) =>
-    switch (List.find_index(x => String.equal(x, column), columns)) {
+    switch (
+      List.findi(columns, ~f=(_, x) => String.equal(x, column))
+      |> Option.map(~f=fst)
+    ) {
     | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
     | None => false
     }
@@ -105,11 +110,11 @@ let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
       Exp.(deferred_ap(var("map"), [deferral(InAp), row_fn]))
     | Listwise(expr) => expr
     };
-  let transformations = List.map(to_listwise, transforms);
+  let transformations = List.map(~f=to_listwise, transforms);
   let base = strip_parens(base);
   List.fold_left(
-    (acc, transformation) => Exp.ap(Reverse, transformation, acc),
-    base,
+    ~f=(acc, transformation) => Exp.ap(Reverse, transformation, acc),
+    ~init=base,
     transformations,
   );
 };
@@ -405,10 +410,12 @@ let provide_default_column = (column: string): transform => {
 
 let move_column =
     (dyn_type: option(Typ.t), column: string, left: bool): option(transform) => {
-  let columns_opt = Option.bind(dyn_type, get_columns);
+  let columns_opt = Option.bind(dyn_type, ~f=get_columns);
   switch (columns_opt) {
   | Some(columns) =>
-    let idx_opt = List.find_index(x => String.equal(x, column), columns);
+    let idx_opt =
+      List.findi(columns, ~f=(_, x) => String.equal(x, column))
+      |> Option.map(~f=fst);
     switch (idx_opt) {
     | Some(idx) =>
       let new_idx = left ? idx - 1 : idx + 1;
@@ -417,14 +424,15 @@ let move_column =
       } else {
         let new_columns =
           List.mapi(
-            (i, x) =>
-              if (i == idx) {
-                List.nth(columns, new_idx);
-              } else if (i == new_idx) {
-                List.nth(columns, idx);
-              } else {
-                x;
-              },
+            ~f=
+              (i, x) =>
+                if (i == idx) {
+                  List.nth_exn(columns, new_idx);
+                } else if (i == new_idx) {
+                  List.nth_exn(columns, idx);
+                } else {
+                  x;
+                },
             columns,
           );
         Some(
@@ -432,7 +440,7 @@ let move_column =
             IdTagged.FreshGrammar.Exp.(
               deferred_ap(
                 var("select_labels"),
-                [deferral(InAp)] @ List.map(label, new_columns),
+                [deferral(InAp)] @ List.map(~f=label, new_columns),
               )
             ),
           ),
@@ -448,8 +456,8 @@ let sort_column =
     (column_type: option(Typ.t), header: string, descending: bool)
     : option(list(transform)) => {
   let compare_fn =
-    Option.bind(column_type, atom_cls_of_typ)
-    |> Option.map(Atom.compare_builtin)
+    Option.bind(column_type, ~f=atom_cls_of_typ)
+    |> Option.map(~f=Atom.compare_builtin)
     |> Option.join;
   switch (compare_fn) {
   | Some(compare_fn_name) =>
