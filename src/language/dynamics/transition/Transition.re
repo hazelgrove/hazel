@@ -797,7 +797,7 @@ module Transition = (EV: EV_MODE) => {
               switch ((deferred: list(Exp.t))) {
               | [] => []
               | [{term: Deferral(_), _}, ...deferred] =>
-                /* I can use List.hd and List.tl here because let-unbox ensure that
+                /* I can use List.hd_exn and List.tl_exn here because let-unbox ensure that
                    there are the correct number of args */
                 [List.hd_exn(args), ...go(deferred, List.tl_exn(args))]
               | [x, ...deferred] => [x, ...go(deferred, args)]

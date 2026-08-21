@@ -6,7 +6,7 @@ let tuple_pat_id: form_id = TuplePat;
 let tuple_pat_comma = comma_pat();
 let tuple_pat_form = [pat("p1"), tuple_pat_comma, space(), pat("...")];
 let tuple_pat_explanation = (~n: int): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "Only expressions that are %d-tuples with elements matching the corresponding element patterns match this tuple pattern.",
     n,
   );
@@ -42,7 +42,7 @@ let tuple_pat_size2 = (~elem1_id: Id.t, ~elem2_id: Id.t): form => {
       [pat("p1"), comma_pat(), pat("p2")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that are 2-tuples with first element matching the [first element pattern](%s) and second element matching the [second element pattern](%s) match this tuple pattern.",
       Id.to_string(elem1_id),
       Id.to_string(elem2_id),
@@ -80,7 +80,7 @@ let tuple_pat_size3 =
       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that are 3-tuples with first element matching the [first element pattern](%s), second element matching the [second element pattern](%s), and third element matching the [third element pattern](%s) match this tuple pattern.",
       Id.to_string(elem1_id),
       Id.to_string(elem2_id),

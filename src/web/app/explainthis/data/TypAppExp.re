@@ -24,7 +24,7 @@ let typfunapp_exp = (~f_id: Id.t, ~typ_id: Id.t): form => {
   colorings: typfunapp_exp_coloring_ids(~f_id, ~typ_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Applies the [*type function*](%s) to the [*type*](%s).",
       Id.to_string(f_id),
       Id.to_string(typ_id),

@@ -10,7 +10,7 @@ let filter_pause = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       [mk_pause([[space(), p', space()]]), linebreak(), e_body']
     ),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Pause filter for stepper. The evaluation of all subexpressions within [*body*](%s) that match the [*pattern*](%s) will be paused during evaluation",
       body_id |> Id.to_string,
       p_id |> Id.to_string,
@@ -32,7 +32,7 @@ let filter_eval = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       [mk_eval([[space(), p', space()]]), linebreak(), e_body']
     ),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Full evaluation filter for stepper. All subexpressions within [*body*](%s) that match the [*pattern*](%s) will get evaluated in one go",
       body_id |> Id.to_string,
       p_id |> Id.to_string,
@@ -57,7 +57,7 @@ let filter_hide = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       [mk_hide([[space(), p', space()]]), linebreak(), e_body']
     ),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Step hiding filter for stepper. The elimination of all language constructs (like binary operator + or let .. = .. in) within [*body*](%s) that match the [*pattern*](%s) will get skipped.",
       body_id |> Id.to_string,
       p_id |> Id.to_string,
@@ -82,7 +82,7 @@ let filter_debug = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
       [mk_debug([[space(), p', space()]]), linebreak(), e_body']
     ),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Debug filter for stepper. All matched sub-expression within [*body*](%s) that match the [*pattern*](%s) will be stepped through.",
       body_id |> Id.to_string,
       p_id |> Id.to_string,

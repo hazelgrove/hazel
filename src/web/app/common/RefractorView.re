@@ -40,55 +40,60 @@ let mk_data =
   open Util.OptUtil.Syntax;
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   List.filter_map(
-    ((id, entry)) => {
-      /* Construct full Base.projector on demand for rendering,
-       * passing the actual syntax so projectors can access the
-       * underlying term for syntax rewriting. */
-      let syntax_piece =
-        Option.value(
-          TermData.segment(id, term_data)
-          |> Option.map(Segment.unparenthesize)
-          |> Option.map(Segment.trim_secondary(Left))
-          |> Option.map(Segment.trim_secondary(Right))
-          |> Option.map(Segment.parenthesize),
-          ~default=
-            Base.Secondary({
-              id: Id.invalid,
-              content: Whitespace(""),
-            }),
-        );
-      let p = Refractors.to_projector(syntax_piece, id, entry);
-      let+ measurement = measurement_of_term(id, term_data, measured);
-      let info =
-        ProjectorInfo.mk_info(
-          p,
-          ~sample_focus,
-          ~statics,
-          ~dynamics,
-          ~elaborated=None,
-        );
-      ProjectorView.Model.{
-        p,
-        info,
-        measurement,
-        offside_base:
-          ProjectorView.Model.offside_base(~offset=4, measurement, measured),
-        status:
-          ProjectorView.Model.mk_status(
+    ~f=
+      ((id, entry)) => {
+        /* Construct full Base.projector on demand for rendering,
+         * passing the actual syntax so projectors can access the
+         * underlying term for syntax rewriting. */
+        let syntax_piece =
+          Option.value(
+            TermData.segment(id, term_data)
+            |> Option.map(~f=Segment.unparenthesize)
+            |> Option.map(~f=Segment.trim_secondary(Left))
+            |> Option.map(~f=Segment.trim_secondary(Right))
+            |> Option.map(~f=Segment.parenthesize),
+            ~default=
+              Base.Secondary({
+                id: Id.invalid,
+                content: Whitespace(""),
+              }),
+          );
+        let p = Refractors.to_projector(syntax_piece, id, entry);
+        let+ measurement = measurement_of_term(id, term_data, measured);
+        let info =
+          ProjectorInfo.mk_info(
             p,
-            ~sort=TermData.sort(id, term_data),
-            ~editor_active,
-            ~indicated,
-            ~selection_ids,
-            ~info,
-            ~id,
-          ),
-        statics_map: statics,
-        dynamics_map: dynamics,
-        sample_focus,
-        elaborated: None,
-      };
-    },
+            ~sample_focus,
+            ~statics,
+            ~dynamics,
+            ~elaborated=None,
+          );
+        ProjectorView.Model.{
+          p,
+          info,
+          measurement,
+          offside_base:
+            ProjectorView.Model.offside_base(
+              ~offset=4,
+              measurement,
+              measured,
+            ),
+          status:
+            ProjectorView.Model.mk_status(
+              p,
+              ~sort=TermData.sort(id, term_data),
+              ~editor_active,
+              ~indicated,
+              ~selection_ids,
+              ~info,
+              ~id,
+            ),
+          statics_map: statics,
+          dynamics_map: dynamics,
+          sample_focus,
+          elaborated: None,
+        };
+      },
     Id.Map.bindings(refractors),
   );
 };
@@ -113,8 +118,8 @@ let all =
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(ProjectorView.by_measurement)
-    |> List.map(data =>
+    |> List.sort(~compare=ProjectorView.by_measurement)
+    |> List.map(~f=data =>
          ProjectorView.split_views(
            inject,
            make_active,
@@ -125,8 +130,8 @@ let all =
            refractor_list,
          )
        )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
+    |> List.unzip;
+  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
   [
     div_c(
       "refractors",

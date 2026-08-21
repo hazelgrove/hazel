@@ -131,7 +131,7 @@ let start = default_model => {
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              JsUtil.set_css_custom_property(
                "--row-height-px",
-               Printf.sprintf("%fpx", rect.height),
+               Stdlib.Printf.sprintf("%fpx", rect.height),
              );
              i(
                Page.Update.Globals(
@@ -224,9 +224,7 @@ let start = default_model => {
     )
   ) {
   | exc =>
-    print_endline(
-      "ERROR: Exception during view: " ++ Printexc.to_string(exc),
-    );
+    print_endline("ERROR: Exception during view: " ++ Exn.to_string(exc));
     WebUtil.Node.div(
       ~attrs=[WebUtil.Attr.id("page")],
       [WebUtil.Node.text("An error occurred.")],

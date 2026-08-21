@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Util;
+open Poly;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -290,7 +291,10 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     switch (Indicated.index(z)) {
     | Some(id) =>
-      switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+      switch (
+        List.findi(refractors, ~f=(_, (rid, _)) => rid == id)
+        |> Option.map(~f=fst)
+      ) {
       | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
       | None => None
       }
@@ -307,12 +311,16 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     let probe_on_row =
       refractors
-      |> List.find_index(((id, _)) =>
-           switch (Measured.find_by_id(id, measured)) {
-           | Some(m) => m.last.row == caret_row
-           | None => false
-           }
-         );
+      |> (
+        l =>
+          List.findi(l, ~f=(_, (id, _)) =>
+            switch (Measured.find_by_id(id, measured)) {
+            | Some(m) => m.last.row == caret_row
+            | None => false
+            }
+          )
+          |> Option.map(~f=fst)
+      );
     switch (probe_on_row) {
     | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
     | None => None
@@ -394,7 +402,7 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(k) |> Option.map(~f=x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
     /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
@@ -554,11 +562,12 @@ module View = {
       } else {
         let ids = Haz3lcore.Segment.ids(selection);
         List.exists(
-          id =>
-            List.exists(
-              ((id2, _)) => Id.equal(id, id2),
-              refractors.manuals,
-            ),
+          ~f=
+            id =>
+              List.exists(
+                ~f=((id2, _)) => Id.equal(id, id2),
+                refractors.manuals,
+              ),
           ids,
         );
       };
@@ -705,8 +714,11 @@ module View = {
         ~core_settings=globals.settings.core,
         ~visible?,
         refractor_data,
-        List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        List.map(~f=fst, zipper.refractors.manuals)
+        @ List.map(
+            ~f=fst,
+            Id.Map.to_list(zipper.refractors.multis.ephemerals),
+          ),
       );
     // let t2 = JsUtil.precise_timestamp();
     let projectors =
@@ -965,7 +977,9 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     fst(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Left)])
           | {
               key: D("ArrowRight" | "ArrowDown"),
@@ -978,7 +992,9 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     snd(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
           /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
              on_copy/on_paste handlers, so they keep working in

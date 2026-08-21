@@ -1,9 +1,10 @@
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
+open Poly;
 
 let init = (): Model.t => {
-  let system_prompt = CompositionPrompt.self |> String.concat("\n");
+  let system_prompt = String.concat(~sep="\n", CompositionPrompt.self);
   let dev_notes = {|Development mode active. Follow developer instructions precisely. Be concise. No first-person pronouns.|};
   /* reset_transients is the source of truth for the transient fields below. */
   Model.reset_transients({
@@ -67,13 +68,14 @@ let test_results_for_context =
     let summary = Language.TestResults.test_summary_str(results);
     let details =
       List.mapi(
-        (i, status: Language.TestStatus.t) => {
-          let status_str = Language.TestStatus.to_string(status);
-          "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
-        },
+        ~f=
+          (i, status: Language.TestStatus.t) => {
+            let status_str = Language.TestStatus.to_string(status);
+            "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
+          },
         results.statuses,
       );
-    summary ++ "\n" ++ String.concat("\n", details);
+    summary ++ "\n" ++ String.concat(~sep="\n", details);
   };
 };
 
@@ -96,7 +98,7 @@ let llm_context_snapshot_text =
     );
   let static_errors_info_string =
     ErrorPrint.all(CompositionGo.Public.mk_statics(cws.editor.state.zipper))
-    |> String.concat("\n");
+    |> String.concat(~sep="\n");
   let test_results_info_string =
     test_results_for_context(EvalResult.Model.test_results(cell_result));
   Message.Utils.context_snapshot_body_for_llm(
@@ -130,7 +132,7 @@ let update_context =
     ErrorPrint.all(
       CompositionGo.Public.mk_statics(editor.editor.state.zipper),
     )
-    |> String.concat("\n");
+    |> String.concat(~sep="\n");
   let test_results_info_string = test_results_for_context(test_results);
   let chat_system =
     ChatSystem.Update.update(

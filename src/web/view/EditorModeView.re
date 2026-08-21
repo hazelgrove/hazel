@@ -55,7 +55,7 @@ let view =
 };
 
 let indicator_n = (cur_slide, num_slides) => [
-  text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
+  text(Stdlib.Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
 ];
 
 let indicator_select =
@@ -63,33 +63,39 @@ let indicator_select =
   open Util;
 
   let split_filepath = (s: string): list(string) =>
-    String.split_on_char('/', s) |> List.map(String.trim, _);
+    String.split(s, ~on='/') |> List.map(~f=String.strip, _);
 
   // Decompose slide names into a list of tuples (index, list of path components)
   let slides_decomposed: list((int, list(string))) =
-    List.map(split_filepath, slide_names) |> List.mapi((i, n) => (i, n));
+    List.map(~f=split_filepath, slide_names)
+    |> List.mapi(~f=(i, n) => (i, n));
 
   // Get the path components of the current slide
-  let parts: list(string) = List.nth(slides_decomposed, cur_slide) |> snd;
+  let parts: list(string) =
+    List.nth_exn(slides_decomposed, cur_slide) |> snd;
 
   // Iterate over each path component of the current slide
   parts
-  |> List.mapi((prefix_depth, slide_segment: string) => {
+  |> List.mapi(~f=(prefix_depth, slide_segment: string) => {
        // Take the prefix of the path up to the current depth
        let prefix = ListUtil.take(prefix_depth, parts);
 
        // Find all slides that match the current prefix
        let matching_names =
          slides_decomposed
-         |> List.to_seq
+         |> Stdlib.List.to_seq
          // Filter slides that share the same prefix
-         |> Seq.filter(((_, parts': list(string))) => {
-              ListUtil.take(prefix_depth, parts') == prefix
+         |> Stdlib.Seq.filter(((_, parts': list(string))) => {
+              List.equal(
+                String.equal,
+                ListUtil.take(prefix_depth, parts'),
+                prefix,
+              )
             })
          // Map the matching slides to their index and the current path component
-         |> Seq.map(PairUtil.map_snd(List.nth(_, prefix_depth)))
+         |> Stdlib.Seq.map(PairUtil.map_snd(List.nth_exn(_, prefix_depth)))
          // Deduplicate the matching names based on the path component
-         |> List.of_seq
+         |> Stdlib.List.of_seq
          |> Util.ListUtil.dedup_f(
               ((_, a), (_, b)) => String.equal(a, b),
               _,
@@ -101,20 +107,21 @@ let indicator_select =
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) => {
              signal(
-               List.find_opt(
-                 ((_, n)) => String.equal(n, name),
+               List.find(
+                 ~f=((_, n)) => String.equal(n, name),
                  matching_names,
                )
-               |> Option.get
+               |> Option.value_exn
                |> fst,
              )
            }),
          ],
          {
            List.map(
-             ((_, name: string)) => {
-               option_view(String.equal(name, slide_segment), name)
-             },
+             ~f=
+               ((_, name: string)) => {
+                 option_view(String.equal(name, slide_segment), name)
+               },
              matching_names,
            );
          },

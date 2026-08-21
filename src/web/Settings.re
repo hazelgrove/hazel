@@ -306,7 +306,8 @@ module Update = {
             show:
               !settings.sidebar.show
                 ? true
-                : settings.sidebar.panel == windowToSwitchTo ? false : true,
+                : Poly.equal(settings.sidebar.panel, windowToSwitchTo)
+                    ? false : true,
             panel: windowToSwitchTo,
           },
         }

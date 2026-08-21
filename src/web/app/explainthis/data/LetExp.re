@@ -121,7 +121,7 @@ let let_base_exp_form = [
   exp("e_body"),
 ];
 let let_base_exp_explanation = (~def_id: Id.t, ~pat_id: Id.t): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "The [*definition*](%s) is matched against the [*pattern*](%s).",
     Id.to_string(def_id),
     Id.to_string(pat_id),
@@ -159,7 +159,7 @@ let let_empty_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
   colorings: let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id: Some((Piece.id(p), [let_empty_hole_exp_expandable])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "After the [*empty hole pattern*](%s) is filled, the [*definition*](%s) is matched against the [*pattern*](%s).",
       Id.to_string(pat_id),
       Id.to_string(def_id),
@@ -183,7 +183,7 @@ let let_multi_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
   colorings: let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id: Some((Piece.id(p), [pat("INVALID")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "After the [invalid pattern](%s) is corrected, the [*definition*](%s) is matched against the [*pattern*](%s).",
       Id.to_string(pat_id),
       Id.to_string(def_id),
@@ -214,7 +214,7 @@ let let_wild_exp = (~def_id: Id.t, ~body_id: Id.t): form => {
   colorings: let_wild_exp_coloring_ids(~def_id, ~body_id),
   expandable_id: Some((Piece.id(let_wild_exp_pat), [pat("_")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [*definition*](%s) is evaluated and ignored. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(def_id),
@@ -244,7 +244,7 @@ let let_int_exp =
   colorings: let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -277,7 +277,7 @@ let let_sint_exp =
   colorings: let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%d`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -310,7 +310,7 @@ let let_float_exp =
   colorings: let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("FloatLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%f`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -342,7 +342,7 @@ let let_bool_exp =
   colorings: let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("BoolLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%b`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -374,7 +374,7 @@ let let_str_exp =
   colorings: let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("StringLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -405,7 +405,7 @@ let let_triv_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("()")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the trivial value `()`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -431,7 +431,7 @@ let let_listlit_exp = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): form => {
   expandable_id:
     Some((Piece.id(p), [pat("p1"), comma_pat(), pat("...")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the [*pattern*](%s) are lists with %d-elements, where each element matches the corresponding element pattern.",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -460,7 +460,7 @@ let let_listnil_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: let_listnil_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("[]")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the empty list `[]`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -498,7 +498,7 @@ let let_cons_exp = (~def_id: Id.t, ~hd_id: Id.t, ~tl_id: Id.t): form => {
       [pat("p_hd"), cons_pat(), pat("p_tl")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the *pattern* are non-empty lists that match the [*head*](%s) and [*tail*](%s) patterns.",
       Id.to_string(def_id),
       Id.to_string(hd_id),
@@ -528,7 +528,7 @@ let let_var_exp =
   colorings: let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("x")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [*definition*](%s) is bound to the [*variable*](%s) `%s` in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -553,7 +553,7 @@ let let_tuple_exp_form = [
 ];
 let let_tuple_exp_explanation =
     (~def_id: Id.t, ~pat_id: Id.t, ~n: int): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "The only values for the [*definition*](%s) that match the [*pattern*](%s) are %d-tuples where each element matches the corresponding element pattern.",
     Id.to_string(def_id),
     Id.to_string(pat_id),
@@ -597,7 +597,7 @@ let let_tuple2_exp = (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t): form => {
       [pat("p1"), comma_pat(), pat("p2")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat1_id),
@@ -649,7 +649,7 @@ let let_tuple3_exp =
       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat1_id),
@@ -680,7 +680,7 @@ let let_ctr_exp =
   colorings: let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("C")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the *`%s` constructor*. The [*definition*](%s) can't be referenced in the [*body*](%s).",
       Id.to_string(def_id),
       Id.to_string(pat_id),
@@ -716,7 +716,7 @@ let let_conap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
   expandable_id:
     Some((Piece.id(let_conap_exp_ap), [pat_con, mk_ap_pat([[pat_arg]])])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).",
       Id.to_string(def_id),
       Id.to_string(x_id),
@@ -751,7 +751,7 @@ let let_funap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
   expandable_id:
     Some((Piece.id(let_funap_exp_ap), [pat_fun, mk_ap_pat([[pat_arg]])])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values for the [*definition*](%s) that match the *pattern* are the [*function*](%s) where the *argument* matches the [*argument pattern*](%s).",
       Id.to_string(def_id),
       Id.to_string(x_id),

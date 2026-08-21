@@ -5,6 +5,7 @@ open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
+open Poly;
 
 /* Re-export visible_rows type from Globals for convenience */
 type visible_rows = Globals.VisibleRows.t;
@@ -27,7 +28,7 @@ module ViewCache = {
     model: string,
     view: View.t,
   };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  let cache: Stdlib.Hashtbl.t(Id.t, entry) = Stdlib.Hashtbl.create(64);
 
   let lookup =
       (
@@ -41,16 +42,16 @@ module ViewCache = {
         ~model,
       )
       : option(View.t) =>
-    switch (Hashtbl.find_opt(cache, id)) {
+    switch (Stdlib.Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
-          e.statics_map === statics_map
-          && e.dynamics_map === dynamics_map
+          phys_equal(e.statics_map, statics_map)
+          && phys_equal(e.dynamics_map, dynamics_map)
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
-          && e.core_settings == core_settings
+          && Poly.equal(e.core_settings, core_settings)
           && e.settings_version == ProbeProj.Settings.version^
-          && e.status == status
+          && Poly.equal(e.status, status)
           && String.equal(e.model, model) =>
       Some(e.view)
     | _ => None
@@ -68,7 +69,7 @@ module ViewCache = {
         ~model,
         ~view,
       ) =>
-    Hashtbl.replace(
+    Stdlib.Hashtbl.replace(
       cache,
       id,
       {
@@ -106,13 +107,14 @@ let filter_by_visibility =
   | None => data
   | Some({first, last}) =>
     List.filter(
-      item => {
-        let (origin_row, last_row) = get_row_range(item);
-        /* Projector is visible if it overlaps with visible range:
-         * - Starts before visible area ends: origin_row <= last
-         * - Ends after visible area starts: last_row >= first */
-        origin_row <= last && last_row >= first;
-      },
+      ~f=
+        item => {
+          let (origin_row, last_row) = get_row_range(item);
+          /* Projector is visible if it overlaps with visible range:
+           * - Starts before visible area ends: origin_row <= last
+           * - Ends after visible area starts: last_row >= first */
+          origin_row <= last && last_row >= first;
+        },
       data,
     )
   };
@@ -141,7 +143,7 @@ module Model = {
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p: option(Indicated.piece), id) =>
     switch (p) {
-    | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+    | Some({piece: p, side: d, _}) when Id.equal(Piece.id(p), id) =>
       Some(Direction.toggle(d))
     | _ => None
     };
@@ -167,14 +169,15 @@ module Model = {
       : status => {
     sort,
     error:
-      Option.map(Language.Info.is_error, info.statics)
+      Option.map(~f=Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
     warning:
-      Option.map(Language.Info.is_warning, info.statics)
+      Option.map(~f=Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
-    selected: editor_active ? List.mem(id, selection_ids) : false,
+    selected:
+      editor_active ? List.mem(selection_ids, id, ~equal=Id.equal) : false,
   };
 
   let mk =
@@ -189,39 +192,40 @@ module Model = {
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
-      ((id, _)) => {
-        let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Measured.find_pr_opt(p, measured);
-        let info =
-          ProjectorInfo.mk_info(
-            p,
-            ~sample_focus,
-            ~statics,
-            ~dynamics,
-            ~elaborated,
-          );
-        {
-          p,
-          info,
-          measurement,
-          offside_base:
-            offside_base(~offset=offside_offset, measurement, measured),
-          status:
-            mk_status(
+      ~f=
+        ((id, _)) => {
+          let* p = Id.Map.find_opt(id, projectors);
+          let+ measurement = Measured.find_pr_opt(p, measured);
+          let info =
+            ProjectorInfo.mk_info(
               p,
-              ~sort=TermData.sort(id, term_data),
-              ~editor_active,
-              ~indicated,
-              ~selection_ids,
-              ~info,
-              ~id,
-            ),
-          statics_map: statics,
-          dynamics_map: dynamics,
-          sample_focus,
-          elaborated,
-        };
-      },
+              ~sample_focus,
+              ~statics,
+              ~dynamics,
+              ~elaborated,
+            );
+          {
+            p,
+            info,
+            measurement,
+            offside_base:
+              offside_base(~offset=offside_offset, measurement, measured),
+            status:
+              mk_status(
+                p,
+                ~sort=TermData.sort(id, term_data),
+                ~editor_active,
+                ~indicated,
+                ~selection_ids,
+                ~info,
+                ~id,
+              ),
+            statics_map: statics,
+            dynamics_map: dynamics,
+            sample_focus,
+            elaborated,
+          };
+        },
       Id.Map.bindings(projectors),
     );
   };
@@ -312,7 +316,7 @@ let offside_wrapper =
     ~attrs=[
       Attr.create(
         "style",
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "position: absolute; left: %fpx;",
           font_metrics.col_width *. float_of_int(offside_base),
         ),
@@ -444,7 +448,10 @@ let mk_view =
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
-    let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, p.id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
     let view =
       P.view({
         model: p.model,
@@ -456,7 +463,9 @@ let mk_view =
         parent: a =>
           switch (a) {
           | FocusById(id) =>
-            let target_idx = List.find_index(x => x == id, projector_list);
+            let target_idx =
+              List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+              |> Option.map(~f=fst);
             switch (target_idx) {
             | Some(target_idx) =>
               inject(Project(Focus(target_idx, Probe, None)))
@@ -504,7 +513,10 @@ let split_views =
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
-  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let idx =
+    List.findi(projector_list, ~f=(_, x) => Id.equal(x, p.id))
+    |> Option.map(~f=fst)
+    |> Option.value_exn;
   let views =
     mk_view(
       inject,
@@ -527,7 +539,7 @@ let split_views =
   let line_view = {
     let offside_view =
       views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.map(~f=offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])
@@ -535,7 +547,7 @@ let split_views =
       @ offside_view,
     );
   };
-  let overlay_view = Option.map(v => wrapper([v]), views.overlay);
+  let overlay_view = Option.map(~f=v => wrapper([v]), views.overlay);
   (line_view, overlay_view);
 };
 
@@ -567,20 +579,21 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(by_measurement)
+    |> List.sort(~compare=by_measurement)
     |> List.map(
-         split_views(
-           ~skip_inline=false,
-           ~core_settings,
-           inject,
-           make_active,
-           font_metrics,
-           _,
-           projector_list,
-         ),
+         ~f=
+           split_views(
+             ~skip_inline=false,
+             ~core_settings,
+             inject,
+             make_active,
+             font_metrics,
+             _,
+             projector_list,
+           ),
        )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
+    |> List.unzip;
+  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
   [
     div_c(
       "projectors",
@@ -617,13 +630,19 @@ let key_handoff =
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
-    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
+    Option.is_some(P.focusable.keyboard)
       ? Some(Focus(idx, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
     let (module P) = ProjectorInit.to_module(kind);
-    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
+    Option.is_some(P.focusable.keyboard)
       ? Some(Focus(idx, kind, Some(Left))) : None;
   | _ => None
   };

@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* The top-level UI component of Hazel */
 
@@ -19,7 +20,7 @@ module Model = {
     selection,
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let reset = (~font_metrics=?, ()) => {
     let globals = Globals.Model.init(~font_metrics?, ());
@@ -68,7 +69,7 @@ module Update = {
 
   let get_editor = (model: Model.t): CodeEditable.Model.t => {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => editor.editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
@@ -80,7 +81,8 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) =>
+      List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
   };
@@ -92,7 +94,7 @@ module Update = {
     let scratchpad_editors =
         (m: ScratchMode.Model.t)
         : list((option(string), list(CodeEditable.Model.t))) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => [(None, [editor.editor])]
       | Drv(dm) =>
@@ -107,7 +109,10 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+        (
+          None,
+          [List.nth_exn(m.exercises, m.current).cells.user_impl.editor],
+        ),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(
@@ -133,7 +138,7 @@ module Update = {
     | Start
     | Save;
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let update_global =
       (
@@ -247,7 +252,7 @@ module Update = {
         switch (model.editors) {
         | Scratch(model)
         | Documentation(model) =>
-          let current = List.nth(model.scratchpads, model.current);
+          let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
@@ -277,7 +282,7 @@ module Update = {
             );
           (filename, contents);
         | Exercises(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = List.nth_exn(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
           let contents = ExercisesMode.Model.export_exercise_module(current);
@@ -376,7 +381,7 @@ module Update = {
       }
       |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
     | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      List.iter(~f=a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
       Benchmark.start();
       model |> Updated.return_quiet;
@@ -874,7 +879,7 @@ module View = {
       } else {
         let container =
           Js.Opt.to_option(evt##.currentTarget)
-          |> Option.map(Js.Unsafe.coerce);
+          |> Option.map(~f=Js.Unsafe.coerce);
         switch (container) {
         | None => Effect.Ignore
         | Some(c) =>

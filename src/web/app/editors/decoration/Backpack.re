@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 let shard =
     (x_off: float, y_off: float, scale: float, opacity: float, s: string) =>
@@ -9,7 +10,7 @@ let shard =
       Attr.classes(["code-text", "code", "backpack-selection"]),
       Attr.create(
         "style",
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "position: absolute; transform-origin: bottom left; transform: translate(%fpx, %fpx) scale(%f); opacity: %f%%;",
           x_off,
           y_off,
@@ -26,7 +27,7 @@ let genie = (~font_metrics, ~left, ~genie_top, ~genie_height, ~genie_width) =>
     ~attrs=[
       Attr.create(
         "style",
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "position: absolute; left: %fpx; top: %fpx;",
           left,
           genie_top,
@@ -58,7 +59,7 @@ let pole = (~left, ~pole_top, ~pole_height) =>
     ~attrs=[
       Attr.create(
         "style",
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "position: absolute; left: %fpx; top: %fpx; height: %fpx;",
           left,
           pole_top,
@@ -78,19 +79,20 @@ let flag = (~font_metrics: FontMetrics.t, ~contents, ~left, ~flag_top) => {
   let dy_fn = idx => font_metrics.row_height *. scale_fn(idx) -. 4.;
   let (_, _, _, shards) =
     List.fold_left(
-      ((idx, y_offset, opacity, vs), s: string) => {
-        let new_y_offset = y_offset -. dy_fn(idx);
-        let v = shard(x_fn(idx), new_y_offset, scale_fn(idx), opacity, s);
-        (idx + 1, new_y_offset, opacity -. opacity_reduction, [v, ...vs]);
-      },
-      (0, dy_fn(0), init_opacity, []),
+      ~f=
+        ((idx, y_offset, opacity, vs), s: string) => {
+          let new_y_offset = y_offset -. dy_fn(idx);
+          let v = shard(x_fn(idx), new_y_offset, scale_fn(idx), opacity, s);
+          (idx + 1, new_y_offset, opacity -. opacity_reduction, [v, ...vs]);
+        },
+      ~init=(0, dy_fn(0), init_opacity, []),
       contents,
     );
   div(
     ~attrs=[
       Attr.create(
         "style",
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "position: absolute; left: %fpx; top: %fpx;",
           left,
           flag_top,
@@ -224,8 +226,8 @@ let view =
             Zipper.local_backpack(z)
             @ cached_backpack
             |> ListUtil.dedup
-            |> List.map(Tile.effective_label)
-            |> List.map(List.hd);
+            |> List.map(~f=Tile.effective_label)
+            |> List.map(~f=List.hd_exn);
           contents == []
             ? Node.div([])
             : main(

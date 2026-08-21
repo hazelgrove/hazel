@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 
@@ -431,17 +432,18 @@ let collect_print_entries =
     Id.Map.fold(
       (_, samples, acc) =>
         List.fold_left(
-          (acc, sample) =>
-            sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
-          acc,
+          ~f=
+            (acc, sample) =>
+              sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
+          ~init=acc,
           samples,
         ),
       probes,
       [],
     );
   samples
-  |> List.sort((a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
-  |> List.map(sample => {
+  |> List.sort(~compare=(a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
+  |> List.map(~f=sample => {
        let value_str =
          sample.Sample.value
          |> ExpToSegment.exp_to_segment(
@@ -547,7 +549,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     switch (eval_mode_ref^) {
     | Auto =>
       let es = collect_print_entries(editor.dynamics, measured);
-      List.is_empty(es) ? Option.none : Option.some(es);
+      List.is_empty(es) ? Stdlib.Option.none : Some(es);
     | Manual => cached_print_entries^
     };
   [
@@ -562,7 +564,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
         div(
           ~attrs=[clss(["body", "code"])],
           switch (entries) {
-          | Some(es) => List.map(render_print_entry, es)
+          | Some(es) => List.map(~f=render_print_entry, es)
           | None => [
               text(
                 eval_mode_ref^ == Manual
@@ -727,13 +729,14 @@ let probearium =
   let indicated_has_probe =
     switch (indicated_id) {
     | Some(id) =>
-      List.exists(((rid, _)) => rid == id, z.refractors.manuals)
+      List.exists(~f=((rid, _)) => rid == id, z.refractors.manuals)
       || Id.Map.mem(id, z.refractors.multis.ephemerals)
     | None => false
     };
   let indicated_has_manual =
     switch (indicated_id) {
-    | Some(id) => List.exists(((rid, _)) => rid == id, z.refractors.manuals)
+    | Some(id) =>
+      List.exists(~f=((rid, _)) => rid == id, z.refractors.manuals)
     | None => false
     };
   let indicated_can_probe =

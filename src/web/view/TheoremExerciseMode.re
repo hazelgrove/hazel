@@ -207,7 +207,7 @@ module Update = {
         },
       };
     | Prelude(MainEditor(action))
-        when CodeSelectable.Update.convert_action(action) != None =>
+        when Option.is_some(CodeSelectable.Update.convert_action(action)) =>
       let* new_cell =
         CellEditor.Update.update(
           ~settings,
@@ -245,7 +245,7 @@ module Update = {
         },
       };
     | Theorem(MainEditor(action))
-        when CodeSelectable.Update.convert_action(action) != None =>
+        when Option.is_some(CodeSelectable.Update.convert_action(action)) =>
       let* new_cell =
         CellEditor.Update.update(
           ~settings,
@@ -378,7 +378,7 @@ module Update = {
       ~pos_of_key=key => key,
       ~dispatch,
       ~on_timeout=
-        List.iter(((key, _)) =>
+        List.iter(~f=((key, _)) =>
           dispatch(key, UpdateResult(ResultFail(Timeout)))
         ),
     );

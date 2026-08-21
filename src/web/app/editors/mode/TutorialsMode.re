@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 /* This file handles the pagenation of Tutorial Mode, and switching between
    exercises. TutorialMode.re handles the actual exercise. */
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -15,31 +16,31 @@ module Model = {
   };
   let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
-      List.map2(
-        TutorialMode.Model.unpersist(~settings, ~instructor_mode),
-        persistent.exercise_data |> List.map(snd),
+      List.map2_exn(
+        persistent.exercise_data |> List.map(~f=snd),
         TutorialSettings.lessons,
+        ~f=TutorialMode.Model.unpersist(~settings, ~instructor_mode),
       );
     let current =
       ListUtil.findi_opt(
         (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
         TutorialSettings.lessons,
       )
-      |> Option.map(fst)
+      |> Option.map(~f=fst)
       |> Option.value(~default=0);
     {
       current,
       exercises,
     };
   };
-  let get_current = (m: t) => List.nth(m.exercises, m.current);
+  let get_current = (m: t) => List.nth_exn(m.exercises, m.current);
 };
 module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
+      List.nth_exn(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
@@ -78,10 +79,10 @@ module Store = {
     S.load();
   };
   let save = (model: Model.t, ~instructor_mode) => {
-    let exercise = List.nth(model.exercises, model.current);
+    let exercise = List.nth_exn(model.exercises, model.current);
     save_exercise(exercise, ~instructor_mode);
     let key =
-      List.nth(TutorialSettings.lessons, model.current) |> Tutorial.id_of;
+      List.nth_exn(TutorialSettings.lessons, model.current) |> Tutorial.id_of;
     StoreTutorialKey.save(key);
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -90,10 +91,11 @@ module Store = {
     let cur_exercise = StoreTutorialKey.load();
     let exercise_data =
       List.map(
-        spec => {
-          let key = Tutorial.id_of(spec);
-          (key, load_exercise(~settings, key, spec, ~instructor_mode));
-        },
+        ~f=
+          spec => {
+            let key = Tutorial.id_of(spec);
+            (key, load_exercise(~settings, key, spec, ~instructor_mode));
+          },
         TutorialSettings.lessons,
       );
     {
@@ -106,10 +108,11 @@ module Store = {
       cur_exercise: StoreTutorialKey.load(),
       exercise_data:
         List.map(
-          spec => {
-            let key = Tutorial.id_of(spec);
-            (key, load_exercise(~settings, key, spec, ~instructor_mode));
-          },
+          ~f=
+            spec => {
+              let key = Tutorial.id_of(spec);
+              (key, load_exercise(~settings, key, spec, ~instructor_mode));
+            },
           TutorialSettings.lessons,
         ),
     }
@@ -121,26 +124,27 @@ module Store = {
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreTutorialKey.save(exercise_export.cur_exercise);
     List.iter(
-      ((key, value)) => {
-        let n =
-          ListUtil.findi_opt(
-            spec => Tutorial.id_of(spec) == key,
-            tutorial_specs,
-          )
-          |> Option.get
-          |> fst;
-        let spec = List.nth(tutorial_specs, n);
-        save_exercise(
-          value
-          |> TutorialMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
-          ~instructor_mode,
-        );
-      },
+      ~f=
+        ((key, value)) => {
+          let n =
+            ListUtil.findi_opt(
+              spec => Tutorial.id_of(spec) == key,
+              tutorial_specs,
+            )
+            |> Option.value_exn
+            |> fst;
+          let spec = List.nth_exn(tutorial_specs, n);
+          save_exercise(
+            value
+            |> TutorialMode.Model.unpersist(
+                 ~settings,
+                 ~instructor_mode,
+                 _,
+                 spec,
+               ),
+            ~instructor_mode,
+          );
+        },
       exercise_export.exercise_data,
     );
   };
@@ -148,10 +152,11 @@ module Store = {
   let reset = (~settings, ~instructor_mode) => {
     let _ = StoreTutorialKey.reset();
     List.iter(
-      spec => {
-        let _ = init_exercise(~settings, spec, ~instructor_mode);
-        ();
-      },
+      ~f=
+        spec => {
+          let _ = init_exercise(~settings, spec, ~instructor_mode);
+          ();
+        },
       TutorialSettings.lessons,
     );
   };
@@ -222,7 +227,7 @@ module Update = {
       |> return(~historic=false);
 
     | Tutorial(action) =>
-      let current = List.nth(model.exercises, model.current);
+      let current = List.nth_exn(model.exercises, model.current);
       let* new_current =
         TutorialMode.Update.update(
           ~settings=globals.settings,
@@ -264,7 +269,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~schedule_action=a => schedule_action(Tutorial(a)),
-        List.nth(model.exercises, model.current),
+        List.nth_exn(model.exercises, model.current),
       );
     Model.{
       current: model.current,
@@ -283,7 +288,7 @@ module Selection = {
       TutorialMode.Selection.get_cursor_info(
         ~inject=a => inject(Tutorial(a)),
         ~selection,
-        List.nth(model.exercises, model.current),
+        List.nth_exn(model.exercises, model.current),
       );
     Update.Tutorial(ci);
   };
@@ -292,9 +297,9 @@ module Selection = {
     TutorialMode.Selection.jump_to_tile(
       ~settings,
       tile,
-      List.nth(model.exercises, model.current),
+      List.nth_exn(model.exercises, model.current),
     )
-    |> Option.map(((x, y)) => (Update.Tutorial(x), y));
+    |> Option.map(~f=((x, y)) => (Update.Tutorial(x), y));
 };
 
 module View = {
@@ -302,7 +307,7 @@ module View = {
   open Js_of_ocaml;
 
   let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     TutorialMode.View.view(
       ~globals,
       ~inject=a => inject(Update.Tutorial(a)),
@@ -419,7 +424,7 @@ module View = {
   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
     let titles =
       List.map(
-        exercise => TutorialMode.Model.return_title(exercise),
+        ~f=exercise => TutorialMode.Model.return_title(exercise),
         model.exercises,
       );
     instructor_toggle(

@@ -28,7 +28,7 @@ let ascription_coloring_ids =
 ];
 let ascription = (~exp_id: Id.t, ~typ_id: Id.t): form => {
   let explanation =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Represents a syntactic type ascription where an [*expression*](%s) is explicitly ascribed with a [*type*](%s). This is used to clarify or enforce the type of an expression.",
       Id.to_string(exp_id),
       Id.to_string(typ_id),
