@@ -86,7 +86,7 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
+    | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
     | _ => None,
     ctx.entries,
   );
@@ -94,7 +94,7 @@ let lookup_tvar = (ctx: t, name: string): option(kind) =>
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
     fun
-    | TVarEntry(v) when v.name == name => Some(v.id)
+    | TVarEntry(v) when String.equal(v.name, name) => Some(v.id)
     | _ => None,
     ctx.entries,
   );
@@ -102,7 +102,7 @@ let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
     fun
-    | LivelitEntry(v) when v.name == name => Some(v)
+    | LivelitEntry(v) when String.equal(v.name, name) => Some(v)
     | _ => None,
     ctx.entries,
   );
@@ -117,7 +117,7 @@ let get_id: entry => Id.t =
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
-    | VarEntry(v) when v.name == name => Some(v)
+    | VarEntry(v) when String.equal(v.name, name) => Some(v)
     | _ => None,
     ctx.entries,
   );
@@ -125,7 +125,7 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
+    | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
     | _ => None,
     ctx.entries,
   );
@@ -282,7 +282,8 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
-let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
+let is_base_typ = (name: string): bool =>
+  List.exists(String.equal(name), Token.base_typs);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),

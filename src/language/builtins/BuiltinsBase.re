@@ -280,7 +280,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox m = (Atom(Float), d1);
         let-unbox n = (Atom(Float), d2);
-        if (n == 0.0) {
+        if (Float.equal(n, 0.0)) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun("mod"), d1),

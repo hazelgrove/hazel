@@ -58,5 +58,5 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
 
 let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
   ctx
-  |> List.find_opt(e => e.name == name && e.is_captured == false)
+  |> List.find_opt(e => String.equal(e.name, name) && !e.is_captured)
   |> Option.map(e => e.rule);
