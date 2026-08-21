@@ -19,7 +19,7 @@ let value_view = (utility: utility, view_seg, exp) => {
 /* --- Table Assembly --- */
 
 let row_cells = (utility: utility, view_seg, row: list(Exp.t)): list(Node.t) =>
-  List.map(e => Node.td([value_view(utility, view_seg, e)]), row);
+  List.map(~f=e => Node.td([value_view(utility, view_seg, e)]), row);
 
 let table_view =
     (~header_cells: list(Node.t), ~rows: list(list(Node.t))): Node.t =>
@@ -27,7 +27,7 @@ let table_view =
     ~attrs=[Attr.classes(["table"])],
     [
       Node.thead([Node.tr(header_cells)]),
-      Node.tbody(List.map(r => Node.tr(r), rows)),
+      Node.tbody(List.map(~f=r => Node.tr(r), rows)),
     ],
   );
 
@@ -51,7 +51,7 @@ let rec normalize_row = (e: Exp.t): Exp.t =>
   | Parens(inner) => normalize_row(inner)
   | Asc(_, _) =>
     let stepped = Ascriptions.transition_multiple(e);
-    stepped === e ? e : normalize_row(stepped);
+    phys_equal(stepped, e) ? e : normalize_row(stepped);
   | _ => e
   };
 
@@ -60,24 +60,29 @@ let parse_table = (exp: Exp.t): option(table_data) =>
   | ListLit(es) =>
     let data =
       List.map(
-        (e: Exp.t) =>
-          switch (normalize_row(e).term) {
-          | Tuple(ds) =>
-            OptUtil.traverse(extract_entry, ds) |> Option.map(List.split)
-          | _ => None
-          },
+        ~f=
+          (e: Exp.t) =>
+            switch (normalize_row(e).term) {
+            | Tuple(ds) =>
+              OptUtil.traverse(extract_entry, ds)
+              |> Option.map(~f=List.unzip)
+            | _ => None
+            },
         es,
       );
 
     let data_opt = OptUtil.sequence(data);
     switch (data_opt) {
     | Some(data) =>
-      let (headers, rows) = List.split(data);
+      let (headers, rows) = List.unzip(data);
       switch (headers) {
       | [] => None
       | [h, ..._]
           when
-            List.for_all(List.equal(Option.equal(String.equal), h), headers) =>
+            List.for_all(
+              ~f=List.equal(Option.equal(String.equal), h),
+              headers,
+            ) =>
         Some((h, rows))
       | _ => None
       };

@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 open Language;
+open Poly;
 
 /* The `root` field records the sort of this editor's root context. We
    can't recover it from the zipper alone: an empty zipper has no surviving

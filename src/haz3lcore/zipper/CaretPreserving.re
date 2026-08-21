@@ -99,15 +99,15 @@ let rec move_to_start = (z: t): t =>
 /* IDs of the cursor's "same-segment predecessors": left siblings at the
    current level and at each ancestor level. */
 let collect_predecessor_ids = (z: t): Id.Map.t(unit) => {
-  let current_preds = z.relatives.siblings |> fst |> List.map(Piece.id);
+  let current_preds = z.relatives.siblings |> fst |> List.map(~f=Piece.id);
   let ancestor_preds =
     z.relatives.ancestors
-    |> List.concat_map(((_, sibs): Ancestors.generation) =>
-         sibs |> fst |> List.map(Piece.id)
+    |> List.concat_map(~f=((_, sibs): Ancestors.generation) =>
+         sibs |> fst |> List.map(~f=Piece.id)
        );
   current_preds
   @ ancestor_preds
-  |> List.to_seq
+  |> Stdlib.List.to_seq
   |> Seq.map(id => (id, ()))
   |> Id.Map.of_seq;
 };
@@ -138,13 +138,15 @@ let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
   let z = move_to_start(z);
   let rec go = (z: t, best: option(t)): option(t) => {
     let match_opt =
-      List.find_opt(
-        (a: Ancestors.generation) =>
-          Id.equal(fst(a).id, id)
-          && fst(a).shards
-          |> fst
-          |> ListUtil.hd_opt
-          |> Option.equal(Int.equal, shard),
+      List.find(
+        ~f=
+          (a: Ancestors.generation) =>
+            Id.equal(fst(a).id, id)
+            && Option.equal(
+                 Int.equal,
+                 fst(a).shards |> fst |> ListUtil.hd_opt,
+                 shard,
+               ),
         z.relatives.ancestors,
       );
     let (best, found_exact) =
@@ -159,8 +161,8 @@ let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
             | None => true
             | Some(best_z) =>
               switch (
-                List.find_opt(
-                  (a: Ancestors.generation) => Id.equal(fst(a).id, id),
+                List.find(
+                  ~f=(a: Ancestors.generation) => Id.equal(fst(a).id, id),
                   best_z.relatives.ancestors,
                 )
               ) {
@@ -286,7 +288,7 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
     | (([], []), [_, ..._] as sel) =>
       switch (z.selection.focus) {
       | Right => (Piece.id(ListUtil.last(sel)), Left, Right)
-      | Left => (Piece.id(List.hd(sel)), Right, Left)
+      | Left => (Piece.id(List.hd_exn(sel)), Right, Left)
       }
     | (([], []), []) => (Id.invalid, Left, Left)
     };
@@ -295,7 +297,7 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
   let predecessor_ids = collect_predecessor_ids(z);
   let ancestor_ids =
     z.relatives.ancestors
-    |> List.map(((anc: Ancestor.t, _sibs)) =>
+    |> List.map(~f=((anc: Ancestor.t, _sibs)) =>
          (
            anc.id,
            anc.shards |> fst |> ListUtil.hd_opt,
