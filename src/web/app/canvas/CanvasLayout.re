@@ -260,6 +260,28 @@ let layout =
       },
       docked,
     );
+  /* alias-body formers RANK their grid parts before the alias:
+     [Todo] -> () -> Model must put [Todo] strictly left of Model, both
+     for left-to-right reading and so the two hubs never share a column.
+     (Loop products stay unranked — feedback must not stretch columns.) */
+  let former_rank_edges =
+    List.concat_map(
+      (n: CanvasGraph.tynode) =>
+        switch (n.kind, n.sat) {
+        | (Product, Some((alias, _))) =>
+          List.map(
+            pk =>
+              Util.GraphLayout.Spec.{
+                src: pk,
+                dst: alias,
+                ranked: true,
+              },
+            n.parts,
+          )
+        | _ => []
+        },
+      g.nodes,
+    );
   /* formation links (component → product) are ordering-only: they pull
      a product's components toward its row without constraining columns */
   let formation_edges =
@@ -289,7 +311,12 @@ let layout =
             },
           grid_nodes,
         ),
-      edges: dep_edges @ derived_edges @ flow_edges @ formation_edges,
+      edges:
+        dep_edges
+        @ derived_edges
+        @ flow_edges
+        @ former_rank_edges
+        @ formation_edges,
       attachments,
       col_gap: 96.,
       row_gap: 48.,

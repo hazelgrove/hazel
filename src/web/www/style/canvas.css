@@ -101,6 +101,14 @@
 .canvas-scroll {
   flex: 1 1 auto;
   overflow: auto;
+  /* dot-grid backdrop over the whole panel; pattern starts one cell in
+     from the top-left corner */
+  background-image: radial-gradient(
+    var(--BR1, #d8c9a3) 0.75px,
+    transparent 1.1px
+  );
+  background-size: 1.05em 1.05em;
+  background-position: 1.05em 1.05em;
 }
 
 /* ---- authoring toolbar ---- */

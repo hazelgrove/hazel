@@ -176,10 +176,23 @@ let view =
   /* stretch columns to fill the panel when the graph is narrower than it;
      panel width is read from the (pre-patch) DOM, so the first render
      after a panel switch or drag-resize uses the previous width */
-  let avail_width =
-    switch (use_sidebar_width ? globals.settings.sidebar.width : None) {
-    | Some(w) => Some(float_of_int(w) -. 6.)
-    | None =>
+  let avail_width = {
+    /* prefer the scroll area's own client width (it accounts for panel
+       padding and the scrollbar); fall back to the sidebar setting/DOM */
+    let from_scroll =
+      switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+      | Some(el) =>
+        let w = Js_of_ocaml.Js.Unsafe.coerce(el)##.clientWidth;
+        w > 50 ? Some(float_of_int(w)) : None;
+      | None => None
+      };
+    switch (
+      from_scroll,
+      use_sidebar_width ? globals.settings.sidebar.width : None,
+    ) {
+    | (Some(w), _) => Some(w)
+    | (None, Some(w)) => Some(float_of_int(w) -. 6.)
+    | (None, None) =>
       switch (Util.JsUtil.get_elem_by_id_opt("canvas-sidebar")) {
       | Some(el) =>
         let w = Js_of_ocaml.Js.Unsafe.coerce(el)##.offsetWidth;
@@ -187,23 +200,28 @@ let view =
       | None => None
       }
     };
+  };
   let lay = {
     let base = CanvasLayout.layout(~offsets, ~pins, graph);
     switch (avail_width) {
-    | Some(avail) when base.width < avail -. 24. =>
-      /* stretching scales grid columns only (satellite/label extents are
-         fixed), so a first fit undershoots; one secant step closes most
-         of the gap */
-      let target = avail -. 24.;
-      let s1 = min(1.8, target /. base.width);
-      if (s1 <= 1.02) {
+    | Some(avail) =>
+      /* fit the pane in BOTH directions: stretch small graphs, compress
+         wide ones (the docking ring search absorbs the squeeze by
+         relocating satellites). Scaling moves grid columns only, so a
+         first fit under/overshoots; one secant step closes most of the
+         gap. */
+      let target = avail -. 16.;
+      let s1 = min(1.8, max(0.62, target /. base.width));
+      if (s1 >= 0.98 && s1 <= 1.02) {
         base;
       } else {
         let l1 = CanvasLayout.layout(~x_scale=s1, ~offsets, ~pins, graph);
-        if (l1.width >= target -. 30. || s1 >= 1.8) {
+        let close_enough =
+          l1.width >= target -. 30. && l1.width <= target +. 30.;
+        if (close_enough || s1 >= 1.8 || s1 <= 0.62) {
           l1;
         } else {
-          let s2 = min(1.8, s1 *. target /. l1.width);
+          let s2 = min(1.8, max(0.62, s1 *. target /. l1.width));
           CanvasLayout.layout(~x_scale=s2, ~offsets, ~pins, graph);
         };
       };
@@ -730,7 +748,7 @@ let view =
       header,
       toolbar,
       div(
-        ~attrs=[clss(["canvas-scroll"])],
+        ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [
           CanvasView.view(
             ~inject_jump,
