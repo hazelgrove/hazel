@@ -48,7 +48,7 @@ let has_structural =
   List.exists(
     (p: ProblemCollection.problem) =>
       switch (p.source) {
-      | Structural(d) => d == desc
+      | Structural(d) => String.equal(d, desc)
       | FromInfo(_)
       | FromProjector(_) => false
       },
@@ -471,7 +471,7 @@ let projector_error_collection = () => {
     List.exists(
       (p: Haz3lcore.ProblemCollection.problem) =>
         switch (p.source) {
-        | FromProjector(_, e) => e.message == "synthetic error"
+        | FromProjector(_, e) => String.equal(e.message, "synthetic error")
         | _ => false
         },
       problems,

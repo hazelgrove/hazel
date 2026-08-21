@@ -644,7 +644,7 @@ let tests = (
 
           let has_ih =
             List.exists(
-              ((binding, _)) => binding.Binding.name == "ih",
+              ((binding, _)) => String.equal(binding.Binding.name, "ih"),
               hypotheses,
             );
           check(bool, "should have 'ih' hypothesis", true, has_ih);

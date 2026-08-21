@@ -4060,7 +4060,9 @@ let contains_str = (~needle: string, haystack: string): bool => {
   let nl = String.length(needle)
   and hl = String.length(haystack);
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (String.equal(String.sub(haystack, i, nl), needle) || go(i + 1));
   nl == 0 || go(0);
 };
 
@@ -4710,18 +4712,20 @@ let fn_sugar_tests = (
    ============================================================ */
 
 let leading_newline = (s: string): bool =>
-  String.length(s) > 0 && s.[0] == '\n';
+  String.length(s) > 0 && Char.equal(s.[0], '\n');
 
 let trailing_newlines = (s: string): int => {
   let rec go = (i, acc) =>
-    i >= 0 && s.[i] == '\n' ? go(i - 1, acc + 1) : acc;
+    i >= 0 && Char.equal(s.[i], '\n') ? go(i - 1, acc + 1) : acc;
   go(String.length(s) - 1, 0);
 };
 
 let contains_sub = (haystack: string, needle: string): bool => {
   let (hl, nl) = (String.length(haystack), String.length(needle));
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (String.equal(String.sub(haystack, i, nl), needle) || go(i + 1));
   nl == 0 || go(0);
 };
 

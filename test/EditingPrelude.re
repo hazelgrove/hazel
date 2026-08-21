@@ -19,7 +19,7 @@ and equal_piece = (a: piece, b: piece) => {
   | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
   | (Projector(p1), Projector(p2)) =>
     p1.kind == p2.kind
-    && p1.model == p2.model
+    && String.equal(p1.model, p2.model)
     && equal_piece(p1.syntax, p2.syntax)
   | _ => false
   };

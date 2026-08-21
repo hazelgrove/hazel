@@ -29,7 +29,7 @@ let diagnose_prog = (prog: string): option(string) =>
   | None => Some("parse failure")
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
-    if (squish(printed) != squish(prog)) {
+    if (!String.equal(squish(printed), squish(prog))) {
       Some("token expands: " ++ String.trim(printed));
     } else {
       switch (statics_errors(z)) {
@@ -59,7 +59,7 @@ let expands_in_typ = (word: string): bool => {
   | None => true
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
-    squish(printed) != squish(prog);
+    !String.equal(squish(printed), squish(prog));
   };
 };
 
@@ -172,7 +172,7 @@ let assert_clean = (prog: string): unit =>
   | None => failf("failed to parse: %s", prog)
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
-    if (squish(printed) != squish(prog)) {
+    if (!String.equal(squish(printed), squish(prog))) {
       failf("token expansion changed program: %s", prog);
     };
     switch (statics_errors(z)) {

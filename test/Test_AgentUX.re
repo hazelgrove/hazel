@@ -519,7 +519,7 @@ let count_substring = (needle: string, hay: string): int => {
   let rec go = (i, acc) =>
     if (nlen == 0 || i > hlen - nlen) {
       acc;
-    } else if (String.sub(hay, i, nlen) == needle) {
+    } else if (String.equal(String.sub(hay, i, nlen), needle)) {
       go(i + nlen, acc + 1);
     } else {
       go(i + 1, acc);
@@ -988,7 +988,11 @@ let toolcall_handler_tests = [
         )
       | Error(AgentResult.Failure.Info(msg)) =>
         let unknown = "Unknown error occured when trying to apply tool request to editor";
-        check_bool("not the old opaque message", false, msg == unknown);
+        check_bool(
+          "not the old opaque message",
+          false,
+          String.equal(msg, unknown),
+        );
         check_bool(
           "includes Action.Failure.show text (Cant_derive or similar)",
           true,
@@ -1230,7 +1234,7 @@ let tool_call_summary_tests = [
       check_bool(
         "display_name='insert'",
         true,
-        ToolCallSummary.display_name_for(tc) == "insert",
+        String.equal(ToolCallSummary.display_name_for(tc), "insert"),
       );
     },
   ),
@@ -1246,7 +1250,7 @@ let tool_call_summary_tests = [
       check_bool(
         "display_name unchanged when path present",
         true,
-        ToolCallSummary.display_name_for(tc) == "insert_before",
+        String.equal(ToolCallSummary.display_name_for(tc), "insert_before"),
       );
     },
   ),
@@ -1341,7 +1345,10 @@ let tool_call_summary_tests = [
           "ends with ellipsis",
           true,
           String.length(sig_) > 1
-          && String.sub(sig_, String.length(sig_) - 3, 3) == {|…|},
+          && String.equal(
+               String.sub(sig_, String.length(sig_) - 3, 3),
+               {|…|},
+             ),
         );
       | None => fail("expected signifier")
       };
@@ -1676,7 +1683,7 @@ let streaming_markdown_tests = [
       let is_code_tail =
         switch (List.rev(blocks)) {
         | [Omd.Code_block(_, _, body), ..._] =>
-          String.trim(body) == "let x = 1"
+          String.equal(String.trim(body), "let x = 1")
         | _ => false
         };
       check_bool("tail is code block", true, is_code_tail);
