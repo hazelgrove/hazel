@@ -1,29 +1,29 @@
 module IntSet =
-  Set.Make({
+  Stdlib.Set.Make({
     type t = Bigint.t;
     let compare = Bigint.compare;
   });
 
 module SIntSet =
-  Set.Make({
+  Stdlib.Set.Make({
     type t = int;
-    let compare = compare;
+    let compare = Int.compare;
   });
 
 module BoolSet =
-  Set.Make({
+  Stdlib.Set.Make({
     type t = bool;
-    let compare = compare;
+    let compare = Bool.compare;
   });
 
 module FloatSet =
-  Set.Make({
+  Stdlib.Set.Make({
     type t = float;
-    let compare = compare;
+    let compare = Float.compare;
   });
 
 module StringSet =
-  Set.Make({
+  Stdlib.Set.Make({
     type t = string;
-    let compare = compare;
+    let compare = String.compare;
   });

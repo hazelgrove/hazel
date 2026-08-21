@@ -4,7 +4,7 @@
    site from the correct `Unicode.to_list` and silently splits any
    non-ASCII character into its bytes. */
 
-let repeat = (n, s) => String.concat("", List.init(n, _ => s));
+let repeat = (n, s) => String.concat(~sep="", List.init(n, ~f=_ => s));
 
 /* Truncates on a grapheme boundary: cutting mid-cluster would emit
    invalid UTF-8. */
@@ -72,19 +72,19 @@ let plain_search: (string, string, int) => int =
     | None => (-1)
     };
 
-let to_lines = String.split_on_char('\n');
+let to_lines = s => String.split(s, ~on='\n');
 
 /* Grapheme clusters per line. For LAYOUT widths use
    Unicode.Width.columns_of_string, which counts the two columns a wide
    cluster occupies. */
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(Unicode.length);
+  s |> to_lines |> List.map(~f=Unicode.length);
 
 let max_line_width = (s: string): int =>
-  s |> line_widths |> List.fold_left(max, 0);
+  s |> line_widths |> List.fold_left(~f=max, ~init=0);
 
 let num_linebreaks = (s: string) => {
-  s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
+  String.count(s, ~f=Char.equal('\n'));
 };
 
 let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
@@ -103,11 +103,11 @@ let trim_leading = (s: string): string => {
 /* Split at the first occurrence of a character. OCaml 5.5's
    String.split_first; drop this when the compiler pin reaches 5.5. */
 let split_first = (~on: char, s: string): option((string, string)) =>
-  switch (String.index_opt(s, on)) {
+  switch (String.index(s, on)) {
   | Some(i) =>
     Some((
-      String.sub(s, 0, i),
-      String.sub(s, i + 1, String.length(s) - i - 1),
+      String.sub(s, ~pos=0, ~len=i),
+      String.sub(s, ~pos=i + 1, ~len=String.length(s) - i - 1),
     ))
   | None => None
   };
@@ -117,17 +117,17 @@ let split_first = (~on: char, s: string): option((string, string)) =>
    whitespace is content and round-trips. */
 let strip_final_newline = (s: string): string => {
   let n = String.length(s);
-  if (n >= 2 && s.[n - 2] == '\r' && s.[n - 1] == '\n') {
-    String.sub(s, 0, n - 2);
-  } else if (n >= 1 && s.[n - 1] == '\n') {
-    String.sub(s, 0, n - 1);
+  if (n >= 2 && Char.equal(s.[n - 2], '\r') && Char.equal(s.[n - 1], '\n')) {
+    String.sub(s, ~pos=0, ~len=n - 2);
+  } else if (n >= 1 && Char.equal(s.[n - 1], '\n')) {
+    String.sub(s, ~pos=0, ~len=n - 1);
   } else {
     s;
   };
 };
 
 let isEmptyOrWhitespace = str => {
-  let trimmed = String.trim(str);
+  let trimmed = String.strip(str);
   String.length(trimmed) == 0;
 };
 
@@ -150,10 +150,11 @@ let sanitize_filename = (s: string): string => {
 };
 
 let trim_trailing_whitespace = (str: string): string => {
-  let lines = String.split_on_char('\n', str);
-  let is_trailing_ws = (c: char): bool => c == ' ' || c == '\t' || c == '\r';
+  let lines = String.split(str, ~on='\n');
+  let is_trailing_ws = (c: char): bool =>
+    Char.equal(c, ' ') || Char.equal(c, '\t') || Char.equal(c, '\r');
   let trim_line = (line: string): string => {
-    let chars = String.to_seq(line) |> List.of_seq;
+    let chars = String.to_list(line);
     let rec drop_trailing_ws = (chars: list(char)): list(char) =>
       switch (chars) {
       | [] => []
@@ -164,10 +165,10 @@ let trim_trailing_whitespace = (str: string): string => {
     let reversed_chars = List.rev(chars);
     let trimmed_reversed = drop_trailing_ws(reversed_chars);
     let trimmed_chars = List.rev(trimmed_reversed);
-    String.of_seq(List.to_seq(trimmed_chars));
+    String.of_char_list(trimmed_chars);
   };
-  let trimmed_lines = List.map(trim_line, lines);
-  String.concat("\n", trimmed_lines);
+  let trimmed_lines = List.map(~f=trim_line, lines);
+  String.concat(~sep="\n", trimmed_lines);
 };
 
 /* Every non-empty prefix, cut on grapheme boundaries. */
@@ -176,7 +177,7 @@ let prefixes = (s: string): list(string) => {
   if (len == 0) {
     [""];
   } else {
-    List.init(len, i => fst(Unicode.split_nth(s, i + 1)));
+    List.init(len, ~f=i => fst(Unicode.split_nth(s, i + 1)));
   };
 };
 
@@ -188,15 +189,15 @@ let levenshtein_distance = (a: string, b: string): int => {
   } else if (b_len == 0) {
     a_len;
   } else {
-    let prev = Array.init(b_len + 1, i => i);
-    let curr = Array.make(b_len + 1, 0);
+    let prev = Array.init(b_len + 1, ~f=i => i);
+    let curr = Array.create(~len=b_len + 1, 0);
     for (i in 1 to a_len) {
       curr[0] = i;
       let ai = a.[i - 1];
       for (j in 1 to b_len) {
         let bj = b.[j - 1];
         let cost =
-          if (ai == bj) {
+          if (Char.equal(ai, bj)) {
             0;
           } else {
             1;
@@ -238,8 +239,8 @@ let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
   } else {
     let a_arr = Array.of_list(a);
     let b_arr = Array.of_list(b);
-    let prev = Array.init(b_len + 1, i => i);
-    let curr = Array.make(b_len + 1, 0);
+    let prev = Array.init(b_len + 1, ~f=i => i);
+    let curr = Array.create(~len=b_len + 1, 0);
 
     let min3 = (x, y, z) => {
       let m =
@@ -261,7 +262,7 @@ let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
       for (j in 1 to b_len) {
         let bj = b_arr[j - 1];
         let cost =
-          if (ai == bj) {
+          if (String.equal(ai, bj)) {
             0;
           } else {
             1;
@@ -308,11 +309,11 @@ let subseq_search = (s: string, sub: string): bool => {
       false;
     } else if
       // Skip spaces in sub
-      (sub.[sub_idx] == ' ') {
+      (Char.equal(sub.[sub_idx], ' ')) {
       search(s_idx, sub_idx + 1);
     } else if
       // If current characters match (case insensitive), advance both indices
-      (Char.lowercase_ascii(s.[s_idx]) == Char.lowercase_ascii(sub.[sub_idx])) {
+      (Char.equal(Char.lowercase(s.[s_idx]), Char.lowercase(sub.[sub_idx]))) {
       search(s_idx + 1, sub_idx + 1);
     } else {
       // If they don't match, advance only the s index
