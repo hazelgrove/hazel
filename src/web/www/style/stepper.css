@@ -676,3 +676,41 @@
   gap: 5px;
   max-width: 40em;
 }
+
+/* PROVER: `have` — THE NESTED SUBPROOF BOX ---------------------------
+ *
+ * Appended as its own section. `have <exp> proof <sub> => <body>` is the
+ * one wrapping form with two proof children, and they need to look
+ * different: the SUBPROOF proves a goal of its own so it gets a boxed,
+ * indented region with a header naming that goal (deliberately shaped
+ * like `.induction-case`, which is the other place a nested chain runs
+ * against its own goal), while the BODY continues the outer chain and so
+ * carries no chrome at all. Without the box, a reader cannot tell which
+ * of the two chains below a `Have:` row is proving what. */
+.have-subproof {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin-left: 2em;
+}
+
+/* The subproof's rows sit inside the box, indented past its header the
+ * same amount an induction case indents past its pattern. */
+.have-subproof .stepper {
+  margin-left: 2em;
+}
+
+/* The box's opening line: "proof of <exp>". Same weight and left hook as
+ * `.induction-case-header`, so the two nested-goal regions read as the
+ * same kind of thing. */
+.have-subproof-header {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  align-items: center;
+  border-top: 2px dotted var(--cell-result-border);
+  border-top-left-radius: 0.6em;
+  padding-top: 0.5em;
+  margin-left: -1em;
+  opacity: 0.8;
+}

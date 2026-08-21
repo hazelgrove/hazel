@@ -135,6 +135,10 @@ and violations_of_kind =
   | RevertStep(m) => violations_of_root(path ++ "/revert", m.inner_stepper)
   | GeneralizeStep(m) =>
     violations_of_root(path ++ "/generalize", m.inner_stepper)
+  /* `have` has two proof children, so both roots must be checked. */
+  | HaveStep(m) =>
+    violations_of_root(path ++ "/have.subproof", m.sub_stepper)
+    @ violations_of_root(path ++ "/have.body", m.body_stepper)
   | AxiomStep(_)
   | AlgebriteStep(_)
   | ContradictionStep(_)

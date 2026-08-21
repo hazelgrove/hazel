@@ -849,6 +849,370 @@ let tests = (
       },
     ),
     // ============================================================
+    // `have`: nested subproof stepper + body continuation
+    // ============================================================
+    /* `have <exp> proof <sub> => <body>` is the one wrapping form with TWO
+       proof children, and they play different roles: the subproof proves
+       `<exp>` (its own goal, target literal `true`), the body continues
+       the OUTER goal with `<exp>` installed as the auto-named `have`
+       hypothesis. `Have` used to map to None in kind_of_proof, so NEITHER
+       child rendered — including the subproof hole the (!) panel's "Prove
+       here" writes, which is exactly the row the user needs. */
+    test_case(
+      "have: a proof-side have promotes to a HaveStep row",
+      `Quick,
+      () => {
+        let src = {|theorem t = forall x -> x == 1 proof have x == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(_), _}) => ()
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the subproof's nested stepper is rooted at the proposition",
+      `Quick,
+      () => {
+        /* The subproof's goal comes from the CHECKER (ProofMap incoming of
+           the subproof node), never re-derived: ProofCheck's Have arm
+           checks `sub` against the proposition in the enclosing scope. */
+        let src = {|theorem t = forall x -> x == 1 proof have x == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          let sub = m.sub_exp |> saved_exc(~print="have sub_exp");
+          check(
+            bool,
+            "subproof works on the proposition",
+            true,
+            Exp.fast_equal(sub, parse_exp("x == 1")),
+          );
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: a hole subproof is a step-picker row rooted at the proposition",
+      `Quick,
+      () => {
+        /* This is the "Prove here" shape (ObligationsPanel.have_patch:
+           `Have(goal, ?, region)`). The subproof hole must be a FUNCTIONAL
+           picker row — whose expression is what its overlay writes into
+           the proof text — and it must be rooted at the proposition, not
+           at the outer goal. */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          switch (m.sub_stepper) {
+          | StepperBase.MissingStep(mm, _) =>
+            check(
+              string,
+              "picker row's goal is the proposition",
+              "1 == 1",
+              mm.full_exp
+              |> saved_exc(~print="sub picker full_exp")
+              |> Test_ProofMap.print_exp,
+            )
+          | StepperBase.NextStep(_)
+          | StepperBase.Finished =>
+            Alcotest.fail("subproof hole did not render a picker row")
+          }
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: a completed subproof renders its rows",
+      `Quick,
+      () => {
+        /* The row must descend into the subproof, not stop at the have. */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          switch (m.sub_stepper) {
+          | StepperBase.NextStep({step_kind: AxiomStep(_), _}) => ()
+          | StepperBase.NextStep(_) =>
+            Alcotest.fail("nested row is not the subproof's axiom step")
+          | StepperBase.MissingStep(_, _)
+          | StepperBase.Finished =>
+            Alcotest.fail("have subproof did not render a step row")
+          };
+          /* And it reached `true`, which is what drops the have's own
+             obligation (ProofCheck's `sub_proves`) and what the nested
+             box's target row is compared against. */
+          check(
+            bool,
+            "subproof's reached expression is literal true",
+            true,
+            Exp.fast_equal(
+              m.sub_last_exp |> saved_exc(~print="have sub_last_exp"),
+              Exp.fresh(Atom(Bool(true))),
+            ),
+          );
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the body chain continues with the OUTER goal",
+      `Quick,
+      () => {
+        /* `have` is a pass-through (its outgoing is the body's), so the
+           body's incoming is the outer goal unchanged — read off the
+           checker, not re-derived. */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          let body = m.body_exp |> saved_exc(~print="have body_exp");
+          check(
+            bool,
+            "body works on the outer goal",
+            true,
+            Exp.fast_equal(body, parse_exp("x == 1")),
+          );
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the body's hole is a picker row rooted at the outer goal",
+      `Quick,
+      () => {
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          switch (m.body_stepper) {
+          | StepperBase.MissingStep(mm, _) =>
+            check(
+              string,
+              "picker row's goal is the outer goal",
+              "x == 1",
+              mm.full_exp
+              |> saved_exc(~print="body picker full_exp")
+              |> Test_ProofMap.print_exp,
+            )
+          | StepperBase.NextStep(_)
+          | StepperBase.Finished =>
+            Alcotest.fail("body hole did not render a picker row")
+          }
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the body's scope carries the auto-named `have` hypothesis",
+      `Quick,
+      () => {
+        /* Installed UNCONDITIONALLY (ProofCheck's Have arm), even with the
+           subproof still a hole — that is what lets a body obligation
+           discharge against it the moment the wrapper is written. */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          let facts =
+            m.body_ctx |> saved_exc(~print="have body_ctx") |> facts_of_ctx;
+          check(
+            bool,
+            "a fact named `have` is in the body's scope",
+            true,
+            List.mem_assoc("have", facts),
+          );
+          check(
+            bool,
+            "and it is the have's proposition",
+            true,
+            Exp.fast_equal(List.assoc("have", facts), parse_exp("1 == 1")),
+          );
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the subproof is checked in the ENCLOSING scope",
+      `Quick,
+      () => {
+        /* The subproof may not cite the have's own hypothesis, so its
+           nested rows must NOT see it — nesting `have` inside `have` is the
+           readable way to pin that. */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof have 2 == 2 proof ? => ? => ? in t|};
+        switch (promote(~src, ~goal="x == 1", ())) {
+        | StepperBase.NextStep({step_kind: HaveStep(outer), _}) =>
+          switch (outer.sub_stepper) {
+          | StepperBase.NextStep({step_kind: HaveStep(inner), _}) =>
+            let facts =
+              inner.body_ctx
+              |> saved_exc(~print="inner have body_ctx")
+              |> facts_of_ctx;
+            /* The inner have's body sees its OWN hypothesis... */
+            check(
+              bool,
+              "inner have's own hypothesis is in scope",
+              true,
+              List.exists(
+                ((n, e)) =>
+                  n == "have" && Exp.fast_equal(e, parse_exp("2 == 2")),
+                facts,
+              ),
+            );
+            /* ...and not the outer one, since the outer subproof runs in
+               the scope BEFORE the outer hypothesis was added. */
+            check(
+              bool,
+              "outer have's hypothesis is not in the subproof's scope",
+              false,
+              List.exists(
+                ((n, e)) =>
+                  n == "have" && Exp.fast_equal(e, parse_exp("1 == 1")),
+                facts,
+              ),
+            );
+          | _ =>
+            Alcotest.fail("expected a nested HaveStep row in the subproof")
+          }
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: the (!) panel's Prove-here shape renders both chains",
+      `Quick,
+      () => {
+        /* The user-facing repro, at model level: `f` carries a domain
+           restriction, the theorem quantifies `y` without it, so `f(y)`
+           incurs a PENDING `y != 0` obligation and the (!) panel offers
+           "Prove here" — which writes
+           `Have(y != 0, ?, <the existing region>)`
+           (ObligationsPanel.have_patch). Before HaveStep that produced no
+           stepper at all for the new subproof; here both chains must show
+           up, each rooted at its own goal. */
+        let src = "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof have y != 0 proof ? => ? in t";
+        let (proof, pm) = checked_proof(src);
+        /* Seeded with the env-INLINED statement, as Theorems.re does. */
+        let result =
+          test_calculate(
+            ~exp=
+              parse_exp(
+                "(fun x where x != 0 -> 100 / x)(y) == (fun x where x != 0 -> 100 / x)(y)",
+              ),
+            ~ctx=ctx_with_x,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        switch (result) {
+        | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
+          check(
+            string,
+            "the subproof chain is rooted at the obligation's goal",
+            "y != 0",
+            m.sub_exp
+            |> saved_exc(~print="have sub_exp")
+            |> Test_ProofMap.print_exp,
+          );
+          check(
+            string,
+            "the body chain continues on the written outer goal",
+            "f(y) == f(y)",
+            m.body_exp
+            |> saved_exc(~print="have body_exp")
+            |> Test_ProofMap.print_exp,
+          );
+          /* Both holes are pickable rows, so the user can actually work
+             in either position. */
+          check(
+            bool,
+            "subproof hole is a picker row",
+            true,
+            is_missing_step(m.sub_stepper),
+          );
+          check(
+            bool,
+            "body hole is a picker row",
+            true,
+            is_missing_step(m.body_stepper),
+          );
+        | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+        };
+      },
+    ),
+    test_case(
+      "have: an old-input recalculate keeps both children's saved fields",
+      `Quick,
+      () => {
+        /* Both nested steppers are threaded through `Calc.saved` fields
+           like every other step's; a pass whose inputs are all old must
+           neither drop them back to Pending nor rebuild the nested rows'
+           editors (which carry caret/selection). */
+        let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
+        let (proof, pm) = checked_proof(src);
+        let goal = parse_exp("x == 1");
+        let calculated =
+          test_calculate(
+            ~exp=goal,
+            ~ctx=ctx_with_x,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        let recalc =
+          StepperBase.Stepper.calculate(
+            ~settings=Calc.OldValue(CoreSettings.on),
+            ~exp=Calc.OldValue(goal),
+            ~ctx=
+              Calc.OldValue(
+                SemanticCtx.of_ctx_and_env(ctx_with_x, Builtins.env_init),
+              ),
+            ~ana=Calc.OldValue(IdTagged.FreshGrammar.Typ.int()),
+            ~proof=Calc.OldValue(proof),
+            ~proof_map=Calc.OldValue(pm),
+            calculated,
+          );
+        let have_of = (ns: StepperBase.next_step) =>
+          switch (ns) {
+          | StepperBase.NextStep({step_kind: HaveStep(m), _}) => m
+          | _ => Alcotest.fail("expected NextStep(HaveStep) row")
+          };
+        let (before, after) = (have_of(calculated), have_of(recalc));
+        check(
+          bool,
+          "subproof goal is stable",
+          true,
+          Exp.fast_equal(
+            before.sub_exp |> saved_exc(~print="before sub_exp"),
+            after.sub_exp |> saved_exc(~print="after sub_exp"),
+          ),
+        );
+        check(
+          bool,
+          "body goal is stable",
+          true,
+          Exp.fast_equal(
+            before.body_exp |> saved_exc(~print="before body_exp"),
+            after.body_exp |> saved_exc(~print="after body_exp"),
+          ),
+        );
+        /* The nested picker rows' editors must be the SAME objects. */
+        let editor_of = (~print: string, ns: StepperBase.next_step) =>
+          switch (ns) {
+          | StepperBase.MissingStep(mm, _) => mm.editor |> saved_exc(~print)
+          | _ => Alcotest.fail(print ++ ": expected a picker row")
+          };
+        check(
+          bool,
+          "subproof picker editor survives an old-input recalculate",
+          true,
+          editor_of(~print="before sub editor", before.sub_stepper)
+          === editor_of(~print="after sub editor", after.sub_stepper),
+        );
+        check(
+          bool,
+          "body picker editor survives an old-input recalculate",
+          true,
+          editor_of(~print="before body editor", before.body_stepper)
+          === editor_of(~print="after body editor", after.body_stepper),
+        );
+      },
+    ),
+    // ============================================================
     // Insertion: the step-picker's ProofPatch round-trip
     // ============================================================
     /* The step-picker inserts a no-search wrapping form IMMEDIATELY, with
@@ -1017,6 +1381,100 @@ let tests = (
             StepperBase.Stepper.generalize_term(~exp=parse_exp("x")),
           );
         check_contains(~msg="generalize step landed", out, "generalize x =>");
+      },
+    ),
+    test_case(
+      "insertion: Have with no argument writes `have ? proof ? =>`",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 1 proof ? in t",
+            StepperBase.Stepper.have_term(~exp=EmptyHole |> Exp.fresh),
+          );
+        check_contains(
+          ~msg="have step landed with a hole proposition",
+          out,
+          "have ?",
+        );
+        check_contains(~msg="and an open subproof", out, "proof ?");
+        check_contains(~msg="the arrow is written too", out, "=>");
+      },
+    ),
+    test_case(
+      "insertion: an empty-argument have reparses with three holes",
+      `Quick,
+      () => {
+        /* `have`'s wrapper carries a SECOND hole (the subproof), so the
+           inserted text must parse back to
+           `Have(EmptyHole, EmptyHole, EmptyHole)`: the proposition the
+           user is about to type into, the subproof that becomes its own
+           picker row inside the nested box, and the body that becomes the
+           next row of the outer chain. */
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 1 proof ? in t",
+            StepperBase.Stepper.have_term(~exp=EmptyHole |> Exp.fresh),
+          );
+        switch (Test_ProofMap.find_theorem_proof(parse_exp(out))) {
+        | Some({
+            term:
+              Have(
+                {term: EmptyHole, _},
+                {term: EmptyHole, _},
+                {term: EmptyHole, _},
+              ),
+            _,
+          }) =>
+          check(
+            bool,
+            "proposition, subproof and body are all holes",
+            true,
+            true,
+          )
+        | Some(p) =>
+          Alcotest.fail("reparsed as something else: " ++ Proof.show(p))
+        | None => Alcotest.fail("no theorem proof after insertion")
+        };
+      },
+    ),
+    test_case(
+      "insertion: a picked Have proposition writes `have <e> proof ? => ?`",
+      `Quick,
+      () => {
+        let out =
+          insert_proof_term(
+            ~src="theorem t = forall x -> x == 1 proof ? in t",
+            StepperBase.Stepper.have_term(~exp=parse_exp("1 == 1")),
+          );
+        check_contains(~msg="have step landed", out, "have 1 == 1 proof ?");
+      },
+    ),
+    test_case(
+      "insertion: a new have's proposition hole is a reachable caret target",
+      `Quick,
+      () => {
+        /* `have`'s proposition is child 0 like the other wrapping forms'
+           (Form.re: `mk_pre_c(L, ["have", "proof", "=>"], ..., [Exp,
+           Proof])`), so `form_arg_id` and the caret jump apply unchanged
+           — which is what makes the inserted slot typable. */
+        let term = StepperBase.Stepper.have_term(~exp=EmptyHole |> Exp.fresh);
+        let arg_id =
+          switch (StepperBase.Stepper.form_arg_id(term)) {
+          | Some(id) => id
+          | None => Alcotest.fail("have: form_arg_id returned None")
+          };
+        let z =
+          insert_proof_zipper(
+            ~src="theorem t = forall x -> x == 1 proof ? in t",
+            term,
+          );
+        check(
+          bool,
+          "caret can jump to the proposition hole",
+          true,
+          Haz3lcore.Move.jump_to_id_indicated(z, arg_id) != None,
+        );
       },
     ),
     test_case(

@@ -450,6 +450,11 @@ module View = {
     | AddAssume(Exp.t)
     | AddRevert(Exp.t)
     | AddGeneralize(Exp.t)
+    /* `have <exp> proof ? => ?` around this row's hole. Same no-search
+       convention as Assume/Generalize: one click inserts with a HOLE
+       proposition and focus lands in the new step's arg slot, and the
+       subproof hole becomes its own picker row inside the nested box. */
+    | AddHave(Exp.t)
     | AddContradiction(Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
@@ -612,6 +617,13 @@ module View = {
             ~callback=insert_form(AddGeneralize(hole())),
             "Generalize",
           ),
+          /* `have` is a no-search form like Assume — the proposition is
+             arbitrary — so it inserts immediately with a hole argument
+             (docs/prover-obligations.md §3.4). The (!) panel's "Prove
+             here" writes the same form around an obligation's region;
+             this is the same move started from the step-picker, with the
+             subproof left open. */
+          proof_button(~callback=insert_form(AddHave(hole())), "Have"),
         ];
       };
 

@@ -38,6 +38,10 @@ and step_kind_model =
   | AssumeStep(AssumeStep.model'(next_step))
   | RevertStep(RevertStep.model'(next_step))
   | GeneralizeStep(GeneralizeStep.model'(next_step))
+  /* `have` is the wrapping form with TWO proof children: a subproof with
+   * its own goal and a body continuing the outer one, so its model
+   * embeds two nested steppers (see HaveStep.re). */
+  | HaveStep(HaveStep.model'(next_step))
 
 and step_model = {
   // Cache
@@ -164,6 +168,7 @@ type step_kind_action =
   | EvalStep(EvalStep.action'(step_action))
   | ContradictionStep(ContradictionStep.action'(step_action))
   | AssumeStep(AssumeStep.action'(step_action))
+  | HaveStep(HaveStep.action'(step_action))
   | RevertStep(RevertStep.action'(step_action))
   | GeneralizeStep(GeneralizeStep.action'(step_action))
 
@@ -182,6 +187,7 @@ type step_kind_focus =
   | EvalStep(EvalStep.focus'(step_focus))
   | ContradictionStep(ContradictionStep.focus'(step_focus))
   | AssumeStep(AssumeStep.focus'(step_focus))
+  | HaveStep(HaveStep.focus'(step_focus))
   | RevertStep(RevertStep.focus'(step_focus))
   | GeneralizeStep(GeneralizeStep.focus'(step_focus))
 
@@ -212,6 +218,7 @@ module rec StepKind:
   module EvalStep = EvalStep.F(Stepper);
   module ContradictionStep = ContradictionStep.F(Stepper);
   module AssumeStep = AssumeStep.F(Stepper);
+  module HaveStep = HaveStep.F(Stepper);
   module RevertStep = RevertStep.F(Stepper);
   module GeneralizeStep = GeneralizeStep.F(Stepper);
 
@@ -246,6 +253,9 @@ module rec StepKind:
       | (AssumeStep(a), AssumeStep(m)) =>
         let* s = AssumeStep.update(~settings, a, m);
         (AssumeStep(s): model);
+      | (HaveStep(a), HaveStep(m)) =>
+        let* s = HaveStep.update(~settings, a, m);
+        (HaveStep(s): model);
       | (RevertStep(a), RevertStep(m)) =>
         let* s = RevertStep.update(~settings, a, m);
         (RevertStep(s): model);
@@ -258,7 +268,8 @@ module rec StepKind:
           ContradictionStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
-          GeneralizeStep(_),
+          GeneralizeStep(_) |
+          HaveStep(_),
           _,
         ) =>
         model |> Updated.raise_invalid_action
@@ -275,6 +286,7 @@ module rec StepKind:
     | EvalStep(action) => EvalStep.can_undo(action)
     | ContradictionStep(action) => ContradictionStep.can_undo(action)
     | AssumeStep(action) => AssumeStep.can_undo(action)
+    | HaveStep(action) => HaveStep.can_undo(action)
     | RevertStep(action) => RevertStep.can_undo(action)
     | GeneralizeStep(action) => GeneralizeStep.can_undo(action)
     };
@@ -332,6 +344,9 @@ module rec StepKind:
     | AssumeStep(m) =>
       let+ m = calculate_with(AssumeStep.calculate, m);
       (AssumeStep(m): model);
+    | HaveStep(m) =>
+      let+ m = calculate_with(HaveStep.calculate, m);
+      (HaveStep(m): model);
     | RevertStep(m) =>
       let+ m = calculate_with(RevertStep.calculate, m);
       (RevertStep(m): model);
@@ -400,6 +415,14 @@ module rec StepKind:
             m,
           );
         (AssumeStep(focus_info): action);
+      | (HaveStep(focus), HaveStep(m)) =>
+        let+ focus_info =
+          HaveStep.get_cursor_info(
+            ~inject=x => inject(HaveStep(x): action),
+            ~focus,
+            m,
+          );
+        (HaveStep(focus_info): action);
       | (RevertStep(focus), RevertStep(m)) =>
         let+ focus_info =
           RevertStep.get_cursor_info(
@@ -422,7 +445,8 @@ module rec StepKind:
           ContradictionStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
-          GeneralizeStep(_),
+          GeneralizeStep(_) |
+          HaveStep(_),
           _,
         ) => Cursor.empty
       }
@@ -559,6 +583,23 @@ module rec StepKind:
           },
         ~inject=x => inject(AssumeStep(x)),
         ~take_focus=x => take_focus(AssumeStep(x)),
+        m,
+      )
+    | HaveStep(m) =>
+      HaveStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(HaveStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(HaveStep(x)),
+        ~take_focus=x => take_focus(HaveStep(x)),
         m,
       )
     | RevertStep(m) =>
@@ -729,6 +770,23 @@ module rec StepKind:
         ~edit_syntax,
         m,
       )
+    | HaveStep(m) =>
+      HaveStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(HaveStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(HaveStep(x)),
+        ~take_focus=x => take_focus(HaveStep(x)),
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
     | RevertStep(m) =>
       RevertStep.view_justification(
         ~globals,
@@ -779,6 +837,9 @@ and Stepper: {
   let assume_term: (~exp: Exp.t) => TermBase.Proof.term;
   let revert_term: (~exp: Exp.t) => TermBase.Proof.term;
   let generalize_term: (~exp: Exp.t) => TermBase.Proof.term;
+  /* `have` differs from the other three: it wraps with a SECOND hole,
+   * the subproof, so the inserted text is `have ? proof ? => ?`. */
+  let have_term: (~exp: Exp.t) => TermBase.Proof.term;
   /* Exposed for the same reason: the caret jump that lands the user in a
    * freshly inserted form's argument slot keys off this id, so the
    * "insert with a hole, then focus the hole" contract is testable
@@ -972,11 +1033,9 @@ and Stepper: {
     | Revert(_, _, _) => Some(RevertStep(RevertStep.init(init_step)))
     | Generalize(_, _) =>
       Some(GeneralizeStep(GeneralizeStep.init(init_step)))
-    /* No dedicated `have` row yet: the form's own text carries it, its
-     * checker semantics and obligations are live, and an un-kinded row
-     * degrades to the step-picking row rather than breaking (a HaveStep
-     * view module modelled on AssumeStep is the follow-up). */
-    | Have(_, _, _)
+    /* `have` owns TWO proof children; HaveStep descends into both on its
+     * own `calculate` pass, one nested stepper each. */
+    | Have(_, _, _) => Some(HaveStep(HaveStep.init(init_step)))
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -1000,7 +1059,8 @@ and Stepper: {
     | (Induction(_, _), InductionStep(_))
     | (Assume(_, _), AssumeStep(_))
     | (Revert(_, _, _), RevertStep(_))
-    | (Generalize(_, _), GeneralizeStep(_)) => sk
+    | (Generalize(_, _), GeneralizeStep(_))
+    | (Have(_, _, _), HaveStep(_)) => sk
     | _ => kind_of_proof(proof_head) |> Option.value(~default=sk)
     };
 
@@ -1498,6 +1558,16 @@ and Stepper: {
   let generalize_term = (~exp: Exp.t): TermBase.Proof.term =>
     Generalize(exp |> embed_exp, Proof.fresh(EmptyHole));
 
+  /* `have <exp> proof ? => ?`: like the other wrapping forms the body
+   * starts as a hole (so inserting one never discards proof text — the
+   * hole this replaces re-appears inside the new scope), and the SUBPROOF
+   * starts as a hole too, which is exactly the shape the (!) panel's
+   * "Prove here" writes (ObligationsPanel.have_patch, with the existing
+   * region as the body). The subproof hole becomes its own step-picker
+   * row inside the nested box, rooted at <exp>. */
+  let have_term = (~exp: Exp.t): TermBase.Proof.term =>
+    Have(exp |> embed_exp, Proof.fresh(EmptyHole), Proof.fresh(EmptyHole));
+
   /* The id of a wrapping form's argument AS WRITTEN. `embed_exp` runs
    * `Exp.replace_all_ids`, so a caller that built the term from an
    * expression cannot predict this id — it has to read it back off the
@@ -1509,7 +1579,10 @@ and Stepper: {
     switch (t) {
     | Assume(e, _)
     | Revert(e, _, _)
-    | Generalize(e, _) => Some(Exp.rep_id(e))
+    | Generalize(e, _)
+    /* `have`'s proposition is child 0 too, so the same caret jump and the
+     * same ProofFormView splice target apply. */
+    | Have(e, _, _) => Some(Exp.rep_id(e))
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -1519,7 +1592,6 @@ and Stepper: {
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_, _)
-    | Have(_, _, _)
     | EvalStep(_) => None
     };
 
@@ -1695,6 +1767,8 @@ and Stepper: {
         ~arg_focus=GeneralizeStep(Arg()),
         generalize_term(~exp),
       )
+    | AddHave(exp) =>
+      emit_wrapping_form(~arg_focus=HaveStep(Arg()), have_term(~exp))
     | AddContradiction(exp) => emit(contradiction_term(~exp))
     | TakeStep(idx) =>
       switch (List.nth_opt(available_steps, idx)) {
