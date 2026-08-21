@@ -36,6 +36,14 @@ let empty: t = {
 let find_opt = (id: Id.t, map: t): option(entry) =>
   Id.Map.find_opt(id, map.statics);
 
+/* Law 1 of the observation-trace design (plans/observation-trace.md):
+ * observation and stream publication key only on PROPER program
+ * structure — ids of the elaborated program the user wrote. Stepped
+ * intermediates (administrative structure: Id.invalid temps, fresh ids
+ * minted mid-evaluation) are never program nodes. */
+let is_program_node = (id: Id.t, map: t): bool =>
+  Id.Map.mem(id, map.statics);
+
 /* Statics presence (not targets) is what enables incr-entry snapshots
  * and reuse_check hits. */
 let has_statics = (map: t): bool => !Id.Map.is_empty(map.statics);

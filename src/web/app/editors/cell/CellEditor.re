@@ -93,7 +93,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=CodeWithStatics.StaticsNormal,
         ~queue_worker,

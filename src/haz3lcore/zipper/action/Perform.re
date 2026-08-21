@@ -395,6 +395,7 @@ let rec go =
         ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_rows=syntax.refractor_rows,
       d,
       z,
     )
@@ -423,6 +424,7 @@ let rec go =
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_rows=syntax.refractor_rows,
       ~chunkiness,
       d,
       z,

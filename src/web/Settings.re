@@ -15,9 +15,9 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     quiver: bool, /* Show completion visualization (quiver arrows) */
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    /* Auto probe (Off / Caret / All): automatic probe placement mode,
+       threaded through Editor.calculate into ProbePerform */
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -43,6 +43,7 @@ module Model = {
        normalization frame (see CanvasLayout.origin) */
     [@sexp.default []] [@yojson.default []]
     canvas_node_pins: list(((string, string), (float, float))),
+    simple_indication: bool,
   };
 
   let init = {
@@ -114,7 +115,7 @@ module Model = {
       width: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
-    autoprobe_mode: false,
+    autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
@@ -125,6 +126,7 @@ module Model = {
     canvas_pane_width: None,
     canvas_node_offsets: [],
     canvas_node_pins: [],
+    simple_indication: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -212,11 +214,14 @@ module Update = {
     | DragRefactor
     | Quiver
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco;
+    | ShowIncrementalDeco
+    | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -612,10 +617,32 @@ module Update = {
             panel: enabling ? HelpfulAssistant : Canvas,
           },
         };
-      | AutoprobeMode => {
+      | AutoprobeMode =>
+        /* The keyboard toggle deliberately skips Caret, cycling Off<->All
+         * only; Caret mode is opted into via the segmented control. */
+        {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
         }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
+        }
+      | SampleStickyInPlace =>
+        /* '/' toggles sticky */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            set_sticky(! sticky^);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -635,6 +662,10 @@ module Update = {
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
+        }
+      | SimpleIndication => {
+          ...settings,
+          simple_indication: !settings.simple_indication,
         }
       }
     )

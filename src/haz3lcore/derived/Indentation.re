@@ -365,7 +365,7 @@ let rec go =
    delimiter obligation's position is flexible, so an owed closer is
    not a wall for next-line typing. */
 let partitions = (seg: Segment.t): list(Segment.t) =>
-  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
+  SegmentPartition.partition_segment(~absorb_empty_lines=true, seg)
   |> List.map(fst);
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>

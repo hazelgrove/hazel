@@ -132,6 +132,8 @@ let add_empty_piece_rows = map => {
 let rec add_n_empty_piece_rows = (n: int, map) =>
   n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
+let total_rows = (map: t): int => List.length(map.piece_rows);
+
 let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
@@ -298,7 +300,7 @@ let of_segment_inner =
     (
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
-      refractor_shape_map: Id.Map.t(int),
+      refractor_rows: Id.Map.t(int),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
@@ -452,17 +454,22 @@ let of_segment_inner =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
-      switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-      | Some(_) =>
-        DeferredLinebreaks.update(2) |> ignore;
+      /* Fold before updating the counter: a refractor's deferred rows
+       * belong at the linebreak after the tile's last shard, not at any
+       * linebreak inside the tile. */
+      let acc =
+        Aba.fold_left(
+          add_shard(acc, t),
+          (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+          Aba.mk(t.shards, t.children),
+        );
+      switch (Id.Map.find_opt(t.id, refractor_rows)) {
+      | Some(n) =>
+        DeferredLinebreaks.update(n) |> ignore;
         ();
       | None => ()
       };
-      Aba.fold_left(
-        add_shard(acc, t),
-        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
-        Aba.mk(t.shards, t.children),
-      );
+      acc;
     };
   let initial_acc = {
     seg: [],
@@ -481,14 +488,14 @@ let of_segment =
       ~is_single_line as _: bool=false,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
-      refractor_shape_map: Id.Map.t(int),
+      refractor_rows: Id.Map.t(int),
     )
     : t =>
   /* Note: ~indent_level and ~is_single_line are accepted for API
    * compatibility with dev callers (ProjectorView, etc.) but are
    * ignored here — canonical-completion manages indentation via
    * real whitespace in the segment, not via an indent_level map. */
-  of_segment_memo(seg, shape_map, refractor_shape_map);
+  of_segment_memo(seg, shape_map, refractor_rows);
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

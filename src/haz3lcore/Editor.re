@@ -186,7 +186,7 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
-        ~autoprobe_mode: bool,
+        ~autoprobe_mode: AutoProbe.t,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -234,11 +234,20 @@ module Update = {
         zipper,
       );
 
-    /* 4. Handle auto probe: probe follows cursor to current def */
+    /* 4. Handle auto probe (Off/Caret/All — see AutoProbe.t). */
     let zipper =
-      if (autoprobe_mode) {
+      switch (autoprobe_mode) {
+      | Off =>
+        ProbePerform.clear_autoprobe(
+          ~syntax,
+          ~info_map=statics.info_map,
+          zipper,
+        )
+      | Caret
+      | All =>
         let z =
           ProbePerform.update_autoprobe(
+            ~mode=autoprobe_mode,
             ~syntax,
             ~info_map=statics.info_map,
             zipper,
@@ -250,13 +259,6 @@ module Update = {
           ~syntax,
           ~info_map=statics.info_map,
           z,
-        );
-      } else {
-        /* If mode is off, clear any existing auto probe */
-        ProbePerform.clear_autoprobe(
-          ~syntax,
-          ~info_map=statics.info_map,
-          zipper,
         );
       };
 
