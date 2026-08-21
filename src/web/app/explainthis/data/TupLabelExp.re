@@ -28,7 +28,7 @@ let labeled_exp = (~label_id: Id.t, ~exp_id: Id.t): form => {
   colorings: labeled_exps_coloring_ids(~label_id, ~exp_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Assigns a [*label*](%s) to an [*expression*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are automatically converted into a singleton tuple.",
       Id.to_string(label_id),
       Id.to_string(exp_id),

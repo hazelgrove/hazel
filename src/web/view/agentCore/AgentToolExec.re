@@ -10,12 +10,12 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
     switch (Js_error.of_exn(exn)) {
     | Some(e) =>
       Firebug.console##error_2(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
         Js.string(Option.value(~default="", Js_error.stack(e))),
       )
     | None =>
       Firebug.console##error(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
       )
     }
   );
@@ -79,7 +79,7 @@ let mk_diff =
       | Some(st) => st.info_map
       | None =>
         switch (CachedStatics.for_zipper(~settings, z, old_statics)) {
-        | Some(st) when st.info_map != Id.Map.empty => st.info_map
+        | Some(st) when !Id.Map.is_empty(st.info_map) => st.info_map
         | _ =>
           Util.PerfTimer.time("diff-statics", () =>
             CompositionGo.Public.mk_statics(z)
@@ -101,7 +101,7 @@ let mk_diff =
         AgentToolResult.{
           old_text: CompositionView.Public.print_segment(old_segment),
           new_text:
-            Option.map(CompositionView.Public.print_segment, new_segment),
+            Option.map(new_segment, ~f=CompositionView.Public.print_segment),
         },
       )
     | None => None
@@ -182,7 +182,7 @@ let execute_one_tool_call =
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
         report_tool_exn(tool_call.name, exn);
-        Error(Failure.Info(Printexc.to_string(exn)));
+        Error(Failure.Info(Exn.to_string(exn)));
       }
     ) {
     | Ok((model, editor)) =>
@@ -221,7 +221,7 @@ let execute_one_tool_call =
       switch (diff_result) {
       | Error(exn) =>
         /* mk_diff can raise (e.g. path_to_id); report to agent, keep state */
-        let msg = Printexc.to_string(exn);
+        let msg = Exn.to_string(exn);
         let tool_result: AgentToolResult.tool_result = {
           tool_call,
           success: false,

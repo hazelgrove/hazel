@@ -121,10 +121,10 @@ module DirectEncoding: ENCODING = {
   open Js_of_ocaml;
   type request = ClientMessage.t;
   type response = ServerMessage.t;
-  let encode_request = Fun.id;
-  let decode_request = Fun.id;
-  let encode_response = Fun.id;
-  let decode_response = Fun.id;
+  let encode_request = Fn.id;
+  let decode_request = Fn.id;
+  let encode_response = Fn.id;
+  let decode_response = Fn.id;
   /* No serialized form, so estimate the in-memory footprint by an iterative
    * walk with a visited set (a relative measure, not exact bytes). */
   let size_fn =
@@ -133,7 +133,7 @@ module DirectEncoding: ENCODING = {
            var seen = new Set(), stack = [root], total = 0;
            while (stack.length) {
              var v = stack.pop();
-             if (v === null || v === undefined) continue;
+             if (phys_equal(v, null) || phys_equal(v, undefined)) continue;
              var t = typeof v;
              if (t === 'number') { total += 8; }
              else if (t === 'string') { total += v.length; }
@@ -222,8 +222,8 @@ let error_response = exn =>
     print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
     Error(Language.ProgramResult.EvaulatorError(reason));
   | exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+    print_endline("EXN:" ++ Exn.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Exn.to_string(exn)));
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
@@ -340,9 +340,10 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
 let take_planned_reuse =
     (expr: Language.Exp.t)
     : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
-  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
-  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
-  Option.map(snd, found);
+  let found = List.find(planned_reuse^, ~f=((e, _)) => phys_equal(e, expr));
+  planned_reuse :=
+    List.filter(planned_reuse^, ~f=((e, _)) => !phys_equal(e, expr));
+  Option.map(found, ~f=snd);
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
@@ -433,7 +434,7 @@ let post_reuse_plan = (model, request: Request.t) =>
     post_message(
       ServerMessage.ReusePlan({
         request_id: request.request_id,
-        initial: List.map(predict_reuse_for_request, request.batch),
+        initial: List.map(~f=predict_reuse_for_request, request.batch),
       }),
     );
   };
