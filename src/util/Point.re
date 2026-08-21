@@ -33,12 +33,15 @@ type comparison =
   | Under
   | Over;
 
-let comp = (current, target): comparison =>
-  switch () {
-  | _ when current == target => Exact
-  | _ when current < target => Under
-  | _ => Over
-  };
+let comp = (current, target): comparison => {
+  Poly.(
+    switch () {
+    | _ when current == target => Exact
+    | _ when current < target => Under
+    | _ => Over
+    }
+  );
+};
 let compare = (p1, p2) =>
   switch (comp(p1, p2)) {
   | Exact => 0

@@ -102,7 +102,7 @@ let get_data_string =
     (el: Js.t(Dom_html.element), name: string): option(string) => {
   el##getAttribute(Js.string("data-float-" ++ name))
   |> Js.Opt.to_option
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Update position of a single floating element */

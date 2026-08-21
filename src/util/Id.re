@@ -71,7 +71,7 @@ let mk: unit => t = {
     Bytes.unsafe_set(
       scratch,
       i,
-      Char.unsafe_chr(Random.State.int(seed, 256)),
+      Stdlib.Char.unsafe_chr(Random.State.int(seed, 256)),
     );
   };
   let lo = ref(0);
@@ -84,15 +84,15 @@ let mk: unit => t = {
     };
     let l = lo^;
     let h = hi^;
-    Bytes.unsafe_set(scratch, 0, Char.unsafe_chr(l land 0xff));
-    Bytes.unsafe_set(scratch, 1, Char.unsafe_chr(l lsr 8 land 0xff));
-    Bytes.unsafe_set(scratch, 2, Char.unsafe_chr(l lsr 16 land 0xff));
-    Bytes.unsafe_set(scratch, 3, Char.unsafe_chr(l lsr 24 land 0x3f));
-    Bytes.unsafe_set(scratch, 4, Char.unsafe_chr(h land 0xff));
-    Bytes.unsafe_set(scratch, 5, Char.unsafe_chr(h lsr 8 land 0xff));
+    Bytes.unsafe_set(scratch, 0, Stdlib.Char.unsafe_chr(l land 0xff));
+    Bytes.unsafe_set(scratch, 1, Stdlib.Char.unsafe_chr(l lsr 8 land 0xff));
+    Bytes.unsafe_set(scratch, 2, Stdlib.Char.unsafe_chr(l lsr 16 land 0xff));
+    Bytes.unsafe_set(scratch, 3, Stdlib.Char.unsafe_chr(l lsr 24 land 0x3f));
+    Bytes.unsafe_set(scratch, 4, Stdlib.Char.unsafe_chr(h land 0xff));
+    Bytes.unsafe_set(scratch, 5, Stdlib.Char.unsafe_chr(h lsr 8 land 0xff));
     /* byte 6 high nibble and byte 8 top two bits are overwritten by v4 */
-    Bytes.unsafe_set(scratch, 6, Char.unsafe_chr(h lsr 16 land 0x0f));
-    Bytes.unsafe_set(scratch, 7, Char.unsafe_chr(h lsr 20 land 0xff));
+    Bytes.unsafe_set(scratch, 6, Stdlib.Char.unsafe_chr(h lsr 16 land 0x0f));
+    Bytes.unsafe_set(scratch, 7, Stdlib.Char.unsafe_chr(h lsr 20 land 0xff));
     Uuidm.v4(scratch);
   };
 };
@@ -110,26 +110,26 @@ let pp: (Format.formatter, t) => unit =
   (f, id) =>
     Format.fprintf(
       f,
-      "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
+      "Option.value_exn(Haz3lcore.Id.of_string(\"%s\"))",
       to_string(id),
     );
 let show = id =>
-  Format.sprintf(
-    "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
+  Stdlib.Format.sprintf(
+    "Option.value_exn(Haz3lcore.Id.of_string(\"%s\"))",
     to_string(id),
   );
 
-let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
-let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let str3 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=8);
 let cls = (id: t) => "id" ++ str8(id);
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
-module Set = Set.Make(Uuidm);
+module Set = Stdlib.Set.Make(Uuidm);
 
 module Map = {
-  include Map.Make(Uuidm);
+  include Stdlib.Map.Make(Uuidm);
 
   let sexp_of_t = (sexp_of_v, map) =>
     map |> bindings |> Sexplib.Std.sexp_of_list(sexp_of_binding(sexp_of_v));
@@ -137,7 +137,7 @@ module Map = {
   let t_of_sexp = (v_of_sexp, sexp) =>
     sexp
     |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp))
-    |> List.to_seq
+    |> Stdlib.List.to_seq
     |> of_seq;
 
   let yojson_of_t = (yojson_of_v, map) =>
@@ -146,7 +146,7 @@ module Map = {
   let t_of_yojson = (v_of_yojson, json) =>
     json
     |> list_of_yojson(binding_of_yojson(v_of_yojson))
-    |> List.to_seq
+    |> Stdlib.List.to_seq
     |> of_seq;
 
   /* Outputs valid OCaml code for empty maps only.
@@ -165,15 +165,15 @@ module Map = {
     };
 };
 let invalid: t =
-  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 /* Special id used to denote a trivial (empty) function application */
 let nullary_ap_flag: t =
-  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 let is_nullary_ap_flag = (ids: list(t)) =>
   switch (ids) {
-  | [id] when id == nullary_ap_flag => true
+  | [id] when Uuidm.equal(id, nullary_ap_flag) => true
   | _ => false
   };
 
@@ -205,7 +205,7 @@ module Uf: {
     };
   let get = (id, s) => M.get(s.store, M.find(s.store, rref(id, s)));
   let get_opt = (id, s) =>
-    Map.find_opt(id, s.refs^) |> Option.map(_ => get(id, s));
+    Map.find_opt(id, s.refs^) |> Option.map(~f=_ => get(id, s));
   let set = (id, a, s) => M.set(s.store, M.find(s.store, rref(id, s)), a);
 
   let merge = (f, id, id', s) =>

@@ -22,7 +22,7 @@ open Js_of_ocaml;
 let graphemes = Unicode.to_array;
 
 let concat_array = (a: array(string)): string =>
-  a |> Array.to_list |> String.concat("");
+  a |> Array.to_list |> String.concat(~sep="");
 
 let length = Unicode.length;
 
@@ -66,7 +66,7 @@ let sub = (s: string, idx: int, len: int): option(string) => {
   if (idx < 0 || len < 0 || idx > n || len > n - idx) {
     None;
   } else {
-    Some(concat_array(Array.sub(clusters, idx, len)));
+    Some(concat_array(Array.sub(clusters, ~pos=idx, ~len)));
   };
 };
 
@@ -82,7 +82,9 @@ let map_first_grapheme = (f: string => string, s: string): string => {
   let clusters = graphemes(s);
   let n = Array.length(clusters);
   n == 0
-    ? s : f(clusters[0]) ++ concat_array(Array.sub(clusters, 1, n - 1));
+    ? s
+    : f(clusters[0])
+      ++ concat_array(Array.sub(clusters, ~pos=1, ~len=n - 1));
 };
 
 let capitalize = map_first_grapheme(uppercase);
@@ -97,20 +99,21 @@ let trim = (s: string): string => Js.to_string(Js.string(s)##trim);
    it copies non-backslash bytes through unchanged. */
 let escaped = (s: string): string => {
   let buf = Buffer.create(String.length(s));
-  String.iter(
-    c =>
-      switch (c) {
-      | '\\' => Buffer.add_string(buf, "\\\\")
-      | '"' => Buffer.add_string(buf, "\\\"")
-      | '\n' => Buffer.add_string(buf, "\\n")
-      | '\t' => Buffer.add_string(buf, "\\t")
-      | '\r' => Buffer.add_string(buf, "\\r")
-      | '\b' => Buffer.add_string(buf, "\\b")
-      | c when Char.code(c) < 0x20 || Char.code(c) == 0x7F =>
-        Buffer.add_string(buf, Printf.sprintf("\\%03d", Char.code(c)))
-      | c => Buffer.add_char(buf, c)
-      },
-    s,
+  String.iter(s, ~f=c =>
+    switch (c) {
+    | '\\' => Buffer.add_string(buf, "\\\\")
+    | '"' => Buffer.add_string(buf, "\\\"")
+    | '\n' => Buffer.add_string(buf, "\\n")
+    | '\t' => Buffer.add_string(buf, "\\t")
+    | '\r' => Buffer.add_string(buf, "\\r")
+    | '\b' => Buffer.add_string(buf, "\\b")
+    | c when Stdlib.Char.code(c) < 0x20 || Stdlib.Char.code(c) == 0x7F =>
+      Buffer.add_string(
+        buf,
+        Stdlib.Printf.sprintf("\\%03d", Stdlib.Char.code(c)),
+      )
+    | c => Buffer.add_char(buf, c)
+    }
   );
   Buffer.contents(buf);
 };
@@ -123,7 +126,8 @@ let compile = StringUtil.unicode_regexp(~global=true);
 let quote = (s: string): string => {
   let buf = Buffer.create(String.length(s));
   String.iter(
-    c => {
+    s,
+    ~f=c => {
       switch (c) {
       | '^'
       | '$'
@@ -144,7 +148,6 @@ let quote = (s: string): string => {
       };
       Buffer.add_char(buf, c);
     },
-    s,
   );
   Buffer.contents(buf);
 };
@@ -160,21 +163,21 @@ let matches = (pattern: string, s: string): bool => {
    JS's `$1`/`$&` substitutions don't leak into Hazel. */
 let replace = (pattern: string, s: string, by: string): string => {
   let re = compile(pattern);
-  let by = String.concat("$$", String.split_on_char('$', by));
+  let by = String.concat(~sep="$$", String.split(by, ~on='$'));
   Js.to_string(Js.string(s)##replace(re, Js.string(by)));
 };
 
 /* Split on a literal separator. An empty separator splits into graphemes,
    which keeps clusters intact where JS would split code units. */
 let split = (sep: string, s: string): list(string) =>
-  if (sep == "") {
+  if (String.equal(sep, "")) {
     Unicode.to_list(s);
   } else {
     Js.string(s)##split_regExp(compile(quote(sep)))
     |> Js.str_array
     |> Js.to_array
     |> Array.to_list
-    |> List.map(Js.to_string);
+    |> List.map(~f=Js.to_string);
   };
 
 /* Grapheme index of the first match at or after grapheme [start]; -1 if none. */

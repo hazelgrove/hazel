@@ -64,7 +64,7 @@ module Make = (C: Config) => {
     | None => ()
     | Some(effect) =>
       let now = Js.Unsafe.global##.performance##now();
-      if (now -. opened_at^ > 50.0) {
+      if (Float.(now -. opened_at^ > 50.0)) {
         Effect.Expert.handle(effect);
       };
     };
@@ -119,7 +119,7 @@ module Make = (C: Config) => {
         Js.wrap_callback((evt: Js.t(Dom_html.mouseEvent)) => {
           let target =
             Js.Opt.to_option(evt##.target)
-            |> Option.map(t => Js.Unsafe.coerce(t));
+            |> Option.map(~f=t => Js.Unsafe.coerce(t));
           /* Clicks inside the menu, or on an element explicitly tagged
            * as a menu trigger (the ⋮ button), are handled by the menu
            * itself — skip the close-on-outside path so the trigger can
@@ -147,7 +147,9 @@ module Make = (C: Config) => {
           Js.wrap_callback((evt: Js.t(Dom_html.keyboardEvent)) =>
             if (is_active^) {
               let key =
-                evt##.key |> Js.Optdef.to_option |> Option.map(Js.to_string);
+                evt##.key
+                |> Js.Optdef.to_option
+                |> Option.map(~f=Js.to_string);
               switch (key, on_key^) {
               | (Some(k), Some(handle)) =>
                 switch (handle(k)) {

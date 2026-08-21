@@ -62,7 +62,7 @@ module Json = {
     };
   let dot = (key: string, json: t): option(t) => {
     let* pairs = get_kvs(json);
-    List.assoc_opt(key, pairs);
+    List.Assoc.find(pairs, key, ~equal=String.equal);
   };
 
   module Parsers = {
@@ -110,14 +110,17 @@ module Json = {
     let get_string_list = (item: t, entities: string) => {
       let entities_list = get_json_list(item, entities);
       List.map(
-        (entity: t) =>
-          switch (entity) {
-          | `String(entity) => entity
-          | _ =>
-            raise(
-              Failure("Each " ++ entities ++ " in the list must be a string"),
-            )
-          },
+        ~f=
+          (entity: t) =>
+            switch (entity) {
+            | `String(entity) => entity
+            | _ =>
+              raise(
+                Failure(
+                  "Each " ++ entities ++ " in the list must be a string",
+                ),
+              )
+            },
         entities_list,
       );
     };
@@ -151,7 +154,7 @@ let request =
   let request = XmlHttpRequest.create();
   request##.onreadystatechange :=
     Js.wrap_callback(_ =>
-      if (request##.readyState == XmlHttpRequest.DONE) {
+      if (Poly.equal(request##.readyState, XmlHttpRequest.DONE)) {
         handler(receive(request));
       }
     );
@@ -162,7 +165,7 @@ let request =
     true |> Js.bool,
   );
   for (i in 0 to List.length(headers) - 1) {
-    let (key, value) = List.nth(headers, i);
+    let (key, value) = List.nth_exn(headers, i);
     request##setRequestHeader(Js.string(key), Js.string(value));
   };
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
@@ -170,19 +173,23 @@ let request =
 
 /* Parse a single SSE line */
 let parse_sse_line = (line: string): option(Json.t) => {
-  let trimmed = String.trim(line);
+  let trimmed = String.strip(line);
 
   /* Skip empty lines and comments (lines starting with ':') */
-  if (trimmed == "" || trimmed.[0] == ':') {
+  if (String.equal(trimmed, "") || Char.equal(trimmed.[0], ':')) {
     None;
-  } else if (String.starts_with(~prefix="data: ", trimmed)) {
+  } else if (String.is_prefix(trimmed, ~prefix="data: ")) {
     let data_start = 6; /* Length of "data: " */
     let data =
-      String.sub(trimmed, data_start, String.length(trimmed) - data_start);
-    let data = String.trim(data);
+      String.sub(
+        trimmed,
+        ~pos=data_start,
+        ~len=String.length(trimmed) - data_start,
+      );
+    let data = String.strip(data);
 
     /* Check for stream end */
-    if (data == "[DONE]") {
+    if (String.equal(data, "[DONE]")) {
       None;
     } else {
       try(Some(Json.from_string(data))) {
@@ -203,7 +210,7 @@ type streaming_handle = {abort: unit => unit};
    hasn't been terminated yet. The trailing fragment stays in the caller's
    leftover buffer until more data arrives. */
 let split_sse_lines = (buf: string): (list(string), string) => {
-  let lines = String.split_on_char('\n', buf);
+  let lines = String.split(buf, ~on='\n');
   switch (List.rev(lines)) {
   | [] => ([], "")
   | [last, ...rev_rest] => (List.rev(rev_rest), last)
@@ -236,17 +243,19 @@ let request_streaming =
   let aborted = ref(false);
   let feed_lines = lines =>
     List.iter(
-      line =>
-        switch (parse_sse_line(line)) {
-        | Some(json) => on_chunk(json)
-        | None => ()
-        },
+      ~f=
+        line =>
+          switch (parse_sse_line(line)) {
+          | Some(json) => on_chunk(json)
+          | None => ()
+          },
       lines,
     );
   let drain = (text: string) => {
     let total = String.length(text);
     if (total > last_offset^) {
-      let new_text = String.sub(text, last_offset^, total - last_offset^);
+      let new_text =
+        String.sub(text, ~pos=last_offset^, ~len=total - last_offset^);
       last_offset := total;
       let (complete, trailing) = split_sse_lines(leftover^ ++ new_text);
       leftover := trailing;
@@ -257,7 +266,7 @@ let request_streaming =
     if (! done_called^) {
       done_called := true;
       /* Flush any trailing fragment as a final line. */
-      if (leftover^ != "") {
+      if (!String.equal(leftover^, "")) {
         feed_lines([leftover^]);
         leftover := "";
       };
@@ -298,7 +307,7 @@ let request_streaming =
   Js.Unsafe.set(req, Js.string("onerror"), Js.wrap_callback(_ => fail()));
   req##.onreadystatechange :=
     Js.wrap_callback(_ =>
-      if (req##.readyState == XmlHttpRequest.DONE) {
+      if (Poly.equal(req##.readyState, XmlHttpRequest.DONE)) {
         if (aborted^ || status_ok()) {
           read_and_drain();
           finish();
@@ -314,8 +323,9 @@ let request_streaming =
     true |> Js.bool,
   );
   List.iter(
-    ((key, value)) =>
-      req##setRequestHeader(Js.string(key), Js.string(value)),
+    ~f=
+      ((key, value)) =>
+        req##setRequestHeader(Js.string(key), Js.string(value)),
     headers,
   );
   req##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
