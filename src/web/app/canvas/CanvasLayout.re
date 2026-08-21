@@ -640,30 +640,152 @@ let layout =
       ((-104.), 0.),
       (0., (-72.)),
       (0., 66.),
+      (52., 44.),
+      ((-52.), 44.),
+      (104., (-22.)),
+      ((-104.), (-22.)),
+      (104., 22.),
+      ((-104.), 22.),
+      (52., (-44.)),
+      ((-52.), (-44.)),
+      (0., 88.),
+      (156., 0.),
+      ((-156.), 0.),
     ];
+    /* Endo-family labels (orbits + feedback loops on one hub) stack in
+       an aligned column directly above their hub — a legend attached to
+       the cluster — instead of scattering around cramped arc geometry.
+       (Learned from andrew's manual arrangements.) Ordinary edges keep
+       on-edge labels, dodging via the candidate search. */
+    let is_loop_edge = (el: edge_layout): bool =>
+      List.mem((el.edge.e_src, el.edge.dst), loop_product_edges);
+    let hub_of = (el: edge_layout): option(string) =>
+      el.endo || is_loop_edge(el) ? Some(el.edge.dst) : None;
+    let hubs =
+      List.filter_map(hub_of, edge_layouts) |> List.sort_uniq(compare);
+    let stacked: Hashtbl.t(string, pos) = Hashtbl.create(8);
+    List.iter(
+      hub => {
+        let members =
+          edge_layouts
+          |> List.filter(el => hub_of(el) == Some(hub))
+          /* orbit labels first, then loops by their product height */
+          /* bottom-up: loop with the closest product first, orbit label
+             topmost (matches how the arcs nest visually) */
+          |> List.stable_sort((a: edge_layout, b: edge_layout) =>
+               switch (a.endo, b.endo) {
+               | (true, false) => 1
+               | (false, true) => (-1)
+               | _ => compare(b.src_p.y, a.src_p.y)
+               }
+             );
+        switch (pos_of(hub)) {
+        | None => ()
+        | Some(hp) =>
+          /* stack bottom: clear of the hub's orbit rings and the loop
+             products hanging above it */
+          let ring_top =
+            List.fold_left(
+              (acc, el: edge_layout) =>
+                el.endo && el.edge.dst == hub
+                  ? min(
+                      acc,
+                      hp.y
+                      -. (
+                        radius_of(hub)
+                        +. 16.
+                        +. float_of_int(el.orbit_rank)
+                        *. 15.
+                      ),
+                    )
+                  : el.edge.dst == hub && is_loop_edge(el)
+                      ? min(acc, el.src_p.y -. 14.) : acc,
+              hp.y -. radius_of(hub),
+              edge_layouts,
+            );
+          /* the whole stack shifts sideways if any chip would sit on a
+             node (e.g. the next column's satellite chain overhead) */
+          let ring_bottom = hp.y +. (hp.y -. ring_top) /. 1. |> (b => b +. 6.);
+          let stack_at = (~below=false, x: float): list((edge_layout, pos)) =>
+            List.mapi(
+              (i, el: edge_layout) =>
+                (
+                  el,
+                  {
+                    x,
+                    y:
+                      below
+                        ? ring_bottom +. 24. +. float_of_int(i) *. 24.
+                        : ring_top -. 12. -. float_of_int(i) *. 24.,
+                  },
+                ),
+              members,
+            );
+          let clean = (ps: list((edge_layout, pos))): bool =>
+            List.for_all(
+              ((el: edge_layout, p: pos)) =>
+                !label_hits_node(p, label_half(el))
+                && !label_hits_ring(p, label_half(el)),
+              ps,
+            );
+          let placement = {
+            let cands = [
+              stack_at(hp.x),
+              stack_at(hp.x -. 52.),
+              stack_at(hp.x +. 52.),
+              stack_at(~below=true, hp.x),
+              stack_at(~below=true, hp.x -. 52.),
+              stack_at(~below=true, hp.x +. 52.),
+              stack_at(hp.x -. 96.),
+            ];
+            switch (List.find_opt(clean, cands)) {
+            | Some(ps) => ps
+            | None => stack_at(hp.x)
+            };
+          };
+          List.iter(
+            ((el: edge_layout, p: pos)) => {
+              Hashtbl.replace(stacked, el.edge.e_name, p);
+              placed_labels := [(p, label_half(el)), ...placed_labels^];
+            },
+            placement,
+          );
+        };
+      },
+      hubs,
+    );
     List.map(
       (el: edge_layout) => {
-        let w = label_half(el);
-        let ok = (p: pos): bool =>
-          !label_hits_label(p, w)
-          && !label_hits_node(p, w)
-          && !label_hits_ring(p, w);
-        let rec pick = (cs: list((float, float))): pos =>
-          switch (cs) {
-          | [] => el.label_p
-          | [(dx, dy), ...rest] =>
-            let p = {
-              x: el.label_p.x +. dx,
-              y: el.label_p.y +. dy,
+        switch (Hashtbl.find_opt(stacked, el.edge.e_name)) {
+        | Some(p) => {
+            ...el,
+            label_p: p,
+            /* the stack is contextually attached: no leader line */
+            label_anchor: p,
+          }
+        | None =>
+          let w = label_half(el);
+          let ok = (p: pos): bool =>
+            !label_hits_label(p, w)
+            && !label_hits_node(p, w)
+            && !label_hits_ring(p, w);
+          let rec pick = (cs: list((float, float))): pos =>
+            switch (cs) {
+            | [] => el.label_p
+            | [(dx, dy), ...rest] =>
+              let p = {
+                x: el.label_p.x +. dx,
+                y: el.label_p.y +. dy,
+              };
+              ok(p) ? p : pick(rest);
             };
-            ok(p) ? p : pick(rest);
+          let p = pick(candidates);
+          placed_labels := [(p, w), ...placed_labels^];
+          {
+            ...el,
+            label_p: p,
           };
-        let p = pick(candidates);
-        placed_labels := [(p, w), ...placed_labels^];
-        {
-          ...el,
-          label_p: p,
-        };
+        }
       },
       edge_layouts,
     );
