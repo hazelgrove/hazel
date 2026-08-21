@@ -73,6 +73,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Assume(_) => "assume"
     | Generalize(_) => "generalize"
     | Revert(_) => "revert"
+    | Contradiction(_) => "contradiction"
     | Induction(_) => "induction"
     | AxiomStep(_) => "axiom"
     | AlgebriteStep(_) => "rewrite"
@@ -606,10 +607,17 @@ let progress_src =
     ++ "end "
     ++ "| true => induction x0 "
     /* Vacuous by canonical forms -- is_value(x0) == true and
-     * x0 == TmVar(m0) are contradictory. Phase 4c closes it by ex falso:
-     * `revert` the value-ness fact into the goal, rewrite `x0` there by
-     * the split's case_eq, and let evaluation falsify the antecedent. */
-    ++ "| TmVar(m0) => revert is_value(x0) == true => axiom case_eq'''''' at 0 on x0 end; eval is_value(TmVar(m0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmVar(m0), y0)) || is_some_tm(step(TmAp(TmVar(m0), y0)))) at 0 end "
+     * x0 == TmVar(m0) are contradictory. Phase 4e closes it in ONE
+     * step: `contradiction` cites the value-ness fact and the `with`
+     * clause names the ONE rewrite that falsifies it -- the split's own
+     * case_eq, `x0 == TmVar(m0)`, which the checker verifies is in scope
+     * before substituting. That yields `is_value(TmVar(m0)) == true`,
+     * which evaluates to `false`, so the branch is vacuous and any goal
+     * is discharged. Nothing is harvested: the rewrite is written here
+     * (docs/prover-obligations.md, Phase 4e). The TmAp leaf below keeps
+     * the Phase-4c manual revert-dance, as a regression that the old
+     * idiom still works. */
+    ++ "| TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end "
     ++ "| TmLam(w0, q0) => eval is_value(TmAp(TmLam(w0, q0), y0)) at 0 end; "
     ++ "eval false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) at 0 end; "
     ++ "induction is_value(y0) "

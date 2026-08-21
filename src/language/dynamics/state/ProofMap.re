@@ -20,6 +20,10 @@ type entry = {
   auto_incoming: list((string, Exp.t)),
   auto_outgoing: list((Exp.t, string)),
   outgoing: option(Exp.t),
+  /* Receipt for a `contradiction` step: the variable equations the
+   * checker substituted into the cited fact before evaluating it, in the
+   * order applied. Empty for every other step. */
+  substitutions: list((string, Exp.t)),
   marks: list(ProofMark.t),
   /* Obligations incurred by this step (e.g. an `assume`'s hypothesis),
    * with their discharge provenance. Empty for most steps. */
@@ -67,6 +71,7 @@ let add_marks = (id: Id.t, new_marks: list(ProofMark.t), pm: t): t =>
         auto_incoming: [],
         auto_outgoing: [],
         outgoing: None,
+        substitutions: [],
         marks: new_marks,
         obligations: [],
       },
@@ -110,6 +115,7 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | Assume(_, body)
     | Generalize(_, body)
     | Revert(_, _, body) => proof_is_clean(pm, body)
+    | Contradiction(_) => true
     | Induction(_, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -163,6 +169,7 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Assume(_, body)
     | Generalize(_, body)
     | Revert(_, _, body) => obligations_of_proof(pm, body)
+    | Contradiction(_) => []
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
@@ -186,6 +193,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | Assume(_, body)
     | Generalize(_, body)
     | Revert(_, _, body) => rep_ids_of_proof(body)
+    | Contradiction(_) => []
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }

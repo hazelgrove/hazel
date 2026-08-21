@@ -1133,6 +1133,12 @@ and parenthesize_proof =
       with_exp: go_exp(with_exp),
     })
     |> rewrap
+  | Contradiction(e, inst) =>
+    Contradiction(
+      go_exp(e),
+      Option.map(((v, i)) => (go_exp(v), go_exp(i)), inst),
+    )
+    |> rewrap
   | EvalStep({at_idx, at_exp}) =>
     EvalStep({
       at_idx: go_exp(at_idx),
@@ -3553,6 +3559,14 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ we = exp_to_pretty(~settings, with_exp)
     and+ i = exp_to_pretty(~settings, at_idx);
     wrap(p, [mk_form(ProofAlgebrite, id, [ae, we, i])]);
+  | Contradiction(e, None) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap(p, [mk_form(ProofContradiction, id, [e])]);
+  | Contradiction(e, Some((v, inst))) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ v = exp_to_pretty(~settings, v)
+    and+ inst = exp_to_pretty(~settings, inst);
+    wrap(p, [mk_form(ProofContradictionWith, id, [e, v, inst])]);
   | EvalStep({at_idx, at_exp}) =>
     let+ ae = exp_to_pretty(~settings, at_exp)
     and+ i = exp_to_pretty(~settings, at_idx);

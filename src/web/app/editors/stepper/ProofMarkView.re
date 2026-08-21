@@ -118,6 +118,15 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text("The split scrutinee may not terminate."),
     ]
   | UnknownFactReverted => [text("No fact in scope matches this `revert`.")]
+  | UnknownFactContradicted => [
+      text("No fact in scope matches this `contradiction`."),
+    ]
+  | ContradictionNotFalse => [
+      text("This fact does not compute to `false` under this rewrite."),
+    ]
+  | ContradictionSubstitutionUnverified({var}) => [
+      text("No fact in scope is an equation on `" ++ var ++ "`."),
+    ]
   | UnknownInstantiationVar({equality, var}) => [
       text("`" ++ var ++ "` is not a binder of `" ++ equality ++ "`."),
     ]

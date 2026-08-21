@@ -30,6 +30,8 @@ and step_kind_model =
   | AxiomStep(AxiomStep.model'(next_step))
   | AlgebriteStep(AlgebriteStep.model'(next_step))
   | EvalStep(EvalStep.model'(next_step))
+  /* `contradiction` is terminal, like EvalStep: no nested stepper. */
+  | ContradictionStep(ContradictionStep.model'(next_step))
   /* The wrapping proof forms (`assume` / `revert` / `generalize`): like
    * ForallStep they own a body proof, so their models embed a nested
    * stepper. */
@@ -160,6 +162,7 @@ type step_kind_action =
   | AxiomStep(AxiomStep.action'(step_action))
   | AlgebriteStep(AlgebriteStep.action'(step_action))
   | EvalStep(EvalStep.action'(step_action))
+  | ContradictionStep(ContradictionStep.action'(step_action))
   | AssumeStep(AssumeStep.action'(step_action))
   | RevertStep(RevertStep.action'(step_action))
   | GeneralizeStep(GeneralizeStep.action'(step_action))
@@ -177,6 +180,7 @@ type step_kind_focus =
   | AxiomStep(AxiomStep.focus'(step_focus))
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
   | EvalStep(EvalStep.focus'(step_focus))
+  | ContradictionStep(ContradictionStep.focus'(step_focus))
   | AssumeStep(AssumeStep.focus'(step_focus))
   | RevertStep(RevertStep.focus'(step_focus))
   | GeneralizeStep(GeneralizeStep.focus'(step_focus))
@@ -206,6 +210,7 @@ module rec StepKind:
   module AxiomStep = AxiomStep.F(Stepper);
   module AlgebriteStep = AlgebriteStep.F(Stepper);
   module EvalStep = EvalStep.F(Stepper);
+  module ContradictionStep = ContradictionStep.F(Stepper);
   module AssumeStep = AssumeStep.F(Stepper);
   module RevertStep = RevertStep.F(Stepper);
   module GeneralizeStep = GeneralizeStep.F(Stepper);
@@ -235,6 +240,9 @@ module rec StepKind:
       | (EvalStep(a), EvalStep(m)) =>
         let* s = EvalStep.update(~settings, a, m);
         (EvalStep(s): model);
+      | (ContradictionStep(a), ContradictionStep(m)) =>
+        let* s = ContradictionStep.update(~settings, a, m);
+        (ContradictionStep(s): model);
       | (AssumeStep(a), AssumeStep(m)) =>
         let* s = AssumeStep.update(~settings, a, m);
         (AssumeStep(s): model);
@@ -247,6 +255,7 @@ module rec StepKind:
       | (
           InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
           EvalStep(_) |
+          ContradictionStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
           GeneralizeStep(_),
@@ -264,6 +273,7 @@ module rec StepKind:
     | AxiomStep(action) => AxiomStep.can_undo(action)
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
     | EvalStep(action) => EvalStep.can_undo(action)
+    | ContradictionStep(action) => ContradictionStep.can_undo(action)
     | AssumeStep(action) => AssumeStep.can_undo(action)
     | RevertStep(action) => RevertStep.can_undo(action)
     | GeneralizeStep(action) => GeneralizeStep.can_undo(action)
@@ -316,6 +326,9 @@ module rec StepKind:
     | EvalStep(m) =>
       let+ m = calculate_with(EvalStep.calculate, m);
       (EvalStep(m): model);
+    | ContradictionStep(m) =>
+      let+ m = calculate_with(ContradictionStep.calculate, m);
+      (ContradictionStep(m): model);
     | AssumeStep(m) =>
       let+ m = calculate_with(AssumeStep.calculate, m);
       (AssumeStep(m): model);
@@ -371,6 +384,14 @@ module rec StepKind:
             m,
           );
         (EvalStep(focus_info): action);
+      | (ContradictionStep(focus), ContradictionStep(m)) =>
+        let+ focus_info =
+          ContradictionStep.get_cursor_info(
+            ~inject=x => inject(ContradictionStep(x): action),
+            ~focus,
+            m,
+          );
+        (ContradictionStep(focus_info): action);
       | (AssumeStep(focus), AssumeStep(m)) =>
         let+ focus_info =
           AssumeStep.get_cursor_info(
@@ -398,6 +419,7 @@ module rec StepKind:
       | (
           InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
           EvalStep(_) |
+          ContradictionStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
           GeneralizeStep(_),
@@ -503,6 +525,24 @@ module rec StepKind:
           },
         ~inject=x => inject(EvalStep(x)),
         ~take_focus=x => take_focus(EvalStep(x)),
+        m,
+      )
+    | ContradictionStep(m) =>
+      ContradictionStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(ContradictionStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(ContradictionStep(x)),
+        ~take_focus=x => take_focus(ContradictionStep(x)),
         m,
       )
     | AssumeStep(m) =>
@@ -651,6 +691,24 @@ module rec StepKind:
         ~inject=x => inject(EvalStep(x)),
         ~take_focus=x => take_focus(EvalStep(x)),
         ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
+    | ContradictionStep(m) =>
+      ContradictionStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(ContradictionStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(ContradictionStep(x)),
+        ~take_focus=x => take_focus(ContradictionStep(x)),
+        ~hide_stepper,
+        ~undo,
         ~is_toplevel,
         ~proof,
         ~edit_syntax,
@@ -862,6 +920,7 @@ and Stepper: {
     | AxiomStep(_)
     | AlgebriteStep(_)
     | EvalStep(_)
+    | Contradiction(_)
     | Forall(_, _)
     | Induction(_, _)
     | Assume(_, _)
@@ -896,6 +955,7 @@ and Stepper: {
         }),
       )
     | EvalStep(_) => Some(EvalStep())
+    | Contradiction(_) => Some(ContradictionStep())
     | Forall(_, _) => Some(ForallStep(ForallStep.init(init_step)))
     | Induction(scrut, _) =>
       /* Seed the scrutinee editor from the proof's scrutinee (freshening
@@ -931,6 +991,7 @@ and Stepper: {
     | (AxiomStep(_), AxiomStep(_))
     | (AlgebriteStep(_), AlgebriteStep(_))
     | (EvalStep(_), EvalStep(_))
+    | (Contradiction(_), ContradictionStep(_))
     | (Forall(_, _), ForallStep(_))
     | (Induction(_, _), InductionStep(_))
     | (Assume(_, _), AssumeStep(_))
@@ -1392,6 +1453,15 @@ and Stepper: {
       at_exp: at_exp |> embed_exp,
     });
 
+  /* `contradiction <exp> end`: terminal, so unlike the wrapping forms it
+   * takes no body — it closes the goal here (Phase 4e). The button flow
+   * inserts the PLAIN form: the step no longer harvests equations, so if
+   * the cited fact needs rewriting the user adds a
+   * `with <var> = <exp>` clause to the inserted text themselves
+   * (docs/prover-obligations.md, Phase 4e). */
+  let contradiction_term = (~exp: Exp.t): TermBase.Proof.term =>
+    Contradiction(exp |> embed_exp, None);
+
   let induction_term = (~scrut: option(Exp.t)): TermBase.Proof.term =>
     Induction(
       scrut
@@ -1619,6 +1689,7 @@ and Stepper: {
         ~arg_focus=GeneralizeStep(Arg()),
         generalize_term(~exp),
       )
+    | AddContradiction(exp) => emit(contradiction_term(~exp))
     | TakeStep(idx) =>
       switch (List.nth_opt(available_steps, idx)) {
       | Some(step) =>

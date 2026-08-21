@@ -185,13 +185,14 @@ let upgrade_forall_where = (z: t): t => {
 };
 
 /* Phase-4d `with` clauses on citation steps: `axiom`/`axiomrev`/`revert`
- * each have a with-variant form sharing their leading token, so — exactly
- * as for ForallWhere above — the expansion machinery resolves the leading
- * token in favor of the plain label and the "with" token must upgrade the
- * tile after the fact. The scan stops at the FIRST incomplete tile to the
- * left: `rewrite <e> with ...` (ProofAlgebrite) legitimately awaits its
- * own "with", and must not be skipped past in search of an outer
- * citation. */
+ * — and, from Phase 4e's explicit-substitution rework, `contradiction`
+ * — each have a with-variant form sharing their leading token, so —
+ * exactly as for ForallWhere above — the expansion machinery resolves
+ * the leading token in favor of the plain label and the "with" token
+ * must upgrade the tile after the fact. The scan stops at the FIRST
+ * incomplete tile to the left: `rewrite <e> with ...` (ProofAlgebrite)
+ * legitimately awaits its own "with", and must not be skipped past in
+ * search of an outer citation. */
 let upgrade_with_clause = (z: t): t => {
   let (pre, suf) = z.relatives.siblings;
   let upgraded = (tile: Tile.t, label: Label.t) => {
@@ -212,6 +213,8 @@ let upgrade_with_clause = (z: t): t => {
         Some([upgraded(t, label), ...rest]);
       | (["revert", "=>"], [0]) =>
         Some([upgraded(t, ["revert", "with", "=", "=>"]), ...rest])
+      | (["contradiction", "end"], [0]) =>
+        Some([upgraded(t, ["contradiction", "with", "=", "end"]), ...rest])
       | _ when !Tile.is_complete(t) =>
         /* An unrelated incomplete tile (e.g. a `rewrite` awaiting its
          * own "with"): this token belongs to it, not to us. */

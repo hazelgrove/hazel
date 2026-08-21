@@ -34,6 +34,7 @@ let entry =
       ~auto_incoming: list((string, Exp.t))=[],
       ~auto_outgoing: list((Exp.t, string))=[],
       ~outgoing: option(Exp.t),
+      ~substitutions: list((string, Exp.t))=[],
       ~marks: list(ProofMark.t)=[],
       ~obligations: list(Obligation.t)=[],
       (),
@@ -43,6 +44,7 @@ let entry =
   auto_incoming,
   auto_outgoing,
   outgoing,
+  substitutions,
   marks,
   obligations,
 };
@@ -53,6 +55,7 @@ let record =
       ~marks: list(ProofMark.t)=[],
       ~auto_incoming: list((string, Exp.t))=[],
       ~auto_outgoing: list((Exp.t, string))=[],
+      ~substitutions: list((string, Exp.t))=[],
       ~obligations: list(Obligation.t)=[],
       id: Id.t,
       incoming,
@@ -67,6 +70,7 @@ let record =
       ~auto_incoming,
       ~auto_outgoing,
       ~outgoing,
+      ~substitutions,
       ~marks,
       ~obligations,
       (),
@@ -576,14 +580,16 @@ let closed_eval_fuel = 1000;
 /* Closedness via the co-context machinery (cf. `ProofRule.occurs_free_any`):
  * run statics on the goal against an empty ctx; an empty co-context
  * means no free variable occurrences. */
-let is_closed = (goal: Exp.t): bool => {
+let co_ctx_of_closed_run = (goal: Exp.t): CoCtx.t => {
   let (statics, _) =
     Statics.mk(~ana=Typ.temp(Atom(Bool)), CoreSettings.on, Ctx.empty, goal);
   switch (Statics.Map.lookup_exp(Exp.rep_id(goal), statics)) {
-  | Some(info) => Info.exp_co_ctx(info) == []
-  | None => false
+  | Some(info) => Info.exp_co_ctx(info)
+  | None => CoCtx.empty
   };
 };
+
+let is_closed = (goal: Exp.t): bool => co_ctx_of_closed_run(goal) == [];
 
 let rec eval_via_step = (~step: step_fn, ~env, ~fuel: int, e: Exp.t): Exp.t =>
   if (fuel <= 0) {
@@ -616,6 +622,111 @@ let discharge_goal =
     } else {
       Obligation.Pending;
     }
+  };
+
+/* --- `contradiction`: ex falso as a primitive (Phase 4e) -------------
+ *
+ * `contradiction F end` / `contradiction F with x = e end` closes ANY
+ * goal by exhibiting that the in-scope fact `F` is false under the rest
+ * of the scope's knowledge.
+ *
+ * SOUNDNESS. `F` being in scope means `F` denotes `true` in this
+ * branch's semantics. If `F`, rewritten by an equation the branch also
+ * knows, denotes `false`, then the branch's hypotheses are jointly
+ * unsatisfiable and the branch is vacuous — so concluding `true` is the
+ * Kleene reading of ex falso quodlibet (§1.3). This is EXACTLY what the
+ * manual revert-dance already licenses (`revert F => ...rewrite...;
+ * eval false ==> G at 0 end`); the primitive just does it in one step.
+ *
+ * WHAT IS TRUSTED. Only two things, both already trusted elsewhere:
+ *   1. the step's explicit `with` rewrite, which the user WRITES and the
+ *      checker only verifies against an in-scope equation (see
+ *      `contradiction_substitution` below) — no search, no solver; and
+ *   2. `eval_via_step`, i.e. the injected dynamics single-step run to a
+ *      fixpoint under the same fuel bound as discharge channel 2. Each
+ *      such step is denotation-preserving for EVERY assignment of the
+ *      free variables (that is why `eval` steps are the one free step,
+ *      §5), so reaching the literal `false` in finitely many steps means
+ *      `F` denotes `false` here. Nothing new to gate.
+ *
+ * The soundness argument is UNCHANGED by the 2026-08-21 explicitness
+ * rework: substituting `e` for `x` under a known `x == e` is
+ * denotation-preserving here whether the checker found that equation or
+ * the user named it. What changed is only WHO chooses the rewrite.
+ *
+ * NOTE on openness: unlike channel 2, the term is NOT required to be
+ * closed. Channel 2 concludes a positive fact (`the obligation holds`)
+ * and keeps closedness as its human-first boundary; here the conclusion
+ * rides entirely on the eval steps' denotation-preservation, which does
+ * not need closedness. The load-bearing metatheory case is open:
+ * `is_value(TmVar(m0)) == true` falsifies for every `m0` because the
+ * match only inspects the constructor. An open term that gets STUCK
+ * instead simply fails to reach `false` and is marked (below).
+ */
+
+/* The step's ONE trusted rewrite: the user's explicit
+ * `with <var> = <exp>` clause, VERIFIED against the facts in scope.
+ *
+ * Rework of 2026-08-21 (user decision): the step used to HARVEST every
+ * in-scope variable equation and substitute to a fixpoint. That is
+ * invisible search-like behavior in a human-first calculus — "automation
+ * may propose; only visible steps dispose" (docs/prover-obligations.md
+ * §4.3) — so the search is gone. Nothing is discovered: the user names
+ * the rewrite, and the checker's only job is to confirm the branch
+ * already knows it.
+ *
+ * The check is EXACTLY the lookup the harvest used to read equations out
+ * of: `<var> == <exp>` (or `<exp> == <var>`, since `==` is symmetric)
+ * must `Exp.fast_equal` an in-scope fact — a hypothesis whose ctx entry
+ * is typed `ProofOf(_)`, which is what a split's `case_eq`, an `assume`
+ * and an installed IH all are. Both sides are env-substituted first, to
+ * bring the user's vocabulary into the same inlined form the stored
+ * facts have (the spelled-out path of `cited_fact` below).
+ *
+ * `<var>` must be a bare variable, since that is what a substitution can
+ * act on. Anything unverifiable — no such equation, or a non-variable
+ * left side — is refused with `ContradictionSubstitutionUnverified`
+ * rather than trusted.
+ *
+ * There is no fixpoint, no occurs check and no round bound: one binding
+ * is applied once. Nor is the cited fact excluded from its own licensing
+ * equation any more — `contradiction n == 1 with n = 1 end` may rewrite
+ * the fact with itself, but that only ever lands on a tautology
+ * (`1 == 1`), which fails the `false` test below. The old exclusion rule
+ * existed to stop the harvest laundering an equation into `e == e`; with
+ * the user naming the rewrite there is nothing to launder.
+ *
+ * Returns the rewritten fact and the receipt (the binding actually
+ * applied, empty for the plain no-clause form). */
+let contradiction_substitution =
+    (
+      ~env: Environment.t(Exp.t),
+      ~ctx: SemanticCtx.t,
+      ~instantiation: option((Exp.t, Exp.t)),
+      fact: Exp.t,
+    )
+    : result((Exp.t, list((Var.t, Exp.t))), ProofMark.t) =>
+  switch (instantiation) {
+  | None => Ok((fact, []))
+  | Some((var, inst)) =>
+    let var_sub = var |> Substitution.in_exp(env);
+    let inst_sub = inst |> Substitution.in_exp(env);
+    let equation = (l, r) => Exp.temp(BinOp(Poly(Equals), l, r));
+    let licensed =
+      Option.is_some(lookup_fact(ctx, equation(var_sub, inst_sub)))
+      || Option.is_some(lookup_fact(ctx, equation(inst_sub, var_sub)));
+    switch (unwrap_head(var_sub) |> Exp.term_of) {
+    | Var(x) when licensed =>
+      let rewritten =
+        fact
+        |> Substitution.in_exp(
+             Environment.extend(Environment.empty, (x, inst_sub)),
+           );
+      Ok((rewritten, [(x, inst_sub)]));
+    | Var(x) =>
+      Error(ProofMark.ContradictionSubstitutionUnverified({var: x}))
+    | _ => Error(ProofMark.ContradictionSubstitutionUnverified({var: "?"}))
+    };
   };
 
 /* Build the obligation record for one incurred condition at step `id`,
@@ -866,6 +977,35 @@ let result_to_outgoing =
 /* Core walk: threads `incoming` through the proof tree, producing
  * the outgoing expression (if propagation holds) and a proof map
  * populated at every proof sub-term id. */
+/* Resolve the expression a `revert` / `contradiction` cites to the
+ * proposition to look up.
+ *
+ * A bare hypothesis NAME is read straight out of the environment, where
+ * facts live as `ProofObject(fact)` — so `revert ih` names the same
+ * thing `axiom ih` does. This deliberately does NOT go through
+ * `Substitution.in_exp`: installed facts are ALREADY env-substituted
+ * (Phase 4b), and substituting one a second time alpha-renames the
+ * binders inside its inlined closures (`Environment.free_name` in
+ * `Substitution.in_pat`), after which it no longer `fast_equal`s the
+ * fact as stored — every by-name citation would miss.
+ *
+ * A spelled-out proposition is substituted: it is written in the user's
+ * vocabulary and has to be brought into the same inlined form as the
+ * stored facts. */
+let cited_fact = (~env: Environment.t(Exp.t), e: Exp.t): Exp.t =>
+  switch (exp_to_equality_name(e)) {
+  | Some(name) =>
+    switch (Environment.lookup(env, name)) {
+    | Some(v) =>
+      switch (Exp.term_of(v)) {
+      | Grammar.ProofObject(inner) => inner
+      | _ => e |> Substitution.in_exp(env)
+      }
+    | None => e |> Substitution.in_exp(env)
+    }
+  | None => e |> Substitution.in_exp(env)
+  };
+
 let rec check =
         (
           ~step: step_fn=no_step,
@@ -1322,32 +1462,9 @@ let rec check =
      * No match is recovery, not refusal — mark and pass the goal
      * through. */
     let env_of_ctx = SemanticCtx.get_env(ctx);
-    /* Resolve the argument to the proposition to look up. A bare
-     * hypothesis NAME is read straight out of the environment, where
-     * facts live as `ProofObject(fact)` — so `revert ih` names the same
-     * thing `axiom ih` does. This deliberately does NOT go through
-     * `Substitution.in_exp`: installed facts are ALREADY env-substituted
-     * (Phase 4b), and substituting one a second time alpha-renames the
-     * binders inside its inlined closures (`Environment.free_name` in
-     * `Substitution.in_pat`), after which it no longer `fast_equal`s the
-     * fact as stored — every by-name citation would miss.
-     *
-     * A spelled-out proposition is substituted as before: it is written
-     * in the user's vocabulary and has to be brought into the same
-     * inlined form as the stored facts. */
-    let fact =
-      switch (exp_to_equality_name(e)) {
-      | Some(name) =>
-        switch (Environment.lookup(env_of_ctx, name)) {
-        | Some(v) =>
-          switch (Exp.term_of(v)) {
-          | Grammar.ProofObject(inner) => inner
-          | _ => e |> Substitution.in_exp(env_of_ctx)
-          }
-        | None => e |> Substitution.in_exp(env_of_ctx)
-        }
-      | None => e |> Substitution.in_exp(env_of_ctx)
-      };
+    /* Resolve the argument to the proposition to look up (see
+     * `cited_fact`, shared with the `contradiction` step). */
+    let fact = cited_fact(~env=env_of_ctx, e);
     switch (incoming) {
     | None =>
       let (_, m) = check(~step, ~info_map, ~ctx, None, body);
@@ -1440,6 +1557,96 @@ let rec check =
             };
           (outgoing, record(~obligations, id, incoming, outgoing, m));
         };
+      }
+    };
+  | Contradiction(e, instantiation) =>
+    /* `contradiction F end` / `contradiction F with x = e end` — ex falso
+     * quodlibet as one terminal step (docs/prover-obligations.md,
+     * Phase 4e). See the block comments above for the soundness argument
+     * and for what the `with` clause is; the three steps here are:
+     *
+     *   1. resolve `F` against the in-scope facts EXACTLY as `revert`
+     *      does (by name out of the env, or env-substituted and matched
+     *      with the channel-1 `Exp.fast_equal` lookup). No match is
+     *      recovery, not refusal: mark and pass the goal through.
+     *   2. apply the step's own explicit substitution — nothing else, no
+     *      harvesting (see `contradiction_substitution`; an unverifiable
+     *      binding marks and passes through) — then run the injected
+     *      `step_fn` to a fixpoint under the channel-2 fuel bound.
+     *   3. literal `false` ⇒ the branch is vacuous, so the outgoing goal
+     *      is the literal `true` and NO obligation is incurred. Anything
+     *      else (`true`, stuck, still open, out of fuel) marks and passes
+     *      the goal through.
+     *
+     * The applied binding is stashed in the ProofMap entry's
+     * `substitutions` field: with the rework it is exactly what the user
+     * wrote, which is a better receipt than a derived set. */
+    let env_of_ctx = SemanticCtx.get_env(ctx);
+    let fact = cited_fact(~env=env_of_ctx, e);
+    switch (incoming) {
+    | None => (
+        None,
+        record(
+          ~marks=[ProofMark.MissingIncoming],
+          id,
+          None,
+          None,
+          ProofMap.empty,
+        ),
+      )
+    | Some(_) =>
+      switch (lookup_fact(ctx, fact)) {
+      | None => (
+          incoming,
+          record(
+            ~marks=[ProofMark.UnknownFactContradicted],
+            id,
+            incoming,
+            incoming,
+            ProofMap.empty,
+          ),
+        )
+      | Some(_fact_id) =>
+        switch (
+          contradiction_substitution(
+            ~env=env_of_ctx,
+            ~ctx,
+            ~instantiation,
+            fact,
+          )
+        ) {
+        | Error(mark) => (
+            incoming,
+            record(~marks=[mark], id, incoming, incoming, ProofMap.empty),
+          )
+        | Ok((substituted, substitutions)) =>
+          let computed =
+            eval_via_step(
+              ~step,
+              ~env=env_of_ctx,
+              ~fuel=closed_eval_fuel,
+              substituted,
+            );
+          if (Exp.fast_equal(computed, Exp.temp(Atom(Bool(false))))) {
+            let outgoing = Some(Exp.fresh(Atom(Bool(true))));
+            (
+              outgoing,
+              record(~substitutions, id, incoming, outgoing, ProofMap.empty),
+            );
+          } else {
+            (
+              incoming,
+              record(
+                ~substitutions,
+                ~marks=[ProofMark.ContradictionNotFalse],
+                id,
+                incoming,
+                incoming,
+                ProofMap.empty,
+              ),
+            );
+          };
+        }
       }
     };
   | Induction(scrut, cases) =>

@@ -228,6 +228,22 @@ and proof_term('a) =
    * 4d: when present, the in-scope fact must be quantified and the
    * antecedent cashed into the goal is the fact INSTANTIATED at `exp`. */
   | Revert(exp_t('a), option((exp_t('a), exp_t('a))), proof_t('a))
+  /* `contradiction <exp> end`: ex falso quodlibet as a syntax-level
+   * primitive. TERMINAL (no body, like the axiom/eval steps): it closes
+   * ANY goal by exhibiting that the in-scope fact named by `<exp>` is
+   * FALSE under the rest of the scope's knowledge, so the branch is
+   * vacuous. Outgoing is the literal `true`
+   * (docs/prover-obligations.md, Phase 4e).
+   *
+   * The optional `(var, exp)` is the Phase-4d `with <var> = <exp>`
+   * clause, reused here with a different reading than on axiom/revert:
+   * it is an EXPLICIT REWRITE of the cited fact, licensed by the
+   * in-scope equation `var == exp`. The checker verifies that equation
+   * is really in scope and substitutes exactly this one binding —
+   * nothing is harvested (user decision 2026-08-21; see
+   * docs/prover-obligations.md, Phase 4e). v1 takes one binding per
+   * step, as on the other with-forms. */
+  | Contradiction(exp_t('a), option((exp_t('a), exp_t('a))))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -475,6 +491,15 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
               inst,
             ),
             map_proof_annotation(f, body),
+          )
+        | Contradiction(e, inst) =>
+          Contradiction(
+            map_exp_annotation(f, e),
+            Option.map(
+              ((v, i)) =>
+                (map_exp_annotation(f, v), map_exp_annotation(f, i)),
+              inst,
+            ),
           )
         },
       annotation: new_annotation,
@@ -1367,6 +1392,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let revert =
         (~ann=?, ~instantiation=None, e, body): proof_t(DefaultAnnotation.t) => {
       term: Revert(e, instantiation, body),
+      annotation: default_annotation(ann),
+    };
+    let contradiction =
+        (~ann=?, ~instantiation=None, e): proof_t(DefaultAnnotation.t) => {
+      term: Contradiction(e, instantiation),
       annotation: default_annotation(ann),
     };
   };

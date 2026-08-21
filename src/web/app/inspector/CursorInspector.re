@@ -1106,6 +1106,7 @@ let proof_view = (~globals, ~proof_map: ProofMap.t, info: Info.proof) => {
       auto_incoming: _,
       auto_outgoing: _,
       outgoing,
+      substitutions: _,
       marks,
       obligations: _,
     }) =>

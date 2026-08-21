@@ -151,6 +151,7 @@ rule token =
     | "assume" {ASSUME}
     | "generalize" {GENERALIZE}
     | "revert" {REVERT}
+    | "contradiction" {CONTRADICTION}
     | "induction" {INDUCTION}
     | "axiomrev" {AXIOM_REV}
     | "axiom" {AXIOM}

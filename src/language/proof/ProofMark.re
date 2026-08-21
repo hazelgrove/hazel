@@ -84,6 +84,26 @@ type t =
    * Grouped with the other proof-form marks: less urgent than a broken
    * axiom citation, more urgent than the structural induction marks. */
   | UnknownFactReverted
+  /* Contradiction: no in-scope fact matches the cited expression, so
+     there is nothing to falsify. Same recovery (mark + pass the goal
+     through) and same priority band as `UnknownFactReverted` — both are
+     "you named something that isn't here" (Phase 4e). */
+  | UnknownFactContradicted
+  /* Contradiction: the fact was found, but after applying the step's
+     own `with <var> = <exp>` rewrite (if any) it did not evaluate to the
+     literal `false` — it computed to `true`, got stuck (typically
+     because it is still open), or ran out of fuel. Nothing is concluded;
+     the goal passes through (Phase 4e). */
+  | ContradictionNotFalse
+  /* Contradiction: a `with <var> = <exp>` clause was supplied, but the
+     equation licensing it (`<var> == <exp>`, either orientation) is not
+     an in-scope fact — or `<var>` is not a bare variable at all. The
+     step substitutes only what the branch already knows, so an
+     unverifiable rewrite is refused rather than trusted: mark and pass
+     the goal through. `var` is the offending name, "?" for a
+     non-variable slot (Phase 4e; the explicit-substitution rework,
+     user decision 2026-08-21). */
+  | ContradictionSubstitutionUnverified({var: string})
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
   /* Induction/split: a COMPUTED scrutinee (bool split) could not be

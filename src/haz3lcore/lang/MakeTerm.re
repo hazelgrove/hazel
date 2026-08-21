@@ -1908,6 +1908,16 @@ and proof_term: unsorted => TermBase.Proof.term = {
             at_idx,
           }),
         )
+      | (["contradiction", "end"], [Exp(e)]) =>
+        ret(Contradiction(e, None))
+      /* `contradiction <fact> with <var> = <exp> end`: one explicit
+       * rewrite of the cited fact (docs/prover-obligations.md,
+       * Phase 4e). */
+      | (
+          ["contradiction", "with", "=", "end"],
+          [Exp(e), Exp(var), Exp(inst)],
+        ) =>
+        ret(Contradiction(e, Some((var, inst))))
       | (["eval", "at", "end"], [Exp(at_exp), Exp(at_idx)]) =>
         ret(
           EvalStep({

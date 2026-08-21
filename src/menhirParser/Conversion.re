@@ -671,6 +671,12 @@ and Proof: {
         ~at_exp=Exp.of_menhir_ast(at_exp),
         (),
       )
+    | ProofContradiction(e) => contradiction(Exp.of_menhir_ast(e))
+    | ProofContradictionWith(e, v, i) =>
+      contradiction(
+        ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
+        Exp.of_menhir_ast(e),
+      )
     | ProofInduction(scrut, cases) =>
       induction(
         Exp.of_menhir_ast(scrut),
@@ -726,6 +732,13 @@ and Proof: {
       )
     | EvalStep({at_idx, at_exp}) =>
       ProofEval(Exp.of_core(at_exp), Exp.of_core(at_idx))
+    | Contradiction(e, None) => ProofContradiction(Exp.of_core(e))
+    | Contradiction(e, Some((v, i))) =>
+      ProofContradictionWith(
+        Exp.of_core(e),
+        Exp.of_core(v),
+        Exp.of_core(i),
+      )
     | Induction(scrut, cases) =>
       ProofInduction(
         Exp.of_core(scrut),

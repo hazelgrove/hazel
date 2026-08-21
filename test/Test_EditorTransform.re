@@ -54,6 +54,7 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | MultiHole(_)
     | AxiomStep(_)
     | AlgebriteStep(_)
+    | Contradiction(_)
     | EvalStep(_) => []
     | Seq(a, b) => find_proofs(pred, a) @ find_proofs(pred, b)
     | Induction(_, cases) =>

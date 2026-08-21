@@ -27,6 +27,7 @@ open AST
 %token DEBUG
 %token HIDE
 %token EVAL
+%token CONTRADICTION
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -383,6 +384,8 @@ proof:
     | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRevWith(eq, v, i, idx, ae) }
     | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
     | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
+    | CONTRADICTION; e = exp; END { ProofContradiction(e) }
+    | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
 
 

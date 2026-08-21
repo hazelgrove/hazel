@@ -1098,6 +1098,18 @@ let ex5 = list_of_mylist(x) in
         "Full program: ADT induction with a reverted IH",
         "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end; eval true ==> pos(S(b)) at 0 end; eval pos(S(b)) at 0 end end in t",
       ),
+      /* Test_Contradiction.conflicting_src: the Phase-4e terminal form. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 end in t",
+      ),
+      /* Test_Contradiction.conflicting_src with the Phase-4e explicit
+         `with` clause: the same with-shards as revert/axiom, on a
+         terminal step. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step with explicit substitution",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in t",
+      ),
       /* Test_FunContracts style: a fun-contract used by a theorem. */
       menhir_maketerm_equivalent_test(
         "Full program: fun contract plus theorem",

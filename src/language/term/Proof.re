@@ -11,7 +11,8 @@ type cls =
   | Forall
   | Assume
   | Generalize
-  | Revert;
+  | Revert
+  | Contradiction;
 
 include TermBase.Proof;
 
@@ -38,6 +39,7 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | Assume(_, _) => Assume
   | Generalize(_, _) => Generalize
   | Revert(_, _, _) => Revert
+  | Contradiction(_) => Contradiction
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -53,6 +55,7 @@ let show_cls: cls => string =
   | Assume => "Assume step"
   | Generalize => "Generalize step"
   | Revert => "Revert step"
+  | Contradiction => "Contradiction step"
   | EvalStep => "Eval step";
 
 let temp: term => t =
@@ -130,6 +133,8 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     Equality.syntactic.exp(e1, e2)
     && inst_equal(n1, n2)
     && fast_equal(b1, b2)
+  | (Contradiction(e1, n1), Contradiction(e2, n2)) =>
+    Equality.syntactic.exp(e1, e2) && inst_equal(n1, n2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -141,6 +146,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Assume(_, _), _)
   | (Generalize(_, _), _)
   | (Revert(_, _, _), _)
+  | (Contradiction(_, _), _)
   | (EvalStep(_), _) => false
   };
 };
@@ -163,6 +169,7 @@ let rec has_hole = (p: t): bool =>
   | Assume(_, body) => has_hole(body)
   | Generalize(_, body) => has_hole(body)
   | Revert(_, _, body) => has_hole(body)
+  | Contradiction(_) => false
   | EvalStep(_) => false
   };
 
@@ -248,4 +255,5 @@ let args_have_hole = (p: t): bool =>
   | Assume(e, _) => exp_has_hole(e)
   | Generalize(e, _) => exp_has_hole(e)
   | Revert(e, inst, _) => exp_has_hole(e) || inst_has_hole(inst)
+  | Contradiction(e, inst) => exp_has_hole(e) || inst_has_hole(inst)
   };

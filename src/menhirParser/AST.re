@@ -212,6 +212,12 @@ and proof =
   | ProofAlgebrite(exp, exp, exp)
   /* `eval <at_exp> at <at_idx> end` */
   | ProofEval(exp, exp)
+  /* `contradiction <exp> end` */
+  | ProofContradiction(exp)
+  /* `contradiction <fact> with <var> = <exp> end` — the extra (var, exp)
+     pair is one explicit rewrite of the cited fact. Separate
+     constructor, mirroring the tile-level form. */
+  | ProofContradictionWith(exp, exp, exp)
   /* `induction <scrut> | <pat> => <proof> ... end` */
   | ProofInduction(exp, list((pat, proof)))
 

@@ -1500,6 +1500,14 @@ and Proof: {
             ),
             proof_map_term(body),
           )
+        | Contradiction(e, inst) =>
+          Contradiction(
+            exp_map_term(e),
+            Option.map(
+              ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+              inst,
+            ),
+          )
         },
     };
     x |> f_proof(proof_map_term);

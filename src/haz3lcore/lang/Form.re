@@ -438,6 +438,8 @@ type compound_form =
   | ProofAxiomWith
   | ProofAxiomRevWith
   | ProofAlgebrite
+  | ProofContradiction
+  | ProofContradictionWith
   | ProofEval
   | ProofInduction
   | ProofRule;
@@ -610,6 +612,20 @@ let get: compound_form => t =
     )
   | ProofAlgebrite =>
     mk_op_c(L, ["rewrite", "with", "at", "end"], Proof, [Exp, Exp, Exp])
+  /* `contradiction <exp> end`: terminal, one Exp child — the cited
+   * in-scope fact (docs/prover-obligations.md, Phase 4e). */
+  | ProofContradiction => mk_op_c(L, ["contradiction", "end"], Proof, [Exp])
+  /* `contradiction <fact> with <var> = <exp> end`: the same terminal
+   * step carrying ONE explicit rewrite of the cited fact, licensed by
+   * the in-scope equation `<var> == <exp>`. Sits beside the plain form
+   * exactly as `ProofRevertWith` sits beside `ProofRevert`. */
+  | ProofContradictionWith =>
+    mk_op_c(
+      L,
+      ["contradiction", "with", "=", "end"],
+      Proof,
+      [Exp, Exp, Exp],
+    )
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])
   | ProofInduction => mk_op_c(L, ["induction", "end"], Proof, [PRul])
   | ProofRule =>

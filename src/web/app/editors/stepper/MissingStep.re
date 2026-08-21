@@ -5,20 +5,33 @@ open Calc.Syntax;
 open Haz3lcore;
 
 module Model = {
-  /* The wrapping proof forms this row can insert. One variant covers all
-   * three because they share the whole flow: take an expression, write
-   * `<kw> <exp> => ` around the current hole. */
+  /* The proof forms this row can insert. The wrapping three share the
+   * whole flow: take an expression, write `<kw> <exp> => ` around the
+   * current hole. `Contradiction` shares the expression-picking UI but is
+   * TERMINAL, so it writes `contradiction <exp> end` instead
+   * (docs/prover-obligations.md, Phase 4e). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type proof_form =
     | Assume
     | Revert
-    | Generalize;
+    | Generalize
+    | Contradiction;
 
   let proof_form_keyword = (f: proof_form): string =>
     switch (f) {
     | Assume => "assume"
     | Revert => "revert"
     | Generalize => "generalize"
+    | Contradiction => "contradiction"
+    };
+
+  /* What follows the expression in the written form. */
+  let proof_form_suffix = (f: proof_form): string =>
+    switch (f) {
+    | Assume
+    | Revert
+    | Generalize => "=> ?"
+    | Contradiction => "end"
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -446,6 +459,7 @@ module View = {
     | AddAssume(Exp.t)
     | AddRevert(Exp.t)
     | AddGeneralize(Exp.t)
+    | AddContradiction(Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int);
@@ -665,6 +679,10 @@ module View = {
           ]
           @ wrapping_form_buttons
           @ [
+            proof_button(
+              ~callback=inject(ToggleProofFormPicks(Contradiction)),
+              "Contradiction ▼",
+            ),
             proof_button(
               ~callback=
                 Ui_effect.Many([
@@ -892,12 +910,21 @@ module View = {
                         switch (form) {
                         | Assume => signal(AddAssume(exp))
                         | Revert => signal(AddRevert(exp))
+                        | Contradiction => signal(AddContradiction(exp))
                         | Generalize => signal(AddGeneralize(exp))
                         },
                       ])
                     );
                   let picks =
                     switch (form) {
+                    /* `contradiction` resolves its argument through the
+                       SAME channel-1 lookup as `revert`
+                       (ProofCheck.cited_fact / lookup_fact), so it offers
+                       the same in-scope-facts picker. Only the CITED
+                       fact is picked here; a `with <var> = <exp>` rewrite
+                       (Phase 4e) is typed into the proof afterwards, like
+                       every other with-clause. */
+                    | Contradiction
                     | Revert =>
                       model.assumptions
                       |> Calc.get_saved_opt

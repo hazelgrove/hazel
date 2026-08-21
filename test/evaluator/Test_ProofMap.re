@@ -291,6 +291,7 @@ let rec find_marked_sub =
     | MultiHole(_)
     | AxiomStep(_)
     | AlgebriteStep(_)
+    | Contradiction(_)
     | EvalStep(_) => None
     };
   };

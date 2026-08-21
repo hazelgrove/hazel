@@ -4799,6 +4799,57 @@ and proof_to_info_map =
         }),
       );
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Contradiction(e, instantiation) =>
+    /* `contradiction F end` cites the in-scope fact `F`, a proposition,
+       so analyze it against Bool. Terminal: no body, no new bindings
+       (docs/prover-obligations.md, Phase 4e). */
+    let (_, e_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        e,
+        m,
+      );
+    /* `with <var> = <exp>`: unlike the axiom/revert with-clauses, whose
+       `<var>` is a BINDER of the cited rule (and so needs a dummy ctx
+       entry to avoid a Free error), this `<var>` is an ordinary in-scope
+       PROGRAM variable — the left side of an equation the branch already
+       knows. So it is walked in the plain ctx (naming something not in
+       scope IS a Free error here) and `<exp>` analyzes against that
+       variable's declared type. */
+    let (instantiation_elab, m) =
+      switch (instantiation) {
+      | None => (None, m)
+      | Some((var, inst)) =>
+        let (_, var_elab, m) =
+          uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, var, m);
+        let var_typ =
+          switch (unwrap_head(var).term) {
+          | Var(name) =>
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some({typ, _}) => Some(typ)
+            | None => None
+            }
+          | _ => None
+          };
+        let (_, inst_elab, m) =
+          switch (var_typ) {
+          | Some(ty) =>
+            uexp_to_info_map(
+              ~ctx,
+              ~ana=ty,
+              ~ancestors=ancestors_inclusive,
+              inst,
+              m,
+            )
+          | None =>
+            uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, inst, m)
+          };
+        (Some((var_elab, inst_elab)), m);
+      };
+    let elab = rewrap(Contradiction(e_elab, instantiation_elab));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   | EvalStep({at_idx, at_exp}) =>
     let (_, at_idx_elab, m) =
       uexp_to_info_map(

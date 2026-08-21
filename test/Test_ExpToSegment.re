@@ -990,6 +990,20 @@ end|}),
       {|RevertWith: compound instantiation|},
       {|theorem x = 1 proof revert y with n = 2 + 3 => axiom y at y on y end in x|},
     ),
+    /* Phase 4e's `contradiction <fact> with <var> = <exp> end` reuses the
+       same with-clause shards on a TERMINAL step. */
+    roundtrip_test(
+      {|ContradictionWith: simple|},
+      {|theorem x = 1 proof contradiction y with n = 2 end in x|},
+    ),
+    roundtrip_test(
+      {|ContradictionWith: compound rewrite|},
+      {|theorem x = 1 proof contradiction y == 1 with n = 2 + 3 end in x|},
+    ),
+    roundtrip_test(
+      {|Contradiction: plain still round-trips|},
+      {|theorem x = 1 proof contradiction y == 1 end in x|},
+    ),
     /* The plain forms must keep round-tripping unchanged: `with` is only
        absorbed by a citation step that is still missing its own shards. */
     roundtrip_test(
@@ -1936,6 +1950,11 @@ let proof_embedded_paren_tests = (
       {|assume hypothesis: fun where in application head|},
       Assume(built_fun_ap(~guard=true, ()), Proof.fresh(EmptyHole)),
       {|theorem t = 1 == 1 proof assume(fun x where x != 0 -> 100 / x)(y) => ? in t|},
+    ),
+    proof_paren_test(
+      {|contradiction argument: fun where in application head|},
+      Contradiction(built_fun_ap(~guard=true, ()), None),
+      {|theorem t = 1 == 1 proof contradiction(fun x where x != 0 -> 100 / x)(y) end in t|},
     ),
     proof_paren_test(
       {|eval `at` term: fun where in application head|},

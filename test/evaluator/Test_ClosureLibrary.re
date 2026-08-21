@@ -114,6 +114,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Assume(_) => "assume"
     | Generalize(_) => "generalize"
     | Revert(_) => "revert"
+    | Contradiction(_) => "contradiction"
     | Induction(_) => "induction"
     | AxiomStep(_) => "axiom"
     | AlgebriteStep(_) => "rewrite"

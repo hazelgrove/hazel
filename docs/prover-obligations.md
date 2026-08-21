@@ -791,6 +791,119 @@ on earlier ones.
   keep the v1 diff honest; widening it to a list is mechanical, and the
   seeding/gate logic already folds over a list internally.
 
+- **Phase 4e — `contradiction`, ex falso as a primitive.** The Phase-4c
+  ex-falso idiom (`revert F => axiom case_eq at 0 on x end; eval F' ==
+  true at 0 end; eval false == true at 0 end; eval false ==> G at 0
+  end`) is a four-step dance that every vacuous branch repeats. It is now
+  ONE terminal step, `contradiction <exp> end`: a step form that closes
+  ANY goal by exhibiting that an in-scope fact is false under the rest of
+  the scope's knowledge. Outgoing is the literal `true`; no obligation.
+
+  *Semantics* (`ProofCheck`'s `Contradiction` case), as reworked
+  2026-08-21 (see *Explicitness over automation* below). The cited
+  expression is resolved against the in-scope facts EXACTLY as `revert`
+  resolves its argument (shared `cited_fact` helper: by hypothesis name
+  out of the environment, or spelled out and env-substituted, then
+  matched with the channel-1 `Exp.fast_equal` lookup). Then:
+  1. the step's OWN `with <var> = <exp>` clause — and nothing else — is
+     substituted into the fact, once. No equations are harvested, there
+     is no fixpoint, no occurs check and no round bound: there is at most
+     one rewrite and the user wrote it. Each binding is VERIFIED first:
+     `<var> == <exp>` or `<exp> == <var>` (either orientation, `==`
+     being symmetric) must `Exp.fast_equal` an in-scope fact — the same
+     channel-1 `lookup_fact` the old harvest read its equations out of,
+     except that now the user names each one. `<var>` must be a bare
+     variable. Anything unverifiable ⇒
+     `ContradictionSubstitutionUnverified` and pass-through; the rewrite
+     is refused, never trusted. The plain no-clause form substitutes
+     nothing.
+  2. the result is run through the injected `step_fn` to a fixpoint under
+     the channel-2 fuel bound (1000).
+  3. literal `false` ⇒ sound ex falso; anything else (`true`, stuck,
+     still open, out of fuel) ⇒ `ContradictionNotFalse` and pass-through.
+     No match at step 0 ⇒ `UnknownFactContradicted` and pass-through.
+
+  *Grammar.* The `with` clause is the Phase-4d clause, reused verbatim:
+  a new compound form `ProofContradictionWith`
+  (`["contradiction", "with", "=", "end"]`, three Exp children) sitting
+  beside the plain `ProofContradiction` exactly as `ProofRevertWith` sits
+  beside `ProofRevert`, the menhir constructor
+  `ProofContradictionWith(exp, exp, exp)`, and an entry in
+  `Insert.upgrade_with_clause` — since `contradiction` shares its leading
+  token with the with-variant, the expansion machinery resolves it to the
+  plain two-shard label and the typed `with` upgrades the tile after the
+  fact, just as it does for `axiom`/`axiomrev`/`revert`. The
+  representation is `option((exp, exp))`, so as on the other with-forms
+  **v1 takes exactly one binding per step**; widening to a list is the
+  same mechanical change tracked under Phase 4d.
+
+  *Explicitness over automation* (user decision, 2026-08-21). The step
+  originally HARVESTED the substitution set itself: it enumerated every
+  in-scope variable equation (`x == e` / `e == x` on a bare program
+  variable — the shape a split's `case_eq` has), substituted to a
+  fixpoint over 8 bounded rounds with an occurs check and a free-variable
+  co-context check, and excluded the cited fact from its own set so a
+  self-rewrite could not launder an equation into `e == e`. It worked,
+  but it did TOO MUCH: a human reading the proof text could not see which
+  rewrites the step would find, so a one-token step stood in for an
+  unbounded-looking search. That is exactly what §4.3 forbids —
+  *automation may propose; only visible steps dispose* — so the harvest
+  is gone and the rewrite is written. Consequences:
+  - the exclusion rule is no longer needed. `contradiction n == 1 with
+    n = 1 end` may now rewrite the fact by itself, but that only ever
+    lands on a tautology (`1 == 1`), which fails the `false` test. The
+    rule existed to stop the *search* laundering; with the user naming
+    the rewrite there is nothing to launder.
+  - the milestone leaf needed only ONE of the two rewrites the harvest
+    used to apply (see *The milestone leaf* below), which is itself
+    evidence the fixpoint was doing more work than the calculus needed.
+  - **soundness is unchanged.** Substituting `e` for `x` under a known
+    `x == e` is denotation-preserving in this branch whether the checker
+    found that equation or the user named it; only the CHOOSER changed.
+    The no-closedness-gate argument below is likewise untouched.
+
+  *Soundness.* `F` in scope means `F` denotes `true` in this branch's
+  semantics. The substituted-and-evaluated form denoting `false` means
+  the branch's hypotheses are jointly unsatisfiable, so the branch is
+  vacuous, and concluding `true` is the Kleene reading of ex falso
+  quodlibet (§1.3) — exactly what the manual revert-dance already
+  licenses. Gates: none new. The evaluation is the same trusted
+  machinery as discharge channel 2 (fuel-bounded `step_fn` iteration),
+  and each step is denotation-preserving for every assignment of the free
+  variables, which is why `eval` steps are the one free step (§5).
+
+  *Deliberate deviation from channel 2*: the term is **not** required to
+  be closed. Channel 2 keeps closedness as its human-first boundary
+  because it concludes a positive fact; here the conclusion rides
+  entirely on the eval steps' denotation-preservation, which does not
+  need it — and the load-bearing metatheory case is open:
+  `is_value(TmVar(m0)) == true` falsifies for every `m0` because the
+  match only inspects the constructor. Gating on closedness would make
+  the milestone leaf below unreachable. An open term that gets STUCK
+  simply fails to reach `false` and is marked.
+
+  *Receipts*: the binding actually applied is stashed on the step's
+  `ProofMap` entry (`substitutions` field), so a receipt can say which
+  rewrite did the work without re-deriving it. Post-rework the receipt is
+  exactly the user's own `with` clause, which is a strictly better
+  receipt than a derived set — it is checkable against the proof text by
+  eye. A refused binding is NOT recorded. Rendering receipts in the (!) /
+  hover UI is future work.
+
+  *The milestone leaf.* `Test_Milestone_STLC`'s `TmVar` canonical-forms
+  leaf goes from the four-step dance to
+  `| TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0)
+  end` — the `with` clause naming the split's own `case_eq`, which the
+  checker confirms is in scope. The sibling `TmAp` leaf deliberately
+  keeps the manual dance as a regression that the old idiom still works.
+  `progress` stays fully Proven.
+
+  Worth recording: the auto-harvest also applied a SECOND rewrite here
+  (having chased a variable that the first rewrite made free), and in the
+  miniature `case_eq` test it applied the inductive hypothesis `b == Z`
+  on top of `e == S(b)`. Neither was needed to reach the literal `false`.
+  The explicit form makes that visible instead of incidental.
+
 - **Phase 5 — directed stepping.** Polarity/variance engine covering
   **boolean polarity and ordered arithmetic in the same cut** (decided
   2026-08-18): `!`/`&&`/`||`/`==>` polarity plus `<=`/`<` chains with

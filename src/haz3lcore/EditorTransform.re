@@ -101,6 +101,7 @@ let rewrite_proof =
           | MultiHole(_)
           | AxiomStep(_)
           | AlgebriteStep(_)
+          | Contradiction(_)
           | EvalStep(_) => p.term
           | Seq(p1, p2) => Seq(walk(p1), walk(p2))
           | Induction(e, cases) =>
@@ -164,6 +165,7 @@ let rec find_seq_parent =
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
+  | Contradiction(_)
   | EvalStep(_) => None
   };
 
