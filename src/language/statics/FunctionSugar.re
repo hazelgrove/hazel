@@ -69,7 +69,7 @@ let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
     | _ => (pat, None)
     };
   match_inner_binder(inner_pat)
-  |> Option.map(((fn, args)) => (fn, args, ret_ty));
+  |> Option.map(~f=((fn, args)) => (fn, args, ret_ty));
 };
 
 /* Build the desugared expression:

@@ -2,7 +2,9 @@
 
 (library
  (name language)
- (libraries util variantslib)
+ (flags
+  (:standard -open Core))
+ (libraries core util variantslib)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

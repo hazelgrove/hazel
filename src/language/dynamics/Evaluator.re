@@ -74,6 +74,10 @@ module Eval = Transition(EvaluatorEVMode);
  * as ids); genuine re-entry (recursion) always differs in stack. */
 type delegation = (Id.t, list(Id.t));
 
+let equal_delegation =
+    ((id1, stack1): delegation, (id2, stack2): delegation): bool =>
+  Id.equal(id1, id2) && List.equal(Id.equal, stack1, stack2);
+
 let rec evaluate =
         // Constants
         (
@@ -112,9 +116,10 @@ let rec evaluate =
    * collector short-circuit. current_top_id = None ⇒ no outbox write,
    * so the last program-node publish stands until the next one. */
   let current_top_id =
-    if (call_stack == [] && EvalInfo.is_program_node(expr_id, eval_info)) {
+    if (List.is_empty(call_stack)
+        && EvalInfo.is_program_node(expr_id, eval_info)) {
       Some(expr_id);
-    } else if (call_stack == []) {
+    } else if (List.is_empty(call_stack)) {
       None;
     } else {
       current_top_id;
@@ -197,7 +202,7 @@ let rec evaluate =
      * entries while inside a call stack, and reuse_check also refuses reuse
      * there. Skip entirely when nothing downstream can consume the map. */
     let body_reuse_map =
-      if (!track_reuse || call_stack != []) {
+      if (!track_reuse || !List.is_empty(call_stack)) {
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
@@ -241,7 +246,7 @@ let rec evaluate =
        * inferred — so an undeclared same-id re-evaluation now surfaces
        * as a visible duplicate sample instead of a silent suppression. */
       let delegations =
-        switch (Option.map(provenance_of_kind, kind)) {
+        switch (Option.map(~f=provenance_of_kind, kind)) {
         | Some(Administrative({may_delegate: true})) => [
             (DHExp.rep_id(exp), CallStack.ids_of_stack(call_stack)),
             ...delegations,
@@ -299,7 +304,11 @@ let rec evaluate =
       switch (is_target) {
       | None => false
       | Some(_) =>
-        List.mem((expr_id, CallStack.ids_of_stack(call_stack)), delegations)
+        List.mem(
+          delegations,
+          (expr_id, CallStack.ids_of_stack(call_stack)),
+          ~equal=equal_delegation,
+        )
       };
     switch (is_target) {
     | Some(_) when !continues_delegated_span =>
@@ -403,7 +412,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack != []) {
+        if (!List.is_empty(call_stack)) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -441,7 +450,7 @@ let rec evaluate =
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   let eval_5_state_merge =
       (~call_stack: CallStack.t, ~delegations, ~state, ~expr_id, env, exp) =>
-    if (call_stack == []) {
+    if (List.is_empty(call_stack)) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
       let.trampoline final_value =

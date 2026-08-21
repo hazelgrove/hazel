@@ -163,7 +163,7 @@ type t =
   | Falsity_E;
 
 let show = rule =>
-  show(rule) |> String.map(c => Char.equal(c, '_') ? '-' : c);
+  String.map(show(rule), ~f=c => Char.equal(c, '_') ? '-' : c);
 
 let repr =
   fun
@@ -404,7 +404,7 @@ let rec to_rule: (rule_set, t) => option(Rule.t) =
 
 let all_rules_of_rule_set: rule_set => list(t) =
   rule_set =>
-    all |> List.filter(rule => to_rule(rule_set, rule) |> Option.is_some);
+    all |> List.filter(~f=rule => to_rule(rule_set, rule) |> Option.is_some);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
@@ -574,7 +574,7 @@ type sort =
    names from their user-typed aliases. */
 let keywords: t => list(string) =
   rule =>
-    (show(rule) |> String.split_on_char('_'))
+    String.split(show(rule), ~on='_')
     @ (
       switch (of_kind(rule)) {
       | TypeConsistency => ["Type", "Consistency", "consist", "tc", "cons"]

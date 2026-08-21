@@ -22,4 +22,4 @@ let class_of =
   | _ as s => show(s);
 
 let all =
-  (DrvSort.all |> List.map(s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];
+  (DrvSort.all |> List.map(~f=s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];
