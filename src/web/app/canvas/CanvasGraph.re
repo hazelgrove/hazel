@@ -76,9 +76,6 @@ type t = {
   edges: list(edge),
   values: list(value),
   loose_tests: list(test_info),
-  /* rep id of the first test / the result expression — canvas-authored
-     function stubs paste just before it (after all definitions) */
-  insert_anchor: option(Id.t),
   /* the last top-level binding (name, term rep id): canvas-authored
      stubs insert_after it (pathless insert_after goes after the trailing
      expression, which the statics guard rightly rejects). The id lets the
@@ -92,7 +89,6 @@ let empty: t = {
   edges: [],
   values: [],
   loose_tests: [],
-  insert_anchor: None,
   last_def: None,
 };
 
@@ -769,14 +765,6 @@ let extract =
       edges_raw,
     );
 
-  let insert_anchor =
-    List.find_map(
-      fun
-      | ITest(term, _) => Some(Exp.rep_id(term))
-      | IResult(e) => Some(Exp.rep_id(e))
-      | _ => None,
-      items,
-    );
   let last_def =
     List.fold_left(
       (acc, item) =>
@@ -801,7 +789,6 @@ let extract =
     edges,
     values,
     loose_tests,
-    insert_anchor,
     last_def,
   };
 };
