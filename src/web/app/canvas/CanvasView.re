@@ -371,7 +371,7 @@ let view =
       ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
-      ~loose_tests: list(CanvasGraph.test_info),
+      ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
     : Node.t => {
@@ -462,15 +462,6 @@ let view =
       @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );
-  let loose =
-    loose_tests == []
-      ? []
-      : [
-        div(
-          ~attrs=[clss(["canvas-loose-tests"])],
-          [text("tests: "), ...List.map(test_pip, loose_tests)],
-        ),
-      ];
   let bg_attrs =
     switch (on_canvas_click) {
     | Some(f) => [
@@ -531,7 +522,6 @@ let view =
       | Some(a) => [avatar_view(a)]
       | None => []
       }
-    )
-    @ loose,
+    ),
   );
 };

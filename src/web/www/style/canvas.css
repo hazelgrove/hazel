@@ -112,6 +112,10 @@
   );
   background-size: 14px 14px;
   background-position: 7px 7px;
+  /* keep dots off the panel edges: the transparent border clips the
+     dot field one grid cell in (background paints the padding box) */
+  border: 14px solid transparent;
+  background-clip: padding-box;
 }
 
 /* ---- authoring toolbar ---- */

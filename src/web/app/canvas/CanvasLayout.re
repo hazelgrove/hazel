@@ -698,8 +698,19 @@ let layout =
        on-edge labels, dodging via the candidate search. */
     let is_loop_edge = (el: edge_layout): bool =>
       List.mem((el.edge.e_src, el.edge.dst), loop_product_edges);
+    /* legend membership is GEOMETRIC: a loop label stacks only while
+       its arc is too short to carry it — stretch the edge (drag the
+       product away) and the label comes back to live on it. Orbits
+       always stack (their edge is a circle). */
+    let edge_len = (el: edge_layout): float =>
+      Float.hypot(el.dst_p.x -. el.src_p.x, el.dst_p.y -. el.src_p.y);
     let hub_of = (el: edge_layout): option(string) =>
-      el.endo || is_loop_edge(el) ? Some(el.edge.dst) : None;
+      el.endo
+      || is_loop_edge(el)
+      && edge_len(el) < label_half(el)
+      *. 2.
+      +. 32.
+        ? Some(el.edge.dst) : None;
     let hubs =
       List.filter_map(hub_of, edge_layouts) |> List.sort_uniq(compare);
     let stacked: Hashtbl.t(string, pos) = Hashtbl.create(8);
