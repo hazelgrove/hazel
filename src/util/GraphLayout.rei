@@ -62,6 +62,7 @@ module Spec: {
     row_gap: float, /* min vertical gap between rims within a column */
     margin: float, /* top-left padding */
     x_stretch: float, /* multiplies column x-centers (panel fitting) */
+    y_stretch: float, /* multiplies row y-centers (pane-height filling) */
     order_sweeps: int /* barycenter iterations (0 = input order) */
   };
 

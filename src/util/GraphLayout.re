@@ -45,6 +45,7 @@ module Spec = {
     row_gap: float,
     margin: float,
     x_stretch: float,
+    y_stretch: float,
     order_sweeps: int,
   };
 
@@ -56,6 +57,7 @@ module Spec = {
     row_gap: 56.,
     margin: 70.,
     x_stretch: 1.,
+    y_stretch: 1.,
     order_sweeps: 4,
   };
 };
@@ -224,6 +226,10 @@ let layout = (spec: Spec.t): result => {
        );
 
   /* ---- 3. coords ---- */
+  /* y_stretch spreads rows apart (gap scaling) rather than scaling
+     positions: a flat band of rows would otherwise translate instead
+     of spreading */
+  let row_gap = spec.row_gap *. spec.y_stretch;
   let posed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   /* column x-centers: gaps account for both columns' radii and any
      Out/In attachments hanging between them */
@@ -261,7 +267,7 @@ let layout = (spec: Spec.t): result => {
     | col =>
       List.fold_left((acc, id) => acc +. v_half(id) *. 2., 0., col)
       +. float_of_int(List.length(col) - 1)
-      *. spec.row_gap
+      *. row_gap
     };
   let max_h = List.fold_left(max, 0., List.init(n_ranks, col_height));
   /* initial stacked y, columns centered against the tallest */
@@ -282,7 +288,7 @@ let layout = (spec: Spec.t): result => {
               radius(id),
             ),
           );
-          y +. h *. 2. +. spec.row_gap;
+          y +. h *. 2. +. row_gap;
         },
         y0,
         (columns[l])^,
@@ -331,7 +337,7 @@ let layout = (spec: Spec.t): result => {
               r,
             ),
           );
-          (y +. h +. spec.row_gap, ());
+          (y +. h +. row_gap, ());
         },
         (spec.margin, ()),
         targets,
@@ -345,6 +351,66 @@ let layout = (spec: Spec.t): result => {
     for (l in 0 to n_ranks - 1) {
       relax_col(n_ranks - 1 - l);
     };
+  };
+
+  /* ---- 3b. cross-column vertical relief ----
+     Horizontal compression (x_stretch < 1) can leave neighboring
+     columns' halos (node + docked attachments) overlapping in x; rows
+     that overlap in both axes shear apart vertically. This is what
+     turns tight graphs diagonal instead of cramming one band — extra
+     height is created exactly where density demands it. */
+  let h_halo = (id: string): float =>
+    radius(id) +. (att_extent(id, In) +. att_extent(id, Out)) /. 2.;
+  for (_ in 1 to 12) {
+    List.iteri(
+      (i, a) =>
+        List.iteri(
+          (j, b) =>
+            if (j > i) {
+              switch (
+                Hashtbl.find_opt(posed, a),
+                Hashtbl.find_opt(posed, b),
+              ) {
+              | (Some((pa, ra)), Some((pb, rb))) =>
+                let need_x = h_halo(a) +. h_halo(b) +. 14.;
+                let need_y = v_half(a) +. v_half(b) +. row_gap /. 2.;
+                let dx = abs_float(pa.x -. pb.x)
+                and dy = pb.y -. pa.y;
+                if (dx < need_x && abs_float(dy) < need_y) {
+                  let push = (need_y -. abs_float(dy)) /. 2.;
+                  /* preserve current vertical order; ties break by
+                     input order (a stays above) */
+                  let s = dy > 0. || dy == 0. ? 1. : (-1.);
+                  Hashtbl.replace(
+                    posed,
+                    a,
+                    (
+                      {
+                        x: pa.x,
+                        y: pa.y -. s *. push,
+                      },
+                      ra,
+                    ),
+                  );
+                  Hashtbl.replace(
+                    posed,
+                    b,
+                    (
+                      {
+                        x: pb.x,
+                        y: pb.y +. s *. push,
+                      },
+                      rb,
+                    ),
+                  );
+                };
+              | _ => ()
+              };
+            },
+          node_ids,
+        ),
+      node_ids,
+    );
   };
 
   /* ---- 4. attachments: collision-aware ring search ---- */

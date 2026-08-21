@@ -62,7 +62,9 @@ let node_radius = (~fan: int, n: CanvasGraph.tynode): float => {
   switch (n.kind) {
   | Builtin => 11.
   | Ghost => 14.
-  | Derived => 15.
+  /* hub [T] nodes grow with traffic so their many short edges get
+     length to read (orbits and dock rings scale off the radius) */
+  | Derived => 15. +. fan_bump
   | Product => 10.
   | Alias => base_radius +. ctr_bump +. fan_bump
   };
@@ -116,6 +118,7 @@ type dock =
 let layout =
     (
       ~x_scale=1.,
+      ~y_scale=1.,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
       g: CanvasGraph.t,
@@ -322,6 +325,7 @@ let layout =
       row_gap: 48.,
       margin,
       x_stretch: x_scale,
+      y_stretch: y_scale,
       order_sweeps: 4,
     });
   let placed_layouts: list(node_layout) =
