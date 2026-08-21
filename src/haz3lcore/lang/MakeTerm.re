@@ -405,7 +405,7 @@ let op_lexeme = (f: Form.t): option(Token.t) =>
   };
 
 let is_hole_label = (t: string) =>
-  t == " "
+  String.equal(t, " ")
   || Token.is_explicit_hole(t)
   || Token.is_implicit_hole_marker(t)
   || Token.is_llm_hole(t);
@@ -525,7 +525,7 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
           when
             Token.is_var(t)
             && String.length(t) > 1
-            && String.sub(t, 0, 1) == "$" =>
+            && String.equal(String.sub(t, 0, 1), "$") =>
         ret(Quote(t))
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
@@ -645,7 +645,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.sub(t, 0, 1) == "$" =>
+          && String.equal(String.sub(t, 0, 1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -695,7 +695,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.sub(t, 0, 1) == "$" =>
+          && String.equal(String.sub(t, 0, 1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -731,7 +731,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
       when
         Token.is_var(t)
         && String.length(t) > 1
-        && String.sub(t, 0, 1) == "$" =>
+        && String.equal(String.sub(t, 0, 1), "$") =>
     ret(Quote(t))
   | Op(([(_id, (F(Tok(t)), []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
@@ -894,7 +894,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (F(Tok(t)), []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
-      | (F(Tok(t)), []) when t != " " && !Token.is_explicit_hole(t) =>
+      | (F(Tok(t)), [])
+          when !String.equal(t, " ") && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }

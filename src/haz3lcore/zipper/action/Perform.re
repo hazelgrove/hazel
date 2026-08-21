@@ -584,7 +584,7 @@ let rec go =
           p => {
             switch (p) {
             | Tile({id, form: Tok(marker), _})
-                when marker == Token.implicit_hole_marker =>
+                when String.equal(marker, Token.implicit_hole_marker) =>
               old_markers := [id, ...old_markers^]
             | _ => ()
             };
@@ -626,8 +626,8 @@ let rec go =
                  switch (p) {
                  | Tile({id, form: Tok(marker), _})
                      when
-                       marker == Token.implicit_hole_marker
-                       && !List.mem(id, old_markers^) => [
+                       String.equal(marker, Token.implicit_hole_marker)
+                       && !List.exists(Id.equal(id), old_markers^) => [
                      Piece.Grout({
                        id,
                        shape: Convex,

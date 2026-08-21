@@ -6,7 +6,7 @@ open OptUtil.Syntax;
    neither mint new IDs nor typecheck a speculative program here. */
 let at_caret =
     (~statics: CachedStatics.t, z: Zipper.t): option(Language.Info.t) =>
-  if (z.caret != Outer || !Selection.is_empty(z.selection)) {
+  if (!Zipper.equal_caret(z.caret, Outer) || !Selection.is_empty(z.selection)) {
     None;
   } else {
     let* snapshot = statics.completion;

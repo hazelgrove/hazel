@@ -56,7 +56,8 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
-  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+  if (String.equal(t, ";")
+      && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else {
     /* Default: local-first with parent fallback */
@@ -116,7 +117,7 @@ let insert_shard_core =
     let (form, sort) = Form.classify_label(sort, label);
     let shard =
       Tile.split_shards(id, form, sort, List.mapi((i, _) => i, label))
-      |> (delim_d == Right ? ListUtil.last : List.hd);
+      |> (Direction.equal(delim_d, Right) ? ListUtil.last : List.hd);
     put_down([Tile(shard)], z);
   };
 };
@@ -343,7 +344,10 @@ let split =
         |> insert_shard(~auto_indent, ~id, ~d=Left, l)
         |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
+    switch (
+      String.equal(Token.space, char)
+        ? grout_for_suppressed_space(z, ~root) : None
+    ) {
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
