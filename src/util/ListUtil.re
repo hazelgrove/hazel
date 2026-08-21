@@ -102,22 +102,14 @@ let rec split =
 };
 
 let combine_opt = (xs, ys) =>
-  switch (List.zip_exn(xs, ys)) {
-  | exception (Invalid_argument(_)) => None
-  | xys => Some(xys)
+  switch (List.zip(xs, ys)) {
+  | Ok(xys) => Some(xys)
+  | Unequal_lengths => None
   };
 
-let rec join = (sep: 'x, xs: list('x)): list('x) =>
-  switch (xs) {
-  | [] => []
-  | [x] => [x]
-  | [x, ...xs] => [x, sep, ...join(sep, xs)]
-  };
+let join = (sep: 'x, xs: list('x)): list('x) => List.intersperse(xs, ~sep);
 
-let hd_opt =
-  fun
-  | [] => None
-  | [hd, ..._] => Some(hd);
+let hd_opt = xs => List.hd(xs);
 
 /**
  * `split_n_opt(n, xs)` splits the first `n` elements from `xs`
@@ -228,12 +220,7 @@ let split_last = (xs: list('x)): (list('x), 'x) =>
   | Some(r) => r
   };
 
-let rec last_opt = (xs: list('x)): option('x) =>
-  switch (xs) {
-  | [] => None
-  | [x] => Some(x)
-  | [_, ...xs] => last_opt(xs)
-  };
+let last_opt = (xs: list('x)): option('x) => List.last(xs);
 
 let last = (xs: list('x)): 'x =>
   switch (last_opt(xs)) {
@@ -273,14 +260,13 @@ let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
 
 let interleave = (xs, ys) => map_alt(x => x, y => y, xs, ys);
 
-let count_pred = (f: 'a => bool, xs: list('a)): int =>
-  List.fold_left(~f=(n, x) => f(x) ? n + 1 : n, ~init=0, xs);
+let count_pred = (f: 'a => bool, xs: list('a)): int => List.count(xs, ~f);
 
 let map2_opt =
     (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
-  switch (List.map2_exn(~f, xs, ys)) {
-  | b => Some(b)
-  | exception (Invalid_argument(_)) => None
+  switch (List.map2(~f, xs, ys)) {
+  | Ok(b) => Some(b)
+  | Unequal_lengths => None
   };
 
 let rec zip_defaults =
@@ -312,16 +298,7 @@ let rec update_nth = (n, xs, f) =>
   };
 
 let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
-  (f, xs) => {
-    List.mapi(~f=(i, x) => (i, x), xs)
-    |> List.find_map(~f=((_, x) as pair) =>
-         if (f(x)) {
-           Some(pair);
-         } else {
-           None;
-         }
-       );
-  };
+  (f, xs) => List.findi(xs, ~f=(_, x) => f(x));
 
 let find_with_rest:
   type a b. (a => option(b), list(a)) => option((b, list(a))) =
@@ -372,57 +349,19 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
          | [x, ...xs] => Some((x, last(xs))),
      );
 
-let rec rev_concat: (list('a), list('a)) => list('a) =
-  (ls, rs) => {
-    switch (ls) {
-    | [] => rs
-    | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
-    };
-  };
+let rev_concat: (list('a), list('a)) => list('a) =
+  (ls, rs) => List.rev_append(ls, rs);
 
-let rec unzip3 =
-        (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
-  switch (lst) {
-  | [] => ([], [], [])
-  | [(a, b, c), ...tail] =>
-    let (as_, bs, cs) = unzip3(tail);
-    ([a, ...as_], [b, ...bs], [c, ...cs]);
-  };
-};
+let unzip3 = (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) =>
+  List.unzip3(lst);
 
-let rec intersperse = (sep, xs) =>
-  switch (xs) {
-  | [] => []
-  | [x] => [x]
-  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
-  };
+let intersperse = (sep, xs) => List.intersperse(xs, ~sep);
 
-let rec flat_intersperse = (sep, xss) =>
-  switch (xss) {
-  | [] => []
-  | [xs] => xs
-  | [xs, ...xss] => xs @ [sep, ...flat_intersperse(sep, xss)]
-  };
-
-/* Given two lists, return their maximum common suffix */
-let max_common_suffix =
-    (~eq: ('a, 'a) => bool=Poly.equal, a: list('a), b: list('a)): list('a) => {
-  let rec loop = (a, b, acc) =>
-    switch (a, b) {
-    | ([], _)
-    | (_, []) => acc
-    | ([ha, ...ta], [hb, ...tb]) when eq(ha, hb) =>
-      loop(ta, tb, [ha, ...acc])
-    | _ => acc
-    };
-  loop(List.rev(a), List.rev(b), []);
-};
-
-let common_suffix_length = (~eq: ('a, 'a) => bool=Poly.equal, s1, s2) =>
-  List.length(max_common_suffix(~eq, s1, s2));
+let flat_intersperse = (sep, xss) =>
+  List.concat(List.intersperse(xss, ~sep=[sep]));
 
 let is_suffix_of = (~eq: ('a, 'a) => bool=Poly.equal, s1, s2) =>
-  common_suffix_length(~eq, s1, s2) == List.length(s1);
+  List.is_suffix(s2, ~suffix=s1, ~equal=eq);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
 
@@ -442,32 +381,16 @@ let suffix_at_depth =
 };
 
 /* list truncated after at most n elements */
-let truncate = (n: int, xs: list('a)): list('a) => {
-  let rec loop = (n: int, xs: list('a), acc: list('a)): list('a) =>
-    switch (n, xs) {
-    | (0, _) => acc
-    | (_, []) => acc
-    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
-    };
-  List.rev(loop(n, xs, []));
-};
+let truncate = (n: int, xs: list('a)): list('a) => List.take(xs, n);
 
-/* list without the first n elements, recurse into list until 0 then return rest */
-let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
-  switch (n, xs) {
-  | (0, _) => xs
-  | (_, []) => []
-  | (n, [_x, ...xs]) => remove_first_n(n - 1, xs)
-  };
-};
+/* list without the first n elements */
+let remove_first_n = (n: int, xs: list('a)): list('a) => List.drop(xs, n);
 
 /* Return at most k elements starting from index i */
 let slice = (i: int, k: int, xs: list('x)): list('x) =>
   xs |> remove_first_n(i) |> truncate(k);
 
-// TODO Remove once List.take is available in ocaml 5.3
-let take = (n, xs: list('a)) =>
-  Stdlib.List.to_seq(xs) |> Seq.take(n) |> Stdlib.List.of_seq;
+let take = (n, xs: list('a)) => List.take(xs, n);
 
 // for performance, doesn't check the whole list if already above length
 let rec is_length = (n: int, xs: list('a)): bool =>
