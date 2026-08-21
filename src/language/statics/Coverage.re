@@ -372,8 +372,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Bool) =>
       let boolTyp =
         switch (ctr.ctr) {
-        | s when s == Token.true_ => bool(true)
-        | s when s == Token.false_ => bool(false)
+        | s when String.equal(s, Token.true_) => bool(true)
+        | s when String.equal(s, Token.false_) => bool(false)
         | _ => wild()
         };
       cons_pat_t(boolTyp, unseen_pattern);

@@ -491,12 +491,12 @@ module Color = {
     } else {
       let s = Printf.sprintf("%.5f", f);
       let last = ref(String.length(s));
-      while (last^ > 1 && s.[last^ - 1] == '0') {
+      while (last^ > 1 && Char.equal(s.[last^ - 1], '0')) {
         decr(last);
       };
       let s = String.sub(s, 0, last^);
       let n = String.length(s);
-      n > 0 && s.[n - 1] == '.' ? String.sub(s, 0, n - 1) : s;
+      n > 0 && Char.equal(s.[n - 1], '.') ? String.sub(s, 0, n - 1) : s;
     };
 
   /* Alpha goes through color-mix so it composes with any inner color rather
@@ -625,20 +625,20 @@ module Color = {
     let mn = Float.min(rf, Float.min(gf, bf));
     let d = mx -. mn;
     let h =
-      if (d == 0.) {
+      if (Float.equal(d, 0.)) {
         h0;
       } else {
         let h =
-          if (mx == rf) {
+          if (Float.equal(mx, rf)) {
             60. *. Float.rem((gf -. bf) /. d, 6.);
-          } else if (mx == gf) {
+          } else if (Float.equal(mx, gf)) {
             60. *. ((bf -. rf) /. d +. 2.);
           } else {
             60. *. ((rf -. gf) /. d +. 4.);
           };
         h < 0. ? h +. 360. : h;
       };
-    (h, mx == 0. ? s0 : d /. mx, mx);
+    (h, Float.equal(mx, 0.) ? s0 : d /. mx, mx);
   };
 
   let hex_of_oklch = (t: (float, float, float)): string => {
@@ -679,7 +679,7 @@ module Color = {
     };
     let strip = (p, s) => {
       let n = String.length(p);
-      String.length(s) > n && String.sub(s, 0, n) == p
+      String.length(s) > n && String.equal(String.sub(s, 0, n), p)
         ? Some(String.sub(s, n, String.length(s) - n)) : None;
     };
     switch (strip("#", s)) {
