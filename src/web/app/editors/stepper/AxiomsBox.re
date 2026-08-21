@@ -63,7 +63,7 @@ module Update = {
         let all_assumption_boxes =
           all_rules
           |> (
-            filter == ""
+            String.equal(filter, "")
               ? x => x
               : List.filter(({name, _}: ProofCtx.entry) =>
                   StringUtil.subseq_search(name, filter)
@@ -73,7 +73,7 @@ module Update = {
                AssumptionBox.Model.{ctx_entry: ctx_entry}
              )
           |> (
-            filter == ""
+            String.equal(filter, "")
               ? List.filter((ab: AssumptionBox.Model.t) =>
                   switch (selected_exp) {
                   | Some(selected_exp) =>

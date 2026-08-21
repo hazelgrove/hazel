@@ -21,7 +21,8 @@ let button = (~attrs=[], ~tooltip="", ~onclick, ~disabled=false, children) => {
     disabled ? Attr.disabled : Attr.empty,
   ];
   let all_attrs =
-    tooltip != "" ? [Attr.title(tooltip), ...base_attrs] : base_attrs;
+    !String.equal(tooltip, "")
+      ? [Attr.title(tooltip), ...base_attrs] : base_attrs;
   div(~attrs=all_attrs @ attrs, children);
 };
 
