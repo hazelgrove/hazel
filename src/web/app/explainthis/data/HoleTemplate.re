@@ -3,7 +3,7 @@ open Haz3lcore;
 
 let empty_hole_template = (_sort, str, id): form => {
   let explanation =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "This should be filled with %s to complete the program.",
       str,
     );

@@ -13,7 +13,8 @@ let list_exp = (~n: int): form => {
     term: mk_example("[(1, true), (2, false)]"),
     message: "A list with two elements, a tuple with 1 and true and a tuple with 2 and false.",
   };
-  let explanation = Printf.sprintf("List literal with %d element(s).", n);
+  let explanation =
+    Stdlib.Printf.sprintf("List literal with %d element(s).", n);
   {
     id: ListExp,
     syntactic_form: [
@@ -44,7 +45,7 @@ let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => 
 ];
 let cons_exp = (~hd_id: Id.t, ~tl_id: Id.t): form => {
   let explanation =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Creates a list with [*head element*](%s) and [*tail element*](%s).",
       Id.to_string(hd_id),
       Id.to_string(tl_id),
@@ -68,7 +69,7 @@ let concat_exp_coloring_ids =
 ];
 let list_concat_exp = (~xs_id: Id.t, ~ys_id: Id.t): form => {
   let explanation =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).",
       Id.to_string(xs_id),
       Id.to_string(ys_id),

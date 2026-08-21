@@ -50,7 +50,7 @@ let columns: list(PerfFormat.column(WorkerMetrics.dir_metric)) = [
     label: "size",
     tooltip: "Encoded payload size (approximate).",
     cell: m =>
-      PerfFormat.opt_cell(Option.map(PerfFormat.bytes_cell, m.size)),
+      PerfFormat.opt_cell(Option.map(~f=PerfFormat.bytes_cell, m.size)),
   },
   {
     /* Compact glyph keeps the column narrow; any failure message is on the
@@ -82,7 +82,7 @@ let rows_of_record =
     (r: WorkerMetrics.record)
     : list(PerfFormat.row(WorkerMetrics.dir_metric)) => {
   let req_label =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "#%d · %d %s · request",
       r.id,
       r.entries,
@@ -101,7 +101,7 @@ let rows_of_record =
           kind: PerfFormat.Secondary,
           label: "response",
         }),
-        ...List.map(m => PerfFormat.Row(m), rows),
+        ...List.map(~f=m => PerfFormat.Row(m), rows),
       ]
     };
   [
@@ -109,7 +109,7 @@ let rows_of_record =
       kind: PerfFormat.Primary,
       label: req_label,
     }),
-    ...List.map(m => PerfFormat.Row(m), r.request),
+    ...List.map(~f=m => PerfFormat.Row(m), r.request),
   ]
   @ response_rows;
 };
@@ -140,7 +140,7 @@ let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t =>
 let encoding_toggles = (~globals): Node.t =>
   div(
     ~attrs=[clss(["wm-toggles"])],
-    List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
+    List.map(~f=encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 
 /* The chips are this section's own control, so they sit outside the table body. */
@@ -150,5 +150,5 @@ let view = (~globals: Globals.t): list(Node.t) =>
       ~columns,
       ~empty="No requests recorded yet — evaluate a program.",
       ~legend=true,
-      List.concat_map(rows_of_record, WorkerMetrics.history^),
+      List.concat_map(~f=rows_of_record, WorkerMetrics.history^),
     );

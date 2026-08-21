@@ -13,10 +13,10 @@ let view = (~globals: Globals.t) => {
   switch (memo^) {
   | Some((r, fm, st, meta_down, node))
       when
-        r === rule
-        && fm === globals.font_metrics
-        && st === globals.settings
-        && meta_down == globals.meta_down => node
+        phys_equal(r, rule)
+        && phys_equal(fm, globals.font_metrics)
+        && phys_equal(st, globals.settings)
+        && Bool.equal(meta_down, globals.meta_down) => node
   | _ =>
     let node =
       Node.div(

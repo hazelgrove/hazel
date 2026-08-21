@@ -14,14 +14,15 @@ let colors_and_keys =
   s_name: "Colors and keys",
   s_rows:
     List.map(
-      config_type => {
-        let name = ConfigurationMode.Model.config_name_of_type(config_type);
-        NutMenu.Action(
-          "Edit " ++ String.lowercase_ascii(name) ++ {js|…|js},
-          "Open the " ++ String.lowercase_ascii(name) ++ " as Hazel code",
-          editors_inject(Editors.Update.ShowConfig(config_type)),
-        );
-      },
+      ~f=
+        config_type => {
+          let name = ConfigurationMode.Model.config_name_of_type(config_type);
+          NutMenu.Action(
+            "Edit " ++ String.lowercase(name) ++ {js|…|js},
+            "Open the " ++ String.lowercase(name) ++ " as Hazel code",
+            editors_inject(Editors.Update.ShowConfig(config_type)),
+          );
+        },
       ConfigurationMode.Model.all_of_config_type,
     ),
 };
@@ -47,17 +48,20 @@ let row_text = (row: NutMenu.row): string =>
     ++ desc
     ++ " "
     ++ String.concat(
-         " ",
-         List.map((c: NutMenu.choice) => c.c_label, choices),
+         ~sep=" ",
+         List.map(~f=(c: NutMenu.choice) => c.c_label, choices),
        )
   | Action(label, desc, _) => label ++ " " ++ desc
   };
 
 let matches = (query: string, text: string): bool => {
-  let q = String.lowercase_ascii(query)
-  and t = String.lowercase_ascii(text);
+  let q = String.lowercase(query)
+  and t = String.lowercase(text);
   let (n, m) = (String.length(q), String.length(t));
-  let rec go = i => i + n <= m && (String.sub(t, i, n) == q || go(i + 1));
+  let rec go = i =>
+    i
+    + n <= m
+    && (String.equal(String.sub(t, ~pos=i, ~len=n), q) || go(i + 1));
   n == 0 || go(0);
 };
 
@@ -83,7 +87,7 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
           [div(~attrs=[clss(["toggle-knob"])], [])],
         ),
       ]
-      @ Option.to_list(Option.map(desc, tooltip)),
+      @ Option.to_list(Option.map(~f=desc, tooltip)),
     )
   | Choice(name, description, choices) =>
     div(
@@ -97,18 +101,19 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
             Attr.create("aria-label", name),
           ],
           List.map(
-            (c: NutMenu.choice) =>
-              Node.button(
-                ~attrs=[
-                  Attr.create("type", "button"),
-                  clss(["segment"] @ (c.c_active ? ["active"] : [])),
-                  Attr.create("aria-pressed", string_of_bool(c.c_active)),
-                  Attr.title(c.c_tooltip),
-                  keep_focus,
-                  Attr.on_click(_ => c.c_set),
-                ],
-                [Node.text(c.c_label)],
-              ),
+            ~f=
+              (c: NutMenu.choice) =>
+                Node.button(
+                  ~attrs=[
+                    Attr.create("type", "button"),
+                    clss(["segment"] @ (c.c_active ? ["active"] : [])),
+                    Attr.create("aria-pressed", string_of_bool(c.c_active)),
+                    Attr.title(c.c_tooltip),
+                    keep_focus,
+                    Attr.on_click(_ => c.c_set),
+                  ],
+                  [Node.text(c.c_label)],
+                ),
             choices,
           ),
         ),
@@ -136,8 +141,8 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
 let section_view =
     (~globals: Globals.t, ~query: string, sec: NutMenu.section)
     : option(Node.t) => {
-  let rows = List.filter(r => matches(query, row_text(r)), sec.s_rows);
-  let filtering = query != "";
+  let rows = List.filter(~f=r => matches(query, row_text(r)), sec.s_rows);
+  let filtering = !String.is_empty(query);
   /* a filter opens every section with a match */
   let folded =
     !filtering
@@ -145,7 +150,7 @@ let section_view =
          sec.s_name,
          globals.settings.sidebar,
        );
-  rows == []
+  List.is_empty(rows)
     ? None
     : Some(
         div(
@@ -180,7 +185,7 @@ let section_view =
               : [
                 div(
                   ~attrs=[clss(["settings-rows"])],
-                  List.map(row_view(~globals), rows),
+                  List.map(~f=row_view(~globals), rows),
                 ),
               ]
           ),
@@ -194,10 +199,10 @@ let view =
       ~editors_inject: Editors.Update.t => Effect.t(unit),
     )
     : Node.t => {
-  let query = String.trim(globals.settings_filter);
+  let query = String.strip(globals.settings_filter);
   let body =
     List.filter_map(
-      section_view(~globals, ~query),
+      ~f=section_view(~globals, ~query),
       sections(~globals, ~editors_inject),
     );
   div(
@@ -237,7 +242,7 @@ let view =
       ),
       div(
         ~attrs=[clss(["settings-body"])],
-        body == []
+        List.is_empty(body)
           ? [
             div(
               ~attrs=[clss(["settings-empty"])],

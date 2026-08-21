@@ -10,7 +10,7 @@ let single = (~typ_id: Id.t, ~body_id: Id.t): Simple.t => {
       [mk_use([[space(), e_typ', space()]]), space(), e_body']
     ),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Within the [*body*](%s), number literals and operations use type [*type*](%s) by default. The type provided must be one of Int, SInt, Nat, or Float.",
       body_id |> Id.to_string,
       typ_id |> Id.to_string,

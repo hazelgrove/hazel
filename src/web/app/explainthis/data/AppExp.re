@@ -35,7 +35,7 @@ let funapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
   colorings: funapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Applies the [*function*](%s) to the [*argument*](%s).",
       Id.to_string(x_id),
       Id.to_string(arg_id),
@@ -56,7 +56,7 @@ let conapp_exp = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): form => {
   colorings: conapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Applies the [*`%s` constructor*](%s) to the [*argument*](%s).",
       name,
       Id.to_string(x_id),
@@ -93,7 +93,7 @@ let deferred_funapp_exp =
   colorings: deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Applies the [*function*](%s) to the [*supplied arguments*](%s). The [*deferred arguments*](%s) can be applied in future applications.",
       Id.to_string(x_id),
       Id.to_string(supplied_id),
@@ -131,7 +131,7 @@ let livelitapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
   colorings: livelitapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Expands the [*livelit*](%s) to some value based on its [*model*](%s). When projected, creates a GUI widget.",
       Id.to_string(x_id),
       Id.to_string(arg_id),

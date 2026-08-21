@@ -14,7 +14,7 @@ let request =
   WorkerClient.request(
     batch,
     ~on_result=
-      List.iter(((key, result)) => {
+      List.iter(~f=((key, result)) => {
         let result: Language.ProgramResult.t(Language.ProgramResult.inner) =
           switch (result) {
           | Ok((r, s)) =>
@@ -28,7 +28,7 @@ let request =
       }),
     ~on_timeout,
     ~on_ack=
-      List.iter(((key, stream)) =>
+      List.iter(~f=((key, stream)) =>
         dispatch(
           pos_of_key(key),
           EvalResult.Update.UpdateStreamingEval(

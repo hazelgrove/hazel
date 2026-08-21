@@ -7,6 +7,10 @@ type t = {
   col_width: float,
 };
 
+let equal = (a: t, b: t): bool =>
+  Float.equal(a.row_height, b.row_height)
+  && Float.equal(a.col_width, b.col_width);
+
 let init = {
   row_height: 10.,
   col_width: 10.,
