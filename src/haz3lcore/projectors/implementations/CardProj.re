@@ -4,7 +4,7 @@ open ProjectorBase;
 open Language;
 open CardTypes;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
   | Show
   | Choose(int)
@@ -75,7 +75,7 @@ module SyntaxTerm = {
     | Some((_, Card(_)))
     | Some((_, Hand([_]))) => 5
     | Some((_, Hand(hand))) =>
-      Float.ceil(
+      Float.round_up(
         4.6 +. 817. /. 1000. *. (Float.of_int(List.length(hand)) -. 1.),
       )
       |> Float.to_int
@@ -234,7 +234,7 @@ module Hand = {
           "style",
           Printf.sprintf(
             "position: absolute; left: %fpx; z-index: %d;",
-            mode == Flipped ? 0. : float_of_int(index) *. 8.5,
+            equal_mode(mode, Flipped) ? 0. : float_of_int(index) *. 8.5,
             100 + index,
           ),
         ),
@@ -251,15 +251,15 @@ module Hand = {
           "style",
           Printf.sprintf(
             "width: %fpx;",
-            hand == []
+            List.is_empty(hand)
               ? 37. : 8.5 *. float_of_int(List.length(hand) - 1) +. 37.,
           ),
         ),
       ],
-      hand == []
+      List.is_empty(hand)
         ? [CardView.Empty.view]
         : List.mapi(
-            card_wrapper(info, info.id, mode, parent, local, sort),
+            ~f=card_wrapper(info, info.id, mode, parent, local, sort),
             hand,
           ),
     );
@@ -280,7 +280,7 @@ module M: Projector = {
   let elaborate_syntax = false;
 
   let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+    Option.is_some(SyntaxTerm.get_opt(info)) ? Some({mode: Show}) : None;
 
   let placeholder = (_, info): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),

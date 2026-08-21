@@ -124,7 +124,7 @@ let compare = (p1: t, p2: t): int =>
 // let min = (p1: t, p2: t): t => max(p1, p2);
 
 let associativity_map: IntMap.t(Direction.t) =
-  associativity_map^ |> List.to_seq |> IntMap.of_seq;
+  associativity_map^ |> Stdlib.List.to_seq |> IntMap.of_seq;
 
 let associativity = (p: t): option(Direction.t) =>
   IntMap.find_opt(p, associativity_map);

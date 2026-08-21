@@ -41,12 +41,12 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       if (idx < 0) {
         None;
       } else {
-        let anc_id = List.nth(ancestors, idx);
+        let anc_id = List.nth_exn(ancestors, idx);
         let child_id =
           if (idx == 0) {
             starting_id;
           } else {
-            List.nth(ancestors, idx - 1);
+            List.nth_exn(ancestors, idx - 1);
           };
         switch (Statics.Map.lookup(anc_id, statics)) {
         | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
@@ -96,7 +96,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       | Some(_) as result => result
       | None => probe_for_piece(id)
       };
-    Option.map(unwrap_test, target);
+    Option.map(~f=unwrap_test, target);
   | None => None
   };
 };
@@ -110,16 +110,17 @@ let clear_autoprobe =
      * more frame; resetting now would flash them a reset color. editor_effects
      * resets once they're gone from the syntax cache. */
     List.fold_left(
-      (z, old_id) =>
-        ProbePerform.rm_multi(
-          ~drill=false,
-          ~reset=false,
-          ~syntax,
-          ~info_map,
-          old_id,
-          z,
-        ),
-      z,
+      ~f=
+        (z, old_id) =>
+          ProbePerform.rm_multi(
+            ~drill=false,
+            ~reset=false,
+            ~syntax,
+            ~info_map,
+            old_id,
+            z,
+          ),
+      ~init=z,
       old_ids,
     )
     |> Zipper.update_refractors(_, r =>
@@ -169,7 +170,10 @@ let current_toplevel_def =
     };
 
   [from_indicated, from_right, from_left, from_ancestor]
-  |> List.fold_left((acc, f) => acc == None ? f() : acc, None);
+  |> List.fold_left(
+       ~f=(acc, f) => Option.is_none(acc) ? f() : acc,
+       ~init=None,
+     );
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
@@ -181,7 +185,7 @@ let root_id_result: ref(option(Id.t)) = ref(None);
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
     switch (root_id_segment^) {
-    | Some(seg) => seg === syntax.segment
+    | Some(seg) => phys_equal(seg, syntax.segment)
     | None => false
     };
   if (stable) {
@@ -281,7 +285,7 @@ let update_autoprobe =
      the same-anchors short-circuit would be a permanent no-op. Self-heal. */
   let anchors_intact =
     List.for_all(
-      id => Id.Map.mem(id, z.refractors.multis.ids),
+      ~f=id => Id.Map.mem(id, z.refractors.multis.ids),
       current_anchors,
     );
   if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {
@@ -290,9 +294,16 @@ let update_autoprobe =
     /* drill=false to match how they were added. */
     let z =
       List.fold_left(
-        (z, old_id) =>
-          ProbePerform.rm_multi(~drill=false, ~syntax, ~info_map, old_id, z),
-        z,
+        ~f=
+          (z, old_id) =>
+            ProbePerform.rm_multi(
+              ~drill=false,
+              ~syntax,
+              ~info_map,
+              old_id,
+              z,
+            ),
+        ~init=z,
         prev_anchors,
       );
 

@@ -1,5 +1,6 @@
 open Util;
 open ProjectorBase;
+open Poly;
 open Virtual_dom.Vdom;
 
 open Js_of_ocaml;
@@ -50,7 +51,7 @@ let probe_model_of_sexp = sexp =>
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
-  |> Option.map((r: packed_renderer) =>
+  |> Option.map(~f=(r: packed_renderer) =>
        sexp_of_probe_model({
          ...init_probe_model,
          active_renderer: Some(r.empty_model),
@@ -160,7 +161,11 @@ module Settings = {
       }
     | ToggleWindow => {
         ...settings,
-        window: settings.window == Sample.Window.Single ? Many : Single,
+        window:
+          switch (settings.window) {
+          | Sample.Window.Single => Many
+          | Many => Single
+          },
       }
     | SetWindow(window) => {
         ...settings,
@@ -188,7 +193,7 @@ module Settings = {
       }
     };
 
-  let offset = Hashtbl.create(100);
+  let offset = Stdlib.Hashtbl.create(100);
 
   let s = ref(init);
   let version = ref(0);
@@ -215,7 +220,7 @@ module Settings = {
   };
 
   let reset_mode = () => {
-    Hashtbl.clear(offset);
+    Stdlib.Hashtbl.clear(offset);
     s := init;
     open_dropdown := None;
     sticky := false;
@@ -257,12 +262,12 @@ type probe_ctx = {
 
 module WindowState = {
   let get_offset = (k: Id.t): int =>
-    switch (Hashtbl.find_opt(offset, k)) {
+    switch (Stdlib.Hashtbl.find_opt(offset, k)) {
     | Some(v) => v
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Stdlib.Hashtbl.replace(offset, k, v);
 
   let reform =
       (
@@ -286,21 +291,21 @@ module WindowState = {
 };
 
 module SampleLength = {
-  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
+  let lengths: Stdlib.Hashtbl.t(int, int) = Stdlib.Hashtbl.create(100);
 
   let reset = () => {
-    Hashtbl.clear(lengths);
+    Stdlib.Hashtbl.clear(lengths);
   };
 
   let is_explicit = (sample: Sample.t): bool =>
-    Hashtbl.mem(lengths, sample.id);
+    Stdlib.Hashtbl.mem(lengths, sample.id);
 
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
-    Hashtbl.find_opt(lengths, sample.id)
+    Stdlib.Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
   let set = (id: int, length: int): unit =>
-    Hashtbl.replace(lengths, id, length);
+    Stdlib.Hashtbl.replace(lengths, id, length);
 };
 
 let select_samples =
@@ -372,7 +377,7 @@ module DrawerHeight = {
 
   let sample_rows = (utility: utility, sample: Sample.t): int => {
     let width =
-      Hashtbl.find_opt(SampleLength.lengths, sample.id)
+      Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
       |> Option.value(~default=Settings.s^.drawer.width);
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
   };
@@ -387,8 +392,8 @@ module DrawerHeight = {
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(sample_rows(info.utility), samples);
-        List.fold_left(max, 1, heights);
+        let heights = List.map(~f=sample_rows(info.utility), samples);
+        List.fold_left(~f=max, ~init=1, heights);
       };
     | _ => 1
     };
@@ -402,7 +407,7 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   let text_box =
     e##.currentTarget
     |> Js.Opt.to_option
-    |> Option.map(JsUtil.get_child_with_class(_, "code"))
+    |> Option.map(~f=JsUtil.get_child_with_class(_, "code"))
     |> Option.join;
   switch (text_box) {
   | None => None
@@ -550,8 +555,8 @@ let cursor_clss =
 module Debug = {
   let stack = (stack: CallStack.t): string =>
     stack
-    |> List.map((f: CallStack.frame) => Id.str3(f.id))
-    |> String.concat("\n");
+    |> List.map(~f=(f: CallStack.frame) => Id.str3(f.id))
+    |> String.concat(~sep="\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
     "sample id: "
@@ -617,7 +622,8 @@ let find_best_budget = (width_at: int => int, target_width: int): int => {
 };
 
 module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+  let mousedown: ref(option(Js.t(Dom_html.element))) =
+    ref(Stdlib.Option.None);
 };
 
 let value_view =
@@ -693,7 +699,7 @@ let value_view =
       (seg, [length_cls(length)]);
     | Block =>
       let width =
-        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
         |> Option.value(~default=settings.drawer.width);
       (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
@@ -787,28 +793,26 @@ let value_view =
           }
         | None when ctx.auto_rich_on =>
           switch (
-            List.find_opt(
-              (r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(ctx.sort, sample.value)
-                  || List.exists(
-                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
-                       ctx.dynamics.samples,
-                     )
+            List.find(renderers, ~f=(r: packed_renderer) =>
+              r.can_handle(ctx.sort, sample.value)
+              /* a vacuous match (empty hand) still renders when a
+                 SIBLING sample at this site is real evidence */
+              && (
+                r.auto_applies(ctx.sort, sample.value)
+                || List.exists(
+                     ~f=(s: Sample.t) => r.auto_applies(ctx.sort, s.value),
+                     ctx.dynamics.samples,
+                   )
+              )
+              && (
+                ctx.auto_unbounded
+                || (
+                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  | Some(n) => n <= inline_rows_cap
+                  | None => true
+                  }
                 )
-                && (
-                  ctx.auto_unbounded
-                  || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
-                    | Some(n) => n <= inline_rows_cap
-                    | None => true
-                    }
-                  )
-                ),
-              renderers,
+              )
             )
           ) {
           | Some(r) =>
@@ -836,9 +840,8 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    List.find_opt(
-      (r: packed_renderer) => r.auto_applies(sort, value),
-      renderers,
+    List.find(renderers, ~f=(r: packed_renderer) =>
+      r.auto_applies(sort, value)
     );
   switch (pick) {
   | Some(r) =>
@@ -913,8 +916,8 @@ let step_into_sample =
   let dyn = sample.frame;
   let frame: CallStack.frame = {
     id: ap_id,
-    name: Option.bind(dyn, (f: CallStack.frame) => f.name),
-    fn_def_id: Option.bind(dyn, (f: CallStack.frame) => f.fn_def_id),
+    name: Option.bind(dyn, ~f=(f: CallStack.frame) => f.name),
+    fn_def_id: Option.bind(dyn, ~f=(f: CallStack.frame) => f.fn_def_id),
   };
   Effect.Many([
     local(SetDropdown(None)),
@@ -1044,7 +1047,7 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   | None => []
   | Some(indicated) =>
     renderers
-    |> List.filter_map(r =>
+    |> List.filter_map(~f=r =>
          r.can_handle(ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
@@ -1097,7 +1100,7 @@ let get_arg_var_info =
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
-    | Tuple(elements) => List.map(extract_var, elements)
+    | Tuple(elements) => List.map(~f=extract_var, elements)
     | _ => [None]
     }
   | _ => []
@@ -1163,16 +1166,17 @@ let sample_call_display =
         let num_elems = List.length(elements);
         let arg_rows =
           List.mapi(
-            (i, elem) =>
-              arg_row(
-                ~var_info=
-                  switch (List.nth_opt(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(elem),
-              ),
+            ~f=
+              (i, elem) =>
+                arg_row(
+                  ~var_info=
+                    switch (List.nth(arg_var_info, i)) {
+                    | Some(v) => v
+                    | None => None
+                    },
+                  ~is_last=i == num_elems - 1,
+                  render_exp(elem),
+                ),
             elements,
           );
         [
@@ -1223,8 +1227,8 @@ let filtered_env_entries =
   sample.env
   |> ListUtil.dedup
   |> Sample.Env.remove_opaques
-  |> List.filter((en: Sample.Env.entry) =>
-       !List.mem(en.binding.name, filter_vars)
+  |> List.filter(~f=(en: Sample.Env.entry) =>
+       !List.mem(filter_vars, en.binding.name, ~equal=String.equal)
      );
 
 /* Variable bindings. filter_vars: names already shown in the call display. */
@@ -1245,7 +1249,7 @@ let sample_environment =
         [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(ctx, view_seg, sample), elems),
+            List.map(~f=env_val(ctx, view_seg, sample), elems),
           ),
         ],
       ),
@@ -1263,7 +1267,8 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
 let sample_context_sections =
     (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
     : (bool, bool, list(Node.t)) => {
-  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
+  let filter_vars =
+    List.filter_map(~f=Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
@@ -1353,7 +1358,7 @@ let sample_view =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
           List.exists(
-            r => r.can_handle(ctx.sort, indicated.value),
+            ~f=r => r.can_handle(ctx.sort, indicated.value),
             renderers,
           )
         | None => false
@@ -1495,7 +1500,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      let sample = List.nth(samples, next_idx_maybe);
+      let sample = List.nth_exn(samples, next_idx_maybe);
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
       SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
@@ -1855,16 +1860,19 @@ let prepare_offside =
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let active_renderer_id =
-      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
+      Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       (model.auto_rich || settings.auto_rich_default)
       && model.active_renderer == None
       && List.exists(
-           (sample: Sample.t) =>
-             List.exists(
-               (r: packed_renderer) => r.auto_applies(sort, sample.value),
-               renderers,
-             ),
+           ~f=
+             (sample: Sample.t) =>
+               List.exists(
+                 ~f=
+                   (r: packed_renderer) =>
+                     r.auto_applies(sort, sample.value),
+                 renderers,
+               ),
            dynamics.samples,
          );
     let ctx = {
@@ -2070,7 +2078,7 @@ let live_offside_view =
           segment,
         );
       let indicated_sample_id =
-        indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+        indicated_sample(ctx) |> Option.map(~f=(s: Sample.t) => s.id);
       let sample_view =
         sample_view(
           ~display,
@@ -2082,11 +2090,12 @@ let live_offside_view =
         );
       let group_views =
         List.map(
-          samples =>
-            Node.div(
-              ~attrs=[Attr.classes(["sample-group"])],
-              List.map(sample_view, samples),
-            ),
+          ~f=
+            samples =>
+              Node.div(
+                ~attrs=[Attr.classes(["sample-group"])],
+                List.map(~f=sample_view, samples),
+              ),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */
@@ -2118,7 +2127,7 @@ let get_current = (~settings, info: info) => {
     | Some(closure) => Some(closure.value)
     | None =>
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
-      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+      ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.value);
     };
   | _ => None
   };
@@ -2209,11 +2218,10 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   | None when model.auto_rich =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
-      List.find_opt(
-        (r: packed_renderer) => r.auto_applies(sort, exp),
-        renderers,
+      List.find(renderers, ~f=(r: packed_renderer) =>
+        r.auto_applies(sort, exp)
       )
-      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.map(~f=(r: packed_renderer) => r.drawer_rows(sort, exp))
       |> Option.join
     | None => None
     }
@@ -2475,7 +2483,7 @@ module M: Projector = {
             ~view_seg,
             ~sort,
           )
-          |> Option.map(content =>
+          |> Option.map(~f=content =>
                rich_drawer_view(
                  ~local,
                  ~overflowing=drawer_overflow,

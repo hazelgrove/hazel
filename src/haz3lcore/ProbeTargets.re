@@ -36,12 +36,15 @@ let rec target_subterm_ids =
 
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
-    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap))
+        when Poly.equal(f_expr, v) => [
         IdTagged.rep_id(ap),
       ]
-    | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
+    | Some(Exp({term: DeferredAp(f_expr, _), _} as dap))
+        when Poly.equal(f_expr, v) =>
       switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
-      | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
+      | Some(Exp({term: Ap(_, f_expr, _), _} as ap))
+          when Poly.equal(f_expr, dap) => [
           IdTagged.rep_id(ap),
         ]
       | _ => [id]
@@ -50,7 +53,8 @@ let rec target_subterm_ids =
     }
   | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
-    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap))
+        when Poly.equal(f_expr, v) => [
         IdTagged.rep_id(ap),
       ]
     | _ => [id]
@@ -77,36 +81,38 @@ let probe_status =
   /* ANY (not ALL) target id: else a cleaned-up sibling target (remove_colliding_probes dropping a single-line fun's pat probe) makes the toggle re-add forever instead of removing. */
   let manual_entries =
     List.filter_map(
-      id => List.assoc_opt(id, refractors.manuals),
+      ~f=id => List.Assoc.find(refractors.manuals, id, ~equal=Id.equal),
       target_ids,
     );
-  if (manual_entries != []) {
+  if (!List.is_empty(manual_entries)) {
     let all_statics =
       List.for_all(
-        (entry: Refractors.entry) => entry.kind == Statics,
+        ~f=
+          (entry: Refractors.entry) =>
+            ProjectorCore.Kind.equal(entry.kind, Statics),
         manual_entries,
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
   } else if (List.exists(
-               id => Id.Map.mem(id, refractors.multis.ids),
+               ~f=id => Id.Map.mem(id, refractors.multis.ids),
                target_ids,
              )) {
     Multi;
   } else {
     let ephemeral_ids =
       List.filter(
-        id => Id.Map.mem(id, refractors.multis.ephemerals),
+        ~f=id => Id.Map.mem(id, refractors.multis.ephemerals),
         target_ids,
       );
-    if (ephemeral_ids != []) {
+    if (!List.is_empty(ephemeral_ids)) {
       Ephemeral(ephemeral_ids);
     } else {
       let suppressed_ids =
         List.filter(
-          id => Id.Map.mem(id, refractors.multis.suppressed),
+          ~f=id => Id.Map.mem(id, refractors.multis.suppressed),
           target_ids,
         );
-      if (suppressed_ids != []) {
+      if (!List.is_empty(suppressed_ids)) {
         Suppressed(suppressed_ids);
       } else {
         Non;
@@ -130,10 +136,10 @@ let ids_from_term =
   let inputs_stable =
     switch (expansion_inputs^) {
     | Some((term_data, terms, measured, prev_info_map)) =>
-      term_data === syntax.term_data
-      && terms === syntax.terms
-      && measured === syntax.measured
-      && prev_info_map === info_map
+      phys_equal(term_data, syntax.term_data)
+      && phys_equal(terms, syntax.terms)
+      && phys_equal(measured, syntax.measured)
+      && phys_equal(prev_info_map, info_map)
     | None => false
     };
   if (!inputs_stable) {
@@ -141,7 +147,7 @@ let ids_from_term =
       Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
     expansion_results := [];
   };
-  switch (List.assoc_opt(id, expansion_results^)) {
+  switch (List.Assoc.find(expansion_results^, id, ~equal=Id.equal)) {
   | Some(result) => result
   | None =>
     let result =
@@ -153,8 +159,8 @@ let ids_from_term =
         info_map,
       )
       |> Option.to_list
-      |> List.flatten
-      |> List.filter_map(Fun.id);
+      |> List.concat
+      |> List.filter_map(~f=Fun.id);
     expansion_results := [(id, result), ...expansion_results^];
     result;
   };
@@ -164,23 +170,25 @@ let sort_ids_lexically =
     (~syntax: CachedSyntax.t, ids: list(Id.t)): list(Id.t) => {
   let with_positions =
     List.filter_map(
-      id =>
-        switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-        ) {
-        | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
-        | None => None
-        },
+      ~f=
+        id =>
+          switch (
+            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          ) {
+          | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
+          | None => None
+          },
       ids,
     );
   let sorted =
     List.sort(
-      ((_, r1, c1), (_, r2, c2)) =>
-        switch (Int.compare(r1, r2)) {
-        | 0 => Int.compare(c1, c2)
-        | n => n
-        },
+      ~compare=
+        ((_, r1, c1), (_, r2, c2)) =>
+          switch (Int.compare(r1, r2)) {
+          | 0 => Int.compare(c1, c2)
+          | n => n
+          },
       with_positions,
     );
-  List.map(((id, _, _)) => id, sorted);
+  List.map(~f=((id, _, _)) => id, sorted);
 };

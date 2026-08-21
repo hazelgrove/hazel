@@ -60,7 +60,7 @@ let parent =
     : option(Piece.t) =>
   ancestors
   |> Ancestors.parent
-  |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
+  |> Option.map(~f=p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
 /* The sort at the current insertion point, accounting for
  * infix operators with heterogeneous child sorts (e.g. type
@@ -125,7 +125,7 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
       let a =
         switch (
           molds
-          |> List.filter(mold => {
+          |> List.filter(~f=mold => {
                let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
              })
@@ -177,7 +177,7 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
         /* s_l and s_r are same-class here, so a grout fitting one fits
          * both, and at most one shape of grout fits. */
         let fits = g => Grout.fits_shape(g, s_l);
-        let g_l = Option.map(snd, ListUtil.split_last_opt(gs_l));
+        let g_l = Option.map(ListUtil.split_last_opt(gs_l), ~f=snd);
         let g_r = ListUtil.hd_opt(gs_r);
         switch (g_l, g_r) {
         | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>

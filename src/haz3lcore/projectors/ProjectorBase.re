@@ -266,7 +266,7 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
   let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = any => C.init(any) |> Option.map(serialize_m);
+  let init = any => C.init(any) |> Option.map(~f=serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;
@@ -282,16 +282,17 @@ module Cook = (C: Projector) : Cooked => {
     });
   /* Memoize the per-refractor sexp parse by exact model string (called on
    * every shape refresh, mostly with unchanged strings). Bounded cache. */
-  let placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
+  let placeholder_models: Stdlib.Hashtbl.t(string, C.model) =
+    Stdlib.Hashtbl.create(32);
   let parse_model_memo = (s: string): C.model =>
-    switch (Hashtbl.find_opt(placeholder_models, s)) {
+    switch (Stdlib.Hashtbl.find_opt(placeholder_models, s)) {
     | Some(m) => m
     | None =>
-      if (Hashtbl.length(placeholder_models) > 512) {
-        Hashtbl.clear(placeholder_models);
+      if (Stdlib.Hashtbl.length(placeholder_models) > 512) {
+        Stdlib.Hashtbl.clear(placeholder_models);
       };
       let m = deserialize_m(s);
-      Hashtbl.add(placeholder_models, s, m);
+      Stdlib.Hashtbl.add(placeholder_models, s, m);
       m;
     };
   let placeholder = m => m |> parse_model_memo |> C.placeholder;

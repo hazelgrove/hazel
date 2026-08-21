@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* Linear-time text→segment for agent chunk inserts.
 
@@ -47,12 +48,12 @@ let lex_with_gaps = (src: string): option((list(tok), string)) => {
     | MenhirParser.Parser.EOF =>
       Some((
         List.rev(toks^),
-        String.sub(src, prev_end^, String.length(src) - prev_end^),
+        String.sub(src, ~pos=prev_end^, ~len=String.length(src) - prev_end^),
       ))
     | _ =>
       let start = Lexing.lexeme_start(lexbuf);
       let stop = Lexing.lexeme_end(lexbuf);
-      let gap = String.sub(src, prev_end^, start - prev_end^);
+      let gap = String.sub(src, ~pos=prev_end^, ~len=start - prev_end^);
       toks :=
         [
           {
@@ -64,7 +65,7 @@ let lex_with_gaps = (src: string): option((list(tok), string)) => {
       prev_end := stop;
       go();
     | exception e =>
-      note("lex: " ++ Printexc.to_string(e));
+      note("lex: " ++ Exn.to_string(e));
       None;
     };
   };
@@ -95,7 +96,7 @@ let gap_pieces = (gap: string): list(Piece.t) => {
           incr(j);
         };
         if (j^ < n && Char.equal(gap.[j^], '#')) {
-          let comment = String.sub(gap, i, j^ - i + 1);
+          let comment = String.sub(gap, ~pos=i, ~len=j^ - i + 1);
           go(
             j^ + 1,
             [Piece.Secondary(Secondary.mk(Id.mk(), comment)), ...acc],
@@ -156,7 +157,8 @@ let weave =
      is a genuine sort difference and must still mismatch. */
   let float_value = (s: string): option(float) =>
     String.exists(
-      c => Char.equal(c, '.') || Char.equal(c, 'e') || Char.equal(c, 'E'),
+      ~f=
+        c => Char.equal(c, '.') || Char.equal(c, 'e') || Char.equal(c, 'E'),
       s,
     )
       ? float_of_string_opt(s) : None;
@@ -174,7 +176,7 @@ let weave =
     String.length(s) >= 2
     && Char.equal(s.[0], '`')
     && Char.equal(s.[String.length(s) - 1], '`')
-      ? Some(String.sub(s, 1, String.length(s) - 2)) : None;
+      ? Some(String.sub(s, ~pos=1, ~len=String.length(s) - 2)) : None;
   let label_equal_toks = (src: string, printed: string): bool =>
     switch (unquote(src), unquote(printed)) {
     | (Some(s), None) => String.equal(s, printed)
@@ -262,7 +264,7 @@ let weave =
   let trigger_kind = (trigger: string): option(Language.ProjectorKind.t) =>
     Option.bind(
       Token.of_projector_invoke_base(trigger),
-      Language.ProjectorKind.of_name_opt,
+      ~f=Language.ProjectorKind.of_name_opt,
     );
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
@@ -369,21 +371,22 @@ let weave =
       if (List.length(t.shards) != List.length(t.label)) {
         raise(Mismatch);
       };
-      let (gap0, tok0) = expect(List.hd(t.label));
+      let (gap0, tok0) = expect(List.hd_exn(t.label));
       let (children, label_rev) =
-        List.fold_left2(
-          ((children_acc, label_acc), label_tok, child_seg) => {
-            /* each child sits between consecutive shards; the gap
-               before the closing token belongs inside the child */
-            let child = weave_seg(child_seg);
-            let (gap, tok) = expect(label_tok);
-            (
-              children_acc @ [child @ gap_pieces(gap)],
-              [tok, ...label_acc],
-            );
-          },
-          ([], [tok0]),
-          List.tl(t.label),
+        List.fold2_exn(
+          ~f=
+            ((children_acc, label_acc), label_tok, child_seg) => {
+              /* each child sits between consecutive shards; the gap
+                 before the closing token belongs inside the child */
+              let child = weave_seg(child_seg);
+              let (gap, tok) = expect(label_tok);
+              (
+                children_acc @ [child @ gap_pieces(gap)],
+                [tok, ...label_acc],
+              );
+            },
+          ~init=([], [tok0]),
+          List.tl_exn(t.label),
           t.children,
         );
       gap_pieces(gap0)
@@ -458,7 +461,7 @@ let attempt =
   | Some((tokens, trailing_gap)) =>
     switch (MenhirParser.Interface.parse_program(text)) {
     | exception e =>
-      note("menhir: " ++ Printexc.to_string(e));
+      note("menhir: " ++ Exn.to_string(e));
       None;
     | ast =>
       let term =
@@ -523,7 +526,7 @@ let parsed_of_text =
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
        fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
+    switch (attempt(~materialize, "{" ++ String.strip(text) ++ "}")) {
     | Some({
         segment: [Tile({label: ["{", "}"], children: [inner], _})],
         refractors,
@@ -535,7 +538,7 @@ let parsed_of_text =
     | _ =>
       /* keep the attempt's own note when it bailed; the generic wrap
          message only describes a successful parse of the wrong shape */
-      if (bail_note^ == None) {
+      if (Option.is_none(bail_note^)) {
         note("mod-root wrap did not yield a single module body");
       };
       fail();

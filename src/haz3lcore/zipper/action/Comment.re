@@ -1,4 +1,5 @@
 open Zipper;
+open Poly;
 
 /* Classification of a line's content with respect to comments */
 type line_class =
@@ -13,12 +14,13 @@ let classify = (seg: Segment.t): line_class => {
   let has_code = ref(false);
   let has_comment = ref(false);
   List.iter(
-    fun
-    | Piece.Secondary(s) when Secondary.is_comment(s) => has_comment := true
-    | Piece.Secondary(s) when Secondary.is_linebreak(s) => ()
-    | Piece.Secondary(_) => ()
-    | Piece.Grout(_) => () /* Grout is structural padding, not code */
-    | _ => has_code := true,
+    ~f=
+      fun
+      | Piece.Secondary(s) when Secondary.is_comment(s) => has_comment := true
+      | Piece.Secondary(s) when Secondary.is_linebreak(s) => ()
+      | Piece.Secondary(_) => ()
+      | Piece.Grout(_) => () /* Grout is structural padding, not code */
+      | _ => has_code := true,
     seg,
   );
   switch (has_code^, has_comment^) {
@@ -34,13 +36,14 @@ let classify = (seg: Segment.t): line_class => {
 let uncommented_text = (seg: Segment.t): string =>
   seg
   |> List.map(
-       fun
-       | Piece.Secondary({content: Language.Secondary.Comment(text), _}) =>
-         String.sub(text, 1, String.length(text) - 2)
-       | Piece.Secondary({content: Whitespace(ws), _}) => ws
-       | _ => "",
+       ~f=
+         fun
+         | Piece.Secondary({content: Language.Secondary.Comment(text), _}) =>
+           String.sub(text, ~pos=1, ~len=String.length(text) - 2)
+         | Piece.Secondary({content: Whitespace(ws), _}) => ws
+         | _ => "",
      )
-  |> String.concat("");
+  |> String.concat(~sep="");
 
 /* Re-insert text character-by-character into a zipper */
 let insert_text = (z: t, text: string, ~root): t =>
@@ -50,12 +53,13 @@ let insert_text = (z: t, text: string, ~root): t =>
     let result =
       Token.to_list(text)
       |> List.fold_left(
-           (z_opt, c) =>
-             switch (z_opt) {
-             | None => None
-             | Some(z) => Insert.go(c, z, ~root)
-             },
-           Some(z),
+           ~f=
+             (z_opt, c) =>
+               switch (z_opt) {
+               | None => None
+               | Some(z) => Insert.go(c, z, ~root)
+               },
+           ~init=Some(z),
          );
     switch (result) {
     | Some(z) => z
@@ -107,25 +111,28 @@ let classify_lines = (seg: Segment.t): line_class => {
   /* Split segment on linebreaks into per-line groups */
   let lines =
     List.fold_left(
-      (acc, piece) =>
-        switch (piece) {
-        | Piece.Secondary(s) when Secondary.is_linebreak(s) => [[], ...acc]
-        | _ =>
-          switch (acc) {
-          | [current, ...rest] => [[piece, ...current], ...rest]
-          | [] => [[piece]]
-          }
-        },
-      [[]],
+      ~f=
+        (acc, piece) =>
+          switch (piece) {
+          | Piece.Secondary(s) when Secondary.is_linebreak(s) => [[], ...acc]
+          | _ =>
+            switch (acc) {
+            | [current, ...rest] => [[piece, ...current], ...rest]
+            | [] => [[piece]]
+            }
+          },
+      ~init=[[]],
       seg,
     )
-    |> List.map(List.rev)
+    |> List.map(~f=List.rev)
     |> List.rev;
   /* Classify each non-empty line and check uniformity */
-  let classes = lines |> List.map(classify) |> List.filter(c => c != Empty);
+  let classes =
+    lines |> List.map(~f=classify) |> List.filter(~f=c => c != Empty);
   switch (classes) {
   | [] => Empty
-  | [first, ...rest] => List.for_all(c => c == first, rest) ? first : Mixed
+  | [first, ...rest] =>
+    List.for_all(~f=c => c == first, rest) ? first : Mixed
   };
 };
 
@@ -143,23 +150,25 @@ let reselect_lines = (z: t, num_newlines: int): t => {
   /* Cross linebreaks going left to reach start of first line */
   let z =
     List.fold_left(
-      (z, _) =>
-        z
-        |> or_stay(Move.by_char(Left))
-        |> or_stay(Move.to_linebreak(Left)),
-      z,
-      List.init(num_newlines, Fun.id),
+      ~f=
+        (z, _) =>
+          z
+          |> or_stay(Move.by_char(Left))
+          |> or_stay(Move.to_linebreak(Left)),
+      ~init=z,
+      List.init(num_newlines, ~f=Fn.id),
     );
   /* Select to end of current (first) line */
   let z = or_stay(Select.to_linebreak(Right), z);
   /* Cross linebreaks going right, selecting each subsequent line */
   List.fold_left(
-    (z, _) =>
-      z
-      |> or_stay(Select.local(Right))
-      |> or_stay(Select.to_linebreak(Right)),
-    z,
-    List.init(num_newlines, Fun.id),
+    ~f=
+      (z, _) =>
+        z
+        |> or_stay(Select.local(Right))
+        |> or_stay(Select.to_linebreak(Right)),
+    ~init=z,
+    List.init(num_newlines, ~f=Fn.id),
   );
 };
 
@@ -167,7 +176,7 @@ let reselect_lines = (z: t, num_newlines: int): t => {
  * Extends selection to cover full lines, then processes each line
  * individually from top to bottom. Result remains selected. */
 let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
-  let maybe_reassoc = deep_reassociate ? Reassociate.go : Fun.id;
+  let maybe_reassoc = deep_reassociate ? Reassociate.go : Fn.id;
   /* Extend selection to cover full lines.
    * Must set focus to match the extension direction,
    * since to_linebreak moves the focus end. */
@@ -197,10 +206,12 @@ let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
         content,
       );
     let z = Zipper.destroy_selection(z);
-    let lines = String.split_on_char('\n', text);
+    let lines = String.split(text, ~on='\n');
     let num_newlines = List.length(lines) - 1;
     let commented =
-      lines |> List.map(line => "#" ++ line ++ "#") |> String.concat("\n");
+      lines
+      |> List.map(~f=line => "#" ++ line ++ "#")
+      |> String.concat(~sep="\n");
     let z = insert_text(z, commented, ~root);
     let z = maybe_reassoc(z);
     Some(reselect_lines(z, num_newlines));
@@ -208,7 +219,7 @@ let toggle_multi = (~deep_reassociate=false, z: t, ~root): option(t) => {
     /* Uncomment each line: destroy selection, extract content
      * from each comment, re-insert with newlines between */
     let text = uncommented_text(content);
-    let num_newlines = List.length(String.split_on_char('\n', text)) - 1;
+    let num_newlines = List.length(String.split(text, ~on='\n')) - 1;
     let z = Zipper.destroy_selection(z);
     let z = insert_text(z, text, ~root);
     let z = maybe_reassoc(z);

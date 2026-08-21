@@ -62,10 +62,10 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
   Option.value(
     TermData.segment(id, term_data)
-    |> Option.map(Segment.unparenthesize)
-    |> Option.map(Segment.trim_secondary(Left))
-    |> Option.map(Segment.trim_secondary(Right))
-    |> Option.map(Segment.parenthesize),
+    |> Option.map(~f=Segment.unparenthesize)
+    |> Option.map(~f=Segment.trim_secondary(Left))
+    |> Option.map(~f=Segment.trim_secondary(Right))
+    |> Option.map(~f=Segment.parenthesize),
     ~default=
       Base.Secondary({
         id: Id.invalid,
@@ -192,24 +192,24 @@ let refresh_shapes =
   };
 };
 
-/* phys-eq on option(Exp.t): None===None holds but Some(x)===Some(y) is
- * always false (new box), so compare the inner Exp ref. */
+/* phys-eq on option(Exp.t): phys_equal(None, None) holds but Some(x) and
+ * Some(y) never match (new box), so compare the inner Exp ref. */
 let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
   | (None, None) => true
-  | (Some(x), Some(y)) => x === y
+  | (Some(x), Some(y)) => phys_equal(x, y)
   | _ => false
   };
 
 let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let refractor_inputs_changed =
-    z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+    !phys_equal(z.refractors.manuals, old.cached_manuals)
+    || !phys_equal(z.refractors.multis.ephemerals, old.cached_ephemerals);
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);
-  } else if (info_map !== old.shape_info_map
-             || dyn_map !== old.shape_dyn_map
+  } else if (!phys_equal(info_map, old.shape_info_map)
+             || !phys_equal(dyn_map, old.shape_dyn_map)
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)
              || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);

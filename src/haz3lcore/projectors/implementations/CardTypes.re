@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type suit =
   | UnknownS
   | Hearts
@@ -8,7 +8,7 @@ type suit =
   | Clubs
   | Spades;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type rank =
   | UnknownR
   | Ace
@@ -25,7 +25,7 @@ type rank =
   | Queen
   | King;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type card = (suit, rank);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
