@@ -25,7 +25,7 @@ let reference_graphemes = (s: string): list(string) =>
   )
   |> Js.Unsafe.coerce
   |> Js.to_array
-  |> Array.map(Js.to_string)
+  |> Array.map(~f=Js.to_string)
   |> Array.to_list;
 
 let corpus = [
@@ -59,8 +59,8 @@ let corpus = [
 let reference_columns = (s: string): int =>
   reference_graphemes(s)
   |> List.fold_left(
-       (acc, c) => acc + Unicode.Width.columns_of_cluster(c),
-       0,
+       ~f=(acc, c) => acc + Unicode.Width.columns_of_cluster(c),
+       ~init=0,
      );
 
 let agrees_with_segmenter = ((name, s)) =>
@@ -74,24 +74,25 @@ let agrees_with_segmenter = ((name, s)) =>
       check(string, "roundtrip", s, Unicode.of_list(Unicode.to_list(s)));
       /* columns, on each line separately: bounding_box measures per line */
       List.iter(
-        line =>
-          check(
-            int,
-            "columns",
-            reference_columns(line),
-            Unicode.Width.columns_of_string(line),
-          ),
-        String.split_on_char('\n', s),
+        ~f=
+          line =>
+            check(
+              int,
+              "columns",
+              reference_columns(line),
+              Unicode.Width.columns_of_string(line),
+            ),
+        String.split(s, ~on='\n'),
       );
       /* every prefix length, including out-of-range ones */
       let n = List.length(reference);
       for (k in 0 to n + 2) {
         let expected =
           reference
-          |> List.filteri((i, _) => i < k)
+          |> List.filteri(~f=(i, _) => i < k)
           |> List.fold_left(
-               (acc, c) => acc + Unicode.Width.columns_of_cluster(c),
-               0,
+               ~f=(acc, c) => acc + Unicode.Width.columns_of_cluster(c),
+               ~init=0,
              );
         check(
           int,
@@ -118,12 +119,12 @@ let bounding_box_agrees = ((name, s)) =>
     "bounding box: " ++ name,
     `Quick,
     () => {
-      let lines = String.split_on_char('\n', s);
+      let lines = String.split(s, ~on='\n');
       let expected = (
         List.length(lines) - 1,
         List.fold_left(
-          (acc, l) => max(acc, reference_columns(l)),
-          0,
+          ~f=(acc, l) => max(acc, reference_columns(l)),
+          ~init=0,
           lines,
         ),
       );
@@ -273,32 +274,29 @@ let operator_tests = [
     () => {
       check(int, "count", 18, List.length(ascii_operators));
       List.iter(
-        s => check(bool, s, true, Token.is_potential_operator(s)),
+        ~f=s => check(bool, s, true, Token.is_potential_operator(s)),
         ascii_operators,
       );
       /* Nothing else printable-ASCII is an operator, and the ASCII NAME
        * alphabet is likewise exactly what it was. Together these pin ASCII
        * editing behaviour as unchanged by the move to an explicit list. */
       let is_ascii_name = c =>
-        c >= 'a'
-        && c <= 'z'
-        || c >= 'A'
-        && c <= 'Z'
-        || c >= '0'
-        && c <= '9'
-        || List.mem(c, ['_', '\'', '?', '^', '$']);
+        Char.(
+          c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+        )
+        || List.mem(['_', '\'', '?', '^', '$'], c, ~equal=Char.equal);
       for (c in 0x21 to 0x7e) {
-        let s = String.make(1, Char.chr(c));
+        let s = String.make(1, Char.of_int_exn(c));
         check(
           bool,
           "operator " ++ s,
-          List.mem(s, ascii_operators),
+          List.mem(ascii_operators, s, ~equal=String.equal),
           Token.is_potential_operator(s),
         );
         check(
           bool,
           "name " ++ s,
-          is_ascii_name(Char.chr(c)),
+          is_ascii_name(Char.of_int_exn(c)),
           Token.is_potential_operand(s),
         );
       };
@@ -319,11 +317,11 @@ let operator_tests = [
        * (Drv judgments, printed by ExpToSegment). Pinned in both directions:
        * dropping one would silently make it a name. */
       List.iter(
-        s => check(bool, s, true, Token.is_potential_operator(s)),
+        ~f=s => check(bool, s, true, Token.is_potential_operator(s)),
         unicode_operators,
       );
       List.iter(
-        s => check(bool, s, false, Token.is_potential_operand(s)),
+        ~f=s => check(bool, s, false, Token.is_potential_operand(s)),
         unicode_operators,
       );
     },
@@ -339,7 +337,7 @@ let operator_tests = [
         check(bool, s, true, Token.is_potential_operand(s));
         check(bool, s, false, Token.is_potential_operator(s));
       };
-      List.iter(name, former_operators);
+      List.iter(~f=name, former_operators);
       name("\xc3\xa9"); /* é */
       name("\xe6\x97\xa5"); /* 日 */
       name("\xf0\x9f\x98\x80"); /* 😀 */
@@ -385,11 +383,11 @@ let operator_tests = [
       let both = s =>
         Token.is_potential_operand(s) && Token.is_potential_operator(s);
       for (c in 0 to 0x7f) {
-        let s = String.make(1, Char.chr(c));
+        let s = String.make(1, Char.of_int_exn(c));
         check(bool, Printf.sprintf("ascii %#x", c), false, both(s));
       };
       List.iter(
-        s => check(bool, s, false, both(s)),
+        ~f=s => check(bool, s, false, both(s)),
         ascii_operators
         @ unicode_operators
         @ former_operators
@@ -557,11 +555,11 @@ let name_tests = [
       );
       /* leading symbols are non-uppercase, so still variables */
       List.iter(
-        s => check(bool, s, true, Token.is_var(s ++ "x")),
+        ~f=s => check(bool, s, true, Token.is_var(s ++ "x")),
         former_operators,
       );
       List.iter(
-        s => check(bool, s, false, Token.is_ctr(s ++ "x")),
+        ~f=s => check(bool, s, false, Token.is_ctr(s ++ "x")),
         former_operators,
       );
     },
@@ -774,7 +772,7 @@ let invisible_tests = [
         | Web.GraphemeView.Invisible(s, _) => "I:" ++ s
         };
       let segs = s =>
-        Web.GraphemeView.segments_for_token(s) |> List.map(seg_str);
+        Web.GraphemeView.segments_for_token(s) |> List.map(~f=seg_str);
       check(
         list(string),
         "ZWSP inside a name",
@@ -853,8 +851,8 @@ let nfc_tests = [
 let tests = [
   (
     "Unicode.Segmenter",
-    List.map(agrees_with_segmenter, corpus)
-    @ List.map(bounding_box_agrees, corpus),
+    List.map(~f=agrees_with_segmenter, corpus)
+    @ List.map(~f=bounding_box_agrees, corpus),
   ),
   ("Unicode.Width", width_tests),
   ("Unicode.Invisible", invisible_tests),

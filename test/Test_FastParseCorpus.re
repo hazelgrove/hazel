@@ -1,14 +1,15 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let rec find_hz = (dir: string): list(string) =>
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | entries =>
     entries
     |> Array.to_list
-    |> List.concat_map(entry => {
+    |> List.concat_map(~f=entry => {
          let path = Filename.concat(dir, entry);
-         switch (Sys.is_directory(path)) {
+         switch (Stdlib.Sys.is_directory(path)) {
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -18,10 +19,10 @@ let rec find_hz = (dir: string): list(string) =>
   };
 
 let read_file = (path: string): string => {
-  let ic = open_in_bin(path);
-  let n = in_channel_length(ic);
-  let s = really_input_string(ic, n);
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let n = Stdlib.in_channel_length(ic);
+  let s = Stdlib.really_input_string(ic, n);
+  Stdlib.close_in(ic);
   s;
 };
 
@@ -70,19 +71,16 @@ let bundled_exercise_editors = (): list((string, Zipper.t)) => {
     List.rev(acc^);
   };
   let named = (title, zs) =>
-    List.mapi((i, z) => (title ++ " #" ++ string_of_int(i), z), zs);
-  List.concat_map(
-    (e: Web.Exercise.t) =>
-      switch (e) {
-      | Code(s) => named(s.title, Web.CodeExercise.editors(s))
-      | Theorem(s) => named(s.title, [s.prelude, s.lemmas, s.theorem])
-      | Derivation(s) => drv(s.title, s)
-      },
-    Web.ExerciseSettings_base.exercises,
+    List.mapi(zs, ~f=(i, z) => (title ++ " #" ++ Int.to_string(i), z));
+  List.concat_map(Web.ExerciseSettings_base.exercises, ~f=(e: Web.Exercise.t) =>
+    switch (e) {
+    | Code(s) => named(s.title, Web.CodeExercise.editors(s))
+    | Theorem(s) => named(s.title, [s.prelude, s.lemmas, s.theorem])
+    | Derivation(s) => drv(s.title, s)
+    }
   )
-  @ List.concat_map(
-      ((name, s)) => drv(name, s),
-      Web.Init.documentation_drv_slides,
+  @ List.concat_map(Web.Init.documentation_drv_slides, ~f=((name, s)) =>
+      drv(name, s)
     );
 };
 
@@ -94,10 +92,10 @@ let bundled_exercise_editors = (): list((string, Zipper.t)) => {
 let exercises_keep_indentation = () => {
   let indented_lines = z =>
     MarkerParse.to_text(z)
-    |> String.split_on_char('\n')
-    |> List.map(line => String.length(line) > 0 && line.[0] == ' ');
+    |> String.split(~on='\n')
+    |> List.map(~f=line => String.length(line) > 0 && line.[0] == ' ');
   bundled_exercise_editors()
-  |> List.iter(((label, z)) =>
+  |> List.iter(~f=((label, z)) =>
        check(
          list(bool),
          label,
@@ -106,7 +104,7 @@ let exercises_keep_indentation = () => {
        )
      );
   let prelude =
-    switch (List.hd(Web.ExerciseSettings_base.exercises)) {
+    switch (List.hd_exn(Web.ExerciseSettings_base.exercises)) {
     | Code(s) => s.prelude
     | _ => fail("expected Oddly Recursive first")
     };
@@ -122,27 +120,29 @@ let exercises_keep_indentation = () => {
    of each lesson's implementation, solution and hidden tests is a line of
    its source, leading spaces included. */
 let tutorials_keep_indentation = () =>
-  List.combine(Web.TutorialText.all, Tutorialslides.Slides.all)
-  |> List.iter(((lesson: Web.Tutorial.spec, (rel, raw))) => {
-       let source_lines = String.split_on_char('\n', raw);
+  List.zip_exn(Web.TutorialText.all, Tutorialslides.Slides.all)
+  |> List.iter(~f=((lesson: Web.Tutorial.spec, (rel, raw))) => {
+       let source_lines = String.split(raw, ~on='\n');
        let check_editor = (part, z) =>
          MarkerParse.to_text(z)
-         |> String.split_on_char('\n')
-         |> List.filter(line => String.trim(line) != "")
-         |> List.iter(line =>
+         |> String.split(~on='\n')
+         |> List.filter(~f=line => !String.is_empty(String.strip(line)))
+         |> List.iter(~f=line =>
               check(
                 bool,
-                rel ++ " " ++ part ++ ": " ++ String.escaped(line),
+                rel ++ " " ++ part ++ ": " ++ Stdlib.String.escaped(line),
                 true,
-                List.mem(line, source_lines),
+                List.mem(source_lines, line, ~equal=String.equal),
               )
             );
        check_editor("@code", lesson.your_impl);
        /* a lesson without @test gets a default one */
-       if (List.exists(l => String.trim(l) == "@test", source_lines)) {
+       if (List.exists(source_lines, ~f=l =>
+             String.equal(String.strip(l), "@test")
+           )) {
          check_editor("@test", lesson.hidden_tests.tests);
        };
-       Option.iter(check_editor("@solution"), lesson.solution);
+       Option.iter(lesson.solution, ~f=check_editor("@solution"));
      });
 
 let tests = (
@@ -170,48 +170,55 @@ let tests = (
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]
-          |> List.concat_map(find_hz)
-          |> List.sort_uniq(compare);
-        let t0 = Sys.time();
+          |> List.concat_map(~f=find_hz)
+          |> List.dedup_and_sort(~compare=Poly.compare);
+        let t0 = Stdlib.Sys.time();
         let (ok, bail, worst) =
           List.fold_left(
-            ((ok, bail, worst), path) => {
-              /* mirror the production load path (of_slide_text keeps
-                 committed indentation; the reader strips only the file's
-                 final newline — other edge whitespace is content) */
-              let src =
-                read_file(path) |> Util.StringUtil.strip_final_newline;
-              let f0 = Sys.time();
-              let known_gap = List.mem(Filename.basename(path), known_gaps);
-              let r =
-                known_gap
-                  ? None
-                  : FastParse.of_text(
-                      ~materialize=Triggers.invoked_projector,
-                      ~collect_refractors=true,
-                      ~root=Exp,
-                      src,
-                    );
-              let ms = (Sys.time() -. f0) *. 1000.;
-              let worst =
-                ms > snd(worst) ? (Filename.basename(path), ms) : worst;
-              switch (r) {
-              | Some(_) => (ok + 1, bail, worst)
-              | None when known_gap => (ok, bail, worst)
-              | None =>
-                Printf.printf(
-                  "BAIL %s: %s\n",
-                  path,
-                  Option.value(FastParse.bail_note^, ~default="?"),
-                );
-                (ok, bail + 1, worst);
-              };
-            },
-            (0, 0, ("", 0.)),
+            ~f=
+              ((ok, bail, worst), path) => {
+                /* mirror the production load path (of_slide_text keeps
+                   committed indentation; the reader strips only the file's
+                   final newline — other edge whitespace is content) */
+                let src =
+                  read_file(path)
+                  |> Util.StringUtil.strip_final_newline;
+                let f0 = Stdlib.Sys.time();
+                let known_gap =
+                  List.mem(
+                    known_gaps,
+                    Filename.basename(path),
+                    ~equal=Poly.equal,
+                  );
+                let r =
+                  known_gap
+                    ? None
+                    : FastParse.of_text(
+                        ~materialize=Triggers.invoked_projector,
+                        ~collect_refractors=true,
+                        ~root=Exp,
+                        src,
+                      );
+                let ms = (Stdlib.Sys.time() -. f0) *. 1000.;
+                let worst =
+                  ms > snd(worst) ? (Filename.basename(path), ms) : worst;
+                switch (r) {
+                | Some(_) => (ok + 1, bail, worst)
+                | None when known_gap => (ok, bail, worst)
+                | None =>
+                  Stdlib.Printf.printf(
+                    "BAIL %s: %s\n",
+                    path,
+                    Option.value(FastParse.bail_note^, ~default="?"),
+                  );
+                  (ok, bail + 1, worst);
+                };
+              },
+            ~init=(0, 0, ("", 0.)),
             files,
           );
-        let total = (Sys.time() -. t0) *. 1000.;
-        Printf.printf(
+        let total = (Stdlib.Sys.time() -. t0) *. 1000.;
+        Stdlib.Printf.printf(
           "HZPROBE: %d files, %d fast-path OK, %d bail, total %.1fms, worst %s %.1fms\n",
           List.length(files),
           ok,
