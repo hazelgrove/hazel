@@ -519,8 +519,8 @@ let padding_case = (input, preview, expected) =>
         bool,
         "no marker tile",
         false,
-        List.mem(
-          Token.implicit_hole_marker,
+        List.exists(
+          String.equal(Token.implicit_hole_marker),
           Token.to_list(Printer.of_zipper(~holes="", result)),
         ),
       );

@@ -105,7 +105,7 @@ let roundtrips = (seg: Segment.t): bool => {
   let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
   let ok =
     Segment.deep_tile_complete(result.completed_seg)
-    && print_g(seg) == print_g(seg2)
+    && String.equal(print_g(seg), print_g(seg2))
     && Segment.equiv_mod_grout(~mold_sorts=false, seg, seg2);
   if (!ok) {
     /* surface the state for shrinking/debugging */
@@ -115,7 +115,7 @@ let roundtrips = (seg: Segment.t): bool => {
       ++ "\"";
     let why =
       (Segment.deep_tile_complete(result.completed_seg) ? "" : " INCOMPLETE")
-      ++ (print_g(seg) == print_g(seg2) ? "" : " TEXT")
+      ++ (String.equal(print_g(seg), print_g(seg2)) ? "" : " TEXT")
       ++ (
         Segment.equiv_mod_grout(~mold_sorts=false, seg, seg2) ? "" : " EQUIV"
       );

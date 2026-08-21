@@ -111,7 +111,7 @@ let is_flat_ellipses_exp = (exp: Exp.t): bool =>
   | Invalid(str)
   | Atom(String(str))
   | Constructor(str, _)
-  | Var(str) => str == ellipsis
+  | Var(str) => String.equal(str, ellipsis)
   | _ => false
   };
 
@@ -243,8 +243,8 @@ let structural_tests = [
           "label keeps prefix",
           true,
           String.length(label_text) > 0
-          && label_text != ellipsis
-          && label_text.[0] == 'c',
+          && !String.equal(label_text, ellipsis)
+          && Char.equal(label_text.[0], 'c'),
         );
         check(
           Alcotest.bool,
@@ -556,8 +556,8 @@ let module_abbreviation_tests = [
           "label keeps prefix",
           true,
           String.length(label_text) > 0
-          && label_text != ellipsis
-          && label_text.[0] == 'c',
+          && !String.equal(label_text, ellipsis)
+          && Char.equal(label_text.[0], 'c'),
         );
         check(
           Alcotest.bool,

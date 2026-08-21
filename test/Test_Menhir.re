@@ -176,7 +176,7 @@ let qcheck_menhir_maketerm_equivalent_test =
            (`? + Lka(X)`). The id-faithful printer emits the bare form
            for single-id (evaluator-built) sums; tylr parses it back,
            menhir does not. */
-        msg == "Sum type has non-unique constructors"
+        String.equal(msg, "Sum type has non-unique constructors")
         || String.starts_with(~prefix="Exception MenhirParser", msg);
       };
     },
