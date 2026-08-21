@@ -536,7 +536,7 @@ let view =
         ),
       ]
       @ bg_attrs,
-    [edges_svg]
+    [div(~attrs=[clss(["canvas-dots"])], []), edges_svg]
     @ List.map(node_view(~on_node_mousedown), lay.nodes)
     @ List.map(
         edge_label(~inject_jump, ~focused, ~on_edge_click),

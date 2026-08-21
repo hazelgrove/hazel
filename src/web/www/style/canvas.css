@@ -172,10 +172,17 @@
   /* centering is grid-aligned inside the layout (center_within); an
      auto margin here would break dot-lattice alignment */
   margin: 0;
-  /* dot grid lives ON the root so it zooms and scrolls with the graph;
-     --dot-pitch is set inline and loops across zoom levels. Dots sit
-     at tile centers: with the half-pitch offset their centers land on
-     lattice multiples, where node centers snap. */
+}
+
+/* dot grid on its own layer so it can fade at the edges without
+   masking the graph itself; it zooms and scrolls with the graph.
+   --dot-pitch is set inline on the root and loops across zoom levels.
+   Dots sit at tile centers: with the half-pitch offset their centers
+   land on lattice multiples, where node centers snap. */
+.canvas-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background-image: radial-gradient(
     var(--BR1, #d8c9a3) var(--dot-r, 0.75px),
     transparent var(--dot-fade, 1.1px)
@@ -183,6 +190,40 @@
   background-size: var(--dot-pitch, 14px) var(--dot-pitch, 14px);
   background-position: calc(var(--dot-pitch, 14px) / 2)
     calc(var(--dot-pitch, 14px) / 2);
+  /* dots dissolve over ~2 cells approaching EVERY edge (the old
+     background faded top/left only by pattern-offset accident) */
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      black calc(2 * var(--dot-pitch, 14px)),
+      black calc(100% - 2 * var(--dot-pitch, 14px)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      transparent,
+      black calc(2 * var(--dot-pitch, 14px)),
+      black calc(100% - 2 * var(--dot-pitch, 14px)),
+      transparent
+    );
+  mask-composite: intersect;
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      black calc(2 * var(--dot-pitch, 14px)),
+      black calc(100% - 2 * var(--dot-pitch, 14px)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      transparent,
+      black calc(2 * var(--dot-pitch, 14px)),
+      black calc(100% - 2 * var(--dot-pitch, 14px)),
+      transparent
+    );
+  -webkit-mask-composite: source-in;
 }
 
 .canvas-root.placing {
