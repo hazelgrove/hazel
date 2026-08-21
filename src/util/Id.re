@@ -70,13 +70,13 @@ type t = Uuidm.t;
  * string and `++` is JS `+`, where Uuidm.v4's byte buffer was copied and
  * converted on every call (~10% of evaluating a livelit's view). */
 let mk: unit => t = {
-  let byte = Array.init(256, i => String.make(1, Char.chr(i)));
+  let byte = Array.init(256, ~f=i => String.make(1, Char.of_int_exn(i)));
   let seed = Random.State.make_self_init();
   let rnd = () => Random.State.int(seed, 256);
   /* byte 8: the variant bits 10, then 6 random bits; bytes 9-15 random */
   let tail = {
     let b8 = byte[0x80 lor rnd() land 0x3f];
-    let rest = String.concat("", List.init(7, _ => byte[rnd()]));
+    let rest = String.concat(List.init(7, ~f=_ => byte[rnd()]));
     b8 ++ rest;
   };
   let lo = ref(0);
@@ -138,8 +138,8 @@ let equal: (t, t) => bool =
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
 
-let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
-let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let str3 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=8);
 let cls = (id: t) => "id" ++ str8(id);
 
 /* OCaml-literal id constructor: pp/show render ids as
@@ -151,7 +151,8 @@ let v: string => t =
     |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
 let pp: (Format.formatter, t) => unit =
   (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
-let show = id => Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id =>
+  Stdlib.Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
@@ -161,10 +162,10 @@ module Ord = {
   let compare = compare;
 };
 
-module Set = Set.Make(Ord);
+module Set = Stdlib.Set.Make(Ord);
 
 module Map = {
-  include Map.Make(Ord);
+  include Stdlib.Map.Make(Ord);
 
   let sexp_of_t = (sexp_of_v, map) =>
     map |> bindings |> Sexplib.Std.sexp_of_list(sexp_of_binding(sexp_of_v));
@@ -172,7 +173,7 @@ module Map = {
   let t_of_sexp = (v_of_sexp, sexp) =>
     sexp
     |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp))
-    |> List.to_seq
+    |> Stdlib.List.to_seq
     |> of_seq;
 
   let yojson_of_t = (yojson_of_v, map) =>
@@ -181,7 +182,7 @@ module Map = {
   let t_of_yojson = (v_of_yojson, json) =>
     json
     |> list_of_yojson(binding_of_yojson(v_of_yojson))
-    |> List.to_seq
+    |> Stdlib.List.to_seq
     |> of_seq;
 
   /* Outputs valid OCaml code for empty maps only.
@@ -200,15 +201,15 @@ module Map = {
     };
 };
 let invalid: t =
-  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 /* Special id used to denote a trivial (empty) function application */
 let nullary_ap_flag: t =
-  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 let is_nullary_ap_flag = (ids: list(t)) =>
   switch (ids) {
-  | [id] when id == nullary_ap_flag => true
+  | [id] when Uuidm.equal(id, nullary_ap_flag) => true
   | _ => false
   };
 
@@ -240,7 +241,7 @@ module Uf: {
     };
   let get = (id, s) => M.get(s.store, M.find(s.store, rref(id, s)));
   let get_opt = (id, s) =>
-    Map.find_opt(id, s.refs^) |> Option.map(_ => get(id, s));
+    Map.find_opt(id, s.refs^) |> Option.map(~f=_ => get(id, s));
   let set = (id, a, s) => M.set(s.store, M.find(s.store, rref(id, s)), a);
 
   let merge = (f, id, id', s) =>
