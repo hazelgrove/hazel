@@ -153,8 +153,8 @@ module M: Projector = {
   let cap = ((text, cls, tooltip)): Node.t =>
     Node.span(
       ~attrs=
-        [Attr.classes(["kbd", ...cls == "" ? [] : [cls]])]
-        @ (tooltip == "" ? [] : [Attr.title(tooltip)]),
+        [Attr.classes(["kbd", ...String.equal(cls, "") ? [] : [cls]])]
+        @ (String.equal(tooltip, "") ? [] : [Attr.title(tooltip)]),
       [Node.text(text)],
     );
 
