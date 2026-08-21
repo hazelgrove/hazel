@@ -76,7 +76,7 @@ let any_to_state = (term: Any.t): option(state) =>
   | Exp(term) =>
     switch (strip_wraps_exp(term).term) {
     | ListLit(terms) =>
-      let+ cards = terms |> List.map(exp_to_card) |> OptUtil.sequence;
+      let+ cards = terms |> List.map(~f=exp_to_card) |> OptUtil.sequence;
       (Exp, Hand(cards));
     | _ =>
       let+ card = exp_to_card(term);
@@ -85,7 +85,7 @@ let any_to_state = (term: Any.t): option(state) =>
   | Pat(term) =>
     switch (strip_wraps_pat(term).term) {
     | ListLit(terms) =>
-      let+ cards = terms |> List.map(pat_to_card) |> OptUtil.sequence;
+      let+ cards = terms |> List.map(~f=pat_to_card) |> OptUtil.sequence;
       (Pat, Hand(cards));
     | _ =>
       let+ card = pat_to_card(term);
@@ -123,13 +123,13 @@ let card_to_pat = ((suit, rank): card): pat =>
 let collection_to_exp = (collection: collection): exp =>
   switch (collection) {
   | Card(card) => card_to_exp(card)
-  | Hand(hand) => Exp.list_lit(List.map(card_to_exp, hand))
+  | Hand(hand) => Exp.list_lit(List.map(~f=card_to_exp, hand))
   };
 
 let collection_to_pat = (collection: collection): pat =>
   switch (collection) {
   | Card(card) => card_to_pat(card)
-  | Hand(hand) => Pat.list_lit(List.map(card_to_pat, hand))
+  | Hand(hand) => Pat.list_lit(List.map(~f=card_to_pat, hand))
   };
 
 let state_to_any = ((sort, collection): state): Any.t =>

@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 let remove_projector: Piece.t => Segment.t =
   fun
@@ -49,7 +50,7 @@ let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
     StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
     ++ r
   ) {
-  | Not_found =>
+  | Stdlib.Not_found =>
     print_endline("Printer.add_indent: Not_found");
     r;
   };
@@ -64,7 +65,7 @@ let add_indents = (segment, measured, indent: string, rows: list(string)) =>
       | Some(m) => m
       | None => measured_no_projectors(segment)
       };
-    List.mapi(add_indent(measured, indent), rows);
+    List.mapi(~f=add_indent(measured, indent), rows);
   };
 
 /* Use this to pretty-print segments. Note that printing holes with
@@ -93,10 +94,10 @@ let of_segment =
        ~refractor_seg_to_seg,
        ~projector_to_segment,
      )
-  |> String.split_on_char('\n')
-  |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
+  |> String.split(~on='\n')
+  |> (is_single_line ? Fn.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 let selected_text =
     (~holes=" ", ~indent="", ~refractors=[], z: Zipper.t): string => {
@@ -121,11 +122,11 @@ let of_zipper =
    * we must recalculate the measured after removing projectors */
   let measured = measured_no_projectors(segment);
   let caret =
-    Option.map(char => (char, Zipper.Caret.point(measured, z)), caret);
+    Option.map(~f=char => (char, Zipper.Caret.point(measured, z)), caret);
   let selection_anchor =
-    Option.bind(selection_anchor, char =>
+    Option.bind(selection_anchor, ~f=char =>
       Zipper.selection_anchor_point(measured, z)
-      |> Option.map(pt => (char, pt))
+      |> Option.map(~f=pt => (char, pt))
     );
 
   of_segment(

@@ -3,7 +3,7 @@ open ProjectorBase;
 open Language;
 open CardTypes;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
   | Show
   | Choose
@@ -145,7 +145,7 @@ module Hand = {
           "style",
           Printf.sprintf(
             "position: absolute; left: %fpx; z-index: %d;",
-            mode == Flipped ? 0. : float_of_int(index) *. 8.5,
+            equal_mode(mode, Flipped) ? 0. : float_of_int(index) *. 8.5,
             100 + index,
           ),
         ),
@@ -158,9 +158,9 @@ module Hand = {
       : Node.t => {
     let n = List.length(hand);
     let width =
-      mode == Flipped || n == 0
+      equal_mode(mode, Flipped) || n == 0
         ? CardView.Card.width
-        : Float.to_int(Float.ceil(Float.of_int(n - 1) *. 8.5))
+        : Float.to_int(Float.round_up(Float.of_int(n - 1) *. 8.5))
           + CardView.Card.width;
     Node.div(
       ~attrs=[
@@ -180,9 +180,9 @@ module Hand = {
               ),
             ),
           ],
-          hand == []
+          List.is_empty(hand)
             ? [CardView.Empty.view]
-            : List.mapi(card_wrapper(mode, sort), hand),
+            : List.mapi(~f=card_wrapper(mode, sort), hand),
         ),
       ],
     );

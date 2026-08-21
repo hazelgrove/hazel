@@ -71,8 +71,8 @@ let mk_info =
         | Some(r) =>
           Dynamics.Map.lookup(r.probe_id, dynamics)
           |> Option.value(~default=[])
-          |> List.find_opt(s => Sample.ref_matches(r, s))
-          |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+          |> List.find(~f=s => Sample.ref_matches(r, s))
+          |> Option.map(~f=(s: Sample.t) => (s.step_start, s.step_end))
         };
       Some({
         samples,
@@ -89,8 +89,8 @@ let mk_info =
         try(Some(Segment.root_id(Segment.skel(seg), seg))) {
         | _ => None
         };
-      Option.bind(inner_id, id =>
-        Option.bind(elaborated, Exp.find_by_id(id))
+      Option.bind(inner_id, ~f=id =>
+        Option.bind(elaborated, ~f=Exp.find_by_id(id))
       );
     } else {
       None;

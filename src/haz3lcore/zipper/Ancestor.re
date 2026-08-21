@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 exception Empty_shard_affix;
 
@@ -57,9 +58,9 @@ let disassemble =
   let (shards_l, shards_r) =
     shards
     |> TupleUtil.map2(Tile.split_shards(id, label, mold))
-    |> TupleUtil.map2(List.map(Tile.to_piece));
+    |> TupleUtil.map2(List.map(~f=Tile.to_piece));
   let flatten = (shards, kids) =>
-    Aba.mk(shards, kids) |> Aba.join(p => [p], Fun.id) |> List.flatten;
+    Aba.mk(shards, kids) |> Aba.join(p => [p], Fn.id) |> List.concat;
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
@@ -69,7 +70,7 @@ let missing_middle_shards = (a: t): list(Tile.t) => {
     ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
   let first_r =
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
-  let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
+  let ls = List.init(first_r - last_l - 1, ~f=i => last_l + i + 1);
   Tile.split_shards(a.id, a.label, a.mold, ls);
 };
 

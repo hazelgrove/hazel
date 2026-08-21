@@ -1,3 +1,4 @@
+open Poly;
 /* MAKETERM
 
      This parses tile structure into term structure.
@@ -18,7 +19,7 @@ let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    (t: Tile.t) => t.shards |> List.map(~f=List.nth_exn(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
        * given that they in-effect act as a convex wrapping form */
@@ -47,8 +48,8 @@ type t = {
 let is_nary =
     (is_sort: Any.t => option('sort), delim: Token.t, (delims, kids): tiles)
     : option(list('sort)) =>
-  if (delims |> List.map(snd) |> List.for_all((==)(([delim], [])))) {
-    kids |> List.map(is_sort) |> OptUtil.sequence;
+  if (delims |> List.map(~f=snd) |> List.for_all(~f=(==)(([delim], [])))) {
+    kids |> List.map(~f=is_sort) |> OptUtil.sequence;
   } else {
     None;
   };
@@ -71,12 +72,13 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | MultiHole(kids) =>
     kids
     |> List.map(
-         fun
-         | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         ~f=
+           fun
+           | Grammar.Mod(m) => flatten_mod(m)
+           | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
+           | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
        )
-    |> List.flatten
+    |> List.concat
   | ModLet(_, _)
   | ModType(_, _)
   | ModExp(_)
@@ -94,11 +96,12 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | MultiHole(kids) =>
     kids
     |> List.map(
-         fun
-         | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | other => [Sig.fresh(MultiHole([other]))],
+         ~f=
+           fun
+           | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
+           | other => [Sig.fresh(MultiHole([other]))],
        )
-    |> List.flatten
+    |> List.concat
   | SigLet(_)
   | SigType(_, _)
   | EmptyHole
@@ -110,17 +113,17 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   let+ ps =
     (ts: list(tile))
     |> List.map(
-         fun
-         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
-         | _ => None: tile => option(TermBase.pat_t),
+         ~f=fun
+            | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+            | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
   and+ clauses =
     kids
     |> List.map(
-         fun
-         | Exp(clause) => Some(clause)
-         | _ => None: TermBase.any_t => option(TermBase.exp_t),
+         ~f=fun
+            | Exp(clause) => Some(clause)
+            | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -130,23 +133,25 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   let+ ps =
     ts
     |> List.map(
-         fun
-         | (_, (["|", "=>"], [Grammar.Drv(Pat(p))])) => Some(p)
-         | _ => None,
+         ~f=
+           fun
+           | (_, (["|", "=>"], [Grammar.Drv(Pat(p))])) => Some(p)
+           | _ => None,
        )
     |> OptUtil.sequence
   and+ clauses =
     kids
     |> List.map(
-         fun
-         | Grammar.Drv(Exp(clause)) => Some(clause)
-         | _ => None,
+         ~f=
+           fun
+           | Grammar.Drv(Exp(clause)) => Some(clause)
+           | _ => None,
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
 };
 
-let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
+let ids_of_tiles = (tiles: tiles) => List.map(~f=fst, Aba.get_as(tiles));
 let ids =
   fun
   | Op(tiles)
@@ -158,7 +163,7 @@ let kids_of_tile = ((_id, (_tokens, kids)): tile) => kids;
 let kids_of_tiles = (tiles: tiles) =>
   tiles
   |> Aba.map_a(kids_of_tile)
-  |> Aba.join(Fun.id, kid => [kid])
+  |> Aba.join(Fn.id, kid => [kid])
   |> List.concat;
 let kids_of_unsorted =
   fun
@@ -179,11 +184,12 @@ let return = (wrap, ids, tm) => {
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
 let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
   term_data :=
-    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    Aba.get_as(Aba.map_a(List.nth_exn(seg), Skel.root(skel)))
     |> List.fold_left(
-         (map, p) =>
-           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
-         term_data^,
+         ~f=
+           (map, p) =>
+             Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
+         ~init=term_data^,
        );
 
 /* Map to collect projector ids */
@@ -364,7 +370,7 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
           when
             Token.is_var(t)
             && String.length(t) > 1
-            && String.equal(String.sub(t, 0, 1), "$") =>
+            && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
         ret(Quote(t))
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
@@ -490,7 +496,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.equal(String.sub(t, 0, 1), "$") =>
+          && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -539,7 +545,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.equal(String.sub(t, 0, 1), "$") =>
+          && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -579,7 +585,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
       when
         Token.is_var(t)
         && String.length(t) > 1
-        && String.equal(String.sub(t, 0, 1), "$") =>
+        && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
     ret(Quote(t))
   | Op(([(_id, ([t], []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
@@ -665,7 +671,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
-           which expects List.hd = bracket, List.tl = commas. */
+           which expects List.hd_exn = bracket, List.tl_exn = commas. */
         switch (body) {
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
@@ -673,14 +679,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           (
             ListLit(
               List.map(
-                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
-                  let (e, rewrap) = IdTagged.unwrap(list_item);
-                  switch (e) {
-                  | TupLabel(_) =>
-                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
-                  | _ => list_item
-                  };
-                },
+                ~f=
+                  (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                    let (e, rewrap) = IdTagged.unwrap(list_item);
+                    switch (e) {
+                    | TupLabel(_) =>
+                      rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                    | _ => list_item
+                    };
+                  },
                 es,
               ),
             ),
@@ -697,7 +704,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* Match absorption: inner Rules' |/=> IDs become part of Match.
            ID order: [case_end_id] @ rule_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty Match case,
-           which expects List.hd = case/end, List.tl = rules. */
+           which expects List.hd_exn = case/end, List.tl_exn = rules. */
         switch (term) {
         | Rules(scrut, rules) =>
           adopted_ids := ids @ adopted_ids^;
@@ -819,11 +826,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
+        | Tuple(es) when List.exists(~f=Exp.is_deferral, es) => (
             DeferredAp(
               l,
               List.map(
-                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
+                ~f=arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
                 es,
               ),
             ),
@@ -848,7 +855,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Exp.t) => {
+        |> List.map(~f=(child: Exp.t) => {
              switch (child) {
              | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
@@ -991,7 +998,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
-           which expects List.hd = bracket, List.tl = commas. */
+           which expects List.hd_exn = bracket, List.tl_exn = commas. */
         switch (body) {
         | {term: Tuple(ps), annotation: {ids, _}} =>
           adopted_ids := ids @ adopted_ids^;
@@ -1038,7 +1045,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Pat.t) => {
+        |> List.map(~f=(child: Pat.t) => {
              switch (child) {
              | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
              | _ => child
@@ -1192,10 +1199,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm
+      when Option.is_some(is_typ_bsum(tiles)) =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
+      ret(Sum(List.map(~f=parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
@@ -1205,7 +1213,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Typ.t) => {
+        |> List.map(~f=(child: Typ.t) => {
              switch (child) {
              | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
              | _ => child
@@ -1310,7 +1318,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
       /* Flatten all mod items into MultiHole, like tuples flatten into Tuple */
       let all_items =
         [Grammar.Mod(m1)]
-        @ List.map(m => Grammar.Mod(m), between_kids)
+        @ List.map(~f=m => Grammar.Mod(m), between_kids)
         @ [Grammar.Mod(m2)];
       ret(MultiHole(all_items));
     | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
@@ -1356,7 +1364,7 @@ and sig_term: unsorted => TermBase.Sig.term = {
       let sig_to_any = (s): TermBase.Any.t => Grammar.Sig(s);
       let all_items =
         [sig_to_any(s1)]
-        @ List.map(sig_to_any, between_kids)
+        @ List.map(~f=sig_to_any, between_kids)
         @ [sig_to_any(s2)];
       ret(MultiHole(all_items));
     | None => ret(hole(Bin(Sig(s1), tiles, Sig(s2))))
@@ -1407,7 +1415,7 @@ and rul = (unsorted): Rul.t => {
       | Some((ps, leading_clauses)) =>
         mk_rules(
           scrut,
-          List.combine(ps, leading_clauses @ [last_clause]),
+          List.zip_exn(ps, leading_clauses @ [last_clause]),
           ids(unsorted),
         )
       | None => mk_rules(e, [], [Id.invalid])
@@ -1458,8 +1466,8 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       [wrapped];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
-      |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+      |> List.map(~f=((l, kid, r)) => {
+           let s = l + 1 == r ? List.nth_exn(mold.in_, l) : Sort.Any;
            go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };
@@ -1468,7 +1476,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   record_term_data(sort, seg, skel);
 
   let root: Aba.t(Piece.t, Skel.t) =
-    Skel.root(skel) |> Aba.map_a(List.nth(seg));
+    Skel.root(skel) |> Aba.map_a(List.nth_exn(seg));
 
   // maintaining this alternating ordered structure
   // for handling incomplete forms later
@@ -1488,8 +1496,8 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     let p_l = Aba.first_a(root);
     let p_r = Aba.last_a(root);
     // TODO throw proper exceptions
-    let (l, _) = Option.get(Piece.nibs(p_l));
-    let (_, r) = Option.get(Piece.nibs(p_r));
+    let (l, _) = Option.value_exn(Piece.nibs(p_l));
+    let (_, r) = Option.value_exn(Piece.nibs(p_r));
     (l.sort, r.sort);
   };
 
@@ -1512,7 +1520,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
  * Only skel and base_seg should be updated to match the outer term. */
 let consolidate_adopted = (): unit => {
   adopted_ids^
-  |> List.iter(id => {
+  |> List.iter(~f=id => {
        switch (Id.Map.find_opt(id, map^)) {
        | None => ()
        | Some(term) =>
