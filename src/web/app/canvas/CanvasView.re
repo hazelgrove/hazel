@@ -518,11 +518,14 @@ let view =
             let pitch = 14. /. lvl;
             let (mw, mh) = min_size;
             Printf.sprintf(
-              "width: %spx; height: %spx; zoom: %s; --dot-pitch: %spx;",
+              "width: %spx; height: %spx; zoom: %s; --dot-pitch: %spx; --dot-r: %.3fpx; --dot-fade: %.3fpx;",
               fmt(max(lay.width, mw)),
               fmt(max(lay.height, mh)),
               fmt(zoom),
               fmt(pitch),
+              /* dots keep a constant VISUAL size across zoom levels */
+              0.75 /. zoom,
+              1.1 /. zoom,
             );
           },
         ),
