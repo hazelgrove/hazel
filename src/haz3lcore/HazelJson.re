@@ -24,12 +24,12 @@ module JsonADT = {
     | `String(s) => Ok(ap_ctr("String", Fresh.Exp.string(s)))
     | `List(elements) =>
       elements
-      |> List.map(yojson_to_exp)
+      |> List.map(~f=yojson_to_exp)
       |> Result.all
       |> Result.map(~f=exps => ap_ctr("List", Fresh.Exp.list_lit(exps)))
     | `Assoc(pairs) =>
       pairs
-      |> List.map(((key, value)) =>
+      |> List.map(~f=((key, value)) =>
            yojson_to_exp(value)
            |> Result.map(~f=v_exp =>
                 Fresh.Exp.tuple([Fresh.Exp.string(key), v_exp])
@@ -113,7 +113,7 @@ module JsonADT = {
         switch (Exp.term_of(arg)) {
         | ListLit(elements) =>
           elements
-          |> List.map(exp_to_yojson)
+          |> List.map(~f=exp_to_yojson)
           |> Result.all
           |> Result.map(~f=json_elems => `List(json_elems))
         | _ => Error("JsonADT: List expects a list literal")
@@ -122,7 +122,7 @@ module JsonADT = {
         switch (Exp.term_of(arg)) {
         | ListLit(elements) =>
           elements
-          |> List.map(convert_assoc_pair)
+          |> List.map(~f=convert_assoc_pair)
           |> Result.all
           |> Result.map(~f=pairs => `Assoc(pairs))
         | _ => Error("JsonADT: Assoc expects a list literal")
