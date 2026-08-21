@@ -29,11 +29,13 @@ module Rows = {
 
   let min_content_start = (rs: list(row), map: t) =>
     rs
-    |> List.map(r => find(r, map).content_start)
-    |> List.fold_left(min, Int.max_int);
+    |> List.map(~f=r => find(r, map).content_start)
+    |> List.fold_left(~f=min, ~init=Int.max_value);
 
   let max_content_end = (rs: list(row), map: t) =>
-    rs |> List.map(r => find(r, map).content_end) |> List.fold_left(max, 0);
+    rs
+    |> List.map(~f=r => find(r, map).content_end)
+    |> List.fold_left(~f=max, ~init=0);
 };
 
 module Shards = {
@@ -50,7 +52,7 @@ module Shards = {
       switch (split_by_row(tl)) {
       | [] => [[hd]]
       | [row, ...rows] =>
-        snd(List.hd(row)).origin.row == snd(hd).origin.row
+        snd(List.hd_exn(row)).origin.row == snd(hd).origin.row
           ? [[hd, ...row], ...rows] : [[hd], row, ...rows]
       };
 };
@@ -84,7 +86,7 @@ let add_s = (id: Id.t, i: int, m, map) => {
          | Some(ms) =>
            Some(
              [(i, m), ...ms]
-             |> List.sort(((i, _), (j, _)) => Int.compare(i, j)),
+             |> List.sort(~compare=((i, _), (j, _)) => Int.compare(i, j)),
            ),
        ),
 };
@@ -188,7 +190,11 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
       switch (Id.Map.find_opt(id, map.tiles)) {
       | Some(shards) =>
         let first =
-          ListUtil.assoc_err(List.hd(shards) |> fst, shards, "find_by_id");
+          ListUtil.assoc_err(
+            List.hd_exn(shards) |> fst,
+            shards,
+            "find_by_id",
+          );
         let last =
           ListUtil.assoc_err(
             ListUtil.last(shards) |> fst,
@@ -203,7 +209,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
         switch (Id.Map.find_opt(id, map.projectors)) {
         | Some(m) => Some(m)
         | None =>
-          Printf.printf(
+          Stdlib.Printf.printf(
             "Measured.WARNING: id %s not found",
             Id.to_string(id),
           );

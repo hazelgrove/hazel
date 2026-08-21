@@ -41,8 +41,8 @@ let builtin_value_signatures: unit => string =
     let builtins_list: list(BuiltinsUtil.builtin) = Builtins.builtins;
     let lines: list(string) =
       List.map(
-        builtin_signature_line,
-        List.sort(compare_builtin, builtins_list),
+        ~f=builtin_signature_line,
+        List.sort(~compare=compare_builtin, builtins_list),
       );
-    String.concat("\n", lines);
+    String.concat(~sep="\n", lines);
   };
