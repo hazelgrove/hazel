@@ -273,6 +273,55 @@ arithmetic. The costs land elsewhere and are accepted:
   `nan`/`inf` and must error (Phase 0 fix; the current dynamics silently
   yields an Int).
 
+### 1.6 A case split needs a known domain (decided 2026-08-21)
+
+Induction/split reduces `forall x -> P(x)` to one obligation per case. That
+reduction is only valid if the cases **exhaust the set `x` ranges over**, so
+the check needs to know what that set is. When the scrutinee's type cannot be
+positively determined — an unannotated quantifier binder, a type hole, an
+alias resolving to a hole, `Statics.Map.ty_of` returning nothing — there is no
+constructor set to exhaust, and the induction is **refused**
+(`ProofMark.InductionScrutineeUntyped`, goal passed through).
+
+`Coverage.check` is shared with edit-time statics, where the opposite default
+is right: an in-progress program is full of holes and a match on a
+not-yet-known scrutinee type should not redden. So the lenient reading
+(`Unknown` column ⇒ covered) stays the default and the prover opts into
+`~strict_unknown=true`, under which an `Unknown` column behaves exactly like
+`Infinite`: only a genuine catch-all (wildcard/variable pattern, or a hole)
+covers it. **Marking is not certifying** — the two callers want different
+answers, and the certifier takes the conservative one (cf. the `Totality.re`
+header).
+
+**Both bool cases present is still refused when the type is unknown.** This is
+the one case worth spelling out, because `| true | false` *looks* total. It is
+not: the split reduces `forall b -> P(b)` to `P(true) && P(false)`, which
+covers `b`'s range only if `b` really is a boolean. With the type unknown, `b`
+ranges over the total values of an undetermined type (§1.3) — possibly `Int`,
+in which case `P(true) && P(false)` says nothing about `P(3)`. We deliberately
+do *not* infer the missing type from the case patterns (as the edit-time path
+in `Statics.re` does to make its marks useful): inferring `Bool` from a `true`
+pattern would make the split's own patterns license the reduction they are
+supposed to be checked against. Annotating the binder is the fix, and the
+mark's wording says so.
+
+The witnesses this closes — each certified as fully Proven before the fix,
+each a false theorem:
+
+```
+theorem t = forall b -> b == true proof induction b | true => ... end
+theorem t = forall n -> n == 0    proof induction n | 0    => ... end
+theorem t = forall xs -> xs == [] proof induction xs | []  => ... end
+```
+
+Not affected (still certify, and must keep doing so): a single
+wildcard/variable case, which is a catch-all and covers any type; and a
+scrutinee whose *own* type is known but which mentions `Unknown` in positions
+coverage never consults (e.g. `xs: [?]` split on `[]` / `y :: ys` — the list
+spine is what gets scrutinized, not the element type). A scrutinee that is a
+comparison such as `z != 0` is `Bool`-typed regardless of `z`, so it is
+checked normally and needs both cases.
+
 ---
 
 ## 2. Language additions

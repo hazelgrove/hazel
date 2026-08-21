@@ -1829,10 +1829,16 @@ let rec check =
  *      the same type as scrut.
  *   3. Recurse on body with the case-incoming.
  *
- * If exhaustive (by Coverage.check) and every case proves its goal to
- * `true`, the induction's outgoing is `true`. Otherwise outgoing is None.
- * Returns a list of proof marks for the induction node itself
- * (empty-cases / not-exhaustive — per-case failures surface as children).
+ * If exhaustive (by Coverage.check in STRICT mode — see below) and every
+ * case proves its goal to `true`, the induction's outgoing is `true`.
+ * Otherwise outgoing is None. Returns a list of proof marks for the
+ * induction node itself (empty-cases / not-exhaustive / scrutinee-untyped
+ * — per-case failures surface as children).
+ *
+ * Exhaustiveness here is STRICTER than the edit-time check in Statics.re:
+ * a scrutinee whose type is `Unknown` is refused rather than treated as
+ * vacuously covered, because certifying is not marking. See
+ * `Coverage.check(~strict_unknown)` and docs/prover-obligations.md §1.
  */
 and check_induction =
     (
@@ -1961,15 +1967,28 @@ and check_induction =
       cases,
     );
   /* Exhaustiveness: check the collected constraints cover scrut's type. */
+  /* Exhaustiveness, checked in STRICT mode: unlike edit-time statics, a
+   * column whose type we cannot positively determine is NOT treated as
+   * vacuously covered (Coverage.re, `first_col_exhaustive`). This is what
+   * stops an `Unknown` scrutinee from certifying an induction with cases
+   * missing — including nested `Unknown`s, e.g. an ADT whose payload type
+   * is a hole. */
+  let normalized_scrut_ty =
+    Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty);
   let is_exhaustive = {
     let constraints = List.filter_map(Fun.id, pat_constraints);
-    Coverage.check(
-      constraints,
-      Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
-    ).
+    Coverage.check(~strict_unknown=true, constraints, normalized_scrut_ty).
       exhaustiveness
     == Exhaustive;
   };
+  /* Did we fail to determine the scrutinee's type at all? Drives the
+   * sharper mark below. `ty_of` returning None already funnels into the
+   * `Unknown(Internal)` fallback above, so this one test covers both. */
+  let scrut_ty_undetermined =
+    switch (Typ.term_of(normalized_scrut_ty)) {
+    | Unknown(_) => true
+    | _ => false
+    };
   let true_exp = Exp.temp(Atom(Bool(true)));
   let all_true =
     outgoings
@@ -1984,7 +2003,12 @@ and check_induction =
     (List.length(cases) == 0 ? [ProofMark.InductionEmptyCases] : [])
     @ (
       !is_exhaustive && List.length(cases) > 0
-        ? [ProofMark.InductionNotExhaustive] : []
+        ? [
+          scrut_ty_undetermined
+            ? ProofMark.InductionScrutineeUntyped
+            : ProofMark.InductionNotExhaustive,
+        ]
+        : []
     );
   /* Discharged inductions produce `true`; anything else passes the
    * outer goal through (recovery — see `result_to_outgoing`). */

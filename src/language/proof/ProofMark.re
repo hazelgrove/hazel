@@ -106,6 +106,18 @@ type t =
   | ContradictionSubstitutionUnverified({var: string})
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
+  /* Induction: the scrutinee's type could not be positively determined
+   * (no statics info, or `Unknown` after normalization — an unannotated
+   * quantifier binder, a type hole, an alias resolving to a hole), so
+   * there is no constructor set for the cases to exhaust. The case
+   * split's soundness argument needs to know what the scrutinee ranges
+   * over: `| true | false` only reduces `forall b -> P(b)` to
+   * `P(true) && P(false)` if `b` really is a boolean. Rather than guess a
+   * type from the patterns, refuse (conservative refusal, cf. the
+   * Totality.re header and docs/prover-obligations.md §1). Distinct from
+   * `InductionNotExhaustive` because the remedy is different: annotate
+   * the binder, don't add a case. */
+  | InductionScrutineeUntyped
   /* Induction/split: a COMPUTED scrutinee (bool split) could not be
    * shown structurally total — refused, like divergent instantiations
    * (docs/prover-obligations.md §4.1). Ordinary structural induction on

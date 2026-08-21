@@ -300,9 +300,11 @@ let test_recursive_call_in_eval_step_ungated = () => {
 /* --- Split / induction gate -------------------------------------------- */
 
 /* Ordinary structural induction on a bare quantified variable emits
- * nothing (regression). */
+ * nothing (regression). The binder is annotated so this stays a test of the
+ * DIVERGENCE gate alone: an unannotated binder is separately refused for
+ * having an undeterminable scrutinee type (§1.6, tests below). */
 let test_induction_bare_variable_no_gate = () => {
-  let src = {|theorem t = forall b -> b == b proof induction b | true => axiom refl_eq at 0 on true == true end | false => axiom refl_eq at 0 on false == false end end in t|};
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => axiom refl_eq at 0 on true == true end | false => axiom refl_eq at 0 on false == false end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("bare-variable induction emits zero obligations", 0, obs);
   Alcotest.check(
@@ -348,6 +350,165 @@ let test_split_divergent_scrutinee_refused = () => {
     "PossiblyDivergentScrutinee mark is emitted",
     true,
     has_mark_kind(pm, proof, is_divergent_scrutinee),
+  );
+};
+
+/* --- Induction exhaustiveness: the scrutinee's type must be known ----- */
+
+/* docs/prover-obligations.md §1.6. A case split reduces `forall x -> P(x)`
+ * to one obligation per case, which is only valid if the cases exhaust what
+ * `x` ranges over — so the check needs to know the scrutinee's type. When it
+ * is `Unknown` the induction is refused (`InductionScrutineeUntyped`)
+ * rather than counted as vacuously covered, which is what edit-time statics
+ * does with the same `Coverage.check`. */
+
+let is_induction_untyped: ProofMark.t => bool =
+  fun
+  | ProofMark.InductionScrutineeUntyped => true
+  | _ => false;
+
+let is_induction_not_exhaustive: ProofMark.t => bool =
+  fun
+  | ProofMark.InductionNotExhaustive => true
+  | _ => false;
+
+let status_of = (src: string): ProofMap.full_status => {
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  ProofMap.full_status_of_proof(pm, proof_of_named("t", elab));
+};
+
+let check_not_proven = (msg, src) =>
+  Alcotest.check(
+    Alcotest.bool,
+    msg,
+    true,
+    switch (status_of(src)) {
+    | Incomplete => true
+    | Proven
+    | Refuted
+    | ProvenModulo(_) => false
+    },
+  );
+
+let check_mark = (msg, src, pred) => {
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.bool,
+    msg,
+    true,
+    has_mark_kind(pm, proof_of_named("t", elab), pred),
+  );
+};
+
+/* (1) The user's reported repro, pinned. The scrutinee `z != 0` is a
+ * comparison, so it is `Bool`-typed regardless of `z` being an unannotated
+ * binder — this one is an ordinary missing-`false`-case failure, and it is
+ * pinned here so the reported program can never certify again. */
+let user_repro = {|let f = fun x where x != 0 -> 100 / x in
+let g = fun w -> 100 / w in
+theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
+proof induction z != 0 | true => axiom refl_eq at 0 on f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z end end
+in 0|};
+
+let test_user_repro_not_proven = () => {
+  check_not_proven("the reported repro does not certify", user_repro);
+  check_mark(
+    "and it is flagged inexhaustive (Bool scrutinee, `false` case missing)",
+    user_repro,
+    is_induction_not_exhaustive,
+  );
+};
+
+/* An UNTYPED scrutinee — a bare unannotated `forall` binder — certified a
+ * FALSE theorem before the fix: `Coverage.check` reported a single-case
+ * split on an `Unknown` column as Exhaustive. These are the soundness
+ * witnesses; each must now be refused with the sharper mark. */
+let untyped_witnesses = [
+  (
+    "forall b -> b == true",
+    {|theorem t = forall b -> b == true proof induction b | true => axiom refl_eq at 0 on true == true end end in t|},
+  ),
+  (
+    "forall n -> n == 0",
+    {|theorem t = forall n -> n == 0 proof induction n | 0 => axiom refl_eq at 0 on 0 == 0 end end in t|},
+  ),
+  (
+    "forall xs -> xs == []",
+    {|theorem t = forall xs -> xs == [] proof induction xs | [] => axiom refl_eq at 0 on [] == [] end end in t|},
+  ),
+];
+
+let test_untyped_scrutinee_witnesses_refused = () =>
+  untyped_witnesses
+  |> List.iter(((name, src)) => {
+       check_not_proven("false theorem does not certify: " ++ name, src);
+       check_mark(
+         "InductionScrutineeUntyped on: " ++ name,
+         src,
+         is_induction_untyped,
+       );
+     });
+
+/* (2) Annotated scrutinee, `true` case only: still refused, and now via the
+ * ordinary exhaustiveness path (the type IS known, a case IS missing). This
+ * is the control confirming the bool-split constraints do reach Coverage. */
+let test_annotated_true_only_not_proven = () => {
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => axiom refl_eq at 0 on true == true end end in t|};
+  check_not_proven("annotated Bool, `true` only, does not certify", src);
+  check_mark(
+    "flagged InductionNotExhaustive, not Untyped",
+    src,
+    is_induction_not_exhaustive,
+  );
+};
+
+/* (3) Regression: annotated scrutinee with BOTH cases still certifies. */
+let test_annotated_both_cases_proven = () => {
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => axiom refl_eq at 0 on true == true end | false => axiom refl_eq at 0 on false == false end end in t|};
+  Alcotest.check(
+    Alcotest.bool,
+    "annotated Bool with both cases is Proven",
+    true,
+    status_of(src) == ProofMap.Proven,
+  );
+};
+
+/* (4) The decided case (§1.6): an UNTYPED scrutinee with BOTH bool cases is
+ * still refused. `| true | false` looks total but only reduces
+ * `forall b -> P(b)` to `P(true) && P(false)` if `b` really is a boolean;
+ * with the type unknown `b` may range over `Int`, where that says nothing.
+ * We deliberately do not infer `Bool` from the case patterns. */
+let test_untyped_both_cases_still_refused = () => {
+  let src = {|theorem t = forall b -> b == b proof induction b | true => axiom refl_eq at 0 on true == true end | false => axiom refl_eq at 0 on false == false end end in t|};
+  check_not_proven("untyped scrutinee with both bool cases is refused", src);
+  check_mark("with the untyped mark", src, is_induction_untyped);
+};
+
+/* Over-refusal guards. Refusing `Unknown` columns must not refuse these. */
+
+/* A single wildcard/variable case is a genuine catch-all: it covers any
+ * type, known or not, so it certifies even on an untyped scrutinee. */
+let test_untyped_wildcard_case_still_proven = () => {
+  let src = {|theorem t = forall b -> b == b proof induction b | x => axiom refl_eq at 0 on x == x end end in t|};
+  Alcotest.check(
+    Alcotest.bool,
+    "catch-all case on an untyped scrutinee is Proven",
+    true,
+    status_of(src) == ProofMap.Proven,
+  );
+};
+
+/* `Unknown` in a position coverage never consults is fine: splitting a
+ * `[?]` scrutinizes the list spine, not the element type. */
+let test_unknown_element_type_still_proven = () => {
+  let src = {|theorem t = forall xs: [?] -> xs == xs proof induction xs | [] => axiom refl_eq at 0 on [] == [] end | y :: ys => axiom refl_eq at 0 on y :: ys == y :: ys end end in t|};
+  Alcotest.check(
+    Alcotest.bool,
+    "list-of-unknown-element split is Proven",
+    true,
+    status_of(src) == ProofMap.Proven,
   );
 };
 
@@ -521,6 +682,41 @@ let tests = (
       "bool split on a divergent scrutinee is refused",
       `Quick,
       test_split_divergent_scrutinee_refused,
+    ),
+    test_case(
+      "reported repro: induction missing the false case does not certify",
+      `Quick,
+      test_user_repro_not_proven,
+    ),
+    test_case(
+      "untyped scrutinee cannot certify a false theorem",
+      `Quick,
+      test_untyped_scrutinee_witnesses_refused,
+    ),
+    test_case(
+      "annotated scrutinee, true case only, is inexhaustive",
+      `Quick,
+      test_annotated_true_only_not_proven,
+    ),
+    test_case(
+      "annotated scrutinee with both cases is proven",
+      `Quick,
+      test_annotated_both_cases_proven,
+    ),
+    test_case(
+      "untyped scrutinee with both bool cases is still refused",
+      `Quick,
+      test_untyped_both_cases_still_refused,
+    ),
+    test_case(
+      "catch-all case on an untyped scrutinee still certifies",
+      `Quick,
+      test_untyped_wildcard_case_still_proven,
+    ),
+    test_case(
+      "unknown element type does not block a list split",
+      `Quick,
+      test_unknown_element_type_still_proven,
     ),
     test_case(
       "algebrite rewrite emits denominator obligations",

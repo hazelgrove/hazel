@@ -829,7 +829,8 @@ module Submatrices = {
     Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
   };
 
-  let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
+  let of_matrix =
+      (~strict_unknown: bool, m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
     let seen_data = seen(m, all_ctrs);
     let {
       seen_ints,
@@ -962,7 +963,17 @@ module Submatrices = {
 
     let first_col_exhaustive =
       switch (all_ctrs) {
-      | Unknown => true
+      /* A column whose type we could not positively determine. In the
+       * LENIENT (edit-time) mode this counts as covered: an in-progress
+       * program is full of holes and we do not want to redden a match
+       * whose scrutinee type simply is not known yet.
+       *
+       * In STRICT mode (the prover — conservative refusal, cf. the
+       * Totality.re header) it is treated exactly like `Infinite`: we do
+       * not know the constructor set, so no enumeration of constructors
+       * can ever be shown to exhaust it, and only a genuine catch-all
+       * (a wildcard/variable pattern, or a hole) covers the column. */
+      | Unknown => strict_unknown ? seen_truth || seen_hole : true
       | Infinite => seen_truth || seen_hole
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
@@ -994,7 +1005,7 @@ module type CheckMatrix = {
     redundant_rows,
   };
 
-  let check: (list(Constraint.t), Typ.t) => t;
+  let check: (~strict_unknown: bool=?, list(Constraint.t), Typ.t) => t;
 };
 
 module CheckMatrix: CheckMatrix = {
@@ -1077,7 +1088,8 @@ module CheckMatrix: CheckMatrix = {
     };
 
   // We assume col_tys is already normalized.
-  let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
+  let rec check_matrix =
+          (~strict_unknown: bool, m: Matrix.t, col_tys: list(Typ.t)): result => {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
@@ -1097,7 +1109,7 @@ module CheckMatrix: CheckMatrix = {
           first_col_redundant_rows,
           seen_data,
         } =
-          Submatrices.of_matrix(m, all_ctrs);
+          Submatrices.of_matrix(~strict_unknown, m, all_ctrs);
 
         let (is_exhaustive, unseen_pattern, redundant_rows) =
           Ctr.Map.fold(
@@ -1122,7 +1134,7 @@ module CheckMatrix: CheckMatrix = {
                   unseen_pattern: submatrix_unseen_pattern,
                   redundant_rows: submatrix_redundant_rows,
                 } =
-                  check_matrix(submatrix, col_tys);
+                  check_matrix(~strict_unknown, submatrix, col_tys);
 
                 let is_still_exhaustive =
                   is_exhaustive && is_submatrix_exhaustive;
@@ -1167,10 +1179,14 @@ module CheckMatrix: CheckMatrix = {
     };
   };
 
-  // IMPORTANT: ty should already be fully normalized.
-  let check = (xis: list(Constraint.t), ty: Typ.t): t => {
+  /* IMPORTANT: ty should already be fully normalized.
+   *
+   * `strict_unknown` = do NOT treat an undeterminable column type as
+   * vacuously covered. Callers that certify (the prover) must pass
+   * `true`; edit-time statics leaves it `false`. */
+  let check = (~strict_unknown=false, xis: list(Constraint.t), ty: Typ.t): t => {
     let {is_exhaustive, unseen_pattern, redundant_rows} =
-      check_matrix(Matrix.of_constraints(xis), [ty]);
+      check_matrix(~strict_unknown, Matrix.of_constraints(xis), [ty]);
     {
       exhaustiveness:
         is_exhaustive

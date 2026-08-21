@@ -114,6 +114,11 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | InductionNotExhaustive => [
       text("Induction cases don't cover the scrutinee's type."),
     ]
+  | InductionScrutineeUntyped => [
+      text(
+        "The scrutinee's type is unknown, so these cases cannot be shown to cover it. Annotate the binder.",
+      ),
+    ]
   | PossiblyDivergentScrutinee => [
       text("The split scrutinee may not terminate."),
     ]
