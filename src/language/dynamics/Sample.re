@@ -83,11 +83,11 @@ module Env = {
     };
 
   let filter = (env: Environment.t(Exp.t), bound_in: Binding.s) =>
-    List.filter_map(mk_entry(env), bound_in);
+    List.filter_map(~f=mk_entry(env), bound_in);
 
   /* Remove opaque values (like function literals) from environment entries */
   let remove_opaques: list(entry) => list(entry) =
-    List.filter_map((en: entry) =>
+    List.filter_map(~f=(en: entry) =>
       switch (en.value) {
       | Opaque => None
       | Val(_) => Some(en)
@@ -134,7 +134,12 @@ let mk =
     : t => {
   /* content-derived id; cheap discriminators first so hash_param's bounded
    * traversal can't collide deep stacks sharing a prefix */
-  id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
+  id:
+    Stdlib.Hashtbl.hash_param(
+      64,
+      256,
+      (List.length(stack), syntax_id, stack),
+    ),
   syntax_id,
   value,
   env: Env.filter(env, spec.refs),
@@ -163,7 +168,7 @@ module Map = {
   let empty = Id.Map.empty;
 
   let lookup = (id, map) =>
-    Id.Map.find_opt(id, map) |> Option.map(List.rev);
+    Id.Map.find_opt(id, map) |> Option.map(~f=List.rev);
 
   let fold = (f, map: t, init) =>
     Id.Map.fold(
@@ -197,7 +202,9 @@ module Map = {
     switch (Id.Map.find_opt(sample.syntax_id, map)) {
     | Some(existing) =>
       List.exists(
-        (s: sample) => sample.call_stack != [] && s.call_stack == [],
+        ~f=
+          (s: sample) =>
+            !List.is_empty(sample.call_stack) && List.is_empty(s.call_stack),
         existing,
       )
     | None => false
@@ -305,8 +312,12 @@ let ref_of_sample = (s: t): span_ref => {
 };
 
 let ref_matches = (r: span_ref, s: t): bool =>
-  r.probe_id == s.syntax_id
-  && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(s.call_stack)
+  Id.equal(r.probe_id, s.syntax_id)
+  && List.equal(
+       Id.equal,
+       CallStack.ids_of_stack(r.stack),
+       CallStack.ids_of_stack(s.call_stack),
+     )
   && (
     switch (r.opened) {
     | None => true
@@ -500,25 +511,26 @@ module Selection = {
       | [s, ..._] => fn_of_innermost(s.call_stack)
       };
     List.exists(
-      (sample: sample) =>
-        if (CallStack.equal(sample.call_stack, effective)) {
-          true;
-              /* rule (a) */
-        } else if (target_fn != cursor_fn) {
-          /* rule (b) */
-          ListUtil.is_suffix_of(
-            ~eq=CallStack.equal_frame,
-            sample.call_stack,
-            effective,
-          )
-          || ListUtil.is_suffix_of(
-               ~eq=CallStack.equal_frame,
-               effective,
-               sample.call_stack,
-             );
-        } else {
-          false;
-        },
+      ~f=
+        (sample: sample) =>
+          if (CallStack.equal(sample.call_stack, effective)) {
+            true;
+                /* rule (a) */
+          } else if (!Option.equal(Id.equal, target_fn, cursor_fn)) {
+            /* rule (b) */
+            ListUtil.is_suffix_of(
+              ~eq=CallStack.equal_frame,
+              sample.call_stack,
+              effective,
+            )
+            || ListUtil.is_suffix_of(
+                 ~eq=CallStack.equal_frame,
+                 effective,
+                 sample.call_stack,
+               );
+          } else {
+            false;
+          },
       target_samples,
     );
   };
@@ -557,9 +569,10 @@ module Selection = {
         samples: list(t),
       )
       : list(t) => {
-    let samples = List.filter((s: t) => s.origin != Print, samples);
+    let samples =
+      List.filter(~f=(s: t) => !Poly.equal(s.origin, Print), samples);
     switch (pinned) {
-    | Some(_) when pinned_interval != None =>
+    | Some(_) when Option.is_some(pinned_interval) =>
       /* Pinned-interval semantics, three rules:
        * 1. The pinned probe itself shows ALL its samples (escape) —
        *    other instances of the pinned call stay browsable.
@@ -575,51 +588,55 @@ module Selection = {
        *    every enclosing expression). Whether "above" belongs in
        *    chips at all or only in the focus bar is an open design
        *    question — this rule is the one to delete if the latter. */
-      let (ps, pe) = Option.get(pinned_interval);
+      let (ps, pe) = Option.value_exn(pinned_interval);
       let is_pinned_probe =
         switch (
-          Option.bind(pinned, pinned_stack => ListUtil.hd_opt(pinned_stack)),
+          Option.bind(pinned, ~f=pinned_stack =>
+            ListUtil.hd_opt(pinned_stack)
+          ),
           ap_id,
         ) {
-        | (Some(head), Some(ap)) => head.id == ap
+        | (Some(head), Some(ap)) => Id.equal(head.id, ap)
         | _ => false
         };
       List.filter(
-        (sample: t) =>
-          is_pinned_probe
-          || sample.step_start >= ps
-          && sample.step_end <= pe
-          || ap_id != None
-          && sample.step_start <= ps
-          && sample.step_end >= pe,
+        ~f=
+          (sample: t) =>
+            is_pinned_probe
+            || sample.step_start >= ps
+            && sample.step_end <= pe
+            || Option.is_some(ap_id)
+            && sample.step_start <= ps
+            && sample.step_end >= pe,
         samples,
       );
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
       let pinned_head_id =
         Option.map(
-          (f: CallStack.frame) => f.id,
+          ~f=(f: CallStack.frame) => f.id,
           ListUtil.hd_opt(pinned_stack),
         );
       /* Compare by ID only - pinned_stack may have None for function names
        * but actual samples have real names from evaluation */
       let pinned_ids = CallStack.ids_of_stack(pinned_stack);
       List.filter(
-        (sample: t) => {
-          let sample_ids = CallStack.ids_of_stack(sample.call_stack);
-          pinned_head_id == ap_id
-          /* Sample is at or below pin (current behavior) */
-          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
-          /* Probe is on an application in the pinned call chain,
-           * and sample is above pin on same ancestral path (breadcrumbs) */
-          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
-          && (
-            switch (ap_id) {
-            | Some(id) => List.mem(id, pinned_ids)
-            | None => false
-            }
-          );
-        },
+        ~f=
+          (sample: t) => {
+            let sample_ids = CallStack.ids_of_stack(sample.call_stack);
+            Option.equal(Id.equal, pinned_head_id, ap_id)
+            /* Sample is at or below pin (current behavior) */
+            || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+            /* Probe is on an application in the pinned call chain,
+             * and sample is above pin on same ancestral path (breadcrumbs) */
+            || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+            && (
+              switch (ap_id) {
+              | Some(id) => List.mem(pinned_ids, id, ~equal=Id.equal)
+              | None => false
+              }
+            );
+          },
         samples,
       );
     | None => samples
@@ -661,7 +678,10 @@ module Selection = {
       switch (r) {
       | None => None
       | Some(r) =>
-        switch (List.find_index(s => ref_matches(r, s), samples)) {
+        switch (
+          ListUtil.findi_opt(s => ref_matches(r, s), samples)
+          |> Option.map(~f=fst)
+        ) {
         | Some(_) as hit => hit
         | None =>
           /* Stack ids can be worker-minted (builtin/HOF frames) and
@@ -673,10 +693,12 @@ module Selection = {
           switch (r.opened) {
           | None => None
           | Some(o) =>
-            List.find_index(
-              (s: t) => r.probe_id == s.syntax_id && o == s.step_start,
+            ListUtil.findi_opt(
+              (s: t) =>
+                Id.equal(r.probe_id, s.syntax_id) && o == s.step_start,
               samples,
             )
+            |> Option.map(~f=fst)
           }
         }
       };
@@ -698,24 +720,26 @@ module Selection = {
       : option(int) => {
     let suffix_scan = (stack: CallStack.t): option(int) =>
       List.fold_left(
-        (best: option((int, int)), (i, sample: t)) => {
-          let slen = List.length(sample.call_stack);
-          if (slen > 0
-              && slen > (best |> Option.map(snd) |> Option.value(~default=0))
-              && ListUtil.is_suffix_of(
-                   ~eq=CallStack.equal_frame,
-                   sample.call_stack,
-                   stack,
-                 )) {
-            Some((i, slen));
-          } else {
-            best;
-          };
-        },
-        None,
-        List.mapi((i, s) => (i, s), samples),
+        ~f=
+          (best: option((int, int)), (i, sample: t)) => {
+            let slen = List.length(sample.call_stack);
+            if (slen > 0
+                && slen
+                > (best |> Option.map(~f=snd) |> Option.value(~default=0))
+                && ListUtil.is_suffix_of(
+                     ~eq=CallStack.equal_frame,
+                     sample.call_stack,
+                     stack,
+                   )) {
+              Some((i, slen));
+            } else {
+              best;
+            };
+          },
+        ~init=None,
+        List.mapi(~f=(i, s) => (i, s), samples),
       )
-      |> Option.map(fst);
+      |> Option.map(~f=fst);
     /* Tier 1a: suffix match against above-focus (where you are) */
     let eff = Focus.effective_stack(cursor);
     let effective_match = suffix_scan(eff);
@@ -734,16 +758,17 @@ module Selection = {
       switch (cursor.pinned_stack, cursor.pinned_span) {
       | (None, None) => None
       | _ =>
-        List.mapi((i, s: t) => (i, List.length(s.call_stack)), samples)
+        List.mapi(~f=(i, s: t) => (i, List.length(s.call_stack)), samples)
         |> List.fold_left(
-             (best, (i, depth)) =>
-               switch (best) {
-               | Some((_, d)) when d <= depth => best
-               | _ => Some((i, depth))
-               },
-             None,
+             ~f=
+               (best, (i, depth)) =>
+                 switch (best) {
+                 | Some((_, d)) when d <= depth => best
+                 | _ => Some((i, depth))
+                 },
+             ~init=None,
            )
-        |> Option.map(fst)
+        |> Option.map(~f=fst)
       };
     /* Tier 1b: suffix match against full sightline (where you've been) */
     let full_match =
@@ -757,11 +782,10 @@ module Selection = {
       };
     /* Fallback tiers use above-focus stack (depth-relative comparisons) */
     let find = (predicate: Focus.relation => bool): option(int) =>
-      List.find_index(
-        (sample: t) =>
-          predicate(Focus.relation(~trimmed=true, ~ap_id, cursor, sample)),
-        samples,
-      );
+      List.findi(samples, ~f=(_, sample: t) =>
+        predicate(Focus.relation(~trimmed=true, ~ap_id, cursor, sample))
+      )
+      |> Option.map(~f=fst);
     let result =
       switch (full_match) {
       | Some(_) as result => result
@@ -769,11 +793,16 @@ module Selection = {
         switch (find(rel => rel.is_call_cursor)) {
         | Some(_) as result => result
         | None =>
-          switch (find(rel => rel.is_below_indicated_call == Some(0))) {
+          switch (
+            find(rel =>
+              Option.equal(Int.equal, rel.is_below_indicated_call, Some(0))
+            )
+          ) {
           | Some(_) as result => result
           | None =>
-            let indirect = find(rel => rel.is_below_indicated_call != None);
-            indirect == None ? find(Focus.is_related) : indirect;
+            let indirect =
+              find(rel => Option.is_some(rel.is_below_indicated_call));
+            Option.is_none(indirect) ? find(Focus.is_related) : indirect;
           }
         }
       };
@@ -789,7 +818,7 @@ module Selection = {
     | [] => None
     | [first, ..._] =>
       switch (most_aligned_index(~ap_id, cursor, samples)) {
-      | Some(idx) => List.nth_opt(samples, idx)
+      | Some(idx) => List.nth(samples, idx)
       | None => Some(first)
       }
     };
@@ -807,9 +836,9 @@ module Selection = {
     let grouped =
       samples
       |> ListUtil.group_consecutive((s1, s2) => is_same_call(s1, s2))
-      |> List.map(List.rev);
+      |> List.map(~f=List.rev);
     /* Flatten if all groups are singletons */
-    List.for_all(g => List.length(g) == 1, grouped)
+    List.for_all(~f=g => List.length(g) == 1, grouped)
       ? [List.concat(grouped)] : grouped;
   };
 
@@ -834,7 +863,7 @@ module Selection = {
       : (list(t), int) => {
     let filtered = filter_by_pin(~ap_id, ~pinned, ~pinned_interval, samples);
     let first_idx = most_aligned_index(~ap_id, cursor, filtered);
-    if (first_idx == None && mode == Single) {
+    if (Option.is_none(first_idx) && Poly.equal(mode, Single)) {
       ([], offset);
     } else {
       let cursor_idx = first_idx |> Option.value(~default=0);
