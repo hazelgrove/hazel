@@ -175,6 +175,28 @@ let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => 
   );
 };
 
+/* faint dotted connector from a displaced label chip back to its curve,
+   so separation never orphans a name from its edge */
+let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
+  let a = el.label_anchor
+  and p = el.label_p;
+  Float.hypot(a.x -. p.x, a.y -. p.y) < 30.
+    ? []
+    : [
+      svg(
+        "line",
+        [
+          clss(["canvas-leader"]),
+          Attr.create("x1", fmt(p.x)),
+          Attr.create("y1", fmt(p.y -. 8.)),
+          Attr.create("x2", fmt(a.x)),
+          Attr.create("y2", fmt(a.y)),
+        ],
+        [],
+      ),
+    ];
+};
+
 let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
   let np' = pull_back(np, dp, 5.);
   svg(
@@ -437,6 +459,7 @@ let view =
       [defs]
       @ List.map(dep_link_svg, lay.dep_links)
       @ List.map(formation_svg, lay.formations)
+      @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );
   let loose =

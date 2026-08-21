@@ -29,6 +29,9 @@ type edge_layout = {
   endo: bool, /* src == dst: render as orbit */
   orbit_rank: int, /* stacking index among orbits on the same node */
   label_p: pos,
+  /* the label's natural anchor on its curve; when separation pushed the
+     chip away, the view draws a leader line back to this point */
+  label_anchor: pos,
 };
 
 type value_layout = {
@@ -119,6 +122,13 @@ let layout =
     )
     : t => {
   /* ---- classify: grid vs docked ---- */
+  let fan = (k: string): int =>
+    List.length(
+      List.filter(
+        (e: CanvasGraph.edge) => e.e_src == k || e.dst == k,
+        g.edges,
+      ),
+    );
   let is_loop_product = (n: CanvasGraph.tynode): bool =>
     n.kind == Product
     && List.exists(
@@ -147,8 +157,11 @@ let layout =
           Some((n, loop_anchor(n), DockLoop))
         | None =>
           /* derived [T] docks beneath T when T is itself on the grid */
+          /* only lightly-used [T] tucks beneath its element; a derived
+             node with real traffic (orbits, loop products, several fns)
+             needs its own grid slot and breathing room */
           switch (n.kind, strip_brackets(n.key)) {
-          | (Derived, Some(ik)) =>
+          | (Derived, Some(ik)) when fan(n.key) <= 2 =>
             switch (
               List.find_opt((m: CanvasGraph.tynode) => m.key == ik, g.nodes)
             ) {
@@ -176,13 +189,6 @@ let layout =
      Rank constraints: alias-body deps (hidden ones included — they still
      order columns), derived [T] after its element, and function flow
      (input strictly left of result). Docked nodes become attachments. */
-  let fan = (k: string): int =>
-    List.length(
-      List.filter(
-        (e: CanvasGraph.edge) => e.e_src == k || e.dst == k,
-        g.edges,
-      ),
-    );
   let r_of = (n: CanvasGraph.tynode): float =>
     node_radius(~fan=fan(n.key), n);
   let dep_edges =
@@ -239,7 +245,7 @@ let layout =
               n.kind == CanvasGraph.Product ? 36. : 62.,
             )
           | DockOut => (Util.GraphLayout.Spec.Out, 62.)
-          | DockLoop => (Util.GraphLayout.Spec.Above, 52.)
+          | DockLoop => (Util.GraphLayout.Spec.Above, 66.)
           | DockDeriv => (Util.GraphLayout.Spec.Below, 42.)
           };
         Util.GraphLayout.Spec.{
@@ -440,7 +446,11 @@ let layout =
             orbit_rank,
             label_p: {
               x: apex.x,
-              y: apex.y -. 2.,
+              y: apex.y -. 6.,
+            },
+            label_anchor: {
+              x: apex.x,
+              y: apex.y -. 6.,
             },
           };
         } else if (is_loop) {
@@ -480,6 +490,10 @@ let layout =
               x: ctrl.x +. v.x *. 14.,
               y: ctrl.y +. v.y *. 14. -. 4.,
             },
+            label_anchor: {
+              x: ctrl.x +. v.x *. 14.,
+              y: ctrl.y +. v.y *. 14. -. 4.,
+            },
           };
         } else {
           let sign = dst_p.x >= src_p.x ? 1. : (-1.);
@@ -515,34 +529,106 @@ let layout =
                 y: m.y -. 6.,
               };
             },
+            label_anchor: {
+              let m = cubic_mid(s, c1, c2, d);
+              {
+                x: m.x,
+                y: m.y -. 6.,
+              };
+            },
           };
         };
       },
       g.edges,
     );
 
-  /* ---- greedy label separation: nudge colliding chips downward ---- */
+  /* ---- label placement: multi-direction search avoiding BOTH other
+     labels and node circles. A label chip renders translate(-50%,-100%):
+     its visual box spans x ± w/2 and y-18..y. Candidates spiral outward
+     from the natural anchor so dense clusters spread around their
+     neighborhood instead of stacking into a column over the nodes. ---- */
   let edge_layouts = {
-    let placed_labels: ref(list(pos)) = ref([]);
+    let label_half = (el: edge_layout): float =>
+      max(24., float_of_int(String.length(el.edge.e_name)) *. 3.7 +. 12.);
+    let placed_labels: ref(list((pos, float))) = ref([]);
+    let label_hits_label = (p: pos, w: float): bool =>
+      List.exists(
+        ((q, qw)) =>
+          abs_float(q.x -. p.x) < w +. qw && abs_float(q.y -. p.y) < 20.,
+        placed_labels^,
+      );
+    let label_hits_node = (p: pos, w: float): bool =>
+      List.exists(
+        (nl: node_layout) => {
+          let cx = min(max(nl.p.x, p.x -. w), p.x +. w)
+          and cy = min(max(nl.p.y, p.y -. 18.), p.y +. 2.);
+          Float.hypot(nl.p.x -. cx, nl.p.y -. cy) < nl.r +. 4.;
+        },
+        node_layouts,
+      );
+    /* orbit rings are obstacles too: a chip sitting ON the ring line
+       reads as part of the circle */
+    let orbit_rings =
+      List.filter_map(
+        (el: edge_layout) =>
+          el.endo
+            ? Some((
+                el.dst_p,
+                radius_of(el.edge.dst)
+                +. 16.
+                +. float_of_int(el.orbit_rank)
+                *. 15.,
+              ))
+            : None,
+        edge_layouts,
+      );
+    let label_hits_ring = (p: pos, w: float): bool =>
+      List.exists(
+        ((c: pos, ring_r: float)) => {
+          let cx = min(max(c.x, p.x -. w), p.x +. w)
+          and cy = min(max(c.y, p.y -. 18.), p.y +. 2.);
+          let d = Float.hypot(c.x -. cx, c.y -. cy);
+          /* box straddles or touches the ring band */
+          abs_float(d -. ring_r) < 12. || d < ring_r && ring_r -. d < 26.;
+        },
+        orbit_rings,
+      );
+    let candidates = [
+      (0., 0.),
+      (0., (-24.)),
+      (0., 22.),
+      (52., 0.),
+      ((-52.), 0.),
+      (52., (-24.)),
+      ((-52.), (-24.)),
+      (52., 22.),
+      ((-52.), 22.),
+      (0., (-48.)),
+      (0., 44.),
+      (104., 0.),
+      ((-104.), 0.),
+      (0., (-72.)),
+      (0., 66.),
+    ];
     List.map(
       (el: edge_layout) => {
-        let collides = (p: pos): bool =>
-          List.exists(
-            q => abs_float(q.x -. p.x) < 58. && abs_float(q.y -. p.y) < 16.,
-            placed_labels^,
-          );
-        let rec free = (p: pos, tries: int): pos =>
-          tries > 6 || !collides(p)
-            ? p
-            : free(
-                {
-                  x: p.x,
-                  y: p.y +. 18.,
-                },
-                tries + 1,
-              );
-        let p = free(el.label_p, 0);
-        placed_labels := [p, ...placed_labels^];
+        let w = label_half(el);
+        let ok = (p: pos): bool =>
+          !label_hits_label(p, w)
+          && !label_hits_node(p, w)
+          && !label_hits_ring(p, w);
+        let rec pick = (cs: list((float, float))): pos =>
+          switch (cs) {
+          | [] => el.label_p
+          | [(dx, dy), ...rest] =>
+            let p = {
+              x: el.label_p.x +. dx,
+              y: el.label_p.y +. dy,
+            };
+            ok(p) ? p : pick(rest);
+          };
+        let p = pick(candidates);
+        placed_labels := [(p, w), ...placed_labels^];
         {
           ...el,
           label_p: p,
@@ -594,9 +680,9 @@ let layout =
       List.fold_left(
         ((x0, y0, x1, y1), el: edge_layout) =>
           (
-            min(x0, el.label_p.x -. 45.),
+            min(x0, el.label_p.x -. 62.),
             min(y0, el.label_p.y -. 18.),
-            max(x1, el.label_p.x +. 45.),
+            max(x1, el.label_p.x +. 62.),
             max(y1, el.label_p.y +. 4.),
           ),
         b,
@@ -655,6 +741,7 @@ let layout =
               c1: sh(el.c1),
               c2: sh(el.c2),
               label_p: sh(el.label_p),
+              label_anchor: sh(el.label_anchor),
             },
           edge_layouts,
         ),

@@ -363,20 +363,7 @@ let layout = (spec: Spec.t): result => {
     | Below => 270.
     };
   /* candidate angles: preferred first, alternating outward in 30° steps */
-  let angle_offsets = [
-    0.,
-    30.,
-    (-30.),
-    60.,
-    (-60.),
-    90.,
-    (-90.),
-    120.,
-    (-120.),
-    150.,
-    (-150.),
-    180.,
-  ];
+  let angle_offsets = [0., 45., (-45.), 90., (-90.), 135., (-135.), 180.];
   let place_attachment = (a: attachment): bool =>
     switch (Hashtbl.find_opt(posed, a.id)) {
     | Some(_) => true

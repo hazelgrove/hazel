@@ -301,6 +301,13 @@
   opacity: 0.45;
 }
 
+.canvas-leader {
+  stroke: var(--BLACK, #333);
+  stroke-width: 0.8;
+  stroke-dasharray: 1.5 3;
+  opacity: 0.4;
+}
+
 .canvas-dep {
   stroke: #4a7a4a;
   stroke-width: 1;
