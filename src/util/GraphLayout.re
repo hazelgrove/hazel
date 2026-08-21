@@ -109,6 +109,60 @@ let layout = (spec: Spec.t): result => {
       ranked_edges,
     );
   };
+  /* Simply-connected pull: a node with rank freedom (no ranked
+     in-edges) drifts to the column just left of its nearest neighbor,
+     so satellites-of-one-thing travel WITH that thing instead of
+     stranding at rank 0 (andrew's Msg rule). Host-resolution applies:
+     a neighbor that is an attachment counts as its host. */
+  let has_ranked_in = (id: string): bool =>
+    List.exists((e: edge) => e.dst == id, ranked_edges);
+  let rec resolve_node = (~depth=0, id: string): option(string) =>
+    if (is_node(id)) {
+      Some(id);
+    } else if (depth > 3) {
+      None;
+    } else {
+      switch (List.find_opt((a: attachment) => a.id == id, spec.attachments)) {
+      | Some(a) => resolve_node(~depth=depth + 1, a.host)
+      | None => None
+      };
+    };
+  List.iter(
+    id =>
+      if (!has_ranked_in(id)) {
+        let neighbor_ranks =
+          spec.edges
+          |> List.filter_map((e: edge) =>
+               if (e.src == id) {
+                 resolve_node(e.dst);
+               } else if (e.dst == id) {
+                 resolve_node(e.src);
+               } else {
+                 None;
+               }
+             )
+          |> List.filter(m => m != id)
+          |> List.map(Hashtbl.find(rank_tbl));
+        switch (List.sort(compare, neighbor_ranks)) {
+        | [r_min, ..._] => Hashtbl.replace(rank_tbl, id, max(0, r_min - 1))
+        | [] => ()
+        };
+      },
+    node_ids,
+  );
+  /* re-run relaxation so ranked successors shift right if needed */
+  for (_ in 1 to passes) {
+    List.iter(
+      (e: edge) => {
+        let sr = Hashtbl.find(rank_tbl, e.src)
+        and dr = Hashtbl.find(rank_tbl, e.dst);
+        if (dr <= sr && sr < 64) {
+          Hashtbl.replace(rank_tbl, e.dst, sr + 1);
+        };
+      },
+      ranked_edges,
+    );
+  };
   /* compact used ranks */
   let used =
     node_ids |> List.map(Hashtbl.find(rank_tbl)) |> List.sort_uniq(compare);
@@ -451,6 +505,45 @@ let layout = (spec: Spec.t): result => {
     | AboveLeft => 135.
     | Below => 270.
     };
+  /* In/Out attachment groups fan symmetrically about the horizontal:
+     n same-side satellites of one host spread vertically (the dataflow
+     fan-in / fan-out reading), rather than greedily claiming slots. */
+  let fan_step = 32.;
+  let group_total: Hashtbl.t((string, side), int) = Hashtbl.create(8);
+  List.iter(
+    (a: attachment) =>
+      switch (a.prefer) {
+      | In
+      | Out =>
+        let k = (a.host, a.prefer);
+        Hashtbl.replace(
+          group_total,
+          k,
+          1 + Option.value(~default=0, Hashtbl.find_opt(group_total, k)),
+        );
+      | _ => ()
+      },
+    spec.attachments,
+  );
+  let group_seen: Hashtbl.t((string, side), int) = Hashtbl.create(8);
+  let fan_angle = (a: attachment): float => {
+    let base = base_angle(a.prefer);
+    switch (a.prefer) {
+    | In
+    | Out =>
+      let k = (a.host, a.prefer);
+      let n = Option.value(~default=1, Hashtbl.find_opt(group_total, k));
+      let i = Option.value(~default=0, Hashtbl.find_opt(group_seen, k));
+      Hashtbl.replace(group_seen, k, i + 1);
+      /* In fans mirror (screen-y grows down; sin positive = up) */
+      let dir = a.prefer == In ? (-1.) : 1.;
+      base
+      +. dir
+      *. fan_step
+      *. (float_of_int(i) -. float_of_int(n - 1) /. 2.);
+    | _ => base
+    };
+  };
   /* candidate angles: preferred first, alternating outward in 30° steps */
   let angle_offsets = [0., 45., (-45.), 90., (-90.), 135., (-135.), 180.];
   let place_attachment = (a: attachment): bool =>
@@ -460,6 +553,7 @@ let layout = (spec: Spec.t): result => {
       switch (Hashtbl.find_opt(posed, a.host)) {
       | None => false
       | Some((hp, hr)) =>
+        let a_base = fan_angle(a);
         let try_ring = (ring: int): option(pos) => {
           let dist =
             hr +. a.dist +. float_of_int(ring) *. (a.radius *. 2. +. 10.);
@@ -468,7 +562,7 @@ let layout = (spec: Spec.t): result => {
               switch (found) {
               | Some(_) => found
               | None =>
-                let th = (base_angle(a.prefer) +. off) *. Float.pi /. 180.;
+                let th = (a_base +. off) *. Float.pi /. 180.;
                 let p = {
                   x: hp.x +. cos(th) *. dist,
                   /* screen y grows downward */
@@ -496,7 +590,7 @@ let layout = (spec: Spec.t): result => {
         | None =>
           /* saturated neighborhood: overlap at the preferred slot rather
              than vanish */
-          let th = base_angle(a.prefer) *. Float.pi /. 180.;
+          let th = a_base *. Float.pi /. 180.;
           let dist = hr +. a.dist;
           Hashtbl.replace(
             posed,

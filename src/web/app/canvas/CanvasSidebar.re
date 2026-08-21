@@ -226,14 +226,28 @@ let view =
       let target = avail -. 16.;
       let s1 = min(1.8, max(0.62, target /. base.width));
       let l1 =
-        CanvasLayout.layout(~x_scale=s1, ~y_scale, ~offsets, ~pins, graph);
+        CanvasLayout.layout(
+          ~x_scale=s1,
+          ~y_scale,
+          ~center_within=Some(avail),
+          ~offsets,
+          ~pins,
+          graph,
+        );
       let close_enough =
         l1.width >= target -. 30. && l1.width <= target +. 30.;
       if (close_enough || s1 >= 1.8 || s1 <= 0.62) {
         l1;
       } else {
         let s2 = min(1.8, max(0.62, s1 *. target /. l1.width));
-        CanvasLayout.layout(~x_scale=s2, ~y_scale, ~offsets, ~pins, graph);
+        CanvasLayout.layout(
+          ~x_scale=s2,
+          ~y_scale,
+          ~center_within=Some(avail),
+          ~offsets,
+          ~pins,
+          graph,
+        );
       };
     | _ =>
       y_scale == 1.

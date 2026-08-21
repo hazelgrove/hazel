@@ -54,6 +54,10 @@ type t = {
 
 let margin = 70.;
 
+/* dot-grid pitch (kept in sync with canvas.css --canvas-grid) */
+let grid = 14.;
+let snap = (v: float): float => Float.round(v /. grid) *. grid;
+
 let base_radius = 20.;
 
 let node_radius = (~fan: int, n: CanvasGraph.tynode): float => {
@@ -119,6 +123,7 @@ let layout =
     (
       ~x_scale=1.,
       ~y_scale=1.,
+      ~center_within: option(float)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
       g: CanvasGraph.t,
@@ -269,7 +274,7 @@ let layout =
               n.kind == CanvasGraph.Product ? 36. : 62.,
             )
           | DockOut => (Util.GraphLayout.Spec.Out, 62.)
-          | DockLoop => (Util.GraphLayout.Spec.AboveLeft, 66.)
+          | DockLoop => (Util.GraphLayout.Spec.In, 56.)
           | DockDeriv => (Util.GraphLayout.Spec.Below, 42.)
           };
         Util.GraphLayout.Spec.{
@@ -393,7 +398,18 @@ let layout =
         | (None, None) => nl
         },
       placed_layouts,
-    );
+    )
+    /* snap-to-grid: node centers land on the dot lattice; drags and
+       pins snap too (they pass through here) */
+    |> List.map((nl: node_layout) =>
+         {
+           ...nl,
+           p: {
+             x: snap(nl.p.x),
+             y: snap(nl.p.y),
+           },
+         }
+       );
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
     (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
@@ -731,9 +747,11 @@ let layout =
             );
           List.iteri(
             (i, el: edge_layout) => {
+              let base =
+                snap(ring_top -. 14. -. grid /. 2. -. 9.) +. grid /. 2. +. 9.;
               let p = {
-                x: hp.x,
-                y: ring_top -. 14. -. float_of_int(i) *. 24.,
+                x: snap(hp.x),
+                y: base -. float_of_int(i) *. 28.,
               };
               Hashtbl.replace(stacked, el.edge.e_name, p);
               placed_labels := [(p, label_half(el)), ...placed_labels^];
@@ -759,14 +777,23 @@ let layout =
             !label_hits_label(p, w)
             && !label_hits_node(p, w)
             && !label_hits_ring(p, w);
+          let snap_label = (p: pos): pos => {
+            /* chip renders translate(-50%,-100%): its text center sits
+               ~10px above label_p. Dot centers are at grid multiples
+               (nodes snap there); putting the text center halfway
+               between dot rows means label_p.y = k*grid + grid/2 + 10 */
+            x: snap(p.x),
+            y: snap(p.y -. grid /. 2. -. 9.) +. grid /. 2. +. 9.,
+          };
           let rec pick = (cs: list((float, float))): pos =>
             switch (cs) {
-            | [] => el.label_p
+            | [] => snap_label(el.label_p)
             | [(dx, dy), ...rest] =>
-              let p = {
-                x: el.label_p.x +. dx,
-                y: el.label_p.y +. dy,
-              };
+              let p =
+                snap_label({
+                  x: el.label_p.x +. dx,
+                  y: el.label_p.y +. dy,
+                });
               ok(p) ? p : pick(rest);
             };
           let p = pick(candidates);
@@ -858,8 +885,17 @@ let layout =
       },
     };
   } else {
-    let dx = pad -. min_x
-    and dy = pad -. min_y;
+    /* the normalization shift is grid-aligned so snapped coordinates
+       stay on the dot lattice; when the pane is wider than the content,
+       center within it (also on-grid) instead of hugging the left */
+    let content_w = max_x -. min_x +. 2. *. pad;
+    let center_pad =
+      switch (center_within) {
+      | Some(cw) when cw > content_w => snap((cw -. content_w) /. 2.)
+      | _ => 0.
+      };
+    let dx = snap(pad -. min_x) +. center_pad
+    and dy = snap(pad -. min_y);
     let sh = (p: pos): pos => {
       x: p.x +. dx,
       y: p.y +. dy,
@@ -899,7 +935,7 @@ let layout =
         ),
       formations: List.map(((a, b)) => (sh(a), sh(b)), formations),
       dep_links: List.map(((a, b)) => (sh(a), sh(b)), dep_links),
-      width: max_x -. min_x +. 2. *. pad,
+      width: max_x -. min_x +. 2. *. pad +. 2. *. center_pad,
       height: max_y -. min_y +. 2. *. pad,
       origin: {
         x: dx,
