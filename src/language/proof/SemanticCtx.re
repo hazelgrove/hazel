@@ -136,8 +136,18 @@ let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
    The auto-name is freshened against the theorem names only
    (`Ctx.theorem_names`), matching `Statics`; a program variable called
    `assume` no longer bumps the hypothesis to `assume'`. */
-let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
-  let name = Var.free_name(name, Ctx.theorem_names(t.ctx));
+/* The name `add_hypothesis` would pick for `base` in this scope. Exposed
+   separately so a caller installing SEVERAL entries for ONE hypothesis
+   (ProofCheck.add_where_facts, which also installs a conjunctive guard's
+   conjuncts) can put them all under that one name: the freshening is over
+   the SET of occupied theorem names, so re-using a name keeps every later
+   hypothesis's auto-name identical to what the statics predicted
+   (`Statics.proof_ctx_of_goal`). */
+let hypothesis_name = (t: t, base: Var.t): Var.t =>
+  Var.free_name(base, Ctx.theorem_names(t.ctx));
+
+/* Install under an EXACT name, no freshening. */
+let add_hypothesis_named = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
   let id = Id.mk();
   (
     {
@@ -158,6 +168,9 @@ let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
     },
   );
 };
+
+let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) =>
+  add_hypothesis_named(t, hypothesis_name(t, name), hyp);
 
 /* The facts visible in this scope, innermost first: the theorem-namespace
    entries whose statement is known. Built-in axioms (`prop: None`) are

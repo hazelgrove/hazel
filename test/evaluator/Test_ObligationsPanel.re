@@ -583,6 +583,116 @@ let test_no_context_degrades = () => {
   };
 };
 
+/* --- exit 1 END TO END: float, reparse, re-check ---------------------
+ *
+ * The bug report: "Add to statement" edits the binder correctly, but the
+ * obligation stays Pending after the re-check. The three unit tests
+ * above only inspect the PATCH; this one drives the whole loop —
+ * check → patch → print → reparse → check — and asserts the discharge
+ * actually flips.
+ *
+ * The patch target ids come from the zipper (per-parse ids), so the
+ * action_ctx is built from the zipper's own term; the obligation is the
+ * real one from a checker run on the same source, so its display_goal is
+ * exactly what the browser would embed. */
+
+let zipper_of = (s: string): Haz3lcore.Zipper.t =>
+  switch (Haz3lcore.Parser.to_zipper(s, ~root=Exp)) {
+  | Some(z) => z
+  | None => Alcotest.fail("failed to parse zipper: " ++ s)
+  };
+
+let serialize = (z: Haz3lcore.Zipper.t): string =>
+  Haz3lcore.Printer.of_zipper(~holes="?", z);
+
+let zipper_term = (z: Haz3lcore.Zipper.t): Exp.t =>
+  Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+
+let ctx_of_zipper = (z: Haz3lcore.Zipper.t): ObligationsPanel.action_ctx => {
+  let term = zipper_term(z);
+  {
+    stmt: stmt_of(term),
+    proof:
+      switch (Test_ProofMap.find_theorem_proof(term)) {
+      | Some(p) => Some(p)
+      | None => Alcotest.fail("no theorem proof in the zipper term")
+      },
+  };
+};
+
+/* The user's repro program, with the theorem body `0` as reported. */
+let float_e2e_src = {|let f = fun x where x != 0 -> 100 / x in
+let g = fun w -> 100 / w in
+theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
+proof axiom refl_eq at 0 on f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z end
+in 0|};
+
+let test_float_discharges_after_recheck = () => {
+  /* 1. check the original: one pending obligation, `z != 0`. */
+  let (pm, proof, _) = run_with_ctx(float_e2e_src);
+  let ob = one_pending("the repro", pm, proof);
+  check_exp("the pending obligation is z != 0", "z != 0", ob.goal);
+
+  /* 2. build and apply the float patch against the editor's own zipper. */
+  let z = zipper_of(float_e2e_src);
+  let ctx = ctx_of_zipper(z);
+  let patch =
+    switch (ObligationsPanel.float_patch(~ctx, ob)) {
+    | Some(p) => p
+    | None => Alcotest.fail("float patch unavailable for the repro")
+    };
+  let out = Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+  bool_check(
+    "the binder now carries a where-restriction — got:\n" ++ out,
+    true,
+    contains_substring(out, "where"),
+  );
+
+  /* 3. re-check the patched program: the obligation must be Remote. */
+  let (pm', proof') = run(out);
+  let obs' = ProofMap.obligations_of_proof(pm', proof');
+  let pendings = obs' |> List.filter(Obligation.is_pending) |> List.length;
+  int_check(
+    "no pending obligations after the float — patched program:\n"
+    ++ out
+    ++ "\nobligations: "
+    ++ String.concat(
+         ", ",
+         List.map(
+           (o: Obligation.t) =>
+             Obligation.show_discharge(o.discharge)
+             ++ " "
+             ++ Test_ProofMap.print_exp(o.goal),
+           obs',
+         ),
+       ),
+    0,
+    pendings,
+  );
+  bool_check(
+    "the floated condition is discharged Remote",
+    true,
+    List.exists(
+      (o: Obligation.t) =>
+        switch (o.discharge) {
+        | Obligation.Remote(_) => true
+        | _ => false
+        },
+      obs',
+    ),
+  );
+  switch (ProofMap.full_status_of_proof(pm', proof')) {
+  | ProofMap.Proven => ()
+  | other =>
+    Alcotest.fail(
+      "expected the theorem chip fully Proven, got: "
+      ++ ProofMap.show_full_status(other)
+      ++ "\npatched program:\n"
+      ++ out,
+    )
+  };
+};
+
 let tests = (
   "ObligationsPanel",
   [
@@ -665,6 +775,11 @@ let tests = (
       "display_goal agrees with goal when nothing inlines",
       `Quick,
       test_display_goal_agrees_when_nothing_to_inline,
+    ),
+    test_case(
+      "float patch: obligation discharges after reparse and re-check",
+      `Quick,
+      test_float_discharges_after_recheck,
     ),
   ],
 );

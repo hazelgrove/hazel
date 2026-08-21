@@ -312,6 +312,15 @@ and uexp_to_info_map =
      patterns keep their info entries. */
   let rec proof_ctx_of_goal = (ctx, goal: Exp.t, m): (Ctx.t, Map.t) =>
     switch (goal |> Exp.term_of) {
+    /* Parens are transparent, exactly as in `binder_typ_in_prop` and in
+       the checker's `ProofCheck.peel_stmt_binders`: `EditorTransform`
+       wraps a spliced sub-term in a defensive `Parens`, so the (!)
+       panel's "Add to statement" exit yields
+       `forall y where g -> (forall z where c -> P)`. Stopping at the
+       paren would leave `z` FREE in the proof's targets and skip the
+       inner restriction's hypothesis, desynchronising the auto-generated
+       `where` names from the checker's. */
+    | Parens(e1) => proof_ctx_of_goal(ctx, e1, m)
     | Forall(fp, fbody) =>
       let (fp', _, m) =
         upat_to_info_map(

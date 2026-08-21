@@ -129,6 +129,104 @@ let test_conditional_rule_plus_domain_scan = () => {
   );
 };
 
+/* --- A `where` restriction covers the SCANNED domain condition -------
+ *
+ * The hand-written twin of the (!) panel's "Add to statement" exit
+ * (§3.3): the user writes the restriction themselves. `8 / z` scans to
+ * `z != 0` (DomainConditions.neq_zero), and the statement's own
+ * `where z != 0` is installed as a hypothesis by
+ * `ProofCheck.peel_stmt_binders`, so discharge channel 1
+ * (`lookup_fact`) must retire it Remote. If this fails, the float
+ * action cannot possibly work either — the bug is in
+ * installation/lookup, not in the patch.
+ *
+ * Both sides must be post-elaboration (§0.4). */
+let test_where_covers_scanned_condition = () => {
+  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t|};
+  let (pm, proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    check_exp("the obligation is z != 0", "z != 0", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged Remote against the where-restriction — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    );
+  | _ => ()
+  };
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProofMap.Proven => ()
+  | other =>
+    Alcotest.fail(
+      "expected fully Proven, got: " ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* The same, with the restriction AND-extended — the shape the float
+ * patch emits when the binder already carries a guard. */
+let test_where_conjunct_covers_scanned_condition = () => {
+  let src = {|theorem t = forall z where z > 0 && z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t|};
+  let (_pm, _proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged Remote against the conjoined restriction — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    )
+  | _ => ()
+  };
+};
+
+/* The ROOT CAUSE of the (!) panel's float bug, isolated from the panel:
+ * a PARENTHESISED inner binder. `EditorTransform` wraps a spliced
+ * sub-term in a defensive `Parens` whenever it shares a segment level
+ * with siblings, so "Add to statement" on the inner binder of
+ * `forall y where ... -> forall z -> ...` emits
+ * `forall y where ... -> (forall z where z != 0 -> ...)`. Parens are
+ * quotiented by the checker (§0.4), so binder peeling must look through
+ * them — otherwise the restriction is never installed and the floated
+ * condition stays Pending. Hand-written here: no patch involved. */
+let test_parenthesized_where_binder_still_installs = () => {
+  let src = {|theorem t = forall y -> (forall z where z != 0 -> y + 8 / z == y + 8 / z) proof axiom refl_eq at 0 on y + 8 / z == y + 8 / z end in t|};
+  let (pm, proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    Alcotest.check(
+      Alcotest.bool,
+      "a parenthesised binder's restriction still discharges — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    )
+  | _ => ()
+  };
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProofMap.Proven => ()
+  | other =>
+    Alcotest.fail(
+      "expected fully Proven, got: " ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
 /* --- Instantiation exemption (regression) ----------------------------- */
 
 /* The common instantiations — a quantified variable, a sum of them —
@@ -454,6 +552,21 @@ let tests = (
       "int_of_float emits is_finite, closed-evaluated",
       `Quick,
       test_of_float_is_finite_condition,
+    ),
+    test_case(
+      "a where-restriction discharges the scanned domain condition",
+      `Quick,
+      test_where_covers_scanned_condition,
+    ),
+    test_case(
+      "an AND-extended where-restriction discharges it too",
+      `Quick,
+      test_where_conjunct_covers_scanned_condition,
+    ),
+    test_case(
+      "a parenthesized where-binder still installs its restriction",
+      `Quick,
+      test_parenthesized_where_binder_still_installs,
     ),
   ],
 );

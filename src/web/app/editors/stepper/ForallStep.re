@@ -102,9 +102,7 @@ module F =
           let ctx = SemanticCtx.add_from_pattern(ctx, p, t);
           let ctx =
             switch (guard) {
-            | Some(g) =>
-              let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
-              SemanticCtx.add_hypothesis(ctx, "where", g) |> fst;
+            | Some(g) => ProofCheck.add_where_facts(ctx, g)
             | None => ctx
             };
           Some((ctx, d1));
@@ -147,21 +145,28 @@ module F =
         and.calc exp = exp;
         switch (ProofMap.lookup(Proof.rep_id(inner_proof), proof_map)) {
         | Some({outgoing: Some(last), _}) =>
-          switch (exp |> Exp.term_of) {
-          | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
-          | Forall(p, _) => DHExp.fresh(Forall(p, last))
-          | ForallWhere(p, g, _) => DHExp.fresh(ForallWhere(p, g, last))
-          | FunWhere(p, g, _) => DHExp.fresh(FunWhere(p, g, last))
-          | _ =>
-            DHExp.fresh(
-              Fun(
-                Pat.fresh(EmptyHole),
-                last,
-                Some(Typ.fresh(Unknown(Internal))),
-                None,
-              ),
-            )
-          }
+          /* Paren-transparent, and paren-PRESERVING: `peel_binder` looks
+           * through a defensive `Parens` (see ProofCheck), so the rebuild
+           * has to as well or a parenthesised binder would collapse to
+           * the dummy `Fun` fallback. */
+          let rec rebuild = (exp: Exp.t): Exp.t =>
+            switch (exp |> Exp.term_of) {
+            | Parens(inner) => DHExp.fresh(Parens(rebuild(inner)))
+            | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
+            | Forall(p, _) => DHExp.fresh(Forall(p, last))
+            | ForallWhere(p, g, _) => DHExp.fresh(ForallWhere(p, g, last))
+            | FunWhere(p, g, _) => DHExp.fresh(FunWhere(p, g, last))
+            | _ =>
+              DHExp.fresh(
+                Fun(
+                  Pat.fresh(EmptyHole),
+                  last,
+                  Some(Typ.fresh(Unknown(Internal))),
+                  None,
+                ),
+              )
+            };
+          rebuild(exp);
         | _ => exp
         };
       };

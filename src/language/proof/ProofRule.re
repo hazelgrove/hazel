@@ -31,6 +31,10 @@ type t = {
  * Returns the remaining core, which may retain `==>` antecedents. */
 let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), list(Exp.t), Exp.t) =>
   switch (exp |> Exp.term_of) {
+  /* Parens are transparent (docs/prover-obligations.md §0.4), as they
+     already are in `instantiate_binder` below: a defensive `Parens` from
+     an editor splice must not hide a binder. */
+  | Parens(e) => peel_binders(e)
   | Forall(p, e) =>
     let bindings' =
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)

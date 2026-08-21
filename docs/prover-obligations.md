@@ -157,6 +157,34 @@ Proof-internal entries (`assume`/`have`/`where` added by
 statics-only, used for name resolution and `binder_typ_in_prop`, and never
 reach the checker, which builds its own facts from the elaborated proof.
 
+**The dual invariant: what is quotiented must be quotiented EVERYWHERE**
+(learned 2026-08-21, from the (!) panel's float exit). Parens are on the
+quotiented list, so no pass may let a paren change what it sees.
+`EditorTransform` wraps a spliced sub-term in a defensive `Parens`
+whenever it shares a segment level with sibling pieces, so "Add to
+statement" on an inner binder emits
+`forall y where g -> (forall z where c -> P)`. Binder PEELING was not
+paren-transparent — `ProofCheck.peel_binder` / `peel_stmt_binders`,
+`ProofRule.peel_binders` and `Statics.proof_ctx_of_goal` all stopped at
+the paren — so the floated restriction was never installed as a
+hypothesis and the obligation it was written to discharge stayed Pending
+forever. All four now look through `Parens`, as
+`binder_typ_in_prop` and `ProofRule.instantiate_binder` already did. The
+symptom to recognise: a correct-looking edit that discharges nothing.
+
+`where` restrictions are installed in ONE place,
+`ProofCheck.add_where_facts`, which also installs each `&&`-conjunct of a
+conjunctive guard as its own fact — matching what
+`definition_obligations` has always done for a `FunWhere` contract, and
+required because `ObligationsPanel.float_binder_exp` AND-extends an
+existing guard rather than replacing it. This is fact installation, not
+slack in the discharge relation: `lookup_fact` remains `fast_equal` plus
+the §4.3 normal form and simply has more facts to find. All the entries
+share the whole guard's auto-name (installed last, so `lookup_theorem`
+resolves the citable `where` to the guard the user wrote); since
+freshening is over the SET of occupied theorem names, sharing keeps every
+later hypothesis's name identical to the one the statics predicted.
+
 ---
 
 ## 1. Semantics

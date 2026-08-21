@@ -841,17 +841,72 @@ let instantiation_gate =
   };
 };
 
+/* The `&&`-conjuncts of a guard, parens-transparently. A guard that is
+ * not a conjunction is its own single conjunct. */
+let rec guard_conjuncts = (g: Exp.t): list(Exp.t) =>
+  switch (g |> Exp.term_of) {
+  | Parens(g1) => guard_conjuncts(g1)
+  | BinOp(Bool(And), a, b) => guard_conjuncts(a) @ guard_conjuncts(b)
+  | _ => [g]
+  };
+
+/* Install a binder's `where` restriction as a hypothesis (a free, sound
+ * intro; docs/prover-obligations.md §2.2). The ONE place this is done, so
+ * the three peeling sites — `peel_stmt_binders`, the `Forall` proof arm,
+ * and the UI's `ForallStep` — cannot drift apart.
+ *
+ * A CONJUNCTIVE guard additionally installs each conjunct as its own
+ * fact. This is fact installation, not slack in the discharge relation:
+ * `lookup_fact` stays a dumb `fast_equal` (+ the documented
+ * `strip_eq_true` normal form) and simply finds more facts. It is sound
+ * in the flat domain of §1.1 — a hypothesis asserted to denote `true`
+ * whose form is `a && b` entails both `a` and `b` under the Kleene
+ * reading of §1.3 — and it is what `definition_obligations` has always
+ * done for a `FunWhere` contract ("the guard `g` or one of its
+ * `&&`-conjuncts"). Without it the (!) panel's float exit is broken
+ * exactly when the binder already carries a guard, since
+ * `ObligationsPanel.float_binder_exp` AND-extends rather than replaces.
+ *
+ * All entries go under ONE name (the whole guard's), and the whole guard
+ * is installed LAST so that `Ctx.lookup_theorem` — which takes the most
+ * recently added match — resolves the citable `where` to the guard the
+ * user wrote, exactly as `Statics.proof_ctx_of_goal` recorded it. Sharing
+ * the name is also what keeps later hypotheses' auto-names in step with
+ * the statics: freshening is over the set of occupied names. */
+let add_where_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
+  let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+  let name = SemanticCtx.hypothesis_name(ctx, "where");
+  let install = (ctx, fact) =>
+    SemanticCtx.add_hypothesis_named(ctx, name, fact) |> fst;
+  let ctx =
+    switch (guard_conjuncts(g)) {
+    | [_] => ctx /* not a conjunction: the guard is its own conjunct */
+    | conjuncts => List.fold_left(install, ctx, conjuncts)
+    };
+  install(ctx, g);
+};
+
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used
  * by the `Forall` and `Intro` proof forms to walk under the binder. The
  * third component is the binder's `where` restriction, if any — peeling a
  * restricted binder additionally installs it as a hypothesis (a free,
  * sound introduction; docs/prover-obligations.md §2.2). */
-let peel_binder =
-    (incoming: option(Exp.t))
-    : option((Pat.t, Typ.t, option(Exp.t), Exp.t)) => {
+let rec peel_binder =
+        (incoming: option(Exp.t))
+        : option((Pat.t, Typ.t, option(Exp.t), Exp.t)) => {
   open OptUtil.Syntax;
   let* e = incoming;
   switch (e |> Exp.term_of) {
+  /* Parens are TRANSPARENT here (docs/prover-obligations.md §0.4 lists
+   * them among the forms the checker quotients by). They are not
+   * hypothetical: `EditorTransform` wraps a spliced sub-term in a
+   * defensive `Parens` whenever it shares a segment level with sibling
+   * pieces, so the (!) panel's "Add to statement" exit turns
+   * `forall y where g -> forall z -> P` into
+   * `forall y where g -> (forall z where c -> P)`. A binder the peeler
+   * cannot see is a binder whose `where` restriction is never installed,
+   * and the floated condition then stays Pending forever. */
+  | Parens(inner) => peel_binder(Some(inner))
   | Fun(p, d1, t, _) =>
     let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
     Some((p, t, None, d1));
@@ -877,6 +932,8 @@ let peel_binder =
 let rec peel_stmt_binders =
         (ctx: SemanticCtx.t, goal: Exp.t): (SemanticCtx.t, Exp.t) =>
   switch (goal |> Exp.term_of) {
+  /* Transparent, for the reason spelled out on `peel_binder`. */
+  | Parens(inner) => peel_stmt_binders(ctx, inner)
   | Forall(p, body) =>
     peel_stmt_binders(
       SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal))),
@@ -885,9 +942,7 @@ let rec peel_stmt_binders =
   | ForallWhere(p, g, body) =>
     let ctx =
       SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
-    let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
-    let (ctx, _) = SemanticCtx.add_hypothesis(ctx, "where", g);
-    peel_stmt_binders(ctx, body);
+    peel_stmt_binders(add_where_facts(ctx, g), body);
   | _ => (ctx, goal)
   };
 
@@ -918,13 +973,6 @@ let rec peel_stmt_binders =
  * (SemanticCtx.add_from_pattern), so conditions may mention the
  * parameter. v1 skips (documented): builtins; recursive definitions
  * (FixF spine — tier-2 totality is Phase 4); non-function bindings. */
-
-let rec guard_conjuncts = (g: Exp.t): list(Exp.t) =>
-  switch (g |> Exp.term_of) {
-  | Parens(g1) => guard_conjuncts(g1)
-  | BinOp(Bool(And), a, b) => guard_conjuncts(a) @ guard_conjuncts(b)
-  | _ => [g]
-  };
 
 let definition_obligations =
     (~step: step_fn=no_step, ~ctx: SemanticCtx.t, ()): ProofMap.t => {
@@ -1246,10 +1294,7 @@ let rec check =
            * the sub-proof — free, sound intro (§2.2). */
           let ctx' =
             switch (guard) {
-            | Some(g) =>
-              let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx'));
-              let (ctx'', _) = SemanticCtx.add_hypothesis(ctx', "where", g);
-              ctx'';
+            | Some(g) => add_where_facts(ctx', g)
             | None => ctx'
             };
           (Some(inner), ctx', []);
