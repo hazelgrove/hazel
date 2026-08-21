@@ -7,7 +7,7 @@ open Web;
    in EditorModeView both depend on how those are shaped. */
 
 let lessons = TutorialSettings.lessons;
-let paths = List.map(Tutorial.path_of, lessons);
+let paths = List.map(~f=Tutorial.path_of, lessons);
 let strings = list(string);
 
 let folder_of = (p: SlidePath.t): string =>
@@ -16,8 +16,13 @@ let folder_of = (p: SlidePath.t): string =>
 /* Folders in first-appearance order. */
 let folders =
   paths
-  |> List.map(folder_of)
-  |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
+  |> List.map(~f=folder_of)
+  |> List.fold_left(
+       ~f=
+         (acc, f) =>
+           List.mem(acc, f, ~equal=String.equal) ? acc : acc @ [f],
+       ~init=[],
+     );
 
 let tests = [
   (
@@ -25,16 +30,17 @@ let tests = [
     [
       test_case("every lesson names exactly one folder", `Quick, () =>
         List.iter(
-          (p: SlidePath.t) =>
-            check(
-              bool,
-              "one non-empty folder segment: " ++ SlidePath.to_string(p),
-              true,
-              switch (SlidePath.folders(p)) {
-              | [f] => f != ""
-              | _ => false
-              },
-            ),
+          ~f=
+            (p: SlidePath.t) =>
+              check(
+                bool,
+                "one non-empty folder segment: " ++ SlidePath.to_string(p),
+                true,
+                switch (SlidePath.folders(p)) {
+                | [f] => !String.equal(f, "")
+                | _ => false
+                },
+              ),
           paths,
         )
       ),
@@ -47,14 +53,15 @@ let tests = [
             "no folder is revisited",
             folders,
             paths
-            |> List.map(folder_of)
+            |> List.map(~f=folder_of)
             |> List.fold_left(
-                 (acc, f) =>
-                   switch (List.rev(acc)) {
-                   | [last, ..._] when last == f => acc
-                   | _ => acc @ [f]
-                   },
-                 [],
+                 ~f=
+                   (acc, f) =>
+                     switch (List.rev(acc)) {
+                     | [last, ..._] when String.equal(last, f) => acc
+                     | _ => acc @ [f]
+                     },
+                 ~init=[],
                ),
           )
         ),
@@ -68,14 +75,14 @@ let tests = [
              lessons sharing an id would share saved work. */
           let ids =
             List.map(
-              spec => Tutorial.id_of(spec) |> Haz3lcore.Id.to_string,
+              ~f=spec => Tutorial.id_of(spec) |> Haz3lcore.Id.to_string,
               lessons,
             );
           check(
             int,
             "distinct ids",
             List.length(lessons),
-            ids |> List.sort_uniq(String.compare) |> List.length,
+            ids |> List.dedup_and_sort(~compare=String.compare) |> List.length,
           );
         },
       ),
@@ -85,23 +92,29 @@ let tests = [
         () => {
           /* Such a pair makes the shorter lesson unreachable from the deeper
              breadcrumb dropdown. */
-          let segs = List.map(SlidePath.segments, paths);
+          let segs = List.map(~f=SlidePath.segments, paths);
           List.iter(
-            a =>
-              List.iter(
-                b =>
-                  check(
-                    bool,
-                    "not a proper prefix: "
-                    ++ String.concat(" / ", a)
-                    ++ " vs "
-                    ++ String.concat(" / ", b),
-                    false,
-                    List.length(a) < List.length(b)
-                    && Util.ListUtil.take(List.length(a), b) == a,
-                  ),
-                segs,
-              ),
+            ~f=
+              a =>
+                List.iter(
+                  ~f=
+                    b =>
+                      check(
+                        bool,
+                        "not a proper prefix: "
+                        ++ String.concat(~sep=" / ", a)
+                        ++ " vs "
+                        ++ String.concat(~sep=" / ", b),
+                        false,
+                        List.length(a) < List.length(b)
+                        && List.equal(
+                             String.equal,
+                             Util.ListUtil.take(List.length(a), b),
+                             a,
+                           ),
+                      ),
+                  segs,
+                ),
             segs,
           );
         },

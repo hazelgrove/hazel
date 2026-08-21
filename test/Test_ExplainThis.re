@@ -129,9 +129,9 @@ let doc_of = (~docs, info: Info.t): option(ET.doc) =>
 let render_doc = (info_map, d: ET.doc): string => {
   let colorings =
     d.colorings
-    |> List.map(((_sf_id, code_id)) => canonical_id(info_map, code_id))
-    |> List.sort(String.compare)
-    |> String.concat(",");
+    |> List.map(~f=((_sf_id, code_id)) => canonical_id(info_map, code_id))
+    |> List.sort(~compare=String.compare)
+    |> String.concat(~sep=",");
   Web.ExplainThisForm.show_form_id(d.form.id)
   ++ " colorings=["
   ++ colorings
@@ -148,7 +148,7 @@ let swept_docs = (info: Info.t): list(ET.doc) =>
   | None => []
   | Some(d) =>
     d.group.forms
-    |> List.filter_map((form: Web.ExplainThisForm.form) => {
+    |> List.filter_map(~f=(form: Web.ExplainThisForm.form) => {
          let docs': Web.ExplainThisModel.t = {
            ...Web.ExplainThisModel.init,
            groups: [
@@ -165,7 +165,7 @@ let swept_docs = (info: Info.t): list(ET.doc) =>
 let fingerprint_of_info = (info_map, info: Info.t): list(string) =>
   switch (swept_docs(info)) {
   | [] => ["(no group doc)"]
-  | ds => List.map(render_doc(info_map), ds)
+  | ds => List.map(~f=render_doc(info_map), ds)
   };
 
 let info_map_of = (src: string) =>
@@ -183,7 +183,7 @@ let doc_fingerprint = (src: string): string => {
       | Some(any) =>
         let cursor = print_any(any);
         List.map(
-          l => cursor ++ " => " ++ l,
+          ~f=l => cursor ++ " => " ++ l,
           fingerprint_of_info(info_map, info),
         )
         @ acc;
@@ -191,8 +191,8 @@ let doc_fingerprint = (src: string): string => {
     info_map,
     [],
   )
-  |> List.sort_uniq(String.compare)
-  |> String.concat("\n");
+  |> List.dedup_and_sort(~compare=Poly.compare)
+  |> String.concat(~sep="\n");
 };
 
 /* Each entry is chosen so that its root, plus the sub-terms it contains,
@@ -589,11 +589,11 @@ type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
 let over_corpus_docs =
     (f: (Id.Map.t(Info.t), ET.doc) => list('a)): list('a) =>
   corpus
-  |> List.concat_map(((_name, src)) => {
+  |> List.concat_map(~f=((_name, src)) => {
        let info_map = info_map_of(src);
        Id.Map.fold(
          (_id, info: Info.t, acc) =>
-           List.concat_map(f(info_map), swept_docs(info)) @ acc,
+           List.concat_map(~f=f(info_map), swept_docs(info)) @ acc,
          info_map,
          [],
        );
@@ -603,7 +603,7 @@ let reached_groups = () =>
   over_corpus_docs((_info_map, d: ET.doc) =>
     [Web.ExplainThisForm.show_group_id(d.group.id)]
   )
-  |> List.sort_uniq(String.compare);
+  |> List.dedup_and_sort(~compare=Poly.compare);
 
 /* Recorded from the corpus above. Add to this when a new corpus entry reaches a
    new doc; a drop means a doc silently stopped being exercised.
@@ -698,13 +698,14 @@ let coverage_case =
         reached,
       );
       List.iter(
-        g =>
-          Alcotest.check(
-            Alcotest.bool,
-            "expected to be unreachable: " ++ g,
-            false,
-            List.mem(g, reached),
-          ),
+        ~f=
+          g =>
+            Alcotest.check(
+              Alcotest.bool,
+              "expected to be unreachable: " ++ g,
+              false,
+              List.mem(reached, g, ~equal=Poly.equal),
+            ),
         known_unreachable,
       );
     },
@@ -724,8 +725,10 @@ let stray_colorings = (info_map, d: ET.doc): list(string) => {
   /* Segment.ids recurses into tile children, so template-built forms count. */
   let sf_ids = Segment.ids(d.form.syntactic_form);
   d.colorings
-  |> List.filter(((sf_id, _)) => !List.mem(sf_id, sf_ids))
-  |> List.map(((_sf_id, code_id)) =>
+  |> List.filter(~f=((sf_id, _)) =>
+       !List.mem(sf_ids, sf_id, ~equal=Poly.equal)
+     )
+  |> List.map(~f=((_sf_id, code_id)) =>
        Web.ExplainThisForm.show_form_id(d.form.id)
        ++ " links "
        ++ canonical_id(info_map, code_id)
@@ -739,7 +742,8 @@ let pairing_case =
       Alcotest.list(Alcotest.string),
       "colorings referring to a piece outside the form",
       [],
-      over_corpus_docs(stray_colorings) |> List.sort_uniq(String.compare),
+      over_corpus_docs(stray_colorings)
+      |> List.dedup_and_sort(~compare=Poly.compare),
     )
   );
 
@@ -749,7 +753,7 @@ let golden_case = ((name, src)) =>
     `Quick,
     () => {
       let expected =
-        switch (List.assoc_opt(name, golden)) {
+        switch (List.Assoc.find(golden, name, ~equal=Poly.equal)) {
         | Some(g) => g
         | None => "<no golden recorded for " ++ name ++ ">"
         };
@@ -766,6 +770,6 @@ let tests = (
     ),
     coverage_case,
     pairing_case,
-    ...List.map(golden_case, corpus),
+    ...List.map(~f=golden_case, corpus),
   ],
 );

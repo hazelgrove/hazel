@@ -14,8 +14,8 @@ let qcheck_map_annotation_test =
         );
       let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
-        (==),
-        Grammar.map_exp_annotation(Fun.id, core_exp),
+        Poly.equal,
+        Grammar.map_exp_annotation(Fn.id, core_exp),
         core_exp,
       );
     },
@@ -216,18 +216,19 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
-          (cls: Exp.cls) =>
-            switch (cls) {
-            | Projector // Excluding projectors from cls
-            | Parens => () // Parens and projectors are transparent (return inner cls)
-            | _ =>
-              check(
-                cls_testable,
-                Exp.show_cls(cls) ++ " Equivalency",
-                cls,
-                Exp.cls_of_term(sample_expression(cls).term),
-              )
-            },
+          ~f=
+            (cls: Exp.cls) =>
+              switch (cls) {
+              | Projector // Excluding projectors from cls
+              | Parens => () // Parens and projectors are transparent (return inner cls)
+              | _ =>
+                check(
+                  cls_testable,
+                  Exp.show_cls(cls) ++ " Equivalency",
+                  cls,
+                  Exp.cls_of_term(sample_expression(cls).term),
+                )
+              },
           exp_classes,
         );
       },
@@ -240,13 +241,14 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Pat.show_cls, Fmt.string), Pat.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              Pat.show_cls(cls) ++ " Equivalency",
-              cls,
-              Pat.cls_of_term(sample_pattern(cls).term),
-            ),
+          ~f=
+            cls =>
+              check(
+                cls_testable,
+                Pat.show_cls(cls) ++ " Equivalency",
+                cls,
+                Pat.cls_of_term(sample_pattern(cls).term),
+              ),
           pat_classes,
         );
       },
@@ -259,19 +261,20 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Typ.show_cls, Fmt.string), Typ.equal_cls);
         List.iter(
-          (cls: Typ.cls) => {
-            switch (cls) {
-            | Constructor
-            | Sig => ()
-            | _ =>
-              check(
-                cls_testable,
-                Typ.show_cls(cls) ++ " Equivalency",
-                cls,
-                Typ.cls_of_term(sample_type(cls).term),
-              )
-            }
-          },
+          ~f=
+            (cls: Typ.cls) => {
+              switch (cls) {
+              | Constructor
+              | Sig => ()
+              | _ =>
+                check(
+                  cls_testable,
+                  Typ.show_cls(cls) ++ " Equivalency",
+                  cls,
+                  Typ.cls_of_term(sample_type(cls).term),
+                )
+              }
+            },
           typ_classes,
         );
       },
@@ -284,13 +287,14 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
-          cls =>
-            check(
-              cls_testable,
-              TPat.show_cls(cls) ++ " Equivalency",
-              cls,
-              TPat.cls_of_term(sample_tpat(cls).term),
-            ),
+          ~f=
+            cls =>
+              check(
+                cls_testable,
+                TPat.show_cls(cls) ++ " Equivalency",
+                cls,
+                TPat.cls_of_term(sample_tpat(cls).term),
+              ),
           tpat_classes,
         );
       },
