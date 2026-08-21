@@ -174,7 +174,7 @@ let split_one_caret = (init: string): (string, int) =>
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
-  if (List.exists(c => c == selection_char, Token.to_list(init))) {
+  if (List.exists(c => String.equal(c, selection_char), Token.to_list(init))) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
   let (clean, chars_after_caret) = split_one_caret(init);
@@ -194,7 +194,7 @@ let mk = (init: string): list(Action.t) => {
  * 4. Apply Select(PointToPoint) to create the selection */
 let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
   let chars = Token.to_list(init);
-  let has_anchor = List.exists(c => c == selection_char, chars);
+  let has_anchor = List.exists(c => String.equal(c, selection_char), chars);
   if (!has_anchor) {
     /* No selection — just use mk */
     mk(init) |> perform(~settings, Zipper.init());
@@ -203,19 +203,21 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_a =
       chars
       |> List.map(c =>
-           if (c == selection_char) {
+           if (String.equal(c, selection_char)) {
              caret_char;
-           } else if (c == caret_char) {
+           } else if (String.equal(c, caret_char)) {
              "";
            } else {
              c;
            }
          )
-      |> List.filter(c => c != "")
+      |> List.filter(c => !String.equal(c, ""))
       |> Token.of_list;
     /* version_b: remove §, keep ¦ */
     let version_b =
-      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+      chars
+      |> List.filter(c => !String.equal(c, selection_char))
+      |> Token.of_list;
     /* Build zippers */
     let (text, after_anchor) = split_one_caret(version_a);
     let (_, after_focus) = split_one_caret(version_b);
@@ -279,7 +281,7 @@ let parse_with_caret = (init: string): Zipper.t => {
  * once auto-indent has inserted spaces the literal doesn't contain. */
 let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
   let chars = Token.to_list(init);
-  let has_anchor = List.exists(c => c == selection_char, chars);
+  let has_anchor = List.exists(c => String.equal(c, selection_char), chars);
   if (!has_anchor) {
     parse_with_caret(init);
   } else {
@@ -287,19 +289,21 @@ let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_a =
       chars
       |> List.map(c =>
-           if (c == selection_char) {
+           if (String.equal(c, selection_char)) {
              caret_char;
-           } else if (c == caret_char) {
+           } else if (String.equal(c, caret_char)) {
              "";
            } else {
              c;
            }
          )
-      |> List.filter(c => c != "")
+      |> List.filter(c => !String.equal(c, ""))
       |> Token.of_list;
     /* version_b: remove §, keep ¦ */
     let version_b =
-      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+      chars
+      |> List.filter(c => !String.equal(c, selection_char))
+      |> Token.of_list;
     /* the same text with the caret in two places: parsed once */
     let (text, after_anchor) = split_one_caret(version_a);
     let (_, after_focus) = split_one_caret(version_b);
@@ -1697,9 +1701,15 @@ else f|});
       let result = printer_indented(z);
       /* Check selection was created (has both markers) */
       let has_anchor =
-        List.exists(c => c == selection_char, Token.to_list(result));
+        List.exists(
+          c => String.equal(c, selection_char),
+          Token.to_list(result),
+        );
       let has_caret =
-        List.exists(c => c == caret_char, Token.to_list(result));
+        List.exists(
+          c => String.equal(c, caret_char),
+          Token.to_list(result),
+        );
       if (!has_anchor || !has_caret) {
         Alcotest.fail("mk_zipper failed to create selection");
       };
@@ -3225,7 +3235,7 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
+            if (!Sort.equal(Tile.mold(t).out, Sort.Typ)) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
@@ -3251,7 +3261,7 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
+            if (!Sort.equal(Tile.mold(t).out, Sort.Typ)) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
@@ -4615,7 +4625,9 @@ let test_cut_paste =
            * the pasted text ends, which is at the original focus position */
           let chars = Token.to_list(init);
           let clean =
-            chars |> List.filter(c => c != selection_char) |> Token.of_list;
+            chars
+            |> List.filter(c => !String.equal(c, selection_char))
+            |> Token.of_list;
           clean;
         };
       let bp = Zipper.local_missing_shards(z);
@@ -5841,7 +5853,7 @@ let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
       | (None, Tile(t)) when Tile.has_label(t, [tok]) => Some(t)
       | (None, Tile(t)) =>
         List.fold_left(
-          (acc, kid) => acc == None ? find_tile(tok, kid) : acc,
+          (acc, kid) => Option.is_none(acc) ? find_tile(tok, kid) : acc,
           None,
           t.children,
         )

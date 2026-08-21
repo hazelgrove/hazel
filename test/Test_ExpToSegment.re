@@ -407,7 +407,7 @@ let tests = (
         let found =
           term.annotation.incomplete
           |> List.exists(((_, mask: IdTagged.IdTag.incomplete_mask)) =>
-               mask.present == [0, 1]
+               List.equal(Int.equal, mask.present, [0, 1])
              );
         check(bool, "let tile provenance recorded", true, found);
       }
@@ -1598,8 +1598,8 @@ let arb_segment_fixpoint =
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        print_seg(seg) == print_seg(seg2)
-        && tile_ids(seg) == tile_ids(seg2)
+        String.equal(print_seg(seg), print_seg(seg2))
+        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
         && Segment.equiv_mod_grout(seg, seg2)
         /* P3 closure: reparsing the print gives the same term */
         && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
@@ -1621,10 +1621,10 @@ let perturb_spaces = (seed: int, text: string): string => {
   };
   String.iter(
     c => {
-      if (c == '"') {
+      if (Char.equal(c, '"')) {
         in_string := ! in_string^;
       };
-      if (c == ' ' && ! in_string^) {
+      if (Char.equal(c, ' ') && ! in_string^) {
         switch (next()) {
         | 0 => emit("  ")
         | 1 => emit("\n")
@@ -1664,8 +1664,8 @@ let arb_perturbed_fixpoint =
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        print_seg(seg) == print_seg(seg2)
-        && tile_ids(seg) == tile_ids(seg2)
+        String.equal(print_seg(seg), print_seg(seg2))
+        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
         && Segment.equiv_mod_grout(seg, seg2)
         /* P3 closure: reparsing the print gives the same term */
         && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
@@ -1694,7 +1694,11 @@ let pad_ids_tests = (
         Alcotest.(check(bool))(
           "two pads agree",
           true,
-          PadIds.pad_ids(3, [base]) == PadIds.pad_ids(3, [base]),
+          List.equal(
+            Id.equal,
+            PadIds.pad_ids(3, [base]),
+            PadIds.pad_ids(3, [base]),
+          ),
         );
       },
     ),
@@ -1705,7 +1709,7 @@ let pad_ids_tests = (
         let base = Id.mk();
         let a = PadIds.pad_ids(2, [base, base]);
         let b = PadIds.pad_ids(2, [base, base]);
-        Alcotest.(check(bool))("stable", true, a == b);
+        Alcotest.(check(bool))("stable", true, List.equal(Id.equal, a, b));
         Alcotest.(check(bool))(
           "no dups",
           true,
@@ -1727,7 +1731,7 @@ let pad_ids_tests = (
         Alcotest.(check(bool))(
           "disjoint from next chain",
           true,
-          List.for_all(id => !List.mem(id, nexts), padded),
+          List.for_all(id => !List.exists(Id.equal(id), nexts), padded),
         );
       },
     ),

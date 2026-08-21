@@ -65,7 +65,7 @@ f(3)|};
       let lesson =
         List.find(
           (spec: Tutorial.spec) =>
-            spec.title == "Basics / Mean of String Integers",
+            String.equal(spec.title, "Basics / Mean of String Integers"),
           TutorialText.all,
         );
       check(
@@ -88,8 +88,10 @@ string_mean(["1", "2", "3"])|},
       let lesson =
         List.find(
           (spec: Tutorial.spec) =>
-            spec.title
-            == "Tuple Structural Operations / Labeled Tuple Extension",
+            String.equal(
+              spec.title,
+              "Tuple Structural Operations / Labeled Tuple Extension",
+            ),
           TutorialText.all,
         );
       let lines =

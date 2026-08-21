@@ -16,7 +16,8 @@ let find_var_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoExp({user_term: {term: Var(n), _}, _}) when n == name => [
+      | InfoExp({user_term: {term: Var(n), _}, _})
+          when String.equal(n, name) => [
           (id, info),
           ...acc,
         ]
@@ -36,7 +37,8 @@ let find_var_binding =
       | Some(_) => acc
       | None =>
         switch (info) {
-        | InfoPat({user_term: {term: Var(n), _}, _}) when n == name =>
+        | InfoPat({user_term: {term: Var(n), _}, _})
+            when String.equal(n, name) =>
           Some((id, info))
         | _ => None
         }
@@ -54,7 +56,8 @@ let find_tvar_binding =
       | Some(_) => acc
       | None =>
         switch (info) {
-        | InfoTPat({user_term: {term: Var(n), _}, _}) when n == name =>
+        | InfoTPat({user_term: {term: Var(n), _}, _})
+            when String.equal(n, name) =>
           Some((id, info))
         | _ => None
         }
@@ -69,7 +72,8 @@ let find_tvar_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoTyp({user_term: {term: Var(n), _}, _}) when n == name => [
+      | InfoTyp({user_term: {term: Var(n), _}, _})
+          when String.equal(n, name) => [
           (id, info),
           ...acc,
         ]
@@ -332,11 +336,13 @@ let find_ctr_refs =
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (info) {
-      | InfoExp({user_term: {term: Constructor(n, _), _}, _}) when n == name => [
+      | InfoExp({user_term: {term: Constructor(n, _), _}, _})
+          when String.equal(n, name) => [
           (id, info),
           ...acc,
         ]
-      | InfoPat({user_term: {term: Constructor(n, _), _}, _}) when n == name => [
+      | InfoPat({user_term: {term: Constructor(n, _), _}, _})
+          when String.equal(n, name) => [
           (id, info),
           ...acc,
         ]
@@ -360,7 +366,7 @@ let find_ctr_def =
             expects: ConstructorExpected(_, _),
             _,
           })
-            when n == name =>
+            when String.equal(n, name) =>
           Some((id, info))
         | _ => None
         }

@@ -406,7 +406,9 @@ let flagged_tests = (
  * outlive the grammar forms they were derived from */
 let suggestible_tests = {
   let orphans = (table, delims) =>
-    table |> List.map(fst) |> List.filter(tok => !List.mem(tok, delims));
+    table
+    |> List.map(fst)
+    |> List.filter(tok => !List.exists(String.equal(tok), delims));
   (
     "TyDiForms.Suggestible",
     [
