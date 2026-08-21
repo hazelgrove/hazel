@@ -21,7 +21,7 @@ type item = {
 };
 
 let item_to_summary = (name, {max, percentage, src}) =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "%s: %.1f/%.1f\n\n",
     name,
     percentage *. float_of_int(max),
@@ -113,7 +113,7 @@ let gen_code_grading_report = (exercise): report => {
   let overall = grading_report |> GradingReport.overall_score;
   let (a, b) = overall;
   let summary =
-    Printf.sprintf("Overall: %.1f/%.1f\n\n", a, b)
+    Stdlib.Printf.sprintf("Overall: %.1f/%.1f\n\n", a, b)
     ++ item_to_summary("Test Validation", test_validation)
     ++ item_to_summary("Mutation Testing", mutation_testing)
     ++ item_to_summary("Impl Grading", impl_grading);
@@ -254,7 +254,12 @@ let render_report = (sections: chapter): string => {
       total_earned := total_earned^ +. earned;
       total_max := total_max^ +. maximum;
       let header =
-        Printf.sprintf("%s  —  %.1f/%.1f", section.name, earned, maximum);
+        Stdlib.Printf.sprintf(
+          "%s  —  %.1f/%.1f",
+          section.name,
+          earned,
+          maximum,
+        );
       let underline = String.make(utf8_length(header), '=');
       Buffer.add_string(buf, header);
       Buffer.add_char(buf, '\n');
@@ -273,7 +278,7 @@ let render_report = (sections: chapter): string => {
   Buffer.add_char(buf, '\n');
   Buffer.add_string(
     buf,
-    Printf.sprintf("Total: %.1f/%.1f", total_earned^, total_max^),
+    Stdlib.Printf.sprintf("Total: %.1f/%.1f", total_earned^, total_max^),
   );
   Buffer.add_char(buf, '\n');
   Buffer.contents(buf);
