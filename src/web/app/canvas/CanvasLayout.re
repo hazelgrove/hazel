@@ -124,6 +124,10 @@ let layout =
       ~x_scale=1.,
       ~y_scale=1.,
       ~center_within: option(float)=None,
+      /* fix the normalization origin (from a no-offsets layout of the
+         same graph): user drags must never re-anchor the frame, else
+         dragging feeds back into a whole-graph shift */
+      ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
       g: CanvasGraph.t,
@@ -905,8 +909,11 @@ let layout =
       | Some(cw) when cw > content_w => snap((cw -. content_w) /. 2.)
       | _ => 0.
       };
-    let dx = snap(pad -. min_x) +. center_pad
-    and dy = snap(pad -. min_y);
+    let (dx, dy) =
+      switch (origin_override) {
+      | Some(o) => (o.x, o.y)
+      | None => (snap(pad -. min_x) +. center_pad, snap(pad -. min_y))
+      };
     let sh = (p: pos): pos => {
       x: p.x +. dx,
       y: p.y +. dy,
@@ -946,8 +953,8 @@ let layout =
         ),
       formations: List.map(((a, b)) => (sh(a), sh(b)), formations),
       dep_links: List.map(((a, b)) => (sh(a), sh(b)), dep_links),
-      width: max_x -. min_x +. 2. *. pad +. 2. *. center_pad,
-      height: max_y -. min_y +. 2. *. pad,
+      width: max_x +. dx +. pad,
+      height: max_y +. dy +. pad,
       origin: {
         x: dx,
         y: dy,

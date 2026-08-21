@@ -209,50 +209,47 @@ let view =
     | None => None
     };
   let lay = {
-    let base = CanvasLayout.layout(~offsets, ~pins, graph);
-    /* vertical: stretch rows into the pane height (never compress) */
+    /* ALL frame decisions (fit scales, normalization origin) derive
+       from the VIRGIN layout — no user offsets/pins — so dragging a
+       node can never rescale or re-anchor the rest of the graph. The
+       final layout applies the frozen frame plus the user's edits. */
+    let virgin = CanvasLayout.layout(graph);
     let y_scale =
       switch (avail_height) {
-      | Some(h) => min(2.1, max(1., (h -. 40.) /. base.height))
+      | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
       | None => 1.
       };
-    switch (avail_width) {
-    | Some(avail) =>
-      /* horizontal: fit the pane in BOTH directions — stretch small
-         graphs, compress wide ones (the docking ring search absorbs
-         the squeeze by relocating satellites). Scaling moves grid
-         columns only, so a first fit under/overshoots; one secant
-         step closes most of the gap. */
-      let target = avail -. 16.;
-      let s1 = min(1.8, max(0.62, target /. base.width));
-      let l1 =
-        CanvasLayout.layout(
-          ~x_scale=s1,
-          ~y_scale,
-          ~center_within=Some(avail),
-          ~offsets,
-          ~pins,
-          graph,
-        );
-      let close_enough =
-        l1.width >= target -. 30. && l1.width <= target +. 30.;
-      if (close_enough || s1 >= 1.8 || s1 <= 0.62) {
-        l1;
-      } else {
-        let s2 = min(1.8, max(0.62, s1 *. target /. l1.width));
-        CanvasLayout.layout(
-          ~x_scale=s2,
-          ~y_scale,
-          ~center_within=Some(avail),
-          ~offsets,
-          ~pins,
-          graph,
-        );
+    let x_scale =
+      switch (avail_width) {
+      | Some(avail) =>
+        let target = avail -. 16.;
+        let s1 = min(1.8, max(0.62, target /. virgin.width));
+        if (s1 >= 1.8 || s1 <= 0.62) {
+          s1;
+        } else {
+          let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
+          v1.width >= target -. 30. && v1.width <= target +. 30.
+            ? s1 : min(1.8, max(0.62, s1 *. target /. v1.width));
+        };
+      | None => 1.
       };
-    | _ =>
-      y_scale == 1.
-        ? base : CanvasLayout.layout(~y_scale, ~offsets, ~pins, graph)
-    };
+    let framed =
+      CanvasLayout.layout(
+        ~x_scale,
+        ~y_scale,
+        ~center_within=avail_width,
+        graph,
+      );
+    offsets == [] && pins == []
+      ? framed
+      : CanvasLayout.layout(
+          ~x_scale,
+          ~y_scale,
+          ~origin_override=Some(framed.origin),
+          ~offsets,
+          ~pins,
+          graph,
+        );
   };
   /* canvas clicks SELECT the definition (caret at front, cell focused) */
   let inject_jump = (id: Id.t) =>

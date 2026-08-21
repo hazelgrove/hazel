@@ -116,6 +116,9 @@
      dot field one grid cell in (background paints the padding box) */
   border: 14px solid transparent;
   background-clip: padding-box;
+  /* dots travel WITH the graph when the panel scrolls (and stay
+     lattice-aligned with node positions) */
+  background-attachment: local;
 }
 
 /* ---- authoring toolbar ---- */
