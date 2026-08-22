@@ -59,16 +59,16 @@
 
 .canvas-split-btn {
   font-size: 10px;
-  border: 1px solid var(--CREASE, #aaa);
-  border-radius: 8px;
+  border: 1px solid var(--BR1, #d8c9a3);
+  border-radius: 4px;
   padding: 1px 8px;
   cursor: pointer;
   white-space: nowrap;
+  user-select: none;
 }
 
 .canvas-split-btn:hover {
-  background: rgba(120, 160, 90, 0.15);
-  border-color: #4a7a4a;
+  background: var(--Y0, #f6efd8);
 }
 
 .canvas-split-note {
@@ -129,17 +129,18 @@
   flex: 1 1 auto;
 }
 
+/* same family as the probes sidebar's segmented controls */
 .canvas-tool-btn {
-  border: 1px solid var(--CREASE, #aaa);
-  border-radius: 8px;
+  border: 1px solid var(--BR1, #d8c9a3);
+  border-radius: 4px;
   padding: 1px 8px;
   cursor: pointer;
   white-space: nowrap;
+  user-select: none;
 }
 
 .canvas-tool-btn:hover {
-  background: rgba(120, 160, 90, 0.15);
-  border-color: #4a7a4a;
+  background: var(--Y0, #f6efd8);
 }
 
 .canvas-tool-btn.tool-disabled {
@@ -149,13 +150,12 @@
 
 .canvas-tool-btn.tool-disabled:hover {
   background: transparent;
-  border-color: var(--CREASE, #aaa);
 }
 
 .canvas-tool-btn.tool-active {
-  background: #4a7a4a;
-  color: #fff;
-  border-color: #4a7a4a;
+  background: var(--Y1, #f0e2b8);
+  color: var(--BR4, #4a3a20);
+  font-weight: 500;
 }
 
 .tool-hint {
@@ -352,25 +352,23 @@
 }
 
 .canvas-node.kind-product {
-  border-width: 2px;
-  border-color: var(--BLACK, #111);
-  background: #fff;
+  border: none;
+  background: var(--token-typ, #9457c9);
   opacity: 1;
 }
 
-/* former labels ("()" / "[]") sit INSIDE the node as bold delimiters */
+/* former labels ("()" / "[]" / "{}") sit INSIDE the filled node */
 .canvas-node.kind-product .canvas-node-label {
-  color: var(--BLACK, #111);
+  color: #fff;
   top: 0;
   inset: 0;
   margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
+  font-weight: normal;
   font-size: 12px;
   letter-spacing: 0.5px;
-  color: var(--BLACK, #111);
   text-shadow: none;
 }
 

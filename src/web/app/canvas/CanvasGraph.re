@@ -145,6 +145,22 @@ let rec spine = (e: Exp.t): list(item) => {
   let e = strip_exp(e);
   switch (e.term) {
   | Let(pat, def, body) => [ILet(e, pat, def), ...spine(body)]
+  /* module M = {...} binds like a let whose type is a Sig ({} former) */
+  | ModuleExp(mpat, def, body) =>
+    switch (mpat.term) {
+    | Var(name) => [
+        ILet(
+          e,
+          {
+            term: Var(name),
+            annotation: mpat.annotation,
+          },
+          def,
+        ),
+        ...spine(body),
+      ]
+    | _ => spine(body)
+    }
   | TyAlias(tpat, ty, body) => [IAlias(e, tpat, ty), ...spine(body)]
   | Seq(s, body) =>
     let s = strip_exp(s);
@@ -300,12 +316,20 @@ let ty_ref = (~anchor: string, ty: Typ.t): (string, node_kind) => {
       };
     ("[" ++ inner ++ "]", Derived);
   | Unknown(_) => ("?" ++ anchor, Ghost)
+  /* module values: a {} former, styled like the ()/[] delimiters */
+  | Sig(_) => ("{}" ++ "@" ++ anchor, Product)
   | _ => (truncate(20, Typ.pretty_print(ty)), Derived)
   };
 };
 
 let display_label = (key: string): string =>
-  String.length(key) > 0 && key.[0] == '?' ? "?" : truncate(20, key);
+  if (String.length(key) > 0 && key.[0] == '?') {
+    "?";
+  } else if (String.length(key) >= 2 && String.sub(key, 0, 2) == "{}") {
+    "{}";
+  } else {
+    truncate(20, key);
+  };
 
 let ctr_names = (ty: Typ.t): list(string) =>
   switch (unwrap_ty(ty).term) {
@@ -661,6 +685,7 @@ let extract =
         option(string),
         bool,
         bool,
+        bool,
         (list(Id.t), option(Id.t)),
       ),
     ) =
@@ -670,12 +695,28 @@ let extract =
           let doc = doc_of(term.annotation);
           let err = root_has_err(Some(Exp.rep_id(def)));
           let hole = exp_has_hole(def);
+          /* module literals get a {} former node instead of their
+             statics-expanded labeled-product type */
+          let is_mod =
+            switch (strip_exp(def).term) {
+            | Module(_) => true
+            | _ => false
+            };
           let anatomy = fun_anatomy(~pat, def);
           pat_names(pat)
           |> List.filter_map(name =>
                lookup_type(name)
                |> Option.map(ty =>
-                    (name, Exp.rep_id(term), ty, doc, err, hole, anatomy)
+                    (
+                      name,
+                      Exp.rep_id(term),
+                      ty,
+                      doc,
+                      err,
+                      hole,
+                      is_mod,
+                      anatomy,
+                    )
                   )
              );
         }
@@ -698,11 +739,13 @@ let extract =
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
-      ((es, vs), (name, id, ty, doc, err, hole, (arg_ids, out_id))) => {
+      ((es, vs), (name, id, ty, doc, err, hole, is_mod, (arg_ids, out_id))) => {
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
-          let (v_key, v_kind) = ty_ref(~anchor=name, ty);
+          let (v_key, v_kind) =
+            is_mod
+              ? ("{}" ++ "@" ++ name, Product) : ty_ref(~anchor=name, ty);
           ensure_grid(v_key, v_kind);
           (
             es,

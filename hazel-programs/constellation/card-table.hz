@@ -1,0 +1,39 @@
+# Card table: tuple formers on the graph, card sprites in the wells. #
+# Focus a function edge and its card-shaped samples render as cards. #
+
+type Suit = Hearts + Diamonds + Clubs + Spades in
+type Rank = Ace + Two + Three + Four + Five + Six + Seven + Eight + Nine + Ten + Jack + Queen + King in
+type Card = (Suit, Rank) in
+type Hand = [Card] in
+
+let flip : Card -> Card =
+  fun (s, r) ->
+    case s
+    | Hearts => (Spades, r)
+    | Spades => (Hearts, r)
+    | Diamonds => (Clubs, r)
+    | Clubs => (Diamonds, r)
+    end
+in
+
+let points : Card -> Int =
+  fun (s, r) ->
+    case r
+    | Ace => 11
+    | King => 4
+    | Queen => 3
+    | Jack => 2
+    | _ => 0
+    end
+in
+
+let royal_flush : Suit -> Hand =
+  fun s -> [(s, Ace), (s, King), (s, Queen), (s, Jack), (s, Ten)] in
+
+hint "aces are high"
+test points((Hearts, Ace)) == 11 end;
+
+hint "flipping swaps color"
+test flip((Hearts, King)) == (Spades, King) end;
+
+points(flip((Hearts, Ace))) + points((Clubs, Queen))
