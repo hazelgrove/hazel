@@ -143,6 +143,12 @@ let cached_frame: ref(option(frame_cache)) =
 let last_placed: ref(option((string, float))) =
   ref(None: option((string, float)));
 
+/* previous render's nodes, for removal detection: a node that vanishes
+   gets a suction ripple (negative amplitude) at its last position.
+   Slide switches and wholesale rewrites are gated by the removal count. */
+let last_node_snapshot: ref((string, list((string, (float, float))))) =
+  ref(("", []));
+
 /* canvas right-click context menu: contents are canvas-specific but the
    state machine, rendering, keyboard handling, and open/close listeners
    are all the shared Util.Menu machinery (same as the editor menu).
@@ -779,7 +785,7 @@ let view =
         switch (orig) {
         | Some((_, l, t)) =>
           let (dx, dy) = delta^;
-          CanvasRipple.splash(~amp=3., (l +. dx, t +. dy));
+          CanvasRipple.splash(~amp=4.5, (l +. dx, t +. dy));
         | None => ()
         };
       };
@@ -894,7 +900,7 @@ let view =
                nl.node.key == n.key
              )
         ) {
-        | Some(nl) => CanvasRipple.splash(~amp=3.5, (nl.p.x, nl.p.y))
+        | Some(nl) => CanvasRipple.splash(~amp=5., (nl.p.x, nl.p.y))
         | None => ()
         };
         Effect.Many(
@@ -1441,6 +1447,27 @@ let view =
     );
   };
   CanvasRipple.request_draw();
+  {
+    let (prev_slide, prev_nodes) = last_node_snapshot^;
+    let cur_keys =
+      List.map((nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
+    let removed =
+      List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
+    if (prev_slide == slide && removed != [] && List.length(removed) <= 4) {
+      List.iter(
+        ((_, (x, y))) => CanvasRipple.splash(~amp=-6.5, (x, y)),
+        removed,
+      );
+    };
+    last_node_snapshot :=
+      (
+        slide,
+        List.map(
+          (nl: CanvasLayout.node_layout) => (nl.node.key, (nl.p.x, nl.p.y)),
+          lay.nodes,
+        ),
+      );
+  };
   /* telegraph state for CanvasView: rubber-band anchors + grow-in key */
   let connect_pts: list(CanvasLayout.pos) =
     switch (connect) {

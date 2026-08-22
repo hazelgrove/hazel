@@ -23,8 +23,8 @@ let ripples: ref(list(ripple)) = ref([]);
    around this point while it is set */
 let field: ref(option((float, float))) =
   ref(None: option((float, float)));
-let field_amp = 3.6;
-let field_sigma = 36.;
+let field_amp = 7.;
+let field_sigma = 48.;
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
 /* geometry of the last static draw, to skip redundant repaints */
@@ -33,10 +33,10 @@ let last_geom: ref((int, int, float, float)) = ref((0, 0, 0., 0.));
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
 /* wave parameters (model px / ms) */
-let duration = 900.;
-let speed = 0.33; /* px per ms: ring radius at t is speed * t */
-let ring_w = 42.; /* gaussian half-width of the compression ring */
-let default_amp = 5.5; /* peak radial displacement */
+let duration = 1400.;
+let speed = 0.38; /* px per ms: ring radius at t is speed * t */
+let ring_w = 46.; /* gaussian half-width of the compression ring */
+let default_amp = 9.; /* peak radial displacement (negative = suction) */
 
 let parse_px = (s: string): option(float) => {
   let s = String.trim(s);
