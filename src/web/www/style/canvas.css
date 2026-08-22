@@ -214,14 +214,9 @@
 .canvas-dots {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  background-image: radial-gradient(
-    var(--BR1, #d8c9a3) var(--dot-r, 0.75px),
-    transparent var(--dot-fade, 1.1px)
-  );
-  background-size: var(--dot-pitch, 14px) var(--dot-pitch, 14px);
-  background-position: calc(var(--dot-pitch, 14px) / 2)
-    calc(var(--dot-pitch, 14px) / 2);
   /* dots dissolve over ~2 cells approaching EVERY edge (the old
      background faded top/left only by pattern-offset accident) */
   mask-image:

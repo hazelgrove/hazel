@@ -851,6 +851,10 @@ let view =
                 };
               let product_key = "(" ++ String.concat(", ", many) ++ ")";
               last_placed := Some((product_key, CanvasBuffer.now()));
+              CanvasRipple.splash((
+                CanvasLayout.snap(bx),
+                CanvasLayout.snap(by),
+              ));
               [
                 globals.inject_global(
                   Set(
@@ -912,6 +916,7 @@ let view =
       };
 
     last_placed := Some((name, CanvasBuffer.now()));
+    CanvasRipple.splash((CanvasLayout.snap(x), CanvasLayout.snap(y)));
     /* the alias's former ("()"/"[]") sits midway between its
        component nodes and the alias, instead of auto-docking */
     let former_pins = {
@@ -1403,6 +1408,7 @@ let view =
       ],
     );
   };
+  CanvasRipple.request_draw();
   /* telegraph state for CanvasView: rubber-band anchors + grow-in key */
   let connect_pts: list(CanvasLayout.pos) =
     switch (connect) {

@@ -777,7 +777,33 @@ let view =
       @ bg_attrs
       @ gesture_attrs
       @ track_attrs,
-    [div(~attrs=[clss(["canvas-dots"])], []), edges_svg]
+    [
+      {
+        /* dots are a 2D canvas (not a CSS background) so placement can
+           splash compression waves through the lattice (CanvasRipple);
+           backing is dpr-scaled, CSS box tracks the root via inset: 0 */
+        let dpr: float =
+          Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##.devicePixelRatio;
+        let (mw, mh) = min_size;
+        Node.create(
+          "canvas",
+          ~attrs=[
+            Attr.id("canvas-dots"),
+            clss(["canvas-dots"]),
+            Attr.create(
+              "width",
+              string_of_int(int_of_float(max(lay.width, mw) *. dpr +. 1.)),
+            ),
+            Attr.create(
+              "height",
+              string_of_int(int_of_float(max(lay.height, mh) *. dpr +. 1.)),
+            ),
+          ],
+          [],
+        );
+      },
+      edges_svg,
+    ]
     @ telegraph_nodes
     @ List.map(
         node_view(~on_node_mousedown, ~on_node_contextmenu, ~just_placed),
