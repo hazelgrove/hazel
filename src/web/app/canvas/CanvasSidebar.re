@@ -218,6 +218,8 @@ let last_avatar_pos: ref(option(CanvasLayout.pos)) =
 let last_logged_avatar: ref((option(Id.t), string)) =
   ref((None: option(Id.t), "off"));
 let last_logged_busy: ref(bool) = ref(false);
+/* one pending repaint for the action toast's expiry */
+let toast_tick_scheduled: ref(bool) = ref(false);
 
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
@@ -1400,13 +1402,53 @@ let view =
       | None => "off"
       };
     let cur_id = last_avatar_id^;
+    /* name the node the avatar landed nearest, so the journal reads
+       as a story ("hop -> Recipe") */
+    let site = () =>
+      switch (avatar) {
+      | Some((p, _)) =>
+        lay.nodes
+        |> List.fold_left(
+             (best, nl: CanvasLayout.node_layout) => {
+               let d = abs_float(nl.p.x -. p.x) +. abs_float(nl.p.y -. p.y);
+               switch (best) {
+               | Some((bd, _)) when bd <= d => best
+               | _ => Some((d, nl.node.key))
+               };
+             },
+             None,
+           )
+        |> Option.map(((_, k)) => " @ " ++ k)
+        |> Option.value(~default="")
+      | None => ""
+      };
     if (cur_state != pstate) {
-      CanvasLog.log("avatar: " ++ cur_state);
+      CanvasLog.log("avatar: " ++ cur_state ++ site());
       last_logged_avatar := (cur_id, cur_state);
     } else if (cur_id != pid) {
-      CanvasLog.log("avatar: hop (" ++ cur_state ++ ")");
+      CanvasLog.log("avatar: hop (" ++ cur_state ++ ")" ++ site());
       last_logged_avatar := (cur_id, cur_state);
     };
+  };
+  /* transient action toast: the tool name of the beat just shown,
+     briefly displacing the thought bubble at the same anchor */
+  let avatar_toast = CanvasBuffer.current_toast();
+  switch (avatar_toast) {
+  | Some(_) when ! toast_tick_scheduled^ =>
+    toast_tick_scheduled := true;
+    Js_of_ocaml.(
+      ignore(
+        Js.Unsafe.global##setTimeout(
+          Js.Unsafe.callback(() => {
+            toast_tick_scheduled := false;
+            globals.inject_global(Set(CanvasTick))
+            |> Bonsai.Effect.Expert.handle;
+          }),
+          1150,
+        ),
+      )
+    );
+  | _ => ()
   };
   /* streaming chain-of-thought tail for the avatar's bubble: a longer
      window than fits the cloud — the ticker clips it left, so newest
@@ -1593,6 +1635,9 @@ let view =
   ensure_scroll_anchor(slide);
   {
     let (prev_slide, prev_nodes) = last_node_snapshot^;
+    if (prev_slide != slide) {
+      CanvasLog.log("slide: " ++ slide);
+    };
     let cur_keys =
       List.map((nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
     let removed =
@@ -1656,6 +1701,48 @@ let view =
           ),
         );
       };
+    };
+    /* layout churn: how much did EXISTING nodes move this render?
+       (the metric behind "the layout suddenly reshuffled") */
+    let moved =
+      List.filter_map(
+        (nl: CanvasLayout.node_layout) =>
+          switch (List.assoc_opt(nl.node.key, prev_nodes)) {
+          | Some((px, py)) =>
+            let d = max(abs_float(nl.p.x -. px), abs_float(nl.p.y -. py));
+            d > 21. ? Some(d) : None;
+          | None => None
+          },
+        lay.nodes,
+      );
+    if (prev_slide == slide && moved != [] && ! drag_active^) {
+      CanvasLog.log(
+        Printf.sprintf(
+          "layout: %d/%d nodes moved (max %.0fpx)",
+          List.length(moved),
+          List.length(lay.nodes),
+          List.fold_left(max, 0., moved),
+        ),
+      );
+    };
+    /* record positions (grid cells) whenever the layout meaningfully
+       changed, for post-hoc before/after diffing */
+    if (! drag_active^
+        && (prev_slide != slide || moved != [] || added != [] || removed != [])) {
+      let pos_line =
+        lay.nodes
+        |> List.map((nl: CanvasLayout.node_layout) =>
+             Printf.sprintf(
+               "%s(%.0f,%.0f)",
+               nl.node.key,
+               nl.p.x /. 14.,
+               nl.p.y /. 14.,
+             )
+           )
+        |> String.concat(" ");
+      CanvasLog.record_layout(
+        CanvasLog.stamp() ++ " " ++ slide ++ " | " ++ pos_line,
+      );
     };
     last_node_snapshot :=
       (
@@ -1785,6 +1872,7 @@ let view =
                 ~on_canvas_click,
                 ~zoom,
                 ~avatar_bubble,
+                ~avatar_toast,
                 ~min_size=(
                   (Option.value(~default=0., avail_width) -. 2.) /. zoom,
                   (Option.value(~default=0., avail_height) -. 2.) /. zoom,

@@ -410,6 +410,8 @@ let view =
       ~avatar: option((CanvasLayout.pos, string)),
       /* streaming reasoning tail shown in a small bubble by the avatar */
       ~avatar_bubble: option(string)=None,
+      /* tool name of the beat just shown; briefly replaces the bubble */
+      ~avatar_toast: option(string)=None,
       ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
@@ -818,35 +820,35 @@ let view =
       switch (avatar) {
       | Some((p, _) as a) =>
         [avatar_view(a)]
-        @ (
-          switch (avatar_bubble) {
-          | Some(txt) =>
-            /* anchor to the avatar ICON (which sits at p + (14, -34)),
-               not the node; flip sides when the icon is too close to
-               the top or right edge of the board */
-            let ax = p.x +. 14.
-            and ay = p.y -. 34.;
-            let near_top = ay -. 76. < 4.;
-            let near_right = ax +. 220. > lay.width -. 4.;
-            let left = near_right ? ax -. 14. : ax +. 30.;
-            let top = near_top ? ay +. 30. : ay -. 40.;
-            [
+        /* the bubble/toast anchor to the avatar ICON (which sits at
+           p + (14, -34)), not the node; flip sides when the icon is
+           too close to the top or right edge of the board */
+        @ {
+          let ax = p.x +. 14.
+          and ay = p.y -. 34.;
+          let near_top = ay -. 76. < 4.;
+          let near_right = ax +. 220. > lay.width -. 4.;
+          let left = near_right ? ax -. 14. : ax +. 30.;
+          let top = near_top ? ay +. 30. : ay -. 40.;
+          let flips =
+            (near_right ? ["b-left"] : []) @ (near_top ? ["b-below"] : []);
+          let place =
+            Attr.create(
+              "style",
+              Printf.sprintf("left: %spx; top: %spx;", fmt(left), fmt(top)),
+            );
+          switch (avatar_toast, avatar_bubble) {
+          | (Some(name), _) => [
+              /* just-landed tool call: brief action chip in the
+                 bubble's spot */
               div(
-                ~attrs=[
-                  clss(
-                    ["canvas-avatar-bubble"]
-                    @ (near_right ? ["b-left"] : [])
-                    @ (near_top ? ["b-below"] : []),
-                  ),
-                  Attr.create(
-                    "style",
-                    Printf.sprintf(
-                      "left: %spx; top: %spx;",
-                      fmt(left),
-                      fmt(top),
-                    ),
-                  ),
-                ],
+                ~attrs=[clss(["canvas-avatar-toast"] @ flips), place],
+                [text(name)],
+              ),
+            ]
+          | (None, Some(txt)) => [
+              div(
+                ~attrs=[clss(["canvas-avatar-bubble"] @ flips), place],
                 [
                   div(~attrs=[clss(["bubble-trail", "t1"])], []),
                   div(~attrs=[clss(["bubble-trail", "t2"])], []),
@@ -861,10 +863,10 @@ let view =
                   ),
                 ],
               ),
-            ];
-          | None => []
-          }
-        )
+            ]
+          | (None, None) => []
+          };
+        }
       | None => []
       }
     ),

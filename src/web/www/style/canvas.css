@@ -1100,6 +1100,38 @@
   bottom: -13px;
 }
 
+/* the action toast: dark chip in the avatar's palette, briefly
+   displacing the thought bubble when a tool call's beat lands */
+.canvas-avatar-toast {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  background: #2a2a2a;
+  color: #ffd75e;
+  font-family: var(--code-font, monospace);
+  font-size: 9px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  animation: toast-pop 0.18s ease-out;
+}
+
+@keyframes toast-pop {
+  from {
+    opacity: 0;
+    scale: 0.7;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.canvas-avatar-toast.b-left {
+  transform: translateX(-100%);
+}
+
 /* orientation flips: near the right edge the bubble sits LEFT of the
    icon (trail on its right); near the top it sits BELOW (trail on top) */
 .canvas-avatar-bubble.b-left {

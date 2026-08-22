@@ -33,6 +33,28 @@ let iso_now = (): string => {
   Js.to_string(Js.Unsafe.meth_call(d, "toISOString", [||]));
 };
 
+/* layout trace: a separate ring of node-position lines (grid coords),
+   recorded by CanvasSidebar whenever the layout meaningfully changes.
+   Console: copy(__constellationLayoutTrace()) — paste alongside the
+   journal when a layout event needs diagnosing. */
+let layouts: ref(list(string)) = ref([]); /* newest first */
+let layouts_count: ref(int) = ref(0);
+let layout_cap = 300;
+let record_layout = (line: string): unit => {
+  layouts := [line, ...layouts^];
+  layouts_count := layouts_count^ + 1;
+  if (layouts_count^ > layout_cap) {
+    layouts := List.filteri((i, _) => i < layout_cap, layouts^);
+    layouts_count := layout_cap;
+  };
+};
+
+/* "T7 132.4s" — the same coordinates the journal uses */
+let stamp = (): string => {
+  let el = t0^ == 0. ? 0. : (now() -. t0^) /. 1000.;
+  Printf.sprintf("T%d %.1fs", turn^, el);
+};
+
 let push = (line: string): unit => {
   entries := [line, ...entries^];
   count := count^ + 1;
@@ -83,6 +105,13 @@ let install = (): unit =>
       "__constellationLogText",
       Js.Unsafe.callback(() =>
         Js.string(String.concat("\n", List.rev(entries^)))
+      ),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__constellationLayoutTrace",
+      Js.Unsafe.callback(() =>
+        Js.string(String.concat("\n", List.rev(layouts^)))
       ),
     );
     Js.Unsafe.set(

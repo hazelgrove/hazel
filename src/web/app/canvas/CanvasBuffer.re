@@ -38,8 +38,24 @@ let note_agent_action = (): unit =>
     last_agent_action := now();
   };
 
-let queue: ref(list(CodeWithStatics.Model.t)) = ref([]);
+/* a pending beat: the snapshot plus the tool that produced it (None
+   for trailing live-state enqueues) */
+type beat = {
+  b_model: CodeWithStatics.Model.t,
+  b_label: option(string),
+};
+let queue: ref(list(beat)) = ref([]);
 let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);
+/* (tool name, shown-at) of the most recent labeled beat, for the
+   avatar's transient action toast */
+let toast_ms = 1100.;
+let last_toast: ref(option((string, float))) =
+  ref(None: option((string, float)));
+let current_toast = (): option(string) =>
+  switch (last_toast^) {
+  | Some((l, t)) when now() -. t < toast_ms => Some(l)
+  | _ => None
+  };
 let last_seen: ref(option(CodeWithStatics.Model.t)) = ref(None);
 let last_beat: ref(float) = ref(0.);
 let tick_pending: ref(bool) = ref(false);
@@ -80,7 +96,7 @@ let stage_beat = (): unit => {
 /* Drop middle beats when over cap: keep the oldest pending (continuity
    from what is shown) and the newest (never fall behind the truth by
    more than the cap). */
-let coalesce = (q: list(CodeWithStatics.Model.t)) =>
+let coalesce = (q: list(beat)) =>
   switch (q) {
   | [_, ..._] when List.length(q) > queue_cap =>
     switch (q, List.rev(q)) {
@@ -107,7 +123,16 @@ let coalesce = (q: list(CodeWithStatics.Model.t)) =>
 let push_snapshot = (~label: string="", m: CodeWithStatics.Model.t): unit => {
   note_agent_action();
   let before = List.length(queue^) + 1;
-  queue := coalesce(queue^ @ [m]);
+  queue :=
+    coalesce(
+      queue^
+      @ [
+        {
+          b_model: m,
+          b_label: label == "" ? None : Some(label),
+        },
+      ],
+    );
   let after = List.length(queue^);
   CanvasLog.log(
     Printf.sprintf(
@@ -173,18 +198,36 @@ let observe =
            freshest holder in place so dynamics stay current. Once the
            burst ends, pending beats DRAIN at cadence rather than
            jump-cutting to live. */
-        let tail_or_shown =
+        let tail_statics =
           switch (List.rev(queue^)) {
-          | [last, ..._] => last
-          | [] => sh
+          | [last, ..._] => last.b_model.statics
+          | [] => sh.statics
           };
-        if (tail_or_shown.statics === live.statics) {
+        if (tail_statics === live.statics) {
           switch (List.rev(queue^)) {
-          | [_, ...rev_rest] => queue := List.rev([live, ...rev_rest])
+          | [last, ...rev_rest] =>
+            /* refresh the model, keep the tool label */
+            queue :=
+              List.rev([
+                {
+                  ...last,
+                  b_model: live,
+                },
+                ...rev_rest,
+              ])
           | [] => shown := Some(live)
           };
         } else {
-          queue := coalesce(queue^ @ [live]);
+          queue :=
+            coalesce(
+              queue^
+              @ [
+                {
+                  b_model: live,
+                  b_label: None,
+                },
+              ],
+            );
           CanvasLog.log(
             Printf.sprintf(
               "state change queued (pending %d)",
@@ -206,7 +249,7 @@ let observe =
         | Some(sh) => viable(sh)
         | None => false
         };
-      if (!viable(next) && shown_viable) {
+      if (!viable(next.b_model) && shown_viable) {
         /* blank interstitial (the graph would vanish for a beat) */
         CanvasLog.log(
           Printf.sprintf(
@@ -219,12 +262,20 @@ let observe =
         stage_beat();
         CanvasLog.log(
           Printf.sprintf(
-            "beat shown (%.1fs since last, %d still pending)",
+            "beat shown%s (%.1fs since last, %d still pending)",
+            switch (next.b_label) {
+            | Some(l) => " [" ++ l ++ "]"
+            | None => ""
+            },
             (t -. last_beat^) /. 1000.,
             List.length(rest),
           ),
         );
-        shown := Some(next);
+        switch (next.b_label) {
+        | Some(l) => last_toast := Some((l, t))
+        | None => ()
+        };
+        shown := Some(next.b_model);
         last_beat := t;
         queue := rest;
       };
