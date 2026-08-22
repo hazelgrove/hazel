@@ -67,6 +67,10 @@ module SyntaxTerm = {
     | (_, Hand(hand)) => List.length(hand)
     };
 
+  /* A hand is a FAN: each card after the first advances 8.5px (see
+     card_wrapper), ~0.817 columns at default zoom. The base covers the
+     top card (37px incl. border ~3.56 cols) plus the tab-extent's
+     chevron insets (2 x 0.4 col) and a hair of slack. */
   let width_of_any = (info: info): int =>
     switch (
       info.syntax
@@ -75,10 +79,10 @@ module SyntaxTerm = {
     ) {
     | None => 0
     | Some((_, Card(_)))
-    | Some((_, Hand([_]))) => 4
+    | Some((_, Hand([_]))) => 5
     | Some((_, Hand(hand))) =>
       Float.ceil(
-        3.5 +. 81. /. 100. *. (Float.of_int(List.length(hand)) -. 1.),
+        4.6 +. 817. /. 1000. *. (Float.of_int(List.length(hand)) -. 1.),
       )
       |> Float.to_int
     };
@@ -246,11 +250,24 @@ module Hand = {
 
   let view = (info, mode, parent, local, sort: Sort.t, hand: hand): Node.t =>
     Node.div(
-      ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
-      List.mapi(
-        card_wrapper(info, info.id, mode, parent, local, sort),
-        hand,
-      ),
+      ~attrs=[
+        Attr.classes(["hand", Sort.show(sort)]),
+        /* fan footprint: cards advance 8.5px, top card is full width */
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %fpx;",
+            hand == []
+              ? 37. : 8.5 *. float_of_int(List.length(hand) - 1) +. 37.,
+          ),
+        ),
+      ],
+      hand == []
+        ? [CardView.Empty.view]
+        : List.mapi(
+            card_wrapper(info, info.id, mode, parent, local, sort),
+            hand,
+          ),
     );
 };
 

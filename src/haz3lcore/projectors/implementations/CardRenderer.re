@@ -35,6 +35,11 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
   };
 
 let init = (_: value) => {mode: Show};
+let empty = {mode: Show};
+
+/* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
+   of cards regardless of count. */
+let drawer_rows = (_: value): int => 4;
 
 let update: (m, a) => m =
   (_, action) =>
@@ -143,7 +148,7 @@ module Hand = {
       : Node.t => {
     let n = List.length(hand);
     let width =
-      mode == Flipped
+      mode == Flipped || n == 0
         ? CardView.Card.width
         : Float.to_int(Float.ceil(Float.of_int(n - 1) *. 8.5))
           + CardView.Card.width;
@@ -165,7 +170,9 @@ module Hand = {
               ),
             ),
           ],
-          List.mapi(card_wrapper(mode, sort), hand),
+          hand == []
+            ? [CardView.Empty.view]
+            : List.mapi(card_wrapper(mode, sort), hand),
         ),
       ],
     );
