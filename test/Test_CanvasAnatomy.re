@@ -35,7 +35,9 @@ update((Clear, m1))|};
 
 /* Parse, evaluate under probe-all, and return update's anatomy ids
  * alongside the collected sample map. */
-let run = (code: string): ((list(Id.t), option(Id.t)), Sample.Map.t) => {
+let run =
+    (code: string)
+    : ((list(Id.t), list(Id.t), option(Id.t)), Sample.Map.t) => {
   switch (Parser.to_zipper(~root=Exp, code)) {
   | None => fail("failed to parse program")
   | Some(z) =>
@@ -84,7 +86,7 @@ let check_anatomy_sampled = (name: string, code: string) =>
     name,
     `Quick,
     () => {
-      let ((arg_ids, out_id), probes) = run(code);
+      let ((arg_ids, _whole_ids, out_id), probes) = run(code);
       check(int, "two input anchors", 2, List.length(arg_ids));
       List.iteri(
         (i, id) =>

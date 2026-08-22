@@ -63,6 +63,8 @@ type edge = {
   /* probe-sample anchors: parameter pattern ids (aligned with the
      flattened input components) and the function's body id */
   e_arg_ids: list(Id.t),
+  /* one id per parameter: the UNSPLIT pattern (see fun_anatomy) */
+  e_whole_ids: list(Id.t),
   e_out_id: option(Id.t),
 };
 
@@ -403,20 +405,35 @@ let rec body_anchor = (e: Exp.t): Id.t => {
   };
 };
 
-let fun_anatomy = (~pat: Pat.t, def: Exp.t): (list(Id.t), option(Id.t)) => {
-  let rec go = (acc, e: Exp.t): (list(Id.t), option(Id.t)) => {
+let pat_whole = (p: Pat.t): Id.t => Pat.rep_id(strip_pat(p));
+
+/* (flattened component ids, whole-pattern id per param, body anchor).
+   The whole-pattern ids matter when a tuple pattern destructures a
+   NAMED alias (flip = fun (s, r) with flip : Card -> Card): the strip
+   shows ONE Card slot, and its well must anchor at the whole pattern —
+   anchoring at the first component showed bare Suits. */
+let fun_anatomy =
+    (~pat: Pat.t, def: Exp.t): (list(Id.t), list(Id.t), option(Id.t)) => {
+  let rec go =
+          ((acc_c, acc_w), e: Exp.t)
+          : (list(Id.t), list(Id.t), option(Id.t)) => {
     let e = strip_exp(e);
     switch (e.term) {
-    | Fun(p, body, _, _) => go(acc @ pat_comps(p), body)
-    | _ => (acc, Some(body_anchor(e)))
+    | Fun(p, body, _, _) =>
+      go((acc_c @ pat_comps(p), acc_w @ [pat_whole(p)]), body)
+    | _ => (acc_c, acc_w, Some(body_anchor(e)))
     };
   };
   switch (strip_exp(def).term) {
-  | Fun(_) => go([], def)
+  | Fun(_) => go(([], []), def)
   | _ =>
     switch (strip_pat(pat).term) {
-    | Ap(_, arg) => (pat_comps(arg), Some(body_anchor(def)))
-    | _ => ([], None)
+    | Ap(_, arg) => (
+        pat_comps(arg),
+        [pat_whole(arg)],
+        Some(body_anchor(def)),
+      )
+    | _ => ([], [], None)
     }
   };
 };
@@ -686,7 +703,7 @@ let extract =
         bool,
         bool,
         bool,
-        (list(Id.t), option(Id.t)),
+        (list(Id.t), list(Id.t), option(Id.t)),
       ),
     ) =
     List.concat_map(
@@ -739,7 +756,10 @@ let extract =
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
-      ((es, vs), (name, id, ty, doc, err, hole, is_mod, (arg_ids, out_id))) => {
+      (
+        (es, vs),
+        (name, id, ty, doc, err, hole, is_mod, (arg_ids, whole_ids, out_id)),
+      ) => {
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
@@ -850,6 +870,7 @@ let extract =
                 main: use_count(name) >= 2,
                 tests: [],
                 e_arg_ids: arg_ids,
+                e_whole_ids: whole_ids,
                 e_out_id: out_id,
               },
             ],

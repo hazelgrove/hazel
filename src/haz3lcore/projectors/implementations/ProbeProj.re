@@ -20,6 +20,9 @@ type probe_model = {
    * one automatically (canvas value wells). Off for editor probes. */
   [@default false]
   auto_rich: bool,
+  /* dbl-click toggles the auto rendering back to the text view */
+  [@default false]
+  rich_off: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -27,6 +30,7 @@ let init_probe_model: probe_model = {
   drawer_mode: false,
   dropdown_redraw: 0,
   auto_rich: false,
+  rich_off: false,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -86,6 +90,7 @@ type action =
   | ToggleModal(option(packed_model))
   | RendererAction(packed_action)
   | ToggleWindowMode
+  | ToggleAutoRich
   | ToggleDrawerMode
   | SetDrawerMode(bool)
   | ToggleDropdown(string)
@@ -227,6 +232,9 @@ type probe_ctx = {
   local: action => Ui_effect.t(unit),
   sort: Sort.t,
   active_renderer_id: option(string),
+  /* auto-rich matched but is toggled off: value dbl-click restores it
+     (instead of ToggleWindowMode) */
+  auto_rich_ready: bool,
 };
 
 module WindowState = {
@@ -680,7 +688,9 @@ let value_view =
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      Attr.on_double_click(_ => local(ToggleWindowMode)),
+      Attr.on_double_click(_ =>
+        ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
+      ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
         Key.ctrl_held(evt)
@@ -1322,7 +1332,10 @@ let empty_status_view =
         Attr.classes(["empty-status", "not-aligned"]),
         Attr.title("Samples not aligned with focus — click to align"),
         Attr.on_pointerdown(mv_least_distant_sample(ctx)),
-        Attr.on_double_click(_ => local(ToggleWindowMode)),
+        Attr.on_double_click(_ =>
+          ctx.auto_rich_ready
+            ? local(ToggleAutoRich) : local(ToggleWindowMode)
+        ),
       ],
       [text("⊖")],
     )
@@ -1716,6 +1729,21 @@ let prepare_offside =
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let active_renderer_id =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
+    let auto_rich_ready =
+      model.auto_rich
+      && model.rich_off
+      && model.active_renderer == None
+      && (
+        switch (Dynamics.Info.most_aligned_sample(ap_id, dynamics)) {
+        | Some(sample) =>
+          List.exists(
+            (r: packed_renderer) =>
+              r.id != "table" && r.can_handle(sort, sample.value),
+            renderers,
+          )
+        | None => false
+        }
+      );
     let ctx = {
       id,
       ap_id,
@@ -1727,6 +1755,7 @@ let prepare_offside =
       local,
       sort,
       active_renderer_id,
+      auto_rich_ready,
     };
     let filtered_samples =
       Sample.Selection.filter_by_pin(
@@ -1996,7 +2025,7 @@ let rich_content =
       )
     | _ => None
     }
-  | (None, Some(exp)) when model.auto_rich =>
+  | (None, Some(exp)) when model.auto_rich && !model.rich_off =>
     /* tables excluded: they match broadly (any list of tuples) and are
        heavy; the plain display is right until explicitly requested */
     switch (
@@ -2018,6 +2047,21 @@ let rich_content =
           ~sort,
           (),
         )
+        |> Option.map(content =>
+             div(
+               ~attrs=[
+                 Attr.classes(["auto-rich"]),
+                 Attr.title("double-click for the text view"),
+                 Attr.on_double_click(_ =>
+                   Effect.Many([
+                     Effect.Stop_propagation,
+                     local(ToggleAutoRich),
+                   ])
+                 ),
+               ],
+               [content],
+             )
+           )
       | None => None
       }
     | None => None
@@ -2156,6 +2200,10 @@ module M: Projector = {
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
+    | ToggleAutoRich => {
+        ...model,
+        rich_off: !model.rich_off,
+      }
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
       /* Toggling moves the focusable .live-offside between DOM slots, which
@@ -2280,15 +2328,31 @@ module M: Projector = {
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
+        /* auto-rich renders IN PLACE of the sample text (dbl-click on
+           either side toggles); an explicitly chosen renderer keeps the
+           anchored modal instead */
+        let rich_inline =
+          model.active_renderer == None
+            ? rich_content(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              )
+            : None;
         live_offside_view(
           ~display=Inline,
           ~include_nav_bar=true,
           ~drawer_mode_active=false,
+          ~rich_content=rich_inline,
           data,
           local,
           view_seg,
           ~settings,
-        )
+        );
       | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
       };
     /* Content taller than the drawer cap → the drawer scrolls; gates the
@@ -2327,7 +2391,7 @@ module M: Projector = {
              )
         : None;
     let modal_nodes =
-      drawer
+      drawer || model.active_renderer == None
         ? []
         : modal_overlay(
             ~settings,

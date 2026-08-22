@@ -316,17 +316,24 @@ let view =
   List.find_opt((e: CanvasGraph.edge) => e.e_name == name, graph.edges)
   |> Option.map((e: CanvasGraph.edge) => {
        let probing = globals.settings.core.probe_all;
-       let input_keys =
-         switch (node_of(graph, e.e_src)) {
-         | Some({kind: Product, parts, _}) => parts
-         | _ => [e.e_src]
-         };
-       /* pair input slots with parameter ids positionally */
+       /* pair input slots with anchors: a Product source pairs its parts
+          with the flattened component ids; a single named source whose
+          pattern destructures (flip : Card -> Card, fun (s, r)) anchors
+          at the WHOLE pattern so the well carries the pair */
        let input_slots =
-         List.mapi(
-           (i, key) => (key, List.nth_opt(e.e_arg_ids, i)),
-           input_keys,
-         );
+         switch (node_of(graph, e.e_src)) {
+         | Some({kind: Product, parts, _}) =>
+           List.mapi(
+             (i, key) => (key, List.nth_opt(e.e_arg_ids, i)),
+             parts,
+           )
+         | _ =>
+           let anchor =
+             List.length(e.e_arg_ids) > 1
+               ? List.nth_opt(e.e_whole_ids, 0)
+               : List.nth_opt(e.e_arg_ids, 0);
+           [(e.e_src, anchor)];
+         };
        let head =
          div(
            ~attrs=[clss(["focus-head"])],
