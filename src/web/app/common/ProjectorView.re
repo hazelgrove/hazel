@@ -309,9 +309,21 @@ let handle = (idx, kind, action: external_action): Action.t =>
   };
 
 let offside_wrapper =
-    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+    (
+      font_metrics: FontMetrics.t,
+      offside_base: int,
+      ~row: int,
+      ~origin_col: int,
+      v: Node.t,
+    ) =>
   div(
     ~attrs=[
+      /* class + row/col identity for the after-display stagger pass
+         (ProbeStagger): displays spanning several rows get pushed past
+         longer lines below and past displays from rows above */
+      Attr.classes(["offside-wrapper"]),
+      Attr.create("data-row", string_of_int(row)),
+      Attr.create("data-ocol", string_of_int(origin_col)),
       Attr.create(
         "style",
         Printf.sprintf(
@@ -552,7 +564,14 @@ let split_views =
   let line_view = {
     let offside_view =
       views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.map(
+           offside_wrapper(
+             font_metrics,
+             offside_base,
+             ~row=measurement.origin.row,
+             ~origin_col=measurement.origin.col,
+           ),
+         )
       |> Option.to_list;
     let below_view =
       views.below

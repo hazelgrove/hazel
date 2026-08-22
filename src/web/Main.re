@@ -255,6 +255,9 @@ let start = default_model => {
           ~measured,
           zipper,
         );
+        /* stagger multi-row offside displays clear of code and of each
+           other (top-down priority, first-fit) */
+        ProbeStagger.update(~measured, ~font_metrics);
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
