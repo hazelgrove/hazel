@@ -250,8 +250,18 @@ let type_view =
          |> List.sort((a: Language.Sample.t, b: Language.Sample.t) =>
               compare(a.seq, b.seq)
             );
+       /* anchor: the alias's definition id, or — for builtins/derived
+          types with no definition site — the first representative
+          sample's own syntax_id (a real expression id, so syntax and
+          statics resolve normally) */
+       let anchor =
+         switch (n.n_id, agg_samples) {
+         | (Some(id), _) => Some(id)
+         | (None, [s, ..._]) => Some(s.syntax_id)
+         | (None, []) => None
+         };
        let agg_well =
-         switch (n.n_id) {
+         switch (anchor) {
          | Some(anchor_id) when agg_samples != [] =>
            CanvasProbe.view(
              ~globals,
