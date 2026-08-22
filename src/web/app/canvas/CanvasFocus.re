@@ -106,6 +106,7 @@ let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
 let type_view =
     (
       ~globals: Globals.t,
+      ~editor: CodeWithStatics.Model.t,
       ~inject_jump,
       ~on_close: Effect.t(unit),
       ~dynamics: Language.Dynamics.Map.t,
@@ -127,7 +128,7 @@ let type_view =
            | _ => []
            }
          );
-       let tally: Hashtbl.t(string, (int, int, Language.DHExp.t)) =
+       let tally: Hashtbl.t(string, (int, int, Language.Sample.t)) =
          Hashtbl.create(16);
        Language.Sample.Map.fold(
          (id, samples, ()) =>
@@ -136,15 +137,15 @@ let type_view =
              List.iter(
                (s: Language.Sample.t) => {
                  let v = print_value(s.value);
-                 let (c, latest, _) =
+                 let (c, latest, repr) =
                    Option.value(
-                     ~default=(0, 0, s.value),
+                     ~default=(0, 0, s),
                      Hashtbl.find_opt(tally, v),
                    );
                  Hashtbl.replace(
                    tally,
                    v,
-                   (c + 1, max(latest, s.seq), s.value),
+                   (c + 1, max(latest, s.seq), s.seq >= latest ? s : repr),
                  );
                },
                samples,
@@ -156,7 +157,7 @@ let type_view =
        );
        let entries =
          Hashtbl.fold(
-           (v, (c, latest, ex), acc) => [(v, c, latest, ex), ...acc],
+           (v, (c, latest, repr), acc) => [(v, c, latest, repr), ...acc],
            tally,
            [],
          )
@@ -239,66 +240,95 @@ let type_view =
          | Some(d) => [div(~attrs=[clss(["focus-doc"])], [text(d)])]
          | None => []
          };
+       /* one representative Sample.t per distinct value, chronological:
+          a REAL probe view over the aggregate, so One/Many, arrows, and
+          rich displays (cards!) all apply. Falls back to chips when the
+          node has no definition id to anchor at. */
+       let agg_samples =
+         shown
+         |> List.map(((_, _, _, repr)) => repr)
+         |> List.sort((a: Language.Sample.t, b: Language.Sample.t) =>
+              compare(a.seq, b.seq)
+            );
+       let agg_well =
+         switch (n.n_id) {
+         | Some(anchor_id) when agg_samples != [] =>
+           CanvasProbe.view(
+             ~globals,
+             ~editor,
+             ~key="ty/" ++ key,
+             ~samples=Some(agg_samples),
+             anchor_id,
+           )
+           |> Option.map(w =>
+                [div(~attrs=[clss(["focus-slot", "type-agg-well"])], [w])]
+              )
+         | _ => None
+         };
        let values_row =
-         shown == []
-           ? [
-             div(
-               ~attrs=[clss(["type-values-empty"])],
-               [
-                 text(
-                   probing
-                     ? "no values of this type observed"
-                     : "no samples — collect samples and run",
-                 ),
-               ],
-             ),
-           ]
-           : [
-             div(
-               ~attrs=[clss(["type-values"])],
-               List.map(
-                 ((v, c, _, ex)) =>
-                   div(
-                     ~attrs=[clss(["type-value"]), Attr.title(v)],
-                     [
-                       CanvasValue.chip(
-                         ~font_metrics=globals.font_metrics,
-                         ~available=34,
-                         ex,
+         switch (agg_well) {
+         | Some(well) => well
+         | None =>
+           shown == []
+             ? [
+               div(
+                 ~attrs=[clss(["type-values-empty"])],
+                 [
+                   text(
+                     probing
+                       ? "no values of this type observed"
+                       : "no samples — collect samples and run",
+                   ),
+                 ],
+               ),
+             ]
+             : [
+               div(
+                 ~attrs=[clss(["type-values"])],
+                 List.map(
+                   ((v, c, _, repr: Language.Sample.t)) =>
+                     div(
+                       ~attrs=[clss(["type-value"]), Attr.title(v)],
+                       [
+                         CanvasValue.chip(
+                           ~font_metrics=globals.font_metrics,
+                           ~available=34,
+                           repr.value,
+                         ),
+                       ]
+                       @ (
+                         c > 1
+                           ? [
+                             span(
+                               ~attrs=[clss(["type-value-count"])],
+                               [text(Printf.sprintf({js| ×%d|js}, c))],
+                             ),
+                           ]
+                           : []
+                       ),
+                     ),
+                   shown,
+                 )
+                 @ (
+                   List.length(entries) > max_type_values
+                     ? [
+                       div(
+                         ~attrs=[clss(["well-more"])],
+                         [
+                           text(
+                             Printf.sprintf(
+                               "+%d more",
+                               List.length(entries) - max_type_values,
+                             ),
+                           ),
+                         ],
                        ),
                      ]
-                     @ (
-                       c > 1
-                         ? [
-                           span(
-                             ~attrs=[clss(["type-value-count"])],
-                             [text(Printf.sprintf({js| ×%d|js}, c))],
-                           ),
-                         ]
-                         : []
-                     ),
-                   ),
-                 shown,
-               )
-               @ (
-                 List.length(entries) > max_type_values
-                   ? [
-                     div(
-                       ~attrs=[clss(["well-more"])],
-                       [
-                         text(
-                           Printf.sprintf(
-                             "+%d more",
-                             List.length(entries) - max_type_values,
-                           ),
-                         ),
-                       ],
-                     ),
-                   ]
-                   : []
+                     : []
+                 ),
                ),
-             ),
-           ];
+             ]
+         };
        div(~attrs=[clss(["canvas-focus"])], [head] @ doc @ values_row);
      });
 

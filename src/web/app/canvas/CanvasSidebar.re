@@ -547,13 +547,66 @@ let view =
     ]);
   let set_focus = (f: option(string)) =>
     globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
-  /* clicking a function: focus it in the detail strip AND select its def */
-  let on_edge_click = (e: CanvasGraph.edge) =>
-    Effect.Many([
-      set_focus(Some(e.e_name)),
-      globals.inject_global(SelectTile(e.e_id)),
-      Effect.Stop_propagation,
-    ]);
+  /* clicking a function: focus it in the detail strip AND select its
+     def. If the dynamic cursor isn't aligned with any of the function's
+     samples (its wells would show ⊖), capture the first sample at the
+     first input anchor so values appear immediately. */
+  let on_edge_click = (e: CanvasGraph.edge) => {
+    let align: list(Effect.t(unit)) = {
+      let anchor =
+        switch (e.e_whole_ids, e.e_arg_ids, e.e_out_id) {
+        | ([a, ..._], _, _) => Some(a)
+        | ([], [a, ..._], _) => Some(a)
+        | ([], [], out) => out
+        };
+      switch (
+        Option.bind(anchor, a =>
+          Language.Dynamics.Map.lookup(a, editor.dynamics)
+        )
+      ) {
+      | Some([_, ..._] as samples) =>
+        let sf = editor.editor.state.zipper.refractors.sample_focus;
+        let cursor_stack = Language.Sample.Focus.effective_stack(sf);
+        let aligned =
+          List.exists(
+            (smp: Language.Sample.t) =>
+              Language.CallStack.equal(smp.call_stack, cursor_stack),
+            samples,
+          );
+        if (aligned) {
+          [];
+        } else {
+          let first =
+            List.fold_left(
+              (best: Language.Sample.t, smp: Language.Sample.t) =>
+                smp.seq < best.seq ? smp : best,
+              List.hd(samples),
+              samples,
+            );
+          [
+            globals.inject_global(
+              ActiveEditor(
+                Project(
+                  SampleFocus(
+                    Capture(Language.Sample.capture_of_sample(first), None),
+                  ),
+                ),
+              ),
+            ),
+          ];
+        };
+      | _ => []
+      };
+    };
+    Effect.Many(
+      [
+        set_focus(Some(e.e_name)),
+        globals.inject_global(SelectTile(e.e_id)),
+        Effect.Stop_propagation,
+      ]
+      @ align,
+    );
+  };
   /* ---- canvas authoring: stubs go through the agent's own edit tools
      (same executor, guardrails, whitespace normalization). Stubs insert
      after the LAST TOP-LEVEL binding; the path is resolved from the
@@ -1333,6 +1386,7 @@ let view =
     | (Some(key), _) =>
       CanvasFocus.type_view(
         ~globals,
+        ~editor,
         ~inject_jump,
         ~on_close=
           globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),

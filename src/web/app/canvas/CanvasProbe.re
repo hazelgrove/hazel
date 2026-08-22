@@ -25,13 +25,26 @@ let view =
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~key: string,
+      /* aggregate mode: display THESE samples at the anchor instead of
+         the editor's own (type-node wells collect samples across sites;
+         Focus.init so cross-site samples aren't pin-filtered away —
+         their pin/focus actions still dispatch real captures) */
+      ~samples: option(list(Language.Sample.t))=None,
       id: Id.t,
     )
     : option(Node.t) => {
   let syntax = editor.editor.syntax;
   let statics = editor.statics.info_map;
-  let dynamics = editor.dynamics;
-  let sample_focus = editor.editor.state.zipper.refractors.sample_focus;
+  let dynamics =
+    switch (samples) {
+    | Some(ss) => Id.Map.add(id, ss, Language.Dynamics.Map.empty)
+    | None => editor.dynamics
+    };
+  let sample_focus =
+    switch (samples) {
+    | Some(_) => Language.Sample.Focus.init
+    | None => editor.editor.state.zipper.refractors.sample_focus
+    };
   /* anchor syntax: same recipe as RefractorView.mk_data */
   let syntax_piece =
     TermData.segment(id, syntax.term_data)
