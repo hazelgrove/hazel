@@ -44,4 +44,8 @@ let noCmd(f: (Model, Msg) -> Model): (Model, Msg) -> (Model, Cmd) =
   fun (model, msg) -> (f(model, msg), CmdNone)
 in
 
+# The app runtime calls view/subs outside the main evaluation, so probe #
+# samples for them come from this direct call.                          #
+let _boot : (HTML, Sub) = (view(update(init, Inc)), subs(init)) in
+
 ^^html_sidebar((init, noCmd(update), view, subs))

@@ -337,6 +337,11 @@ let pretty_seg_of_value =
   PrettySegment.prettify(~width, seg);
 };
 
+/* rich content at most this many rows renders IN the offside row;
+   taller content lives in the drawer instead (an explicit activation
+   auto-opens it) */
+let inline_rows_cap = 4;
+
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
   let max_rows = 15;
@@ -2240,10 +2245,27 @@ module M: Projector = {
       model;
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {
+      | None =>
+        /* activation: content taller than the inline cap opens the
+           drawer (chevron / Cmd+ArrowUp toggles back) */
+        let wants_drawer =
+          switch (
+            rich_drawer_rows(
+              {
+                ...model,
+                active_renderer: pm,
+              },
+              info,
+            )
+          ) {
+          | Some(n) => n > inline_rows_cap
+          | None => false
+          };
+        {
           ...model,
           active_renderer: pm,
-        }
+          drawer_mode: model.drawer_mode || wants_drawer,
+        };
       | Some(_) => {
           ...model,
           active_renderer: None,
@@ -2328,11 +2350,17 @@ module M: Projector = {
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
-        /* auto-rich renders IN PLACE of the sample text (dbl-click on
-           either side toggles); an explicitly chosen renderer keeps the
-           anchored modal instead */
+        /* rich content renders IN PLACE of the sample text (dbl-click
+           toggles the auto kind); explicitly chosen renderers replace
+           inline too when they fit inline_rows_cap — taller ones live
+           in the drawer (activation auto-opens it) */
+        let rows_ok =
+          switch (rich_drawer_rows(model, info)) {
+          | None => true
+          | Some(n) => n <= inline_rows_cap
+          };
         let rich_inline =
-          model.active_renderer == None
+          model.active_renderer == None || rows_ok
             ? rich_content(
                 ~settings,
                 model,
@@ -2390,18 +2418,10 @@ module M: Projector = {
                )
              )
         : None;
-    let modal_nodes =
-      drawer || model.active_renderer == None
-        ? []
-        : modal_overlay(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
-          );
+    /* the anchored modal is retired: small rich views replace the
+       offside row, big ones live in the drawer */
+    let modal_nodes = [];
+    let _unused_modal = modal_overlay;
     /* Wrap in a div only when the modal is open, to avoid an extra DOM level
      * around the positioned .live-offside otherwise. */
     let offside_node =

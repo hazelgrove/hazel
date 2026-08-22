@@ -1,10 +1,30 @@
-# Card table: tuple formers on the graph, card sprites in the wells. #
-# Focus a function edge and its card-shaped samples render as cards. #
+# Card table: tuple/list formers on the graph, card sprites in wells and #
+# syntax. Focus sort or insert and step samples to watch hands order    #
+# themselves as cards.                                                  #
 
 type Suit = Hearts + Diamonds + Clubs + Spades in
 type Rank = Ace + Two + Three + Four + Five + Six + Seven + Eight + Nine + Ten + Jack + Queen + King in
 type Card = (Suit, Rank) in
 type Hand = [Card] in
+
+let value : Card -> Int =
+  fun (s, r) ->
+    case r
+    | Ace => 14
+    | King => 13
+    | Queen => 12
+    | Jack => 11
+    | Ten => 10
+    | Nine => 9
+    | Eight => 8
+    | Seven => 7
+    | Six => 6
+    | Five => 5
+    | Four => 4
+    | Three => 3
+    | Two => 2
+    end
+in
 
 let flip : Card -> Card =
   fun (s, r) ->
@@ -16,24 +36,44 @@ let flip : Card -> Card =
     end
 in
 
-let points : Card -> Int =
-  fun (s, r) ->
-    case r
-    | Ace => 11
-    | King => 4
-    | Queen => 3
-    | Jack => 2
-    | _ => 0
+let insert : (Card, Hand) -> Hand =
+  fun (c, h) ->
+    case h
+    | [] => [c]
+    | hd :: tl =>
+      case value(c) <= value(hd)
+      | true => c :: h
+      | false => hd :: insert((c, tl))
+      end
+    end
+in
+
+let sort : Hand -> Hand =
+  fun h ->
+    case h
+    | [] => []
+    | hd :: tl => insert((hd, sort(tl)))
     end
 in
 
 let royal_flush : Suit -> Hand =
-  fun s -> [(s, Ace), (s, King), (s, Queen), (s, Jack), (s, Ten)] in
+  fun s -> [(s, Ten), (s, Jack), (s, Queen), (s, King), (s, Ace)] in
 
 hint "aces are high"
-test points((Hearts, Ace)) == 11 end;
+test value((Hearts, Ace)) == 14 end;
 
 hint "flipping swaps color"
 test flip((Hearts, King)) == (Spades, King) end;
 
-points(flip((Hearts, Ace))) + points((Clubs, Queen))
+hint "insert keeps order"
+test insert(((Clubs, Queen), [(Hearts, Two), (Spades, King)]))
+  == [(Hearts, Two), (Clubs, Queen), (Spades, King)] end;
+
+hint "sort orders a hand"
+test sort([(Spades, King), (Hearts, Two), (Diamonds, Ace)])
+  == [(Hearts, Two), (Spades, King), (Diamonds, Ace)] end;
+
+hint "a royal flush is already sorted"
+test sort(royal_flush(Clubs)) == royal_flush(Clubs) end;
+
+sort([(Clubs, Jack), (Hearts, Ace), (Spades, Three), (Diamonds, King), (Hearts, Seven)])
