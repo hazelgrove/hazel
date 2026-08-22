@@ -22,8 +22,16 @@ let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
 let last_agent_action: ref(float) = ref(-1.e12);
 
+/* Canvas-authoring gestures (place/connect stubs) ride the agent's
+   DirectEdit tool path; they must NOT read as agent activity or every
+   manual gesture triggers pacing + auto-fit zoom hops. */
+let suppress_stamp: ref(bool) = ref(false);
+
 /* Called from the agent tool executor on every applied tool call. */
-let note_agent_action = (): unit => last_agent_action := now();
+let note_agent_action = (): unit =>
+  if (! suppress_stamp^) {
+    last_agent_action := now();
+  };
 
 let queue: ref(list(CodeWithStatics.Model.t)) = ref([]);
 let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);

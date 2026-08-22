@@ -121,6 +121,22 @@ let last_avatar_id: ref(option(Id.t)) = ref(None: option(Id.t));
 let drag_active: ref(bool) = ref(false);
 let cached_avail_w: ref(option(float)) = ref(None: option(float));
 let cached_avail_h: ref(option(float)) = ref(None: option(float));
+
+/* Sticky frame for manually-arranged slides: pins/offsets are stored in
+   the pre-normalization frame, so re-deriving the frame from a changed
+   program re-anchors EVERY manual position (placement pins landed away
+   from the click; pinned nodes flew off-pane on unrelated edits). Once a
+   slide has any manual position, its frame (origin + scales) is frozen
+   here — re-derived only on pane resize, slide switch, or reset layout. */
+type frame_cache = {
+  fc_slide: string,
+  fc_origin: CanvasLayout.pos,
+  fc_x_scale: float,
+  fc_y_scale: float,
+  fc_avail_w: float,
+};
+let cached_frame: ref(option(frame_cache)) =
+  ref(None: option(frame_cache));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 
@@ -361,47 +377,108 @@ let view =
       avail_height;
     };
   let lay = {
-    /* ALL frame decisions (fit scales, normalization origin) derive
-       from the VIRGIN layout — no user offsets/pins — so dragging a
-       node can never rescale or re-anchor the rest of the graph. The
-       final layout applies the frozen frame plus the user's edits. */
-    let virgin = CanvasLayout.layout(graph);
-    let y_scale =
-      switch (avail_height) {
-      | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
-      | None => 1.
+    let manual = offsets != [] || pins != [];
+    let aw = Option.value(~default=0., avail_width);
+    let runtime_frame =
+      switch (cached_frame^) {
+      | Some(fc)
+          when
+            manual
+            && fc.fc_slide == slide
+            && Float.abs(fc.fc_avail_w -. aw) < 2. =>
+        Some((fc.fc_origin, fc.fc_x_scale, fc.fc_y_scale))
+      | _ => None
       };
-    let x_scale =
-      switch (avail_width) {
-      | Some(avail) =>
-        let target = avail -. 16.;
-        let s1 = min(1.8, max(0.7, target /. virgin.width));
-        if (s1 >= 1.8 || s1 <= 0.7) {
-          s1;
-        } else {
-          let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
-          v1.width >= target -. 30. && v1.width <= target +. 30.
-            ? s1 : min(1.8, max(0.7, s1 *. target /. v1.width));
-        };
-      | None => 1.
+    /* fresh session: the frame the pins were laid in, from settings
+       (pane size may differ — positions beat centering) */
+    let persisted_frame =
+      switch (runtime_frame) {
+      | Some(_) => runtime_frame
+      | None =>
+        manual
+          ? List.assoc_opt(slide, globals.settings.canvas_frames)
+            |> Option.map(((ox, oy, xs, ys)) =>
+                 (
+                   CanvasLayout.{
+                     x: ox,
+                     y: oy,
+                   },
+                   xs,
+                   ys,
+                 )
+               )
+          : None
       };
-    let framed =
+    switch (persisted_frame) {
+    | Some((origin, xs, ys)) =>
+      /* sticky frame: manual positions never re-anchor (see cached_frame) */
+      cached_frame :=
+        Some({
+          fc_slide: slide,
+          fc_origin: origin,
+          fc_x_scale: xs,
+          fc_y_scale: ys,
+          fc_avail_w: aw,
+        });
       CanvasLayout.layout(
-        ~x_scale,
-        ~y_scale,
-        ~center_within=avail_width,
+        ~x_scale=xs,
+        ~y_scale=ys,
+        ~origin_override=Some(origin),
+        ~offsets,
+        ~pins,
         graph,
       );
-    offsets == [] && pins == []
-      ? framed
-      : CanvasLayout.layout(
+    | None =>
+      /* ALL frame decisions (fit scales, normalization origin) derive
+         from the VIRGIN layout — no user offsets/pins — so dragging a
+         node can never rescale or re-anchor the rest of the graph. The
+         final layout applies the frozen frame plus the user's edits. */
+      let virgin = CanvasLayout.layout(graph);
+      let y_scale =
+        switch (avail_height) {
+        | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
+        | None => 1.
+        };
+      let x_scale =
+        switch (avail_width) {
+        | Some(avail) =>
+          let target = avail -. 16.;
+          let s1 = min(1.8, max(0.7, target /. virgin.width));
+          if (s1 >= 1.8 || s1 <= 0.7) {
+            s1;
+          } else {
+            let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
+            v1.width >= target -. 30. && v1.width <= target +. 30.
+              ? s1 : min(1.8, max(0.7, s1 *. target /. v1.width));
+          };
+        | None => 1.
+        };
+      let framed =
+        CanvasLayout.layout(
           ~x_scale,
           ~y_scale,
-          ~origin_override=Some(framed.origin),
-          ~offsets,
-          ~pins,
+          ~center_within=avail_width,
           graph,
         );
+      cached_frame :=
+        Some({
+          fc_slide: slide,
+          fc_origin: framed.origin,
+          fc_x_scale: x_scale,
+          fc_y_scale: y_scale,
+          fc_avail_w: aw,
+        });
+      offsets == [] && pins == []
+        ? framed
+        : CanvasLayout.layout(
+            ~x_scale,
+            ~y_scale,
+            ~origin_override=Some(framed.origin),
+            ~offsets,
+            ~pins,
+            graph,
+          );
+    };
   };
   /* auto-fit while the agent works: if the (paced) graph has outgrown
      the pane at the current zoom, ease the zoom down one step toward
@@ -561,6 +638,24 @@ let view =
     );
   /* drag-vs-click on a node: document listeners move the div imperatively;
      release either commits a layout delta or fires the click */
+  /* persist the live frame alongside any pin/offset commit so a reload
+     re-lays manual positions in the frame they were made in */
+  let persist_frame = (): Effect.t(unit) =>
+    switch (cached_frame^) {
+    | Some(fc) =>
+      globals.inject_global(
+        Set(
+          SetCanvasFrame(
+            slide,
+            fc.fc_origin.x,
+            fc.fc_origin.y,
+            fc.fc_x_scale,
+            fc.fc_y_scale,
+          ),
+        ),
+      )
+    | None => Effect.Ignore
+    };
   let start_node_drag =
       (
         n: CanvasGraph.tynode,
@@ -575,23 +670,26 @@ let view =
     let base =
       Option.value(~default=(0., 0.), List.assoc_opt(n.key, offsets));
     let commit = ((dx, dy)) =>
-      switch (pin) {
-      | Some((px, py)) =>
-        globals.inject_global(
-          Set(SetCanvasNodePin(slide, n.key, px +. dx, py +. dy)),
-        )
-      | None =>
-        globals.inject_global(
-          Set(
-            SetCanvasNodeOffset(
-              slide,
-              n.key,
-              fst(base) +. dx,
-              snd(base) +. dy,
+      Effect.Many([
+        switch (pin) {
+        | Some((px, py)) =>
+          globals.inject_global(
+            Set(SetCanvasNodePin(slide, n.key, px +. dx, py +. dy)),
+          )
+        | None =>
+          globals.inject_global(
+            Set(
+              SetCanvasNodeOffset(
+                slide,
+                n.key,
+                fst(base) +. dx,
+                snd(base) +. dy,
+              ),
             ),
-          ),
-        )
-      };
+          )
+        },
+        persist_frame(),
+      ]);
     let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
     let last_live = ref(now());
     let orig =
@@ -682,12 +780,59 @@ let view =
             src,
             ty_syntax(n),
           );
-        Effect.Many([
-          insert_stub(stub),
-          set_connect(None),
-          Effect.Stop_propagation,
-          Effect.Prevent_default,
-        ]);
+        /* a multi-source fn materializes an implicit product node: pin it
+           at the sources' barycenter instead of wherever the layered
+           layout drops it (pin BEFORE the edit — see on_canvas_click) */
+        let pin_product =
+          switch (srcs) {
+          | []
+          | [_] => []
+          | many =>
+            let positions =
+              List.filter_map(
+                sstr =>
+                  lay.nodes
+                  |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                       ty_syntax(nl.node) == sstr
+                     )
+                  |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
+                many,
+              );
+            switch (positions) {
+            | [] => []
+            | ps =>
+              let count = float_of_int(List.length(ps));
+              let bx =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., ps)
+                /. count;
+              let by =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., ps)
+                /. count;
+              let product_key = "(" ++ String.concat(", ", many) ++ ")";
+              [
+                globals.inject_global(
+                  Set(
+                    SetCanvasNodePin(
+                      slide,
+                      product_key,
+                      bx -. lay.origin.x,
+                      by -. lay.origin.y,
+                    ),
+                  ),
+                ),
+                persist_frame(),
+              ];
+            };
+          };
+        Effect.Many(
+          pin_product
+          @ [
+            insert_stub(stub),
+            set_connect(None),
+            Effect.Stop_propagation,
+            Effect.Prevent_default,
+          ],
+        );
       };
     | (None, Some(("tuple", comps))) =>
       Effect.Many([
@@ -726,7 +871,9 @@ let view =
             | _ => "?"
             };
           Effect.Many([
-            insert_stub(Printf.sprintf("type %s = %s in", name, body)),
+            /* pin + frame land BEFORE the edit: a render between these
+               effects re-derived the frame with no pins yet, moving
+               every node and putting the new one off the click */
             globals.inject_global(
               Set(
                 SetCanvasNodePin(
@@ -737,6 +884,8 @@ let view =
                 ),
               ),
             ),
+            persist_frame(),
+            insert_stub(Printf.sprintf("type %s = %s in", name, body)),
             set_place(None),
             Effect.Stop_propagation,
           ]);

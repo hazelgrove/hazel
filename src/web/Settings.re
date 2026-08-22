@@ -43,6 +43,11 @@ module Model = {
        normalization frame (see CanvasLayout.origin) */
     [@sexp.default []] [@yojson.default []]
     canvas_node_pins: list(((string, string), (float, float))),
+    /* the frame (origin x/y, x/y scales) the slide's pins/offsets were
+       laid in — persisted so a reload can't re-derive a different frame
+       under them (slide -> (ox, oy, xs, ys)) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_frames: list((string, (float, float, float, float))),
     /* canvas pinch-zoom factor (ctrl+wheel / trackpad pinch) */
     [@sexp.default 1.0] [@yojson.default 1.0]
     canvas_zoom: float,
@@ -141,6 +146,7 @@ module Model = {
     canvas_pane_width: None,
     canvas_node_offsets: [],
     canvas_node_pins: [],
+    canvas_frames: [],
     canvas_zoom: 1.0,
     canvas_pace: true,
     canvas_tick: 0,
@@ -224,6 +230,7 @@ module Update = {
     | SetCanvasPaneWidth(int)
     | SetCanvasNodeOffset(string, string, float, float)
     | SetCanvasNodePin(string, string, float, float)
+    | SetCanvasFrame(string, float, float, float, float)
     | SetCanvasZoom(float)
     | ToggleCanvasPace
     | CanvasTick
@@ -634,6 +641,13 @@ module Update = {
             ...List.remove_assoc((slide, key), settings.canvas_node_pins),
           ],
         }
+      | SetCanvasFrame(slide, ox, oy, xs, ys) => {
+          ...settings,
+          canvas_frames: [
+            (slide, (ox, oy, xs, ys)),
+            ...List.remove_assoc(slide, settings.canvas_frames),
+          ],
+        }
       | ClearCanvasNodeOffsets(slide) => {
           ...settings,
           canvas_node_offsets:
@@ -646,6 +660,7 @@ module Update = {
               (((s, _), _)) => s != slide,
               settings.canvas_node_pins,
             ),
+          canvas_frames: List.remove_assoc(slide, settings.canvas_frames),
         }
       | ToggleCanvasSplit =>
         let enabling = !settings.canvas_split;

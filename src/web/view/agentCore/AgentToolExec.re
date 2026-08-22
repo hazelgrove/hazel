@@ -124,44 +124,49 @@ let execute_direct =
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   CanvasBuffer.stage_beat();
-  switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
-  | Action(action) =>
-    switch (
-      try(
-        ToolCallHandler.update(
-          ~settings,
-          action,
-          model,
-          cell_editor.editor,
-          chat_id,
-        )
-      ) {
-      | Failure(msg) => Error(Failure.Info(msg))
-      | exn => Error(Failure.Info(Printexc.to_string(exn)))
-      }
-    ) {
-    | Ok((model, editor)) => (
-        model,
-        {
-          ...cell_editor,
-          editor,
+  /* a manual canvas gesture, not agent activity: don't trip pacing */
+  CanvasBuffer.suppress_stamp := true;
+  let result =
+    switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
+    | Action(action) =>
+      switch (
+        try(
+          ToolCallHandler.update(
+            ~settings,
+            action,
+            model,
+            cell_editor.editor,
+            chat_id,
+          )
+        ) {
+        | Failure(msg) => Error(Failure.Info(msg))
+        | exn => Error(Failure.Info(Printexc.to_string(exn)))
         }
-        |> Updated.return,
-      )
-    | Error(Failure.Info(msg)) =>
+      ) {
+      | Ok((model, editor)) => (
+          model,
+          {
+            ...cell_editor,
+            editor,
+          }
+          |> Updated.return,
+        )
+      | Error(Failure.Info(msg)) =>
+        Js_of_ocaml.Firebug.console##warn(
+          Js_of_ocaml.Js.string("[canvas DirectEdit] tool failed: " ++ msg),
+        );
+        (model, cell_editor |> Updated.return_quiet);
+      }
+    | _ =>
       Js_of_ocaml.Firebug.console##warn(
-        Js_of_ocaml.Js.string("[canvas DirectEdit] tool failed: " ++ msg),
+        Js_of_ocaml.Js.string(
+          "[canvas DirectEdit] could not decode tool: " ++ tool_name,
+        ),
       );
       (model, cell_editor |> Updated.return_quiet);
-    }
-  | _ =>
-    Js_of_ocaml.Firebug.console##warn(
-      Js_of_ocaml.Js.string(
-        "[canvas DirectEdit] could not decode tool: " ++ tool_name,
-      ),
-    );
-    (model, cell_editor |> Updated.return_quiet);
-  };
+    };
+  CanvasBuffer.suppress_stamp := false;
+  result;
 };
 
 /** Run one tool; returns chat message to append (caller batches append + one LLM request). */
