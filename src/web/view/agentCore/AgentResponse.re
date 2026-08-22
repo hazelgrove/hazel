@@ -149,7 +149,10 @@ let handle_llm_response =
                 /* each applied call is its own canvas beat: the whole
                    multi-tool reply is ONE app action, so intermediate
                    states must be captured here or never seen */
-                CanvasBuffer.push_snapshot(step_u.model.editor);
+                CanvasBuffer.push_snapshot(
+                  ~label=tc.name,
+                  step_u.model.editor,
+                );
                 let failed =
                   switch (msg.role) {
                   | ToolResult(tr) => !tr.skipped && !tr.success

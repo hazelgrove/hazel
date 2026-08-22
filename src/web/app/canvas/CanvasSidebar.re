@@ -214,6 +214,10 @@ let canvas_menu_node: ref(option((string, string))) =
   ref(None: option((string, string)));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
+/* previous (site, state, busy) for transition logging only */
+let last_logged_avatar: ref((option(Id.t), string)) =
+  ref((None: option(Id.t), "off"));
+let last_logged_busy: ref(bool) = ref(false);
 
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
@@ -570,6 +574,9 @@ let view =
       if (need < zoom -. 0.05 && CanvasBuffer.autofit_due()) {
         let target = max(0.4, need);
         let stepped = max(target, zoom -. 0.15);
+        CanvasLog.log(
+          Printf.sprintf("auto-fit: zoom %.2f -> %.2f", zoom, stepped),
+        );
         let send = () =>
           globals.inject_global(Set(SetCanvasZoom(stepped)))
           |> Bonsai.Effect.Expert.handle;
@@ -1372,14 +1379,38 @@ let view =
       agent_busy ? last_avatar_pos^ |> Option.map(p => (p, "think")) : None
     };
   };
-  /* streaming chain-of-thought tail for the avatar's bubble (rendered
-     only while busy; pace toggle governs the whole watch experience) */
+  if (agent_busy != last_logged_busy^) {
+    last_logged_busy := agent_busy;
+    CanvasLog.log(
+      agent_busy ? "agent: busy (awaiting reply)" : "agent: idle",
+    );
+  };
+  {
+    let (pid, pstate) = last_logged_avatar^;
+    let cur_state =
+      switch (avatar) {
+      | Some((_, st)) => st == "" ? "at rest" : st
+      | None => "off"
+      };
+    let cur_id = last_avatar_id^;
+    if (cur_state != pstate) {
+      CanvasLog.log("avatar: " ++ cur_state);
+      last_logged_avatar := (cur_id, cur_state);
+    } else if (cur_id != pid) {
+      CanvasLog.log("avatar: hop (" ++ cur_state ++ ")");
+      last_logged_avatar := (cur_id, cur_state);
+    };
+  };
+  /* streaming chain-of-thought tail for the avatar's bubble: a longer
+     window than fits the cloud — the ticker clips it left, so newest
+     text rides the right edge and streaming pushes older text leftward
+     (marquee motion paced by the model's actual thinking) */
   let avatar_bubble =
     if (agent_busy
         && globals.settings.canvas_pace
         && String.length(reasoning_tail) > 0) {
       let n = String.length(reasoning_tail);
-      let tail_len = min(52, n);
+      let tail_len = min(240, n);
       Some(String.sub(reasoning_tail, n - tail_len, tail_len));
     } else {
       None;
@@ -1558,11 +1589,27 @@ let view =
       List.map((nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
     let removed =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
-    if (prev_slide == slide && removed != [] && List.length(removed) <= 4) {
-      List.iter(
-        ((_, (x, y))) => CanvasRipple.splash(~amp=-6.5, (x, y)),
-        removed,
-      );
+    if (prev_slide == slide && removed != []) {
+      if (List.length(removed) <= 4) {
+        List.iter(
+          ((_, (x, y))) => CanvasRipple.splash(~amp=-6.5, (x, y)),
+          removed,
+        );
+        CanvasLog.log(
+          Printf.sprintf(
+            "-%d node(s): %s (suction ripple)",
+            List.length(removed),
+            String.concat(", ", List.map(fst, removed)),
+          ),
+        );
+      } else {
+        CanvasLog.log(
+          Printf.sprintf(
+            "-%d nodes at once (removal effects skipped)",
+            List.length(removed),
+          ),
+        );
+      };
     };
     /* agent rainfall: nodes that appear during a paced burst arrive with
        a small splash + grow-in (gesture placements splash bigger at the
@@ -1574,17 +1621,33 @@ let view =
           && !List.mem_assoc(nl.node.key, last_placed^),
         lay.nodes,
       );
-    if (prev_slide == slide
-        && CanvasBuffer.in_burst()
-        && added != []
-        && List.length(added) <= 6) {
-      List.iter(
-        (nl: CanvasLayout.node_layout) => {
-          CanvasRipple.splash(~amp=4., (nl.p.x, nl.p.y));
-          note_placed(nl.node.key);
-        },
-        added,
-      );
+    if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
+      if (List.length(added) <= 6) {
+        List.iter(
+          (nl: CanvasLayout.node_layout) => {
+            CanvasRipple.splash(~amp=4., (nl.p.x, nl.p.y));
+            note_placed(nl.node.key);
+          },
+          added,
+        );
+        CanvasLog.log(
+          Printf.sprintf(
+            "+%d node(s): %s (rainfall + grow-in)",
+            List.length(added),
+            String.concat(
+              ", ",
+              List.map((nl: CanvasLayout.node_layout) => nl.node.key, added),
+            ),
+          ),
+        );
+      } else {
+        CanvasLog.log(
+          Printf.sprintf(
+            "+%d nodes at once (arrival effects skipped)",
+            List.length(added),
+          ),
+        );
+      };
     };
     last_node_snapshot :=
       (

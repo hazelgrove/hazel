@@ -30,6 +30,9 @@ let suppress_stamp: ref(bool) = ref(false);
 /* Called from the agent tool executor on every applied tool call. */
 let note_agent_action = (): unit =>
   if (! suppress_stamp^) {
+    if (now() -. last_agent_action^ >= burst_window_ms) {
+      CanvasLog.log("burst start (agent activity)");
+    };
     last_agent_action := now();
   };
 
@@ -99,9 +102,20 @@ let coalesce = (q: list(CodeWithStatics.Model.t)) =>
    ONE app action, so only the final state ever renders — the canvas
    would collapse N definitions into one beat. Each applied tool call
    pushes its intermediate editor model here. */
-let push_snapshot = (m: CodeWithStatics.Model.t): unit => {
+let push_snapshot = (~label: string="", m: CodeWithStatics.Model.t): unit => {
   note_agent_action();
+  let before = List.length(queue^) + 1;
   queue := coalesce(queue^ @ [m]);
+  let after = List.length(queue^);
+  CanvasLog.log(
+    Printf.sprintf(
+      "tool %s -> beat queued (pending %d%s)",
+      label == "" ? "?" : label,
+      after,
+      before > after
+        ? Printf.sprintf(", coalesced away %d", before - after) : "",
+    ),
+  );
 };
 
 let reset = (): unit => {
@@ -110,6 +124,8 @@ let reset = (): unit => {
   last_seen := None;
   tick_pending := false;
 };
+
+let was_in_burst: ref(bool) = ref(false);
 
 /* Returns the model the canvas should render; schedules a re-render
    tick while beats remain pending. */
@@ -125,6 +141,13 @@ let observe =
     live;
   } else {
     let t = now();
+    let burst = in_burst();
+    if (was_in_burst^ && !burst) {
+      CanvasLog.log(
+        Printf.sprintf("burst end (quiet %.0fs)", burst_window_ms /. 1000.),
+      );
+    };
+    was_in_burst := burst;
     let fresh =
       switch (last_seen^) {
       | Some(s) => !(s === live)
@@ -142,8 +165,22 @@ let observe =
       if (in_burst() && shown^ != None) {
         if (!already_queued) {
           queue := coalesce(queue^ @ [live]);
+          CanvasLog.log(
+            Printf.sprintf(
+              "state change queued (pending %d)",
+              List.length(queue^),
+            ),
+          );
         };
       } else {
+        if (queue^ != []) {
+          CanvasLog.log(
+            Printf.sprintf(
+              "pacing flushed: jumped to live state (dropped %d pending)",
+              List.length(queue^),
+            ),
+          );
+        };
         shown := Some(live);
         last_beat := t;
         queue := [];
@@ -152,6 +189,13 @@ let observe =
     switch (queue^) {
     | [next, ...rest] when t -. last_beat^ >= cadence_ms =>
       stage_beat();
+      CanvasLog.log(
+        Printf.sprintf(
+          "beat shown (%.1fs since last, %d still pending)",
+          (t -. last_beat^) /. 1000.,
+          List.length(rest),
+        ),
+      );
       shown := Some(next);
       last_beat := t;
       queue := rest;

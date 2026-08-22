@@ -828,12 +828,24 @@ let view =
                     "style",
                     Printf.sprintf(
                       "left: %spx; top: %spx;",
-                      fmt(p.x +. 24.),
-                      fmt(p.y -. 40.),
+                      fmt(p.x +. 26.),
+                      fmt(p.y -. 46.),
                     ),
                   ),
                 ],
-                [text(txt)],
+                [
+                  div(~attrs=[clss(["bubble-trail", "t1"])], []),
+                  div(~attrs=[clss(["bubble-trail", "t2"])], []),
+                  div(
+                    ~attrs=[clss(["bubble-cloud"])],
+                    [
+                      div(
+                        ~attrs=[clss(["bubble-ticker"])],
+                        [span([text(txt)])],
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ]
           | None => []

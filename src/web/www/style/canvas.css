@@ -1028,45 +1028,69 @@
 }
 
 /* streaming chain-of-thought tail beside the avatar */
+/* comic thought bubble: cream cloud + two trailing puffs toward the
+   avatar (down-left). The text is a right-anchored ticker: the newest
+   streamed characters pin to the right edge and push older text left,
+   so marquee motion is paced by the model's actual thinking speed —
+   flavor, not reading material. */
 .canvas-avatar-bubble {
   position: absolute;
   z-index: 5;
-  max-width: 190px;
-  padding: 3px 8px;
-  border-radius: 10px;
-  background: rgba(42, 42, 42, 0.88);
-  color: #eee;
-  font-size: 9px;
-  line-height: 1.25;
-  font-style: italic;
   pointer-events: none;
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: ellipsis;
   animation: bubble-in 0.25s ease-out;
 }
 
-/* thought-bubble tail: two trailing circles toward the avatar */
-.canvas-avatar-bubble::before {
-  content: "";
-  position: absolute;
-  left: -7px;
-  bottom: -4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(42, 42, 42, 0.82);
+.bubble-cloud {
+  width: 150px;
+  padding: 5px 12px;
+  background: rgba(255, 253, 245, 0.95);
+  border: 1.1px solid var(--BR2, #b7a377);
+  /* wobbly ellipse reads cloud-ish without puff geometry */
+  border-radius: 55% 45% 60% 40% / 70% 60% 45% 55%;
+  box-shadow: 0 1px 3px rgba(90, 70, 30, 0.15);
+  color: var(--ui-header-text, #6b5330);
+  font-size: 9px;
+  line-height: 1.3;
+  font-style: italic;
 }
 
-.canvas-avatar-bubble::after {
-  content: "";
+.bubble-ticker {
+  display: flex;
+  justify-content: flex-end; /* right-anchor: overflow clips LEFT */
+  overflow: hidden;
+  white-space: nowrap;
+  /* old text dissolves as it slides toward the left edge */
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 22px,
+    black calc(100% - 3px)
+  );
+}
+
+.bubble-ticker span {
+  flex: 0 0 auto;
+}
+
+.canvas-avatar-bubble .bubble-trail {
   position: absolute;
-  left: -13px;
-  bottom: -9px;
-  width: 3.5px;
-  height: 3.5px;
+  background: rgba(255, 253, 245, 0.95);
+  border: 1px solid var(--BR2, #b7a377);
   border-radius: 50%;
-  background: rgba(42, 42, 42, 0.7);
+}
+
+.canvas-avatar-bubble .bubble-trail.t1 {
+  width: 8px;
+  height: 8px;
+  left: -11px;
+  bottom: -7px;
+}
+
+.canvas-avatar-bubble .bubble-trail.t2 {
+  width: 5px;
+  height: 5px;
+  left: -19px;
+  bottom: -16px;
 }
 
 @keyframes bubble-in {
