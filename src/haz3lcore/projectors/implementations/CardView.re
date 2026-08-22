@@ -50,6 +50,20 @@ module Card = {
     );
 };
 
+/* silhouette occupying one card's footprint: the empty hand */
+module Empty = {
+  let view: Node.t =
+    Node.div(
+      ~attrs=[Attr.classes(["card-empty"])],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["card-empty-badge"])],
+          [Node.text({js|∅|js})],
+        ),
+      ],
+    );
+};
+
 module Chooser = {
   let col_width = 8;
   let row_height = 14;

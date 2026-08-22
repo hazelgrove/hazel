@@ -25,26 +25,13 @@ let view =
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~key: string,
-      /* aggregate mode: display THESE samples at the anchor instead of
-         the editor's own (type-node wells collect samples across sites;
-         Focus.init so cross-site samples aren't pin-filtered away —
-         their pin/focus actions still dispatch real captures) */
-      ~samples: option(list(Language.Sample.t))=None,
       id: Id.t,
     )
     : option(Node.t) => {
   let syntax = editor.editor.syntax;
   let statics = editor.statics.info_map;
-  let dynamics =
-    switch (samples) {
-    | Some(ss) => Id.Map.add(id, ss, Language.Dynamics.Map.empty)
-    | None => editor.dynamics
-    };
-  let sample_focus =
-    switch (samples) {
-    | Some(_) => Language.Sample.Focus.init
-    | None => editor.editor.state.zipper.refractors.sample_focus
-    };
+  let dynamics = editor.dynamics;
+  let sample_focus = editor.editor.state.zipper.refractors.sample_focus;
   /* anchor syntax: same recipe as RefractorView.mk_data */
   let syntax_piece =
     TermData.segment(id, syntax.term_data)
@@ -135,4 +122,95 @@ let view =
       ),
     );
   };
+};
+
+/* ---- aggregate value strip (type-node wells) ----
+   One chip per distinct value: the sample-display RENDERING (green chip,
+   in-chip rich views) without the sample-stream machinery — aggregating
+   samples from different probes into one navigable stream would break
+   the indication/window invariants. Clicking a chip captures that
+   value's real occurrence (jump-to-occurrence). */
+let value_chip =
+    (
+      ~globals: Globals.t,
+      ~editor: CodeWithStatics.Model.t,
+      ~count: int,
+      sample: Language.Sample.t,
+    )
+    : option(Node.t) => {
+  let syntax = editor.editor.syntax;
+  let statics = editor.statics.info_map;
+  let id = sample.syntax_id;
+  let syntax_piece =
+    TermData.segment(id, syntax.term_data)
+    |> Option.map(Segment.unparenthesize)
+    |> Option.map(Segment.trim_secondary(Left))
+    |> Option.map(Segment.trim_secondary(Right))
+    |> Option.map(Segment.parenthesize);
+  syntax_piece
+  |> Option.map(syntax_piece => {
+       let entry = Refractors.mk_entry(probe_kind);
+       let p = Refractors.to_projector(syntax_piece, id, entry);
+       let info =
+         ProjectorInfo.mk_info(
+           p,
+           ~sample_focus=Language.Sample.Focus.init,
+           ~statics,
+           ~dynamics=editor.dynamics,
+           ~elaborated=None,
+         );
+       let view_seg = (_, segment) =>
+         ProjectorView.flex_code(
+           ~font_metrics=globals.font_metrics,
+           ~single_line=true,
+           Sort.Exp,
+           segment,
+         );
+       let rich =
+         Haz3lcore.ProbeProj.standalone_rich(
+           ~info,
+           ~sort=Sort.Exp,
+           ~view_seg,
+           sample.value,
+         );
+       let content =
+         switch (rich) {
+         | Some(n) => [div(~attrs=[clss(["value-rich"])], [n])]
+         | None => [
+             CanvasValue.chip(
+               ~font_metrics=globals.font_metrics,
+               ~available=34,
+               sample.value,
+             ),
+           ]
+         };
+       let jump =
+         globals.inject_global(
+           ActiveEditor(
+             Project(
+               SampleFocus(
+                 Capture(Language.Sample.capture_of_sample(sample), None),
+               ),
+             ),
+           ),
+         );
+       div(
+         ~attrs=[
+           clss(["value", "agg-value"]),
+           Attr.title("click: jump the dynamic focus to this occurrence"),
+           Attr.on_pointerdown(_ => jump),
+         ],
+         content
+         @ (
+           count > 1
+             ? [
+               span(
+                 ~attrs=[clss(["type-value-count"])],
+                 [text(Printf.sprintf({js|×%d|js}, count))],
+               ),
+             ]
+             : []
+         ),
+       );
+     });
 };

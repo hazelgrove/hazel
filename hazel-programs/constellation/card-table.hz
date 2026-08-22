@@ -59,6 +59,79 @@ in
 let royal_flush : Suit -> Hand =
   fun s -> [(s, Ten), (s, Jack), (s, Queen), (s, King), (s, Ace)] in
 
+let filter_le : (Card, Hand) -> Hand =
+  fun (p, h) ->
+    case h
+    | [] => []
+    | hd :: tl =>
+      case value(hd) <= value(p)
+      | true => hd :: filter_le((p, tl))
+      | false => filter_le((p, tl))
+      end
+    end
+in
+
+let filter_gt : (Card, Hand) -> Hand =
+  fun (p, h) ->
+    case h
+    | [] => []
+    | hd :: tl =>
+      case value(hd) <= value(p)
+      | true => filter_gt((p, tl))
+      | false => hd :: filter_gt((p, tl))
+      end
+    end
+in
+
+let quicksort : Hand -> Hand =
+  fun h ->
+    case h
+    | [] => []
+    | p :: rest =>
+      quicksort(filter_le((p, rest))) @ [p] @ quicksort(filter_gt((p, rest)))
+    end
+in
+
+let split : Hand -> (Hand, Hand) =
+  fun h ->
+    case h
+    | [] => ([], [])
+    | [c] => ([c], [])
+    | a :: b :: rest =>
+      let (xs, ys) = split(rest) in
+      (a :: xs, b :: ys)
+    end
+in
+
+let merge : (Hand, Hand) -> Hand =
+  fun (a, b) ->
+    case (a, b)
+    | ([], ys) => ys
+    | (xs, []) => xs
+    | (x :: xs, y :: ys) =>
+      case value(x) <= value(y)
+      | true => x :: merge((xs, y :: ys))
+      | false => y :: merge((x :: xs, ys))
+      end
+    end
+in
+
+let mergesort : Hand -> Hand =
+  fun h ->
+    case h
+    | [] => []
+    | [c] => [c]
+    | _ =>
+      let (a, b) = split(h) in
+      merge((mergesort(a), mergesort(b)))
+    end
+in
+
+let deck : Hand =
+  [(Hearts, Two), (Spades, King), (Diamonds, Five), (Clubs, Ace),
+   (Hearts, Nine), (Spades, Four), (Diamonds, Jack), (Clubs, Seven),
+   (Hearts, Queen), (Spades, Six)] in
+
 hint "aces are high"
 test value((Hearts, Ace)) == 14 end;
 
@@ -76,4 +149,21 @@ test sort([(Spades, King), (Hearts, Two), (Diamonds, Ace)])
 hint "a royal flush is already sorted"
 test sort(royal_flush(Clubs)) == royal_flush(Clubs) end;
 
-sort([(Clubs, Jack), (Hearts, Ace), (Spades, Three), (Diamonds, King), (Hearts, Seven)])
+hint "quicksort agrees with insertion sort on a big hand"
+test quicksort(deck) == sort(deck) end;
+
+hint "mergesort agrees with insertion sort on a big hand"
+test mergesort(deck) == sort(deck) end;
+
+hint "quicksort is idempotent"
+test quicksort(quicksort(deck)) == quicksort(deck) end;
+
+# (tie-free hands: two royal flushes have pairwise EQUAL values, and  #
+# merge's tie bias vs split parity order ties differently — a fair    #
+# disagreement, not a bug)                                            #
+hint "merging sorted halves sorts the whole"
+test merge((mergesort([(Spades, Two), (Spades, Six), (Spades, Four)]),
+            mergesort(royal_flush(Hearts))))
+  == mergesort([(Spades, Two), (Spades, Six), (Spades, Four)] @ royal_flush(Hearts)) end;
+
+mergesort(deck)

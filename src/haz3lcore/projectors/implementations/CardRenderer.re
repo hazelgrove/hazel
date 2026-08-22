@@ -147,11 +147,14 @@ module Hand = {
       (mode: mode, local: a => Ui_effect.t(unit), sort: Sort.t, hand: hand)
       : Node.t => {
     let n = List.length(hand);
+    /* +2: the top card's border overhangs the fan box (CardProj uses
+       the same slack); without it the fan crowds the chip's right edge */
     let width =
-      mode == Flipped
-        ? CardView.Card.width
+      mode == Flipped || n == 0
+        ? CardView.Card.width + 2
         : Float.to_int(Float.ceil(Float.of_int(n - 1) *. 8.5))
-          + CardView.Card.width;
+          + CardView.Card.width
+          + 2;
     Node.div(
       ~attrs=[
         projector_attrs(mode, sort),
@@ -170,7 +173,9 @@ module Hand = {
               ),
             ),
           ],
-          List.mapi(card_wrapper(mode, sort), hand),
+          hand == []
+            ? [CardView.Empty.view]
+            : List.mapi(card_wrapper(mode, sort), hand),
         ),
       ],
     );

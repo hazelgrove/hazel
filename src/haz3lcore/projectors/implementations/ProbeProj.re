@@ -121,9 +121,14 @@ module Settings = {
     caller_cutoff: option(int),
     callee_cutoff: option(int),
     drawer: drawer_settings,
+    /* render the first applicable rich view in place of sample text for
+       ANY probe (small content only — the in-chip embed); per-probe
+       dbl-click still opts out */
+    auto_rich_default: bool,
   };
 
   type set_action =
+    | ToggleAutoRichDefault
     | ToggleWindow
     | SetWindow(Sample.Window.mode)
     | SetSampleBase(sample_base)
@@ -142,12 +147,17 @@ module Settings = {
     caller_cutoff: None,
     callee_cutoff: None,
     drawer: init_drawer,
+    auto_rich_default: true,
   };
 
   let skip_unaligned_nav = true;
 
   let update = (settings: settings, action: set_action): settings =>
     switch (action) {
+    | ToggleAutoRichDefault => {
+        ...settings,
+        auto_rich_default: !settings.auto_rich_default,
+      }
     | ToggleWindow => {
         ...settings,
         window: settings.window == Sample.Window.Single ? Many : Single,
@@ -239,6 +249,9 @@ type probe_ctx = {
   rich_model: option(packed_model),
   /* auto-rich is on and not toggled off */
   auto_rich_on: bool,
+  /* per-probe auto (canvas wells): embed regardless of size — the
+     global default only auto-embeds content that fits inline_rows_cap */
+  auto_unbounded: bool,
   p_info: info,
 };
 
@@ -776,7 +789,17 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.id != "table" && r.can_handle(ctx.sort, sample.value),
+                r.id != "table"
+                && r.can_handle(ctx.sort, sample.value)
+                && (
+                  ctx.auto_unbounded
+                  || (
+                    switch (r.drawer_rows(ctx.sort, sample.value)) {
+                    | Some(n) => n <= inline_rows_cap
+                    | None => true
+                    }
+                  )
+                ),
               renderers,
             )
           ) {
@@ -796,6 +819,37 @@ let value_view =
     },
   );
 };
+
+/* Standalone rich rendering for ONE value, outside any probe: the
+   in-chip auto logic (first non-table matching renderer, inert) without
+   the sample-stream machinery. Aggregate/type wells use this — mixing
+   samples from different probes into one navigable stream would break
+   the indication/window invariants, so they render value chips instead. */
+let standalone_rich =
+    (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) =>
+  switch (
+    List.find_opt(
+      (r: packed_renderer) => r.id != "table" && r.can_handle(sort, value),
+      renderers,
+    )
+  ) {
+  | Some(r) =>
+    switch (r.init_model(sort, value)) {
+    | Some(pm) =>
+      r.render_model(
+        pm,
+        ~info,
+        ~exp=value,
+        ~view_seg,
+        ~local=_ => Ui_effect.Ignore,
+        ~parent=_ => Ui_effect.Ignore,
+        ~sort,
+        (),
+      )
+    | None => None
+    }
+  | None => None
+  };
 
 /* Hard cap for code in the sample dropdown (env values + call args), so a
  * wide sample doesn't make them uselessly long. */
@@ -1795,7 +1849,7 @@ let prepare_offside =
     let active_renderer_id =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
-      model.auto_rich
+      (model.auto_rich || settings.auto_rich_default)
       && model.active_renderer == None
       && (
         switch (Dynamics.Info.most_aligned_sample(ap_id, dynamics)) {
@@ -1821,7 +1875,9 @@ let prepare_offside =
       active_renderer_id,
       auto_rich_ready,
       rich_model: model.active_renderer,
-      auto_rich_on: model.auto_rich && !model.rich_off,
+      auto_rich_on:
+        (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
+      auto_unbounded: model.auto_rich,
       p_info: info,
     };
     let filtered_samples =

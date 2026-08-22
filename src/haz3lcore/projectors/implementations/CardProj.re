@@ -257,14 +257,17 @@ module Hand = {
           "style",
           Printf.sprintf(
             "width: %fpx;",
-            8.5 *. float_of_int(List.length(hand) - 1) +. 37.,
+            hand == []
+              ? 37. : 8.5 *. float_of_int(List.length(hand) - 1) +. 37.,
           ),
         ),
       ],
-      List.mapi(
-        card_wrapper(info, info.id, mode, parent, local, sort),
-        hand,
-      ),
+      hand == []
+        ? [CardView.Empty.view]
+        : List.mapi(
+            card_wrapper(info, info.id, mode, parent, local, sort),
+            hand,
+          ),
     );
 };
 

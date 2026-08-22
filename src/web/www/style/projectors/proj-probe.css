@@ -1075,6 +1075,9 @@
   pointer-events: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  /* a little breathing room inside the sample backing */
+  padding: 1px 3px;
 }
 
 .value .value-rich .projector {

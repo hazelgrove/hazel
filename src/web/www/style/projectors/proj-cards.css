@@ -188,3 +188,28 @@
   filter: invert(1);
   translate: 0px -5px;
 }
+
+/* ---- the empty hand: a card-footprint silhouette ---- */
+.card-empty {
+  width: var(--card-width, 35px);
+  height: var(--card-height, 47px);
+  border: 1.5px dotted var(--BR2, #b09a6a);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  opacity: 0.75;
+}
+
+.card-empty-badge {
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--BR2, #b09a6a);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--BR3, #8a744a);
+}

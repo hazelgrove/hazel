@@ -73,8 +73,8 @@ let update = (~measured: Measured.t, ~font_metrics: FontMetrics.t): unit => {
     | Some(row) => Measured.Rows.(row.max_col)
     | None => 0
     };
-  /* (first row, last row, right edge col) of already-placed displays */
-  let occupied: ref(list((int, int, int))) = ref([]);
+  /* (first row, last row, left col, right col) of placed displays */
+  let occupied: ref(list((int, int, int, int))) = ref([]);
   List.iter(
     (it: item) => {
       let rows_spanned =
@@ -94,20 +94,31 @@ let update = (~measured: Measured.t, ~font_metrics: FontMetrics.t): unit => {
         floor_col :=
           max(floor_col^, max(row_end(r) + offside_offset, quiver));
       };
-      List.iter(
-        ((a, b, right)) =>
-          if (!(last_row < a || b < it.row)) {
-            floor_col := max(floor_col^, right + stack_gap);
-          },
-        occupied^,
-      );
-      let left_px =
-        font_metrics.col_width *. float_of_int(floor_col^ - it.origin_col);
-      Js.Unsafe.coerce(it.el)##.style##.left :=
-        Js.string(Printf.sprintf("%.1fpx", left_px));
       let w_cols =
         int_of_float(Float.ceil(it.w_px /. font_metrics.col_width));
-      occupied := [(it.row, last_row, floor_col^ + w_cols), ...occupied^];
+      /* first-fit: slide into the leftmost gap at or after the floor —
+         a display can sit BEFORE one from a row above when the overhang
+         above leaves room (no unnecessary staggering) */
+      let blockers =
+        occupied^
+        |> List.filter(((a, b, _, _)) => !(last_row < a || b < it.row))
+        |> List.map(((_, _, l, r)) => (l, r))
+        |> List.sort(((l1, _), (l2, _)) => compare(l1, l2));
+      let x = ref(floor_col^);
+      List.iter(
+        ((l, r)) =>
+          if (x^ + w_cols + stack_gap <= l) {
+            (); /* fits entirely before this blocker */
+          } else if (x^ < r + stack_gap) {
+            x := r + stack_gap;
+          },
+        blockers,
+      );
+      let left_px =
+        font_metrics.col_width *. float_of_int(x^ - it.origin_col);
+      Js.Unsafe.coerce(it.el)##.style##.left :=
+        Js.string(Printf.sprintf("%.1fpx", left_px));
+      occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
     },
     items,
   );
