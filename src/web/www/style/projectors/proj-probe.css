@@ -1068,3 +1068,16 @@
   border-radius: 3px;
   padding: 4px 6px;
 }
+
+/* rich content embedded in a sample chip: inert, so the chip's own
+   interactions (dropdown, capture, dbl-click toggle) stay in charge */
+.value .value-rich {
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.value .value-rich .projector {
+  position: static;
+  display: inline-block;
+}

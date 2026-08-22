@@ -827,11 +827,7 @@
 /* rich content participates in the well's flow: the editor's projector
    base is position:absolute, which left wells 0-height and let cards
    overlap the strip row below */
-.canvas-probe .auto-rich {
-  display: block;
-}
-
-.canvas-probe .auto-rich .projector {
+.canvas-probe .value-rich .projector {
   position: static;
   display: inline-block;
 }

@@ -232,9 +232,14 @@ type probe_ctx = {
   local: action => Ui_effect.t(unit),
   sort: Sort.t,
   active_renderer_id: option(string),
-  /* auto-rich matched but is toggled off: value dbl-click restores it
+  /* auto-rich applies here: value dbl-click toggles rich <-> text
      (instead of ToggleWindowMode) */
   auto_rich_ready: bool,
+  /* the explicitly chosen renderer's model, for in-value rendering */
+  rich_model: option(packed_model),
+  /* auto-rich is on and not toggled off */
+  auto_rich_on: bool,
+  p_info: info,
 };
 
 module WindowState = {
@@ -733,7 +738,62 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=false, seg)],
+    {
+      /* rich content renders INSIDE the sample chip, inert
+         (pointer-events: none), so the chip keeps every sample
+         interaction: right/alt-click dropdown (with Hide), click to
+         capture, dbl-click toggles. Explicit renderers embed when they
+         fit inline_rows_cap (taller ones live in the drawer); auto-rich
+         (wells) embeds unconditionally. */
+      let render_rich = (r: packed_renderer, pm: packed_model) =>
+        r.render_model(
+          pm,
+          ~info=ctx.p_info,
+          ~exp=sample.value,
+          ~view_seg=(_, sg) => view_seg(~text_only=false, sg),
+          ~local=pa => local(RendererAction(pa)),
+          ~parent=ctx.parent,
+          ~sort=ctx.sort,
+          (),
+        );
+      let rich_node =
+        switch (ctx.rich_model) {
+        | Some(pm) =>
+          switch (find(RichProbe.renderer_id_of_model(pm))) {
+          | Some(r)
+              when
+                r.can_handle(ctx.sort, sample.value)
+                && (
+                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  | Some(n) => n <= inline_rows_cap
+                  | None => true
+                  }
+                ) =>
+            render_rich(r, pm)
+          | _ => None
+          }
+        | None when ctx.auto_rich_on =>
+          switch (
+            List.find_opt(
+              (r: packed_renderer) =>
+                r.id != "table" && r.can_handle(ctx.sort, sample.value),
+              renderers,
+            )
+          ) {
+          | Some(r) =>
+            switch (r.init_model(ctx.sort, sample.value)) {
+            | Some(pm) => render_rich(r, pm)
+            | None => None
+            }
+          | None => None
+          }
+        | None => None
+        };
+      switch (rich_node) {
+      | Some(n) => [div(~attrs=[Attr.classes(["value-rich"])], [n])]
+      | None => [view_seg(~text_only=false, seg)]
+      };
+    },
   );
 };
 
@@ -1736,7 +1796,6 @@ let prepare_offside =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       model.auto_rich
-      && model.rich_off
       && model.active_renderer == None
       && (
         switch (Dynamics.Info.most_aligned_sample(ap_id, dynamics)) {
@@ -1761,6 +1820,9 @@ let prepare_offside =
       sort,
       active_renderer_id,
       auto_rich_ready,
+      rich_model: model.active_renderer,
+      auto_rich_on: model.auto_rich && !model.rich_off,
+      p_info: info,
     };
     let filtered_samples =
       Sample.Selection.filter_by_pin(
@@ -2029,47 +2091,6 @@ let rich_content =
         (),
       )
     | _ => None
-    }
-  | (None, Some(exp)) when model.auto_rich && !model.rich_off =>
-    /* tables excluded: they match broadly (any list of tuples) and are
-       heavy; the plain display is right until explicitly requested */
-    switch (
-      List.find_opt(
-        (r: packed_renderer) => r.id != "table" && r.can_handle(sort, exp),
-        renderers,
-      )
-    ) {
-    | Some(r) =>
-      switch (r.init_model(sort, exp)) {
-      | Some(pm) =>
-        r.render_model(
-          pm,
-          ~info,
-          ~exp,
-          ~view_seg,
-          ~local=pa => local(RendererAction(pa)),
-          ~parent,
-          ~sort,
-          (),
-        )
-        |> Option.map(content =>
-             div(
-               ~attrs=[
-                 Attr.classes(["auto-rich"]),
-                 Attr.title("double-click for the text view"),
-                 Attr.on_double_click(_ =>
-                   Effect.Many([
-                     Effect.Stop_propagation,
-                     local(ToggleAutoRich),
-                   ])
-                 ),
-               ],
-               [content],
-             )
-           )
-      | None => None
-      }
-    | None => None
     }
   | _ => None
   };
@@ -2350,37 +2371,17 @@ module M: Projector = {
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
-        /* rich content renders IN PLACE of the sample text (dbl-click
-           toggles the auto kind); explicitly chosen renderers replace
-           inline too when they fit inline_rows_cap — taller ones live
-           in the drawer (activation auto-opens it) */
-        let rows_ok =
-          switch (rich_drawer_rows(model, info)) {
-          | None => true
-          | Some(n) => n <= inline_rows_cap
-          };
-        let rich_inline =
-          model.active_renderer == None || rows_ok
-            ? rich_content(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg,
-                ~sort,
-              )
-            : None;
+        /* rich content embeds inside each sample chip (value_view);
+           no whole-row replacement in inline mode */
         live_offside_view(
           ~display=Inline,
           ~include_nav_bar=true,
           ~drawer_mode_active=false,
-          ~rich_content=rich_inline,
           data,
           local,
           view_seg,
           ~settings,
-        );
+        )
       | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
       };
     /* Content taller than the drawer cap → the drawer scrolls; gates the
@@ -2398,6 +2399,12 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       drawer
+      && (
+        switch (rich_drawer_rows(model, info)) {
+        | Some(n) => n > inline_rows_cap
+        | None => false
+        }
+      )
         ? rich_content(
             ~settings,
             model,
