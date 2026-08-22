@@ -31,7 +31,9 @@ let suppress_stamp: ref(bool) = ref(false);
 let note_agent_action = (): unit =>
   if (! suppress_stamp^) {
     if (now() -. last_agent_action^ >= burst_window_ms) {
-      CanvasLog.log("burst start (agent activity)");
+      CanvasLog.log(
+        Printf.sprintf("burst start -> turn %d", CanvasLog.next_turn()),
+      );
     };
     last_agent_action := now();
   };
@@ -132,6 +134,9 @@ let was_in_burst: ref(bool) = ref(false);
 let observe =
     (
       ~enabled: bool,
+      /* beats failing this test (e.g. a snapshot whose graph extraction
+         comes up empty mid-burst) are dropped instead of rendered */
+      ~viable: CodeWithStatics.Model.t => bool=_ => true,
       ~schedule_tick: float => unit,
       live: CodeWithStatics.Model.t,
     )
@@ -144,7 +149,10 @@ let observe =
     let burst = in_burst();
     if (was_in_burst^ && !burst) {
       CanvasLog.log(
-        Printf.sprintf("burst end (quiet %.0fs)", burst_window_ms /. 1000.),
+        Printf.sprintf(
+          "burst end (%d pending, draining at cadence)",
+          List.length(queue^),
+        ),
       );
     };
     was_in_burst := burst;
@@ -155,15 +163,27 @@ let observe =
       };
     if (fresh) {
       last_seen := Some(live);
-      /* the final rendered state usually equals the last exec-time push
-         (same statics ref) — don't double-queue it */
-      let already_queued =
-        switch (List.rev(queue^)) {
-        | [last, ..._] => last.statics === live.statics
-        | [] => false
-        };
-      if (in_burst() && shown^ != None) {
-        if (!already_queued) {
+      switch (shown^) {
+      | Some(sh) when burst || queue^ != [] =>
+        /* paced: only distinct-STATICS states become beats. The live
+           model record is rebuilt on every app tick (streaming text,
+           etc.), so physical freshness floods the queue with no-op
+           states; statics identity is the content signal (the same one
+           the old tail-dedup trusted). No-op rebuilds refresh the
+           freshest holder in place so dynamics stay current. Once the
+           burst ends, pending beats DRAIN at cadence rather than
+           jump-cutting to live. */
+        let tail_or_shown =
+          switch (List.rev(queue^)) {
+          | [last, ..._] => last
+          | [] => sh
+          };
+        if (tail_or_shown.statics === live.statics) {
+          switch (List.rev(queue^)) {
+          | [_, ...rev_rest] => queue := List.rev([live, ...rev_rest])
+          | [] => shown := Some(live)
+          };
+        } else {
           queue := coalesce(queue^ @ [live]);
           CanvasLog.log(
             Printf.sprintf(
@@ -172,15 +192,8 @@ let observe =
             ),
           );
         };
-      } else {
-        if (queue^ != []) {
-          CanvasLog.log(
-            Printf.sprintf(
-              "pacing flushed: jumped to live state (dropped %d pending)",
-              List.length(queue^),
-            ),
-          );
-        };
+      | _ =>
+        /* idle and nothing pending: live passes straight through */
         shown := Some(live);
         last_beat := t;
         queue := [];
@@ -188,17 +201,33 @@ let observe =
     };
     switch (queue^) {
     | [next, ...rest] when t -. last_beat^ >= cadence_ms =>
-      stage_beat();
-      CanvasLog.log(
-        Printf.sprintf(
-          "beat shown (%.1fs since last, %d still pending)",
-          (t -. last_beat^) /. 1000.,
-          List.length(rest),
-        ),
-      );
-      shown := Some(next);
-      last_beat := t;
-      queue := rest;
+      let shown_viable =
+        switch (shown^) {
+        | Some(sh) => viable(sh)
+        | None => false
+        };
+      if (!viable(next) && shown_viable) {
+        /* blank interstitial (the graph would vanish for a beat) */
+        CanvasLog.log(
+          Printf.sprintf(
+            "skipped blank interstitial beat (%d still pending)",
+            List.length(rest),
+          ),
+        );
+        queue := rest;
+      } else {
+        stage_beat();
+        CanvasLog.log(
+          Printf.sprintf(
+            "beat shown (%.1fs since last, %d still pending)",
+            (t -. last_beat^) /. 1000.,
+            List.length(rest),
+          ),
+        );
+        shown := Some(next);
+        last_beat := t;
+        queue := rest;
+      };
     | _ => ()
     };
     if (queue^ != [] && ! tick_pending^) {

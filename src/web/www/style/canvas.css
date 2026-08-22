@@ -133,6 +133,13 @@
 
 /* ---- authoring toolbar ---- */
 
+.canvas-clock {
+  font-family: var(--code-font, monospace);
+  font-size: 9.5px;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
 /* lives inside the header row, right of the title */
 .canvas-toolbar {
   flex: 1 1 auto;
@@ -1080,17 +1087,43 @@
 }
 
 .canvas-avatar-bubble .bubble-trail.t1 {
-  width: 8px;
-  height: 8px;
-  left: -11px;
-  bottom: -7px;
+  width: 7px;
+  height: 7px;
+  left: -4px;
+  bottom: -6px;
 }
 
 .canvas-avatar-bubble .bubble-trail.t2 {
-  width: 5px;
-  height: 5px;
-  left: -19px;
-  bottom: -16px;
+  width: 4.5px;
+  height: 4.5px;
+  left: -11px;
+  bottom: -13px;
+}
+
+/* orientation flips: near the right edge the bubble sits LEFT of the
+   icon (trail on its right); near the top it sits BELOW (trail on top) */
+.canvas-avatar-bubble.b-left {
+  transform: translateX(-100%);
+}
+
+.canvas-avatar-bubble.b-left .bubble-trail.t1 {
+  left: auto;
+  right: -4px;
+}
+
+.canvas-avatar-bubble.b-left .bubble-trail.t2 {
+  left: auto;
+  right: -11px;
+}
+
+.canvas-avatar-bubble.b-below .bubble-trail.t1 {
+  bottom: auto;
+  top: -6px;
+}
+
+.canvas-avatar-bubble.b-below .bubble-trail.t2 {
+  bottom: auto;
+  top: -13px;
 }
 
 @keyframes bubble-in {

@@ -14,6 +14,13 @@ open Js_of_ocaml;
    bursts read as separate stanzas. */
 
 let cap = 1200;
+/* burst counter, shown in the UI clock and prefixed to log lines so a
+   watcher can report "on turn 7 I saw X" and land on the right stanza */
+let turn: ref(int) = ref(0);
+let next_turn = (): int => {
+  turn := turn^ + 1;
+  turn^;
+};
 let entries: ref(list(string)) = ref([]); /* newest first */
 let count: ref(int) = ref(0);
 let t0: ref(float) = ref(0.);
@@ -35,10 +42,42 @@ let push = (line: string): unit => {
   };
 };
 
+/* the header clock ("T7 · 2:13"): imperative textContent updates on an
+   interval, so ticking never re-renders the vdom */
+let update_clock = (): unit =>
+  switch (Util.JsUtil.get_elem_by_id_opt("canvas-clock")) {
+  | None => ()
+  | Some(el) =>
+    let txt =
+      if (t0^ == 0.) {
+        "";
+      } else {
+        let secs = int_of_float((now() -. t0^) /. 1000.);
+        turn^ == 0
+          ? Printf.sprintf("%d:%02d", secs / 60, secs mod 60)
+          : Printf.sprintf("T%d  %d:%02d", turn^, secs / 60, secs mod 60);
+      };
+    Js.Unsafe.set(el, "textContent", Js.string(txt));
+  };
+
 let installed: ref(bool) = ref(false);
 let install = (): unit =>
   if (! installed^) {
     installed := true;
+    /* browser only: under node (the test runner) a live interval keeps
+       the event loop alive forever, so the process never exits */
+    if (Js.Optdef.test(Js.Unsafe.get(Js.Unsafe.global, "document"))) {
+      ignore(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global,
+          "setInterval",
+          [|
+            Js.Unsafe.inject(Js.Unsafe.callback(update_clock)),
+            Js.Unsafe.inject(500),
+          |],
+        ),
+      );
+    };
     Js.Unsafe.set(
       Js.Unsafe.global,
       "__constellationLogText",
@@ -71,5 +110,6 @@ let log = (msg: string): unit => {
     );
   };
   last_t := t;
-  push(Printf.sprintf("%8.2fs  %s", (t -. t0^) /. 1000., msg));
+  let tlabel = turn^ == 0 ? "  " : Printf.sprintf("T%d", turn^);
+  push(Printf.sprintf("%8.2fs %-3s %s", (t -. t0^) /. 1000., tlabel, msg));
 };

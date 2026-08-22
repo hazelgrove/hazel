@@ -362,7 +362,6 @@ let view =
     )
     : Node.t => {
   let test_results = test_results_of(editors);
-  let graph = CanvasGraph.extract(~test_results?, editor.statics);
   let slide = current_slide(editors);
   /* temporal pacing: within an agent burst the canvas renders queued
      snapshots at a max rate so each tool call reads as its own beat */
@@ -379,10 +378,18 @@ let view =
     };
     CanvasBuffer.observe(
       ~enabled=globals.settings.canvas_pace,
+      ~viable=
+        (m: CodeWithStatics.Model.t) =>
+          CanvasGraph.extract(m.statics).nodes != [],
       ~schedule_tick,
       editor,
     );
   };
+  /* the graph MUST derive from the PACED editor: extracting from the
+     live model rendered every intermediate state instantly (final-state
+     jump cuts, blank statics flashes) and left the beats animating an
+     already-settled graph */
+  let graph = CanvasGraph.extract(~test_results?, editor.statics);
   let zoom = globals.settings.canvas_zoom;
   zoom_now := zoom;
   CanvasBuffer.canvas_zoom := zoom;
@@ -1569,6 +1576,7 @@ let view =
             : globals.inject_global(Set(ClearCanvasNodeOffsets(slide))),
         ),
         div(~attrs=[clss(["toolbar-spacer"])], []),
+        div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         split_btn,
       ],
     );

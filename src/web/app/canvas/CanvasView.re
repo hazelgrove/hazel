@@ -820,16 +820,30 @@ let view =
         [avatar_view(a)]
         @ (
           switch (avatar_bubble) {
-          | Some(txt) => [
+          | Some(txt) =>
+            /* anchor to the avatar ICON (which sits at p + (14, -34)),
+               not the node; flip sides when the icon is too close to
+               the top or right edge of the board */
+            let ax = p.x +. 14.
+            and ay = p.y -. 34.;
+            let near_top = ay -. 76. < 4.;
+            let near_right = ax +. 220. > lay.width -. 4.;
+            let left = near_right ? ax -. 14. : ax +. 30.;
+            let top = near_top ? ay +. 30. : ay -. 40.;
+            [
               div(
                 ~attrs=[
-                  clss(["canvas-avatar-bubble"]),
+                  clss(
+                    ["canvas-avatar-bubble"]
+                    @ (near_right ? ["b-left"] : [])
+                    @ (near_top ? ["b-below"] : []),
+                  ),
                   Attr.create(
                     "style",
                     Printf.sprintf(
                       "left: %spx; top: %spx;",
-                      fmt(p.x +. 26.),
-                      fmt(p.y -. 46.),
+                      fmt(left),
+                      fmt(top),
                     ),
                   ),
                 ],
@@ -847,7 +861,7 @@ let view =
                   ),
                 ],
               ),
-            ]
+            ];
           | None => []
           }
         )
