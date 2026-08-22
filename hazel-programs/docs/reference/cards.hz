@@ -6,6 +6,7 @@ type Rank = + Ace + Jack + Queen + King
 
 # A card is a pair of a suit and a rank!#
 type Card = (Suit, Rank) in
+type Hand = [Card] in
 
 # Use alt/option-l to display a card as a card. #
 let one_card = ^^card((Spades,Jack)) in
@@ -26,5 +27,75 @@ let flush = fun hand ->
   | _ => false  
   end in
 
-test flush([^^card((Hearts, King)),^^card((Hearts, Queen)),^^card((Hearts, Jack)),^^card((Hearts, Ten)),^^card((Hearts, Ace))]) end
+test flush([^^card((Hearts, King)),^^card((Hearts, Queen)),^^card((Hearts, Jack)),^^card((Hearts, Ten)),^^card((Hearts, Ace))]) end;
 
+# SORTING HANDS, WATCHED LIVE #
+# The probes below show every intermediate hand as actual cards. #
+# That's the Rich Views toggle in the probes sidebar (on by      #
+# default); double-click any sample to flip just it back to text.#
+
+let value : Card -> Int =
+  fun (s, r) ->
+    case r
+    | Ace => 14 | King => 13 | Queen => 12 | Jack => 11 | Ten => 10
+    | Nine => 9 | Eight => 8 | Seven => 7 | Six => 6 | Five => 5
+    | Four => 4 | Three => 3 | Two => 2
+    end in
+
+# Insertion sort: watch the sorted prefix grow #
+let insert : (Card, Hand) -> Hand =
+  fun (c, h) ->
+    case ^^probe(h)
+    | [] => ^^probe([c])
+    | hd :: tl =>
+      case value(c) <= value(hd)
+      | true => ^^probe(c :: h)
+      | false => ^^probe(hd :: insert((c, tl)))
+      end
+    end in
+
+let sort : Hand -> Hand =
+  fun h ->
+    case h
+    | [] => []
+    | hd :: tl => ^^probe(insert((hd, sort(tl))))
+    end in
+
+# Quicksort: watch the pivot split each hand #
+let filter_le : (Card, Hand) -> Hand =
+  fun (p, h) ->
+    case h
+    | [] => []
+    | hd :: tl =>
+      case value(hd) <= value(p)
+      | true => ^^probe(hd :: filter_le((p, tl)))
+      | false => ^^probe(filter_le((p, tl)))
+      end
+    end in
+
+let filter_gt : (Card, Hand) -> Hand =
+  fun (p, h) ->
+    case h
+    | [] => []
+    | hd :: tl =>
+      case value(hd) <= value(p)
+      | true => ^^probe(filter_gt((p, tl)))
+      | false => ^^probe(hd :: filter_gt((p, tl)))
+      end
+    end in
+
+let quicksort : Hand -> Hand =
+  fun h ->
+    case ^^probe(h)
+    | [] => []
+    | p :: rest =>
+      ^^probe(quicksort(filter_le((p, rest)))
+        @ [p] @ quicksort(filter_gt((p, rest))))
+    end in
+
+let five : Hand =
+  ^^card([(Clubs, Jack), (Hearts, Ace), (Spades, Three), (Diamonds, King), (Hearts, Seven)]) in
+
+test sort(five) == quicksort(five) end;
+
+^^probe(quicksort(five))
