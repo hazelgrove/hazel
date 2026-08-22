@@ -142,6 +142,26 @@ let cached_frame: ref(option(frame_cache)) =
    view gets a grow-in animation for a moment */
 let last_placed: ref(option((string, float))) =
   ref(None: option((string, float)));
+
+/* canvas right-click context menu: contents are canvas-specific but the
+   state machine, rendering, keyboard handling, and open/close listeners
+   are all the shared Util.Menu machinery (same as the editor menu).
+   State is transient (module refs); repaints ride Set(CanvasTick). */
+module CanvasMenuListener =
+  Util.MenuListener.Make({
+    let menu_class = "canvas-context-menu";
+    let supports_keys = true;
+    let scroll_into_view = false;
+    let close_on_scroll = false;
+  });
+let canvas_menu: ref(Util.Menu.t) = ref(Util.Menu.closed);
+/* viewport coords for the fixed-position menu box */
+let canvas_menu_client: ref((float, float)) = ref((0., 0.));
+/* model coords of the right-click, for inserts */
+let canvas_menu_at: ref((float, float)) = ref((0., 0.));
+/* Some((key, type syntax)) when opened on a node */
+let canvas_menu_node: ref(option((string, string))) =
+  ref(None: option((string, string)));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 
@@ -873,94 +893,264 @@ let view =
       Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
     | (None, None) => start_node_drag(n, evt)
     };
-  /* a canvas-background click in place mode inserts the stub and pins the
-     new node where you clicked (pin recorded in the pre-normalization
-     frame via lay.origin) */
+  /* insert a `type T = <body> in` stub and pin the new node (and its
+     former, when it has components) at the given model point (pins are
+     recorded in the pre-normalization frame via lay.origin) */
+  let place_stub_at =
+      (~kind: string, ~comps: list(string), (x: float, y: float))
+      : Effect.t(unit) => {
+    let name = fresh_name("T");
+    let body =
+      switch (kind, comps) {
+      | ("alias", [b]) => b
+      | ("tuple", []) => "(?, ?)"
+      | ("tuple", [a]) => "(" ++ a ++ ", ?)"
+      | ("tuple", cs) => "(" ++ String.concat(", ", cs) ++ ")"
+      | ("list", [a]) => "[" ++ a ++ "]"
+      | ("list", _) => "[?]"
+      | _ => "?"
+      };
+
+    last_placed := Some((name, CanvasBuffer.now()));
+    /* the alias's former ("()"/"[]") sits midway between its
+       component nodes and the alias, instead of auto-docking */
+    let former_pins = {
+      let comp_pts =
+        List.filter_map(
+          cstr =>
+            lay.nodes
+            |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                 ty_syntax(nl.node) == cstr
+               )
+            |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
+          comps,
+        );
+      switch (comp_pts, kind) {
+      | ([], _)
+      | (_, "type") => []
+      | (pts, _) =>
+        let count = float_of_int(List.length(pts));
+        let cx =
+          List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., pts)
+          /. count;
+        let cy =
+          List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., pts)
+          /. count;
+        let former_key = (kind == "list" ? "[]@" : "()@") ++ name;
+        [
+          globals.inject_global(
+            Set(
+              SetCanvasNodePin(
+                slide,
+                former_key,
+                CanvasLayout.snap((cx +. x) /. 2.) -. lay.origin.x,
+                CanvasLayout.snap((cy +. y) /. 2.) -. lay.origin.y,
+              ),
+            ),
+          ),
+        ];
+      };
+    };
+    Effect.Many(
+      [
+        /* pin + frame land BEFORE the edit: a render between these
+           effects re-derived the frame with no pins yet, moving
+           every node and putting the new one off the click */
+        globals.inject_global(
+          Set(
+            SetCanvasNodePin(
+              slide,
+              name,
+              /* snapped: the node materializes exactly on the
+                 previewed lattice dot */
+              CanvasLayout.snap(x) -. lay.origin.x,
+              CanvasLayout.snap(y) -. lay.origin.y,
+            ),
+          ),
+        ),
+      ]
+      @ former_pins
+      @ [
+        persist_frame(),
+        insert_stub(Printf.sprintf("type %s = %s in", name, body)),
+      ],
+    );
+  };
+  /* a canvas-background click in place mode inserts the stub where you
+     clicked; a double-click on blank canvas does the same with no mode */
   let on_canvas_click: option(((float, float)) => Effect.t(unit)) =
     switch (place) {
     | None => None
     | Some((kind, comps)) =>
       Some(
-        ((x, y)) => {
-          let name = fresh_name("T");
-          let body =
-            switch (kind, comps) {
-            | ("tuple", []) => "(?, ?)"
-            | ("tuple", [a]) => "(" ++ a ++ ", ?)"
-            | ("tuple", cs) => "(" ++ String.concat(", ", cs) ++ ")"
-            | ("list", [a]) => "[" ++ a ++ "]"
-            | ("list", _) => "[?]"
-            | _ => "?"
-            };
-          last_placed := Some((name, CanvasBuffer.now()));
-          /* the alias's former ("()"/"[]") sits midway between its
-             component nodes and the alias, instead of auto-docking */
-          let former_pins = {
-            let comp_pts =
-              List.filter_map(
-                cstr =>
-                  lay.nodes
-                  |> List.find_opt((nl: CanvasLayout.node_layout) =>
-                       ty_syntax(nl.node) == cstr
-                     )
-                  |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
-                comps,
-              );
-            switch (comp_pts, kind) {
-            | ([], _)
-            | (_, "type") => []
-            | (pts, _) =>
-              let count = float_of_int(List.length(pts));
-              let cx =
-                List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., pts)
-                /. count;
-              let cy =
-                List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., pts)
-                /. count;
-              let former_key = (kind == "list" ? "[]@" : "()@") ++ name;
-              [
-                globals.inject_global(
-                  Set(
-                    SetCanvasNodePin(
-                      slide,
-                      former_key,
-                      CanvasLayout.snap((cx +. x) /. 2.) -. lay.origin.x,
-                      CanvasLayout.snap((cy +. y) /. 2.) -. lay.origin.y,
-                    ),
-                  ),
-                ),
-              ];
-            };
-          };
-          Effect.Many(
-            [
-              /* pin + frame land BEFORE the edit: a render between these
-                 effects re-derived the frame with no pins yet, moving
-                 every node and putting the new one off the click */
-              globals.inject_global(
-                Set(
-                  SetCanvasNodePin(
-                    slide,
-                    name,
-                    /* snapped: the node materializes exactly on the
-                       previewed lattice dot */
-                    CanvasLayout.snap(x) -. lay.origin.x,
-                    CanvasLayout.snap(y) -. lay.origin.y,
-                  ),
-                ),
-              ),
-            ]
-            @ former_pins
-            @ [
-              persist_frame(),
-              insert_stub(Printf.sprintf("type %s = %s in", name, body)),
-              set_place(None),
-              Effect.Stop_propagation,
-            ],
-          );
-        },
+        pt =>
+          Effect.Many([
+            place_stub_at(~kind, ~comps, pt),
+            set_place(None),
+            Effect.Stop_propagation,
+          ]),
       )
     };
+  let on_canvas_dblclick = (pt: (float, float)): Effect.t(unit) =>
+    Effect.Many([
+      place_stub_at(~kind="type", ~comps=[], pt),
+      Effect.Stop_propagation,
+      Effect.Prevent_default,
+    ]);
+  /* ---- canvas context menu ---- */
+  let nudge = globals.inject_global(Set(CanvasTick));
+  let menu_close = (): unit => {
+    canvas_menu := Util.Menu.closed;
+    canvas_menu_node := None;
+  };
+  let menu_items: list(Util.Menu.item(Effect.t(unit))) =
+    switch (canvas_menu_node^) {
+    | Some((key, syntax)) => [
+        Util.Menu.action_item(
+          ~tooltip=
+            "draw a function edge from this node: click the target next (shift-click collects more sources)",
+          "function from this…",
+          set_connect(Some([syntax])),
+        ),
+        Util.Menu.action_item(
+          ~tooltip=
+            "start a tuple with this component: click more nodes, then the canvas to place",
+          "tuple with this…",
+          set_place(Some(("tuple", [syntax]))),
+        ),
+        Util.Menu.action_item(
+          ~tooltip="new list alias of this type, placed beside it",
+          "list of this",
+          {
+            let pos =
+              lay.nodes
+              |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                   nl.node.key == key
+                 )
+              |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+            let pt =
+              switch (pos) {
+              | Some(p) => (p.x +. 84., p.y)
+              | None => canvas_menu_at^
+              };
+            place_stub_at(~kind="list", ~comps=[syntax], pt);
+          },
+        ),
+      ]
+    | None =>
+      let at = canvas_menu_at^;
+      [
+        Util.Menu.action_item(
+          ~tooltip="type T = ? in \u2014 a hole-bodied alias to fill later",
+          "new type",
+          place_stub_at(~kind="type", ~comps=[], at),
+        ),
+        Util.Menu.action_item(
+          ~tooltip="type T = (?, ?) in",
+          "new tuple type",
+          place_stub_at(~kind="tuple", ~comps=[], at),
+        ),
+        Util.Menu.action_item(
+          ~tooltip="type T = [?] in",
+          "new list type",
+          place_stub_at(~kind="list", ~comps=[], at),
+        ),
+        Util.Menu.divider,
+        Util.Menu.submenu_item(
+          ~tooltip="a named alias of a base type",
+          "new alias of",
+          List.map(
+            b =>
+              Util.Menu.action_item(
+                ~tooltip="type T = " ++ b ++ " in",
+                b,
+                place_stub_at(~kind="alias", ~comps=[b], at),
+              ),
+            ["Int", "Float", "Bool", "String"],
+          ),
+        ),
+      ];
+    };
+  let menu_inject_menu = (a: Util.Menu.action): Effect.t(unit) => {
+    canvas_menu := Util.Menu.update(a, canvas_menu^);
+    nudge;
+  };
+  let menu_inject_action = (eff: Effect.t(unit)): Effect.t(unit) => {
+    menu_close();
+    Effect.Many([eff, nudge]);
+  };
+  CanvasMenuListener.sync(
+    ~menu_open=Util.Menu.is_open(canvas_menu^),
+    ~on_close=
+      () => {
+        menu_close();
+        nudge;
+      },
+    ~handle_key=
+      Util.Menu.key_dispatcher(
+        ~items=menu_items,
+        ~dispatch_menu=menu_inject_menu,
+        ~dispatch_action=menu_inject_action,
+        canvas_menu^,
+      ),
+    (),
+  );
+  let open_canvas_menu =
+      (
+        ~node: option((string, string)),
+        ~client: (float, float),
+        ~at: (float, float),
+      )
+      : Effect.t(unit) => {
+    canvas_menu_node := node;
+    canvas_menu_client := client;
+    canvas_menu_at := at;
+    canvas_menu := Util.Menu.opened;
+    nudge;
+  };
+  let on_canvas_contextmenu = (at: (float, float), client: (float, float)) =>
+    open_canvas_menu(~node=None, ~client, ~at);
+  let on_node_contextmenu = (n: CanvasGraph.tynode, client: (float, float)) =>
+    open_canvas_menu(
+      ~node=Some((n.key, ty_syntax(n))),
+      ~client,
+      ~at=(0., 0.),
+    );
+  let menu_layer =
+    div(
+      ~attrs=[clss(["canvas-menu-layer"])],
+      switch (canvas_menu^) {
+      | None => []
+      | Some(_) =>
+        let (mx, my) = canvas_menu_client^;
+        [
+          div(
+            ~attrs=[
+              clss([
+                "context-menu",
+                "canvas-context-menu",
+                "open-down-right",
+              ]),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "position: fixed; left: %.0fpx; top: %.0fpx;",
+                  mx,
+                  my,
+                ),
+              ),
+            ],
+            Util.Menu.render(
+              ~inject_action=menu_inject_action,
+              ~inject_menu=menu_inject_menu,
+              ~item_class="menu-item",
+              ~items=menu_items,
+              canvas_menu^,
+            ),
+          ),
+        ];
+      },
+    );
   let focused = globals.settings.sidebar.canvas_focus;
   let focused_ty = globals.settings.sidebar.canvas_focus_ty;
   /* hand a hole-bodied function to the agent as an obligation */
@@ -1279,6 +1469,9 @@ let view =
             ~inject_jump,
             ~connect_pts,
             ~just_placed,
+            ~on_canvas_dblclick,
+            ~on_canvas_contextmenu,
+            ~on_node_contextmenu,
             ~on_edge_click,
             ~on_node_mousedown,
             ~on_canvas_click,
@@ -1297,6 +1490,6 @@ let view =
       ),
     ]
     @ focus_strip
-    @ [legend],
+    @ [legend, menu_layer],
   );
 };

@@ -272,6 +272,9 @@ let node_view =
            Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)
          ) =>
          Effect.t(unit),
+      ~on_node_contextmenu:
+         (CanvasGraph.tynode, (float, float)) => Effect.t(unit)=(_, _) =>
+                                                                    Effect.Ignore,
       ~just_placed: option(string)=None,
       nl: CanvasLayout.node_layout,
     )
@@ -289,6 +292,16 @@ let node_view =
     );
   let click_attrs = [
     Attr.on_mousedown(evt => on_node_mousedown(n, evt)),
+    Attr.on_contextmenu(evt => {
+      open Js_of_ocaml;
+      let x = float_of_int(Js.Unsafe.coerce(evt)##.clientX)
+      and y = float_of_int(Js.Unsafe.coerce(evt)##.clientY);
+      Effect.Many([
+        Effect.Prevent_default,
+        Effect.Stop_propagation,
+        on_node_contextmenu(n, (x, y)),
+      ]);
+    }),
     clss(["clickable"]),
   ];
   let label_nodes =
@@ -373,8 +386,19 @@ let view =
          ) =>
          Effect.t(unit),
       ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
-      /* connect mode: rubber-band lines from these source-node centers
-         to the cursor */
+      /* blank-canvas double-click: create a type node here (modeless) */
+      ~on_canvas_dblclick: ((float, float)) => Effect.t(unit)=_ =>
+                                                                  Effect.Ignore,
+      /* right-click menus: blank canvas gets (model, client) coords, a
+         node gets (node, client) */
+      ~on_canvas_contextmenu:
+         ((float, float), (float, float)) => Effect.t(unit)=(_, _) =>
+                                                                 Effect.Ignore,
+      ~on_node_contextmenu:
+         (CanvasGraph.tynode, (float, float)) => Effect.t(unit)=(_, _) =>
+                                                                    Effect.Ignore,
+      /* connect mode: preview edges from these source-node centers to
+         the cursor */
       ~connect_pts: list(CanvasLayout.pos)=[],
       /* key of a node placed moments ago (grow-in animation) */
       ~just_placed: option(string)=None,
@@ -477,6 +501,47 @@ let view =
       @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );
+  /* target==currentTarget: only true background events (nodes/labels
+     are their own targets; the edges svg is pointer-events: none) */
+  let bg_event_coords = evt => {
+    open Js_of_ocaml;
+    let tgt = Js.Unsafe.coerce(evt)##.target;
+    let cur = Js.Unsafe.coerce(evt)##.currentTarget;
+    let same: bool =
+      Js.to_bool(
+        Js.Unsafe.coerce(
+          Js.Unsafe.meth_call(cur, "isSameNode", [|Js.Unsafe.inject(tgt)|]),
+        ),
+      );
+    if (same) {
+      let rect = Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
+      let left: float = Js.Unsafe.coerce(rect)##.left;
+      let top: float = Js.Unsafe.coerce(rect)##.top;
+      let cx = float_of_int(Js.Unsafe.coerce(evt)##.clientX)
+      and cy = float_of_int(Js.Unsafe.coerce(evt)##.clientY);
+      Some((((cx -. left) /. zoom, (cy -. top) /. zoom), (cx, cy)));
+    } else {
+      None;
+    };
+  };
+  let gesture_attrs = [
+    Attr.on_double_click(evt =>
+      switch (bg_event_coords(evt)) {
+      | Some((model, _)) => on_canvas_dblclick(model)
+      | None => Effect.Ignore
+      }
+    ),
+    Attr.on_contextmenu(evt =>
+      switch (bg_event_coords(evt)) {
+      | Some((model, client)) =>
+        Effect.Many([
+          Effect.Prevent_default,
+          on_canvas_contextmenu(model, client),
+        ])
+      | None => Effect.Ignore
+      }
+    ),
+  ];
   let bg_attrs =
     switch (on_canvas_click) {
     | Some(f) => [
@@ -542,31 +607,83 @@ let view =
               Js.string(Printf.sprintf("%.1fpx", CanvasLayout.snap(y)));
           | None => ()
           };
-          List.iteri(
-            (i, _) =>
-              switch (
-                Util.JsUtil.get_elem_by_id_opt(
-                  "connect-line-" ++ string_of_int(i),
-                )
-              ) {
+          if (connect_pts != []) {
+            let set_d = (id, d) =>
+              switch (Util.JsUtil.get_elem_by_id_opt(id)) {
               | Some(el) =>
-                let set = (k, v) =>
-                  ignore(
-                    Js.Unsafe.meth_call(
-                      el,
-                      "setAttribute",
-                      [|
-                        Js.Unsafe.inject(Js.string(k)),
-                        Js.Unsafe.inject(Js.string(v)),
-                      |],
+                ignore(
+                  Js.Unsafe.meth_call(
+                    el,
+                    "setAttribute",
+                    [|
+                      Js.Unsafe.inject(Js.string("d")),
+                      Js.Unsafe.inject(Js.string(d)),
+                    |],
+                  ),
+                )
+              | None => ()
+              };
+            /* edge-style horizontal-tangent cubic */
+            let edge_d = (a: CanvasLayout.pos, bx, by) => {
+              let k = max(30., 0.4 *. Float.abs(bx -. a.x));
+              Printf.sprintf(
+                "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+                a.x,
+                a.y,
+                a.x +. k,
+                a.y,
+                bx -. k,
+                by,
+                bx,
+                by,
+              );
+            };
+            switch (connect_pts) {
+            | [p] => set_d("connect-main", edge_d(p, x, y))
+            | ps =>
+              let n = float_of_int(List.length(ps));
+              let cx =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., ps)
+                /. n
+              and cy =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., ps)
+                /. n;
+              /* predicted product pin: matches the commit's weighting */
+              let px = (2. *. cx +. x) /. 3.
+              and py = (2. *. cy +. y) /. 3.;
+              List.iteri(
+                (i, p: CanvasLayout.pos) => {
+                  let mx = (p.x +. px) /. 2.;
+                  set_d(
+                    "connect-form-" ++ string_of_int(i),
+                    Printf.sprintf(
+                      "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+                      p.x,
+                      p.y,
+                      mx,
+                      p.y,
+                      mx,
+                      py,
+                      px,
+                      py,
                     ),
                   );
-                set("x2", Printf.sprintf("%.1f", x));
-                set("y2", Printf.sprintf("%.1f", y));
-              | None => ()
-              },
-            connect_pts,
-          );
+                },
+                ps,
+              );
+              set_d(
+                "connect-main",
+                edge_d(
+                  {
+                    x: px,
+                    y: py,
+                  },
+                  x,
+                  y,
+                ),
+              );
+            };
+          };
           Effect.Ignore;
         }),
       ]
@@ -574,6 +691,10 @@ let view =
   /* both containers are ALWAYS in the children list (hidden/empty when
      idle): conditional presence displaced later un-keyed siblings in
      the vdom diff, recreating every node element per mode toggle */
+  /* the preview draws what WILL be drawn: formation curves from each
+     source into the predicted product point (2/3 sources centroid + 1/3
+     cursor — the pin the commit will use), and a main-style edge curve
+     from there to the cursor. Single source: just the edge curve. */
   let telegraph_nodes = [
     div(
       ~attrs=[
@@ -593,18 +714,34 @@ let view =
       List.mapi(
         (i, p: CanvasLayout.pos) =>
           svg(
-            "line",
+            "path",
             [
-              Attr.id("connect-line-" ++ string_of_int(i)),
-              clss(["connect-line"]),
-              Attr.create("x1", fmt(p.x)),
-              Attr.create("y1", fmt(p.y)),
-              Attr.create("x2", fmt(p.x)),
-              Attr.create("y2", fmt(p.y)),
+              Attr.id("connect-form-" ++ string_of_int(i)),
+              clss(["connect-form"]),
+              Attr.create(
+                "d",
+                Printf.sprintf("M %s,%s", fmt(p.x), fmt(p.y)),
+              ),
             ],
             [],
           ),
-        connect_pts,
+        List.length(connect_pts) > 1 ? connect_pts : [],
+      )
+      @ (
+        connect_pts == []
+          ? []
+          : [
+            svg(
+              "path",
+              [
+                Attr.id("connect-main"),
+                clss(["connect-main"]),
+                Attr.create("d", "M -10,-10"),
+                Attr.create("marker-end", "url(#cnv-arrow)"),
+              ],
+              [],
+            ),
+          ]
       ),
     ),
   ];
@@ -638,10 +775,14 @@ let view =
         ),
       ]
       @ bg_attrs
+      @ gesture_attrs
       @ track_attrs,
     [div(~attrs=[clss(["canvas-dots"])], []), edges_svg]
     @ telegraph_nodes
-    @ List.map(node_view(~on_node_mousedown, ~just_placed), lay.nodes)
+    @ List.map(
+        node_view(~on_node_mousedown, ~on_node_contextmenu, ~just_placed),
+        lay.nodes,
+      )
     @ List.map(
         edge_label(~inject_jump, ~focused, ~on_edge_click),
         lay.edges,
