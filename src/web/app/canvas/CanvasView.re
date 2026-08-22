@@ -272,6 +272,7 @@ let node_view =
            Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)
          ) =>
          Effect.t(unit),
+      ~just_placed: option(string)=None,
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -299,7 +300,10 @@ let node_view =
       [
         Attr.id(node_dom_id(n.key)),
         clss(
-          ["canvas-node", kind_cls(n.kind)] @ (n.n_err ? ["node-err"] : []),
+          ["canvas-node", kind_cls(n.kind)]
+          @ (n.n_err ? ["node-err"] : [])
+          /* grows out of the placement-preview dot */
+          @ (just_placed == Some(n.key) ? ["just-placed"] : []),
         ),
         Attr.create(
           "style",
@@ -369,6 +373,11 @@ let view =
          ) =>
          Effect.t(unit),
       ~on_canvas_click: option(((float, float)) => Effect.t(unit))=None,
+      /* connect mode: rubber-band lines from these source-node centers
+         to the cursor */
+      ~connect_pts: list(CanvasLayout.pos)=[],
+      /* key of a node placed moments ago (grow-in animation) */
+      ~just_placed: option(string)=None,
       ~zoom: float=1.,
       /* pane size in layout px: the root grows to fill it so the dot
          field covers the whole visible canvas */
@@ -506,6 +515,107 @@ let view =
       ]
     | None => []
     };
+  /* gesture telegraphs: while placing, a pulsing dot rides the nearest
+     lattice point under the cursor; while connecting, rubber-band lines
+     run from each collected source to the cursor. Both update by direct
+     DOM mutation on mousemove — no re-render per pointer event. */
+  let placing = on_canvas_click != None;
+  let track_attrs =
+    placing || connect_pts != []
+      ? [
+        Attr.on_mousemove(evt => {
+          open Js_of_ocaml;
+          let cur = Js.Unsafe.coerce(evt)##.currentTarget;
+          let rect = Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
+          let left: float = Js.Unsafe.coerce(rect)##.left;
+          let top: float = Js.Unsafe.coerce(rect)##.top;
+          let x =
+            (float_of_int(Js.Unsafe.coerce(evt)##.clientX) -. left) /. zoom;
+          let y =
+            (float_of_int(Js.Unsafe.coerce(evt)##.clientY) -. top) /. zoom;
+          switch (Util.JsUtil.get_elem_by_id_opt("place-preview")) {
+          | Some(el) =>
+            let st = Js.Unsafe.coerce(el)##.style;
+            st##.left :=
+              Js.string(Printf.sprintf("%.1fpx", CanvasLayout.snap(x)));
+            st##.top :=
+              Js.string(Printf.sprintf("%.1fpx", CanvasLayout.snap(y)));
+          | None => ()
+          };
+          List.iteri(
+            (i, _) =>
+              switch (
+                Util.JsUtil.get_elem_by_id_opt(
+                  "connect-line-" ++ string_of_int(i),
+                )
+              ) {
+              | Some(el) =>
+                let set = (k, v) =>
+                  ignore(
+                    Js.Unsafe.meth_call(
+                      el,
+                      "setAttribute",
+                      [|
+                        Js.Unsafe.inject(Js.string(k)),
+                        Js.Unsafe.inject(Js.string(v)),
+                      |],
+                    ),
+                  );
+                set("x2", Printf.sprintf("%.1f", x));
+                set("y2", Printf.sprintf("%.1f", y));
+              | None => ()
+              },
+            connect_pts,
+          );
+          Effect.Ignore;
+        }),
+      ]
+      : [];
+  let telegraph_nodes =
+    (
+      placing
+        ? [
+          div(
+            ~attrs=[
+              Attr.id("place-preview"),
+              clss(["place-preview"]),
+              Attr.create("style", "left: -100px; top: -100px;"),
+            ],
+            [],
+          ),
+        ]
+        : []
+    )
+    @ (
+      connect_pts == []
+        ? []
+        : [
+          svg(
+            "svg",
+            [
+              clss(["connect-preview"]),
+              Attr.create("width", fmt(lay.width)),
+              Attr.create("height", fmt(lay.height)),
+            ],
+            List.mapi(
+              (i, p: CanvasLayout.pos) =>
+                svg(
+                  "line",
+                  [
+                    Attr.id("connect-line-" ++ string_of_int(i)),
+                    clss(["connect-line"]),
+                    Attr.create("x1", fmt(p.x)),
+                    Attr.create("y1", fmt(p.y)),
+                    Attr.create("x2", fmt(p.x)),
+                    Attr.create("y2", fmt(p.y)),
+                  ],
+                  [],
+                ),
+              connect_pts,
+            ),
+          ),
+        ]
+    );
   div(
     ~attrs=
       [
@@ -535,9 +645,11 @@ let view =
           },
         ),
       ]
-      @ bg_attrs,
+      @ bg_attrs
+      @ track_attrs,
     [div(~attrs=[clss(["canvas-dots"])], []), edges_svg]
-    @ List.map(node_view(~on_node_mousedown), lay.nodes)
+    @ telegraph_nodes
+    @ List.map(node_view(~on_node_mousedown, ~just_placed), lay.nodes)
     @ List.map(
         edge_label(~inject_jump, ~focused, ~on_edge_click),
         lay.edges,

@@ -137,6 +137,11 @@ type frame_cache = {
 };
 let cached_frame: ref(option(frame_cache)) =
   ref(None: option(frame_cache));
+
+/* key of the node most recently placed by a canvas gesture; its node
+   view gets a grow-in animation for a moment */
+let last_placed: ref(option((string, float))) =
+  ref(None: option((string, float)));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 
@@ -802,21 +807,38 @@ let view =
             | [] => []
             | ps =>
               let count = float_of_int(List.length(ps));
-              let bx =
+              let cx =
                 List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., ps)
                 /. count;
-              let by =
+              let cy =
                 List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., ps)
                 /. count;
+              /* between all endpoints, biased toward the inputs:
+                 2/3 sources centroid + 1/3 target */
+              let tgt =
+                lay.nodes
+                |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                     nl.node.key == n.key
+                   )
+                |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+              let (bx, by) =
+                switch (tgt) {
+                | Some(t) => (
+                    (2. *. cx +. t.x) /. 3.,
+                    (2. *. cy +. t.y) /. 3.,
+                  )
+                | None => (cx, cy)
+                };
               let product_key = "(" ++ String.concat(", ", many) ++ ")";
+              last_placed := Some((product_key, CanvasBuffer.now()));
               [
                 globals.inject_global(
                   Set(
                     SetCanvasNodePin(
                       slide,
                       product_key,
-                      bx -. lay.origin.x,
-                      by -. lay.origin.y,
+                      CanvasLayout.snap(bx) -. lay.origin.x,
+                      CanvasLayout.snap(by) -. lay.origin.y,
                     ),
                   ),
                 ),
@@ -870,25 +892,72 @@ let view =
             | ("list", _) => "[?]"
             | _ => "?"
             };
-          Effect.Many([
-            /* pin + frame land BEFORE the edit: a render between these
-               effects re-derived the frame with no pins yet, moving
-               every node and putting the new one off the click */
-            globals.inject_global(
-              Set(
-                SetCanvasNodePin(
-                  slide,
-                  name,
-                  x -. lay.origin.x,
-                  y -. lay.origin.y,
+          last_placed := Some((name, CanvasBuffer.now()));
+          /* the alias's former ("()"/"[]") sits midway between its
+             component nodes and the alias, instead of auto-docking */
+          let former_pins = {
+            let comp_pts =
+              List.filter_map(
+                cstr =>
+                  lay.nodes
+                  |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                       ty_syntax(nl.node) == cstr
+                     )
+                  |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
+                comps,
+              );
+            switch (comp_pts, kind) {
+            | ([], _)
+            | (_, "type") => []
+            | (pts, _) =>
+              let count = float_of_int(List.length(pts));
+              let cx =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., pts)
+                /. count;
+              let cy =
+                List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., pts)
+                /. count;
+              let former_key = (kind == "list" ? "[]@" : "()@") ++ name;
+              [
+                globals.inject_global(
+                  Set(
+                    SetCanvasNodePin(
+                      slide,
+                      former_key,
+                      CanvasLayout.snap((cx +. x) /. 2.) -. lay.origin.x,
+                      CanvasLayout.snap((cy +. y) /. 2.) -. lay.origin.y,
+                    ),
+                  ),
+                ),
+              ];
+            };
+          };
+          Effect.Many(
+            [
+              /* pin + frame land BEFORE the edit: a render between these
+                 effects re-derived the frame with no pins yet, moving
+                 every node and putting the new one off the click */
+              globals.inject_global(
+                Set(
+                  SetCanvasNodePin(
+                    slide,
+                    name,
+                    /* snapped: the node materializes exactly on the
+                       previewed lattice dot */
+                    CanvasLayout.snap(x) -. lay.origin.x,
+                    CanvasLayout.snap(y) -. lay.origin.y,
+                  ),
                 ),
               ),
-            ),
-            persist_frame(),
-            insert_stub(Printf.sprintf("type %s = %s in", name, body)),
-            set_place(None),
-            Effect.Stop_propagation,
-          ]);
+            ]
+            @ former_pins
+            @ [
+              persist_frame(),
+              insert_stub(Printf.sprintf("type %s = %s in", name, body)),
+              set_place(None),
+              Effect.Stop_propagation,
+            ],
+          );
         },
       )
     };
@@ -1101,45 +1170,6 @@ let view =
           set_connect(connect == None ? Some([]) : None),
         ),
       ]
-      @ (
-        switch (connect, place) {
-        | (Some([]), _) => [
-            span(
-              ~attrs=[clss(["tool-hint"])],
-              [text({js|pick the source node…|js})],
-            ),
-          ]
-        | (Some(srcs), _) => [
-            span(
-              ~attrs=[clss(["tool-hint"])],
-              [
-                text(
-                  String.concat(", ", srcs)
-                  ++ {js| ⟶ click the target (shift-click adds a source)…|js},
-                ),
-              ],
-            ),
-          ]
-        | (None, Some(("type", _))) => [
-            span(
-              ~attrs=[clss(["tool-hint"])],
-              [text({js|click the canvas to place…|js})],
-            ),
-          ]
-        | (None, Some((_, comps))) => [
-            span(
-              ~attrs=[clss(["tool-hint"])],
-              [
-                text(
-                  (comps == [] ? "" : String.concat(", ", comps) ++ " — ")
-                  ++ {js|click nodes to add, the canvas to place…|js},
-                ),
-              ],
-            ),
-          ]
-        | (None, None) => []
-        }
-      )
       @ [
         btn(
           ~cls=globals.settings.canvas_pace ? "tool-active" : "",
@@ -1183,16 +1213,69 @@ let view =
       ],
     );
   };
+  /* telegraph state for CanvasView: rubber-band anchors + grow-in key */
+  let connect_pts: list(CanvasLayout.pos) =
+    switch (connect) {
+    | Some(srcs) =>
+      List.filter_map(
+        sstr =>
+          lay.nodes
+          |> List.find_opt((nl: CanvasLayout.node_layout) =>
+               ty_syntax(nl.node) == sstr
+             )
+          |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
+        srcs,
+      )
+    | None => []
+    };
+  let just_placed =
+    switch (last_placed^) {
+    | Some((k, t)) when CanvasBuffer.now() -. t < 2500. => Some(k)
+    | _ => None
+    };
+  /* mode guidance floats OVER the canvas in a zero-height row: putting
+     it in the toolbar re-wrapped the row mid-gesture, shifting the
+     canvas under the cursor and misplacing the click */
+  let hint_row = {
+    let mode_hint =
+      switch (connect, place) {
+      | (Some([]), _) => Some({js|pick the source node…|js})
+      | (Some(srcs), _) =>
+        Some(
+          String.concat(", ", srcs)
+          ++ {js| ⟶ click the target (shift-click adds a source)…|js},
+        )
+      | (None, Some(("type", _))) =>
+        Some({js|click the canvas to place…|js})
+      | (None, Some((_, comps))) =>
+        Some(
+          (comps == [] ? "" : String.concat(", ", comps) ++ " — ")
+          ++ {js|click nodes to add, the canvas to place…|js},
+        )
+      | (None, None) => None
+      };
+    switch (mode_hint) {
+    | None => []
+    | Some(h) => [
+        div(
+          ~attrs=[clss(["canvas-mode-hint-row"])],
+          [div(~attrs=[clss(["canvas-mode-hint"])], [text(h)])],
+        ),
+      ]
+    };
+  };
   div(
     ~attrs=[Attr.id("canvas-sidebar")],
-    [
-      header,
-      toolbar,
+    [header, toolbar]
+    @ hint_row
+    @ [
       div(
         ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [
           CanvasView.view(
             ~inject_jump,
+            ~connect_pts,
+            ~just_placed,
             ~on_edge_click,
             ~on_node_mousedown,
             ~on_canvas_click,
