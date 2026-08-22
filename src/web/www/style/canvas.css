@@ -144,17 +144,34 @@
   position: relative;
   top: 8px;
   align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 3px;
   background: var(--Y1, #f0e2b8);
   color: var(--BR4, #4a3a20);
   border: 1px solid var(--BR1, #d8c9a3);
   border-radius: 10px;
   padding: 2px 12px;
   font-size: 11px;
-  pointer-events: none;
+  /* interactive: base-type chips live in the pill */
+  pointer-events: auto;
   white-space: nowrap;
   max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.hint-chip {
+  border: 1px solid var(--BR2, #b09a6a);
+  border-radius: 7px;
+  padding: 0 6px;
+  cursor: pointer;
+  background: var(--df-bg, #fdfdf4);
+  color: var(--token-typ, #9457c9);
+}
+
+.hint-chip:hover {
+  background: var(--Y0, #f6efd8);
 }
 
 .toolbar-spacer {

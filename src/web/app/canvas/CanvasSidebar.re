@@ -1017,20 +1017,23 @@ let view =
         Util.Menu.action_item(
           ~tooltip=
             "draw a function edge from this node: click the target next (shift-click collects more sources)",
-          "function from this…",
+          ~on_hover=true,
+          {js|ƒ from this…|js},
           () =>
           set_connect(Some([syntax]))
         ),
         Util.Menu.action_item(
           ~tooltip=
             "start a tuple with this component: click more nodes, then the canvas to place",
-          "tuple with this…",
+          ~on_hover=true,
+          {js|() with this…|js},
           () =>
           set_place(Some(("tuple", [syntax])))
         ),
         Util.Menu.action_item(
           ~tooltip="new list alias of this type, placed beside it",
-          "list of this",
+          ~on_hover=true,
+          "[] of this",
           () => {
             let pos =
               lay.nodes
@@ -1052,24 +1055,27 @@ let view =
       [
         Util.Menu.action_item(
           ~tooltip="type T = ? in \u2014 a hole-bodied alias to fill later",
-          "new type",
+          ~on_hover=true,
+          {js|τ type|js},
           () =>
           place_stub_at(~kind="type", ~comps=[], at)
         ),
         Util.Menu.action_item(
-          ~tooltip="type T = (?, ?) in", "new tuple type", () =>
+          ~tooltip="type T = (?, ?) in", ~on_hover=true, "() tuple", () =>
           place_stub_at(~kind="tuple", ~comps=[], at)
         ),
-        Util.Menu.action_item(~tooltip="type T = [?] in", "new list type", () =>
+        Util.Menu.action_item(
+          ~tooltip="type T = [?] in", ~on_hover=true, "[] list", () =>
           place_stub_at(~kind="list", ~comps=[], at)
         ),
         Util.Menu.divider,
         Util.Menu.submenu_item(
           ~tooltip="a named alias of a base type",
-          "new alias of",
+          "alias of",
           List.map(
             b =>
-              Util.Menu.action_item(~tooltip="type T = " ++ b ++ " in", b, () =>
+              Util.Menu.action_item(
+                ~tooltip="type T = " ++ b ++ " in", ~on_hover=true, b, () =>
                 place_stub_at(~kind="alias", ~comps=[b], at)
               ),
             ["Int", "Float", "Bool", "String"],
@@ -1146,13 +1152,26 @@ let view =
                 ),
               ),
             ],
-            Util.Menu.render(
-              ~inject_action=menu_inject_action,
-              ~inject_menu=menu_inject_menu,
-              ~item_class="menu-item",
-              ~items=menu_items,
-              canvas_menu^,
-            ),
+            /* group/contents wrappers + named-menu-item: the editor
+               menu's row styling (incl. hover/selected) is scoped to
+               this structure */
+            [
+              div(
+                ~attrs=[clss(["group"])],
+                [
+                  div(
+                    ~attrs=[clss(["contents"])],
+                    Util.Menu.render(
+                      ~inject_action=menu_inject_action,
+                      ~inject_menu=menu_inject_menu,
+                      ~item_class="named-menu-item",
+                      ~items=menu_items,
+                      canvas_menu^,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ];
       },
@@ -1346,22 +1365,22 @@ let view =
       [
         mode_btn(
           "type",
-          "+ type",
+          {js|τ|js},
           "stub type: click the canvas where it should go; creates type T = ? in",
         ),
         mode_btn(
           "tuple",
-          "+ tuple",
+          "()",
           "tuple former: click component nodes in order, then the canvas to place; creates type T = (A, B) in",
         ),
         mode_btn(
           "list",
-          "+ list",
+          "[]",
           "list former: click the element node, then the canvas to place; creates type T = [A] in",
         ),
         btn(
           ~cls=connect == None ? "" : "tool-active",
-          "+ fn",
+          {js|ƒ|js},
           "draw a function: click a source node then a target node (shift-click collects several sources into a tuple input); creates let f : A -> B = ? in",
           set_connect(connect == None ? Some([]) : None),
         ),
@@ -1396,7 +1415,7 @@ let view =
         ),
         btn(
           ~cls=offsets == [] && pins == [] ? "tool-disabled" : "",
-          "reset layout",
+          "reset",
           offsets == [] && pins == []
             ? "no manual node positions on this slide"
             : "clear manual node positions for this slide",
@@ -1434,22 +1453,63 @@ let view =
      it in the toolbar re-wrapped the row mid-gesture, shifting the
      canvas under the cursor and misplacing the click */
   let hint_row = {
-    let mode_hint =
+    /* base types join a gesture as chips — the "f takes an alias AND an
+       Int" case shouldn't require aliasing Int first; the committed stub
+       just names the base type and the graph shows it as a use-site
+       satellite like any other */
+    let base_chips = (on_pick: string => Effect.t(unit)): list(Node.t) =>
+      List.map(
+        b =>
+          div(
+            ~attrs=[
+              clss(["hint-chip"]),
+              Attr.title("add " ++ b ++ " here"),
+              Attr.on_click(_ => on_pick(b)),
+            ],
+            [text(b)],
+          ),
+        ["Int", "Float", "Bool", "String"],
+      );
+    let content =
       switch (connect, place) {
-      | (Some([]), _) => Some({js|pick the source node…|js})
-      | (Some(srcs), _) =>
-        Some(
-          String.concat(", ", srcs)
-          ++ {js| ⟶ click the target (shift-click adds a source)…|js},
-        )
-      | (None, Some(("type", _))) =>
-        Some({js|click the canvas to place…|js})
-      | (None, Some((_, comps))) =>
-        Some(
-          (comps == [] ? "" : String.concat(", ", comps) ++ " — ")
-          ++ {js|click nodes to add, the canvas to place…|js},
-        )
-      | (None, None) => None
+      | (Some([]), _) => [
+          [text({js|source: click a node, or |js})],
+          base_chips(b => set_connect(Some([b]))),
+          [text({js|…|js})],
+        ]
+      | (Some(srcs), _) => [
+          [
+            text(
+              String.concat(", ", srcs) ++ {js| ⟶ click the target, or |js},
+            ),
+          ],
+          base_chips(b => set_connect(Some(srcs @ [b]))),
+          [text({js| (shift+click adds sources)|js})],
+        ]
+      | (None, Some(("type", _))) => [
+          [text({js|click the canvas to place…|js})],
+        ]
+      | (None, Some(("list", comps))) => [
+          [
+            text(
+              (comps == [] ? "" : String.concat(", ", comps) ++ {js| — |js})
+              ++ {js|element: click a node or |js},
+            ),
+          ],
+          base_chips(b => set_place(Some(("list", [b])))),
+          [text({js|, then the canvas…|js})],
+        ]
+      | (None, Some((_, comps))) => [
+          [
+            text(
+              (comps == [] ? "" : String.concat(", ", comps) ++ {js| — |js})
+              ++ {js|components: click nodes or |js},
+            ),
+          ],
+          base_chips(b => set_place(Some(("tuple", comps @ [b])))),
+          [text({js|, then the canvas…|js})],
+        ]
+      | (None, None) => []
       };
     /* ALWAYS present (empty when idle): inserting it displaced the
        un-keyed scroll div in the children diff, recreating the whole
@@ -1457,9 +1517,11 @@ let view =
        zoom-flicker-on-click bug) */
     div(
       ~attrs=[clss(["canvas-mode-hint-row"])],
-      switch (mode_hint) {
-      | None => []
-      | Some(h) => [div(~attrs=[clss(["canvas-mode-hint"])], [text(h)])]
+      switch (content) {
+      | [] => []
+      | parts => [
+          div(~attrs=[clss(["canvas-mode-hint"])], List.concat(parts)),
+        ]
       },
     );
   };
