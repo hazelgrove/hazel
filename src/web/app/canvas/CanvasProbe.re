@@ -43,7 +43,15 @@ let view =
   | None => None
   | Some(syntax_piece) =>
     let entry =
-      Refractors.mk_entry(~model=?stored_model(~globals, key), probe_kind);
+      Refractors.mk_entry(
+        /* wells auto-render the first applicable rich renderer (html,
+           card, ...) — the plain display is the fallback, not the default */
+        ~model=
+          Haz3lcore.ProbeProj.model_string_auto_rich(
+            stored_model(~globals, key),
+          ),
+        probe_kind,
+      );
     let p = Refractors.to_projector(syntax_piece, id, entry);
     let info =
       ProjectorInfo.mk_info(

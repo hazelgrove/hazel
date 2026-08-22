@@ -16,12 +16,17 @@ type probe_model = {
   /* Bumped to force a repaint when only the global open_dropdown ref
    * changed (SetModel repaints only on structural model change). */
   dropdown_redraw: int,
+  /* When no renderer is explicitly active, render the first applicable
+   * one automatically (canvas value wells). Off for editor probes. */
+  [@default false]
+  auto_rich: bool,
 };
 
 let init_probe_model: probe_model = {
   active_renderer: None,
   drawer_mode: false,
   dropdown_redraw: 0,
+  auto_rich: false,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -48,6 +53,25 @@ let model_string_for_renderer = (rid: string): option(string) =>
        })
        |> Sexplib.Sexp.to_string
      );
+
+/* Canvas wells pass their stored model (or the default) through this to
+   turn on automatic rich rendering. */
+let model_string_auto_rich = (stored: option(string)): string => {
+  let m =
+    switch (stored) {
+    | Some(s) =>
+      try(probe_model_of_sexp(Sexplib.Sexp.of_string(s))) {
+      | _ => init_probe_model
+      }
+    | None => init_probe_model
+    };
+  {
+    ...m,
+    auto_rich: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
+};
 
 let renderer_of_model_string = (model: string): option(string) =>
   switch (probe_model_of_sexp(Sexplib.Sexp.of_string(model))) {
@@ -1972,6 +1996,32 @@ let rich_content =
       )
     | _ => None
     }
+  | (None, Some(exp)) when model.auto_rich =>
+    /* tables excluded: they match broadly (any list of tuples) and are
+       heavy; the plain display is right until explicitly requested */
+    switch (
+      List.find_opt(
+        (r: packed_renderer) => r.id != "table" && r.can_handle(sort, exp),
+        renderers,
+      )
+    ) {
+    | Some(r) =>
+      switch (r.init_model(sort, exp)) {
+      | Some(pm) =>
+        r.render_model(
+          pm,
+          ~info,
+          ~exp,
+          ~view_seg,
+          ~local=pa => local(RendererAction(pa)),
+          ~parent,
+          ~sort,
+          (),
+        )
+      | None => None
+      }
+    | None => None
+    }
   | _ => None
   };
 
@@ -1983,6 +2033,7 @@ let rich_drawer_view =
     (
       ~local: action => Ui_effect.t(unit),
       ~overflowing: bool,
+      ~closable: bool=true,
       content: Node.t,
     )
     : Node.t =>
@@ -1990,38 +2041,54 @@ let rich_drawer_view =
     ~attrs=[
       Attr.classes(["rich-drawer"] @ (overflowing ? ["overflowing"] : [])),
     ],
-    [
-      div(
-        ~attrs=[
-          Attr.classes(["rich-drawer-close"]),
-          Attr.title("Close"),
-          Attr.on_click(_ => local(ToggleModal(None))),
-        ],
-        [text("×")],
-      ),
-      content,
-    ],
+    (
+      closable
+        ? [
+          div(
+            ~attrs=[
+              Attr.classes(["rich-drawer-close"]),
+              Attr.title("Close"),
+              Attr.on_click(_ => local(ToggleModal(None))),
+            ],
+            [text("×")],
+          ),
+        ]
+        : []
+    )
+    @ [content],
   );
 
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
-let rich_drawer_rows = (model: probe_model, info: info): option(int) =>
+let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
+  let sort =
+    switch (info.statics) {
+    | Some(statics) => Language.Statics.Info.sort_of(statics)
+    | None => Sort.Exp
+    };
   switch (model.active_renderer) {
-  | None => None
   | Some(pm) =>
-    let sort =
-      switch (info.statics) {
-      | Some(statics) => Language.Statics.Info.sort_of(statics)
-      | None => Sort.Exp
-      };
     switch (
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
     | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
     | _ => None
-    };
+    }
+  | None when model.auto_rich =>
+    switch (get_current(~settings=Settings.s^, info)) {
+    | Some(exp) =>
+      List.find_opt(
+        (r: packed_renderer) => r.id != "table" && r.can_handle(sort, exp),
+        renderers,
+      )
+      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.join
+    | None => None
+    }
+  | None => None
   };
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
@@ -2172,17 +2239,21 @@ module M: Projector = {
                 Attr.classes(["modal"]),
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
-              [
-                div(
-                  ~attrs=[
-                    Attr.classes(["modal-close-btn"]),
-                    Attr.title("Close"),
-                    Attr.on_click(_ => local(ToggleModal(None))),
-                  ],
-                  [text("×")],
-                ),
-                content,
-              ],
+              (
+                model.active_renderer != None
+                  ? [
+                    div(
+                      ~attrs=[
+                        Attr.classes(["modal-close-btn"]),
+                        Attr.title("Close"),
+                        Attr.on_click(_ => local(ToggleModal(None))),
+                      ],
+                      [text("×")],
+                    ),
+                  ]
+                  : []
+              )
+              @ [content],
             ),
           ],
         ),
@@ -2245,7 +2316,14 @@ module M: Projector = {
             ~sort,
           )
           |> Option.map(content =>
-               rich_drawer_view(~local, ~overflowing=drawer_overflow, content)
+               rich_drawer_view(
+                 ~local,
+                 ~overflowing=drawer_overflow,
+                 /* auto-rich (no explicit renderer) has nothing to close:
+                    dismissal would just re-trigger */
+                 ~closable=model.active_renderer != None,
+                 content,
+               )
              )
         : None;
     let modal_nodes =
