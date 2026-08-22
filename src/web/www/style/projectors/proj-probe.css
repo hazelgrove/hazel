@@ -1057,3 +1057,14 @@
     transform: rotate(360deg);
   }
 }
+
+/* ---- rich html renderer: a sample value rendered as its actual DOM ---- */
+.rich-html-view {
+  /* inert display: handler attrs in the value never fire */
+  pointer-events: none;
+  overflow: auto;
+  max-height: 100%;
+  background: white;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
