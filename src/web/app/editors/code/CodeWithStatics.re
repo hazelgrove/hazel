@@ -202,7 +202,12 @@ module Update = {
     /* refresh only statics.targets against the new refractors (cheap; rest of
      * statics stays valid) */
     let statics =
-      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
+      CachedStatics.with_targets(
+        ~settings,
+        ~projectors=editor.syntax.projectors,
+        editor.state.zipper,
+        statics,
+      );
     {
       editor,
       statics,

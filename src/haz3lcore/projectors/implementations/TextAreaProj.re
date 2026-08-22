@@ -107,19 +107,29 @@ module M: Projector = {
     | None => None
     };
 
-  let focus_keyboard = (id: Id.t, d: Direction.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | Left =>
-      WebUtil.TextArea.set_caret_to_start(WebUtil.TextArea.get(Id.cls(id)))
-    | Right =>
-      WebUtil.TextArea.set_caret_to_end(WebUtil.TextArea.get(Id.cls(id)))
+  /* The textarea is absent whenever this projector isn't drawn at the
+     code site — docked to the sidebar, or culled from the viewport — so
+     focusing it has to be optional, not an assertion. */
+  let focus_keyboard = (id: Id.t, d: Direction.t) =>
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+    | None => ()
+    | Some(el) =>
+      el##focus;
+      switch (d) {
+      | Left =>
+        WebUtil.TextArea.set_caret_to_start(
+          WebUtil.TextArea.get(Id.cls(id)),
+        )
+      | Right =>
+        WebUtil.TextArea.set_caret_to_end(WebUtil.TextArea.get(Id.cls(id)))
+      };
     };
-  };
 
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-  };
+  let focus_pointer = (id: Id.t) =>
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+    | None => ()
+    | Some(el) => el##focus
+    };
 
   let focusable =
     Focusable.{

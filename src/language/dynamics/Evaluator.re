@@ -1,6 +1,14 @@
 open Transition;
 open Trampoline.Syntax;
 
+/* Initialize Ascriptions with the builtin context at module-load time,
+   so every entry point into ascription transitions (stepper,
+   PatternMatch, Unboxing, projectors) sees it — not just paths that go
+   through `evaluate`. The ref lives in Ascriptions because the direct
+   dependency is cyclic (Ascriptions → Builtins → … → Ascriptions); it
+   is constant after this. */
+let () = Ascriptions.set_ctx(Builtins.ctx_init(None));
+
 module EvaluatorEVMode: {
   type status =
     | Final

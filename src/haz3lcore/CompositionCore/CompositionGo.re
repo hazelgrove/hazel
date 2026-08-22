@@ -688,7 +688,7 @@ module Local = {
             ++ string_of_int(max_chunk_chars)
             ++ "): it failed the batch parse, and chunks this size stall the editor in the recovering parser."
             ++ parse_hint()
-            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"M/view\") address the parts directly.",
+            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"^name/view\") address the parts directly.",
           ),
         );
       } else {

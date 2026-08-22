@@ -195,10 +195,15 @@ let view =
       seg,
     );
 
-  /* Trailing filler: a text layer ending in a linebreak gets no
-     final line box from HTML, so an empty last line left the editor
-     one row short (caret overhanging into the result area). The
-     zero-width space forces the line box and is invisible (and
-     harmless mid-line) otherwise. */
-  of_segment(segment) @ [Node.text("\xe2\x80\x8b")];
+  let body = of_segment(segment);
+  /* A tab projector on the last line defers linebreaks that no
+     following (real) linebreak ever consumes; materialize them so the
+     text flow reserves the hang-below rows. Either way end in a
+     zero-width space: a text layer ending in a linebreak gets no final
+     line box from HTML, so an empty last line left the editor one row
+     short (caret overhanging into the result area). */
+  switch (DeferredLinebreaks.consume()) {
+  | 0 => body @ [Node.text("\xe2\x80\x8b")]
+  | n => body @ [Node.text(String.make(n, '\n') ++ "\xe2\x80\x8b")]
+  };
 };

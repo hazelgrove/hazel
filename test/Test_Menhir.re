@@ -54,7 +54,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -87,7 +87,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -242,7 +242,7 @@ let qcheck_menhir_serialized_equivalent_test =
           );
         let normalize = exp =>
           Conversion.Exp.of_menhir_ast(exp)
-          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
+          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp)
           |> strip_parens
           |> Grammar.map_exp_annotation(_ => false)
           |> Conversion.Exp.of_core;
@@ -278,6 +278,18 @@ let tests =
       menhir_maketerm_equivalent_test(
         "multi-param fun with ascription",
         "fun a, b : (Int, Int) -> a",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit binder and member access",
+        "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a; let view = fun m : Int -> m; let expand = fun m : Int -> m } in ^p.update((^p.init, 3))",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit use in projector position",
+        "let ^p = { let init = 50 } in ^^livelit(^p(3))",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit graph slice",
+        "type G = ([Int], [(Int, Int)]) in let ^g = { type Model = ([(Int, Int)], Int); type Action = + Down(Int, Int) + Up; let init : Model = ([(1, 2)], 0); let hit = fun ns, x -> case ns | [] => 0 | (i, _) :: tl => if i == x then i else hit(tl, x) end; let update = fun (m, a) : (Model, Action) -> case a | Down(x, y) => ([(x, y)], hit([(1, 2)], x)) | Up => m end; let view = fun m : Model -> Text(\"g\"); let expand = fun m : Model -> ([1], []) : G } in counts(^g.expand(^g.init))",
       ),
       full_parser_test("Integer Literal", int(8), "8"),
       full_parser_test(

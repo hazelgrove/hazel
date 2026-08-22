@@ -93,10 +93,15 @@ let view =
         model: p.model,
         info,
         local,
+        /* the canvas probe-model store is settings-side (not the zipper),
+           so there is no undo entry to suppress — quiet == loud here */
+        local_quiet: local,
         parent,
         view_seg,
         status,
         core_settings: globals.settings.core,
+        col_width: globals.font_metrics.col_width,
+        row_height: globals.font_metrics.row_height,
       });
     /* projector/probe/sort classes so the probe system's own CSS applies;
        canvas-probe scopes the static-flow layout overrides */

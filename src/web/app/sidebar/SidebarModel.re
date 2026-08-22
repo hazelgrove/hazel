@@ -7,6 +7,7 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | Canvas
+    | Projectors
     | LogControl
     | Problems
     | DebugInfo;

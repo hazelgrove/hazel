@@ -17,7 +17,8 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | HTML;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -29,6 +30,7 @@ let livelit_projectors: list(t) = [
   Table,
   Card,
   Livelit,
+  HTML,
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
@@ -54,6 +56,7 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | HTML => "html"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)
