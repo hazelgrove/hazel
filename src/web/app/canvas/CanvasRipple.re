@@ -111,13 +111,14 @@ let rec draw = (): unit => {
       Js.Unsafe.coerce(ctx)##.fillStyle :=
         Js.string(fill == "" ? "#d8c9a3" : fill);
       let two_pi = 2. *. Float.pi;
-      let half = pitch /. 2.;
       let nx = int_of_float(Float.ceil(mw /. pitch))
       and ny = int_of_float(Float.ceil(mh /. pitch));
       for (iy in 0 to ny) {
         for (ix in 0 to nx) {
-          let x = half +. float_of_int(ix) *. pitch
-          and y = half +. float_of_int(iy) *. pitch;
+          /* dot centers ON lattice multiples — where node centers snap
+             (the old CSS background's half-pitch tile offset did this) */
+          let x = float_of_int(ix) *. pitch
+          and y = float_of_int(iy) *. pitch;
           let (dx, dy) =
             List.fold_left(
               ((ax, ay), rp: ripple) => {

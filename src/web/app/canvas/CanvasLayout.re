@@ -333,17 +333,46 @@ let layout =
           : [],
       g.nodes,
     );
+  /* pinned nodes with no spec relationships float FREE of the rank
+     grid: a freshly placed node would otherwise claim a row and shove
+     every auto-laid node down */
+  let all_spec_edges =
+    dep_edges
+    @ derived_edges
+    @ flow_edges
+    @ former_rank_edges
+    @ formation_edges;
+  let spec_touches = (k: string): bool =>
+    List.exists(
+      (e: Util.GraphLayout.Spec.edge) => e.src == k || e.dst == k,
+      all_spec_edges,
+    )
+    || List.exists(
+         (a: Util.GraphLayout.Spec.attachment) => a.host == k,
+         attachments,
+       );
+  let free_keys =
+    List.filter_map(
+      (n: CanvasGraph.tynode) =>
+        List.mem_assoc(n.key, pins) && !spec_touches(n.key)
+          ? Some(n.key) : None,
+      grid_nodes,
+    );
   let res =
     Util.GraphLayout.layout({
       nodes:
-        List.map(
+        List.filter_map(
           (n: CanvasGraph.tynode) =>
-            Util.GraphLayout.Spec.{
-              id: n.key,
-              radius: r_of(n),
-              extent_above: legend_extent(n.key),
-              extent_below: 0.,
-            },
+            List.mem(n.key, free_keys)
+              ? None
+              : Some(
+                  Util.GraphLayout.Spec.{
+                    id: n.key,
+                    radius: r_of(n),
+                    extent_above: legend_extent(n.key),
+                    extent_below: 0.,
+                  },
+                ),
           grid_nodes,
         ),
       edges:
@@ -375,7 +404,26 @@ let layout =
              }
            ),
       g.nodes,
-    );
+    )
+    /* free-floating pinned nodes: position straight from the pin (the
+       pins pass below re-applies the same value) */
+    @ List.filter_map(
+        (n: CanvasGraph.tynode) =>
+          List.mem(n.key, free_keys)
+            ? List.assoc_opt(n.key, pins)
+              |> Option.map(((x, y)) =>
+                   {
+                     node: n,
+                     p: {
+                       x,
+                       y,
+                     },
+                     r: r_of(n),
+                   }
+                 )
+            : None,
+        g.nodes,
+      );
 
   /* ---- user drag deltas and click-placement pins ---- */
   let node_layouts =

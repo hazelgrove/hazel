@@ -1008,25 +1008,30 @@ let view =
     canvas_menu := Util.Menu.closed;
     canvas_menu_node := None;
   };
-  let menu_items: list(Util.Menu.item(Effect.t(unit))) =
+  /* item payloads are THUNKS: building the items must not run the
+     gesture (place_stub_at has eager side effects — the splash and the
+     grow-in stamp fired on every render when these were plain calls) */
+  let menu_items: list(Util.Menu.item(unit => Effect.t(unit))) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
         Util.Menu.action_item(
           ~tooltip=
             "draw a function edge from this node: click the target next (shift-click collects more sources)",
           "function from this…",
-          set_connect(Some([syntax])),
+          () =>
+          set_connect(Some([syntax]))
         ),
         Util.Menu.action_item(
           ~tooltip=
             "start a tuple with this component: click more nodes, then the canvas to place",
           "tuple with this…",
-          set_place(Some(("tuple", [syntax]))),
+          () =>
+          set_place(Some(("tuple", [syntax])))
         ),
         Util.Menu.action_item(
           ~tooltip="new list alias of this type, placed beside it",
           "list of this",
-          {
+          () => {
             let pos =
               lay.nodes
               |> List.find_opt((nl: CanvasLayout.node_layout) =>
@@ -1048,17 +1053,15 @@ let view =
         Util.Menu.action_item(
           ~tooltip="type T = ? in \u2014 a hole-bodied alias to fill later",
           "new type",
-          place_stub_at(~kind="type", ~comps=[], at),
+          () =>
+          place_stub_at(~kind="type", ~comps=[], at)
         ),
         Util.Menu.action_item(
-          ~tooltip="type T = (?, ?) in",
-          "new tuple type",
-          place_stub_at(~kind="tuple", ~comps=[], at),
+          ~tooltip="type T = (?, ?) in", "new tuple type", () =>
+          place_stub_at(~kind="tuple", ~comps=[], at)
         ),
-        Util.Menu.action_item(
-          ~tooltip="type T = [?] in",
-          "new list type",
-          place_stub_at(~kind="list", ~comps=[], at),
+        Util.Menu.action_item(~tooltip="type T = [?] in", "new list type", () =>
+          place_stub_at(~kind="list", ~comps=[], at)
         ),
         Util.Menu.divider,
         Util.Menu.submenu_item(
@@ -1066,10 +1069,8 @@ let view =
           "new alias of",
           List.map(
             b =>
-              Util.Menu.action_item(
-                ~tooltip="type T = " ++ b ++ " in",
-                b,
-                place_stub_at(~kind="alias", ~comps=[b], at),
+              Util.Menu.action_item(~tooltip="type T = " ++ b ++ " in", b, () =>
+                place_stub_at(~kind="alias", ~comps=[b], at)
               ),
             ["Int", "Float", "Bool", "String"],
           ),
@@ -1080,9 +1081,9 @@ let view =
     canvas_menu := Util.Menu.update(a, canvas_menu^);
     nudge;
   };
-  let menu_inject_action = (eff: Effect.t(unit)): Effect.t(unit) => {
+  let menu_inject_action = (thunk: unit => Effect.t(unit)): Effect.t(unit) => {
     menu_close();
-    Effect.Many([eff, nudge]);
+    Effect.Many([thunk(), nudge]);
   };
   CanvasMenuListener.sync(
     ~menu_open=Util.Menu.is_open(canvas_menu^),
