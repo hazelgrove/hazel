@@ -465,7 +465,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
               ~attrs=[clss(["legend-tooltip"])],
               [
                 text(
-                  "Render matching samples as cards/tables/etc. in place of text when they fit; double-click a sample to flip an individual probe back.",
+                  "Show samples as cards etc. when possible; double-click a sample to toggle it.",
                 ),
               ],
             ),
