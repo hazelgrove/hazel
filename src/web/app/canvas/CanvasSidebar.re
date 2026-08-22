@@ -22,6 +22,38 @@ let current_code =
   | Exercises(_) => None
   };
 
+/* free-panning headroom (screen px, constant across zoom) around the
+   board; the scroll position that puts the board's top-left at the pane
+   corner is exactly (pan_slack, pan_slack) */
+let pan_slack = 392.;
+/* set to force a re-anchor on the next render (fit button) */
+let pending_anchor: ref(bool) = ref(false);
+let last_anchor_slide: ref(string) = ref("");
+/* anchor the scroll to the board (skipping the slack margin) whenever
+   the pane is fresh, the slide changed, or an anchor was requested */
+let ensure_scroll_anchor = (slide: string): unit =>
+  Js_of_ocaml.(
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback(_ => {
+          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+          | None => ()
+          | Some(el) =>
+            let el' = Js.Unsafe.coerce(el);
+            let fresh = !Js.Optdef.test(Js.Unsafe.get(el', "__panAnchored"));
+            if (fresh || last_anchor_slide^ != slide || pending_anchor^) {
+              Js.Unsafe.set(el', "__panAnchored", Js.bool(true));
+              last_anchor_slide := slide;
+              pending_anchor := false;
+              el'##.scrollLeft := pan_slack;
+              el'##.scrollTop := pan_slack;
+            };
+          }
+        }),
+      ),
+    )
+  );
+
 /* pinch-zoom plumbing: the wheel listener must be non-passive (to
    preventDefault the browser's page zoom on ctrl+wheel), so it is
    installed raw on the scroll element; these refs carry the current
@@ -62,24 +94,33 @@ let install_zoom_listener = (): unit => {
                      correct the scroll once the new zoom has rendered */
                   let rect =
                     Js.Unsafe.meth_call(el', "getBoundingClientRect", [||]);
+                  /* measure from the scroll ORIGIN (inside the border),
+                     not the border box, or the fixed point drifts by
+                     clientLeft * (r - 1) per step */
                   let mx: float =
                     Js.Unsafe.coerce(evt)##.clientX
                     -.
-                    Js.Unsafe.coerce(rect)##.left;
+                    Js.Unsafe.coerce(rect)##.left
+                    -.
+                    Js.Unsafe.coerce(el')##.clientLeft;
                   let my: float =
                     Js.Unsafe.coerce(evt)##.clientY
                     -.
-                    Js.Unsafe.coerce(rect)##.top;
+                    Js.Unsafe.coerce(rect)##.top
+                    -.
+                    Js.Unsafe.coerce(el')##.clientTop;
                   let sl: float = Js.Unsafe.coerce(el')##.scrollLeft
                   and st: float = Js.Unsafe.coerce(el')##.scrollTop;
                   ignore(
                     Js.Unsafe.global##setTimeout(
                       Js.Unsafe.callback(() => {
                         let r = z /. z0;
+                        /* the pan slack doesn't scale with zoom, so the
+                           fixed-point math runs in board coordinates */
                         Js.Unsafe.coerce(el')##.scrollLeft :=
-                          (sl +. mx) *. r -. mx;
+                          (sl +. mx -. pan_slack) *. r +. pan_slack -. mx;
                         Js.Unsafe.coerce(el')##.scrollTop :=
-                          (st +. my) *. r -. my;
+                          (st +. my -. pan_slack) *. r +. pan_slack -. my;
                       }),
                       60,
                     ),
@@ -138,10 +179,13 @@ type frame_cache = {
 let cached_frame: ref(option(frame_cache)) =
   ref(None: option(frame_cache));
 
-/* key of the node most recently placed by a canvas gesture; its node
-   view gets a grow-in animation for a moment */
-let last_placed: ref(option((string, float))) =
-  ref(None: option((string, float)));
+/* keys of recently placed nodes (canvas gestures AND agent-created
+   arrivals); their node views get a grow-in animation for a moment */
+let last_placed: ref(list((string, float))) = ref([]);
+let note_placed = (key: string): unit =>
+  last_placed :=
+    [(key, CanvasBuffer.now())]
+    @ List.filter(((k, _)) => k != key, last_placed^);
 
 /* previous render's nodes, for removal detection: a node that vanishes
    gets a suction ripple (negative amplitude) at its last position.
@@ -926,7 +970,7 @@ let view =
                 | None => (cx, cy)
                 };
               let product_key = "(" ++ String.concat(", ", many) ++ ")";
-              last_placed := Some((product_key, CanvasBuffer.now()));
+              note_placed(product_key);
               CanvasRipple.splash((
                 CanvasLayout.snap(bx),
                 CanvasLayout.snap(by),
@@ -1001,7 +1045,7 @@ let view =
       | _ => "?"
       };
 
-    last_placed := Some((name, CanvasBuffer.now()));
+    note_placed(name);
     CanvasRipple.splash((CanvasLayout.snap(x), CanvasLayout.snap(y)));
     /* the alias's former ("()"/"[]") sits midway between its
        component nodes and the alias, instead of auto-docking */
@@ -1355,11 +1399,6 @@ let view =
       [text(split ? {js|⇱ dock|js} : {js|⇲ split|js})],
     );
   };
-  let header =
-    div(
-      ~attrs=[clss(["canvas-header"])],
-      [div(~attrs=[clss(["canvas-title"])], [text("Constellation")])],
-    );
   let legend = {
     let item = (cls, glyph, label) =>
       div(
@@ -1373,9 +1412,8 @@ let view =
       ~attrs=[clss(["canvas-legend"])],
       [
         item("lg-fn", {js|─▶|js}, "function"),
-        item("lg-form", {js|┈▶|js}, "forms tuple"),
-        item("lg-dep", {js|─▶|js}, "made of"),
-        item("lg-hole", {js|╌╌|js}, "unwritten (hole)"),
+        item("lg-form", {js|┈▶|js}, "made of"),
+        item("lg-hole", {js|┈┈|js}, "unwritten (hole)"),
         item("lg-tests", {js|●|js}, "tests"),
         item("lg-agent", "@", "agent"),
       ],
@@ -1410,11 +1448,14 @@ let view =
     | (None, None) => []
     };
   let toolbar = {
-    let btn = (~cls="", label, tooltip, eff) =>
+    let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
       div(
         ~attrs=[
           clss(["canvas-tool-btn"] @ (cls == "" ? [] : [cls])),
-          Attr.on_click(_ => eff),
+          Attr.on_click(_ => {
+            on_press();
+            eff;
+          }),
           Attr.title(tooltip),
         ],
         [text(label)],
@@ -1465,6 +1506,7 @@ let view =
           globals.inject_global(Set(ToggleCanvasPace)),
         ),
         btn(
+          ~on_press=() => pending_anchor := true,
           "fit",
           "zoom so the whole graph fits the pane",
           {
@@ -1500,7 +1542,16 @@ let view =
       ],
     );
   };
+  let header =
+    div(
+      ~attrs=[clss(["canvas-header"])],
+      [
+        div(~attrs=[clss(["canvas-title"])], [text("Constellation")]),
+        toolbar,
+      ],
+    );
   CanvasRipple.request_draw();
+  ensure_scroll_anchor(slide);
   {
     let (prev_slide, prev_nodes) = last_node_snapshot^;
     let cur_keys =
@@ -1511,6 +1562,28 @@ let view =
       List.iter(
         ((_, (x, y))) => CanvasRipple.splash(~amp=-6.5, (x, y)),
         removed,
+      );
+    };
+    /* agent rainfall: nodes that appear during a paced burst arrive with
+       a small splash + grow-in (gesture placements splash bigger at the
+       click site and are already stamped, so they're skipped here) */
+    let added =
+      List.filter(
+        (nl: CanvasLayout.node_layout) =>
+          !List.mem_assoc(nl.node.key, prev_nodes)
+          && !List.mem_assoc(nl.node.key, last_placed^),
+        lay.nodes,
+      );
+    if (prev_slide == slide
+        && CanvasBuffer.in_burst()
+        && added != []
+        && List.length(added) <= 6) {
+      List.iter(
+        (nl: CanvasLayout.node_layout) => {
+          CanvasRipple.splash(~amp=4., (nl.p.x, nl.p.y));
+          note_placed(nl.node.key);
+        },
+        added,
       );
     };
     last_node_snapshot :=
@@ -1537,11 +1610,11 @@ let view =
       )
     | None => []
     };
-  let just_placed =
-    switch (last_placed^) {
-    | Some((k, t)) when CanvasBuffer.now() -. t < 2500. => Some(k)
-    | _ => None
-    };
+  let just_placed = {
+    let now = CanvasBuffer.now();
+    last_placed := List.filter(((_, t)) => now -. t < 2500., last_placed^);
+    List.map(fst, last_placed^);
+  };
   /* mode guidance floats OVER the canvas in a zero-height row: putting
      it in the toolbar re-wrapped the row mid-gesture, shifting the
      canvas under the cursor and misplacing the click */
@@ -1622,31 +1695,35 @@ let view =
     ~attrs=[Attr.id("canvas-sidebar")],
     [
       header,
-      toolbar,
       hint_row,
       div(
         ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [
-          CanvasView.view(
-            ~inject_jump,
-            ~connect_pts,
-            ~just_placed,
-            ~on_canvas_dblclick,
-            ~on_canvas_contextmenu,
-            ~on_node_contextmenu,
-            ~on_edge_click,
-            ~on_node_mousedown,
-            ~on_canvas_click,
-            ~zoom,
-            ~avatar_bubble,
-            ~min_size=(
-              (Option.value(~default=0., avail_width) -. 2.) /. zoom,
-              (Option.value(~default=0., avail_height) -. 2.) /. zoom,
-            ),
-            ~focused,
-            ~avatar,
-            ~loose_tests=graph.loose_tests,
-            lay,
+          div(
+            ~attrs=[clss(["canvas-pan-pad"])],
+            [
+              CanvasView.view(
+                ~inject_jump,
+                ~connect_pts,
+                ~just_placed,
+                ~on_canvas_dblclick,
+                ~on_canvas_contextmenu,
+                ~on_node_contextmenu,
+                ~on_edge_click,
+                ~on_node_mousedown,
+                ~on_canvas_click,
+                ~zoom,
+                ~avatar_bubble,
+                ~min_size=(
+                  (Option.value(~default=0., avail_width) -. 2.) /. zoom,
+                  (Option.value(~default=0., avail_height) -. 2.) /. zoom,
+                ),
+                ~focused,
+                ~avatar,
+                ~loose_tests=graph.loose_tests,
+                lay,
+              ),
+            ],
           ),
         ],
       ),

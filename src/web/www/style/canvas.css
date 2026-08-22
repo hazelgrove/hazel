@@ -83,24 +83,30 @@
 
 .canvas-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding: 0.5em 0.8em;
+  gap: 10px;
+  padding: 0.4em 0.8em;
   border-bottom: 0.6px solid var(--BR2, #ccc);
   flex: 0 0 auto;
 }
 
+/* same typeface parameters as the Probearium title */
 .canvas-title {
   font-weight: bold;
-  letter-spacing: 0.06em;
-  font-size: 0.85em;
+  font-size: 1em;
   text-transform: uppercase;
   color: var(--ui-header-text, #6b5330);
+  font-family: var(--ui-font, sans-serif);
+  white-space: nowrap;
 }
 
 .canvas-scroll {
   flex: 1 1 auto;
   overflow: auto;
+  /* free panning: constant slack all around the board (the dot field
+     fades at the board edges, so the slack reads as open void); scroll
+     anchoring on slide entry skips the margin (CanvasSidebar) */
   /* dot-grid backdrop over the whole panel; pattern starts one cell in
      from the top-left corner */
   /* the transparent border insets the root (and its dot field) one
@@ -110,21 +116,34 @@
      changed the pane width, re-centered the frame, and made every
      node bounce between adjacent grid cells */
   scrollbar-gutter: stable;
+  /* free panning made the scroll range permanent; scrollbars would be
+     constant chrome on an infinite canvas, so hide them (two-finger
+     swipe / wheel still pans) */
+  scrollbar-width: none;
+}
+
+.canvas-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.canvas-pan-pad {
+  padding: 392px; /* keep in sync with CanvasSidebar.pan_slack */
+  width: max-content;
 }
 
 /* ---- authoring toolbar ---- */
 
+/* lives inside the header row, right of the title */
 .canvas-toolbar {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   /* one line, always: mid-gesture wrapping shifted the canvas under
      the cursor (mode hints float over the canvas instead) */
   flex-wrap: nowrap;
   overflow: hidden;
-  gap: 6px;
-  padding: 4px 10px;
-  border-bottom: 0.6px solid var(--BR2, #ccc);
+  gap: 4px;
   font-size: 11px;
 }
 
@@ -626,6 +645,7 @@
 /* ---- focus strip: one function, flattened input → output ---- */
 
 .canvas-focus {
+  position: relative;
   flex: 0 0 auto;
   border-top: 0.6px solid var(--BR2, #ccc);
   padding: 6px 12px 10px;
@@ -655,11 +675,15 @@
   opacity: 0.65;
 }
 
+/* pinned to the corner with EQUAL top/right insets (it used to ride
+   the header baseline, farther from the right edge than the top) */
 .focus-close {
-  margin-left: auto;
+  position: absolute;
+  top: 7px;
+  right: 7px;
   cursor: pointer;
-  opacity: 0.5;
-  padding: 0 4px;
+  color: var(--BR3, #8a744a);
+  padding: 0 2px;
 }
 
 .focus-close:hover {
@@ -928,7 +952,7 @@
   flex-wrap: wrap;
   gap: 2px 14px;
   padding: 4px 10px;
-  border-top: 1px solid var(--CREASE, #ccc);
+  border-top: 0.6px solid var(--BR2, #ccc);
   font-size: 10px;
   opacity: 0.75;
 }
@@ -942,11 +966,6 @@
 
 .legend-glyph {
   font-weight: bold;
-}
-
-.legend-item.lg-dep .legend-glyph {
-  color: #4a7a4a;
-  opacity: 0.7;
 }
 
 .legend-item.lg-form .legend-glyph,

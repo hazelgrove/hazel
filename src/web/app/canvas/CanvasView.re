@@ -275,7 +275,7 @@ let node_view =
       ~on_node_contextmenu:
          (CanvasGraph.tynode, (float, float)) => Effect.t(unit)=(_, _) =>
                                                                     Effect.Ignore,
-      ~just_placed: option(string)=None,
+      ~just_placed: list(string)=[],
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -316,7 +316,7 @@ let node_view =
           ["canvas-node", kind_cls(n.kind)]
           @ (n.n_err ? ["node-err"] : [])
           /* grows out of the placement-preview dot */
-          @ (just_placed == Some(n.key) ? ["just-placed"] : []),
+          @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
         ),
         Attr.create(
           "style",
@@ -401,7 +401,7 @@ let view =
          the cursor */
       ~connect_pts: list(CanvasLayout.pos)=[],
       /* key of a node placed moments ago (grow-in animation) */
-      ~just_placed: option(string)=None,
+      ~just_placed: list(string)=[],
       ~zoom: float=1.,
       /* pane size in layout px: the root grows to fill it so the dot
          field covers the whole visible canvas */

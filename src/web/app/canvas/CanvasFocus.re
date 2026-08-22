@@ -219,7 +219,7 @@ let type_view =
                [
                  text(
                    Printf.sprintf(
-                     "  ·  %d distinct value(s), %d observation(s)",
+                     "  ·  %d distinct value(s), %d sample(s)",
                      List.length(entries),
                      total_obs,
                    ),

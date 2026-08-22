@@ -240,13 +240,6 @@ let start = default_model => {
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
-        ScrollWidth.update(
-          ~measured,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~font_metrics,
-          ~visible_rows=model.model.current.current.globals.visible_rows,
-        );
         RefractorShift.update(
           ~font_metrics,
           ~refractor_rows=editor.syntax.refractor_rows,
@@ -256,6 +249,15 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority) */
         ProbeStagger.update(~measured, ~font_metrics);
+        /* measure AFTER the shift/stagger patches so the published scroll
+           width includes displays pushed right by staggering */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
