@@ -754,6 +754,13 @@ let view =
           let st = Js.Unsafe.coerce(el)##.style;
           st##.left := Js.string(Printf.sprintf("%.1fpx", l +. dx));
           st##.top := Js.string(Printf.sprintf("%.1fpx", t +. dy));
+          /* bow wave: the unsnapped position, so the field glides */
+          CanvasRipple.set_field(
+            Some((
+              l +. float_of_int(x - sx) /. z,
+              t +. float_of_int(y - sy) /. z,
+            )),
+          );
         | None => ()
         };
         /* throttled live commits so edges follow during the drag (a
@@ -767,6 +774,16 @@ let view =
     }
     and on_up = _ => {
       drag_active := false;
+      if (moved^) {
+        /* settle: a soft splash where the node lands */
+        switch (orig) {
+        | Some((_, l, t)) =>
+          let (dx, dy) = delta^;
+          CanvasRipple.splash(~amp=3., (l +. dx, t +. dy));
+        | None => ()
+        };
+      };
+      CanvasRipple.set_field(None);
       let doc = Js.Unsafe.coerce(Dom_html.document);
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
@@ -870,6 +887,16 @@ let view =
               ];
             };
           };
+        /* the new edge lands with a soft splash at its target */
+        switch (
+          lay.nodes
+          |> List.find_opt((nl: CanvasLayout.node_layout) =>
+               nl.node.key == n.key
+             )
+        ) {
+        | Some(nl) => CanvasRipple.splash(~amp=3.5, (nl.p.x, nl.p.y))
+        | None => ()
+        };
         Effect.Many(
           pin_product
           @ [
@@ -1008,74 +1035,83 @@ let view =
     canvas_menu := Util.Menu.closed;
     canvas_menu_node := None;
   };
-  /* item payloads are THUNKS: building the items must not run the
-     gesture (place_stub_at has eager side effects — the splash and the
-     grow-in stamp fired on every render when these were plain calls) */
-  let menu_items: list(Util.Menu.item(unit => Effect.t(unit))) =
+  /* icon palette: gestures are glyphs with tooltips, not text rows.
+     Payloads are THUNKS — building the menu must not run the gesture. */
+  let menu_act = (thunk: unit => Effect.t(unit)): Effect.t(unit) => {
+    menu_close();
+    Effect.Many([thunk(), nudge]);
+  };
+  let menu_icon =
+      (
+        ~cls="",
+        glyph: string,
+        tooltip: string,
+        thunk: unit => Effect.t(unit),
+      )
+      : Node.t =>
+    div(
+      ~attrs=[
+        clss(["cmenu-icon"] @ (cls == "" ? [] : [cls])),
+        Attr.title(tooltip),
+        Attr.on_pointerdown(_ => menu_act(thunk)),
+      ],
+      [text(glyph)],
+    );
+  let menu_rows: list(Node.t) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
-        Util.Menu.action_item(
-          ~tooltip=
-            "draw a function edge from this node: click the target next (shift-click collects more sources)",
-          ~on_hover=true,
-          {js|ƒ from this…|js},
-          () =>
-          set_connect(Some([syntax]))
-        ),
-        Util.Menu.action_item(
-          ~tooltip=
-            "start a tuple with this component: click more nodes, then the canvas to place",
-          ~on_hover=true,
-          {js|() with this…|js},
-          () =>
-          set_place(Some(("tuple", [syntax])))
-        ),
-        Util.Menu.action_item(
-          ~tooltip="new list alias of this type, placed beside it",
-          ~on_hover=true,
-          "[] of this",
-          () => {
-            let pos =
-              lay.nodes
-              |> List.find_opt((nl: CanvasLayout.node_layout) =>
-                   nl.node.key == key
-                 )
-              |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
-            let pt =
-              switch (pos) {
-              | Some(p) => (p.x +. 84., p.y)
-              | None => canvas_menu_at^
-              };
-            place_stub_at(~kind="list", ~comps=[syntax], pt);
-          },
+        div(
+          ~attrs=[clss(["cmenu-row"])],
+          [
+            menu_icon(
+              {js|ƒ|js}, "function from this node: click the target next", () =>
+              set_connect(Some([syntax]))
+            ),
+            menu_icon(
+              "()",
+              "tuple with this component: click more nodes, then the canvas",
+              () =>
+              set_place(Some(("tuple", [syntax])))
+            ),
+            menu_icon("[]", "list of this type, placed beside it", () => {
+              let pos =
+                lay.nodes
+                |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                     nl.node.key == key
+                   )
+                |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+              let pt =
+                switch (pos) {
+                | Some(p) => (p.x +. 84., p.y)
+                | None => canvas_menu_at^
+                };
+              place_stub_at(~kind="list", ~comps=[syntax], pt);
+            }),
+          ],
         ),
       ]
     | None =>
       let at = canvas_menu_at^;
       [
-        Util.Menu.action_item(
-          ~tooltip="type T = ? in \u2014 a hole-bodied alias to fill later",
-          ~on_hover=true,
-          {js|τ type|js},
-          () =>
-          place_stub_at(~kind="type", ~comps=[], at)
+        div(
+          ~attrs=[clss(["cmenu-row"])],
+          [
+            menu_icon({js|τ|js}, "type T = ? in", () =>
+              place_stub_at(~kind="type", ~comps=[], at)
+            ),
+            menu_icon("()", "type T = (?, ?) in", () =>
+              place_stub_at(~kind="tuple", ~comps=[], at)
+            ),
+            menu_icon("[]", "type T = [?] in", () =>
+              place_stub_at(~kind="list", ~comps=[], at)
+            ),
+          ],
         ),
-        Util.Menu.action_item(
-          ~tooltip="type T = (?, ?) in", ~on_hover=true, "() tuple", () =>
-          place_stub_at(~kind="tuple", ~comps=[], at)
-        ),
-        Util.Menu.action_item(
-          ~tooltip="type T = [?] in", ~on_hover=true, "[] list", () =>
-          place_stub_at(~kind="list", ~comps=[], at)
-        ),
-        Util.Menu.divider,
-        Util.Menu.submenu_item(
-          ~tooltip="a named alias of a base type",
-          "alias of",
+        div(
+          ~attrs=[clss(["cmenu-row"])],
           List.map(
             b =>
-              Util.Menu.action_item(
-                ~tooltip="type T = " ++ b ++ " in", ~on_hover=true, b, () =>
+              menu_icon(~cls="cmenu-base", b, "type T = " ++ b ++ " in", () =>
                 place_stub_at(~kind="alias", ~comps=[b], at)
               ),
             ["Int", "Float", "Bool", "String"],
@@ -1083,14 +1119,6 @@ let view =
         ),
       ];
     };
-  let menu_inject_menu = (a: Util.Menu.action): Effect.t(unit) => {
-    canvas_menu := Util.Menu.update(a, canvas_menu^);
-    nudge;
-  };
-  let menu_inject_action = (thunk: unit => Effect.t(unit)): Effect.t(unit) => {
-    menu_close();
-    Effect.Many([thunk(), nudge]);
-  };
   CanvasMenuListener.sync(
     ~menu_open=Util.Menu.is_open(canvas_menu^),
     ~on_close=
@@ -1099,12 +1127,15 @@ let view =
         nudge;
       },
     ~handle_key=
-      Util.Menu.key_dispatcher(
-        ~items=menu_items,
-        ~dispatch_menu=menu_inject_menu,
-        ~dispatch_action=menu_inject_action,
-        canvas_menu^,
-      ),
+      key =>
+        key == "Escape"
+          ? Some(
+              {
+                menu_close();
+                nudge;
+              },
+            )
+          : None,
     (),
   );
   let open_canvas_menu =
@@ -1152,26 +1183,7 @@ let view =
                 ),
               ),
             ],
-            /* group/contents wrappers + named-menu-item: the editor
-               menu's row styling (incl. hover/selected) is scoped to
-               this structure */
-            [
-              div(
-                ~attrs=[clss(["group"])],
-                [
-                  div(
-                    ~attrs=[clss(["contents"])],
-                    Util.Menu.render(
-                      ~inject_action=menu_inject_action,
-                      ~inject_menu=menu_inject_menu,
-                      ~item_class="named-menu-item",
-                      ~items=menu_items,
-                      canvas_menu^,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            menu_rows,
           ),
         ];
       },

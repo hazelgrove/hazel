@@ -15,9 +15,16 @@ type ripple = {
   rx: float,
   ry: float,
   start: float,
+  r_amp: float,
 };
 
 let ripples: ref(list(ripple)) = ref([]);
+/* a moving repulsion field (the dragged node's bow wave): dots yield
+   around this point while it is set */
+let field: ref(option((float, float))) =
+  ref(None: option((float, float)));
+let field_amp = 3.6;
+let field_sigma = 36.;
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
 /* geometry of the last static draw, to skip redundant repaints */
@@ -29,7 +36,7 @@ let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 let duration = 900.;
 let speed = 0.33; /* px per ms: ring radius at t is speed * t */
 let ring_w = 42.; /* gaussian half-width of the compression ring */
-let amp = 5.5; /* peak radial displacement */
+let default_amp = 5.5; /* peak radial displacement */
 
 let parse_px = (s: string): option(float) => {
   let s = String.trim(s);
@@ -67,7 +74,7 @@ let rec draw = (): unit => {
     let mw = float_of_int(w) /. dpr
     and mh = float_of_int(h) /. dpr;
     let geom = (w, h, pitch, r_dot);
-    if (live != [] || geom != last_geom^) {
+    if (live != [] || field^ != None || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -128,12 +135,25 @@ let rec draw = (): unit => {
                 let d = max(1., Float.hypot(ddx, ddy));
                 let u = (d -. speed *. age) /. ring_w;
                 let envelope =
-                  amp *. Float.exp(-. (u *. u)) *. (1. -. age /. duration);
+                  rp.r_amp
+                  *. Float.exp(-. (u *. u))
+                  *. (1. -. age /. duration);
                 (ax +. ddx /. d *. envelope, ay +. ddy /. d *. envelope);
               },
               (0., 0.),
               live,
             );
+          let (dx, dy) =
+            switch (field^) {
+            | None => (dx, dy)
+            | Some((fx, fy)) =>
+              let ddx = x -. fx
+              and ddy = y -. fy;
+              let d = max(1., Float.hypot(ddx, ddy));
+              let g = d /. field_sigma;
+              let push = field_amp *. Float.exp(-. (g *. g));
+              (dx +. ddx /. d *. push, dy +. ddy /. d *. push);
+            };
           let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
           let _ =
             Js.Unsafe.meth_call(
@@ -152,7 +172,7 @@ let rec draw = (): unit => {
         };
       };
     };
-    if (live != []) {
+    if (live != [] || field^ != None) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -183,15 +203,26 @@ let request_draw = (): unit =>
   };
 
 /* splash a compression wave outward from a model-space point */
-let splash = ((x, y): (float, float)): unit => {
+let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
   ripples :=
     [
       {
         rx: x,
         ry: y,
         start: now(),
+        r_amp: amp,
       },
       ...ripples^,
     ];
+  request_draw();
+};
+
+/* drag bow wave: set while a node drag is live, clear on drop. Clearing
+   invalidates the geometry cache so one final draw settles the dots. */
+let set_field = (p: option((float, float))): unit => {
+  field := p;
+  if (p == None) {
+    last_geom := ((-1), (-1), 0., 0.);
+  };
   request_draw();
 };

@@ -1087,3 +1087,40 @@
 .canvas-context-menu {
   z-index: 60;
 }
+
+/* ---- icon-palette context menu ---- */
+.canvas-context-menu .cmenu-row {
+  display: flex;
+  gap: 5px;
+  padding: 2px;
+}
+
+.cmenu-icon {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 1px solid var(--BR1, #d8c9a3);
+  background: color-mix(in srgb, var(--token-typ, #9457c9) 10%, var(--df-bg, #fdfdf4));
+  color: var(--token-typ, #9457c9);
+  font-family: var(--code-font, monospace);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cmenu-icon:hover {
+  background: color-mix(in srgb, var(--token-typ, #9457c9) 22%, var(--df-bg, #fdfdf4));
+}
+
+.cmenu-icon.cmenu-base {
+  font-size: 11px;
+  background: var(--df-bg, #fdfdf4);
+}
+
+.cmenu-icon.cmenu-base:hover {
+  background: var(--Y0, #f6efd8);
+}
