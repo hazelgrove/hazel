@@ -438,6 +438,41 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
         );
       },
       {
+        /* Rich views toggle */
+        let on = ProbeProj.Settings.s^.auto_rich_default;
+        let segment = (label, active) =>
+          div(
+            ~attrs=[
+              clss(["segment"] @ (active ? ["active"] : [])),
+              Attr.on_pointerdown(_ => {
+                ProbeProj.Settings.go(ToggleAutoRichDefault);
+                /* piggyback an app action so the toggle repaints (the
+                   settings ref alone doesn't re-render) */
+                explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+              }),
+            ],
+            [text(label)],
+          );
+        div(
+          ~attrs=[clss(["toggle-group"])],
+          [
+            div(~attrs=[clss(["toggle-label"])], [text("Rich Views")]),
+            div(
+              ~attrs=[clss(["segmented-control"])],
+              [segment("On", on), segment("Off", !on)],
+            ),
+            div(
+              ~attrs=[clss(["legend-tooltip"])],
+              [
+                text(
+                  "Render matching samples as cards/tables/etc. in place of text when they fit; double-click a sample to flip an individual probe back.",
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+      {
         /* Samples toggle */
 
         let is_single = mode == Single;
