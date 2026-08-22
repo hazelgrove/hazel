@@ -295,7 +295,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 2px solid var(--BLACK, #333);
+  /* types wear the code's Typ purple, on the canvas as in the buffer */
+  border: 2px solid var(--token-typ, #9457c9);
   background: var(--df-bg, #fdfdf4);
   box-sizing: border-box;
   z-index: 2;
@@ -311,6 +312,7 @@
 }
 
 .canvas-node-label {
+  color: var(--token-typ, #9457c9);
   font-size: 11px;
   white-space: nowrap;
   position: absolute;
@@ -322,8 +324,11 @@
 }
 
 .canvas-node.kind-alias {
-  border-color: #4a7a4a;
-  background: #eaf3e6;
+  background: color-mix(
+    in srgb,
+    var(--token-typ, #9457c9) 10%,
+    var(--df-bg, #fdfdf4)
+  );
 }
 
 .canvas-node.kind-alias .canvas-node-label {
@@ -355,6 +360,7 @@
 
 /* former labels ("()" / "[]") sit INSIDE the node as bold delimiters */
 .canvas-node.kind-product .canvas-node-label {
+  color: var(--BLACK, #111);
   top: 0;
   inset: 0;
   margin-top: 0;
@@ -398,6 +404,8 @@
 /* ---- edge labels ---- */
 
 .canvas-edge-label {
+  /* function names wear the code's Pat color (their `let f` binding) */
+  color: var(--token-pat, #2a7a8a);
   position: absolute;
   translate: -50% -100%;
   display: flex;
@@ -593,7 +601,8 @@
 }
 
 .focus-chip {
-  border: 2px solid var(--BLACK, #333);
+  border: 2px solid var(--token-typ, #9457c9);
+  color: var(--token-typ, #9457c9);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 11px;
@@ -603,8 +612,11 @@
 }
 
 .focus-chip.kind-alias {
-  border-color: #4a7a4a;
-  background: #eaf3e6;
+  background: color-mix(
+    in srgb,
+    var(--token-typ, #9457c9) 10%,
+    var(--df-bg, #fdfdf4)
+  );
   font-weight: bold;
 }
 
