@@ -571,51 +571,43 @@ let view =
         }),
       ]
       : [];
-  let telegraph_nodes =
-    (
-      placing
-        ? [
-          div(
-            ~attrs=[
-              Attr.id("place-preview"),
-              clss(["place-preview"]),
-              Attr.create("style", "left: -100px; top: -100px;"),
+  /* both containers are ALWAYS in the children list (hidden/empty when
+     idle): conditional presence displaced later un-keyed siblings in
+     the vdom diff, recreating every node element per mode toggle */
+  let telegraph_nodes = [
+    div(
+      ~attrs=[
+        Attr.id("place-preview"),
+        clss(["place-preview"] @ (placing ? [] : ["idle"])),
+        Attr.create("style", "left: -100px; top: -100px;"),
+      ],
+      [],
+    ),
+    svg(
+      "svg",
+      [
+        clss(["connect-preview"]),
+        Attr.create("width", fmt(lay.width)),
+        Attr.create("height", fmt(lay.height)),
+      ],
+      List.mapi(
+        (i, p: CanvasLayout.pos) =>
+          svg(
+            "line",
+            [
+              Attr.id("connect-line-" ++ string_of_int(i)),
+              clss(["connect-line"]),
+              Attr.create("x1", fmt(p.x)),
+              Attr.create("y1", fmt(p.y)),
+              Attr.create("x2", fmt(p.x)),
+              Attr.create("y2", fmt(p.y)),
             ],
             [],
           ),
-        ]
-        : []
-    )
-    @ (
-      connect_pts == []
-        ? []
-        : [
-          svg(
-            "svg",
-            [
-              clss(["connect-preview"]),
-              Attr.create("width", fmt(lay.width)),
-              Attr.create("height", fmt(lay.height)),
-            ],
-            List.mapi(
-              (i, p: CanvasLayout.pos) =>
-                svg(
-                  "line",
-                  [
-                    Attr.id("connect-line-" ++ string_of_int(i)),
-                    clss(["connect-line"]),
-                    Attr.create("x1", fmt(p.x)),
-                    Attr.create("y1", fmt(p.y)),
-                    Attr.create("x2", fmt(p.x)),
-                    Attr.create("y2", fmt(p.y)),
-                  ],
-                  [],
-                ),
-              connect_pts,
-            ),
-          ),
-        ]
-    );
+        connect_pts,
+      ),
+    ),
+  ];
   div(
     ~attrs=
       [

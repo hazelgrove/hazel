@@ -341,6 +341,10 @@
 
 /* placement telegraph: a pulsing seed on the lattice point under the
    cursor — the node will grow here on click */
+.place-preview.idle {
+  display: none;
+}
+
 .place-preview {
   position: absolute;
   translate: -50% -50%;

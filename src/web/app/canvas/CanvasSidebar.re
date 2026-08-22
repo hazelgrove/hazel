@@ -1254,21 +1254,24 @@ let view =
         )
       | (None, None) => None
       };
-    switch (mode_hint) {
-    | None => []
-    | Some(h) => [
-        div(
-          ~attrs=[clss(["canvas-mode-hint-row"])],
-          [div(~attrs=[clss(["canvas-mode-hint"])], [text(h)])],
-        ),
-      ]
-    };
+    /* ALWAYS present (empty when idle): inserting it displaced the
+       un-keyed scroll div in the children diff, recreating the whole
+       canvas subtree — the fresh root transitioned zoom from 1 (the
+       zoom-flicker-on-click bug) */
+    div(
+      ~attrs=[clss(["canvas-mode-hint-row"])],
+      switch (mode_hint) {
+      | None => []
+      | Some(h) => [div(~attrs=[clss(["canvas-mode-hint"])], [text(h)])]
+      },
+    );
   };
   div(
     ~attrs=[Attr.id("canvas-sidebar")],
-    [header, toolbar]
-    @ hint_row
-    @ [
+    [
+      header,
+      toolbar,
+      hint_row,
       div(
         ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [
