@@ -1744,8 +1744,16 @@ let view =
     | None => (false, "")
     };
   let avatar = {
+    /* while beats are on screen, the avatar target rides them (captured
+       per tool at exec time) instead of reading live agent state and
+       arriving ahead of the paced graph */
+    let target =
+      switch (CanvasBuffer.pacing_live() ? CanvasBuffer.beat_avatar^ : None) {
+      | Some(_) as beat_site => beat_site
+      | None => avatar_target(~editor, editors)
+      };
     let resolved =
-      avatar_target(~editor, editors)
+      target
       |> Util.OptUtil.and_then(((id, state)) =>
            switch (locate(~info_map=editor.statics.info_map, lay, id)) {
            | Some(p) =>

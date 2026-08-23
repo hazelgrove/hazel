@@ -151,6 +151,28 @@ let handle_llm_response =
                    states must be captured here or never seen */
                 CanvasBuffer.push_snapshot(
                   ~label=tc.name,
+                  /* capture the tool's work site NOW so the avatar hops
+                     with this beat (see CanvasBuffer.beat) */
+                  ~avatar={
+                    switch (msg.role) {
+                    | ToolResult(tr) when !tr.skipped =>
+                      let ed = step_u.model.editor;
+                      let node_map =
+                        Haz3lcore.HighLevelNodeMap.build(
+                          ed.editor.state.zipper,
+                          ed.statics.info_map,
+                        );
+                      ToolCallSummary.of_tool_call(tr.tool_call)
+                      |> Util.OptUtil.and_then((summary: ToolCallSummary.t) =>
+                           ToolResultView.first_resolving_id(
+                             ~node_map,
+                             summary.jump_paths,
+                           )
+                         )
+                      |> Option.map(id => (id, tr.success ? "edit" : "err"));
+                    | _ => None
+                    };
+                  },
                   step_u.model.editor,
                 );
                 let failed =

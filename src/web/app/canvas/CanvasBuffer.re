@@ -45,6 +45,10 @@ let note_agent_action = (): unit =>
 type beat = {
   b_model: CodeWithStatics.Model.t,
   b_label: option(string),
+  /* where the producing tool acted (site id + edit/err state), captured
+     at exec time so the avatar hops WITH its beat instead of reading
+     live agent state and arriving before the scenery */
+  b_avatar: option((Haz3lcore.Id.t, string)),
 };
 let queue: ref(list(beat)) = ref([]);
 let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);
@@ -53,6 +57,10 @@ let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);
 let toast_ms = 1100.;
 let last_toast: ref(option((string, float))) =
   ref(None: option((string, float)));
+/* the avatar site of the beat currently SHOWN (sticky across beats that
+   carry none, cleared when pacing disengages) */
+let beat_avatar: ref(option((Haz3lcore.Id.t, string))) =
+  ref(None: option((Haz3lcore.Id.t, string)));
 let current_toast = (): option(string) =>
   switch (last_toast^) {
   | Some((l, t)) when now() -. t < toast_ms => Some(l)
@@ -122,7 +130,13 @@ let coalesce = (q: list(beat)) =>
    ONE app action, so only the final state ever renders — the canvas
    would collapse N definitions into one beat. Each applied tool call
    pushes its intermediate editor model here. */
-let push_snapshot = (~label: string="", m: CodeWithStatics.Model.t): unit => {
+let push_snapshot =
+    (
+      ~label: string="",
+      ~avatar: option((Haz3lcore.Id.t, string))=None,
+      m: CodeWithStatics.Model.t,
+    )
+    : unit => {
   note_agent_action();
   let before = List.length(queue^) + 1;
   queue :=
@@ -132,6 +146,7 @@ let push_snapshot = (~label: string="", m: CodeWithStatics.Model.t): unit => {
         {
           b_model: m,
           b_label: label == "" ? None : Some(label),
+          b_avatar: avatar,
         },
       ],
     );
@@ -231,6 +246,7 @@ let observe =
                 {
                   b_model: live,
                   b_label: None,
+                  b_avatar: None,
                 },
               ],
             );
@@ -246,6 +262,7 @@ let observe =
         shown := Some(live);
         last_beat := t;
         queue := [];
+        beat_avatar := None;
       };
     };
     switch (queue^) {
@@ -281,6 +298,10 @@ let observe =
         | Some(l) => last_toast := Some((l, t))
         | None => ()
         };
+        switch (next.b_avatar) {
+        | Some(_) as a => beat_avatar := a
+        | None => ()
+        };
         shown := Some(next.b_model);
         last_beat := t;
         queue := rest;
@@ -295,3 +316,7 @@ let observe =
   };
 
 let tick_fired = (): unit => tick_pending := false;
+
+/* the canvas should trust beat-carried avatar sites while beats are
+   what's on screen */
+let pacing_live = (): bool => in_burst() || queue^ != [];
