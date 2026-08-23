@@ -45,18 +45,27 @@ let deposit_sigma = ref(1.6); /* injection kernel width, cells */
    nearest-cell gradient sampling + 3x3 spike deposits. Toggling loads
    that mode's stock constants, stomping any hand tuning. */
 let legacy = ref(false);
+/* absorbing boundary: the grid is only viewport-sized, and its zero
+   border is a hard wall — without absorption every front reflects off
+   the panel edges and comes back (reads as motion restarting). The
+   sponge ramps extra damping over the outer band so outgoing waves
+   die there and the medium reads as infinite. 0 = reflecting walls. */
+let sponge_k = ref(0.10);
+let sponge_band = 10; /* cells */
 let apply_preset = (l: bool): unit =>
   if (l) {
     stiffness := 0.35;
     damping := 0.988;
     grad_gain := 5.5;
     stroke_amp := 3.2;
+    sponge_k := 0.; /* v1 reflected; keep the A/B faithful */
   } else {
     stiffness := 0.32;
     damping := 0.991;
     grad_gain := 9.;
     stroke_amp := 3.6;
     deposit_sigma := 1.6;
+    sponge_k := 0.10;
   };
 
 let knobs_installed = ref(false);
@@ -76,6 +85,7 @@ let install_knobs = (): unit =>
         | "legacy" =>
           legacy := v > 0.5;
           apply_preset(legacy^);
+        | "sponge" => sponge_k := max(0., min(0.5, v))
         | _ => ()
         }
       ),
@@ -86,12 +96,13 @@ let install_knobs = (): unit =>
       Js.Unsafe.callback(() =>
         Js.string(
           Printf.sprintf(
-            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f legacy=%d",
+            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f sponge=%.2f legacy=%d",
             stiffness^,
             damping^,
             grad_gain^,
             stroke_amp^,
             deposit_sigma^,
+            sponge_k^,
             legacy^ ? 1 : 0,
           ),
         )
@@ -209,6 +220,22 @@ let step_sim = (substeps: int): unit => {
           let k = j * w + i;
           let lap = u[k - 1] +. u[k + 1] +. u[k - w] +. u[k + w] -. 4. *. u[k];
           un[k] = damping^ *. (2. *. u[k] -. up[k] +. stiffness^ *. lap);
+        };
+      };
+      if (sponge_k^ > 0.001) {
+        /* absorb over the outer band (both fields, so no velocity kick) */
+        let band = sponge_band;
+        for (j in 0 to h - 1) {
+          for (i in 0 to w - 1) {
+            let d = min(min(i, w - 1 - i), min(j, h - 1 - j));
+            if (d < band) {
+              let t = 1. -. float_of_int(d) /. float_of_int(band);
+              let f = 1. -. sponge_k^ *. t *. t;
+              let k = j * w + i;
+              un[k] = un[k] *. f;
+              u[k] = u[k] *. f;
+            };
+          };
         };
       };
       u_prev := u;
