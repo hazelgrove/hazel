@@ -614,6 +614,13 @@
   opacity: 0.5;
 }
 
+/* sample chips in the canvas panels: real code text, clipped */
+.agg-value .value-text {
+  max-width: 250px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 /* ---- orbiting constants ---- */
 
 .canvas-orbit {

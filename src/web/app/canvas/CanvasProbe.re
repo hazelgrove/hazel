@@ -176,13 +176,35 @@ let value_chip =
        let content =
          switch (rich) {
          | Some(n) => [div(~attrs=[clss(["value-rich"])], [n])]
-         | None => [
-             CanvasValue.chip(
-               ~font_metrics=globals.font_metrics,
-               ~available=34,
-               sample.value,
+         | None =>
+           /* render the value like a probe pill: real single-line code,
+              clipped by CSS — the old tight Abbreviate budget reduced
+              record fields wholesale to "…", which read as broken */
+           let seg = CanvasValue.seg_of(~available=400, sample.value);
+           [
+             div(
+               ~attrs=[clss(["value-text"])],
+               [
+                 ProjectorView.flex_code(
+                   ~font_metrics=globals.font_metrics,
+                   ~single_line=true,
+                   Sort.Exp,
+                   seg,
+                 ),
+               ],
              ),
-           ]
+           ];
+         };
+       let value_title =
+         switch (rich) {
+         | Some(_) => ""
+         | None =>
+           let t =
+             CanvasValue.string_of(
+               CanvasValue.seg_of(~available=400, sample.value),
+             );
+           (String.length(t) > 220 ? String.sub(t, 0, 220) ++ "…" : t)
+           ++ "\n";
          };
        let jump =
          globals.inject_global(
@@ -197,7 +219,9 @@ let value_chip =
        div(
          ~attrs=[
            clss(["value", "agg-value"]),
-           Attr.title("click: jump the dynamic focus to this occurrence"),
+           Attr.title(
+             value_title ++ "click: jump the dynamic focus to this occurrence",
+           ),
            Attr.on_pointerdown(_ => jump),
          ],
          content
