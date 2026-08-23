@@ -456,6 +456,9 @@ let viable_cached = (statics: CachedStatics.t): bool =>
   };
 /* sample-volume telemetry: logged when the total moves meaningfully */
 let last_logged_sample_total: ref(int) = ref(0);
+/* per-edge output-sample counts, for firing data-flow pulses on growth
+   (e_name -> (last count, last pulse time)) */
+let edge_pulse_state: ref(list((string, (int, float)))) = ref([]);
 
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
@@ -2136,6 +2139,43 @@ let view =
           ),
         );
       };
+    };
+    {
+      /* data-flow pulses: when a function's output samples GROW, send a
+         pulse along its edge (throttled per edge; first sighting seeds
+         the count silently so slide loads don't storm) */
+
+      let nowt = CanvasBuffer.now();
+      let next_state =
+        List.filter_map(
+          (el: CanvasLayout.edge_layout) =>
+            switch (el.edge.e_out_id) {
+            | None => None
+            | Some(out_id) =>
+              let n =
+                switch (Language.Sample.Map.lookup(out_id, editor.dynamics)) {
+                | Some(ss) => List.length(ss)
+                | None => 0
+                };
+              let (prev_n, last_t) =
+                switch (List.assoc_opt(el.edge.e_name, edge_pulse_state^)) {
+                | Some(st) => st
+                | None => ((-1), 0.)
+                };
+              let fire = prev_n >= 0 && n > prev_n && nowt -. last_t > 1000.;
+              if (fire) {
+                CanvasRipple.pulse_edge(
+                  (el.src_p.x, el.src_p.y),
+                  (el.c1.x, el.c1.y),
+                  (el.c2.x, el.c2.y),
+                  (el.dst_p.x, el.dst_p.y),
+                );
+              };
+              Some((el.edge.e_name, (n, fire ? nowt : last_t)));
+            },
+          lay.edges,
+        );
+      edge_pulse_state := next_state;
     };
     /* layout churn: how much did EXISTING nodes move this render?
        (the metric behind "the layout suddenly reshuffled") */

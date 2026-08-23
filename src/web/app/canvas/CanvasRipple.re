@@ -166,6 +166,42 @@ let displacement_at = (cx: float, cy: float): (float, float) =>
 let field: ref(option((float, float))) =
   ref(None: option((float, float)));
 
+/* ---- edge pulses: data visibly flowing ----
+   A bright dot with a fading tail travels a function edge's bezier
+   (model coords) when that function's samples change; on arrival it
+   deposits a little energy into the medium. */
+type pulse = {
+  p0: (float, float),
+  p1: (float, float),
+  p2: (float, float),
+  p3: (float, float),
+  t0: float,
+};
+let pulses: ref(list(pulse)) = ref([]);
+let pulse_ms = 650.;
+
+let bezier =
+    (
+      ((x0, y0), (x1, y1), (x2, y2), (x3, y3)): (
+        (float, float),
+        (float, float),
+        (float, float),
+        (float, float),
+      ),
+      t: float,
+    )
+    : (float, float) => {
+  let mt = 1. -. t;
+  let a = mt *. mt *. mt
+  and b = 3. *. mt *. mt *. t
+  and c = 3. *. mt *. t *. t
+  and d = t *. t *. t;
+  (
+    a *. x0 +. b *. x1 +. c *. x2 +. d *. x3,
+    a *. y0 +. b *. y1 +. c *. y2 +. d *. y3,
+  );
+};
+
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
 /* geometry of the last static draw, to skip redundant repaints */
@@ -259,7 +295,7 @@ let rec draw = (): unit => {
     };
     last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (sim_active^ || geom != last_geom^) {
+    if (sim_active^ || pulses^ != [] || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -382,9 +418,62 @@ let rec draw = (): unit => {
         draw_pass(g^ /. 2., fine_alpha, ~skip_coarse=true);
       };
       draw_pass(g^, 1., ~skip_coarse=false);
+      /* pulses ride on top of the lattice */
+      let (live_pulses, done_pulses) =
+        List.partition((p: pulse) => t -. p.t0 < pulse_ms, pulses^);
+      pulses := live_pulses;
+      List.iter(
+        (p: pulse) => {
+          let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), 1.);
+          let (cx, cy) = model_to_content((mx, my));
+          deposit(cx, cy, 3.5);
+        },
+        done_pulses,
+      );
+      List.iter(
+        (p: pulse) => {
+          let tt = (t -. p.t0) /. pulse_ms;
+          /* head + three tail samples fading behind */
+          List.iteri(
+            (k, back) => {
+              let tk = max(0., tt -. back);
+              let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), tk);
+              let cx = mx *. z +. pan_slack
+              and cy = my *. z +. pan_slack;
+              let (ddx, ddy) = displacement_at(cx, cy);
+              let sx = cx +. ddx -. sl
+              and sy = cy +. ddy -. st;
+              let a =
+                (k == 0 ? 0.9 : 0.5 -. 0.13 *. float_of_int(k))
+                *. fade1(sx, mw)
+                *. fade1(sy, mh);
+              if (a > 0.02) {
+                Js.Unsafe.coerce(ctx)##.globalAlpha := a;
+                let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
+                let _ =
+                  Js.Unsafe.meth_call(
+                    ctx,
+                    "arc",
+                    [|
+                      Js.Unsafe.inject(sx),
+                      Js.Unsafe.inject(sy),
+                      Js.Unsafe.inject(k == 0 ? 1.8 : 1.2),
+                      Js.Unsafe.inject(0.),
+                      Js.Unsafe.inject(2. *. Float.pi),
+                    |],
+                  );
+                let _ = Js.Unsafe.meth_call(ctx, "fill", [||]);
+                ();
+              };
+            },
+            List.init(4, k => float_of_int(k) *. 0.06),
+          );
+        },
+        live_pulses,
+      );
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (sim_active^ || zoom_settling) {
+    if (sim_active^ || pulses^ != [] || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -413,6 +502,29 @@ let request_draw = (): unit =>
       );
     ();
   };
+
+/* launch a pulse along an edge's bezier (model-space control points) */
+let pulse_edge =
+    (
+      p0: (float, float),
+      p1: (float, float),
+      p2: (float, float),
+      p3: (float, float),
+    )
+    : unit => {
+  pulses :=
+    [
+      {
+        p0,
+        p1,
+        p2,
+        p3,
+        t0: now(),
+      },
+      ...pulses^,
+    ];
+  request_draw();
+};
 
 /* splash: one impulse into the medium at a model-space point */
 let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
