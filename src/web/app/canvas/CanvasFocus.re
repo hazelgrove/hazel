@@ -157,7 +157,13 @@ let value_info =
                  }
                )
             |> Util.OptUtil.and_then(((s: Language.Sample.t, n)) =>
-                 CanvasProbe.value_chip(~globals, ~editor, ~count=n, s)
+                 CanvasProbe.value_chip(
+                   ~globals,
+                   ~editor,
+                   ~count=n,
+                   ~target_cols=80,
+                   s,
+                 )
                );
           switch (sampled) {
           | Some(chip) => [chip]

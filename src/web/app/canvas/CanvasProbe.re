@@ -135,6 +135,7 @@ let value_chip =
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~count: int,
+      ~target_cols: int=44,
       sample: Language.Sample.t,
     )
     : option(Node.t) => {
@@ -177,21 +178,34 @@ let value_chip =
          switch (rich) {
          | Some(n) => [div(~attrs=[clss(["value-rich"])], [n])]
          | None =>
-           /* render the value like a probe pill: real single-line code,
-              clipped by CSS — the old tight Abbreviate budget reduced
-              record fields wholesale to "…", which read as broken */
-           let seg = CanvasValue.seg_of(~available=400, sample.value);
+           /* the probe pill's OWN rendering: structural abbreviation
+              fit to a column target (never CSS truncation), through
+              the same term_to_seg the probe uses */
+           let rec fit = (budgets: list(int)): Segment.t =>
+             switch (budgets) {
+             | [] =>
+               ProbeUtil.abbreviated_seg_of(
+                 ProjectorInfo.utility,
+                 8,
+                 sample.value,
+               )
+               |> fst
+             | [b, ...rest] =>
+               let (seg, len) =
+                 ProbeUtil.abbreviated_seg_of(
+                   ProjectorInfo.utility,
+                   b,
+                   sample.value,
+                 );
+               len <= target_cols ? seg : fit(rest);
+             };
+           let seg = fit([200, 120, 80, 56, 40, 28, 18]);
            [
-             div(
-               ~attrs=[clss(["value-text"])],
-               [
-                 ProjectorView.flex_code(
-                   ~font_metrics=globals.font_metrics,
-                   ~single_line=true,
-                   Sort.Exp,
-                   seg,
-                 ),
-               ],
+             ProjectorView.flex_code(
+               ~font_metrics=globals.font_metrics,
+               ~single_line=true,
+               Sort.Exp,
+               seg,
              ),
            ];
          };
@@ -200,11 +214,14 @@ let value_chip =
          | Some(_) => ""
          | None =>
            let t =
-             CanvasValue.string_of(
-               CanvasValue.seg_of(~available=400, sample.value),
-             );
-           (String.length(t) > 220 ? String.sub(t, 0, 220) ++ "…" : t)
-           ++ "\n";
+             ProbeUtil.abbreviated_seg_of(
+               ProjectorInfo.utility,
+               220,
+               sample.value,
+             )
+             |> fst
+             |> ProjectorInfo.utility.seg_to_string;
+           t ++ "\n";
          };
        let jump =
          globals.inject_global(
@@ -218,13 +235,23 @@ let value_chip =
          );
        div(
          ~attrs=[
-           clss(["value", "agg-value"]),
+           /* the probe pill's own DOM hierarchy, so proj-probe.css
+              (backing, ink, typography) applies natively instead of
+              being imitated */
+           clss(["live-offside", "Single", "agg-value"]),
            Attr.title(
              value_title ++ "click: jump the dynamic focus to this occurrence",
            ),
            Attr.on_pointerdown(_ => jump),
          ],
-         content
+         [
+           div(
+             ~attrs=[clss(["sample"])],
+             [
+               div(~attrs=[clss(["value", "focus", "depth-same"])], content),
+             ],
+           ),
+         ]
          @ (
            count > 1
              ? [
