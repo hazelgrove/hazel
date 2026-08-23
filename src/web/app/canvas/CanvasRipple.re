@@ -11,26 +11,161 @@ open Js_of_ocaml;
    redraws happen only when geometry changes; an rAF loop runs only
    while ripples are live. */
 
-type ripple = {
-  rx: float,
-  ry: float,
-  start: float,
-  r_amp: float,
-};
+/* ---- the wave medium ----
+   A damped 2D wave field simulated at ~half dot resolution over the
+   viewport, replacing the old superposed analytic gaussian rings.
+   Every disturbance (splash, suction, the drag wake, rainfall) is an
+   energy injection into ONE medium, so interference and reflections
+   emerge instead of being composed — and dragging a node sheds waves
+   along its path like a stick pulled through water (with the wave
+   speed tuned below typical drag speed, a Mach-cone wake forms
+   physically). Dots displace by the local field gradient: an O(1)
+   lookup per dot, cheaper than the old per-ripple loop.
 
-let ripples: ref(list(ripple)) = ref([]);
+   The field is pinned to CONTENT coordinates (cells shift on scroll)
+   so waves stay where they happened while panning. */
 
 /* view state, pushed in by CanvasSidebar each render (and imperatively
    during a pinch): the dots canvas is VIEWPORT-fixed and needs the
-   board->screen mapping to draw the lattice window under it */
+   board->screen mapping */
 let zoom: ref(float) = ref(1.);
 let pan_slack = 392.; /* keep in sync with CanvasSidebar.pan_slack */
-/* a moving repulsion field (the dragged node's bow wave): dots yield
-   around this point while it is set */
+
+let cell = 7.; /* field resolution, screen px */
+let stiffness = 0.35; /* (c*dt/cell)^2 — CFL-stable below 0.5 */
+let damping = 0.988; /* per substep */
+let grad_gain = 5.5; /* field gradient -> dot displacement px */
+let default_amp = 9.;
+let stroke_amp = 3.2; /* drag-wake deposit per sample point */
+
+let gw: ref(int) = ref(0);
+let gh: ref(int) = ref(0);
+let u_cur: ref(array(float)) = ref([||]);
+let u_prev: ref(array(float)) = ref([||]);
+/* content-px position of cell (0,0) */
+let origin_x: ref(float) = ref(0.);
+let origin_y: ref(float) = ref(0.);
+let sim_active: ref(bool) = ref(false);
+let last_step: ref(float) = ref(0.);
+
+let zoom_ref = zoom; /* alias for clarity below */
+
+let idx = (i: int, j: int): int => j * gw^ + i;
+
+let ensure_grid = (cw: int, ch: int): unit => {
+  let w = int_of_float(Float.ceil(float_of_int(cw) /. cell)) + 3;
+  let h = int_of_float(Float.ceil(float_of_int(ch) /. cell)) + 3;
+  if (w != gw^ || h != gh^) {
+    gw := w;
+    gh := h;
+    u_cur := Array.make(w * h, 0.);
+    u_prev := Array.make(w * h, 0.);
+  };
+};
+
+/* keep the field pinned to content while the viewport scrolls: shift
+   cells by whole-cell deltas */
+let anchor = (sl: float, st: float): unit => {
+  let target_x = sl -. cell
+  and target_y = st -. cell;
+  let dx = int_of_float(Float.round((target_x -. origin_x^) /. cell))
+  and dy = int_of_float(Float.round((target_y -. origin_y^) /. cell));
+  if (dx != 0 || dy != 0) {
+    let w = gw^
+    and h = gh^;
+    let shift = (a: array(float)): array(float) => {
+      let b = Array.make(w * h, 0.);
+      for (j in 0 to h - 1) {
+        for (i in 0 to w - 1) {
+          let si = i + dx
+          and sj = j + dy;
+          if (si >= 0 && si < w && sj >= 0 && sj < h) {
+            b[j * w + i] = a[sj * w + si];
+          };
+        };
+      };
+      b;
+    };
+    u_cur := shift(u_cur^);
+    u_prev := shift(u_prev^);
+    origin_x := origin_x^ +. float_of_int(dx) *. cell;
+    origin_y := origin_y^ +. float_of_int(dy) *. cell;
+  };
+};
+
+/* deposit an impulse (3x3 kernel) at a CONTENT-px point */
+let deposit = (cx: float, cy: float, amp: float): unit =>
+  if (gw^ > 0) {
+    let ci = int_of_float(Float.round((cx -. origin_x^) /. cell))
+    and cj = int_of_float(Float.round((cy -. origin_y^) /. cell));
+    for (j in cj - 1 to cj + 1) {
+      for (i in ci - 1 to ci + 1) {
+        if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
+          let k = i == ci && j == cj ? 1.0 : 0.35;
+          u_cur^[idx(i, j)] = u_cur^[idx(i, j)] +. amp *. k;
+        };
+      };
+    };
+    sim_active := true;
+  };
+
+let model_to_content = ((x, y): (float, float)): (float, float) => (
+  pan_slack +. x *. zoom_ref^,
+  pan_slack +. y *. zoom_ref^,
+);
+
+let step_sim = (substeps: int): unit => {
+  let w = gw^
+  and h = gh^;
+  if (w > 0) {
+    for (_ in 1 to substeps) {
+      let u = u_cur^
+      and up = u_prev^;
+      let un = Array.make(w * h, 0.);
+      for (j in 1 to h - 2) {
+        for (i in 1 to w - 2) {
+          let k = j * w + i;
+          let lap = u[k - 1] +. u[k + 1] +. u[k - w] +. u[k + w] -. 4. *. u[k];
+          un[k] = damping *. (2. *. u[k] -. up[k] +. stiffness *. lap);
+        };
+      };
+      u_prev := u;
+      u_cur := un;
+    };
+    /* cheap liveness probe: sample every 5th cell */
+    let e = ref(0.);
+    let u = u_cur^;
+    let n = Array.length(u);
+    let i = ref(0);
+    while (i^ < n) {
+      e := e^ +. abs_float(u[i^]);
+      i := i^ + 5;
+    };
+    sim_active := e^ > 0.4;
+  };
+};
+
+/* field gradient at a content-px point -> dot displacement */
+let displacement_at = (cx: float, cy: float): (float, float) =>
+  if (gw^ == 0) {
+    (0., 0.);
+  } else {
+    let i = int_of_float(Float.round((cx -. origin_x^) /. cell))
+    and j = int_of_float(Float.round((cy -. origin_y^) /. cell));
+    if (i < 1 || i >= gw^ - 1 || j < 1 || j >= gh^ - 1) {
+      (0., 0.);
+    } else {
+      let u = u_cur^;
+      let gx = (u[idx(i + 1, j)] -. u[idx(i - 1, j)]) /. 2.
+      and gy = (u[idx(i, j + 1)] -. u[idx(i, j - 1)]) /. 2.;
+      (grad_gain *. gx, grad_gain *. gy);
+    };
+  };
+
+/* drag wake: injection along the path between successive drag samples */
 let field: ref(option((float, float))) =
   ref(None: option((float, float)));
-let field_amp = 7.;
-let field_sigma = 48.;
+
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
 /* geometry of the last static draw, to skip redundant repaints */
@@ -38,12 +173,6 @@ let last_geom: ref((int, int, float, float, float)) =
   ref((0, 0, 0., 0., 0.));
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
-
-/* wave parameters (model px / ms) */
-let duration = 1400.;
-let speed = 0.38; /* px per ms: ring radius at t is speed * t */
-let ring_w = 46.; /* gaussian half-width of the compression ring */
-let default_amp = 9.; /* peak radial displacement (negative = suction) */
 
 let parse_px = (s: string): option(float) => {
   let s = String.trim(s);
@@ -72,8 +201,6 @@ let rec draw = (): unit => {
     /* holder -> #canvas-scroll */
     let scroll = Js.Unsafe.coerce(el##.parentElement)##.parentElement;
     let t = now();
-    let live = List.filter((r: ripple) => t -. r.start < duration, ripples^);
-    ripples := live;
     let dpr: float = Js.Unsafe.coerce(Js.Unsafe.global)##.devicePixelRatio;
     let cw: int = Js.Unsafe.coerce(scroll)##.clientWidth
     and ch: int = Js.Unsafe.coerce(scroll)##.clientHeight;
@@ -121,8 +248,18 @@ let rec draw = (): unit => {
         Js.string(string_of_int(ch) ++ "px");
       last_geom := ((-1), (-1), 0., 0., 0.);
     };
+    ensure_grid(cw, ch);
+    anchor(sl, st);
+    /* advance the medium by wall-clock (capped substeps keep long
+       frames stable) */
+    if (sim_active^) {
+      let dt_ms = 8.;
+      let elapsed = last_step^ == 0. ? dt_ms : min(48., t -. last_step^);
+      step_sim(max(1, int_of_float(elapsed /. dt_ms)));
+    };
+    last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (live != [] || field^ != None || geom != last_geom^) {
+    if (sim_active^ || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -196,33 +333,6 @@ let rec draw = (): unit => {
       /* board model coord -> screen px */
       let to_screen_x = (m: float): float => m *. z +. pan_slack -. sl
       and to_screen_y = (m: float): float => m *. z +. pan_slack -. st;
-      let displaced = (x: float, y: float): (float, float) => {
-        let (dx, dy) =
-          List.fold_left(
-            ((ax, ay), rp: ripple) => {
-              let age = t -. rp.start;
-              let ddx = x -. rp.rx
-              and ddy = y -. rp.ry;
-              let d = max(1., Float.hypot(ddx, ddy));
-              let u = (d -. speed *. age) /. ring_w;
-              let envelope =
-                rp.r_amp *. Float.exp(-. (u *. u)) *. (1. -. age /. duration);
-              (ax +. ddx /. d *. envelope, ay +. ddy /. d *. envelope);
-            },
-            (0., 0.),
-            live,
-          );
-        switch (field^) {
-        | None => (dx, dy)
-        | Some((fx, fy)) =>
-          let ddx = x -. fx
-          and ddy = y -. fy;
-          let d = max(1., Float.hypot(ddx, ddy));
-          let gg = d /. field_sigma;
-          let push = field_amp *. Float.exp(-. (gg *. gg));
-          (dx +. ddx /. d *. push, dy +. ddy /. d *. push);
-        };
-      };
       let draw_pass = (step: float, alpha: float, ~skip_coarse: bool) => {
         let m0x = (0. +. sl -. pan_slack) /. z
         and m1x = (mw +. sl -. pan_slack) /. z;
@@ -239,9 +349,12 @@ let rec draw = (): unit => {
             if (!(skip_coarse && ix mod 2 == 0 && jy mod 2 == 0)) {
               let x = float_of_int(ix) *. step
               and y = float_of_int(jy) *. step;
-              let (dx, dy) = displaced(x, y);
-              let sx = to_screen_x(x +. dx)
-              and sy = to_screen_y(y +. dy);
+              /* content px of this dot, displaced by the wave field */
+              let cx = x *. z +. pan_slack
+              and cy = y *. z +. pan_slack;
+              let (dx, dy) = displacement_at(cx, cy);
+              let sx = cx +. dx -. sl
+              and sy = cy +. dy -. st;
               let a = alpha *. fade1(sx, mw) *. fade1(sy, mh);
               if (a > 0.01) {
                 Js.Unsafe.coerce(ctx)##.globalAlpha := a;
@@ -271,7 +384,7 @@ let rec draw = (): unit => {
       draw_pass(g^, 1., ~skip_coarse=false);
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (live != [] || field^ != None || zoom_settling) {
+    if (sim_active^ || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -301,27 +414,37 @@ let request_draw = (): unit =>
     ();
   };
 
-/* splash a compression wave outward from a model-space point */
+/* splash: one impulse into the medium at a model-space point */
 let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
-  ripples :=
-    [
-      {
-        rx: x,
-        ry: y,
-        start: now(),
-        r_amp: amp,
-      },
-      ...ripples^,
-    ];
+  let (cx, cy) = model_to_content((x, y));
+  deposit(cx, cy, amp);
   request_draw();
 };
 
-/* drag bow wave: set while a node drag is live, clear on drop. Clearing
-   invalidates the geometry cache so one final draw settles the dots. */
+/* drag wake: deposit energy along the path between successive drag
+   samples — the stick pulled through water. Cleared on drop; the shed
+   waves persist and ring down on their own. */
 let set_field = (p: option((float, float))): unit => {
-  field := p;
-  if (p == None) {
-    last_geom := ((-1), (-1), 0., 0., 0.);
+  switch (field^, p) {
+  | (Some((px, py)), Some((x, y))) =>
+    let (c0x, c0y) = model_to_content((px, py));
+    let (c1x, c1y) = model_to_content((x, y));
+    let d = Float.hypot(c1x -. c0x, c1y -. c0y);
+    let steps = max(1, int_of_float(d /. cell));
+    for (k in 1 to steps) {
+      let f = float_of_int(k) /. float_of_int(steps);
+      deposit(
+        c0x +. (c1x -. c0x) *. f,
+        c0y +. (c1y -. c0y) *. f,
+        /* speed-scaled, capped: fast pulls churn harder */
+        min(stroke_amp *. (0.4 +. d /. 24.), stroke_amp *. 2.),
+      );
+    };
+  | (None, Some((x, y))) =>
+    let (cx, cy) = model_to_content((x, y));
+    deposit(cx, cy, stroke_amp);
+  | (_, None) => last_geom := ((-1), (-1), 0., 0., 0.)
   };
+  field := p;
   request_draw();
 };
