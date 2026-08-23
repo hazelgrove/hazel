@@ -336,15 +336,30 @@ funAscElem:
       shift continues the inner exp, which is MakeTerm parity.
    3. One r/r between the two no-leading-plus sum productions (bare-ctor
       head vs general head) — identical semantic actions, either wins.
+   4. Two r/r states from funConsPat/funConsTail sharing nonAscriptingPat
+      and UNIT completions across head/tail contexts — identical
+      semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
    `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
    level (funConsPat/funAscElem) or inside a generic `pat`. The default
    shift keeps them at the parameter level, which is MakeTerm parity —
    pinned by the MenhirParser equivalence tests. *)
+(* `()` is a legal operand anywhere INSIDE a parameter cons chain
+   (fun () :: t -> …, fun x :: () -> …) but not the bare base case —
+   a lone () parameter stays funPat's UNIT. UNIT is inlined per
+   position (not factored into an operand nonterminal) so the fix adds
+   only shift/reduce states, no new reduce/reduce. *)
+funConsTail:
+    | p = nonAscriptingPat; { p }
+    | UNIT { TuplePat([]) }
+    | p = nonAscriptingPat; CONS; rest = funConsTail; { ConsPat(p, rest) }
+    | UNIT; CONS; rest = funConsTail; { ConsPat(TuplePat([]), rest) }
+
 funConsPat:
     | p = nonAscriptingPat; { p }
-    | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
+    | p = nonAscriptingPat; CONS; rest = funConsTail; { ConsPat(p, rest) }
+    | UNIT; CONS; rest = funConsTail; { ConsPat(TuplePat([]), rest) }
 
 funPat:
     | UNIT { TuplePat([]) }

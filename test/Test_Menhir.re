@@ -282,6 +282,36 @@ let tests =
         fn(Pat.var("x"), var("x"), None, None),
         "fun x -> x",
       ),
+      /* () in a parameter cons chain (MenhirFuzz seed-42 counterexample:
+         funConsPat built only from nonAscriptingPat, which has no UNIT) */
+      menhir_maketerm_equivalent_test(
+        "Unit as fun cons-pattern tail",
+        "fun x :: () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit as fun cons-pattern head",
+        "fun () :: y -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit cons unit fun parameter",
+        "fun () :: () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Hole cons unit fun parameter (fuzz counterexample)",
+        "fun ?:: () -> case 6.904152 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit mid cons chain",
+        "fun x :: () :: y -> 1",
+      ),
+      /* PRE-EXISTING divergence (not the UNIT gap): on an ascribed cons
+         chain MakeTerm binds : to the last ELEMENT (Cons(x, Asc(y, T)))
+         while funAscElem ascribes the whole chain. Surfaced while
+         pinning the UNIT fix; needs its own decision. */
+      skip_menhir_maketerm_equivalent_test(
+        "Ascribed cons-chain parameter (element vs chain binding)",
+        "fun x :: y : [T] -> 1",
+      ),
       full_parser_test(
         "String Literal",
         string("Hello World"),
