@@ -44,8 +44,10 @@ type t = {
   nodes: list(node_layout),
   edges: list(edge_layout),
   values: list(value_layout),
-  formations: list((pos, pos)), /* component → product feed lines */
-  dep_links: list((pos, pos)), /* alias-body dependency hints */
+  /* (from_key, to_key, from_rim, to_rim) — keys let the drag follower
+     re-anchor these without re-deriving rim geometry */
+  formations: list((string, string, pos, pos)), /* component → product */
+  dep_links: list((string, string, pos, pos)), /* alias-body dep hints */
   width: float,
   height: float,
   /* the normalization translation: final = pre-norm + origin. Click
@@ -476,10 +478,13 @@ let layout =
     |> Option.value(~default=base_radius);
 
   /* ---- formation + dependency links (rim-to-rim so arrowheads land) ---- */
-  let rim_pair = (from_k: string, to_k: string): option((pos, pos)) =>
+  let rim_pair =
+      (from_k: string, to_k: string): option((string, string, pos, pos)) =>
     switch (pos_of(from_k), pos_of(to_k)) {
     | (Some(fp), Some(tp)) =>
       Some((
+        from_k,
+        to_k,
         offset_along(fp, tp, radius_of(from_k) +. 2.),
         offset_along(tp, fp, radius_of(to_k) +. 4.),
       ))
@@ -1044,10 +1049,14 @@ let layout =
             },
           value_layouts,
         ),
-      formations: List.map(((a, b)) => (sh(a), sh(b)), formations),
-      dep_links: List.map(((a, b)) => (sh(a), sh(b)), dep_links),
-      width: max_x +. dx +. pad,
-      height: max_y +. dy +. pad,
+      formations:
+        List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), formations),
+      dep_links:
+        List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
+      /* panned-up content can put the extent above the origin; svg
+         size attrs reject negatives (overlays overflow: visible) */
+      width: max(0., max_x +. dx +. pad),
+      height: max(0., max_y +. dy +. pad),
       origin: {
         x: dx,
         y: dy,

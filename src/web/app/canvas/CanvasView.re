@@ -142,7 +142,12 @@ let edge_svg =
   };
 };
 
-let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
+let formation_svg =
+    (
+      i: int,
+      (_, _, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+    )
+    : Node.t => {
   /* gentle curve from component toward its product */
   let mx = (cp.x +. pp.x) /. 2.;
   let pp' =
@@ -157,6 +162,7 @@ let formation_svg = ((cp, pp): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => 
   svg(
     "path",
     [
+      Attr.id("cform-" ++ string_of_int(i)),
       clss(["canvas-formation"]),
       Attr.create(
         "d",
@@ -189,6 +195,7 @@ let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
       svg(
         "line",
         [
+          Attr.id("clead-" ++ sanitize(el.edge.e_name)),
           clss(["canvas-leader"]),
           Attr.create("x1", fmt(p.x)),
           Attr.create("y1", fmt(p.y -. 8.)),
@@ -200,11 +207,17 @@ let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
     ];
 };
 
-let dep_link_svg = ((dp, np): (CanvasLayout.pos, CanvasLayout.pos)): Node.t => {
+let dep_link_svg =
+    (
+      i: int,
+      (_, _, dp, np): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+    )
+    : Node.t => {
   let np' = pull_back(np, dp, 5.);
   svg(
     "line",
     [
+      Attr.id("cdep-" ++ string_of_int(i)),
       clss(["canvas-dep"]),
       Attr.create("x1", fmt(dp.x)),
       Attr.create("y1", fmt(dp.y)),
@@ -553,8 +566,8 @@ let view =
         Attr.create("height", fmt(lay.height)),
       ],
       [defs]
-      @ List.map(dep_link_svg, lay.dep_links)
-      @ List.map(formation_svg, lay.formations)
+      @ List.mapi(dep_link_svg, lay.dep_links)
+      @ List.mapi(formation_svg, lay.formations)
       @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );

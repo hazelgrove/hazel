@@ -1243,6 +1243,98 @@ let view =
           },
         lay.values,
       );
+      /* dotted connectors (formations, dep links): endpoints are rim
+         points, so match by the node keys carried in the layout and
+         translate the dragged side; rim angles re-derive on drop */
+
+      List.iteri(
+        (i, (ka, kb, cp, pp)) => {
+          let cm = ka == n.key
+          and pm = kb == n.key;
+          if (cm || pm) {
+            let cp = cm ? sh(cp) : cp
+            and pp = pm ? sh(pp) : pp;
+            let mx = (cp.x +. pp.x) /. 2.;
+            let pp' =
+              pull_back(
+                pp,
+                CanvasLayout.{
+                  x: mx,
+                  y: pp.y,
+                },
+                5.,
+              );
+            switch (
+              Util.JsUtil.get_elem_by_id_opt("cform-" ++ string_of_int(i))
+            ) {
+            | Some(el) =>
+              set_attr(
+                el,
+                "d",
+                Printf.sprintf(
+                  "M %f,%f C %f,%f %f,%f %f,%f",
+                  cp.x,
+                  cp.y,
+                  mx,
+                  cp.y,
+                  mx,
+                  pp.y,
+                  pp'.x,
+                  pp'.y,
+                ),
+              )
+            | None => ()
+            };
+          };
+        },
+        lay.formations,
+      );
+      List.iteri(
+        (i, (ka, kb, dp, tp)) => {
+          let dm = ka == n.key
+          and tm = kb == n.key;
+          if (dm || tm) {
+            let dp = dm ? sh(dp) : dp
+            and tp = tm ? sh(tp) : tp;
+            let tp' = pull_back(tp, dp, 5.);
+            switch (
+              Util.JsUtil.get_elem_by_id_opt("cdep-" ++ string_of_int(i))
+            ) {
+            | Some(el) =>
+              set_attr(el, "x1", Printf.sprintf("%f", dp.x));
+              set_attr(el, "y1", Printf.sprintf("%f", dp.y));
+              set_attr(el, "x2", Printf.sprintf("%f", tp'.x));
+              set_attr(el, "y2", Printf.sprintf("%f", tp'.y));
+            | None => ()
+            };
+          };
+        },
+        lay.dep_links,
+      );
+      /* label leaders on the followed edges */
+      List.iter(
+        (el: CanvasLayout.edge_layout) => {
+          let e = el.edge;
+          if (e.e_src == n.key || e.dst == n.key) {
+            switch (
+              Util.JsUtil.get_elem_by_id_opt(
+                "clead-" ++ CanvasView.sanitize(e.e_name),
+              )
+            ) {
+            | Some(lel) =>
+              let lp =
+                CanvasLayout.{
+                  x: el.label_p.x +. dx /. 2.,
+                  y: el.label_p.y +. dy /. 2.,
+                };
+              set_attr(lel, "x1", Printf.sprintf("%f", lp.x));
+              set_attr(lel, "y1", Printf.sprintf("%f", lp.y -. 8.));
+            | None => ()
+            };
+          };
+        },
+        lay.edges,
+      );
     };
     let rec on_move = e => {
       let x: int = Js.Unsafe.coerce(e)##.clientX;
