@@ -52,6 +52,10 @@ let legacy = ref(false);
    die there and the medium reads as infinite. 0 = reflecting walls. */
 let sponge_k = ref(0.25);
 let sponge_band = 14; /* cells */
+/* steep wake gradients can push neighboring dots into each other (they
+   visibly merge and 'vanish'); cap the displacement well under the
+   14px dot pitch */
+let disp_cap = ref(6.);
 let apply_preset = (l: bool): unit =>
   if (l) {
     stiffness := 0.35;
@@ -86,6 +90,7 @@ let install_knobs = (): unit =>
           legacy := v > 0.5;
           apply_preset(legacy^);
         | "sponge" => sponge_k := max(0., min(0.5, v))
+        | "disp_cap" => disp_cap := max(1., v)
         | _ => ()
         }
       ),
@@ -96,13 +101,14 @@ let install_knobs = (): unit =>
       Js.Unsafe.callback(() =>
         Js.string(
           Printf.sprintf(
-            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f sponge=%.2f legacy=%d",
+            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f sponge=%.2f disp_cap=%.1f legacy=%d",
             stiffness^,
             damping^,
             grad_gain^,
             stroke_amp^,
             deposit_sigma^,
             sponge_k^,
+            disp_cap^,
             legacy^ ? 1 : 0,
           ),
         )
@@ -293,7 +299,11 @@ let displacement_at = (cx: float, cy: float): (float, float) =>
       let lerp = (a, b, t) => a +. (b -. a) *. t;
       let gx = lerp(lerp(g00x, g10x, tx), lerp(g01x, g11x, tx), ty)
       and gy = lerp(lerp(g00y, g10y, tx), lerp(g01y, g11y, tx), ty);
-      (grad_gain^ *. gx, grad_gain^ *. gy);
+      let dx = grad_gain^ *. gx
+      and dy = grad_gain^ *. gy;
+      let n = Float.hypot(dx, dy);
+      n > disp_cap^
+        ? (dx *. disp_cap^ /. n, dy *. disp_cap^ /. n) : (dx, dy);
     };
   };
 
@@ -339,6 +349,128 @@ let bezier =
 
 let raf_running: ref(bool) = ref(false);
 let draw_queued: ref(bool) = ref(false);
+
+/* Dots render from a pre-rasterized sprite via drawImage instead of
+   per-dot arc fills: a 1.5px arc's apparent brightness swings ~2x with
+   its subpixel phase, so dots visibly twinkle while a wave displaces
+   them; bilinear resampling of a soft sprite keeps peak brightness
+   stable in motion (and drawImage is cheaper than path fill). */
+let dot_sprite: ref(option(Js.Unsafe.any)) = ref(None);
+let dot_sprite_key: ref(string) = ref("");
+let sprite_size = 8.; /* css px, dot centered */
+let get_dot_sprite = (fill: string, dpr: float): Js.Unsafe.any => {
+  let key = Printf.sprintf("%s|%.2f", fill, dpr);
+  switch (dot_sprite^) {
+  | Some(c) when dot_sprite_key^ == key => c
+  | _ =>
+    let doc = Js.Unsafe.global##.document;
+    /* resolve the fill to rgb so the gradient can fade to a
+       same-color transparent (fading to rgba(0,0,0,0) darkens) */
+    let probe =
+      Js.Unsafe.meth_call(
+        doc,
+        "createElement",
+        [|Js.Unsafe.inject(Js.string("canvas"))|],
+      );
+    Js.Unsafe.set(probe, "width", 1);
+    Js.Unsafe.set(probe, "height", 1);
+    let pctx =
+      Js.Unsafe.meth_call(
+        probe,
+        "getContext",
+        [|Js.Unsafe.inject(Js.string("2d"))|],
+      );
+    Js.Unsafe.set(pctx, "fillStyle", Js.string(fill));
+    let _ =
+      Js.Unsafe.meth_call(
+        pctx,
+        "fillRect",
+        [|
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(1),
+          Js.Unsafe.inject(1),
+        |],
+      );
+    let px: Js.t(Js.Unsafe.any) =
+      Js.Unsafe.meth_call(
+        pctx,
+        "getImageData",
+        [|
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(1),
+          Js.Unsafe.inject(1),
+        |],
+      );
+    let data = Js.Unsafe.get(px, "data");
+    let ch = (i: int): float => Js.Unsafe.get(data, i);
+    let ch = (i: int): int => int_of_float(ch(i));
+    let (r, g, b) = (ch(0), ch(1), ch(2));
+    let c =
+      Js.Unsafe.meth_call(
+        doc,
+        "createElement",
+        [|Js.Unsafe.inject(Js.string("canvas"))|],
+      );
+    let px_size = int_of_float(Float.ceil(sprite_size *. dpr));
+    Js.Unsafe.set(c, "width", px_size);
+    Js.Unsafe.set(c, "height", px_size);
+    let cx =
+      Js.Unsafe.meth_call(
+        c,
+        "getContext",
+        [|Js.Unsafe.inject(Js.string("2d"))|],
+      );
+    let mid = float_of_int(px_size) /. 2.;
+    /* solid core matching the old 0.75px arc, short soft skirt */
+    let grad =
+      Js.Unsafe.meth_call(
+        cx,
+        "createRadialGradient",
+        [|
+          Js.Unsafe.inject(mid),
+          Js.Unsafe.inject(mid),
+          Js.Unsafe.inject(0.),
+          Js.Unsafe.inject(mid),
+          Js.Unsafe.inject(mid),
+          Js.Unsafe.inject(1.25 *. dpr),
+        |],
+      );
+    let stop = (at: float, a: float) => {
+      let _ =
+        Js.Unsafe.meth_call(
+          grad,
+          "addColorStop",
+          [|
+            Js.Unsafe.inject(at),
+            Js.Unsafe.inject(
+              Js.string(Printf.sprintf("rgba(%d,%d,%d,%f)", r, g, b, a)),
+            ),
+          |],
+        );
+      ();
+    };
+    stop(0., 1.);
+    stop(0.6, 1.);
+    stop(1., 0.);
+    Js.Unsafe.set(cx, "fillStyle", grad);
+    let _ =
+      Js.Unsafe.meth_call(
+        cx,
+        "fillRect",
+        [|
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(0),
+          Js.Unsafe.inject(px_size),
+          Js.Unsafe.inject(px_size),
+        |],
+      );
+    dot_sprite := Some(c);
+    dot_sprite_key := key;
+    c;
+  };
+};
 /* geometry of the last static draw, to skip redundant repaints */
 let last_geom: ref((int, int, float, float, float)) =
   ref((0, 0, 0., 0., 0.));
@@ -474,8 +606,9 @@ let rec draw = (): unit => {
           Js.string("--BR1"),
         );
       let fill = Js.to_string(fill);
-      Js.Unsafe.coerce(ctx)##.fillStyle :=
-        Js.string(fill == "" ? "#d8c9a3" : fill);
+      let fill = fill == "" ? "#d8c9a3" : fill;
+      Js.Unsafe.coerce(ctx)##.fillStyle := Js.string(fill);
+      let sprite = get_dot_sprite(fill, dpr);
       let two_pi = 2. *. Float.pi;
       /* continuous level-of-detail: the "current" grid is the power-of-
          two multiple of the base 14px lattice whose SCREEN pitch lands
@@ -530,20 +663,19 @@ let rec draw = (): unit => {
               let a = alpha *. fade1(sx, mw) *. fade1(sy, mh);
               if (a > 0.01) {
                 Js.Unsafe.coerce(ctx)##.globalAlpha := a;
-                let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
+                let half = sprite_size /. 2.;
                 let _ =
                   Js.Unsafe.meth_call(
                     ctx,
-                    "arc",
+                    "drawImage",
                     [|
-                      Js.Unsafe.inject(sx),
-                      Js.Unsafe.inject(sy),
-                      Js.Unsafe.inject(0.75),
-                      Js.Unsafe.inject(0.),
-                      Js.Unsafe.inject(two_pi),
+                      Js.Unsafe.inject(sprite),
+                      Js.Unsafe.inject(sx -. half),
+                      Js.Unsafe.inject(sy -. half),
+                      Js.Unsafe.inject(sprite_size),
+                      Js.Unsafe.inject(sprite_size),
                     |],
                   );
-                let _ = Js.Unsafe.meth_call(ctx, "fill", [||]);
                 ();
               };
             };
