@@ -50,8 +50,8 @@ let legacy = ref(false);
    the panel edges and comes back (reads as motion restarting). The
    sponge ramps extra damping over the outer band so outgoing waves
    die there and the medium reads as infinite. 0 = reflecting walls. */
-let sponge_k = ref(0.10);
-let sponge_band = 10; /* cells */
+let sponge_k = ref(0.25);
+let sponge_band = 14; /* cells */
 let apply_preset = (l: bool): unit =>
   if (l) {
     stiffness := 0.35;
@@ -65,7 +65,7 @@ let apply_preset = (l: bool): unit =>
     grad_gain := 9.;
     stroke_amp := 3.6;
     deposit_sigma := 1.6;
-    sponge_k := 0.10;
+    sponge_k := 0.25;
   };
 
 let knobs_installed = ref(false);
