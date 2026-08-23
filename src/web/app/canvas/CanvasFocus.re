@@ -108,6 +108,7 @@ let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
 let value_info =
     (
       ~globals: Globals.t,
+      ~editor: CodeWithStatics.Model.t,
       ~inject_jump: Id.t => Ui_effect.t(unit),
       /* thunk: closing clears a module ref, which must happen at CLICK
          time, not while building the vdom */
@@ -137,13 +138,38 @@ let value_info =
       ),
       div(
         ~attrs=[clss(["focus-value-def"])],
-        [
-          CanvasValue.chip(
-            ~font_metrics=globals.font_metrics,
-            ~available=48,
-            v.v_def,
-          ),
-        ],
+        {
+          /* prefer the probe SAMPLE display (rich renderers included):
+             with ambient sampling on, the definition site has samples;
+             the plain syntax chip is only the no-samples fallback */
+          /* the sampled site is the def minus wrappers (parens,
+             ascriptions, filters) — the raw def's rep id is often the
+             wrapper's */
+          let sampled =
+            Language.Sample.Map.lookup(
+              Language.Exp.rep_id(CanvasGraph.strip_exp(v.v_def)),
+              editor.dynamics,
+            )
+            |> Util.OptUtil.and_then(ss =>
+                 switch (List.rev(ss)) {
+                 | [] => None
+                 | [newest, ..._] => Some((newest, List.length(ss)))
+                 }
+               )
+            |> Util.OptUtil.and_then(((s: Language.Sample.t, n)) =>
+                 CanvasProbe.value_chip(~globals, ~editor, ~count=n, s)
+               );
+          switch (sampled) {
+          | Some(chip) => [chip]
+          | None => [
+              CanvasValue.chip(
+                ~font_metrics=globals.font_metrics,
+                ~available=48,
+                v.v_def,
+              ),
+            ]
+          };
+        },
       ),
     ],
   );

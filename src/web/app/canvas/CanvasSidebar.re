@@ -32,32 +32,6 @@ let pending_anchor: ref(bool) = ref(false);
    sits centered in the pane (infinite canvas: centering can borrow
    the slack when the graph is smaller than the pane) */
 let anchor_target: ref((float, float)) = ref((pan_slack, pan_slack));
-let last_anchor_slide: ref(string) = ref("");
-/* anchor the scroll to the board (skipping the slack margin) whenever
-   the pane is fresh, the slide changed, or an anchor was requested */
-let ensure_scroll_anchor = (slide: string): unit =>
-  Js_of_ocaml.(
-    ignore(
-      Dom_html.window##requestAnimationFrame(
-        Js.wrap_callback(_ => {
-          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
-          | None => ()
-          | Some(el) =>
-            let el' = Js.Unsafe.coerce(el);
-            let fresh = !Js.Optdef.test(Js.Unsafe.get(el', "__panAnchored"));
-            if (fresh || last_anchor_slide^ != slide || pending_anchor^) {
-              Js.Unsafe.set(el', "__panAnchored", Js.bool(true));
-              last_anchor_slide := slide;
-              pending_anchor := false;
-              let (tx, ty) = anchor_target^;
-              el'##.scrollLeft := tx;
-              el'##.scrollTop := ty;
-            };
-          }
-        }),
-      ),
-    )
-  );
 
 /* pinch-zoom plumbing: the wheel listener must be non-passive (to
    preventDefault the browser's page zoom on ctrl+wheel), so it is
@@ -238,6 +212,119 @@ let install_zoom_listener = (): unit => {
     }
   );
 };
+
+/* fit: a single JS-driven animation moving zoom AND scroll together so
+   the graph center stays pinned at the pane center throughout — the
+   old flow (instant scroll snap, then the CSS zoom transition gliding)
+   read as a disorienting jump-then-zoom */
+let fit_anim_running: ref(bool) = ref(false);
+let animate_fit =
+    (~z_to: float, ~lw: float, ~lh: float, ~aw: float, ~ah: float): unit =>
+  Js_of_ocaml.(
+    if (! fit_anim_running^) {
+      fit_anim_running := true;
+      let z_from = zoom_now^;
+      let t0: ref(float) = ref(0.);
+      let dur = 320.;
+      let root_opt = () =>
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.document,
+            "querySelector",
+            [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+          ),
+        );
+      switch (root_opt()) {
+      | None => fit_anim_running := false
+      | Some(root) =>
+        let cl = Js.Unsafe.get(Js.Unsafe.coerce(root), "classList");
+        ignore(
+          Js.Unsafe.meth_call(
+            cl,
+            "add",
+            [|Js.Unsafe.inject(Js.string("no-zoom-anim"))|],
+          ),
+        );
+        let apply = (z: float) => {
+          Js.Unsafe.coerce(root)##.style##.zoom :=
+            Js.string(Printf.sprintf("%.4f", z));
+          zoom_now := z;
+          CanvasRipple.zoom := z;
+          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+          | None => ()
+          | Some(scroll) =>
+            let scroll = Js.Unsafe.coerce(scroll);
+            scroll##.scrollLeft := max(0., pan_slack +. (lw *. z -. aw) /. 2.);
+            scroll##.scrollTop := max(0., pan_slack +. (lh *. z -. ah) /. 2.);
+          };
+          CanvasRipple.request_draw();
+        };
+        let rec step = (now: float) => {
+          if (t0^ == 0.) {
+            t0 := now;
+          };
+          let t = min(1., (now -. t0^) /. dur);
+          let e = 1. -. (1. -. t) ** 3.; /* ease-out cubic */
+          apply(z_from +. (z_to -. z_from) *. e);
+          if (t < 1.) {
+            ignore(
+              Js.Unsafe.meth_call(
+                Js.Unsafe.global##.window,
+                "requestAnimationFrame",
+                [|Js.Unsafe.inject(Js.Unsafe.callback(step))|],
+              ),
+            );
+          } else {
+            ignore(
+              Js.Unsafe.meth_call(
+                cl,
+                "remove",
+                [|Js.Unsafe.inject(Js.string("no-zoom-anim"))|],
+              ),
+            );
+            fit_anim_running := false;
+            switch (zoom_send^) {
+            | Some(send) => send(z_to)
+            | None => ()
+            };
+          };
+        };
+        ignore(
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "requestAnimationFrame",
+            [|Js.Unsafe.inject(Js.Unsafe.callback(step))|],
+          ),
+        );
+      };
+    }
+  );
+let last_anchor_slide: ref(string) = ref("");
+/* anchor the scroll to the board (skipping the slack margin) whenever
+   the pane is fresh, the slide changed, or an anchor was requested */
+let ensure_scroll_anchor = (slide: string): unit =>
+  Js_of_ocaml.(
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback(_ => {
+          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+          | None => ()
+          | Some(el) =>
+            let el' = Js.Unsafe.coerce(el);
+            let fresh = !Js.Optdef.test(Js.Unsafe.get(el', "__panAnchored"));
+            if (fresh || last_anchor_slide^ != slide || pending_anchor^) {
+              Js.Unsafe.set(el', "__panAnchored", Js.bool(true));
+              last_anchor_slide := slide;
+              pending_anchor := false;
+              let (tx, ty) = anchor_target^;
+              el'##.scrollLeft := tx;
+              el'##.scrollTop := ty;
+            };
+          }
+        }),
+      ),
+    )
+  );
 
 /* avatar continuity: hold the last successfully resolved site so the
    avatar persists through interstitials (turn start, pathless tools,
@@ -1707,6 +1794,7 @@ let view =
       |> Option.map(v =>
            CanvasFocus.value_info(
              ~globals,
+             ~editor,
              ~inject_jump,
              ~on_close=
                () => {
@@ -1809,26 +1897,31 @@ let view =
           globals.inject_global(Set(ToggleCanvasPace)),
         ),
         btn(
-          ~on_press=() => pending_anchor := true,
+          ~on_press=
+            () => {
+              /* slack: equality lets sub-pixel rounding re-summon the
+                 scrollbar the fit was meant to remove */
+              let zw =
+                switch (avail_width) {
+                | Some(w) => (w -. 24.) /. max(1., lay.width)
+                | None => 1.
+                };
+              let zh =
+                switch (avail_height) {
+                | Some(h) => (h -. 24.) /. max(1., lay.height)
+                | None => 1.
+                };
+              animate_fit(
+                ~z_to=max(0.4, min(2.5, min(zw, zh))),
+                ~lw=lay.width,
+                ~lh=lay.height,
+                ~aw=Option.value(~default=lay.width, avail_width),
+                ~ah=Option.value(~default=lay.height, avail_height),
+              );
+            },
           "fit",
           "zoom so the whole graph fits the pane",
-          {
-            /* slack: equality lets sub-pixel rounding re-summon the
-               scrollbar the fit was meant to remove */
-            let zw =
-              switch (avail_width) {
-              | Some(w) => (w -. 24.) /. max(1., lay.width)
-              | None => 1.
-              };
-            let zh =
-              switch (avail_height) {
-              | Some(h) => (h -. 24.) /. max(1., lay.height)
-              | None => 1.
-              };
-            globals.inject_global(
-              Set(SetCanvasZoom(max(0.4, min(2.5, min(zw, zh))))),
-            );
-          },
+          Effect.Ignore,
         ),
         btn(
           ~cls=offsets == [] && pins == [] ? "tool-disabled" : "",

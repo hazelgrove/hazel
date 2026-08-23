@@ -608,11 +608,10 @@
 
 .canvas-depfan path {
   fill: none;
-  stroke: var(--BR2, #b7a377);
-  stroke-width: 0.8px;
-  stroke-dasharray: 0.1 5;
+  stroke: var(--BR3, #8a744a);
+  stroke-width: 1px;
   stroke-linecap: round;
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 /* ---- orbiting constants ---- */
