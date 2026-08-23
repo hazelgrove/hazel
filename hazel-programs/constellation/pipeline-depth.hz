@@ -14,14 +14,14 @@ let parse : [Tok] -> Ast =
     | _ => Num(0)
     end in
 
-let eval : Ast -> Int =
+let evaluate : Ast -> Int =
   fun a ->
     case a
     | Num(n) => n
-    | Add(l, r) => eval(l) + eval(r)
+    | Add(l, r) => evaluate(l) + evaluate(r)
     end in
 
-let run : Int -> Int = fun n -> eval(parse(lex(n))) in
+let run : Int -> Int = fun n -> evaluate(parse(lex(n))) in
 
 test run(1) == 3 end;
 test run(20) == 41 end;
