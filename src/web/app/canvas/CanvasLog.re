@@ -25,6 +25,8 @@ let entries: ref(list(string)) = ref([]); /* newest first */
 let count: ref(int) = ref(0);
 let t0: ref(float) = ref(0.);
 let last_t: ref(float) = ref(0.);
+/* unsaved journal/trace changes pending a localStorage flush */
+let dirty: ref(bool) = ref(false);
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
@@ -41,6 +43,7 @@ let layouts: ref(list(string)) = ref([]); /* newest first */
 let layouts_count: ref(int) = ref(0);
 let layout_cap = 300;
 let record_layout = (line: string): unit => {
+  dirty := true;
   layouts := [line, ...layouts^];
   layouts_count := layouts_count^ + 1;
   if (layouts_count^ > layout_cap) {
@@ -56,6 +59,7 @@ let stamp = (): string => {
 };
 
 let push = (line: string): unit => {
+  dirty := true;
   entries := [line, ...entries^];
   count := count^ + 1;
   if (count^ > cap) {
@@ -66,6 +70,105 @@ let push = (line: string): unit => {
 
 /* the header clock ("T7 · 2:13"): imperative textContent updates on an
    interval, so ticking never re-renders the vdom */
+/* ---- persistence: the journal + layout trace survive a dead tab ----
+   Flushed to localStorage on a debounce; the PREVIOUS session's copies
+   are captured at startup and stay readable via
+   __constellationLogPrevious() / __constellationLayoutTracePrevious()
+   even after this session starts overwriting the keys. */
+let ls_key_log = "constellation:log";
+let ls_key_trace = "constellation:trace";
+let prev_log: ref(string) = ref("");
+let prev_trace: ref(string) = ref("");
+
+let ls_get = (k: string): string =>
+  switch (
+    Js.Opt.to_option(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.get(Js.Unsafe.global, "localStorage"),
+        "getItem",
+        [|Js.Unsafe.inject(Js.string(k))|],
+      ),
+    )
+  ) {
+  | Some(v) => Js.to_string(v)
+  | None => ""
+  | exception _ => ""
+  };
+
+let ls_set = (k: string, v: string): unit =>
+  switch (
+    Js.Unsafe.meth_call(
+      Js.Unsafe.get(Js.Unsafe.global, "localStorage"),
+      "setItem",
+      [|Js.Unsafe.inject(Js.string(k)), Js.Unsafe.inject(Js.string(v))|],
+    )
+  ) {
+  | _ => ()
+  | exception _ => ()
+  };
+
+let flush = (): unit =>
+  if (dirty^) {
+    dirty := false;
+    ls_set(ls_key_log, String.concat("\n", List.rev(entries^)));
+    ls_set(ls_key_trace, String.concat("\n", List.rev(layouts^)));
+  };
+
+/* ---- perf heartbeat: main-thread stalls via the longtask observer ----
+   Accumulated per window; the interval writes a journal line only when
+   stalls actually happened, so healthy sessions stay quiet. */
+let lt_count: ref(int) = ref(0);
+let lt_max: ref(float) = ref(0.);
+let lt_total: ref(float) = ref(0.);
+
+let install_longtask_observer = (): unit =>
+  if (Js.Optdef.test(Js.Unsafe.get(Js.Unsafe.global, "PerformanceObserver"))) {
+    switch (
+      {
+        let cb =
+          Js.Unsafe.callback((list: Js.t(Js.Unsafe.any)) => {
+            let entries: array(Js.t(Js.Unsafe.any)) =
+              Js.to_array(Js.Unsafe.meth_call(list, "getEntries", [||]));
+            Array.iter(
+              e => {
+                let d: float = Js.Unsafe.coerce(e)##.duration;
+                lt_count := lt_count^ + 1;
+                lt_max := max(lt_max^, d);
+                lt_total := lt_total^ +. d;
+              },
+              entries,
+            );
+          });
+        let obs =
+          Js.Unsafe.new_obj(
+            Js.Unsafe.get(Js.Unsafe.global, "PerformanceObserver"),
+            [|Js.Unsafe.inject(cb)|],
+          );
+        Js.Unsafe.meth_call(
+          obs,
+          "observe",
+          [|
+            Js.Unsafe.inject(
+              Js.Unsafe.obj([|
+                (
+                  "entryTypes",
+                  Js.Unsafe.inject(Js.array([|Js.string("longtask")|])),
+                ),
+              |]),
+            ),
+          |],
+        );
+      }
+    ) {
+    | _ => ()
+    | exception _ => ()
+    };
+  };
+
+let ticks: ref(int) = ref(0);
+/* forward ref: the heartbeat writes through log(), defined below */
+let heartbeat: ref(unit => unit) = ref(() => ());
+
 let update_clock = (): unit =>
   switch (Util.JsUtil.get_elem_by_id_opt("canvas-clock")) {
   | None => ()
@@ -86,15 +189,39 @@ let installed: ref(bool) = ref(false);
 let install = (): unit =>
   if (! installed^) {
     installed := true;
+    prev_log := ls_get(ls_key_log);
+    prev_trace := ls_get(ls_key_trace);
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__constellationLogPrevious",
+      Js.Unsafe.callback(() => Js.string(prev_log^)),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__constellationLayoutTracePrevious",
+      Js.Unsafe.callback(() => Js.string(prev_trace^)),
+    );
     /* browser only: under node (the test runner) a live interval keeps
        the event loop alive forever, so the process never exits */
     if (Js.Optdef.test(Js.Unsafe.get(Js.Unsafe.global, "document"))) {
+      install_longtask_observer();
       ignore(
         Js.Unsafe.meth_call(
           Js.Unsafe.global,
           "setInterval",
           [|
-            Js.Unsafe.inject(Js.Unsafe.callback(update_clock)),
+            Js.Unsafe.inject(
+              Js.Unsafe.callback(() => {
+                ticks := ticks^ + 1;
+                update_clock();
+                if (ticks^ mod 4 == 0) {
+                  flush();
+                };
+                if (ticks^ mod 10 == 0 && lt_count^ > 0) {
+                  heartbeat^();
+                };
+              }),
+            ),
             Js.Unsafe.inject(500),
           |],
         ),
@@ -122,6 +249,9 @@ let install = (): unit =>
         count := 0;
         t0 := 0.;
         last_t := 0.;
+        layouts := [];
+        layouts_count := 0;
+        dirty := true;
       }),
     );
   };
@@ -142,3 +272,20 @@ let log = (msg: string): unit => {
   let tlabel = turn^ == 0 ? "  " : Printf.sprintf("T%d", turn^);
   push(Printf.sprintf("%8.2fs %-3s %s", (t -. t0^) /. 1000., tlabel, msg));
 };
+
+heartbeat :=
+  (
+    () => {
+      log(
+        Printf.sprintf(
+          "perf: %d long task(s), max %.0fms, total %.1fs (last 5s)",
+          lt_count^,
+          lt_max^,
+          lt_total^ /. 1000.,
+        ),
+      );
+      lt_count := 0;
+      lt_max := 0.;
+      lt_total := 0.;
+    }
+  );

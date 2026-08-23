@@ -221,6 +221,62 @@ let last_logged_busy: ref(bool) = ref(false);
 /* one pending repaint for the action toast's expiry */
 let toast_tick_scheduled: ref(bool) = ref(false);
 
+/* Graph extraction walks the whole statics map, and view runs on EVERY
+   render — including per-token renders while the model streams. Memoize
+   on physical identity of the inputs (statics is the same content
+   signal pacing trusts). */
+let extract_cache:
+  ref(
+    option(
+      (CachedStatics.t, option(Language.TestResults.t), CanvasGraph.t),
+    ),
+  ) =
+  ref(
+    None:
+          option(
+            (CachedStatics.t, option(Language.TestResults.t), CanvasGraph.t),
+          ),
+  );
+let extract_cached =
+    (~test_results: option(Language.TestResults.t), statics: CachedStatics.t)
+    : CanvasGraph.t => {
+  let hit =
+    switch (extract_cache^) {
+    | Some((st, tr, g))
+        when
+          st === statics
+          && (
+            switch (tr, test_results) {
+            | (None, None) => true
+            | (Some(a), Some(b)) => a === b
+            | _ => false
+            }
+          ) =>
+      Some(g)
+    | _ => None
+    };
+  switch (hit) {
+  | Some(g) => g
+  | None =>
+    let g = CanvasGraph.extract(~test_results?, statics);
+    extract_cache := Some((statics, test_results, g));
+    g;
+  };
+};
+/* beat viability asks "is the graph blank?" — cache per statics too */
+let viable_cache: ref(option((CachedStatics.t, bool))) =
+  ref(None: option((CachedStatics.t, bool)));
+let viable_cached = (statics: CachedStatics.t): bool =>
+  switch (viable_cache^) {
+  | Some((st, v)) when st === statics => v
+  | _ =>
+    let v = CanvasGraph.extract(statics).nodes != [];
+    viable_cache := Some((statics, v));
+    v;
+  };
+/* sample-volume telemetry: logged when the total moves meaningfully */
+let last_logged_sample_total: ref(int) = ref(0);
+
 let current_slide = (editors: Editors.Model.t): string =>
   switch (editors) {
   | Scratch(m)
@@ -380,9 +436,7 @@ let view =
     };
     CanvasBuffer.observe(
       ~enabled=globals.settings.canvas_pace,
-      ~viable=
-        (m: CodeWithStatics.Model.t) =>
-          CanvasGraph.extract(m.statics).nodes != [],
+      ~viable=(m: CodeWithStatics.Model.t) => viable_cached(m.statics),
       ~schedule_tick,
       editor,
     );
@@ -391,7 +445,29 @@ let view =
      live model rendered every intermediate state instantly (final-state
      jump cuts, blank statics flashes) and left the beats animating an
      already-settled graph */
-  let graph = CanvasGraph.extract(~test_results?, editor.statics);
+  let graph = extract_cached(~test_results, editor.statics);
+  {
+    /* on fresh statics, note the probe-sample volume when it moved
+       meaningfully (floods here are a known freeze suspect) */
+
+    let total =
+      Language.Sample.Map.fold(
+        (_, ss, (t, m)) => {
+          let n = List.length(ss);
+          (t + n, max(m, n));
+        },
+        editor.dynamics,
+        (0, 0),
+      );
+    let (t, m) = total;
+    let prev = last_logged_sample_total^;
+    if (abs(t - prev) > max(200, prev / 3)) {
+      last_logged_sample_total := t;
+      CanvasLog.log(
+        Printf.sprintf("samples: %d total (max %d on one probe)", t, m),
+      );
+    };
+  };
   let zoom = globals.settings.canvas_zoom;
   zoom_now := zoom;
   CanvasBuffer.canvas_zoom := zoom;

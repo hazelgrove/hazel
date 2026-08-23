@@ -402,6 +402,14 @@ let handle_dispatch_send =
     );
     (model, editor |> Updated.return_quiet);
   | Some(pending_chat_id) when pending_chat_id == chat_id =>
+    if (eval_wait_attempts^ > 0) {
+      CanvasLog.log(
+        Printf.sprintf(
+          "eval settle: waited ~%.1fs before send",
+          float_of_int(eval_wait_attempts^) *. eval_wait_interval_ms /. 1000.,
+        ),
+      );
+    };
     eval_wait_attempts := 0;
     let model = {
       ...model,

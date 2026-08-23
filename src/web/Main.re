@@ -98,6 +98,9 @@ let apply =
   model';
 };
 
+/* route core parse-fallback telemetry into the constellation journal */
+Haz3lcore.CompositionGo.fallback_notice := Some(CanvasLog.log);
+
 let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =

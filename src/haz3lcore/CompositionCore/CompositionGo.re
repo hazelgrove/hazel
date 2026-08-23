@@ -3,6 +3,10 @@ open HighLevelNodeMap.Public;
 open Language;
 open OptUtil.Syntax;
 
+/* web-side listener for FastParse fallback telemetry (the journal);
+   core stays UI-agnostic */
+let fallback_notice: ref(option(string => unit)) = ref(None);
+
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
 
@@ -664,14 +668,19 @@ module Local = {
         Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
       | None =>
         if (fast) {
-          /* console-visible fallback telemetry (dev): which construct
-             pushed us onto the quadratic path, and roughly how bad */
-          print_endline(
+          /* fallback telemetry: which construct pushed us onto the
+             quadratic path, and roughly how bad — console + any
+             registered listener (the constellation journal) */
+          let msg =
             "FastParse fallback ("
             ++ string_of_int(String.length(code))
             ++ " chars): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note"),
-          );
+            ++ Option.value(FastParse.bail_note^, ~default="no note");
+          print_endline(msg);
+          switch (fallback_notice^) {
+          | Some(f) => f(msg)
+          | None => ()
+          };
         };
         introduce_slow(~root, z, code);
       };
