@@ -614,7 +614,29 @@
   opacity: 0.5;
 }
 
-/* sample chips in the canvas panels: real code text, clipped */
+/* sample chips in the canvas panels: the probe pill LOOK is scoped
+   under .live-offside/.sample in proj-probe.css and never reaches the
+   focus strip, so the pill chrome (the green backing) is restated here */
+.canvas-focus .agg-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #d6eed6; /* the probe sample pill green */
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.canvas-focus .agg-value:hover {
+  outline: 1.5px solid var(--G0, #4a9a4a);
+}
+
+/* rich renders (cards etc.) sit on the same green backing, like probe
+   samples do */
+.canvas-focus .agg-value .value-rich {
+  padding: 1px;
+}
+
 .agg-value .value-text {
   max-width: 250px;
   overflow: hidden;
