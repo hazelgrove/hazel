@@ -244,14 +244,7 @@ let value_chip =
            ),
            Attr.on_pointerdown(_ => jump),
          ],
-         [
-           div(
-             ~attrs=[clss(["sample"])],
-             [
-               div(~attrs=[clss(["value", "focus", "depth-same"])], content),
-             ],
-           ),
-         ]
+         [ProbePill.standalone(content)]
          @ (
            count > 1
              ? [

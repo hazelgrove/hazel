@@ -430,14 +430,7 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   };
 };
 
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 4) {
-    "s" ++ string_of_int(length - 4);
-  } else {
-    "s0";
-  };
+let length_cls = ProbePill.length_cls;
 
 /* Depth classes from call stack relation (structural effects: displacement, stacking) */
 let depth_clss =
@@ -606,27 +599,7 @@ let focus_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
-let find_best_budget = (width_at: int => int, target_width: int): int => {
-  let rec find_upper = (b: int): int =>
-    if (b > 500 || width_at(b) > target_width) {
-      b;
-    } else {
-      find_upper(b * 2 + 1);
-    };
-  let upper = find_upper(max(1, target_width));
-  let rec bisect = (lo: int, hi: int): int =>
-    if (lo >= hi) {
-      lo;
-    } else {
-      let mid = (lo + hi + 1) / 2;
-      if (width_at(mid) <= target_width) {
-        bisect(mid, hi);
-      } else {
-        bisect(lo, mid - 1);
-      };
-    };
-  bisect(target_width, upper);
-};
+let find_best_budget = ProbePill.best_budget;
 
 module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
