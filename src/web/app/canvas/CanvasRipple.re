@@ -41,6 +41,23 @@ let grad_gain = ref(9.); /* field gradient -> dot displacement px */
 let default_amp = 9.;
 let stroke_amp = ref(3.6); /* drag-wake deposit per sample point */
 let deposit_sigma = ref(1.6); /* injection kernel width, cells */
+/* __waveTune("legacy", 1): v1 mechanics for A/B comparison —
+   nearest-cell gradient sampling + 3x3 spike deposits. Toggling loads
+   that mode's stock constants, stomping any hand tuning. */
+let legacy = ref(false);
+let apply_preset = (l: bool): unit =>
+  if (l) {
+    stiffness := 0.35;
+    damping := 0.988;
+    grad_gain := 5.5;
+    stroke_amp := 3.2;
+  } else {
+    stiffness := 0.32;
+    damping := 0.991;
+    grad_gain := 9.;
+    stroke_amp := 3.6;
+    deposit_sigma := 1.6;
+  };
 
 let knobs_installed = ref(false);
 let install_knobs = (): unit =>
@@ -56,6 +73,9 @@ let install_knobs = (): unit =>
         | "grad_gain" => grad_gain := v
         | "stroke_amp" => stroke_amp := v
         | "deposit_sigma" => deposit_sigma := max(0.6, min(4., v))
+        | "legacy" =>
+          legacy := v > 0.5;
+          apply_preset(legacy^);
         | _ => ()
         }
       ),
@@ -66,12 +86,13 @@ let install_knobs = (): unit =>
       Js.Unsafe.callback(() =>
         Js.string(
           Printf.sprintf(
-            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f",
+            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f legacy=%d",
             stiffness^,
             damping^,
             grad_gain^,
             stroke_amp^,
             deposit_sigma^,
+            legacy^ ? 1 : 0,
           ),
         )
       ),
@@ -143,15 +164,27 @@ let deposit = (cx: float, cy: float, amp: float): unit =>
     and fy = (cy -. origin_y^) /. cell;
     let ci = int_of_float(Float.round(fx))
     and cj = int_of_float(Float.round(fy));
-    let sg = deposit_sigma^;
-    let r = int_of_float(Float.ceil(sg *. 2.5));
-    for (j in cj - r to cj + r) {
-      for (i in ci - r to ci + r) {
-        if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
-          let dx = float_of_int(i) -. fx
-          and dy = float_of_int(j) -. fy;
-          let d2 = (dx *. dx +. dy *. dy) /. (2. *. sg *. sg);
-          u_cur^[idx(i, j)] = u_cur^[idx(i, j)] +. amp *. Float.exp(-. d2);
+    if (legacy^) {
+      for (j in cj - 1 to cj + 1) {
+        for (i in ci - 1 to ci + 1) {
+          if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
+            let k = i == ci && j == cj ? 1.0 : 0.35;
+            u_cur^[idx(i, j)] = u_cur^[idx(i, j)] +. amp *. k;
+          };
+        };
+      };
+    } else {
+      let sg = deposit_sigma^;
+      let r = int_of_float(Float.ceil(sg *. 2.5));
+      for (j in cj - r to cj + r) {
+        for (i in ci - r to ci + r) {
+          if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
+            let dx = float_of_int(i) -. fx
+            and dy = float_of_int(j) -. fy;
+            let d2 = (dx *. dx +. dy *. dy) /. (2. *. sg *. sg);
+            u_cur^[idx(i, j)] =
+              u_cur^[idx(i, j)] +. amp *. Float.exp(-. d2);
+          };
         };
       };
     };
@@ -200,6 +233,17 @@ let step_sim = (substeps: int): unit => {
 let displacement_at = (cx: float, cy: float): (float, float) =>
   if (gw^ == 0) {
     (0., 0.);
+  } else if (legacy^) {
+    let i = int_of_float(Float.round((cx -. origin_x^) /. cell))
+    and j = int_of_float(Float.round((cy -. origin_y^) /. cell));
+    if (i < 1 || i >= gw^ - 1 || j < 1 || j >= gh^ - 1) {
+      (0., 0.);
+    } else {
+      let u = u_cur^;
+      let gx = (u[idx(i + 1, j)] -. u[idx(i - 1, j)]) /. 2.
+      and gy = (u[idx(i, j + 1)] -. u[idx(i, j - 1)]) /. 2.;
+      (grad_gain^ *. gx, grad_gain^ *. gy);
+    };
   } else {
     let fx = (cx -. origin_x^) /. cell
     and fy = (cy -. origin_y^) /. cell;
