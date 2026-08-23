@@ -23,6 +23,11 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* per-sample display-width overrides (drag/keyboard resize), keyed by
+     the content-hashed sample id so they survive re-evaluation. Model
+     state so resizes persist and serialize; ProbePill stays pure. */
+  [@default []]
+  sample_lengths: list((int, int)),
 };
 
 let init_probe_model: probe_model = {
@@ -31,6 +36,7 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  sample_lengths: [],
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -231,6 +237,28 @@ module Settings = {
 open Settings;
 open Node;
 
+/* Pure policy over the model's per-sample length overrides
+   (probe_model.sample_lengths): budget storage lives in the model,
+   budget geometry in ProbePill. */
+module SampleLength = {
+  type t = list((int, int));
+
+  let find = (lengths: t, id: int): option(int) =>
+    List.assoc_opt(id, lengths);
+
+  let is_explicit = (lengths: t, sample: Sample.t): bool =>
+    find(lengths, sample.id) != None;
+
+  let get = (lengths: t, window: Sample.Window.mode, sample: Sample.t): int =>
+    find(lengths, sample.id)
+    |> Option.value(~default=window == Single ? 150 : 12);
+
+  let set = (lengths: t, id: int, length: int): t => [
+    (id, length),
+    ...List.remove_assoc(id, lengths),
+  ];
+};
+
 type probe_ctx = {
   id: Id.t,
   ap_id: option(Id.t),
@@ -249,6 +277,8 @@ type probe_ctx = {
   rich_model: option(packed_model),
   /* auto-rich is on and not toggled off */
   auto_rich_on: bool,
+  /* the model's per-sample width overrides (see SampleLength) */
+  lengths: SampleLength.t,
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
@@ -283,24 +313,6 @@ module WindowState = {
     set_offset(id, new_offset);
     (new_offset, max);
   };
-};
-
-module SampleLength = {
-  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
-
-  let reset = () => {
-    Hashtbl.clear(lengths);
-  };
-
-  let is_explicit = (sample: Sample.t): bool =>
-    Hashtbl.mem(lengths, sample.id);
-
-  let get = (window: Sample.Window.mode, sample: Sample.t): int =>
-    Hashtbl.find_opt(lengths, sample.id)
-    |> Option.value(~default=window == Single ? 150 : 12);
-
-  let set = (id: int, length: int): unit =>
-    Hashtbl.replace(lengths, id, length);
 };
 
 let select_samples =
@@ -382,15 +394,16 @@ module DrawerHeight = {
     Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
     |> Measured.total_rows;
 
-  let sample_rows = (utility: utility, sample: Sample.t): int => {
+  let sample_rows =
+      (~lengths: SampleLength.t, utility: utility, sample: Sample.t): int => {
     let width =
-      Hashtbl.find_opt(SampleLength.lengths, sample.id)
+      SampleLength.find(lengths, sample.id)
       |> Option.value(~default=Settings.s^.drawer.width);
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
   };
 
   /* Uncapped content height in rows. */
-  let content_rows = (info: info): int =>
+  let content_rows = (~lengths: SampleLength.t, info: info): int =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
@@ -399,13 +412,14 @@ module DrawerHeight = {
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(sample_rows(info.utility), samples);
+        let heights = List.map(sample_rows(~lengths, info.utility), samples);
         List.fold_left(max, 1, heights);
       };
     | _ => 1
     };
 
-  let compute = (info: info): int => min(max_rows, content_rows(info));
+  let compute = (~lengths: SampleLength.t, info: info): int =>
+    min(max_rows, content_rows(~lengths, info));
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
@@ -669,16 +683,16 @@ let value_view =
     switch (display) {
     | Inline =>
       let length =
-        if (!SampleLength.is_explicit(sample) && num_total == 1) {
+        if (!SampleLength.is_explicit(ctx.lengths, sample) && num_total == 1) {
           150;
         } else {
-          SampleLength.get(settings.window, sample);
+          SampleLength.get(ctx.lengths, settings.window, sample);
         };
       let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
       (seg, [length_cls(length)]);
     | Block =>
       let width =
-        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        SampleLength.find(ctx.lengths, sample.id)
         |> Option.value(~default=settings.drawer.width);
       (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
@@ -1629,7 +1643,7 @@ let round_up = (ctx: probe_ctx, sample): int => {
   let (_, cur) =
     abbreviated_seg_of(
       ctx.utility,
-      SampleLength.get(ctx.settings.window, sample),
+      SampleLength.get(ctx.lengths, ctx.settings.window, sample),
       sample.value,
     );
   let goal = cur + 1;
@@ -1651,7 +1665,7 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
   let (_, cur) =
     abbreviated_seg_of(
       ctx.utility,
-      SampleLength.get(ctx.settings.window, sample),
+      SampleLength.get(ctx.lengths, ctx.settings.window, sample),
       sample.value,
     );
   let goal = max(1, cur - 1);
@@ -1875,6 +1889,7 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      lengths: model.sample_lengths,
       p_info: info,
     };
     let filtered_samples =
@@ -2261,7 +2276,7 @@ module M: Projector = {
       let rows =
         switch (rich_drawer_rows(model, info)) {
         | Some(n) => min(DrawerHeight.max_rows, n)
-        | None => DrawerHeight.compute(info)
+        | None => DrawerHeight.compute(~lengths=model.sample_lengths, info)
         };
       ProjectorCore.Shape.{
         horizontal: 0,
@@ -2274,9 +2289,13 @@ module M: Projector = {
   let update = (model: model, info: info, a: action): model => {
     switch (a) {
     | ChangeLength(id, len) =>
-      SampleLength.set(id, len);
+      /* version bump retained: ScrollWidth keys its re-measure on it,
+         and a resize changes rendered width */
       Settings.version := Settings.version^ + 1;
-      model;
+      {
+        ...model,
+        sample_lengths: SampleLength.set(model.sample_lengths, id, len),
+      };
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
@@ -2316,8 +2335,10 @@ module M: Projector = {
       };
     | ResetSettings =>
       Settings.reset_mode();
-      SampleLength.reset();
-      model;
+      {
+        ...model,
+        sample_lengths: [],
+      };
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
       | None =>
@@ -2445,7 +2466,9 @@ module M: Projector = {
       && (
         switch (rich_drawer_rows(model, info)) {
         | Some(n) => n > DrawerHeight.max_rows
-        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+        | None =>
+          DrawerHeight.content_rows(~lengths=model.sample_lengths, info)
+          > DrawerHeight.max_rows
         }
       );
     /* In drawer mode an active rich renderer replaces the sample view in
