@@ -176,10 +176,16 @@ let with_targets =
     : t => {
   let probe_ids = probe_ids_of_zipper(~projectors, z);
   let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
-  {
-    ...s,
-    targets,
-  };
+  /* identity-preserving: this runs on EVERY calculate cycle (each
+     eval-result chunk included), and downstream consumers key caches
+     and change-detection on the statics RECORD — rebuilding it each
+     time made every eval tick look like a program change */
+  Id.Map.equal(Sample.equal_capture_spec, targets, s.targets)
+    ? s
+    : {
+      ...s,
+      targets,
+    };
 };
 
 let init =
