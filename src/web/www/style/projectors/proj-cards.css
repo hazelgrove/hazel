@@ -27,16 +27,17 @@
   height: var(--card-height);
 }
 
-/* Turn off caret when a block projector is focused */
-.code-deco:has(~ .projectors .projector.card.indicated) #caret .caret-path {
-  fill: #0000;
-}
 .code-deco:has(~ .projectors .projector.card.indicated) .indication {
   display: none;
 }
 
 .projector.card {
   perspective: 300px;
+  /* top-anchor the card so it dips below its line rather than centering
+     on it (branches with the tab-extent wrapper pin it via explicit
+     insets, so this only bites where the card-wrapper is a direct
+     flex child) */
+  align-items: flex-start;
 }
 
 .projector.card.selected > svg {
