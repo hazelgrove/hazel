@@ -1122,8 +1122,6 @@ let view =
         },
         persist_frame(),
       ]);
-    let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
-    let last_live = ref(now());
     let orig =
       switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(n.key))) {
       | Some(el) =>
@@ -1138,6 +1136,111 @@ let view =
     drag_active := true;
     let moved = ref(false);
     let delta = ref((0., 0.));
+    let set_attr = (el, name: string, v: string) =>
+      ignore(
+        Js.Unsafe.meth_call(
+          el,
+          "setAttribute",
+          [|
+            Js.Unsafe.inject(Js.string(name)),
+            Js.Unsafe.inject(Js.string(v)),
+          |],
+        ),
+      );
+    let set_pos = (id: string, x: float, y: float) =>
+      switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+      | Some(el) =>
+        let st = Js.Unsafe.coerce(el)##.style;
+        st##.left := Js.string(Printf.sprintf("%.1fpx", x));
+        st##.top := Js.string(Printf.sprintf("%.1fpx", y));
+      | None => ()
+      };
+    let fmt' = (v: float) => Printf.sprintf("%f", v);
+    let pull_back = (p: CanvasLayout.pos, c: CanvasLayout.pos, d: float) => {
+      let vx = p.x -. c.x
+      and vy = p.y -. c.y;
+      let len = max(1., Float.hypot(vx, vy));
+      CanvasLayout.{
+        x: p.x -. vx /. len *. d,
+        y: p.y -. vy /. len *. d,
+      };
+    };
+    let follow_edges = (dx: float, dy: float) => {
+      let sh = (p: CanvasLayout.pos) =>
+        CanvasLayout.{
+          x: p.x +. dx,
+          y: p.y +. dy,
+        };
+      List.iter(
+        (el: CanvasLayout.edge_layout) => {
+          let e = el.edge;
+          let src_moves = e.e_src == n.key
+          and dst_moves = e.dst == n.key;
+          if (src_moves || dst_moves) {
+            if (el.endo) {
+              switch (
+                Util.JsUtil.get_elem_by_id_opt(
+                  "corbit-" ++ CanvasView.sanitize(e.e_name),
+                )
+              ) {
+              | Some(c) =>
+                let p = sh(el.dst_p);
+                set_attr(c, "cx", fmt'(p.x));
+                set_attr(c, "cy", fmt'(p.y));
+              | None => ()
+              };
+              let lp = sh(el.label_p);
+              set_pos(CanvasView.edge_dom_id(e.e_name), lp.x, lp.y);
+            } else {
+              let src = src_moves ? sh(el.src_p) : el.src_p;
+              let c1 = src_moves ? sh(el.c1) : el.c1;
+              let dst = dst_moves ? sh(el.dst_p) : el.dst_p;
+              let c2 = dst_moves ? sh(el.c2) : el.c2;
+              let dstp = pull_back(dst, c2, 7.);
+              switch (
+                Util.JsUtil.get_elem_by_id_opt(
+                  "cpath-" ++ CanvasView.sanitize(e.e_name),
+                )
+              ) {
+              | Some(path) =>
+                set_attr(
+                  path,
+                  "d",
+                  Printf.sprintf(
+                    "M %f,%f C %f,%f %f,%f %f,%f",
+                    src.x,
+                    src.y,
+                    c1.x,
+                    c1.y,
+                    c2.x,
+                    c2.y,
+                    dstp.x,
+                    dstp.y,
+                  ),
+                )
+              | None => ()
+              };
+              /* the label rides the curve midpoint: half the delta */
+              set_pos(
+                CanvasView.edge_dom_id(e.e_name),
+                el.label_p.x +. dx /. 2.,
+                el.label_p.y +. dy /. 2.,
+              );
+            };
+          };
+        },
+        lay.edges,
+      );
+      /* constants orbiting the dragged node */
+      List.iter(
+        (vl: CanvasLayout.value_layout) =>
+          if (vl.value.v_key == n.key) {
+            let p = sh(vl.p);
+            set_pos(CanvasView.value_dom_id(vl.value.v_name), p.x, p.y);
+          },
+        lay.values,
+      );
+    };
     let rec on_move = e => {
       let x: int = Js.Unsafe.coerce(e)##.clientX;
       let y: int = Js.Unsafe.coerce(e)##.clientY;
@@ -1170,12 +1273,11 @@ let view =
           );
         | None => ()
         };
-        /* throttled live commits so edges follow during the drag (a
-           re-render per mousemove would fight the whole-page vdom cost) */
-        if (now() -. last_live^ > 120.) {
-          last_live := now();
-          Effect.Expert.handle_non_dom_event_exn(commit((dx, dy)));
-        };
+        /* incident edges, labels, orbits and orbit rings follow by
+           DIRECT DOM mutation — the old throttled live commits caused
+           a whole-app re-render (editor included) every 120ms, which
+           on large programs made dragging visibly laggy */
+        follow_edges(dx, dy);
       };
       ();
     }
@@ -2145,6 +2247,18 @@ let view =
     hovered_edge := h;
     globals.inject_global(Set(CanvasTick));
   };
+  /* clicking empty canvas dismisses whichever info panel is open */
+  let on_canvas_plain_click = () =>
+    if (focused != None || focused_ty != None || focused_value^ != None) {
+      focused_value := None;
+      Effect.Many([
+        globals.inject_global(Set(Sidebar(SetCanvasFocus(None)))),
+        globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+        globals.inject_global(Set(CanvasTick)),
+      ]);
+    } else {
+      Effect.Ignore;
+    };
   let on_value_click = (v: CanvasGraph.value) => {
     focused_value := Some(v.v_name);
     Effect.Many([
@@ -2264,6 +2378,7 @@ let view =
                 ~dep_fan,
                 ~on_edge_hover,
                 ~on_value_click=Some(on_value_click),
+                ~on_canvas_plain_click,
                 ~connect_pts,
                 ~just_placed,
                 ~on_canvas_dblclick,

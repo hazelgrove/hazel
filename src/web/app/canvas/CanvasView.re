@@ -27,6 +27,7 @@ let sanitize = (s: string): string =>
 
 let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
 let edge_dom_id = (name: string): string => "cedge-" ++ sanitize(name);
+let value_dom_id = (name: string): string => "cval-" ++ sanitize(name);
 let avatar_dom_id = "canvas-avatar";
 
 let anchor_style = (p: CanvasLayout.pos): Attr.t =>
@@ -99,6 +100,7 @@ let edge_svg =
       svg(
         "circle",
         [
+          Attr.id("corbit-" ++ sanitize(e.e_name)),
           clss(["canvas-orbit", ...cls]),
           Attr.create("cx", fmt(el.dst_p.x)),
           Attr.create("cy", fmt(el.dst_p.y)),
@@ -116,6 +118,7 @@ let edge_svg =
       svg(
         "path",
         [
+          Attr.id("cpath-" ++ sanitize(e.e_name)),
           clss(["canvas-line", "edge-arrow", ...cls]),
           Attr.create(
             "d",
@@ -461,6 +464,9 @@ let view =
       ~dep_fan: list((CanvasLayout.pos, CanvasLayout.pos))=[],
       ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
       ~on_value_click: option(CanvasGraph.value => Effect.t(unit))=None,
+      /* true-background click with NO gesture mode active (clears
+         focus panels); never sets the placing cursor */
+      ~on_canvas_plain_click: unit => Effect.t(unit)=() => Effect.Ignore,
       ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
@@ -576,6 +582,12 @@ let view =
     };
   };
   let gesture_attrs = [
+    Attr.on_click(evt =>
+      switch (on_canvas_click, bg_event_coords(evt)) {
+      | (None, Some(_)) => on_canvas_plain_click()
+      | _ => Effect.Ignore
+      }
+    ),
     Attr.on_double_click(evt =>
       switch (bg_event_coords(evt)) {
       | Some((model, _)) => on_canvas_dblclick(model)
