@@ -272,7 +272,10 @@ module Update = {
      * entries contain OCaml closures. */
     let eval_info_map =
       EvalInfo.of_info_map(
-        ~probe_all=Calc.get_value(settings).probe_all,
+        /* ambient sampling masked during agent bursts (AgentPulse);
+           re-evaluated when targets re-expand at burst end */
+        ~probe_all=
+          Calc.get_value(settings).probe_all && !AgentPulse.in_burst(),
         ~targets=Calc.get_value(targets),
         statics.info_map,
       );

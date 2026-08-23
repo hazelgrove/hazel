@@ -98,6 +98,24 @@ type statics_mode =
   | StaticsDefer
   | StaticsForce;
 
+/* journal the ambient-sampling mask transitions (probe_all sessions) */
+let last_masked: ref(option(bool)) = ref(None: option(bool));
+let masked_now = (effective: Language.CoreSettings.t): bool => {
+  let masked =
+    !effective.Language.CoreSettings.probe_all && AgentPulse.in_burst();
+  switch (last_masked^) {
+  | Some(m) when m == masked => ()
+  | _ =>
+    last_masked := Some(masked);
+    if (masked) {
+      CanvasLog.log("sampling: ambient paused (agent burst)");
+    } else if (last_masked^ == Some(false) && AgentPulse.last_action^ > 0.) {
+      CanvasLog.log("sampling: ambient resumed");
+    };
+  };
+  masked;
+};
+
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
 module StaticsDebounce = {
@@ -153,16 +171,32 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
+    /* Ambient all-sites sampling is masked while the agent burst is
+       live (see AgentPulse); explicit probes stay targeted */
+    let settings =
+      Language.CoreSettings.{
+        ...settings,
+        probe_all: settings.probe_all && !AgentPulse.in_burst(),
+      };
+    if (masked_now(settings)) {
+      ();
+    };
     /* Throttle gate for full statics recompute. Bypass the debounce when probe
      * ids change, else stale info_map probe_targets let IncrEval.reuse_check
-     * reuse old probes and a new probe shows ∅ until the next refresh. */
+     * reuse old probes and a new probe shows ∅ until the next refresh.
+     * With probe_all effective, EVERY site is already a target, so probe
+     * placement can't invalidate targets — and the expanded target map
+     * never equals the explicit probe set, which made this gate force a
+     * FULL statics re-init on every single action. */
     let probes_differ = (z, statics: CachedStatics.t) =>
-      !
-        Language.Id.Map.equal(
-          (==),
-          CachedStatics.probe_ids_of_zipper(z),
-          Language.Id.Map.map(_ => (), statics.targets),
-        );
+      settings.probe_all
+        ? false
+        : !
+            Language.Id.Map.equal(
+              (==),
+              CachedStatics.probe_ids_of_zipper(z),
+              Language.Id.Map.map(_ => (), statics.targets),
+            );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one */
     let do_init = (editor: Editor.t) =>

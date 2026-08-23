@@ -15,12 +15,14 @@
 open Js_of_ocaml;
 
 let cadence_ms = 700.; /* min interval between displayed beats */
-let burst_window_ms = 5000.; /* agent activity recency to engage pacing */
+let burst_window_ms = AgentPulse.burst_window_ms;
 let queue_cap = 4; /* max pending beats; middles coalesce away */
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
-let last_agent_action: ref(float) = ref(-1.e12);
+/* single source of truth lives in AgentPulse (dependency-free, so
+   statics/eval can read it); this alias keeps local reads terse */
+let last_agent_action = AgentPulse.last_action;
 
 /* Canvas-authoring gestures (place/connect stubs) ride the agent's
    DirectEdit tool path; they must NOT read as agent activity or every
@@ -179,6 +181,10 @@ let observe =
           List.length(queue^),
         ),
       );
+      /* one insurance tick: the next calculate lifts the ambient-
+         sampling mask (and re-expands targets -> re-eval) even when
+         the beat queue is already empty */
+      schedule_tick(650.);
     };
     was_in_burst := burst;
     let fresh =
