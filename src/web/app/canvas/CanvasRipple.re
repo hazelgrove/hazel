@@ -32,11 +32,51 @@ let zoom: ref(float) = ref(1.);
 let pan_slack = 392.; /* keep in sync with CanvasSidebar.pan_slack */
 
 let cell = 7.; /* field resolution, screen px */
-let stiffness = 0.35; /* (c*dt/cell)^2 — CFL-stable below 0.5 */
-let damping = 0.988; /* per substep */
-let grad_gain = 5.5; /* field gradient -> dot displacement px */
+/* live-tunable from the console while the feel is being dialed in:
+     __waveTune("stiffness", 0.3)   __waveGet()
+   stiffness = (c*dt/cell)^2, CFL-stable below ~0.5 */
+let stiffness = ref(0.32);
+let damping = ref(0.991); /* per substep */
+let grad_gain = ref(9.); /* field gradient -> dot displacement px */
 let default_amp = 9.;
-let stroke_amp = 3.2; /* drag-wake deposit per sample point */
+let stroke_amp = ref(3.6); /* drag-wake deposit per sample point */
+let deposit_sigma = ref(1.6); /* injection kernel width, cells */
+
+let knobs_installed = ref(false);
+let install_knobs = (): unit =>
+  if (! knobs_installed^) {
+    knobs_installed := true;
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__waveTune",
+      Js.Unsafe.callback((name: Js.t(Js.js_string), v: float) =>
+        switch (Js.to_string(name)) {
+        | "stiffness" => stiffness := max(0.05, min(0.45, v))
+        | "damping" => damping := max(0.9, min(0.999, v))
+        | "grad_gain" => grad_gain := v
+        | "stroke_amp" => stroke_amp := v
+        | "deposit_sigma" => deposit_sigma := max(0.6, min(4., v))
+        | _ => ()
+        }
+      ),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__waveGet",
+      Js.Unsafe.callback(() =>
+        Js.string(
+          Printf.sprintf(
+            "stiffness=%.3f damping=%.3f grad_gain=%.1f stroke_amp=%.1f deposit_sigma=%.1f",
+            stiffness^,
+            damping^,
+            grad_gain^,
+            stroke_amp^,
+            deposit_sigma^,
+          ),
+        )
+      ),
+    );
+  };
 
 let gw: ref(int) = ref(0);
 let gh: ref(int) = ref(0);
@@ -93,16 +133,25 @@ let anchor = (sl: float, st: float): unit => {
   };
 };
 
-/* deposit an impulse (3x3 kernel) at a CONTENT-px point */
+/* deposit a SMOOTH gaussian bump at a CONTENT-px point: sharp spikes
+   disperse into gridded, anisotropic ringing on a coarse lattice (the
+   v1 "not waterlike" artifact); wide smooth kernels launch clean
+   circular fronts */
 let deposit = (cx: float, cy: float, amp: float): unit =>
   if (gw^ > 0) {
-    let ci = int_of_float(Float.round((cx -. origin_x^) /. cell))
-    and cj = int_of_float(Float.round((cy -. origin_y^) /. cell));
-    for (j in cj - 1 to cj + 1) {
-      for (i in ci - 1 to ci + 1) {
+    let fx = (cx -. origin_x^) /. cell
+    and fy = (cy -. origin_y^) /. cell;
+    let ci = int_of_float(Float.round(fx))
+    and cj = int_of_float(Float.round(fy));
+    let sg = deposit_sigma^;
+    let r = int_of_float(Float.ceil(sg *. 2.5));
+    for (j in cj - r to cj + r) {
+      for (i in ci - r to ci + r) {
         if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
-          let k = i == ci && j == cj ? 1.0 : 0.35;
-          u_cur^[idx(i, j)] = u_cur^[idx(i, j)] +. amp *. k;
+          let dx = float_of_int(i) -. fx
+          and dy = float_of_int(j) -. fy;
+          let d2 = (dx *. dx +. dy *. dy) /. (2. *. sg *. sg);
+          u_cur^[idx(i, j)] = u_cur^[idx(i, j)] +. amp *. Float.exp(-. d2);
         };
       };
     };
@@ -126,7 +175,7 @@ let step_sim = (substeps: int): unit => {
         for (i in 1 to w - 2) {
           let k = j * w + i;
           let lap = u[k - 1] +. u[k + 1] +. u[k - w] +. u[k + w] -. 4. *. u[k];
-          un[k] = damping *. (2. *. u[k] -. up[k] +. stiffness *. lap);
+          un[k] = damping^ *. (2. *. u[k] -. up[k] +. stiffness^ *. lap);
         };
       };
       u_prev := u;
@@ -145,20 +194,35 @@ let step_sim = (substeps: int): unit => {
   };
 };
 
-/* field gradient at a content-px point -> dot displacement */
+/* field gradient at a content-px point, BILINEARLY interpolated:
+   nearest-cell sampling made neighboring dots snap between discrete
+   gradients as a wave passed (the v1 jank) */
 let displacement_at = (cx: float, cy: float): (float, float) =>
   if (gw^ == 0) {
     (0., 0.);
   } else {
-    let i = int_of_float(Float.round((cx -. origin_x^) /. cell))
-    and j = int_of_float(Float.round((cy -. origin_y^) /. cell));
-    if (i < 1 || i >= gw^ - 1 || j < 1 || j >= gh^ - 1) {
+    let fx = (cx -. origin_x^) /. cell
+    and fy = (cy -. origin_y^) /. cell;
+    let i0 = int_of_float(Float.floor(fx))
+    and j0 = int_of_float(Float.floor(fy));
+    if (i0 < 1 || i0 >= gw^ - 2 || j0 < 1 || j0 >= gh^ - 2) {
       (0., 0.);
     } else {
+      let tx = fx -. float_of_int(i0)
+      and ty = fy -. float_of_int(j0);
       let u = u_cur^;
-      let gx = (u[idx(i + 1, j)] -. u[idx(i - 1, j)]) /. 2.
-      and gy = (u[idx(i, j + 1)] -. u[idx(i, j - 1)]) /. 2.;
-      (grad_gain *. gx, grad_gain *. gy);
+      let grad = (i: int, j: int): (float, float) => (
+        (u[idx(i + 1, j)] -. u[idx(i - 1, j)]) /. 2.,
+        (u[idx(i, j + 1)] -. u[idx(i, j - 1)]) /. 2.,
+      );
+      let (g00x, g00y) = grad(i0, j0)
+      and (g10x, g10y) = grad(i0 + 1, j0)
+      and (g01x, g01y) = grad(i0, j0 + 1)
+      and (g11x, g11y) = grad(i0 + 1, j0 + 1);
+      let lerp = (a, b, t) => a +. (b -. a) *. t;
+      let gx = lerp(lerp(g00x, g10x, tx), lerp(g01x, g11x, tx), ty)
+      and gy = lerp(lerp(g00y, g10y, tx), lerp(g01y, g11y, tx), ty);
+      (grad_gain^ *. gx, grad_gain^ *. gy);
     };
   };
 
@@ -230,6 +294,7 @@ let css_var = (el: Js.Unsafe.any, name: string): option(float) => {
 
 let rec draw = (): unit => {
   draw_queued := false;
+  install_knobs();
   switch (Util.JsUtil.get_elem_by_id_opt("canvas-dots")) {
   | None => ()
   | Some(el) =>
@@ -549,12 +614,12 @@ let set_field = (p: option((float, float))): unit => {
         c0x +. (c1x -. c0x) *. f,
         c0y +. (c1y -. c0y) *. f,
         /* speed-scaled, capped: fast pulls churn harder */
-        min(stroke_amp *. (0.4 +. d /. 24.), stroke_amp *. 2.),
+        min(stroke_amp^ *. (0.4 +. d /. 24.), stroke_amp^ *. 2.),
       );
     };
   | (None, Some((x, y))) =>
     let (cx, cy) = model_to_content((x, y));
-    deposit(cx, cy, stroke_amp);
+    deposit(cx, cy, stroke_amp^);
   | (_, None) => last_geom := ((-1), (-1), 0., 0., 0.)
   };
   field := p;
