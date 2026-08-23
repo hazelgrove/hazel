@@ -77,6 +77,7 @@ type value = {
   v_key: string, /* node key of the value's type */
   v_ty: string,
   v_err: bool,
+  v_def: Exp.t /* the definition, for the info panel */
 };
 
 type t = {
@@ -708,6 +709,7 @@ let extract =
         bool,
         (list(Id.t), list(Id.t), option(Id.t)),
         list(string),
+        Exp.t,
       ),
     ) =
     List.concat_map(
@@ -738,6 +740,7 @@ let extract =
                       is_mod,
                       anatomy,
                       List.sort_uniq(compare, exp_vars(def)),
+                      def,
                     )
                   )
              );
@@ -759,7 +762,7 @@ let extract =
     List.length(List.filter(u => u == name, all_uses));
 
   let binding_names =
-    List.map(((n, _, _, _, _, _, _, _, _)) => n, bindings);
+    List.map(((n, _, _, _, _, _, _, _, _, _)) => n, bindings);
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
@@ -775,6 +778,7 @@ let extract =
           is_mod,
           (arg_ids, whole_ids, out_id),
           dvars,
+          def,
         ),
       ) => {
         let (args, ret) = flatten_arrow(ty);
@@ -794,6 +798,7 @@ let extract =
                 v_key,
                 v_ty: pretty_ty(ty),
                 v_err: err,
+                v_def: def,
               },
             ],
           );

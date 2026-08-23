@@ -28,6 +28,10 @@ let current_code =
 let pan_slack = CanvasRipple.pan_slack;
 /* set to force a re-anchor on the next render (fit button) */
 let pending_anchor: ref(bool) = ref(false);
+/* where anchoring scrolls to; recomputed each render so the content
+   sits centered in the pane (infinite canvas: centering can borrow
+   the slack when the graph is smaller than the pane) */
+let anchor_target: ref((float, float)) = ref((pan_slack, pan_slack));
 let last_anchor_slide: ref(string) = ref("");
 /* anchor the scroll to the board (skipping the slack margin) whenever
    the pane is fresh, the slide changed, or an anchor was requested */
@@ -45,8 +49,9 @@ let ensure_scroll_anchor = (slide: string): unit =>
               Js.Unsafe.set(el', "__panAnchored", Js.bool(true));
               last_anchor_slide := slide;
               pending_anchor := false;
-              el'##.scrollLeft := pan_slack;
-              el'##.scrollTop := pan_slack;
+              let (tx, ty) = anchor_target^;
+              el'##.scrollLeft := tx;
+              el'##.scrollTop := ty;
             };
           }
         }),
@@ -306,6 +311,8 @@ let last_logged_busy: ref(bool) = ref(false);
 let toast_tick_scheduled: ref(bool) = ref(false);
 /* function pill under the pointer (dependency-fan disclosure) */
 let hovered_edge: ref(option(string)) = ref(None: option(string));
+/* orbiting constant whose info panel is open (transient, like hover) */
+let focused_value: ref(option(string)) = ref(None: option(string));
 
 /* Graph extraction walks the whole statics map, and view runs on EVERY
    render — including per-token renders while the model streams. Memoize
@@ -602,7 +609,35 @@ let view =
   let avail_height =
     switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
     | Some(el) =>
-      let h = Js_of_ocaml.Js.Unsafe.coerce(el)##.clientHeight;
+      let h: int = Js_of_ocaml.Js.Unsafe.coerce(el)##.clientHeight;
+      /* measure as if the focus strip were closed: the strip opening
+         shrank the pane, re-derived the vertical scale, and made
+         bystander nodes jump on click */
+      let strip =
+        Js_of_ocaml.(
+          switch (
+            Js.Opt.to_option(
+              Js.Unsafe.meth_call(
+                Js.Unsafe.global##.document,
+                "querySelector",
+                [|
+                  Js.Unsafe.inject(
+                    Js.string("#canvas-sidebar .canvas-focus"),
+                  ),
+                |],
+              ),
+            )
+          ) {
+          | Some(strip_el) =>
+            int_of_float(
+              Js.Unsafe.coerce(
+                Js.Unsafe.meth_call(strip_el, "getBoundingClientRect", [||]),
+              )##.height,
+            )
+          | None => 0
+          }
+        );
+      let h = h + strip;
       h > 100 ? Some(float_of_int(h)) : None;
     | None => None
     };
@@ -775,6 +810,7 @@ let view =
      samples (its wells would show ⊖), capture the first sample at the
      first input anchor so values appear immediately. */
   let on_edge_click = (e: CanvasGraph.edge) => {
+    focused_value := None;
     let align: list(Effect.t(unit)) = {
       let anchor =
         switch (e.e_whole_ids, e.e_arg_ids, e.e_out_id) {
@@ -931,7 +967,8 @@ let view =
     globals.inject_global(Set(Sidebar(SetCanvasPlace(p))));
   /* plain click (no drag, no connect mode): focus the type's values;
      aliases also select their definition */
-  let click_effect = (n: CanvasGraph.tynode) =>
+  let click_effect = (n: CanvasGraph.tynode) => {
+    focused_value := None;
     Effect.Many(
       [
         globals.inject_global(Set(Sidebar(SetCanvasFocusTy(Some(n.key))))),
@@ -943,6 +980,7 @@ let view =
         }
       ),
     );
+  };
   /* drag-vs-click on a node: document listeners move the div imperatively;
      release either commits a layout delta or fires the click */
   /* persist the live frame alongside any pin/offset commit so a reload
@@ -1662,33 +1700,55 @@ let view =
       ],
     );
   };
+  let const_panel =
+    switch (focused_value^) {
+    | Some(vn) =>
+      List.find_opt((v: CanvasGraph.value) => v.v_name == vn, graph.values)
+      |> Option.map(v =>
+           CanvasFocus.value_info(
+             ~globals,
+             ~inject_jump,
+             ~on_close=
+               () => {
+                 focused_value := None;
+                 globals.inject_global(Set(CanvasTick));
+               },
+             v,
+           )
+         )
+    | None => None
+    };
   let focus_strip =
-    switch (focused_ty, focused) {
-    | (Some(key), _) =>
-      CanvasFocus.type_view(
-        ~globals,
-        ~editor,
-        ~inject_jump,
-        ~on_close=
-          globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-        ~dynamics=editor.dynamics,
-        ~info_map=editor.statics.info_map,
-        ~graph,
-        key,
-      )
-      |> Option.to_list
-    | (None, Some(name)) =>
-      CanvasFocus.view(
-        ~globals,
-        ~editor,
-        ~inject_jump,
-        ~on_close=set_focus(None),
-        ~ask_agent,
-        ~graph,
-        name,
-      )
-      |> Option.to_list
-    | (None, None) => []
+    switch (const_panel) {
+    | Some(panel) => [panel]
+    | None =>
+      switch (focused_ty, focused) {
+      | (Some(key), _) =>
+        CanvasFocus.type_view(
+          ~globals,
+          ~editor,
+          ~inject_jump,
+          ~on_close=
+            globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+          ~dynamics=editor.dynamics,
+          ~info_map=editor.statics.info_map,
+          ~graph,
+          key,
+        )
+        |> Option.to_list
+      | (None, Some(name)) =>
+        CanvasFocus.view(
+          ~globals,
+          ~editor,
+          ~inject_jump,
+          ~on_close=set_focus(None),
+          ~ask_agent,
+          ~graph,
+          name,
+        )
+        |> Option.to_list
+      | (None, None) => []
+      }
     };
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
@@ -1795,6 +1855,15 @@ let view =
       ],
     );
   CanvasRipple.request_draw();
+  switch (avail_width, avail_height) {
+  | (Some(aw), Some(ah)) =>
+    anchor_target :=
+      (
+        max(0., pan_slack +. (lay.width *. zoom -. aw) /. 2.),
+        max(0., pan_slack +. (lay.height *. zoom -. ah) /. 2.),
+      )
+  | _ => ()
+  };
   ensure_scroll_anchor(slide);
   {
     let (prev_slide, prev_nodes) = last_node_snapshot^;
@@ -1943,25 +2012,35 @@ let view =
       ) {
       | None => []
       | Some(el) =>
-        el.edge.e_deps
-        |> List.filter_map(dep => {
-             let tgt =
-               switch (
-                 List.find_opt(
-                   (dl: CanvasLayout.edge_layout) => dl.edge.e_name == dep,
-                   lay.edges,
-                 )
-               ) {
-               | Some(dl) => Some(dl.label_p)
-               | None =>
-                 List.find_opt(
-                   (vl: CanvasLayout.value_layout) => vl.value.v_name == dep,
-                   lay.values,
-                 )
-                 |> Option.map((vl: CanvasLayout.value_layout) => vl.p)
-               };
-             tgt |> Option.map(t => (el.label_p, t));
-           })
+        let uses =
+          el.edge.e_deps
+          |> List.filter_map(dep => {
+               let tgt =
+                 switch (
+                   List.find_opt(
+                     (dl: CanvasLayout.edge_layout) => dl.edge.e_name == dep,
+                     lay.edges,
+                   )
+                 ) {
+                 | Some(dl) => Some(dl.label_p)
+                 | None =>
+                   List.find_opt(
+                     (vl: CanvasLayout.value_layout) =>
+                       vl.value.v_name == dep,
+                     lay.values,
+                   )
+                   |> Option.map((vl: CanvasLayout.value_layout) => vl.p)
+                 };
+               tgt |> Option.map(t => (el.label_p, t));
+             });
+        /* and the reverse: who uses THIS function */
+        let used_by =
+          lay.edges
+          |> List.filter_map((dl: CanvasLayout.edge_layout) =>
+               dl.edge.e_name != name && List.mem(name, dl.edge.e_deps)
+                 ? Some((dl.label_p, el.label_p)) : None
+             );
+        uses @ used_by;
       };
     switch (hovered_edge^, focused) {
     | (Some(n), _)
@@ -1972,6 +2051,15 @@ let view =
   let on_edge_hover = (h: option(string)) => {
     hovered_edge := h;
     globals.inject_global(Set(CanvasTick));
+  };
+  let on_value_click = (v: CanvasGraph.value) => {
+    focused_value := Some(v.v_name);
+    Effect.Many([
+      globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+      globals.inject_global(Set(Sidebar(SetCanvasFocus(None)))),
+      globals.inject_global(Set(CanvasTick)),
+      Effect.Stop_propagation,
+    ]);
   };
   let just_placed = {
     let now = CanvasBuffer.now();
@@ -2082,6 +2170,7 @@ let view =
                 ~inject_jump,
                 ~dep_fan,
                 ~on_edge_hover,
+                ~on_value_click=Some(on_value_click),
                 ~connect_pts,
                 ~just_placed,
                 ~on_canvas_dblclick,

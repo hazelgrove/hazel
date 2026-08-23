@@ -103,6 +103,51 @@ let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
   | _ => None
   };
 
+/* the info panel for an orbiting constant: name (jump), type, and the
+   definition rendered as a value chip */
+let value_info =
+    (
+      ~globals: Globals.t,
+      ~inject_jump: Id.t => Ui_effect.t(unit),
+      /* thunk: closing clears a module ref, which must happen at CLICK
+         time, not while building the vdom */
+      ~on_close: unit => Ui_effect.t(unit),
+      v: CanvasGraph.value,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[clss(["canvas-focus"])],
+    [
+      div(
+        ~attrs=[clss(["focus-head"])],
+        [
+          div(
+            ~attrs=[
+              clss(["focus-name"]),
+              Attr.on_click(_ => inject_jump(v.v_id)),
+            ],
+            [text(v.v_name)],
+          ),
+          div(~attrs=[clss(["focus-ty"])], [text(": " ++ v.v_ty)]),
+          div(
+            ~attrs=[clss(["focus-close"]), Attr.on_click(_ => on_close())],
+            [text({js|✕|js})],
+          ),
+        ],
+      ),
+      div(
+        ~attrs=[clss(["focus-value-def"])],
+        [
+          CanvasValue.chip(
+            ~font_metrics=globals.font_metrics,
+            ~available=48,
+            v.v_def,
+          ),
+        ],
+      ),
+    ],
+  );
+
 let type_view =
     (
       ~globals: Globals.t,

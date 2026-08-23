@@ -79,7 +79,37 @@ let rec draw = (): unit => {
     and ch: int = Js.Unsafe.coerce(scroll)##.clientHeight;
     let sl: float = Js.Unsafe.coerce(scroll)##.scrollLeft
     and st: float = Js.Unsafe.coerce(scroll)##.scrollTop;
-    let z = max(0.05, zoom^);
+    /* track the VISUAL zoom: during the auto-fit/fit zoom transition the
+       computed style interpolates, and following it keeps the lattice
+       coupled to the board instead of snapping ahead of it */
+    let vis_zoom = {
+      let root =
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.document,
+            "querySelector",
+            [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+          ),
+        );
+      switch (root) {
+      | None => zoom^
+      | Some(root) =>
+        let v: Js.t(Js.js_string) =
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "getComputedStyle",
+            [|Js.Unsafe.inject(root)|],
+          )##getPropertyValue(
+            Js.string("zoom"),
+          );
+        switch (float_of_string_opt(String.trim(Js.to_string(v)))) {
+        | Some(f) when f > 0.01 => f
+        | _ => zoom^
+        };
+      };
+    };
+    let zoom_settling = abs_float(vis_zoom -. zoom^) > 0.002;
+    let z = max(0.05, vis_zoom);
     let bw = int_of_float(float_of_int(cw) *. dpr)
     and bh = int_of_float(float_of_int(ch) *. dpr);
     if (el##.width != bw || el##.height != bh) {
@@ -241,7 +271,7 @@ let rec draw = (): unit => {
       draw_pass(g^, 1., ~skip_coarse=false);
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (live != [] || field^ != None) {
+    if (live != [] || field^ != None || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };

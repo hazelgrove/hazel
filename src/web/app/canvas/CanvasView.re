@@ -342,7 +342,13 @@ let node_view =
    on hover/click (the docked label pills cluttered and perturbed
    layout). Deterministic: phase comes from a name hash via a negative
    animation-delay — same program, same sky. */
-let value_view = (~inject_jump, vl: CanvasLayout.value_layout): Node.t => {
+let value_view =
+    (
+      ~inject_jump as _,
+      ~on_value_click: CanvasGraph.value => Effect.t(unit),
+      vl: CanvasLayout.value_layout,
+    )
+    : Node.t => {
   let v = vl.value;
   let hash =
     String.fold_left(
@@ -377,7 +383,7 @@ let value_view = (~inject_jump, vl: CanvasLayout.value_layout): Node.t => {
               clss(["orbit-dot"] @ (v.v_err ? ["node-err"] : [])),
               Attr.create("style", Printf.sprintf("left: %.1fpx;", vl.vr)),
               Attr.title(v.v_name ++ " : " ++ v.v_ty),
-              Attr.on_click(_ => inject_jump(v.v_id)),
+              Attr.on_click(_ => on_value_click(v)),
             ],
             [],
           ),
@@ -454,6 +460,7 @@ let view =
          pill to the pills/nodes of the bindings it references */
       ~dep_fan: list((CanvasLayout.pos, CanvasLayout.pos))=[],
       ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
+      ~on_value_click: option(CanvasGraph.value => Effect.t(unit))=None,
       ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
@@ -868,7 +875,14 @@ let view =
         edge_label(~inject_jump, ~focused, ~on_edge_click, ~on_edge_hover),
         lay.edges,
       )
-    @ List.map(value_view(~inject_jump), lay.values)
+    @ {
+      let ovc =
+        switch (on_value_click) {
+        | Some(f) => f
+        | None => ((v: CanvasGraph.value) => inject_jump(v.v_id))
+        };
+      List.map(value_view(~inject_jump, ~on_value_click=ovc), lay.values);
+    }
     @ (
       switch (avatar) {
       | Some((p, _) as a) =>
