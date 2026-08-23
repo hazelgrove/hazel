@@ -284,6 +284,7 @@
   position: absolute;
   left: 0;
   top: 0;
+  overflow: visible;
   pointer-events: none;
 }
 
@@ -407,6 +408,7 @@
   position: absolute;
   left: 0;
   top: 0;
+  overflow: visible;
   pointer-events: none;
   z-index: 4;
 }
