@@ -218,6 +218,7 @@ let edge_label =
       ~inject_jump: Haz3lcore.Id.t => Effect.t(unit),
       ~focused: option(string),
       ~on_edge_click: CanvasGraph.edge => Effect.t(unit),
+      ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
       el: CanvasLayout.edge_layout,
     )
     : Node.t => {
@@ -251,6 +252,8 @@ let edge_label =
       anchor_style(el.label_p),
       Attr.title(tooltip),
       Attr.on_click(_ => on_edge_click(e)),
+      Attr.on_mouseenter(_ => on_edge_hover(Some(e.e_name))),
+      Attr.on_mouseleave(_ => on_edge_hover(None)),
     ],
     [
       text(e.e_name),
@@ -335,17 +338,52 @@ let node_view =
   );
 };
 
+/* constants as slow-orbiting dots around their type's node: labels only
+   on hover/click (the docked label pills cluttered and perturbed
+   layout). Deterministic: phase comes from a name hash via a negative
+   animation-delay — same program, same sky. */
 let value_view = (~inject_jump, vl: CanvasLayout.value_layout): Node.t => {
   let v = vl.value;
+  let hash =
+    String.fold_left(
+      (h, c) => (h * 31 + Char.code(c)) mod 997,
+      7,
+      v.v_name,
+    );
+  let period = 90.;
+  let phase = float_of_int(hash mod 90);
   div(
     ~attrs=[
       Attr.id("cval-" ++ sanitize(v.v_name)),
-      clss(["canvas-value"] @ (v.v_err ? ["node-err"] : [])),
+      clss(["canvas-orbit"]),
       anchor_style(vl.p),
-      Attr.title(v.v_name ++ " : " ++ v.v_ty),
-      Attr.on_click(_ => inject_jump(v.v_id)),
     ],
-    [text("● " ++ v.v_name)],
+    [
+      div(
+        ~attrs=[
+          clss(["orbit-arm"]),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "animation-duration: %.0fs; animation-delay: -%.0fs;",
+              period,
+              phase,
+            ),
+          ),
+        ],
+        [
+          div(
+            ~attrs=[
+              clss(["orbit-dot"] @ (v.v_err ? ["node-err"] : [])),
+              Attr.create("style", Printf.sprintf("left: %.1fpx;", vl.vr)),
+              Attr.title(v.v_name ++ " : " ++ v.v_ty),
+              Attr.on_click(_ => inject_jump(v.v_id)),
+            ],
+            [],
+          ),
+        ],
+      ),
+    ],
   );
 };
 
@@ -412,6 +450,10 @@ let view =
       ~avatar_bubble: option(string)=None,
       /* tool name of the beat just shown; briefly replaces the bubble */
       ~avatar_toast: option(string)=None,
+      /* hover/focus dependency fan: subdued curves from a function's
+         pill to the pills/nodes of the bindings it references */
+      ~dep_fan: list((CanvasLayout.pos, CanvasLayout.pos))=[],
+      ~on_edge_hover: option(string) => Effect.t(unit)=_ => Effect.Ignore,
       ~loose_tests as _: list(CanvasGraph.test_info),
       lay: CanvasLayout.t,
     )
@@ -754,24 +796,15 @@ let view =
         Attr.create(
           "style",
           {
-            /* dot pitch loops across zoom levels: as cells visually
-               outgrow ~1.4x the base pitch the grid subdivides, and
-               below ~0.7x it coarsens — apparent density stays put */
-            let lvl = 2. ** Float.round(Float.log2(zoom));
-            let pitch = 14. /. lvl;
             let (mw, mh) = min_size;
             Printf.sprintf(
-              "width: %spx; height: %spx; zoom: %s; --dot-pitch: %spx; --dot-r: %.3fpx; --dot-fade: %.3fpx;",
+              "width: %spx; height: %spx; zoom: %s;",
               fmt(max(lay.width, mw)),
               fmt(max(lay.height, mh)),
               /* zoom needs full precision: %.1f rounds a pane-fitting
                  zoom up and the min_size-floored root overflows by the
                  excess, re-summoning the scrollbars fit just removed */
               Printf.sprintf("%.4f", zoom),
-              fmt(pitch),
-              /* dots keep a constant VISUAL size across zoom levels */
-              0.75 /. zoom,
-              1.1 /. zoom,
             );
           },
         ),
@@ -781,27 +814,47 @@ let view =
       @ track_attrs,
     [
       {
-        /* dots are a 2D canvas (not a CSS background) so placement can
-           splash compression waves through the lattice (CanvasRipple);
-           backing is dpr-scaled, CSS box tracks the root via inset: 0 */
-        let dpr: float =
-          Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##.devicePixelRatio;
-        let (mw, mh) = min_size;
-        Node.create(
-          "canvas",
+        /* the under-layer: call/constant dependencies of the hovered or
+           focused function, drawn beneath everything semantic */
+        let fmt' = fmt;
+        Node.create_svg(
+          "svg",
           ~attrs=[
-            Attr.id("canvas-dots"),
-            clss(["canvas-dots"]),
-            Attr.create(
-              "width",
-              string_of_int(int_of_float(max(lay.width, mw) *. dpr +. 1.)),
-            ),
-            Attr.create(
-              "height",
-              string_of_int(int_of_float(max(lay.height, mh) *. dpr +. 1.)),
-            ),
+            clss(["canvas-depfan"]),
+            Attr.create("width", fmt'(lay.width)),
+            Attr.create("height", fmt'(lay.height)),
           ],
-          [],
+          List.map(
+            ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
+              let mx = (a.x +. b.x) /. 2.
+              and my = (a.y +. b.y) /. 2.;
+              let dx = b.x -. a.x
+              and dy = b.y -. a.y;
+              let d = max(1., Float.hypot(dx, dy));
+              /* slight perpendicular sag so fans don't overlap edges */
+              let cx = mx -. dy /. d *. 14.
+              and cy = my +. dx /. d *. 14.;
+              Node.create_svg(
+                "path",
+                ~attrs=[
+                  Attr.create(
+                    "d",
+                    Printf.sprintf(
+                      "M %s %s Q %s %s %s %s",
+                      fmt'(a.x),
+                      fmt'(a.y),
+                      fmt'(cx),
+                      fmt'(cy),
+                      fmt'(b.x),
+                      fmt'(b.y),
+                    ),
+                  ),
+                ],
+                [],
+              );
+            },
+            dep_fan,
+          ),
         );
       },
       edges_svg,
@@ -812,7 +865,7 @@ let view =
         lay.nodes,
       )
     @ List.map(
-        edge_label(~inject_jump, ~focused, ~on_edge_click),
+        edge_label(~inject_jump, ~focused, ~on_edge_click, ~on_edge_hover),
         lay.edges,
       )
     @ List.map(value_view(~inject_jump), lay.values)

@@ -66,6 +66,9 @@ type edge = {
   /* one id per parameter: the UNSPLIT pattern (see fun_anatomy) */
   e_whole_ids: list(Id.t),
   e_out_id: option(Id.t),
+  /* names of OTHER top-level bindings this definition references
+     (call/constant dependencies; the hover fan) */
+  e_deps: list(string),
 };
 
 type value = {
@@ -704,6 +707,7 @@ let extract =
         bool,
         bool,
         (list(Id.t), list(Id.t), option(Id.t)),
+        list(string),
       ),
     ) =
     List.concat_map(
@@ -733,6 +737,7 @@ let extract =
                       hole,
                       is_mod,
                       anatomy,
+                      List.sort_uniq(compare, exp_vars(def)),
                     )
                   )
              );
@@ -753,12 +758,24 @@ let extract =
   let use_count = (name: string): int =>
     List.length(List.filter(u => u == name, all_uses));
 
+  let binding_names =
+    List.map(((n, _, _, _, _, _, _, _, _)) => n, bindings);
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
       (
         (es, vs),
-        (name, id, ty, doc, err, hole, is_mod, (arg_ids, whole_ids, out_id)),
+        (
+          name,
+          id,
+          ty,
+          doc,
+          err,
+          hole,
+          is_mod,
+          (arg_ids, whole_ids, out_id),
+          dvars,
+        ),
       ) => {
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
@@ -872,6 +889,9 @@ let extract =
                 e_arg_ids: arg_ids,
                 e_whole_ids: whole_ids,
                 e_out_id: out_id,
+                e_deps:
+                  dvars
+                  |> List.filter(v => v != name && List.mem(v, binding_names)),
               },
             ],
             vs,

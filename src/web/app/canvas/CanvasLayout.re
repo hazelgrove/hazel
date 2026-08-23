@@ -37,6 +37,7 @@ type edge_layout = {
 type value_layout = {
   value: CanvasGraph.value,
   p: pos,
+  vr: float /* orbit ring radius */
 };
 
 type t = {
@@ -910,26 +911,31 @@ let layout =
     );
   };
 
-  /* ---- values dock below their type's node ---- */
-  let value_layouts =
-    List.mapi(
-      (i, v: CanvasGraph.value) => {
+  /* ---- values orbit their type's node: anchor = host center, vr
+     staggers rings when a type has several constants ---- */
+  let value_layouts = {
+    let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
+    List.map(
+      (v: CanvasGraph.value) => {
         let anchor = Option.value(~default=fallback, pos_of(v.v_key));
+        let idx =
+          switch (Hashtbl.find_opt(seen, v.v_key)) {
+          | Some(n) =>
+            Hashtbl.replace(seen, v.v_key, n + 1);
+            n + 1;
+          | None =>
+            Hashtbl.replace(seen, v.v_key, 0);
+            0;
+          };
         {
           value: v,
-          p: {
-            x: anchor.x -. radius_of(v.v_key) -. 8.,
-            y:
-              anchor.y
-              +. radius_of(v.v_key)
-              +. 16.
-              +. float_of_int(i mod 2)
-              *. 14.,
-          },
+          p: anchor,
+          vr: radius_of(v.v_key) +. 13. +. float_of_int(idx) *. 7.,
         };
       },
       g.values,
     );
+  };
 
   /* ---- normalize: translate the content bounding box (whatever actually
      hangs furthest — satellites, labels, values) to a snug uniform pad, so
@@ -963,10 +969,10 @@ let layout =
     List.fold_left(
       ((x0, y0, x1, y1), vl: value_layout) =>
         (
-          min(x0, vl.p.x -. 70.),
-          min(y0, vl.p.y -. 8.),
-          max(x1, vl.p.x),
-          max(y1, vl.p.y +. 8.),
+          min(x0, vl.p.x -. vl.vr),
+          min(y0, vl.p.y -. vl.vr),
+          max(x1, vl.p.x +. vl.vr),
+          max(y1, vl.p.y +. vl.vr),
         ),
       b,
       value_layouts,

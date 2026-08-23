@@ -25,7 +25,7 @@ let current_code =
 /* free-panning headroom (screen px, constant across zoom) around the
    board; the scroll position that puts the board's top-left at the pane
    corner is exactly (pan_slack, pan_slack) */
-let pan_slack = 392.;
+let pan_slack = CanvasRipple.pan_slack;
 /* set to force a re-anchor on the next render (fit button) */
 let pending_anchor: ref(bool) = ref(false);
 let last_anchor_slide: ref(string) = ref("");
@@ -71,7 +71,43 @@ let install_zoom_listener = (): unit => {
         Js.Optdef.test(Js.Unsafe.get(el', "__zoomInstalled"));
       if (!installed) {
         Js.Unsafe.set(el', "__zoomInstalled", Js.bool(true));
+        /* panning and pane resizes must redraw the viewport-fixed dot
+           field (a resize otherwise leaves a stale, mis-scaled frame
+           until the next scroll) */
+        ignore(
+          Js.Unsafe.meth_call(
+            el',
+            "addEventListener",
+            [|
+              Js.Unsafe.inject(Js.string("scroll")),
+              Js.Unsafe.inject(
+                Js.Unsafe.callback(() => CanvasRipple.request_draw()),
+              ),
+              Js.Unsafe.inject(
+                Js.Unsafe.obj([|
+                  ("passive", Js.Unsafe.inject(Js.bool(true))),
+                |]),
+              ),
+            |],
+          ),
+        );
+        if (Js.Optdef.test(Js.Unsafe.get(Js.Unsafe.global, "ResizeObserver"))) {
+          let obs =
+            Js.Unsafe.new_obj(
+              Js.Unsafe.get(Js.Unsafe.global, "ResizeObserver"),
+              [|
+                Js.Unsafe.inject(
+                  Js.Unsafe.callback(() => CanvasRipple.request_draw()),
+                ),
+              |],
+            );
+          ignore(
+            Js.Unsafe.meth_call(obs, "observe", [|Js.Unsafe.inject(el')|]),
+          );
+        };
         let last = ref(0.);
+        let pending_dy = ref(0.);
+        let anim_off_until = ref(0.);
         let cb =
           Js.Unsafe.callback((evt: Js.t(Js.Unsafe.any)) => {
             let ctrl: bool = Js.to_bool(Js.Unsafe.coerce(evt)##.ctrlKey);
@@ -80,51 +116,99 @@ let install_zoom_listener = (): unit => {
               let dy: float = Js.Unsafe.coerce(evt)##.deltaY;
               let now: float =
                 Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
-              if (now -. last^ > 40.) {
+              /* accumulate between throttle windows: dropping deltas
+                 made pinching feel sluggish */
+              pending_dy := pending_dy^ +. dy;
+              if (now -. last^ > 30.) {
                 last := now;
                 let z0 = zoom_now^;
-                let z = z0 *. exp(-. dy *. 0.008);
+                let z = z0 *. exp(-. pending_dy^ *. 0.018);
+                pending_dy := 0.;
                 /* detent at 1:1 so pinching back to normal lands exactly */
-                let z = abs_float(z -. 1.) < 0.06 ? 1. : z;
+                let z = abs_float(z -. 1.) < 0.05 ? 1. : z;
                 let z = max(0.4, min(2.5, z));
                 switch (zoom_send^) {
                 | Some(send) =>
-                  send(z);
-                  /* keep the content point under the CURSOR fixed:
-                     correct the scroll once the new zoom has rendered */
-                  let rect =
-                    Js.Unsafe.meth_call(el', "getBoundingClientRect", [||]);
-                  /* measure from the scroll ORIGIN (inside the border),
-                     not the border box, or the fixed point drifts by
-                     clientLeft * (r - 1) per step */
-                  let mx: float =
-                    Js.Unsafe.coerce(evt)##.clientX
-                    -.
-                    Js.Unsafe.coerce(rect)##.left
-                    -.
-                    Js.Unsafe.coerce(el')##.clientLeft;
-                  let my: float =
-                    Js.Unsafe.coerce(evt)##.clientY
-                    -.
-                    Js.Unsafe.coerce(rect)##.top
-                    -.
-                    Js.Unsafe.coerce(el')##.clientTop;
-                  let sl: float = Js.Unsafe.coerce(el')##.scrollLeft
-                  and st: float = Js.Unsafe.coerce(el')##.scrollTop;
-                  ignore(
-                    Js.Unsafe.global##setTimeout(
-                      Js.Unsafe.callback(() => {
-                        let r = z /. z0;
-                        /* the pan slack doesn't scale with zoom, so the
-                           fixed-point math runs in board coordinates */
-                        Js.Unsafe.coerce(el')##.scrollLeft :=
-                          (sl +. mx -. pan_slack) *. r +. pan_slack -. mx;
-                        Js.Unsafe.coerce(el')##.scrollTop :=
-                          (st +. my -. pan_slack) *. r +. pan_slack -. my;
-                      }),
-                      60,
-                    ),
-                  );
+                  /* apply the zoom IMPERATIVELY and correct the scroll
+                     in the same frame: the old flow (state update, then
+                     a delayed correction) let the anchor point jump and
+                     snap back on every step — the pinch judder. The
+                     auto-fit zoom transition is suppressed while a
+                     pinch is live for the same reason. */
+                  let root =
+                    Js.Unsafe.meth_call(
+                      Js.Unsafe.global##.document,
+                      "querySelector",
+                      [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+                    );
+                  switch (Js.Opt.to_option(root)) {
+                  | None => send(z)
+                  | Some(root) =>
+                    let cl =
+                      Js.Unsafe.get(Js.Unsafe.coerce(root), "classList");
+                    if (now > anim_off_until^) {
+                      ignore(
+                        Js.Unsafe.meth_call(
+                          cl,
+                          "add",
+                          [|Js.Unsafe.inject(Js.string("no-zoom-anim"))|],
+                        ),
+                      );
+                    };
+                    anim_off_until := now +. 250.;
+                    ignore(
+                      Js.Unsafe.global##setTimeout(
+                        Js.Unsafe.callback(() =>
+                          if (Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now()
+                              >= anim_off_until^) {
+                            ignore(
+                              Js.Unsafe.meth_call(
+                                cl,
+                                "remove",
+                                [|
+                                  Js.Unsafe.inject(
+                                    Js.string("no-zoom-anim"),
+                                  ),
+                                |],
+                              ),
+                            );
+                          }
+                        ),
+                        260,
+                      ),
+                    );
+                    Js.Unsafe.coerce(root)##.style##.zoom :=
+                      Js.string(Printf.sprintf("%.4f", z));
+                    let rect =
+                      Js.Unsafe.meth_call(el', "getBoundingClientRect", [||]);
+                    /* measure from the scroll ORIGIN (inside the
+                       border), not the border box */
+                    let mx: float =
+                      Js.Unsafe.coerce(evt)##.clientX
+                      -.
+                      Js.Unsafe.coerce(rect)##.left
+                      -.
+                      Js.Unsafe.coerce(el')##.clientLeft;
+                    let my: float =
+                      Js.Unsafe.coerce(evt)##.clientY
+                      -.
+                      Js.Unsafe.coerce(rect)##.top
+                      -.
+                      Js.Unsafe.coerce(el')##.clientTop;
+                    let sl: float = Js.Unsafe.coerce(el')##.scrollLeft
+                    and st: float = Js.Unsafe.coerce(el')##.scrollTop;
+                    let r = z /. z0;
+                    /* the pan slack doesn't scale with zoom, so the
+                       fixed-point math runs in board coordinates */
+                    Js.Unsafe.coerce(el')##.scrollLeft :=
+                      (sl +. mx -. pan_slack) *. r +. pan_slack -. mx;
+                    Js.Unsafe.coerce(el')##.scrollTop :=
+                      (st +. my -. pan_slack) *. r +. pan_slack -. my;
+                    zoom_now := z;
+                    CanvasRipple.zoom := z;
+                    CanvasRipple.request_draw();
+                    send(z);
+                  };
                 | None => ()
                 };
               };
@@ -220,6 +304,8 @@ let last_logged_avatar: ref((option(Id.t), string)) =
 let last_logged_busy: ref(bool) = ref(false);
 /* one pending repaint for the action toast's expiry */
 let toast_tick_scheduled: ref(bool) = ref(false);
+/* function pill under the pointer (dependency-fan disclosure) */
+let hovered_edge: ref(option(string)) = ref(None: option(string));
 
 /* Graph extraction walks the whole statics map, and view runs on EVERY
    render — including per-token renders while the model streams. Memoize
@@ -471,6 +557,7 @@ let view =
   let zoom = globals.settings.canvas_zoom;
   zoom_now := zoom;
   CanvasBuffer.canvas_zoom := zoom;
+  CanvasRipple.zoom := zoom;
   zoom_send :=
     Some(
       z =>
@@ -1844,6 +1931,48 @@ let view =
       )
     | None => []
     };
+  /* dependency fan: subdued under-layer curves from the hovered or
+     focused function's pill to what it references */
+  let dep_fan = {
+    let fan_for = (name: string) =>
+      switch (
+        List.find_opt(
+          (el: CanvasLayout.edge_layout) => el.edge.e_name == name,
+          lay.edges,
+        )
+      ) {
+      | None => []
+      | Some(el) =>
+        el.edge.e_deps
+        |> List.filter_map(dep => {
+             let tgt =
+               switch (
+                 List.find_opt(
+                   (dl: CanvasLayout.edge_layout) => dl.edge.e_name == dep,
+                   lay.edges,
+                 )
+               ) {
+               | Some(dl) => Some(dl.label_p)
+               | None =>
+                 List.find_opt(
+                   (vl: CanvasLayout.value_layout) => vl.value.v_name == dep,
+                   lay.values,
+                 )
+                 |> Option.map((vl: CanvasLayout.value_layout) => vl.p)
+               };
+             tgt |> Option.map(t => (el.label_p, t));
+           })
+      };
+    switch (hovered_edge^, focused) {
+    | (Some(n), _)
+    | (None, Some(n)) => fan_for(n)
+    | (None, None) => []
+    };
+  };
+  let on_edge_hover = (h: option(string)) => {
+    hovered_edge := h;
+    globals.inject_global(Set(CanvasTick));
+  };
   let just_placed = {
     let now = CanvasBuffer.now();
     last_placed := List.filter(((_, t)) => now -. t < 2500., last_placed^);
@@ -1933,11 +2062,26 @@ let view =
       div(
         ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [
+          /* the dot field: a viewport-fixed canvas UNDER the board
+             (sticky 0x0 holder), redrawn on scroll/zoom with the
+             lattice window + edge fade (CanvasRipple) */
+          div(
+            ~attrs=[clss(["canvas-dots-holder"])],
+            [
+              Node.create(
+                "canvas",
+                ~attrs=[Attr.id("canvas-dots"), clss(["canvas-dots"])],
+                [],
+              ),
+            ],
+          ),
           div(
             ~attrs=[clss(["canvas-pan-pad"])],
             [
               CanvasView.view(
                 ~inject_jump,
+                ~dep_fan,
+                ~on_edge_hover,
                 ~connect_pts,
                 ~just_placed,
                 ~on_canvas_dblclick,
