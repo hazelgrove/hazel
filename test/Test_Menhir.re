@@ -219,9 +219,47 @@ let has_nested_singleton_tuple_pat = (e: Exp.t): bool => {
   found^;
 };
 
+/* `Void` is sugar for the empty sum, so `+ Void` is a sum whose entry is
+   itself a sum — and the two parsers splice that entry differently, one
+   keeping a BadEntry and the other flattening it away. `+ Int`, `+ A` and
+   `+ ?` all agree; it is only the nested-sum entry. See
+   hazelgrove/hazel#TODO. */
+let has_sum_entry_sum = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    TermBase.Exp.map_term(
+      ~f_exp=(cont, e) => cont(e),
+      ~f_pat=(cont, p) => cont(p),
+      ~f_typ=
+        (cont, t) => {
+          switch (Typ.term_of(t)) {
+          | Sum(variants) =>
+            List.iter(
+              variant =>
+                switch (variant) {
+                | ConstructorMap.BadEntry(inner) =>
+                  switch (Typ.term_of(inner)) {
+                  | Sum(_) => found := true
+                  | _ => ()
+                  }
+                | _ => ()
+                },
+              variants,
+            )
+          | _ => ()
+          };
+          cont(t);
+        },
+      e,
+    );
+  found^;
+};
+
 /* Shapes the Menhir properties do not judge. */
 let is_carved_out = (e: Exp.t): bool =>
-  has_unsupported_mod_item(e) || has_nested_singleton_tuple_pat(e);
+  has_unsupported_mod_item(e)
+  || has_nested_singleton_tuple_pat(e)
+  || has_sum_entry_sum(e);
 
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
@@ -1489,6 +1527,14 @@ let dumps = [
     "REPRO Menhir85 nested singleton tuple pattern in case rule",
     {|case _ | (_=(_=?)) => ? end|},
   ),
+  /* `Void` is the empty sum, so this is a sum entry that is itself a sum. */
+  skip_menhir_maketerm_equivalent_test(
+    "REPRO Menhir85 Void as a bare sum entry",
+    {|1 : (+ Void)|},
+  ),
+  /* Other bare sum entries agree — these must keep passing. */
+  menhir_maketerm_equivalent_test("bare sum entry Int", {|1 : (+ Int)|}),
+  menhir_maketerm_equivalent_test("bare sum entry hole", {|1 : (+ ?)|}),
   /* Parenthesizing or nesting the item is fine — these must keep passing. */
   menhir_maketerm_equivalent_test(
     "case as module item is fine when parenthesized",
