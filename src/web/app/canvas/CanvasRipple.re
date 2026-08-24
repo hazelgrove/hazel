@@ -368,18 +368,21 @@ type pulse = {
 let pulses: ref(list(pulse)) = ref([]);
 let pulse_ms = 650.;
 
-/* removal suction: rather than one impulse (which radiates instantly
-   and reads as an outward push), the dip is FED over pull_ms — dots
-   visibly pull toward the sink while it deepens — then released, so
-   the accumulated basin rebounds outward on its own */
+/* removal suction, two-phase: the WAVE MEDIUM cannot pull dots inward
+   first — any deposit's leading front propagates OUTWARD and dots ride
+   the front (out-in-out, as observed). So the pull phase is ANALYTIC:
+   an easing radial displacement drawn directly onto the dots (no field
+   involvement), and only the release plants a positive bump in the
+   medium for the outgoing rebound ring. */
 type suction_t = {
   su_p: (float, float), /* model coords */
   su_t0: float,
 };
 let suctions: ref(list(suction_t)) = ref([]);
-let suction_pull_ms = 320.;
-let suction_total = (-18.); /* summed deposit over the pull */
-let suction_sigma = 3.6;
+let suction_pull_ms = 380.;
+let suction_pull_px = 8.5; /* peak inward displacement */
+let suction_pull_r = 110.; /* gaussian reach, screen px */
+let suction_rebound = 8.; /* released bump amplitude */
 
 let bezier =
     (
@@ -623,40 +626,32 @@ let rec draw = (): unit => {
     anchor(sl, st);
     /* advance the medium by wall-clock (capped substeps keep long
        frames stable) */
-    /* feed active suctions before stepping: a steady negative inflow
-       makes the surrounding gradient point inward for the whole pull */
+    /* suction lifecycle: while pulling, the analytic term below moves
+       the dots; on expiry, plant the rebound bump in the medium */
     if (suctions^ != []) {
-      let elapsed = last_step^ == 0. ? 8. : min(48., t -. last_step^);
-      let sg = deposit_sigma^;
-      deposit_sigma := suction_sigma;
       List.iter(
         (su: suction_t) =>
-          if (t -. su.su_t0 <= suction_pull_ms) {
+          if (t -. su.su_t0 > suction_pull_ms) {
             let (mx, my) = su.su_p;
             let (cx, cy) = model_to_content((mx, my));
-            /* forensic breadcrumb: one line per suction, first frame */
-            if (t -. su.su_t0 <= 40.) {
-              CanvasLog.log(
-                Printf.sprintf(
-                  "suction feed: model=(%.0f,%.0f) content=(%.0f,%.0f) cell=(%d,%d) grid=(%d,%d) zoom=%.2f elapsed=%.0f",
-                  mx,
-                  my,
-                  cx,
-                  cy,
-                  int_of_float(Float.round((cx -. origin_x^) /. cell)),
-                  int_of_float(Float.round((cy -. origin_y^) /. cell)),
-                  gw^,
-                  gh^,
-                  zoom^,
-                  elapsed,
-                ),
-              );
-            };
-            deposit(cx, cy, suction_total *. elapsed /. suction_pull_ms);
+            let sg = deposit_sigma^;
+            deposit_sigma := 2.6;
+            deposit(cx, cy, suction_rebound);
+            deposit_sigma := sg;
+            CanvasLog.log(
+              Printf.sprintf(
+                "suction rebound: content=(%.0f,%.0f) cell=(%d,%d) grid=(%d,%d)",
+                cx,
+                cy,
+                int_of_float(Float.round((cx -. origin_x^) /. cell)),
+                int_of_float(Float.round((cy -. origin_y^) /. cell)),
+                gw^,
+                gh^,
+              ),
+            );
           },
         suctions^,
       );
-      deposit_sigma := sg;
       suctions :=
         List.filter(
           (su: suction_t) => t -. su.su_t0 <= suction_pull_ms,
@@ -745,6 +740,23 @@ let rec draw = (): unit => {
       /* board model coord -> screen px */
       let to_screen_x = (m: float): float => m *. z +. pan_slack -. sl
       and to_screen_y = (m: float): float => m *. z +. pan_slack -. st;
+      /* per-frame analytic suction terms: (content center, strength) */
+      let su_terms =
+        List.filter_map(
+          (su: suction_t) => {
+            let age = (t -. su.su_t0) /. suction_pull_ms;
+            if (age >= 0. && age <= 1.) {
+              let (mx, my) = su.su_p;
+              let (scx, scy) = model_to_content((mx, my));
+              /* fast ease-in then hold; release is the field rebound */
+              let e = age < 0.25 ? age /. 0.25 : 1.;
+              Some((scx, scy, suction_pull_px *. e));
+            } else {
+              None;
+            };
+          },
+          suctions^,
+        );
       let draw_pass = (step: float, alpha: float, ~skip_coarse: bool) => {
         let m0x = (0. +. sl -. pan_slack) /. z
         and m1x = (mw +. sl -. pan_slack) /. z;
@@ -765,6 +777,20 @@ let rec draw = (): unit => {
               let cx = x *. z +. pan_slack
               and cy = y *. z +. pan_slack;
               let (dx, dy) = displacement_at(cx, cy);
+              /* analytic inward pull toward any active suction */
+              let (dx, dy) =
+                List.fold_left(
+                  ((ax, ay), (scx, scy, amp)) => {
+                    let ddx = scx -. cx
+                    and ddy = scy -. cy;
+                    let d = Float.hypot(ddx, ddy);
+                    let w = amp *. Float.exp(-. (d /. suction_pull_r) ** 2.);
+                    d < 1.
+                      ? (ax, ay) : (ax +. ddx /. d *. w, ay +. ddy /. d *. w);
+                  },
+                  (dx, dy),
+                  su_terms,
+                );
               let sx = cx +. dx -. sl
               and sy = cy +. dy -. st;
               let a = alpha *. fade1(sx, mw) *. fade1(sy, mh);
