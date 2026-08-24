@@ -10,11 +10,11 @@ let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
 };
 
 let first_a = ((as_, _): t('a, _)): 'a => {
-  assert(List.length(as_) > 0);
+  assert(!List.is_empty(as_));
   List.hd_exn(as_);
 };
 let last_a = ((as_, _): t('a, _)): 'a => {
-  assert(List.length(as_) > 0);
+  assert(!List.is_empty(as_));
   ListUtil.last(as_);
 };
 
