@@ -923,33 +923,43 @@ let extract =
             | _ => false
             };
           let anatomy = fun_anatomy(~pat, def);
-          /* the module type's member entries come back alias-NORMALIZED
-             (Tally -> Tally reads Int -> Int there); the member's own
-             ascription preserves the alias, so prefer it */
-          let rec pat_asc = (p: Pat.t, name: string): option(Typ.t) =>
-            switch (p.term) {
-            | Asc({term: Var(n), _}, ty) when n == name => Some(ty)
-            | Asc(p, _)
-            | Parens(p)
-            | Projector(_, p) => pat_asc(p, name)
-            | _ => None
-            };
-          /* the definition's own synthesized type: works even when the
-             program has no trailing result expression (result_ctx None
-             used to make EVERY binding vanish) */
+          /* Member types come from the DEFINITION'S OWN statics entry:
+             it is typed where module-local aliases are still in scope,
+             so (per the whnf invariant) names like Tally/Model survive.
+             The module's labeled-product type is only a fallback — the
+             sig-builder must expand local aliases (they cannot escape
+             into the module's exported type), which is exactly where
+             names died before. */
           let def_ty = (): option(Typ.t) =>
             switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
             | Some(InfoExp(e)) => Some(Language.Info.exp_ty(e))
             | _ => None
             };
-          let member_ty = (name: string): option(Typ.t) => {
-            let looked =
-              path == [] ? lookup_type(name) : lookup_path_type(path, name);
-            switch (pat_asc(pat, name), looked) {
-            | (Some(ty), _) => Some(ty)
-            | (None, Some(ty)) => Some(ty)
-            | (None, None) => def_ty()
+          /* def_ty types the whole definition: only primary when the
+             pattern binds exactly that one name plainly (tuple pats
+             split it; funlet heads' defs are just the body) */
+          let rec plain_var = (p: Pat.t): bool =>
+            switch (p.term) {
+            | Var(_) => true
+            | Parens(p)
+            | Asc(p, _)
+            | Projector(_, p) => plain_var(p)
+            | _ => false
             };
+          let member_ty = (name: string): option(Typ.t) => {
+            let looked = () =>
+              path == [] ? lookup_type(name) : lookup_path_type(path, name);
+            plain_var(pat)
+              ? switch (def_ty()) {
+                | Some(ty) => Some(ty)
+                | None => looked()
+                }
+              : (
+                switch (looked()) {
+                | Some(ty) => Some(ty)
+                | None => def_ty()
+                }
+              );
           };
           pat_names(pat)
           |> List.filter_map(name =>
