@@ -936,7 +936,16 @@ let view =
                     } else {
                       let exact = nl.node.m_path == path;
                       let is_f = nl.node.key == former_key_of(path);
-                      let r = (is_f ? 62. : 46.) +. depth_pad(nl.node.m_path);
+                      /* ANY former keeps its former-size in ancestor
+                         copies too, else a parent's copy of a nested
+                         former is smaller than the child's own circle
+                         and the blob borders coincide */
+                      let former_sized =
+                        String.length(nl.node.key) >= 3
+                        && String.sub(nl.node.key, 0, 3) == "{}@";
+                      let r =
+                        (former_sized ? 62. : 46.)
+                        +. depth_pad(nl.node.m_path);
                       Some((
                         exact || is_f
                           ? Some("hullc-n-" ++ sanitize(nl.node.key)) : None,
@@ -1028,7 +1037,7 @@ let view =
                               Attr.create("mode", "matrix"),
                               Attr.create(
                                 "values",
-                                "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -11",
+                                "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 48 -23",
                               ),
                             ],
                             [],
@@ -1052,14 +1061,32 @@ let view =
                                nl.node.key == former_key_of(path),
                              lay.nodes,
                            );
-                         let hue_shift = {
-                           let h =
-                             String.fold_left(
-                               (a, c) => (a * 31 + Char.code(c)) mod 7,
-                               3,
-                               root,
+                         /* module palette by first appearance: cyan,
+                            magenta, then friends; nested paths share
+                            their root's color (depth = opacity) */
+                         let palette = [|
+                           "#6fbfc9",
+                           "#d493c6",
+                           "#d8b56a",
+                           "#97a5e0",
+                           "#a4c48d",
+                           "#e0a186",
+                         |];
+                         let color = {
+                           let roots =
+                             List.filter_map(
+                               fun
+                               | [r] => Some(r)
+                               | _ => None,
+                               hull_paths,
                              );
-                           Printf.sprintf("hue-rotate(%ddeg)", h * 12 - 36);
+                           let rec idx = (i, l) =>
+                             switch (l) {
+                             | [] => 0
+                             | [x, ..._] when x == root => i
+                             | [_, ...tl] => idx(i + 1, tl)
+                             };
+                           palette[idx(0, roots) mod Array.length(palette)];
                          };
                          [
                            Node.create_svg(
@@ -1074,7 +1101,9 @@ let view =
                                ]),
                                Attr.create(
                                  "style",
-                                 "filter: url(#metaball) " ++ hue_shift ++ ";",
+                                 "filter: url(#metaball); fill: "
+                                 ++ color
+                                 ++ ";",
                                ),
                              ],
                              List.map(

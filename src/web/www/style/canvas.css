@@ -635,7 +635,7 @@
 }
 
 .canvas-hulls .canvas-hull circle {
-  fill: var(--BR1, #d8c9a3);
+  fill: inherit;
 }
 
 .canvas-hulls .canvas-hull {

@@ -816,7 +816,8 @@ let extract =
     let (k, kind) = ty_ref_at(~path, ~anchor, comp);
     switch (kind) {
     | Builtin =>
-      ensure_sat(~anchor_key=former_key, ~output=false, ~dup=former_key, k)
+      /* dup by the per-component anchor: (Int, Int) = two terminals */
+      ensure_sat(~anchor_key=former_key, ~output=false, ~dup=anchor, k)
     | _ =>
       ensure_grid(~hole_path=path, k, kind);
       k;
@@ -919,12 +920,23 @@ let extract =
             | Projector(_, p) => pat_asc(p, name)
             | _ => None
             };
-          let member_ty = (name: string): option(Typ.t) =>
-            switch (path, pat_asc(pat, name)) {
-            | ([], _) => lookup_type(name)
-            | (_, Some(ty)) => Some(ty)
-            | (_, None) => lookup_path_type(path, name)
+          /* the definition's own synthesized type: works even when the
+             program has no trailing result expression (result_ctx None
+             used to make EVERY binding vanish) */
+          let def_ty = (): option(Typ.t) =>
+            switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+            | Some(InfoExp(e)) => Some(Language.Info.exp_ty(e))
+            | _ => None
             };
+          let member_ty = (name: string): option(Typ.t) => {
+            let looked =
+              path == [] ? lookup_type(name) : lookup_path_type(path, name);
+            switch (pat_asc(pat, name), looked) {
+            | (Some(ty), _) => Some(ty)
+            | (None, Some(ty)) => Some(ty)
+            | (None, None) => def_ty()
+            };
+          };
           pat_names(pat)
           |> List.filter_map(name =>
                member_ty(name)
@@ -1063,15 +1075,17 @@ let extract =
                    )
                 ++ ")";
               let part_keys =
-                List.map(
-                  ((k, kind)) =>
+                List.mapi(
+                  (ci, (k, kind)) =>
                     switch (kind) {
                     | Builtin =>
+                      /* per-component dup: (Int, Int) must yield TWO
+                         Int terminals, not a deduped one */
                       ensure_sat(
                         ~m_path=path,
                         ~anchor_key=product_key,
                         ~output=false,
-                        ~dup=product_key,
+                        ~dup=product_key ++ "c" ++ string_of_int(ci),
                         k,
                       )
                     | _ =>
