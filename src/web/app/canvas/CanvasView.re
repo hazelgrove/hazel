@@ -573,7 +573,11 @@ let view =
     );
   /* target==currentTarget: only true background events (nodes/labels
      are their own targets; the edges svg is pointer-events: none) */
-  let bg_event_coords = evt => {
+  /* gestures live on the pan-pad wrapper (which spans the slack ring),
+     so placement isn't boxed into the content extent; coordinates are
+     always relative to the ROOT's rect, and "background" means the
+     pad itself or the root — anything deeper is a node/label */
+  let is_bg = (evt): bool => {
     open Js_of_ocaml;
     let tgt = Js.Unsafe.coerce(evt)##.target;
     let cur = Js.Unsafe.coerce(evt)##.currentTarget;
@@ -583,8 +587,31 @@ let view =
           Js.Unsafe.meth_call(cur, "isSameNode", [|Js.Unsafe.inject(tgt)|]),
         ),
       );
-    if (same) {
-      let rect = Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
+    let is_root: bool =
+      Js.to_bool(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.coerce(tgt)##.classList,
+          "contains",
+          [|Js.Unsafe.inject(Js.string("canvas-root"))|],
+        ),
+      );
+    same || is_root;
+  };
+  let root_rect = evt => {
+    open Js_of_ocaml;
+    let cur = Js.Unsafe.coerce(evt)##.currentTarget;
+    let root =
+      Js.Unsafe.meth_call(
+        cur,
+        "querySelector",
+        [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+      );
+    Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+  };
+  let bg_event_coords = evt =>
+    if (is_bg(evt)) {
+      open Js_of_ocaml;
+      let rect = root_rect(evt);
       let left: float = Js.Unsafe.coerce(rect)##.left;
       let top: float = Js.Unsafe.coerce(rect)##.top;
       let cx = float_of_int(Js.Unsafe.coerce(evt)##.clientX)
@@ -593,7 +620,6 @@ let view =
     } else {
       None;
     };
-  };
   let gesture_attrs = [
     Attr.on_click(evt =>
       switch (on_canvas_click, bg_event_coords(evt)) {
@@ -621,38 +647,15 @@ let view =
   let bg_attrs =
     switch (on_canvas_click) {
     | Some(f) => [
-        Attr.on_mousedown(evt => {
-          open Js_of_ocaml;
+        Attr.on_mousedown(evt
           /* only true background presses (nodes/labels are their own
              targets; the edges svg is pointer-events: none) */
-          let tgt = Js.Unsafe.coerce(evt)##.target;
-          let cur = Js.Unsafe.coerce(evt)##.currentTarget;
-          let same: bool =
-            Js.to_bool(
-              Js.Unsafe.coerce(
-                Js.Unsafe.meth_call(
-                  cur,
-                  "isSameNode",
-                  [|Js.Unsafe.inject(tgt)|],
-                ),
-              ),
-            );
-          if (same) {
-            let rect =
-              Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
-            let left: float = Js.Unsafe.coerce(rect)##.left;
-            let top: float = Js.Unsafe.coerce(rect)##.top;
-            let x: int = Js.Unsafe.coerce(evt)##.clientX;
-            let y: int = Js.Unsafe.coerce(evt)##.clientY;
-            /* CSS zoom scales client rects; map back to layout px */
-            f((
-              (float_of_int(x) -. left) /. zoom,
-              (float_of_int(y) -. top) /. zoom,
-            ));
-          } else {
-            Effect.Ignore;
-          };
-        }),
+          =>
+            switch (bg_event_coords(evt)) {
+            | Some((model, _)) => f(model)
+            | None => Effect.Ignore
+            }
+          ),
       ]
     | None => []
     };
@@ -666,8 +669,7 @@ let view =
       ? [
         Attr.on_mousemove(evt => {
           open Js_of_ocaml;
-          let cur = Js.Unsafe.coerce(evt)##.currentTarget;
-          let rect = Js.Unsafe.meth_call(cur, "getBoundingClientRect", [||]);
+          let rect = root_rect(evt);
           let left: float = Js.Unsafe.coerce(rect)##.left;
           let top: float = Js.Unsafe.coerce(rect)##.top;
           let x =
@@ -824,143 +826,165 @@ let view =
   div(
     ~attrs=
       [
-        clss(["canvas-root"] @ (on_canvas_click == None ? [] : ["placing"])),
-        Attr.create(
-          "style",
-          {
-            let (mw, mh) = min_size;
-            Printf.sprintf(
-              "width: %spx; height: %spx; zoom: %s;",
-              fmt(max(lay.width, mw)),
-              fmt(max(lay.height, mh)),
-              /* zoom needs full precision: %.1f rounds a pane-fitting
-                 zoom up and the min_size-floored root overflows by the
-                 excess, re-summoning the scrollbars fit just removed */
-              Printf.sprintf("%.4f", zoom),
-            );
-          },
+        clss(
+          ["canvas-pan-pad"] @ (on_canvas_click == None ? [] : ["placing"]),
         ),
       ]
       @ bg_attrs
       @ gesture_attrs
       @ track_attrs,
     [
-      {
-        /* the under-layer: call/constant dependencies of the hovered or
-           focused function, drawn beneath everything semantic */
-        let fmt' = fmt;
-        Node.create_svg(
-          "svg",
-          ~attrs=[
-            clss(["canvas-depfan"]),
-            Attr.create("width", fmt'(lay.width)),
-            Attr.create("height", fmt'(lay.height)),
-          ],
-          List.map(
-            ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
-              let mx = (a.x +. b.x) /. 2.
-              and my = (a.y +. b.y) /. 2.;
-              let dx = b.x -. a.x
-              and dy = b.y -. a.y;
-              let d = max(1., Float.hypot(dx, dy));
-              /* slight perpendicular sag so fans don't overlap edges */
-              let cx = mx -. dy /. d *. 14.
-              and cy = my +. dx /. d *. 14.;
-              Node.create_svg(
-                "path",
-                ~attrs=[
-                  Attr.create(
-                    "d",
-                    Printf.sprintf(
-                      "M %s %s Q %s %s %s %s",
-                      fmt'(a.x),
-                      fmt'(a.y),
-                      fmt'(cx),
-                      fmt'(cy),
-                      fmt'(b.x),
-                      fmt'(b.y),
-                    ),
-                  ),
-                ],
-                [],
+      div(
+        ~attrs=[
+          clss(["canvas-root"]),
+          Attr.create(
+            "style",
+            {
+              let (mw, mh) = min_size;
+              Printf.sprintf(
+                "width: %spx; height: %spx; zoom: %s;",
+                fmt(max(lay.width, mw)),
+                fmt(max(lay.height, mh)),
+                /* zoom needs full precision: %.1f rounds a pane-fitting
+                   zoom up and the min_size-floored root overflows by the
+                   excess, re-summoning the scrollbars fit just removed */
+                Printf.sprintf("%.4f", zoom),
               );
             },
-            dep_fan,
           ),
-        );
-      },
-      edges_svg,
-    ]
-    @ telegraph_nodes
-    @ List.map(
-        node_view(~on_node_mousedown, ~on_node_contextmenu, ~just_placed),
-        lay.nodes,
-      )
-    @ List.map(
-        edge_label(~inject_jump, ~focused, ~on_edge_click, ~on_edge_hover),
-        lay.edges,
-      )
-    @ {
-      let ovc =
-        switch (on_value_click) {
-        | Some(f) => f
-        | None => ((v: CanvasGraph.value) => inject_jump(v.v_id))
-        };
-      List.map(value_view(~inject_jump, ~on_value_click=ovc), lay.values);
-    }
-    @ (
-      switch (avatar) {
-      | Some((p, _) as a) =>
-        [avatar_view(a)]
-        /* the bubble/toast anchor to the avatar ICON (which sits at
-           p + (14, -34)), not the node; flip sides when the icon is
-           too close to the top or right edge of the board */
-        @ {
-          let ax = p.x +. 14.
-          and ay = p.y -. 34.;
-          let near_top = ay -. 76. < 4.;
-          let near_right = ax +. 220. > lay.width -. 4.;
-          let left = near_right ? ax -. 14. : ax +. 30.;
-          let top = near_top ? ay +. 30. : ay -. 40.;
-          let flips =
-            (near_right ? ["b-left"] : []) @ (near_top ? ["b-below"] : []);
-          let place =
-            Attr.create(
-              "style",
-              Printf.sprintf("left: %spx; top: %spx;", fmt(left), fmt(top)),
-            );
-          switch (avatar_toast, avatar_bubble) {
-          | (Some(name), _) => [
-              /* just-landed tool call: brief action chip in the
-                 bubble's spot */
-              div(
-                ~attrs=[clss(["canvas-avatar-toast"] @ flips), place],
-                [text(name)],
+        ],
+        [
+          {
+            /* the under-layer: call/constant dependencies of the hovered
+               or focused function, drawn beneath everything semantic */
+            let fmt' = fmt;
+            Node.create_svg(
+              "svg",
+              ~attrs=[
+                clss(["canvas-depfan"]),
+                Attr.create("width", fmt'(lay.width)),
+                Attr.create("height", fmt'(lay.height)),
+              ],
+              List.map(
+                ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
+                  let mx = (a.x +. b.x) /. 2.
+                  and my = (a.y +. b.y) /. 2.;
+                  let dx = b.x -. a.x
+                  and dy = b.y -. a.y;
+                  let d = max(1., Float.hypot(dx, dy));
+                  /* slight perpendicular sag so fans don't overlap edges */
+                  let cx = mx -. dy /. d *. 14.
+                  and cy = my +. dx /. d *. 14.;
+                  Node.create_svg(
+                    "path",
+                    ~attrs=[
+                      Attr.create(
+                        "d",
+                        Printf.sprintf(
+                          "M %s %s Q %s %s %s %s",
+                          fmt'(a.x),
+                          fmt'(a.y),
+                          fmt'(cx),
+                          fmt'(cy),
+                          fmt'(b.x),
+                          fmt'(b.y),
+                        ),
+                      ),
+                    ],
+                    [],
+                  );
+                },
+                dep_fan,
               ),
-            ]
-          | (None, Some(txt)) => [
-              div(
-                ~attrs=[clss(["canvas-avatar-bubble"] @ flips), place],
-                [
-                  div(~attrs=[clss(["bubble-trail", "t1"])], []),
-                  div(~attrs=[clss(["bubble-trail", "t2"])], []),
+            );
+          },
+          edges_svg,
+        ]
+        @ telegraph_nodes
+        @ List.map(
+            node_view(~on_node_mousedown, ~on_node_contextmenu, ~just_placed),
+            lay.nodes,
+          )
+        @ List.map(
+            edge_label(
+              ~inject_jump,
+              ~focused,
+              ~on_edge_click,
+              ~on_edge_hover,
+            ),
+            lay.edges,
+          )
+        @ {
+          let ovc =
+            switch (on_value_click) {
+            | Some(f) => f
+            | None => ((v: CanvasGraph.value) => inject_jump(v.v_id))
+            };
+          List.map(
+            value_view(~inject_jump, ~on_value_click=ovc),
+            lay.values,
+          );
+        }
+        @ (
+          switch (avatar) {
+          | Some((p, _) as a) =>
+            [avatar_view(a)]
+            /* the bubble/toast anchor to the avatar ICON (which sits at
+               p + (14, -34)), not the node; flip sides when the icon is
+               too close to the top or right edge of the board */
+            @ {
+              let ax = p.x +. 14.
+              and ay = p.y -. 34.;
+              let near_top = ay -. 76. < 4.;
+              let near_right = ax +. 220. > lay.width -. 4.;
+              let left = near_right ? ax -. 14. : ax +. 30.;
+              let top = near_top ? ay +. 30. : ay -. 40.;
+              let flips =
+                (near_right ? ["b-left"] : [])
+                @ (near_top ? ["b-below"] : []);
+              let place =
+                Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "left: %spx; top: %spx;",
+                    fmt(left),
+                    fmt(top),
+                  ),
+                );
+              switch (avatar_toast, avatar_bubble) {
+              | (Some(name), _) => [
+                  /* just-landed tool call: brief action chip in the
+                     bubble's spot */
                   div(
-                    ~attrs=[clss(["bubble-cloud"])],
+                    ~attrs=[clss(["canvas-avatar-toast"] @ flips), place],
+                    [text(name)],
+                  ),
+                ]
+              | (None, Some(txt)) => [
+                  div(
+                    ~attrs=[clss(["canvas-avatar-bubble"] @ flips), place],
                     [
+                      div(~attrs=[clss(["bubble-trail", "t1"])], []),
+                      div(~attrs=[clss(["bubble-trail", "t2"])], []),
                       div(
-                        ~attrs=[clss(["bubble-ticker"])],
-                        [span([text(txt)])],
+                        ~attrs=[clss(["bubble-cloud"])],
+                        [
+                          div(
+                            ~attrs=[clss(["bubble-ticker"])],
+                            [span([text(txt)])],
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ]
-          | (None, None) => []
-          };
-        }
-      | None => []
-      }
-    ),
+                ]
+              | (None, None) => []
+              };
+            }
+          | None => []
+          }
+        ),
+      ),
+    ],
   );
 };

@@ -368,6 +368,19 @@ type pulse = {
 let pulses: ref(list(pulse)) = ref([]);
 let pulse_ms = 650.;
 
+/* removal suction: rather than one impulse (which radiates instantly
+   and reads as an outward push), the dip is FED over pull_ms — dots
+   visibly pull toward the sink while it deepens — then released, so
+   the accumulated basin rebounds outward on its own */
+type suction_t = {
+  su_p: (float, float), /* model coords */
+  su_t0: float,
+};
+let suctions: ref(list(suction_t)) = ref([]);
+let suction_pull_ms = 320.;
+let suction_total = (-18.); /* summed deposit over the pull */
+let suction_sigma = 3.6;
+
 let bezier =
     (
       ((x0, y0), (x1, y1), (x2, y2), (x3, y3)): (
@@ -542,7 +555,18 @@ let rec draw = (): unit => {
   draw_queued := false;
   install_knobs();
   switch (Util.JsUtil.get_elem_by_id_opt("canvas-dots")) {
-  | None => ()
+  | None =>
+    /* the element can be briefly absent mid-patch; if work is pending,
+       retry next frame instead of silently dropping the rAF chain */
+    if (sim_active^ || suctions^ != [] || pulses^ != []) {
+      let _ =
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "requestAnimationFrame",
+          [|Js.Unsafe.inject(Js.Unsafe.callback(() => draw()))|],
+        );
+      ();
+    }
   | Some(el) =>
     let el = Js.Unsafe.coerce(el);
     /* holder -> #canvas-scroll */
@@ -599,6 +623,46 @@ let rec draw = (): unit => {
     anchor(sl, st);
     /* advance the medium by wall-clock (capped substeps keep long
        frames stable) */
+    /* feed active suctions before stepping: a steady negative inflow
+       makes the surrounding gradient point inward for the whole pull */
+    if (suctions^ != []) {
+      let elapsed = last_step^ == 0. ? 8. : min(48., t -. last_step^);
+      let sg = deposit_sigma^;
+      deposit_sigma := suction_sigma;
+      List.iter(
+        (su: suction_t) =>
+          if (t -. su.su_t0 <= suction_pull_ms) {
+            let (mx, my) = su.su_p;
+            let (cx, cy) = model_to_content((mx, my));
+            /* forensic breadcrumb: one line per suction, first frame */
+            if (t -. su.su_t0 <= 40.) {
+              CanvasLog.log(
+                Printf.sprintf(
+                  "suction feed: model=(%.0f,%.0f) content=(%.0f,%.0f) cell=(%d,%d) grid=(%d,%d) zoom=%.2f elapsed=%.0f",
+                  mx,
+                  my,
+                  cx,
+                  cy,
+                  int_of_float(Float.round((cx -. origin_x^) /. cell)),
+                  int_of_float(Float.round((cy -. origin_y^) /. cell)),
+                  gw^,
+                  gh^,
+                  zoom^,
+                  elapsed,
+                ),
+              );
+            };
+            deposit(cx, cy, suction_total *. elapsed /. suction_pull_ms);
+          },
+        suctions^,
+      );
+      deposit_sigma := sg;
+      suctions :=
+        List.filter(
+          (su: suction_t) => t -. su.su_t0 <= suction_pull_ms,
+          suctions^,
+        );
+    };
     if (sim_active^) {
       let dt_ms = 8.;
       let elapsed = last_step^ == 0. ? dt_ms : min(48., t -. last_step^);
@@ -606,7 +670,7 @@ let rec draw = (): unit => {
     };
     last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (sim_active^ || pulses^ != [] || geom != last_geom^) {
+    if (sim_active^ || pulses^ != [] || suctions^ != [] || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -784,7 +848,7 @@ let rec draw = (): unit => {
       );
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (sim_active^ || pulses^ != [] || zoom_settling) {
+    if (sim_active^ || pulses^ != [] || suctions^ != [] || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -845,14 +909,15 @@ let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
 };
 
 let suction = ((x, y): (float, float)): unit => {
-  let (cx, cy) = model_to_content((x, y));
-  /* wide + strong: a narrow sim front is sub-visible at a removal site
-     (no node anchors the eye there, and the reflow moves everything
-     else); v1's analytic band was 46px wide at up to 9px displacement */
-  let sg = deposit_sigma^;
-  deposit_sigma := 3.6;
-  deposit(cx, cy, -14.);
-  deposit_sigma := sg;
+  suctions :=
+    [
+      {
+        su_p: (x, y),
+        su_t0: now(),
+      },
+      ...suctions^,
+    ];
+  sim_active := true;
   request_draw();
 };
 suction_fwd := suction;

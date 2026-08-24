@@ -276,7 +276,7 @@
   pointer-events: none;
 }
 
-.canvas-root.placing {
+.canvas-pan-pad.placing {
   cursor: crosshair;
 }
 
