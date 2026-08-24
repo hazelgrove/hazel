@@ -953,9 +953,18 @@ let extract =
         switch (args) {
         | [] =>
           let (v_key, v_kind) =
-            is_mod
-              ? ("{}" ++ "@" ++ qn, Product)
-              : ty_ref_at(~path, ~anchor=qn, ty);
+            if (is_mod) {
+              ("{}" ++ "@" ++ qn, Product);
+            } else if (path != []) {
+              (
+                /* member constants orbit their module's former node: the
+                   hull contains them regardless of their value's type */
+                "{}" ++ "@" ++ String.concat(".", path),
+                Product,
+              );
+            } else {
+              ty_ref_at(~path, ~anchor=qn, ty);
+            };
           if (is_mod) {
             /* the module former carries its OWN path (hull center) */
             ensure(

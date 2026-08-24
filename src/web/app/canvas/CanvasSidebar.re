@@ -369,6 +369,117 @@ let note_placed = (key: string): unit =>
 let last_node_snapshot: ref((string, list((string, (float, float))))) =
   ref(("", []));
 
+/* collapsed module hulls (root module names); toggled from the hull
+   label, repaints ride Set(CanvasTick) */
+let collapsed_modules: ref(list(string)) = ref([]);
+
+/* hide a collapsed module's internals pre-layout: members, their edges
+   and orbit values, and the satellite terminals their functions grew.
+   The former node and the module's own value stay. Returns the graph +
+   (root, hidden-member count) pairs for the hull label. */
+let collapse_filter =
+    (g: CanvasGraph.t): (CanvasGraph.t, list((string, int))) =>
+  if (collapsed_modules^ == []) {
+    (g, []);
+  } else {
+    let hidden = r => List.mem(r, collapsed_modules^);
+    let member_edges =
+      List.filter(
+        (e: CanvasGraph.edge) =>
+          switch (e.m_path) {
+          | [r, ..._] => hidden(r)
+          | [] => false
+          },
+        g.edges,
+      );
+    let member_values =
+      List.filter(
+        (v: CanvasGraph.value) =>
+          switch (v.m_path) {
+          | [r, ..._] => hidden(r)
+          | [] => false
+          },
+        g.values,
+      );
+    let member_qnames =
+      List.map((e: CanvasGraph.edge) => e.e_name, member_edges)
+      @ List.map((v: CanvasGraph.value) => v.v_name, member_values);
+    let is_member_sat = (n: CanvasGraph.tynode): bool =>
+      switch (n.sat) {
+      | Some(_) =>
+        List.exists(
+          qn => {
+            let suffix = "@" ++ qn;
+            let ln = String.length(n.key)
+            and ls = String.length(suffix);
+            ln >= ls && String.sub(n.key, ln - ls, ls) == suffix;
+          },
+          member_qnames,
+        )
+      | None => false
+      };
+    let drop_node = (n: CanvasGraph.tynode): bool =>
+      switch (n.m_path) {
+      | [r, ..._] => hidden(r) && n.key != "{}@" ++ r
+      | [] => is_member_sat(n)
+      };
+    let counts =
+      List.map(
+        r => {
+          let c =
+            List.length(
+              List.filter(
+                (n: CanvasGraph.tynode) =>
+                  switch (n.m_path) {
+                  | [r', ..._] => r' == r && n.key != "{}@" ++ r
+                  | [] => false
+                  },
+                g.nodes,
+              ),
+            )
+            + List.length(
+                List.filter(
+                  (e: CanvasGraph.edge) =>
+                    switch (e.m_path) {
+                    | [r', ..._] => r' == r
+                    | [] => false
+                    },
+                  g.edges,
+                ),
+              )
+            + List.length(
+                List.filter(
+                  (v: CanvasGraph.value) =>
+                    switch (v.m_path) {
+                    | [r', ..._] => r' == r
+                    | [] => false
+                    },
+                  g.values,
+                ),
+              );
+          (r, c);
+        },
+        collapsed_modules^,
+      );
+    (
+      {
+        ...g,
+        nodes: List.filter(n => !drop_node(n), g.nodes),
+        edges:
+          List.filter(
+            (e: CanvasGraph.edge) => !List.mem(e, member_edges),
+            g.edges,
+          ),
+        values:
+          List.filter(
+            (v: CanvasGraph.value) => !List.mem(v, member_values),
+            g.values,
+          ),
+      },
+      counts,
+    );
+  };
+
 /* canvas right-click context menu: contents are canvas-specific but the
    state machine, rendering, keyboard handling, and open/close listeners
    are all the shared Util.Menu machinery (same as the editor menu).
@@ -628,7 +739,8 @@ let view =
      live model rendered every intermediate state instantly (final-state
      jump cuts, blank statics flashes) and left the beats animating an
      already-settled graph */
-  let graph = extract_cached(~test_results, editor.statics);
+  let (graph, collapsed_counts) =
+    collapse_filter(extract_cached(~test_results, editor.statics));
   {
     /* on fresh statics, note the probe-sample volume when it moved
        meaningfully (floods here are a known freeze suspect) */
@@ -2380,6 +2492,13 @@ let view =
     | (None, None) => []
     };
   };
+  let on_hull_toggle = (root: string) => {
+    collapsed_modules :=
+      List.mem(root, collapsed_modules^)
+        ? List.filter(r => r != root, collapsed_modules^)
+        : [root, ...collapsed_modules^];
+    globals.inject_global(Set(CanvasTick));
+  };
   let on_edge_hover = (h: option(string)) => {
     hovered_edge := h;
     globals.inject_global(Set(CanvasTick));
@@ -2511,6 +2630,8 @@ let view =
              wrapper (gesture layer spans the slack ring) */
           CanvasView.view(
             ~inject_jump,
+            ~collapsed_counts,
+            ~on_hull_toggle,
             ~dep_fan,
             ~on_edge_hover,
             ~on_value_click=Some(on_value_click),

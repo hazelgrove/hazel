@@ -114,7 +114,8 @@ type dock =
   | DockIn /* builtin terminal on the input side */
   | DockOut /* builtin terminal on the output side */
   | DockLoop /* loop product: above-left of its result component */
-  | DockDeriv; /* derived [T]: beneath its element type */
+  | DockDeriv /* derived [T]: beneath its element type */
+  | DockMember; /* module-internal node clustered at its former */
 
 /* ~x_scale stretches grid columns so a small graph fills the available
    panel width; dock offsets stay fixed (satellite distances shouldn't
@@ -162,6 +163,22 @@ let layout =
     | Some(e) => e.dst
     | None => ""
     };
+  let is_former = (n: CanvasGraph.tynode): bool =>
+    String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@";
+  /* a module's internals (any depth) cluster around the OUTERMOST
+     module's former: internal aliases, nested formers — the hull closes
+     around the cluster */
+  let module_anchor = (n: CanvasGraph.tynode): option(string) =>
+    switch (n.m_path) {
+    | [] => None
+    | [root, ..._] =>
+      let top_former = "{}@" ++ root;
+      if (is_former(n) && n.key == top_former) {
+        None; /* the root former itself hosts the cluster */
+      } else {
+        Some(top_former);
+      };
+    };
   let docked: list((CanvasGraph.tynode, string, dock)) =
     List.filter_map(
       (n: CanvasGraph.tynode) =>
@@ -170,6 +187,8 @@ let layout =
           Some((n, anchor, output ? DockOut : DockIn))
         | None when is_loop_product(n) =>
           Some((n, loop_anchor(n), DockLoop))
+        | None when module_anchor(n) != None =>
+          Some((n, Option.get(module_anchor(n)), DockMember))
         | None =>
           /* derived [T] docks beneath T when T is itself on the grid */
           /* only lightly-used [T] tucks beneath its element; a derived
@@ -283,6 +302,7 @@ let layout =
           | DockOut => (Util.GraphLayout.Spec.Out, 72.)
           | DockLoop => (Util.GraphLayout.Spec.In, 64.)
           | DockDeriv => (Util.GraphLayout.Spec.Below, 52.)
+          | DockMember => (Util.GraphLayout.Spec.Below, 78.)
           };
         Util.GraphLayout.Spec.{
           id: n.key,

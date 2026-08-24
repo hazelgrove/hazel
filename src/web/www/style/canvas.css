@@ -600,6 +600,36 @@
 
 /* ---- values ---- */
 
+/* module hulls: metaball union under everything semantic */
+.canvas-hulls {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas-hulls .canvas-hull circle {
+  fill: var(--BR1, #d8c9a3);
+}
+
+.canvas-hulls .canvas-hull {
+  opacity: 0.34;
+}
+
+.canvas-hulls .canvas-hull-label {
+  fill: var(--BR3, #8a744a);
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.canvas-hulls .canvas-hull-label.hull-collapsed {
+  font-weight: bold;
+}
+
 /* the dependency under-layer: what the hovered/focused function uses */
 .canvas-depfan {
   position: absolute;
