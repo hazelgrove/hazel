@@ -768,13 +768,18 @@ let extract =
     };
 
   /* A grid node for a type reference (alias/derived/ghost — never dup'd). */
-  let ensure_grid = (key: string, kind: node_kind): unit => {
+  let ensure_grid =
+      (~hole_path: list(string)=[], key: string, kind: node_kind): unit => {
     let kind =
       switch (kind) {
       | Alias when !List.mem(key, alias_keys) => Ghost /* undefined name */
       | k => k
       };
-    ensure(mk_node(~kind, ~label=display_label(key), key));
+    /* anchored holes ("?<anchor>") are per-use unique, so an
+       unannotated member's unknowns belong to that member's module —
+       they dock at the former and the hull contains them */
+    let m_path = String.length(key) > 0 && key.[0] == '?' ? hole_path : [];
+    ensure(mk_node(~kind, ~m_path, ~label=display_label(key), key));
   };
 
   /* A builtin terminal duplicated per use-site, docked to [anchor_key]. */
@@ -813,7 +818,7 @@ let extract =
     | Builtin =>
       ensure_sat(~anchor_key=former_key, ~output=false, ~dup=former_key, k)
     | _ =>
-      ensure_grid(k, kind);
+      ensure_grid(~hole_path=path, k, kind);
       k;
     };
   };
@@ -991,7 +996,7 @@ let extract =
               ),
             );
           } else {
-            ensure_grid(v_key, v_kind);
+            ensure_grid(~hole_path=path, v_key, v_kind);
           };
           (
             es,
@@ -1021,7 +1026,7 @@ let extract =
             switch (comp_refs) {
             | [(k, Builtin)] when ret_kind != Builtin =>
               /* single builtin arg: terminal docked to the result node */
-              ensure_grid(ret_key, ret_kind);
+              ensure_grid(~hole_path=path, ret_key, ret_kind);
               ensure_sat(
                 ~m_path=path,
                 ~anchor_key=ret_key,
@@ -1030,7 +1035,7 @@ let extract =
                 k,
               );
             | [(k, kind)] =>
-              ensure_grid(k, kind);
+              ensure_grid(~hole_path=path, k, kind);
               k;
             | comps =>
               let product_key =
@@ -1053,7 +1058,7 @@ let extract =
                         k,
                       )
                     | _ =>
-                      ensure_grid(k, kind);
+                      ensure_grid(~hole_path=path, k, kind);
                       k;
                     },
                   comps,
@@ -1089,7 +1094,7 @@ let extract =
                 ret_key,
               )
             | _ =>
-              ensure_grid(ret_key, ret_kind);
+              ensure_grid(~hole_path=path, ret_key, ret_kind);
               ret_key;
             };
           (
