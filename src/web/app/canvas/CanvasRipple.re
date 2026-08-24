@@ -157,10 +157,29 @@ let ensure_grid = (cw: int, ch: int): unit => {
   let h =
     int_of_float(Float.ceil(float_of_int(ch) /. cell)) + 3 + 2 * sponge_band;
   if (w != gw^ || h != gh^) {
+    /* PRESERVE in-flight waves across resizes: the pane height changes
+       whenever the focus strip opens/closes — including the very frame
+       a removal's suction is deposited (the dying node's panel closes),
+       which used to zero the field and annihilate the ripple. Same
+       origin, same cell indices; new cells start calm. */
+    let ow = gw^
+    and oh = gh^;
+    let ou = u_cur^
+    and op = u_prev^;
+    let nu = Array.make(w * h, 0.)
+    and np = Array.make(w * h, 0.);
+    if (ow > 0) {
+      for (j in 0 to min(h, oh) - 1) {
+        for (i in 0 to min(w, ow) - 1) {
+          nu[j * w + i] = ou[j * ow + i];
+          np[j * w + i] = op[j * ow + i];
+        };
+      };
+    };
     gw := w;
     gh := h;
-    u_cur := Array.make(w * h, 0.);
-    u_prev := Array.make(w * h, 0.);
+    u_cur := nu;
+    u_prev := np;
   };
 };
 
