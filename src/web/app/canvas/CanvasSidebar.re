@@ -2174,10 +2174,7 @@ let view =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
     if (prev_slide == slide && removed != []) {
       if (List.length(removed) <= 4) {
-        List.iter(
-          ((_, (x, y))) => CanvasRipple.splash(~amp=-6.5, (x, y)),
-          removed,
-        );
+        List.iter(((_, (x, y))) => CanvasRipple.suction((x, y)), removed);
         CanvasLog.log(
           Printf.sprintf(
             "-%d node(s): %s (suction ripple)",

@@ -72,6 +72,9 @@ let apply_preset = (l: bool): unit =>
     sponge_k := 0.25;
   };
 
+/* forward refs: deposit/suction are defined below install_knobs */
+let deposit_fwd: ref((float, float, float) => unit) = ref((_, _, _) => ());
+let suction_fwd: ref(((float, float)) => unit) = ref(_ => ());
 let knobs_installed = ref(false);
 let install_knobs = (): unit =>
   if (! knobs_installed^) {
@@ -94,6 +97,19 @@ let install_knobs = (): unit =>
         | _ => ()
         }
       ),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__waveSuction",
+      Js.Unsafe.callback((x: float, y: float) => suction_fwd^((x, y))),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__waveSplash",
+      Js.Unsafe.callback((x: float, y: float, amp: float) => {
+        let (cx, cy) = (pan_slack +. x *. zoom^, pan_slack +. y *. zoom^);
+        deposit_fwd^(cx, cy, amp);
+      }),
     );
     Js.Unsafe.set(
       Js.Unsafe.global,
@@ -324,6 +340,16 @@ type pulse = {
 };
 let pulses: ref(list(pulse)) = ref([]);
 let pulse_ms = 650.;
+
+/* removal rings: the field dip alone is motion-only and gets masked by
+   the simultaneous layout reflow, so removals also draw an explicit
+   contracting circle — water closing over a sink point */
+type ring = {
+  ring_p: (float, float), /* model coords */
+  ring_t0: float,
+};
+let rings: ref(list(ring)) = ref([]);
+let ring_ms = 600.;
 
 let bezier =
     (
@@ -563,7 +589,7 @@ let rec draw = (): unit => {
     };
     last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (sim_active^ || pulses^ != [] || geom != last_geom^) {
+    if (sim_active^ || pulses^ != [] || rings^ != [] || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -739,9 +765,42 @@ let rec draw = (): unit => {
         },
         live_pulses,
       );
+      rings := List.filter((r: ring) => t -. r.ring_t0 < ring_ms, rings^);
+      List.iter(
+        (rg: ring) => {
+          let age = (t -. rg.ring_t0) /. ring_ms;
+          let (mx, my) = rg.ring_p;
+          let (cx, cy) = model_to_content((mx, my));
+          let sx = cx -. sl
+          and sy = cy -. st;
+          let radius = 40. *. (1. -. age) *. z;
+          let a = 0.55 *. (1. -. age) *. fade1(sx, mw) *. fade1(sy, mh);
+          if (a > 0.02 && radius > 0.5) {
+            Js.Unsafe.coerce(ctx)##.globalAlpha := a;
+            Js.Unsafe.coerce(ctx)##.strokeStyle := Js.string(fill);
+            Js.Unsafe.coerce(ctx)##.lineWidth := 1.3;
+            let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
+            let _ =
+              Js.Unsafe.meth_call(
+                ctx,
+                "arc",
+                [|
+                  Js.Unsafe.inject(sx),
+                  Js.Unsafe.inject(sy),
+                  Js.Unsafe.inject(radius),
+                  Js.Unsafe.inject(0.),
+                  Js.Unsafe.inject(2. *. Float.pi),
+                |],
+              );
+            let _ = Js.Unsafe.meth_call(ctx, "stroke", [||]);
+            ();
+          };
+        },
+        rings^,
+      );
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (sim_active^ || pulses^ != [] || zoom_settling) {
+    if (sim_active^ || pulses^ != [] || rings^ != [] || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -800,6 +859,28 @@ let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
   deposit(cx, cy, amp);
   request_draw();
 };
+
+let suction = ((x, y): (float, float)): unit => {
+  let (cx, cy) = model_to_content((x, y));
+  deposit(cx, cy, -10.);
+  rings :=
+    [
+      {
+        ring_p: (x, y),
+        ring_t0: now(),
+      },
+      ...rings^,
+    ];
+  request_draw();
+};
+suction_fwd := suction;
+deposit_fwd :=
+  (
+    (cx, cy, amp) => {
+      deposit(cx, cy, amp);
+      request_draw();
+    }
+  );
 
 /* drag wake: deposit energy along the path between successive drag
    samples — the stick pulled through water. Cleared on drop; the shed
