@@ -324,6 +324,24 @@ let paren_typ_at =
    and loses the arrow, while `(^w^) -> Int` is an Arrow to both parsers. The
    right operand is already coerced to a type. Precedence can't cover this —
    an invalid hole is atomic, so it never trips `paren_typ_at`. */
+/* `lab=e` has no delimiters of its own, so a labeled field whose value is
+   itself labeled prints as `_=_=e`, which does not parse. Parenthesize the
+   inner one. Precedence cannot express this: TupLabel is atomic everywhere
+   else, and making it an operator reparenthesizes every labeled tuple. */
+let paren_nested_tup_label =
+    (~parenthesization: Settings.parenthesization, e: Exp.t): Exp.t =>
+  switch (parenthesization, e.term) {
+  | (Defensive, TupLabel(_)) => Parens(e) |> Exp.fresh
+  | _ => e
+  };
+
+let paren_nested_tup_label_pat =
+    (~parenthesization: Settings.parenthesization, p: Pat.t): Pat.t =>
+  switch (parenthesization, p.term) {
+  | (Defensive, TupLabel(_)) => Parens(p) |> Pat.fresh
+  | _ => p
+  };
+
 let paren_invalid_typ_lhs =
     (~parenthesization: Settings.parenthesization, typ: Typ.t): Typ.t =>
   switch (parenthesization, typ.term) {
@@ -364,6 +382,7 @@ let rec parenthesize =
   let paren_assoc_at = paren_assoc_at(~parenthesization);
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_nested_tup_label = paren_nested_tup_label(~parenthesization);
   /* For tuples: with Structural, don't auto-wrap in parens */
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Exp.unwrap(exp);
@@ -430,7 +449,9 @@ let rec parenthesize =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Exp.temp,
-        parenthesize(~already_paren=true, e) |> paren_at(Precedence.comma),
+        parenthesize(~already_paren=true, e)
+        |> paren_at(Precedence.comma)
+        |> paren_nested_tup_label,
       )
       |> rewrap;
 
@@ -461,7 +482,9 @@ let rec parenthesize =
     let inner =
       TupLabel(
         parenthesize(l) |> paren_at(Precedence.comma),
-        parenthesize(e) |> paren_at(Precedence.comma),
+        parenthesize(e)
+        |> paren_at(Precedence.comma)
+        |> paren_nested_tup_label,
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
@@ -715,6 +738,8 @@ and parenthesize_pat =
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_nested_tup_label_pat =
+    paren_nested_tup_label_pat(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
@@ -755,7 +780,8 @@ and parenthesize_pat =
       TupLabel(
         ExplicitNonlabel |> Pat.fresh,
         parenthesize_pat(~already_paren=true, p)
-        |> paren_pat_at(Precedence.comma),
+        |> paren_pat_at(Precedence.comma)
+        |> paren_nested_tup_label_pat,
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
@@ -775,7 +801,12 @@ and parenthesize_pat =
     /* Menhir only accepts `lab=p` inside `(…)`. Wrap when bare; skip when a
        Tuple/Parens parent set already_paren. */
     let inner =
-      TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
+      TupLabel(
+        l,
+        parenthesize_pat(p)
+        |> paren_pat_at(Precedence.comma)
+        |> paren_nested_tup_label_pat,
+      )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
       ? inner : Parens(inner) |> Pat.fresh;
