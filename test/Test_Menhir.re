@@ -282,8 +282,21 @@ let tests =
         fn(Pat.var("x"), var("x"), None, None),
         "fun x -> x",
       ),
-      /* () in a parameter cons chain (MenhirFuzz seed-42 counterexample:
-         funConsPat built only from nonAscriptingPat, which has no UNIT) */
+      /* () is an atomic pattern (editor parity); these pin positions the
+         old hand-split grammar missed (MenhirFuzz seed-42 found the
+         cons-chain one; the comma-element one fell out of the general fix) */
+      menhir_maketerm_equivalent_test(
+        "Unit as fun comma-element (first)",
+        "fun (), x -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit as fun comma-element (last)",
+        "fun x, () -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit constructor argument pattern",
+        "case A(()) | A(()) => 1 end",
+      ),
       menhir_maketerm_equivalent_test(
         "Unit as fun cons-pattern tail",
         "fun x :: () -> 1",

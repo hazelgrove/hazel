@@ -299,6 +299,7 @@ nonAscriptingPat:
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
+    | UNIT { TuplePat([]) }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
@@ -321,10 +322,6 @@ nonAscriptingPat:
 funAscElem:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
-    (* Ascribed unit parameter: fun () : T -> e. UNIT lives at the funPat
-       level (not nonAscriptingPat), so without this the ascribed form is
-       a parse error the editor parser accepts. *)
-    | UNIT; COLON; t = ascTyp; { AscPat(TuplePat([]), t) }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
@@ -345,24 +342,11 @@ funAscElem:
    level (funConsPat/funAscElem) or inside a generic `pat`. The default
    shift keeps them at the parameter level, which is MakeTerm parity —
    pinned by the MenhirParser equivalence tests. *)
-(* `()` is a legal operand anywhere INSIDE a parameter cons chain
-   (fun () :: t -> …, fun x :: () -> …) but not the bare base case —
-   a lone () parameter stays funPat's UNIT. UNIT is inlined per
-   position (not factored into an operand nonterminal) so the fix adds
-   only shift/reduce states, no new reduce/reduce. *)
-funConsTail:
-    | p = nonAscriptingPat; { p }
-    | UNIT { TuplePat([]) }
-    | p = nonAscriptingPat; CONS; rest = funConsTail; { ConsPat(p, rest) }
-    | UNIT; CONS; rest = funConsTail; { ConsPat(TuplePat([]), rest) }
-
 funConsPat:
     | p = nonAscriptingPat; { p }
-    | p = nonAscriptingPat; CONS; rest = funConsTail; { ConsPat(p, rest) }
-    | UNIT; CONS; rest = funConsTail; { ConsPat(TuplePat([]), rest) }
+    | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
 
 funPat:
-    | UNIT { TuplePat([]) }
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
@@ -373,7 +357,6 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
-    | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
 
 
