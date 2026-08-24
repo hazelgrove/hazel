@@ -373,10 +373,10 @@ let vertical =
 };
 
 let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
-  switch (do_towards_point(~measured, local(ByChar), goal, z)) {
-  | None => Some(z)
-  | Some(z) => Some(z)
-  };
+  Some(
+    do_towards_point(~measured, local(ByChar), goal, z)
+    |> Option.value(~default=z),
+  );
 
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
@@ -554,7 +554,9 @@ let go =
     | Local(Left, ByChar | BySmart)
     | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
-      switch (
+      /* Always empty selection on move action,
+       * even if we don't actually move */
+      Some(
         move_dispatch(
           ~statics,
           ~problem_ids,
@@ -564,11 +566,7 @@ let go =
           a,
           z,
         )
-      ) {
-      | Some(z) => Some(z)
-      /* Always empty selection on move action,
-       * even if we don't actually move */
-      | None => Some(z)
-      }
+        |> Option.value(~default=z),
+      )
     };
   };
