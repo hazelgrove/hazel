@@ -874,69 +874,95 @@ let view =
                internal node, and every member-function label — the
                perimeter contains all internals; only external
                connections cross it */
-            let hull_roots: list(string) =
-              List.filter_map(
-                (nl: CanvasLayout.node_layout) =>
-                  switch (nl.node.m_path) {
-                  | [r, ..._] => Some(r)
-                  | [] => None
-                  },
+            /* hulls per module PATH: a nested module gets its own blob
+               INSIDE its parent's (the parent's circle set includes every
+               descendant's circles; children render above, darker) */
+            let prefixes = (p: list(string)): list(list(string)) => {
+              let rec go = (acc, pre, rest) =>
+                switch (rest) {
+                | [] => acc
+                | [x, ...tl] => go([pre @ [x], ...acc], pre @ [x], tl)
+                };
+              go([], [], p);
+            };
+            let hull_paths: list(list(string)) =
+              List.concat_map(
+                (nl: CanvasLayout.node_layout) => prefixes(nl.node.m_path),
                 lay.nodes,
               )
-              @ List.filter_map(
-                  (el: CanvasLayout.edge_layout) =>
-                    switch (el.edge.m_path) {
-                    | [r, ..._] => Some(r)
-                    | [] => None
-                    },
+              @ List.concat_map(
+                  (el: CanvasLayout.edge_layout) => prefixes(el.edge.m_path),
                   lay.edges,
                 )
-              |> List.sort_uniq(compare);
-            let hull_circles =
-                (root: string): list((string, CanvasLayout.pos, float)) => {
-              let former_key = "{}@" ++ root;
+              |> List.sort_uniq(compare)
+              |> List.sort((a, b) =>
+                   compare(List.length(a), List.length(b))
+                 );
+            let is_prefix = (pre: list(string), p: list(string)): bool => {
+              let rec go = (a, b) =>
+                switch (a, b) {
+                | ([], _) => true
+                | ([x, ...at], [y, ...bt]) => x == y && go(at, bt)
+                | (_, []) => false
+                };
+              go(pre, p);
+            };
+            let former_key_of = (path: list(string)): string =>
+              "{}@" ++ String.concat(".", path);
+            let former_pos_of =
+                (path: list(string)): option(CanvasLayout.pos) =>
+              List.find_opt(
+                (nl: CanvasLayout.node_layout) =>
+                  nl.node.key == former_key_of(path),
+                lay.nodes,
+              )
+              |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+            /* ids only on the EXACT owner's circles (ancestors hold
+               anonymous copies) so the drag follower's lookups stay
+               unambiguous */
+            let hull_circles_at =
+                (path: list(string))
+                : list((option(string), CanvasLayout.pos, float)) => {
               let node_circles =
                 List.filter_map(
                   (nl: CanvasLayout.node_layout) =>
-                    if (nl.node.key == former_key) {
-                      Some(("hullc-n-" ++ sanitize(nl.node.key), nl.p, 56.));
+                    if (!is_prefix(path, nl.node.m_path)) {
+                      None;
                     } else {
-                      switch (nl.node.m_path) {
-                      | [r, ..._] when r == root =>
-                        Some((
-                          "hullc-n-" ++ sanitize(nl.node.key),
-                          nl.p,
-                          40.,
-                        ))
-                      | _ => None
-                      };
+                      let exact = nl.node.m_path == path;
+                      let is_f = nl.node.key == former_key_of(path);
+                      let r = is_f ? 56. : 40.;
+                      Some((
+                        exact || is_f
+                          ? Some("hullc-n-" ++ sanitize(nl.node.key)) : None,
+                        nl.p,
+                        r,
+                      ));
                     },
                   lay.nodes,
                 );
-              let former_p =
-                List.find_opt(
-                  (nl: CanvasLayout.node_layout) => nl.node.key == former_key,
-                  lay.nodes,
-                )
-                |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
               let label_circles =
                 List.concat_map(
                   (el: CanvasLayout.edge_layout) =>
-                    switch (el.edge.m_path) {
-                    | [r, ..._] when r == root =>
-                      /* the label's circle plus tapering connector
-                         circles back toward the cluster: the pseudopod
-                         that keeps distant members visibly attached */
-                      let lp = el.label_p;
+                    if (!is_prefix(path, el.edge.m_path)) {
+                      [];
+                    } else {
+                      let exact = el.edge.m_path == path;
                       let en = sanitize(el.edge.e_name);
+                      let lp = el.label_p;
+                      /* pseudopod aims at the edge's OWN module */
                       let bridge =
-                        switch (former_p) {
+                        switch (former_pos_of(el.edge.m_path)) {
                         | Some(fp)
                             when Float.hypot(fp.x -. lp.x, fp.y -. lp.y) > 90. =>
                           List.mapi(
                             (i, t) =>
                               (
-                                Printf.sprintf("hullc-b-%s-%d", en, i),
+                                exact
+                                  ? Some(
+                                      Printf.sprintf("hullc-b-%s-%d", en, i),
+                                    )
+                                  : None,
                                 CanvasLayout.{
                                   x: lp.x +. (fp.x -. lp.x) *. t,
                                   y: lp.y +. (fp.y -. lp.y) *. t,
@@ -947,8 +973,10 @@ let view =
                           )
                         | _ => []
                         };
-                      [("hullc-l-" ++ en, lp, 34.), ...bridge];
-                    | _ => []
+                      [
+                        (exact ? Some("hullc-l-" ++ en) : None, lp, 34.),
+                        ...bridge,
+                      ];
                     },
                   lay.edges,
                 );
@@ -1000,12 +1028,18 @@ let view =
                     ],
                   ),
                   ...List.concat_map(
-                       root => {
-                         let circles = hull_circles(root);
+                       path => {
+                         let circles = hull_circles_at(path);
+                         let depth = List.length(path);
+                         let root =
+                           switch (path) {
+                           | [r, ..._] => r
+                           | [] => ""
+                           };
                          let former =
                            List.find_opt(
                              (nl: CanvasLayout.node_layout) =>
-                               nl.node.key == "{}@" ++ root,
+                               nl.node.key == former_key_of(path),
                              lay.nodes,
                            );
                          let hue_shift = {
@@ -1021,8 +1055,13 @@ let view =
                            Node.create_svg(
                              "g",
                              ~attrs=[
-                               clss(["canvas-hull"]),
-                               Attr.create("filter", "url(#metaball)"),
+                               clss([
+                                 "canvas-hull",
+                                 Printf.sprintf(
+                                   "hull-depth-%d",
+                                   min(depth, 3),
+                                 ),
+                               ]),
                                Attr.create(
                                  "style",
                                  "filter: url(#metaball) " ++ hue_shift ++ ";",
@@ -1032,12 +1071,18 @@ let view =
                                ((id, p: CanvasLayout.pos, r)) =>
                                  Node.create_svg(
                                    "circle",
-                                   ~attrs=[
-                                     Attr.id(id),
-                                     Attr.create("cx", fmt(p.x)),
-                                     Attr.create("cy", fmt(p.y)),
-                                     Attr.create("r", fmt(r)),
-                                   ],
+                                   ~attrs=
+                                     (
+                                       switch (id) {
+                                       | Some(id) => [Attr.id(id)]
+                                       | None => []
+                                       }
+                                     )
+                                     @ [
+                                       Attr.create("cx", fmt(p.x)),
+                                       Attr.create("cy", fmt(p.y)),
+                                       Attr.create("r", fmt(r)),
+                                     ],
                                    [],
                                  ),
                                circles,
@@ -1045,8 +1090,8 @@ let view =
                            ),
                          ]
                          @ (
-                           switch (former) {
-                           | Some(nl) =>
+                           switch (former, depth) {
+                           | (Some(nl), 1) =>
                              let count =
                                List.assoc_opt(root, collapsed_counts);
                              /* the node carries the module name now;
@@ -1080,11 +1125,11 @@ let view =
                                  [text(label)],
                                ),
                              ];
-                           | None => []
+                           | _ => []
                            }
                          );
                        },
-                       hull_roots,
+                       hull_paths,
                      ),
                 ],
               );

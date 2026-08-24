@@ -908,9 +908,26 @@ let extract =
             | _ => false
             };
           let anatomy = fun_anatomy(~pat, def);
+          /* the module type's member entries come back alias-NORMALIZED
+             (Tally -> Tally reads Int -> Int there); the member's own
+             ascription preserves the alias, so prefer it */
+          let rec pat_asc = (p: Pat.t, name: string): option(Typ.t) =>
+            switch (p.term) {
+            | Asc({term: Var(n), _}, ty) when n == name => Some(ty)
+            | Asc(p, _)
+            | Parens(p)
+            | Projector(_, p) => pat_asc(p, name)
+            | _ => None
+            };
+          let member_ty = (name: string): option(Typ.t) =>
+            switch (path, pat_asc(pat, name)) {
+            | ([], _) => lookup_type(name)
+            | (_, Some(ty)) => Some(ty)
+            | (_, None) => lookup_path_type(path, name)
+            };
           pat_names(pat)
           |> List.filter_map(name =>
-               lookup_path_type(path, name)
+               member_ty(name)
                |> Option.map(ty =>
                     (
                       path,

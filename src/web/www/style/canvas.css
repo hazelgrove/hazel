@@ -642,6 +642,15 @@
   opacity: 0.34;
 }
 
+/* nested modules: the inner blob reads darker against its parent */
+.canvas-hulls .canvas-hull.hull-depth-2 {
+  opacity: 0.42;
+}
+
+.canvas-hulls .canvas-hull.hull-depth-3 {
+  opacity: 0.5;
+}
+
 .canvas-hulls .canvas-hull-label {
   fill: var(--BR3, #8a744a);
   font-family: var(--code-font, monospace);
