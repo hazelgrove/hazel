@@ -411,3 +411,32 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+/* Totality badge — tiny icon next to Γ in the ci-header, expression
+   cursors only. Mirrors .gamma sizing but is non-interactive (it is a
+   readout, not a toggle) and slightly smaller so it stays quiet. */
+
+#cursor-inspector .totality {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  width: 1.4em;
+  cursor: default;
+}
+
+#cursor-inspector .totality svg {
+  scale: 0.44;
+  fill: var(--cell-active);
+  opacity: 0.55;
+}
+
+#cursor-inspector .totality:hover svg {
+  opacity: 1;
+}
+
+#cursor-inspector .totality.not-total svg {
+  opacity: 0.35;
+}
+
+#cursor-inspector .totality.not-total:hover svg {
+  opacity: 0.8;
+}

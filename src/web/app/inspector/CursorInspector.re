@@ -54,6 +54,37 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
+/* Tiny badge reporting whether the cursor expression is TOTAL, i.e.
+ * whether `Totality.check` — the very checker the proof gate uses —
+ * accepts it. Computed for the cursor only: totality is deliberately
+ * not a field of `Info.exp`, and statics does not walk it.
+ *
+ * We check `elab_term` rather than `user_term` so that a recursive
+ * `let` shows up as the `FixF` statics elaborated it to, which is what
+ * the checker's tier-2 structural-recursion gate looks for. Definitions
+ * are NOT inlined: a bare `Var` reads as total (§ the checker treats
+ * variables as quantified binders / total maps), which is accepted here.
+ *
+ * `Totality.check` currently ignores `~info_map`, so we pass the empty
+ * map; the inspector has no statics map in hand at this point. */
+let totality_badge = (ci: Info.t): list(Node.t) =>
+  switch (ci) {
+  | InfoExp(info) =>
+    let (cls, icon, tooltip) =
+      switch (
+        Totality.check(
+          ~info_map=Statics.Map.empty,
+          ~ctx=info.ctx,
+          info.elab_term,
+        )
+      ) {
+      | Ok () => ("total", Icons.circle_with_check, "total")
+      | Error(reason) => ("not-total", Icons.circle_with_no_check, reason)
+      };
+    [div(~attrs=[clss(["totality", cls]), Attr.title(tooltip)], [icon])];
+  | _ => []
+  };
+
 /* True iff the proof-check map has any marks recorded at this info's id.
  * Used to extend the existing red-styling predicate so proof-mark errors
  * read visually like statics type errors. */
@@ -97,8 +128,9 @@ let term_view =
         ),
       ),
     ],
-    [
-      ctx_toggle(~globals),
+    [ctx_toggle(~globals)]
+    @ totality_badge(ci)
+    @ [
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
