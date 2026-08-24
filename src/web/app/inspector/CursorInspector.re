@@ -254,7 +254,6 @@ let core_mark_err_view =
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
@@ -319,12 +318,24 @@ let core_mark_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
+let common_warn_view = (~globals, warning: Warning.t) => {
   switch (warning) {
   | WarningPat(UnusedVar(name)) => [
       text("Warning: Variable"),
       code(name),
       text("is unused."),
+    ]
+  | WarningExp(ForallOutsideTheorem) => [
+      text(
+        "Warning: forall is a proposition, not a value; it only runs as part of a theorem statement.",
+      ),
+    ]
+  | WarningExp(FunEqOutsideTheorem(ty)) => [
+      text("Warning: values of type"),
+      view_type(~globals, ty),
+      text(
+        "contain functions and cannot be compared by evaluation; this is only meaningful as a theorem statement.",
+      ),
     ]
   | None => []
   };
@@ -795,8 +806,7 @@ let exp_mark_err_view =
   | DuplicateLabel(_, _)
   | DuplicateVar(_, _)
   | ExpectationMismatch(_)
-  | NoMeet(_)
-  | CompareFun(_) => common_from_core()
+  | NoMeet(_) => common_from_core()
   | FreeHypothesis(name) =>
     div_err([code(name), text(" is not a hypothesis in scope")])
   | AxiomSlotNotHypothesis(_) =>
@@ -806,7 +816,7 @@ let exp_mark_err_view =
 
 let exp_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       ~show_type_colon=true,
       cls: Cls.t,
       message: Message.t,
@@ -833,41 +843,47 @@ let exp_view =
   let marks = info.marks;
   switch (marks != []) {
   | false =>
-    switch (message) {
-    | Exp(Default) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          Message.Syn(info.elab_syn_ty),
-        ),
-      )
-    | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(Common(ok)) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          ok,
-        ),
-      )
-    | Pat(_)
-    | TypOk(_)
-    | TPatOk(_) =>
-      failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+    switch (info.warnings) {
+    /* Non-computable forms outside a theorem: warn instead of the ok view. */
+    | [Exp(w), ..._] when globals.settings.core.display_warnings =>
+      div_warn(common_warn_view(~globals, WarningExp(w)))
+    | _ =>
+      switch (message) {
+      | Exp(Default) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            Message.Syn(info.elab_syn_ty),
+          ),
+        )
+      | Exp(AnaDeferralConsistent(ana)) =>
+        div_ok([text("Expecting type"), view_type(~globals, ana)])
+      | Exp(Common(ok)) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            ok,
+          ),
+        )
+      | Pat(_)
+      | TypOk(_)
+      | TPatOk(_) =>
+        failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+      }
     }
   | true =>
     switch (Mark.highest(marks)) {
@@ -1004,7 +1020,9 @@ let pat_view =
       switch (info.warnings) {
       | [Pat(UnusedVar(name))] =>
         if (globals.settings.core.display_warnings) {
-          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
+          div_warn(
+            common_warn_view(~globals, WarningPat(UnusedVar(name))),
+          );
         } else {
           div_ok(ok_view);
         }

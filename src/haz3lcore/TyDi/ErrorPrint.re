@@ -53,8 +53,6 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
-  | CompareFun(ty) =>
-    prn("values of type %s cannot be compared", Print.typ(ty))
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
@@ -172,8 +170,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | DuplicateLabel(_, _)
   | DuplicateVar(_, _)
   | ExpectationMismatch(_)
-  | NoMeet(_)
-  | CompareFun(_) => common_from_core()
+  | NoMeet(_) => common_from_core()
   };
 };
 

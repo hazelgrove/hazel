@@ -195,6 +195,9 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
+      /* True inside a theorem's proposition or proof, where forms with no
+         evaluation semantics (`forall`, function `==`) are legal. */
+      ~in_theorem=false,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
       uexp: Exp.t,
@@ -276,6 +279,7 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=syn,
         ~is_in_filter=is_in_filter,
+        ~in_theorem=in_theorem,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
         m: Map.t,
@@ -285,12 +289,20 @@ and uexp_to_info_map =
       ~ctx,
       ~ana,
       ~is_in_filter,
+      ~in_theorem,
       ~ancestors,
       ~probe_ids,
       uexp,
       m,
     );
   };
+  /* `forall` is a proposition, not a value: it has no evaluation
+     semantics, so outside a theorem it is flagged (as a warning, since it
+     still types as Bool). Shared by `Forall` and `ForallWhere`.
+     Deliberately NOT extended to suppress warnings on `let`-bound
+     non-computable definitions: out of scope for now. */
+  let forall_warnings =
+    in_theorem ? [] : Warning.to_list(WarningExp(ForallOutsideTheorem));
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -874,10 +886,18 @@ and uexp_to_info_map =
             m,
           )
         | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
+          /* Comparing values that contain functions has no evaluation
+             semantics (`DHExp.poly_equal` is silent on functions,
+             docs/prover-obligations.md §1.3). Inside a theorem this is a
+             perfectly good proposition (funext); outside it is a warning,
+             not an error. */
           add(
             ~elab_term=elab_poly,
             ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
-            ~marks=[CompareFun(ty)],
+            ~marks=[],
+            ~warnings=
+              in_theorem
+                ? [] : Warning.to_list(WarningExp(FunEqOutsideTheorem(ty))),
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
             m,
@@ -1969,6 +1989,7 @@ and uexp_to_info_map =
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
+        ~warnings=forall_warnings,
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
@@ -1987,6 +2008,7 @@ and uexp_to_info_map =
         ~elab_term=ForallWhere(p_elab, g_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
+        ~warnings=forall_warnings,
         ~co_ctx=CoCtx.mk(ctx, p.ctx, CoCtx.union([g.co_ctx, e.co_ctx])),
         ~probe_targets=
           SubexpProbeTargets.union_all([
@@ -2330,7 +2352,8 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(x), _} as p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, m) =
+        go(~ctx, ~in_theorem=true, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       /* The theorem's NAME is not a value binder (2026-08-21 namespace
          separation, docs/prover-obligations.md §0.1): `theorem t = ...`
          binds `t` in the THEOREM namespace only. The pattern is still
@@ -2403,7 +2426,8 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (_, e1_elab, m) =
+        go(~ctx, ~in_theorem=true, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       /* Proof `pf` does not see anything bound by `p` (body_only rule), but
@@ -4493,6 +4517,21 @@ and mpat_to_info_map =
 }
 and proof_to_info_map =
     (~ctx, ~ancestors, p_term: Proof.t, m: Map.t): (CoCtx.t, Any.t, Map.t) => {
+  /* Every expression reachable from a proof is inside a theorem block, so
+     the non-computable forms (`forall`, function `==`) are legal there.
+     Shadow the recursive entry point rather than threading the flag
+     through each of the ~20 call sites below. */
+  let uexp_to_info_map =
+      (~ctx, ~ancestors, ~ana=syn, ~is_in_filter=false, e: Exp.t, m: Map.t) =>
+    uexp_to_info_map(
+      ~ctx,
+      ~ana,
+      ~is_in_filter,
+      ~in_theorem=true,
+      ~ancestors,
+      e,
+      m,
+    );
   let ids = IdTagged.ids(p_term);
   let cls = Cls.Proof(Proof.cls_of_term(p_term.term));
   let add_proof_info = (~marks=[], m) =>

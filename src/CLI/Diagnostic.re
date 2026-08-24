@@ -21,6 +21,11 @@ let make_caret_line = (col: int, len: int): string => {
 let warning_string = (item: Language.Warning.list_item): string =>
   switch (item) {
   | Pat(UnusedVar(name)) => "unused variable: " ++ name
+  | Exp(ForallOutsideTheorem) => "forall outside a theorem has no value"
+  | Exp(FunEqOutsideTheorem(ty)) =>
+    "values of type "
+    ++ Language.Typ.show(ty)
+    ++ " contain functions and cannot be compared by evaluation"
   };
 
 /* Format a single diagnostic (error or warning) in Rust-style with source

@@ -44,7 +44,6 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       j1 == j2 && List.equal(source_equal, s1, s2)
     | (DuplicateLabel(l1, t1), DuplicateLabel(l2, t2)) =>
       l1 == l2 && Typ.fast_equal(t1, t2)
-    | (CompareFun(t1), CompareFun(t2)) => Typ.fast_equal(t1, t2)
     | (DuplicateVar(n1, t1), DuplicateVar(n2, t2)) =>
       n1 == n2 && Typ.fast_equal(t1, t2)
     | (BadToken(s1), BadToken(s2)) => s1 == s2

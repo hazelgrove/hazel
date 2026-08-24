@@ -100,7 +100,6 @@ type t =
     })
   | IsDeferral(Exp.deferral_position)
   | FreeConstructor(Constructor.t)
-  | CompareFun(Typ.t)
   | NoMeet(meet_type, list(Typ.source))
   | Redundant
   | ExpectedConstructor
