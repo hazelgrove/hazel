@@ -168,17 +168,24 @@ let rec mod_members =
   List.concat_map(
     (m: Language.Mod.t) =>
       switch (m.term) {
-      | ModLet(pat, def) => [
-          (
-            path,
-            ILet(
-              Some(Language.Mod.rep_id(m)),
-              doc_of_fwd^(m.annotation),
-              pat,
-              def,
-            ),
+      | ModLet(pat, def) =>
+        let entry = (
+          path,
+          ILet(
+            Some(Language.Mod.rep_id(m)),
+            doc_of_fwd^(m.annotation),
+            pat,
+            def,
           ),
-        ]
+        );
+        /* `let m = { … }` members are modules too */
+        switch (strip_exp(def).term, pat.term) {
+        | (Module(items), Var(name)) => [
+            entry,
+            ...mod_members(path @ [name], items),
+          ]
+        | _ => [entry]
+        };
       | ModType(tp, ty) => [
           (
             path,
@@ -223,10 +230,17 @@ and spine = (e: Exp.t): list((list(string), item)) => {
   let e = strip_exp(e);
   let top = it => ([], it);
   switch (e.term) {
-  | Let(pat, def, body) => [
-      top(ILet(Some(Exp.rep_id(e)), doc_of_fwd^(e.annotation), pat, def)),
-      ...spine(body),
-    ]
+  | Let(pat, def, body) =>
+    let entry =
+      top(ILet(Some(Exp.rep_id(e)), doc_of_fwd^(e.annotation), pat, def));
+    /* `let m = { … }` binds a module without module syntax (the livelit
+       idiom): its members join the stream like any module's */
+    let members =
+      switch (strip_exp(def).term, pat.term) {
+      | (Module(items), Var(name)) => mod_members([name], items)
+      | _ => []
+      };
+    [entry] @ members @ spine(body);
   /* module M = {...} binds like a let whose type is a Sig ({} former);
      its members join the stream under the module's path */
   | ModuleExp(mpat, def, body) =>

@@ -641,13 +641,30 @@ module Selection = {
   let jump_to_tile =
       (~select=false, id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
-    | Some(_) =>
+    | Some(piece) =>
+      /* Which selection covers "the whole definition" depends on the
+         tile's shape. A top-level `let … = … in` TILE spans the clause
+         (its TERM would swallow the rest of the program), so Tile is
+         right there. A module member's `let … =` tile has no `in`: its
+         definition is the tile's OPERAND, so only Term includes it. */
+      let closes_with_in =
+        switch (piece) {
+        | Piece.Tile(t) =>
+          switch (List.rev(t.label)) {
+          | ["in", ..._] => true
+          | _ => false
+          }
+        | _ => false
+        };
       select
-        /* select the definition with the caret at its front. Tile, not
-           Term: a let/type TERM includes its body (the rest of the
-           program); the TILE is just the `let … = … in` clause. */
-        ? Some(Perform(Select(Tile(Id(id, Left)))))
-        : Some(Perform(Move(Goal(TileId(id)))))
+        ? Some(
+            Perform(
+              Select(
+                closes_with_in ? Tile(Id(id, Left)) : Term(Id(id, Left)),
+              ),
+            ),
+          )
+        : Some(Perform(Move(Goal(TileId(id)))));
     | None => None
     };
   };
