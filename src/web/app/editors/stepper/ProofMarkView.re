@@ -108,6 +108,12 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text("."),
     ]
   | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
+  | ExpectedFunEqGoal => [
+      text("Expected a goal of the form `f == g` between two functions."),
+    ]
+  | MalformedFunext => [
+      text("`funext` needs a variable pattern to name the argument."),
+    ]
   | MalformedGeneralize => [
       text("`generalize` expects a bare in-scope variable."),
     ]

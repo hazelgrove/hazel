@@ -171,6 +171,7 @@ type example_id =
   | ProofEval1
   | ProofInduction1
   | ProofForall1
+  | ProofFunext1
   | ProofAssume1
   | ProofGeneralize1
   | ProofRevert1
@@ -337,6 +338,7 @@ type form_id =
   | ProofEvalStep
   | ProofInductionStep
   | ProofForallStep
+  | ProofFunextStep
   | ProofAssumeStep
   | ProofGeneralizeStep
   | ProofRevertStep
@@ -484,6 +486,7 @@ type group_id =
   | ProofEvalStep
   | ProofInductionStep
   | ProofForallStep
+  | ProofFunextStep
   | ProofAssumeStep
   | ProofGeneralizeStep
   | ProofRevertStep

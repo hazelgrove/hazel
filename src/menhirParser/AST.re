@@ -191,6 +191,8 @@ and proof =
   | EmptyHoleProof
   | ProofSeq(proof, proof)
   | ProofForall(pat, proof)
+  /* `funext <pat> => <proof>`: functional extensionality intro. */
+  | ProofFunext(pat, proof)
   | ProofAssume(exp, proof)
   /* `assume <exp> as <name> => <proof>` — the Phase-5 `as` clause names
      the installed hypothesis instead of taking the fixed base name

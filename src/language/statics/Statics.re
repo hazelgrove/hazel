@@ -5092,6 +5092,27 @@ and proof_to_info_map =
       );
     let elab = rewrap(Forall(pat_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Funext(pat, body) =>
+    /* `funext x => body`: same shape as Forall — the binder enters the
+       variable namespace for the sub-proof. */
+    let (pat_info, pat_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors=ancestors_inclusive,
+        pat,
+        m,
+      );
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=pat_info.ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab = rewrap(Funext(pat_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   | Assume(e, as_name, body) =>
     /* The assumption is a proposition: analyze it against Bool. */
     let (_, e_elab, m) =

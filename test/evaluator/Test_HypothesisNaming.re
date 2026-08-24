@@ -87,6 +87,7 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
     | None => find_revert(b)
     }
   | Forall(_, b)
+  | Funext(_, b)
   | Assume(_, _, b)
   | Alias(_, _, b)
   | Generalize(_, b) => find_revert(b)

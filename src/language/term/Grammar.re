@@ -220,6 +220,17 @@ and proof_term('a) =
       list((pat_t('a), proof_t('a))),
     )
   | Forall(pat_t('a), proof_t('a))
+  /* `funext x => <proof>`: functional extensionality as an INTRO rule.
+   * With incoming goal `f == g` at an ARROW type, the sub-proof's goal is
+   * the pointwise `f(x) == g(x)`, with `x` bound at the domain type. One
+   * arrow per `funext`; a curried goal peels with a second `funext`.
+   *
+   * Deliberately NOT an axiom: axioms are rewrite equalities, and stating
+   * funext as one would quantify over functions at unknown/hole types.
+   * Structurally this is `Forall`'s sibling — a WRAPPING form owning a
+   * body proof — which is why it clones its shape here and everywhere
+   * else (ProofCheck arm, statics arm, `FunextStep`). */
+  | Funext(pat_t('a), proof_t('a))
   /* `assume <exp> => <proof>`, or `assume <exp> as <name> => <proof>`:
    * hypothesize the boolean expression for the scope of the sub-proof,
    * incurring an obligation to establish it. The optional pattern is the
@@ -508,6 +519,8 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
           )
         | Forall(x, body) =>
           Forall(map_pat_annotation(f, x), map_proof_annotation(f, body))
+        | Funext(x, body) =>
+          Funext(map_pat_annotation(f, x), map_proof_annotation(f, body))
         | Assume(e, as_name, body) =>
           Assume(
             map_exp_annotation(f, e),
@@ -1420,6 +1433,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
       term: Forall(x, body),
+      annotation: default_annotation(ann),
+    };
+    let funext = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
+      term: Funext(x, body),
       annotation: default_annotation(ann),
     };
     let assume =

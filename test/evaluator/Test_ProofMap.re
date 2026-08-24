@@ -272,6 +272,7 @@ let rec find_marked_sub =
       | None => find_marked_sub(pm, p2)
       }
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Alias(_, _, body)
     | Generalize(_, body)

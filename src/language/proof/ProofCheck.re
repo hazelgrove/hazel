@@ -909,6 +909,133 @@ let add_where_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
   install(ctx, g);
 };
 
+/* --- funext: is this goal a function equality? ------------------------
+ *
+ * `funext x => body` applies exactly when the incoming goal is `l == r`
+ * and the two sides are FUNCTIONS. The arrow requirement is load-bearing:
+ * `==` between two LISTS of functions is an induction, not an
+ * extensionality, so `Typ.has_fun` (which is true of `[a -> b]`) is the
+ * wrong test. We want an arrow at the HEAD of the type.
+ *
+ * Evidence, in order:
+ *   1. Statics: the recorded type of either side is an `Arrow`. This is
+ *      the answer whenever statics reached the goal (the usual case in a
+ *      theorem statement).
+ *   2. Syntax: either side is literally a lambda (`fun` / `fun ... where`
+ *      / a `Parens` around one). Covers goals statics left `Unknown`,
+ *      and gives us a domain annotation when the lambda carries one.
+ *   3. The semantic ctx / env: a bare variable naming a function
+ *      definition. `inv == (fun x -> 1 / x)` has a lambda on the right,
+ *      so this is mostly for the both-sides-named case.
+ *
+ * The returned type is the DOMAIN to bind `x` at — `Unknown(Internal)`
+ * when we know it is a function but not at what type, which is the same
+ * thing `peel_binder` does for a `Forall` binder. */
+let rec arrow_domain_syntactic =
+        (~env: Environment.t(Exp.t), e: Exp.t): option(Typ.t) =>
+  switch (e |> Exp.term_of) {
+  | Parens(inner) => arrow_domain_syntactic(~env, inner)
+  | Fun(_, _, Some(t), _) =>
+    switch (Typ.term_of(t)) {
+    | Arrow(d, _) => Some(d)
+    | _ => Some(Typ.fresh(Unknown(Internal)))
+    }
+  | Fun(_, _, None, _)
+  | FunWhere(_, _, _) => Some(Typ.fresh(Unknown(Internal)))
+  /* A closure/fix wrapper around a lambda still denotes a function. */
+  | Closure(_, inner)
+  | FixF(_, inner, _) => arrow_domain_syntactic(~env, inner)
+  | Var(x) =>
+    switch (Environment.lookup(env, x)) {
+    /* Guard against a self-referential binding looping the lookup. */
+    | Some({term: Var(y), _}) when y == x => None
+    | Some(d) => arrow_domain_syntactic(~env, d)
+    | None => None
+    }
+  | _ => None
+  };
+
+let arrow_domain_statics =
+    (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
+  switch (Statics.Map.ty_of(Exp.rep_id(e), info_map)) {
+  | Some(ty) =>
+    switch (Typ.term_of(ty)) {
+    | Arrow(d, _) => Some(d)
+    | _ => None
+    }
+  | None => None
+  };
+
+/* Apply a function side of a funext goal to the fresh argument.
+ *
+ * The goal is `f(x) == g(x)` — the same `Ap` convention the rest of the
+ * language uses. When the side is a LITERAL lambda, though, the
+ * application is a beta-redex whose reduction is DEFINITIONAL: a
+ * call-by-value redex whose argument is a bound variable (hence a value)
+ * contracts to the body with the parameter renamed, and nothing about the
+ * function is discovered by doing it. Contracting here is what makes
+ * `(fun x -> x + 1) == (fun x -> 1 + x)` reachable by a pointwise
+ * `rewrite` rather than by a leading `eval` on each side.
+ *
+ * Two deliberate non-contractions:
+ *   - a NAMED function (`inv(x)`, `f(x)`) stays an application. Unfolding
+ *     a definition is `eval`'s job, and keeping it an `Ap` is exactly why
+ *     `refl_eq` on `inv(x) == inv(x)` closes WITHOUT ever applying `inv` —
+ *     a true statement, and a different one from `inv == (fun x -> 1 / x)`.
+ *   - a CONTRACT lambda (`fun p where g -> body`) stays an application.
+ *     Contracting it would silently drop `g`, and funext deliberately adds
+ *     no `where` restriction of its own: partiality is meant to surface at
+ *     the step that actually applies the function.
+ *
+ * A non-variable parameter pattern (a tuple, say) also stays applied —
+ * there is no single name to substitute for. */
+let rec funext_apply = (~arg: Exp.t, f: Exp.t): Exp.t => {
+  let rec param_name = (p: Pat.t): option(Var.t) =>
+    switch (p |> Pat.term_of) {
+    | Var(x) => Some(x)
+    | Parens(inner) => param_name(inner)
+    | Asc(inner, _) => param_name(inner)
+    | _ => None
+    };
+  switch (f |> Exp.term_of) {
+  | Parens(inner) => funext_apply(~arg, inner)
+  | Fun(p, body, _, _) =>
+    switch (param_name(p)) {
+    | Some(x) =>
+      body |> Substitution.in_exp(Environment.of_bindings([(x, arg)]))
+    | None => Exp.fresh(Ap(Forward, f, arg))
+    }
+  | _ => Exp.fresh(Ap(Forward, f, arg))
+  };
+};
+
+/* `Some(domain)` when `goal` is `l == r` at an arrow type; the two sides
+ * come back too, so the caller can build the pointwise `l(x) == r(x)`. */
+let rec funext_goal =
+        (~info_map: Statics.Map.t, ~env: Environment.t(Exp.t), goal: Exp.t)
+        : option((Exp.t, Exp.t, Typ.t)) =>
+  switch (goal |> Exp.term_of) {
+  /* Parens are transparent here for the same reason they are in
+   * `peel_binder`: an editor splice must not hide the equality. */
+  | Parens(inner) => funext_goal(~info_map, ~env, inner)
+  | BinOp(Poly(Equals), l, r) =>
+    let domain =
+      switch (arrow_domain_statics(~info_map, l)) {
+      | Some(_) as d => d
+      | None =>
+        switch (arrow_domain_statics(~info_map, r)) {
+        | Some(_) as d => d
+        | None =>
+          switch (arrow_domain_syntactic(~env, l)) {
+          | Some(_) as d => d
+          | None => arrow_domain_syntactic(~env, r)
+          }
+        }
+      };
+    domain |> Option.map(d => (l, r, d));
+  | _ => None
+  };
+
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used
  * by the `Forall` and `Intro` proof forms to walk under the binder. The
  * third component is the binder's `where` restriction, if any — peeling a
@@ -1332,6 +1459,58 @@ let rec check =
      * otherwise it passes the (outer, unpeeled) goal through — the
      * body's partial outgoing lives under the binder, so propagating it
      * to steps after the forall would be wrong. */
+    let true_exp = Exp.temp(Atom(Bool(true)));
+    let outgoing =
+      switch (out_body) {
+      | Some(e) when Exp.fast_equal(e, true_exp) => out_body
+      | _ => incoming
+      };
+    (outgoing, record(~marks=binder_marks, id, incoming, outgoing, m));
+  | Funext(pat, body) =>
+    /* Functional extensionality as an INTRO rule (never an axiom: an
+     * axiom is a rewrite equality, and funext-as-an-equality would have
+     * to quantify over functions at unknown/hole types).
+     *
+     * Incoming `f == g` at an ARROW type; the body's incoming is the
+     * pointwise `f(x) == g(x)`, with `x` bound at the domain type. One
+     * arrow per `funext` — a curried `a -> b -> c` peels to `f(x) == g(x)`
+     * which may still be an arrow, and a second `funext y =>` peels again.
+     *
+     * NO `where` domain restriction is wrapped around the body goal.
+     * Partiality surfaces where it actually bites — when a later step
+     * APPLIES `f(x)`. `refl_eq` on the syntactically identical
+     * `inv(x) == inv(x)` legitimately succeeds without ever applying
+     * `inv`, and that is a different claim from `inv == (fun x -> 1 / x)`.
+     *
+     * Recovery mirrors Forall's: mark, and let the body keep working on
+     * the goal as written. */
+    let env = SemanticCtx.get_env(ctx);
+    let (body_incoming, ctx', binder_marks) =
+      switch (incoming) {
+      | None => (None, ctx, [ProofMark.MissingIncoming])
+      | Some(goal) =>
+        switch (funext_goal(~info_map, ~env, goal)) {
+        | None => (incoming, ctx, [ProofMark.ExpectedFunEqGoal])
+        | Some((l, r, domain)) =>
+          /* The binder must be something we can actually bind, else the
+           * pointwise goal would mention a name nothing introduces. */
+          switch (ProofHacks.dhpat_extend_ctx(pat, domain, Ctx.empty)) {
+          | None => (incoming, ctx, [ProofMark.MalformedFunext])
+          | Some(_) =>
+            let ctx' = SemanticCtx.add_from_pattern(ctx, pat, domain);
+            let arg = pat |> ProofHacks.pat_to_exp;
+            let ap = funext_apply(~arg);
+            let pointwise = Exp.fresh(BinOp(Poly(Equals), ap(l), ap(r)));
+            (Some(pointwise), ctx', []);
+          }
+        }
+      };
+    let (out_body, m) =
+      check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
+    /* Discharged exactly when the body reduces the pointwise goal to
+     * `true`; otherwise the OUTER `f == g` passes through unchanged (the
+     * body's partial outgoing lives under the binder). Same convention as
+     * Forall. */
     let true_exp = Exp.temp(Atom(Bool(true)));
     let outgoing =
       switch (out_body) {

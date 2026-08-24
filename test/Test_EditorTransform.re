@@ -60,6 +60,7 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => find_proofs(pred, body), cases)
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Alias(_, _, body)
     | Generalize(_, body)

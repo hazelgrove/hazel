@@ -146,6 +146,7 @@ rule token =
     | "theorem" {THEOREM}
     | "proof" {PROOF}
     | "forall" {FORALL}
+    | "funext" {FUNEXT}
     | "where" {WHERE}
     | "assume" {ASSUME}
     | "generalize" {GENERALIZE}

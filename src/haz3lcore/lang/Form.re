@@ -427,6 +427,7 @@ type compound_form =
   // PROOF FORMS
   | ProofSeq
   | ProofForall
+  | ProofFunext
   | ProofAssume
   | ProofGeneralize
   | ProofRevert
@@ -578,6 +579,9 @@ let get: compound_form => t =
   // PROOF FORMS
   | ProofSeq => mk_infix(";", Proof, P.semi)
   | ProofForall => mk_pre_c(L, ["forall", "=>"], P.fun_, Proof, [Pat])
+  /* `funext x => <proof>`: functional extensionality intro. Its own
+     leading token, so it is order-independent in the list above. */
+  | ProofFunext => mk_pre_c(L, ["funext", "=>"], P.fun_, Proof, [Pat])
   | ProofAssume => mk_pre_c(L, ["assume", "=>"], P.fun_, Proof, [Exp])
   /* Phase-5 hypothesis naming (docs/prover-obligations.md, "Hypothesis
    * naming"). Auto-installed facts take FIXED names and SHADOW, so these

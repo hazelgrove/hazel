@@ -1097,6 +1097,7 @@ and parenthesize_proof =
   | MultiHole(_) => proof
   | Seq(p1, p2) => Seq(go(p1), go(p2)) |> rewrap
   | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
+  | Funext(x, body) => Funext(go_pat(x), go(body)) |> rewrap
   | Assume(e, as_name, body) =>
     Assume(go_exp(e), Option.map(go_pat, as_name), go(body)) |> rewrap
   /* The alias's name is a plain Pat slot and its fact a plain Exp slot,
@@ -3520,6 +3521,10 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ x = pat_to_pretty(~settings, x)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofForall, id, [x])] @ b);
+  | Funext(x, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofFunext, id, [x])] @ b);
   | Assume(e, None, body) =>
     let+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);

@@ -111,6 +111,7 @@ let rewrite_proof =
               List.map(((pt, body)) => (pt, walk(body)), cases),
             )
           | Forall(x, body) => Forall(x, walk(body))
+          | Funext(x, body) => Funext(x, walk(body))
           | Assume(e, as_name, body) => Assume(e, as_name, walk(body))
           | Alias(x, e, body) => Alias(x, e, walk(body))
           | Generalize(e, body) => Generalize(e, walk(body))
@@ -158,6 +159,7 @@ let rec find_seq_parent =
       };
     }
   | Forall(_, body)
+  | Funext(_, body)
   | Assume(_, _, body)
   | Generalize(_, body)
   | Alias(_, _, body)

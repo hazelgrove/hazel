@@ -76,6 +76,14 @@ type t =
   | NothingToStep({at_exp: Exp.t})
   /* Forall: incoming goal isn't a `forall`/`fun`-binder. */
   | ExpectedForallGoal
+  /* Funext: incoming goal isn't an equality (`==`) between two things of
+     ARROW type, so there is no pointwise goal to form. Note the arrow
+     requirement is what separates funext from induction: `==` on a LIST
+     of functions is not extensionality. */
+  | ExpectedFunEqGoal
+  /* Funext: the binder is not a pattern that can be added to the semantic
+     context (so the pointwise goal would have a free/unbindable name). */
+  | MalformedFunext
   /* Generalize: the argument isn't a bare in-scope variable (a peeled
    * binder that can be re-quantified). */
   | MalformedGeneralize

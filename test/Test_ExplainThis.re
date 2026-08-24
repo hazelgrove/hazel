@@ -123,6 +123,7 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
       ),
     ]
   | Forall => [Proof.fresh(Forall(some_pat(), hole_proof()))]
+  | Funext => [Proof.fresh(Funext(some_pat(), hole_proof()))]
   | Assume => [
       Proof.fresh(Assume(some_exp(), None, hole_proof())),
       Proof.fresh(Assume(some_exp(), Some(some_pat()), hole_proof())),
@@ -152,6 +153,7 @@ let example_free = (cls: Proof.cls): bool =>
   | EvalStep
   | Induction
   | Forall
+  | Funext
   | Assume
   | Generalize
   | Revert

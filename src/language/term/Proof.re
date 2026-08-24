@@ -9,6 +9,7 @@ type cls =
   | EvalStep
   | Induction
   | Forall
+  | Funext
   | Assume
   | Generalize
   | Revert
@@ -38,6 +39,7 @@ let cls_of_term: Grammar.proof_term('a) => cls =
   | AlgebriteStep(_) => AlgebriteStep
   | Induction(_, _, _) => Induction
   | Forall(_, _) => Forall
+  | Funext(_, _) => Funext
   | Assume(_, _, _) => Assume
   | Generalize(_, _) => Generalize
   | Revert(_, _, _) => Revert
@@ -56,6 +58,7 @@ let show_cls: cls => string =
   | AlgebriteStep => "Algebrite step"
   | Induction => "Induction step"
   | Forall => "Forall step"
+  | Funext => "Funext step"
   | Assume => "Assume step"
   | Generalize => "Generalize step"
   | Revert => "Revert step"
@@ -141,6 +144,8 @@ let rec fast_equal = (p1: t, p2: t): bool => {
        )
   | (Forall(x1, b1), Forall(x2, b2)) =>
     Equality.syntactic.pat(x1, x2) && fast_equal(b1, b2)
+  | (Funext(x1, b1), Funext(x2, b2)) =>
+    Equality.syntactic.pat(x1, x2) && fast_equal(b1, b2)
   | (Assume(e1, a1, b1), Assume(e2, a2, b2)) =>
     Equality.syntactic.exp(e1, e2)
     && as_name_equal(a1, a2)
@@ -169,6 +174,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (AlgebriteStep(_), _)
   | (Induction(_, _, _), _)
   | (Forall(_, _), _)
+  | (Funext(_, _), _)
   | (Assume(_, _, _), _)
   | (Generalize(_, _), _)
   | (Revert(_, _, _), _)
@@ -194,6 +200,7 @@ let rec has_hole = (p: t): bool =>
   | Induction(_, _, cases) =>
     List.exists(((_, body)) => has_hole(body), cases)
   | Forall(_, body) => has_hole(body)
+  | Funext(_, body) => has_hole(body)
   | Assume(_, _, body) => has_hole(body)
   | Generalize(_, body) => has_hole(body)
   | Revert(_, _, body) => has_hole(body)
@@ -293,6 +300,7 @@ let args_have_hole = (p: t): bool =>
     || as_name_has_hole(as_name)
     || List.exists(((pat, _)) => pat_has_hole(pat), cases)
   | Forall(pat, _) => pat_has_hole(pat)
+  | Funext(pat, _) => pat_has_hole(pat)
   | Assume(e, as_name, _) => exp_has_hole(e) || as_name_has_hole(as_name)
   | Alias(x, e, _) => pat_has_hole(x) || exp_has_hole(e)
   | Generalize(e, _) => exp_has_hole(e)

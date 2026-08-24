@@ -71,6 +71,7 @@ let rec dump = (pm: ProofMap.t, p: Proof.t, ind: string): string => {
     switch (p.term) {
     | Seq(a, b) => [dump(pm, a, ind), dump(pm, b, ind)]
     | Forall(_, b)
+    | Funext(_, b)
     | Assume(_, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump(pm, b, ind ++ "  ")]
@@ -133,6 +134,7 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
     | None => find_contradiction(b)
     }
   | Forall(_, b)
+  | Funext(_, b)
   | Assume(_, _, b)
   | Alias(_, _, b)
   | Generalize(_, b)

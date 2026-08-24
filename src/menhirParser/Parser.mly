@@ -115,6 +115,7 @@ open AST
 %token IMPLIES
 %token WHERE
 %token FORALL
+%token FUNEXT
 %token THEOREM
 %token PROOF
 %token ASSUME
@@ -376,6 +377,7 @@ proof:
     | QUESTION { EmptyHoleProof }
     | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
     | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
+    | FUNEXT; p = pat; EQUAL_ARROW; pf = proof { ProofFunext(p, pf) } %prec PROOF_PRE
     | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
     | ASSUME; e = exp; AS; x = pat; EQUAL_ARROW; pf = proof { ProofAssumeAs(e, x, pf) } %prec PROOF_PRE
     | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE

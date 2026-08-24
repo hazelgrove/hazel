@@ -112,6 +112,7 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | EvalStep(_) => true
     | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Generalize(_, body)
     | Alias(_, _, body)
@@ -172,6 +173,7 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Seq(p1, p2) =>
       obligations_of_proof(pm, p1) @ obligations_of_proof(pm, p2)
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Generalize(_, body)
     | Alias(_, _, body)
@@ -199,6 +201,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | EvalStep(_) => []
     | Seq(p1, p2) => rep_ids_of_proof(p1) @ rep_ids_of_proof(p2)
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Generalize(_, body)
     | Alias(_, _, body)

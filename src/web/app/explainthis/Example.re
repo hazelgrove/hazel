@@ -89,6 +89,7 @@ let mk_forall_where = mk_tile(Form.get(ForallWhere));
 let mk_fun_where = mk_tile(Form.get(FunWhere));
 let proof_seq = () => mk_monotile(Form.get(ProofSeq));
 let mk_proof_forall = mk_tile(Form.get(ProofForall));
+let mk_proof_funext = mk_tile(Form.get(ProofFunext));
 let mk_assume = mk_tile(Form.get(ProofAssume));
 let mk_generalize = mk_tile(Form.get(ProofGeneralize));
 let mk_revert = mk_tile(Form.get(ProofRevert));

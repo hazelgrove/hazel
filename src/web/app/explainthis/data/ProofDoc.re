@@ -379,6 +379,37 @@ let forall_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
   };
 };
 
+/* `funext x => <proof>`: functional extensionality as an intro rule
+   rather than an axiom (an axiom is a rewrite equality, and funext as
+   one would quantify over functions at unknown types). */
+let funext_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
+  let (pt, bd) = (pat("x"), proof_body());
+  {
+    group_id: ProofFunextStep,
+    form_id: ProofFunextStep,
+    abstract: (
+      [mk_proof_funext([slot(pt)]), space(), bd],
+      [(Piece.id(pt), pat_id), (Piece.id(bd), body_id)],
+    ),
+    explanation:
+      Printf.sprintf(
+        "Functional extensionality: turns a goal `f == g` between two *functions* into the pointwise goal `f(x) == g(x)`, naming the [*argument*](%s); the [*rest of the proof*](%s) then proves the two sides agree at that one arbitrary argument. One arrow per `funext` \226\128\148 a curried goal peels again with a second `funext`.",
+        pat_id |> Id.to_string,
+        body_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofFunext1,
+        term:
+          mk_example(
+            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => rewrite x + 1 with 1 + x at 0 end; axiom refl_eq at 0 on 1 + x == 1 + x end in 0",
+          ),
+        message: "`funext x` turns the function equality into `(fun x -> x + 1)(x) == (fun x -> 1 + x)(x)`, which the pointwise rewrite closes.",
+      },
+    ],
+  };
+};
+
 let assume = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
   let (e, bd) = (exp("e"), proof_body());
   {
@@ -746,6 +777,8 @@ let single = (p: Proof.t): Simple.t =>
     induction_as(~scrut_id=Exp.rep_id(scrut), ~name_id=Pat.rep_id(h))
   | Forall(pat, body) =>
     forall_step(~pat_id=Pat.rep_id(pat), ~body_id=Proof.rep_id(body))
+  | Funext(pat, body) =>
+    funext_step(~pat_id=Pat.rep_id(pat), ~body_id=Proof.rep_id(body))
   | Assume(e, None, body) =>
     assume(~exp_id=Exp.rep_id(e), ~body_id=Proof.rep_id(body))
   | Assume(e, Some(h), body) =>

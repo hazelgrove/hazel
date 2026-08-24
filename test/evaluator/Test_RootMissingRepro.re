@@ -131,6 +131,7 @@ and violations_of_kind =
        )
     |> List.concat
   | ForallStep(m) => violations_of_root(path ++ "/forall", m.inner_stepper)
+  | FunextStep(m) => violations_of_root(path ++ "/funext", m.inner_stepper)
   | AssumeStep(m) => violations_of_root(path ++ "/assume", m.inner_stepper)
   | RevertStep(m) => violations_of_root(path ++ "/revert", m.inner_stepper)
   | GeneralizeStep(m) =>

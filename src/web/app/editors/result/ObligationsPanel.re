@@ -210,6 +210,7 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | EvalStep(_) => false
     | Seq(a, b) => proof_contains(~origin, a) || proof_contains(~origin, b)
     | Forall(_, body)
+    | Funext(_, body)
     | Assume(_, _, body)
     | Generalize(_, body)
     | Alias(_, _, body)
@@ -250,6 +251,12 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
     | Generalize(_, body)
     | Alias(_, _, body)
     | Revert(_, _, body) => case_vars_to(~origin, ~acc, body)
+    /* Unlike `forall`, a `funext` binder is NOT theorem-level: the
+       theorem statement says `f == g`, and `x` exists only inside the
+       step. It is therefore step-local in exactly the sense a case
+       binder is, and a goal mentioning it must not float out. */
+    | Funext(pat, body) =>
+      case_vars_to(~origin, ~acc=Pat.bound_vars(pat) @ acc, body)
     | Have(_, sub, body) =>
       proof_contains(~origin, sub)
         ? case_vars_to(~origin, ~acc, sub)
@@ -368,6 +375,7 @@ let float_patch =
 let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
   switch (p.term) {
   | Forall(_, body)
+  | Funext(_, body)
   | Assume(_, _, body)
   | Generalize(_, body)
   | Alias(_, _, body)

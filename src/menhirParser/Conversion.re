@@ -608,6 +608,8 @@ and Proof: {
     | ProofSeq(p1, p2) => seq(of_menhir_ast(p1), of_menhir_ast(p2))
     | ProofForall(p, body) =>
       forall(Pat.of_menhir_ast(p), of_menhir_ast(body))
+    | ProofFunext(p, body) =>
+      funext(Pat.of_menhir_ast(p), of_menhir_ast(body))
     | ProofAssume(e, body) =>
       assume(Exp.of_menhir_ast(e), of_menhir_ast(body))
     | ProofAssumeAs(e, x, body) =>
@@ -716,6 +718,7 @@ and Proof: {
     | MultiHole(_) => EmptyHoleProof
     | Seq(p1, p2) => ProofSeq(of_core(p1), of_core(p2))
     | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
+    | Funext(p, body) => ProofFunext(Pat.of_core(p), of_core(body))
     | Assume(e, None, body) => ProofAssume(Exp.of_core(e), of_core(body))
     | Assume(e, Some(x), body) =>
       ProofAssumeAs(Exp.of_core(e), Pat.of_core(x), of_core(body))

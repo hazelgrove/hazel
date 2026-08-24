@@ -1487,6 +1487,7 @@ and Proof: {
             ),
           )
         | Forall(x, body) => Forall(pat_map_term(x), proof_map_term(body))
+        | Funext(x, body) => Funext(pat_map_term(x), proof_map_term(body))
         | Assume(e, as_name, body) =>
           Assume(
             exp_map_term(e),

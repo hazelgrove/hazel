@@ -437,6 +437,11 @@ module View = {
   type event =
     | AddInduction(option(Exp.t))
     | AddForall
+    /* `funext ? => ?` around this row's hole: functional
+       extensionality. No-search form (the argument's NAME is the user's
+       free choice), so one click inserts the shape with a hole binder
+       and the caret lands in it. */
+    | AddFunext
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
@@ -567,6 +572,18 @@ module View = {
         | None => None
         };
 
+      /* Funext is offered exactly when the goal is `f == g` between two
+         things of ARROW type — the same detector `ProofCheck`'s Funext arm
+         uses, so the button never offers a step that would immediately
+         mark. The arrow requirement is what keeps it off `==` between two
+         LISTS of functions, which is an induction, not an extensionality. */
+      let show_funext_button = {
+        let full_exp =
+          model.full_exp |> Calc.get_saved_exc(~print="full_exp not cached");
+        let env = Calc.get_saved(Environment.empty, model.cached_env);
+        ProofCheck.funext_goal(~info_map, ~env, full_exp) != None;
+      };
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -672,6 +689,22 @@ module View = {
                       signal(AddForall),
                     ]),
                   "Function Body",
+                ),
+              ]
+              : []
+          )
+          @ (
+            show_funext_button
+              ? [
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(AddFunext),
+                    ]),
+                  "Funext",
                 ),
               ]
               : []

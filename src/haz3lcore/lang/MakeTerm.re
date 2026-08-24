@@ -1984,6 +1984,8 @@ and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, (["forall", "=>"], [Pat(p)]))], []) =>
       ret(Forall(p, body))
+    | ([(_id, (["funext", "=>"], [Pat(p)]))], []) =>
+      ret(Funext(p, body))
     | ([(_id, (["assume", "=>"], [Exp(e)]))], []) =>
       ret(Assume(e, None, body))
     | ([(_id, (["assume", "as", "=>"], [Exp(e), Pat(x)]))], []) =>

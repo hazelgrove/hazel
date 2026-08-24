@@ -27,6 +27,8 @@ and step_kind_model =
   /* Nested steppers use `next_step` because `Stepper.model = next_step`. */
   | InductionStep(InductionStep.model'(next_step))
   | ForallStep(ForallStep.model'(next_step))
+  /* `funext x =>`: same wrapping shape as ForallStep. */
+  | FunextStep(FunextStep.model'(next_step))
   | AxiomStep(AxiomStep.model'(next_step))
   | AlgebriteStep(AlgebriteStep.model'(next_step))
   | EvalStep(EvalStep.model'(next_step))
@@ -163,6 +165,7 @@ let status_of_missing_step_proof = (proof: option(Proof.t)): step_status =>
 type step_kind_action =
   | InductionStep(InductionStep.action'(step_action))
   | ForallStep(ForallStep.action'(step_action))
+  | FunextStep(FunextStep.action'(step_action))
   | AxiomStep(AxiomStep.action'(step_action))
   | AlgebriteStep(AlgebriteStep.action'(step_action))
   | EvalStep(EvalStep.action'(step_action))
@@ -182,6 +185,7 @@ and step_action =
 type step_kind_focus =
   | InductionStep(InductionStep.focus'(step_focus))
   | ForallStep(ForallStep.focus'(step_focus))
+  | FunextStep(FunextStep.focus'(step_focus))
   | AxiomStep(AxiomStep.focus'(step_focus))
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
   | EvalStep(EvalStep.focus'(step_focus))
@@ -213,6 +217,7 @@ module rec StepKind:
 
   module InductionStep = InductionStep.F(Stepper);
   module ForallStep = ForallStep.F(Stepper);
+  module FunextStep = FunextStep.F(Stepper);
   module AxiomStep = AxiomStep.F(Stepper);
   module AlgebriteStep = AlgebriteStep.F(Stepper);
   module EvalStep = EvalStep.F(Stepper);
@@ -238,6 +243,9 @@ module rec StepKind:
       | (ForallStep(a), ForallStep(m)) =>
         let* s = ForallStep.update(~settings, a, m);
         (ForallStep(s): model);
+      | (FunextStep(a), FunextStep(m)) =>
+        let* s = FunextStep.update(~settings, a, m);
+        (FunextStep(s): model);
       | (AxiomStep(a), AxiomStep(m)) =>
         let* s = AxiomStep.update(~settings, a, m);
         (AxiomStep(s): model);
@@ -263,7 +271,8 @@ module rec StepKind:
         let* s = GeneralizeStep.update(~settings, a, m);
         (GeneralizeStep(s): model);
       | (
-          InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
+          InductionStep(_) | ForallStep(_) | FunextStep(_) | AxiomStep(_) |
+          AlgebriteStep(_) |
           EvalStep(_) |
           ContradictionStep(_) |
           AssumeStep(_) |
@@ -281,6 +290,7 @@ module rec StepKind:
     switch (a) {
     | InductionStep(action) => InductionStep.can_undo(action)
     | ForallStep(action) => ForallStep.can_undo(action)
+    | FunextStep(action) => FunextStep.can_undo(action)
     | AxiomStep(action) => AxiomStep.can_undo(action)
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
     | EvalStep(action) => EvalStep.can_undo(action)
@@ -329,6 +339,9 @@ module rec StepKind:
     | ForallStep(m) =>
       let+ m = calculate_with(ForallStep.calculate, m);
       (ForallStep(m): model);
+    | FunextStep(m) =>
+      let+ m = calculate_with(FunextStep.calculate, m);
+      (FunextStep(m): model);
     | AxiomStep(m) =>
       let+ m = calculate_with(AxiomStep.calculate, m);
       (AxiomStep(m): model);
@@ -367,6 +380,14 @@ module rec StepKind:
             m,
           );
         (InductionStep(focus_info): action);
+      | (FunextStep(focus), FunextStep(m)) =>
+        let+ focus_info =
+          FunextStep.get_cursor_info(
+            ~inject=x => inject(FunextStep(x): action),
+            ~focus,
+            m,
+          );
+        (FunextStep(focus_info): action);
       | (ForallStep(focus), ForallStep(m)) =>
         let+ focus_info =
           ForallStep.get_cursor_info(
@@ -440,7 +461,8 @@ module rec StepKind:
           );
         (GeneralizeStep(focus_info): action);
       | (
-          InductionStep(_) | ForallStep(_) | AxiomStep(_) | AlgebriteStep(_) |
+          InductionStep(_) | ForallStep(_) | FunextStep(_) | AxiomStep(_) |
+          AlgebriteStep(_) |
           EvalStep(_) |
           ContradictionStep(_) |
           AssumeStep(_) |
@@ -481,6 +503,23 @@ module rec StepKind:
           },
         ~inject=x => inject(InductionStep(x)),
         ~take_focus=x => take_focus(InductionStep(x)),
+        m,
+      )
+    | FunextStep(m) =>
+      FunextStep.view_content(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(FunextStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(FunextStep(x)),
+        ~take_focus=x => take_focus(FunextStep(x)),
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
         m,
       )
     | ForallStep(m) =>
@@ -662,6 +701,22 @@ module rec StepKind:
           },
         ~inject=x => inject(InductionStep(x)),
         ~take_focus=x => take_focus(InductionStep(x)),
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
+    | FunextStep(m) =>
+      FunextStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(FunextStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(FunextStep(x)),
+        ~take_focus=x => take_focus(FunextStep(x)),
         ~hide_stepper,
         ~is_toplevel,
         ~proof,
@@ -981,6 +1036,7 @@ and Stepper: {
     | EvalStep(_)
     | Contradiction(_)
     | Forall(_, _)
+    | Funext(_, _)
     | Induction(_, _, _)
     | Assume(_, _, _)
     | Alias(_, _, _)
@@ -1018,6 +1074,7 @@ and Stepper: {
     | EvalStep(_) => Some(EvalStep())
     | Contradiction(_) => Some(ContradictionStep())
     | Forall(_, _) => Some(ForallStep(ForallStep.init(init_step)))
+    | Funext(_, _) => Some(FunextStep(FunextStep.init(init_step)))
     | Induction(scrut, _, _) =>
       /* Seed the scrutinee editor from the proof's scrutinee (freshening
        * ids so the step's editor is independent of the syntax copy);
@@ -1060,6 +1117,7 @@ and Stepper: {
     | (EvalStep(_), EvalStep(_))
     | (Contradiction(_), ContradictionStep(_))
     | (Forall(_, _), ForallStep(_))
+    | (Funext(_, _), FunextStep(_))
     | (Induction(_, _, _), InductionStep(_))
     | (Assume(_, _, _), AssumeStep(_))
     | (Revert(_, _, _), RevertStep(_))
@@ -1548,6 +1606,13 @@ and Stepper: {
   let forall_term = (): TermBase.Proof.term =>
     Forall(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole));
 
+  /* `funext ? => ?`: the binder is a HOLE. Wrapping-form convention in
+   * MissingStep — a menu only ever PICKS, and there is nothing here to
+   * search over (the argument's name is the user's free choice), so the
+   * button inserts the shape and parks the caret in the pattern. */
+  let funext_term = (): TermBase.Proof.term =>
+    Funext(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole));
+
   /* The wrapping forms: `<kw> <exp> => ?`. The body starts as a hole, so
    * inserting one never discards proof text — the hole this replaces
    * re-appears inside the new scope as its own step-picker row. Because
@@ -1592,6 +1657,10 @@ and Stepper: {
     /* `have`'s proposition is child 0 too, so the same caret jump and the
      * same ProofFormView splice target apply. */
     | Have(e, _, _) => Some(Exp.rep_id(e))
+    /* `funext`'s argument is a PAT, not an Exp — but the caret jump only
+       needs an id, and the serializer stamps it onto the pattern's Grout
+       the same way. */
+    | Funext(p, _) => Some(Pat.rep_id(p))
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -1762,6 +1831,24 @@ and Stepper: {
     | MakeActive(selection) => take_focus(MissingStepFocus(selection))
     | HideStepper => hide_stepper
     | AddForall => emit(forall_term())
+    /* Insert `funext ? => ?` and park the caret in the hole binder.
+     * Unlike the Exp-argument wrapping forms there is no `Arg` sub-view
+     * to take stepper focus, so this is the caret jump alone. */
+    | AddFunext =>
+      let term = funext_term();
+      Ui_effect.Many([
+        emit(term),
+        switch (main_editor, form_arg_id(term)) {
+        | (Some(channel: CodeEditable.Channel.t), Some(arg_id)) =>
+          channel.inject(Perform(Move(Goal(TileId(arg_id)))))
+        | (None, _)
+        | (_, None) => Ui_effect.Ignore
+        },
+        Ui_effect.of_sync_fun(
+          () => Haz3lcore.ProbePerform.FocusEffect.schedule_cell(),
+          (),
+        ),
+      ]);
     | AddInduction(scrut) => emit(induction_term(~scrut))
     | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
       emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
