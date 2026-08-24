@@ -923,6 +923,11 @@ let view =
             let hull_circles_at =
                 (path: list(string))
                 : list((option(string), CanvasLayout.pos, float)) => {
+              /* ancestor copies of descendant circles grow with the
+                 depth difference so a parent blob always contains its
+                 sub-blobs with visible padding */
+              let depth_pad = (owner: list(string)): float =>
+                float_of_int(List.length(owner) - List.length(path)) *. 14.;
               let node_circles =
                 List.filter_map(
                   (nl: CanvasLayout.node_layout) =>
@@ -931,7 +936,7 @@ let view =
                     } else {
                       let exact = nl.node.m_path == path;
                       let is_f = nl.node.key == former_key_of(path);
-                      let r = is_f ? 56. : 40.;
+                      let r = (is_f ? 62. : 46.) +. depth_pad(nl.node.m_path);
                       Some((
                         exact || is_f
                           ? Some("hullc-n-" ++ sanitize(nl.node.key)) : None,
@@ -948,6 +953,7 @@ let view =
                       [];
                     } else {
                       let exact = el.edge.m_path == path;
+                      let pad = depth_pad(el.edge.m_path);
                       let en = sanitize(el.edge.e_name);
                       let lp = el.label_p;
                       /* pseudopod aims at the edge's OWN module */
@@ -967,14 +973,18 @@ let view =
                                   x: lp.x +. (fp.x -. lp.x) *. t,
                                   y: lp.y +. (fp.y -. lp.y) *. t,
                                 },
-                                30. -. 12. *. t,
+                                34. -. 12. *. t +. pad,
                               ),
                             [0.22, 0.42, 0.62, 0.82],
                           )
                         | _ => []
                         };
                       [
-                        (exact ? Some("hullc-l-" ++ en) : None, lp, 34.),
+                        (
+                          exact ? Some("hullc-l-" ++ en) : None,
+                          lp,
+                          38. +. pad,
+                        ),
                         ...bridge,
                       ];
                     },
