@@ -1,7 +1,6 @@
 /* List helpers that Stdlib.List lacks. The `_opt` variants return `None`
    where the plain ones raise. */
 
-let rev_if: (bool, list('a)) => list('a);
 /** Keeps the first of each group of elements the predicate considers equal. */
 let dedup_f: (('a, 'a) => bool, list('a)) => list('a);
 let dedup: list('a) => list('a);
@@ -83,8 +82,6 @@ let insert: ('a, list('a), int) => list('a);
 let remove: (list('a), int) => list('a);
 let remove_nth: (int, list('a)) => option(list('a));
 let fold_left_opt: (('a, 'b) => option('a), 'a, list('b)) => option('a);
-/** The elements of the first list whose key appears in the second. */
-let intersection_f: ('a => 'b, list('a), list('a)) => list('a);
 /** Like `List.map`, but `f` also sees every result so far, oldest first. */
 let map_with_history: ((list('y), 'x) => 'y, list('x)) => list('y);
 /** Stops at the first call that isn't `Some(true)` and returns it;
