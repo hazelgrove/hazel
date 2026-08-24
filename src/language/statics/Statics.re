@@ -2600,8 +2600,29 @@ and uexp_to_info_map =
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
+      /* A guarded arm (`| p where g =>`) is NOT a case split: the guard
+         can fail at runtime, so the arm neither covers its constructor
+         nor makes a later arm redundant. v1 conservative rule
+         (docs/prover-obligations.md §2.2): drop guarded rows from the
+         coverage matrix, then map the reported redundant-row indices
+         back to the original arm positions.
+
+         Consequences, deliberately: `| S(m) where P | S(m) | Z` is
+         exhaustive (because of the unguarded `S(m)`), `| S(m) where P |
+         Z` is not, and complementary guards (`x > 0` / `x <= 0`) without
+         a catch-all are still reported inexhaustive -- deciding that
+         needs an SMT, which is out of scope. */
+      let unguarded_idxs =
+        ps
+        |> List.mapi((i, p) => (i, p))
+        |> List.filter(((_, p)) => !Pat.is_guarded(p))
+        |> List.map(fst);
+      let unguarded_constraints =
+        unguarded_idxs |> List.map(i => List.nth(constraints, i));
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
-        Coverage.check(constraints, normalized_scrut_ty);
+        Coverage.check(unguarded_constraints, normalized_scrut_ty);
+      let redundant_rows =
+        redundant_rows |> List.map(i => List.nth(unguarded_idxs, i));
 
       let marks_match' =
         switch (exhaustiveness) {
@@ -3823,6 +3844,41 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Where(p, g) =>
+      /* `p where g` (docs/prover-obligations.md §2.2): types exactly as
+         `p` does, and the guard `g` additionally analyzes against Bool
+         with `p`'s bindings in scope -- the same rule FunWhere /
+         ForallWhere use for their guards. */
+      let (p', _, m) = go(~co_ctx=CoCtx.empty, p, m);
+      let (g', g_elab, m) =
+        uexp_to_info_map(
+          ~ctx=p'.ctx,
+          ~ana=Atom(Bool) |> Typ.temp,
+          ~in_theorem=true,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          g,
+          m,
+        );
+      /* Second pass on the pattern with the guard's uses attached, as in
+         FunWhere's statics: a variable used only in the guard is used. */
+      let (p, p_elab, m) =
+        go(~co_ctx=CoCtx.union([co_ctx, g'.co_ctx]), ~ana=p'.ty, p, m);
+      add(
+        ~elab_term=Where(p_elab, g_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~ctx=p.ctx,
+        ~probe_targets=
+          SubexpProbeTargets.union_all([p.probe_targets, g'.probe_targets]),
+        /* Coverage: transparent here, so a guarded binder in a
+           SINGLE-pattern position (`fun`/`let`/`forall`) behaves exactly
+           like the equivalent FunWhere/ForallWhere does today. The
+           multi-row positions (`case`, `induction`) drop guarded rows
+           instead -- a guard is not a case split. See
+           `unguarded_constraints` below. */
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -5040,8 +5096,21 @@ and proof_to_info_map =
         |> Option.value(~default=normalized_scrut_ty)
       | _ => normalized_scrut_ty
       };
+    /* Same rule as `case` above: a `where`-guarded induction case does
+       not cover its constructor, so `induction n | S(m) where P => .. |
+       Z => .. end` is reported INEXHAUSTIVE rather than unsoundly
+       Proven. See the comment in the Match case. */
+    let unguarded_idxs =
+      ps
+      |> List.mapi((i, p) => (i, p))
+      |> List.filter(((_, p)) => !Pat.is_guarded(p))
+      |> List.map(fst);
+    let unguarded_constraints =
+      unguarded_idxs |> List.map(i => List.nth(constraints, i));
     let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
-      Coverage.check(constraints, coverage_ty);
+      Coverage.check(unguarded_constraints, coverage_ty);
+    let redundant_rows =
+      redundant_rows |> List.map(i => List.nth(unguarded_idxs, i));
     let exhaustiveness: Coverage.CheckMatrix.exhaustiveness =
       switch (cases, exhaustiveness) {
       | ([], Exhaustive) => Inexhaustive(Grammar.Pat(Pat.fresh(Wild)))

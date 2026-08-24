@@ -184,11 +184,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
-    /* A FunWhere applies exactly like Fun: the contract guard has no
-     * dynamic effect (Grammar.re) — it is dropped at application. */
-    | (Fun, Closure(env', {term: FunWhere(dp, _g, d3), _})) =>
-      Matches(FunEnv(dp, d3, env'))
-    | (Fun, FunWhere(dp, _g, d3)) => Matches(FunNoEnv(dp, d3))
+    /* A FunWhere applies like a Fun whose PARAMETER carries the guard:
+     * `fun p where g -> e` unboxes to the parameter pattern
+     * `Where(p, g)`, so PatternMatch runs the guard and an off-guard
+     * argument fails to match (FunAp then yields Indet -- the body never
+     * runs). `where` on a function and `where` on a case arm are one
+     * construct; see Grammar.re Pat.Where. */
+    | (Fun, Closure(env', {term: FunWhere(dp, g, d3), _})) =>
+      Matches(FunEnv(Pat.fresh(Where(dp, g)), d3, env'))
+    | (Fun, FunWhere(dp, g, d3)) =>
+      Matches(FunNoEnv(Pat.fresh(Where(dp, g)), d3))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 

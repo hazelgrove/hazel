@@ -199,6 +199,12 @@ and in_pat =
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
+  /* `p where g`: the guard is under the pattern's OWN bindings, so
+     substitute in it with the post-renaming accumulator (same scoping
+     rule as ForallWhere / FunWhere in `in_exp`). */
+  | Where(p1, g) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', Where(p1', in_exp(env', g)) |> Pat.fresh);
   };
 }
 

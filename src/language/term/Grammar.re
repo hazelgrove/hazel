@@ -111,6 +111,26 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* Guarded pattern `p where g` (docs/prover-obligations.md §2.2).
+     `g` is an ORDINARY boolean expression over `p`'s bindings; this is
+     not a refinement type and not a separate restriction language.
+
+     `where` is one construct with two faces:
+       - dynamics: `p where g` matches iff `p` matches AND `g` holds
+         under those bindings. Guard false => DoesNotMatch (the next
+         case arm; a failed function application is Indet exactly as
+         today). Guard indeterminate => IndetMatch.
+       - proofs: inside the body you reach by matching (a case arm, a
+         function body, an induction case) `g` is a citable `where`
+         hypothesis, installed by ProofCheck.add_where_facts. The
+         runtime filter is what makes that sound: you only enter the
+         body when `g` holds.
+
+     The dedicated `fun p where g -> e` (FunWhere) and
+     `forall p where g -> e` (ForallWhere) tiles remain distinct nodes
+     with the same meaning as `Fun(Where(p, g), e)` /
+     `Forall(Where(p, g), e)` -- program text is truth. */
+  | Where(pat_t('a), exp_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -597,6 +617,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Where(p, g) =>
+          Where(map_pat_annotation(f, p), map_exp_annotation(f, g))
         },
       annotation: new_annotation,
     };
@@ -1143,6 +1165,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
     let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
       term: Asc(p, t),
+      annotation: default_annotation(ann),
+    };
+
+    let where_ = (~ann=?, p, g): pat_t(DefaultAnnotation.t) => {
+      term: Where(p, g),
       annotation: default_annotation(ann),
     };
   };

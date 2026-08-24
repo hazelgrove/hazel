@@ -909,6 +909,102 @@ let add_where_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
   install(ctx, g);
 };
 
+/* --- `where` on a PATTERN (Grammar.re Pat.Where) ----------------------
+ *
+ * `p where g` in binder position means exactly what the dedicated
+ * `forall p where g -> _` / `fun p where g -> _` tiles mean: install `g`
+ * as the same free `where` hypothesis. Two spellings, one meaning. This
+ * splits the guard back off so the peeling sites can hand it to
+ * `add_where_facts` unchanged.
+ *
+ * `Parens` is transparent ONLY when there is a guard under it, so an
+ * unguarded pattern comes back byte-identical and no existing behaviour
+ * shifts. */
+let rec split_pat_guard = (p: Pat.t): (Pat.t, option(Exp.t)) =>
+  switch (p |> Pat.term_of) {
+  | Where(p', g) =>
+    let (base, inner) = split_pat_guard(p');
+    let g =
+      switch (inner) {
+      | None => g
+      | Some(g0) => Exp.fresh(BinOp(Bool(And), g0, g))
+      };
+    (base, Some(g));
+  | Parens(p') =>
+    let (base, g) = split_pat_guard(p');
+    switch (g) {
+    | None => (p, None)
+    | Some(_) => (base, g)
+    };
+  | _ => (p, None)
+  };
+
+/* `add_where_facts` for the guard a binder PATTERN carries, if any. */
+let add_pat_where_facts = (ctx: SemanticCtx.t, p: Pat.t): SemanticCtx.t =>
+  switch (split_pat_guard(p) |> snd) {
+  | None => ctx
+  | Some(g) => add_where_facts(ctx, g)
+  };
+
+/* A coarse head-constructor key, used only to decide whether two case
+ * arms could match the SAME value. `None` means "matches anything"
+ * (variable / wildcard / hole), which overlaps everything. This is
+ * deliberately syntactic and conservative: when in doubt, overlap. */
+let rec pat_head_key = (p: Pat.t): option(string) =>
+  switch (p |> Pat.term_of) {
+  | Where(p, _)
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => pat_head_key(p)
+  | Constructor(c, _) => Some("ctr:" ++ c)
+  | Ap(c, _) =>
+    switch (Pat.ctr_name(c)) {
+    | Some(c) => Some("ctr:" ++ c)
+    | None => None
+    }
+  | Cons(_, _) => Some("cons")
+  | ListLit(ps) => Some("list:" ++ string_of_int(List.length(ps)))
+  | Tuple(ps) => Some("tuple:" ++ string_of_int(List.length(ps)))
+  | Atom(a) => Some("atom:" ++ Atom.show(a))
+  | Label(l) => Some("label:" ++ l)
+  | Var(_)
+  | Wild
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_)
+  | ExplicitNonlabel => None
+  };
+
+/* Could `p1` and `p2` match the same value? Conservatively yes unless
+ * their head constructors are both known and different. */
+let pats_overlap = (p1: Pat.t, p2: Pat.t): bool =>
+  switch (pat_head_key(p1), pat_head_key(p2)) {
+  | (Some(k1), Some(k2)) => k1 == k2
+  | _ => true
+  };
+
+/* Facts a case arm inherits from the arms ABOVE it: an arm is only
+ * reached when every earlier arm failed, so an earlier GUARDED arm that
+ * could have matched this value contributes `!g`. Constructor-disjoint
+ * earlier arms contribute nothing -- `| Z =>` must not import the `S`
+ * arm's negated guard.
+ *
+ * `!g` is installed whole (never conjunct-split: `!(a && b)` does not
+ * entail `!a`), under the same `where` name as a positive guard. */
+let add_previous_guard_negations =
+    (ctx: SemanticCtx.t, prev_pats: list(Pat.t), pat: Pat.t): SemanticCtx.t =>
+  List.fold_left(
+    (ctx, prev) =>
+      switch (split_pat_guard(prev)) {
+      | (prev_base, Some(g)) when pats_overlap(prev_base, pat) =>
+        add_where_facts(ctx, Exp.fresh(UnOp(Bool(Not), g)))
+      | _ => ctx
+      },
+    ctx,
+    prev_pats,
+  );
+
 /* --- funext: is this goal a function equality? ------------------------
  *
  * `funext x => body` applies exactly when the incoming goal is `l == r`
@@ -1057,18 +1153,35 @@ let rec peel_binder =
    * cannot see is a binder whose `where` restriction is never installed,
    * and the floated condition then stays Pending forever. */
   | Parens(inner) => peel_binder(Some(inner))
+  /* A guard the BINDER PATTERN carries (`fun (x where g) -> _`,
+   * `forall (x where g) -> _`) is peeled exactly like the dedicated
+   * tile's: same free `where` intro. */
   | Fun(p, d1, t, _) =>
     let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-    Some((p, t, None, d1));
+    let (p, g) = split_pat_guard(p);
+    Some((p, t, g, d1));
   | Forall(p, d1) =>
     /* No annotated type at this level, use Unknown. */
-    Some((p, Typ.fresh(Unknown(Internal)), None, d1))
+    let (p, g) = split_pat_guard(p);
+    Some((p, Typ.fresh(Unknown(Internal)), g, d1));
   | ForallWhere(p, g, d1) =>
-    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1))
+    let (p, g') = split_pat_guard(p);
+    let g =
+      switch (g') {
+      | None => g
+      | Some(g') => Exp.fresh(BinOp(Bool(And), g', g))
+      };
+    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1));
   /* A contract function peels like Fun, with its guard installed as a
    * hypothesis — same free intro as ForallWhere (§2.2). */
   | FunWhere(p, g, d1) =>
-    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1))
+    let (p, g') = split_pat_guard(p);
+    let g =
+      switch (g') {
+      | None => g
+      | Some(g') => Exp.fresh(BinOp(Bool(And), g', g))
+      };
+    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1));
   | _ => None
   };
 };
@@ -1085,13 +1198,15 @@ let rec peel_stmt_binders =
   /* Transparent, for the reason spelled out on `peel_binder`. */
   | Parens(inner) => peel_stmt_binders(ctx, inner)
   | Forall(p, body) =>
-    peel_stmt_binders(
-      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal))),
-      body,
-    )
+    /* `forall (x where g) -> _` installs the same hypothesis the
+     * dedicated `forall x where g -> _` tile does. */
+    let ctx =
+      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+    peel_stmt_binders(add_pat_where_facts(ctx, p), body);
   | ForallWhere(p, g, body) =>
     let ctx =
       SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+    let ctx = add_pat_where_facts(ctx, p);
     peel_stmt_binders(add_where_facts(ctx, g), body);
   | _ => (ctx, goal)
   };
@@ -2133,9 +2248,9 @@ and check_induction =
     };
   /* Walk each case, collecting body outgoings and the accumulated
    * proof-map entries. */
-  let (outgoings, pat_constraints, m_acc) =
+  let (outgoings, pat_constraints, _prev_pats, m_acc) =
     List.fold_left(
-      ((outs, constraints, m), (pat, body)) => {
+      ((outs, constraints, prev_pats, m), (pat, body)) => {
         /* 1. Replace scrut with pat in the goal (if any). */
         let case_incoming =
           switch (incoming) {
@@ -2167,6 +2282,17 @@ and check_induction =
                 )
                 |> Substitution.in_exp(SemanticCtx.get_env(ctx')),
               );
+        /* 2a'. `where` facts for this arm.
+         *
+         * `where` on a case/induction arm is the same construct as
+         * `where` on a `fun`: matching the arm means the guard HELD
+         * (PatternMatch filters on it), so inside the arm the guard is a
+         * citable `where` fact — and every earlier arm that could have
+         * matched this value must have FAILED, so its guard's negation
+         * is a fact here too. Installed after `case_eq` so the arm's own
+         * positive guard is the most recent `where`. */
+        let ctx' = add_previous_guard_negations(ctx', prev_pats, pat);
+        let ctx' = add_pat_where_facts(ctx', pat);
         let ctx' =
           switch (case_eq) {
           | Some(eq) =>
@@ -2229,19 +2355,28 @@ and check_induction =
         let (out_body, m_body) =
           check(~step, ~info_map, ~ctx=ctx', case_incoming, body);
         let case_clean = ProofMap.error_ids(m_body) == [];
-        /* Collect the pattern constraint for later coverage check. */
+        /* Collect the pattern constraint for later coverage check. A
+         * GUARDED arm contributes NO constraint: a guard is not a case
+         * split, so `| S(m) where P => .. | Z => .. end` is reported
+         * not-exhaustive rather than unsoundly Proven. Same conservative
+         * rule as the edit-time check in Statics.re. */
         let constraint_ =
-          switch (Statics.Map.lookup_pat(Pat.rep_id(pat), info_map)) {
-          | Some(info_pat) => Some(Info.pat_constraint(info_pat))
-          | None => None
+          if (Pat.is_guarded(pat)) {
+            None;
+          } else {
+            switch (Statics.Map.lookup_pat(Pat.rep_id(pat), info_map)) {
+            | Some(info_pat) => Some(Info.pat_constraint(info_pat))
+            | None => None
+            };
           };
         (
           outs @ [(out_body, case_clean)],
           constraints @ [constraint_],
+          prev_pats @ [pat],
           ProofMap.union(m, m_body),
         );
       },
-      ([], [], ProofMap.empty),
+      ([], [], [], ProofMap.empty),
       cases,
     );
   /* Exhaustiveness: check the collected constraints cover scrut's type. */

@@ -590,5 +590,10 @@ let rec of_pat = (pat: Pat.t): t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  /* `p where g`: the case EQUATION is about `p` alone (`scrut == p`);
+     the guard `g` is installed separately as a `where` hypothesis in
+     that arm (ProofCheck.add_where_facts). Dropping it here is what
+     keeps `case_eq` well-formed. */
+  | Where(p, _) => of_pat(p)
   };
 };

@@ -350,6 +350,7 @@ type compound_form =
   | ListConcat
   | ConsExp
   | ConsPat
+  | PatWhere
   | Typeann
   | TupleLabeledExp
   | TupleLabeledPat
@@ -489,6 +490,13 @@ let get: compound_form => t =
   | ListConcat => mk_infix("@", Exp, P.concat)
   | ConsExp => mk_infix("::", Exp, P.cons)
   | ConsPat => mk_infix("::", Pat, P.cons)
+  /* Pattern guard `p where g` (docs/prover-obligations.md §2.2): an
+   * infix at Pat sort whose RIGHT child is an ordinary Exp, exactly as
+   * `Typeann` is an infix at Pat whose right child is a Typ. See
+   * Precedence.pat_where for the precedence rationale. The dedicated
+   * `fun _ where _ -> _` / `forall _ where _ -> _` prefix tiles remain;
+   * this is the general pattern-position form. */
+  | PatWhere => mk_infix("where", Pat, ~l=Pat, ~r=Exp, P.pat_where)
   | Typeann => mk_infix(":", Pat, ~l=Pat, ~r=Typ, P.asc)
   | TupleLabeledExp => mk_infix("=", Exp, P.lab)
   | TupleLabeledPat => mk_infix("=", Pat, P.lab)
@@ -826,13 +834,34 @@ module Molds = {
     (t: Token.t) =>
       List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
 
+  /* The InfixDelimiterPrefix molds are a LAST-RESORT backup infix mode
+     (see `infix_delimiter_ops_prefixes`): they exist so that typing the
+     `in` of a let doesn't flicker between operand and operator. They must
+     never shadow a real form's mold for the same token, which is possible
+     for a token that is BOTH a single-token infix form and a prefix of an
+     alphanumeric non-leading delimiter — `where` (infix pattern guard,
+     plus the `fun _ where _ -> _` / `forall _ where _ -> _` shards) is
+     the first such token. So we split them out and re-append them after
+     the compound molds in `get_base`. */
+  let atomic_backup: Token.t => list(Mold.t) =
+    (t: Token.t) =>
+      is_infix_delimiter_op_prefix(t)
+        ? snd(get_atomic_form(InfixDelimiterPrefix)) : [];
+
+  let atomic_primary: Token.t => list(Mold.t) =
+    (t: Token.t) => {
+      let backup = atomic_backup(t);
+      atomic(t) |> List.filter(m => !List.mem(m, backup));
+    };
+
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
   /* Base: get molds from form definitions without sort filtering */
   let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], Some(molds)) when atomic(t) != [] =>
+      atomic_primary(t) @ molds @ atomic_backup(t)
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     | _ => []

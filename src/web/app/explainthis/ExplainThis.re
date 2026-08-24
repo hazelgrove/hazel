@@ -1381,7 +1381,8 @@ let get_doc =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_)
+        | Where(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
         get_message(
@@ -1979,7 +1980,8 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_)
+        | Where(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, pf, body) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2717,6 +2719,12 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
+    /* `p where g` (docs/prover-obligations.md §2.2). A minimal entry: the
+       form has no ExplainThisForm data of its own yet. */
+    | Where(_) =>
+      simple(
+        "Guarded pattern. Matches when the left pattern matches AND the boolean guard holds under its bindings; inside the body the guard is a citable `where` fact.",
+      )
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?

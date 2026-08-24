@@ -305,6 +305,21 @@ tupPatEntry:
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
+    (* Guarded pattern `(p where g)` (Form.re PatWhere / Grammar.re
+       Pat.Where).
+
+       PARENTHESIZED ONLY here, deliberately. A general infix
+       `pat: pat WHERE exp` is AMBIGUOUS in this LR grammar: after
+       `FUN nonAscriptingPat` / `FORALL nonAscriptingPat` with WHERE
+       ahead, `nonAscriptingPat` can reduce either to `funPat` (giving
+       the dedicated `fun _ where _ -> _` / `forall _ where _ -> _`
+       productions) or to `pat` (giving this one) -- 2 reduce/reduce
+       conflicts menhir resolves arbitrarily. The dedicated tiles are
+       load-bearing, so the guard is delimited here instead: by
+       CLOSE_PAREN below, and by EQUAL_ARROW in `rul`/`prul`. The
+       segment/tile parser (Haz3lcore.Parser, the canonical one) has no
+       such restriction and accepts the unparenthesized infix. *)
+    | OPEN_PAREN; p = pat; WHERE; g = exp; CLOSE_PAREN { WherePat(p, g) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(l), p)]) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
     |  P_PAT; s = STRING { InvalidPat(s) }
@@ -341,6 +356,9 @@ pat:
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
+    (* `| p where g => e`: unambiguous, the guard ends at EQUAL_ARROW. *)
+    | TURNSTILE; p = pat; WHERE; g = exp; EQUAL_ARROW; e = exp;
+        { (WherePat(p, g), e) }
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
@@ -372,6 +390,9 @@ forallExp:
 (* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
 prul:
     | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
+    (* `| p where g => pf`: as in `rul`. *)
+    | TURNSTILE; p = pat; WHERE; g = exp; EQUAL_ARROW; pf = proof;
+        { (WherePat(p, g), pf) }
 
 proof:
     | QUESTION { EmptyHoleProof }

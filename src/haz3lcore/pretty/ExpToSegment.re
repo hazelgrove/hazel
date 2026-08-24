@@ -313,6 +313,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
+  | Where(_) => Precedence.pat_where
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
 
@@ -784,6 +785,10 @@ and parenthesize_pat =
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
+  /* For `where` guards, which are Exps living inside a Pat. */
+  let parenthesize_exp =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let paren_exp_at = paren_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
@@ -855,6 +860,15 @@ and parenthesize_pat =
     )
     |> rewrap
   | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
+  /* `p where g`: like Asc, but the right child is an Exp, and the guard
+     is always parenthesized at min so it can never swallow a delimiter
+     of the form the pattern sits in (`=` of a let, `=>` of a rule). */
+  | Where(p, g) =>
+    Where(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.pat_where),
+      parenthesize_exp(g) |> paren_exp_at(Precedence.pat_where),
+    )
+    |> rewrap
   };
 }
 
@@ -2979,6 +2993,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
     wrap(pat, p @ [mk_form(Typeann, id, [])] @ t);
+  | Where(p, g) =>
+    let id = pat |> Pat.rep_id;
+    let+ p = go(p)
+    and+ g = exp_to_pretty(~settings: Settings.t, g);
+    wrap(pat, p @ [mk_form(PatWhere, id, [])] @ g);
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {

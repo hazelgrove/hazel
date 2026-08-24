@@ -98,6 +98,22 @@ let if_ = 36;
 let fun_ = 37;
 // fun x -> _____
 
+/* Pattern guard `p where g` (Pat `where` Exp -> Pat).
+ *
+ * Looser than every operator that can appear on either side, so both
+ * operands are swallowed whole:
+ *   h :: t where h != 0 && t == []
+ *     ==> Where(Cons(h, t), (h != 0) && (t == []))
+ * (`cons` = 29, `eqs` = 31, `and_` = 32, `impl` = 34 are all tighter).
+ *
+ * Tighter than `comma` (44), `let_` (45) and `rule_sep` (46), so the
+ * guard stays inside its own binding position:
+ *   case xs | y where y != 0 => 1 | _ => 2 end
+ *     ==> the `where` sits in the arm's PATTERN, not around the `=>`.
+ * Note this means `| x, y where g =>` is `(x, Where(y, g))`, not
+ * `Where((x, y), g)`; parenthesize the tuple to guard it as a whole. */
+let pat_where = 38;
+
 let lab = 39;
 
 let case_ = 42;

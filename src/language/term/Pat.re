@@ -17,7 +17,8 @@ type cls =
   | Projector
   | ApFunc
   | ApCons
-  | Asc;
+  | Asc
+  | Where;
 
 include TermBase.Pat;
 
@@ -60,7 +61,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Projector(_) => Projector
   | Ap({term: Constructor(_), _}, _) => ApCons
   | Ap(_) => ApFunc
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Where(_) => Where;
 
 let show_cls: cls => string =
   fun
@@ -86,13 +88,17 @@ let show_cls: cls => string =
   | Projector => "Projector"
   | ApCons => "Constructor application"
   | ApFunc => "Function definition"
-  | Asc => "Annotation";
+  | Asc => "Annotation"
+  | Where => "Guarded pattern";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
   | Projector(_, pat)
   | TupLabel(_, pat)
+  /* `p where g` binds exactly what `p` binds: transparent here, like
+     Asc. The guard is carried for dynamics + proofs, not for binding. */
+  | Where(pat, _)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
   | Invalid(_)
@@ -117,6 +123,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Where(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
     | Label(_)
@@ -140,7 +147,8 @@ let rec get_var = (pat: t) => {
   | Projector(_, pat)
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
-  | Asc(x, _) => get_var(x)
+  | Asc(x, _)
+  | Where(x, _) => get_var(x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -160,6 +168,7 @@ let rec get_fun_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat)
   | Projector(_, pat)
+  | Where(pat, _)
   | TupLabel(_, pat) => get_fun_var(pat)
   | Asc(pat, t1) =>
     if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
@@ -191,6 +200,7 @@ let rec get_bindings = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Where(pat, _)
     | TupLabel(_, pat) => get_bindings(pat)
     | Tuple(pats) =>
       let vars = pats |> List.map(get_var);
@@ -222,6 +232,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Where(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
@@ -237,6 +248,37 @@ let rec get_num_of_vars = (pat: t) =>
     | Constructor(_)
     | Ap(_) => None
     }
+  };
+
+/* Does this pattern carry a `where` guard (docs/prover-obligations.md
+   §2.2)? Looks through the transparent wrappers, so
+   `((h :: t) where g) : List(Int)` counts.
+
+   Used by the MULTI-ROW coverage positions (`case`, `induction`): a
+   guarded arm is not a case split, so it is dropped from the coverage
+   matrix rather than counted as covering its constructor. Single-pattern
+   binders (`fun` / `let` / `forall`) treat `where` as transparent
+   instead, matching what FunWhere / ForallWhere already do. */
+let rec is_guarded = (p: t): bool =>
+  switch (p |> term_of) {
+  | Where(_, _) => true
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => is_guarded(p)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_, _)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_)
+  | Ap(_) => false
   };
 
 let ctr_name = (p: t): option(Constructor.t) =>
@@ -272,6 +314,7 @@ let rec bindings = (dp: t): Binding.s =>
   | ExplicitNonlabel
   | Constructor(_) => []
   | Asc(y, _)
+  | Where(y, _)
   | Parens(y)
   | Projector(_, y)
   | TupLabel(_, y) => bindings(y)

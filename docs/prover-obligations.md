@@ -421,6 +421,68 @@ checked normally and needs both cases.
 - A theorem with a restricted binder *is* a conditional rule; its uses emit
   the restriction as an obligation through the ordinary mechanism.
 
+#### `where` is also a pattern constructor (decided 2026-08-24)
+
+`where` is now a **pattern** form, `Pat.Where(p, g)` — an infix at Pat sort
+whose right child is an ordinary Exp, the way type ascription `p : T` is an
+infix at Pat sort whose right child is a Typ (`Form.re` `PatWhere`,
+`Precedence.pat_where`). It is available wherever a pattern is: `let`, `case`
+arms, `induction` arms. It is **not a type**: no `{x: Int | P}`, no change to
+the type grammar. Restrictions stay ordinary booleans.
+
+`where` on a `fun`, on a `forall` and on a `case`/`induction` arm are **one
+construct** with two faces:
+
+- **Dynamics.** `p where g` matches iff `p` matches *and* `g` holds under the
+  bindings `p` produced. Guard false ⇒ `DoesNotMatch` (the next case arm; a
+  function application that fails to match is `Indet`, as it already is for
+  any failing `fun` pattern). Guard indeterminate (symbolic, a hole, or a
+  step-limit) ⇒ `IndetMatch`. This includes `FunWhere` application:
+  `(fun x where x != 0 -> 100 / x)(2)` is `50`, and `(… )(0)` does **not**
+  run the body. (`PatternMatch.re`; the evaluator installs itself as
+  `PatternMatch.guard_hook` to break the `Evaluator → Transition →
+  PatternMatch` module cycle.)
+- **Proofs.** Inside the body you reach by matching, `g` is a citable `where`
+  hypothesis, installed by the same `ProofCheck.add_where_facts` (same fixed
+  name, same `&&`-conjunct splitting) that a restricted binder uses. The
+  runtime filter is what makes that sound: you only enter the body when `g`
+  holds. Caller-vocabulary obligations are unchanged — `f(e)` still emits
+  `g[p := e]`; the runtime match is a backstop, not a replacement for the
+  scan.
+- **Later arms see the complement.** An arm is reached only when every arm
+  above it failed, so each earlier **overlapping** guarded arm contributes
+  `!g` as a `where` hypothesis. "Overlapping" is decided syntactically on head
+  constructors (`ProofCheck.pats_overlap`): a constructor-disjoint earlier arm
+  contributes nothing, so `| Z =>` never imports the `| S(m) where P =>` arm's
+  negated guard. `!g` is installed whole, never conjunct-split.
+- **A guard is not a case split.** `Coverage.check` does not understand
+  guards, and this slice does not fake it: a `Where(p, g)` row is **dropped
+  from the coverage matrix** in the multi-row positions (`case`, `induction`),
+  for both exhaustiveness and redundancy. So `| S(m) where P | S(m) | Z` is
+  exhaustive (because of the unguarded `S(m)`), `| S(m) where P | Z` is not,
+  and complementary guards (`x > 0` / `x <= 0`) with no catch-all are still
+  reported inexhaustive — deciding that needs an SMT. In a **single-pattern**
+  binder (`fun` / `let` / `forall`) `where` is transparent for coverage, which
+  is exactly what the `FunWhere` / `ForallWhere` tiles already do.
+
+The dedicated `fun p where g -> e` (`FunWhere`) and `forall p where g -> e`
+(`ForallWhere`) **tiles remain**, as distinct AST nodes with the same proof
+meaning as `Fun(Where(p, g), e)` / `Forall(Where(p, g), e)` — program text is
+truth. Two AST paths, one meaning; `ProofCheck.peel_binder` and
+`peel_stmt_binders` handle both via `split_pat_guard`.
+
+**Known limitation.** In the tile parser, `fun (p where g) -> e` and
+`forall (p where g) -> e` are ambiguous: the `where` of the `fun _ where _ ->`
+polytile reaches inside the parentheses and claims the token. (This spelling
+was already mis-parsed before `where` became a pattern; the change alters
+*which* wrong shape results.) Unparenthesized `fun x where g -> e` /
+`forall x where g -> e` are unaffected. Pinned by
+`Test_WherePat.test_paren_where_in_fun_binder_is_pinned`. In the menhir
+parser the guarded pattern is accepted **only** parenthesized (`(p where g)`)
+or delimited by `=>` in a case/induction arm — a general infix
+`pat: pat WHERE exp` there introduces reduce/reduce conflicts against the
+`FunWhere` / `ForallWhere` productions.
+
 ---
 
 ## 3. Obligations

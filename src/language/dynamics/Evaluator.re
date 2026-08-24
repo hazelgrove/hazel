@@ -645,3 +645,33 @@ let evaluate =
   let value = finish(~env, Trampoline.run(result));
   (value, state^);
 };
+
+/* Install the `where`-guard evaluator (see PatternMatch.guard_hook).
+ *
+ * Deciding whether `p where g` matches means RUNNING `g` under the
+ * bindings `p` produced, which is a call back into this module from
+ * inside the transition machinery this module is built on. The hook
+ * breaks that cycle.
+ *
+ * A step limit is used so a diverging guard cannot wedge the match
+ * decision; exceeding it is reported as an indeterminate guard, i.e. the
+ * arm neither matches nor is skipped, which is the same answer a
+ * symbolic or hole-valued guard gives. */
+let where_guard_step_limit = 100_000;
+
+let () =
+  PatternMatch.guard_hook :=
+    Some(
+      (env, g) =>
+        switch (
+          evaluate_and_limit(~step_limit=where_guard_step_limit, ~env, g)
+        ) {
+        | StepLimitExceeded => PatternMatch.GuardIndet
+        | LimitedCompleted((result, _state)) =>
+          switch (Exp.term_of(result)) {
+          | Atom(Bool(true)) => PatternMatch.GuardTrue
+          | Atom(Bool(false)) => PatternMatch.GuardFalse
+          | _ => PatternMatch.GuardIndet
+          }
+        },
+    );

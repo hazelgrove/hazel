@@ -1317,6 +1317,19 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
+  /* `p where g` (Form.re PatWhere): a Pat-sorted infix whose right child
+     is an ordinary Exp, exactly as `Typeann` below has a Typ right
+     child. The dedicated `fun _ where _ -> _` / `forall _ where _ -> _`
+     prefix tiles are unaffected: their `where` is a SHARD of a polytile,
+     not this monotile. */
+  | Bin(Pat(p), tiles, Exp(g)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["where"], []))], []) => ret(Where(p, g))
+    | ([(_id, ([op], []))], []) when op != " " =>
+      set_lexeme(op);
+      ret(hole(tm));
+    | _ => ret(hole(tm))
+    }
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))

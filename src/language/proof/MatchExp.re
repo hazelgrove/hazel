@@ -303,6 +303,10 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  /* A `where` guard is not part of the binder's shape for rule matching:
+     look through it, exactly as for an ascription. */
+  | (Where(p1, _), _) => match_pat(p1, pat)
+  | (_, Where(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

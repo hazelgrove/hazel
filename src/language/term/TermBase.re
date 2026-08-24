@@ -617,6 +617,19 @@ and Pat: {
         ~f_any,
         ~f_proof,
       );
+    let exp_map_term =
+      Exp.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_any,
+        ~f_proof,
+      );
     let any_map_term =
       Any.map_term(
         ~f_exp,
@@ -652,6 +665,9 @@ and Pat: {
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
+        /* The guard is an ordinary expression: recur into it with the
+           same f_exp everything else uses. */
+        | Where(p, g) => Where(pat_map_term(p), exp_map_term(g))
         },
     };
     x |> f_pat(rec_call);
