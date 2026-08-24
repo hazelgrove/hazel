@@ -272,7 +272,7 @@ let edge_label =
       Attr.on_mouseleave(_ => on_edge_hover(None)),
     ],
     [
-      text(e.e_name),
+      text(e.e_label),
       ...List.map(
            test_pip(~on_click=(t: CanvasGraph.test_info) =>
              inject_jump(t.t_id)

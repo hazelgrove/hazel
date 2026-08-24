@@ -30,6 +30,8 @@ type node_kind =
 type tynode = {
   key: string,
   label: string,
+  /* enclosing module chain, outermost first ([] = top level) */
+  m_path: list(string),
   n_id: option(Id.t), /* TyAlias rep_id — jump anchor */
   kind: node_kind,
   ctrs: list(string), /* constructor names when alias body is a sum */
@@ -50,7 +52,9 @@ type test_info = {
 };
 
 type edge = {
-  e_name: string,
+  e_name: string, /* path-qualified, unique (dom ids, focus keys) */
+  e_label: string, /* bare display name */
+  m_path: list(string),
   e_id: Id.t, /* Let rep_id — jump anchor */
   e_ty: string, /* full pretty type, for tooltip */
   e_src: string, /* input node key (component, product, or satellite) */
@@ -72,7 +76,9 @@ type edge = {
 };
 
 type value = {
-  v_name: string,
+  v_name: string, /* path-qualified, unique */
+  v_label: string, /* bare display name */
+  m_path: list(string),
   v_id: Id.t,
   v_key: string, /* node key of the value's type */
   v_ty: string,
@@ -104,6 +110,7 @@ let empty: t = {
 let mk_node =
     (
       ~n_id=None,
+      ~m_path=[],
       ~ctrs=[],
       ~n_ty=None,
       ~n_doc=None,
@@ -119,6 +126,7 @@ let mk_node =
     : tynode => {
   key,
   label,
+  m_path,
   n_id,
   kind,
   ctrs,
@@ -133,9 +141,11 @@ let mk_node =
 
 /* ---------- spine walk ---------- */
 
+/* anchor id + doc comment travel with the item so module members (whose
+   wrapper is a Mod.t, not an Exp.t) flow through the same pipeline */
 type item =
-  | IAlias(Exp.t, Language.TPat.t, Typ.t)
-  | ILet(Exp.t, Pat.t, Exp.t)
+  | IAlias(option(Id.t), option(string), Language.TPat.t, Typ.t)
+  | ILet(option(Id.t), option(string), Pat.t, Exp.t)
   | ITest(Exp.t, Exp.t) /* test term, test body */
   | IResult(Exp.t);
 
@@ -147,37 +157,117 @@ let rec strip_exp = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
-let rec spine = (e: Exp.t): list(item) => {
+/* doc_of is defined below; forward-declare the shape we need here */
+let doc_of_fwd: ref(Language.IdTagged.IdTag.t => option(string)) =
+  ref(_ => None);
+
+/* walk a module body: members surface as path-tagged items */
+let rec mod_members =
+        (path: list(string), ms: list(Language.Mod.t))
+        : list((list(string), item)) =>
+  List.concat_map(
+    (m: Language.Mod.t) =>
+      switch (m.term) {
+      | ModLet(pat, def) => [
+          (
+            path,
+            ILet(
+              Some(Exp.rep_id(def)),
+              doc_of_fwd^(m.annotation),
+              pat,
+              def,
+            ),
+          ),
+        ]
+      | ModType(tp, ty) => [
+          (
+            path,
+            IAlias(
+              Some(Typ.rep_id(ty)),
+              doc_of_fwd^(m.annotation),
+              tp,
+              ty,
+            ),
+          ),
+        ]
+      | ModuleMod(mpat, def) =>
+        switch (mpat.term) {
+        | Var(name) =>
+          let entry = (
+            path,
+            ILet(
+              Some(Exp.rep_id(def)),
+              doc_of_fwd^(m.annotation),
+              {
+                term: Var(name),
+                annotation: mpat.annotation,
+              },
+              def,
+            ),
+          );
+          switch (strip_exp(def).term) {
+          | Module(items) => [entry, ...mod_members(path @ [name], items)]
+          | _ => [entry]
+          };
+        | _ => []
+        }
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => []
+      },
+    ms,
+  )
+
+and spine = (e: Exp.t): list((list(string), item)) => {
   let e = strip_exp(e);
+  let top = it => ([], it);
   switch (e.term) {
-  | Let(pat, def, body) => [ILet(e, pat, def), ...spine(body)]
-  /* module M = {...} binds like a let whose type is a Sig ({} former) */
+  | Let(pat, def, body) => [
+      top(ILet(Some(Exp.rep_id(e)), doc_of_fwd^(e.annotation), pat, def)),
+      ...spine(body),
+    ]
+  /* module M = {...} binds like a let whose type is a Sig ({} former);
+     its members join the stream under the module's path */
   | ModuleExp(mpat, def, body) =>
     switch (mpat.term) {
-    | Var(name) => [
-        ILet(
-          e,
-          {
-            term: Var(name),
-            annotation: mpat.annotation,
-          },
-          def,
-        ),
-        ...spine(body),
-      ]
+    | Var(name) =>
+      let entry =
+        top(
+          ILet(
+            Some(Exp.rep_id(e)),
+            doc_of_fwd^(e.annotation),
+            {
+              term: Var(name),
+              annotation: mpat.annotation,
+            },
+            def,
+          ),
+        );
+      let members =
+        switch (strip_exp(def).term) {
+        | Module(items) => mod_members([name], items)
+        | _ => []
+        };
+      [entry] @ members @ spine(body);
     | _ => spine(body)
     }
-  | TyAlias(tpat, ty, body) => [IAlias(e, tpat, ty), ...spine(body)]
+  | TyAlias(tpat, ty, body) => [
+      top(
+        IAlias(Some(Exp.rep_id(e)), doc_of_fwd^(e.annotation), tpat, ty),
+      ),
+      ...spine(body),
+    ]
   | Seq(s, body) =>
     let s = strip_exp(s);
     switch (s.term) {
-    | Test(b) => [ITest(s, b), ...spine(body)]
-    | HintedTest(b, _) => [ITest(s, b), ...spine(body)]
+    | Test(b) => [top(ITest(s, b)), ...spine(body)]
+    | HintedTest(b, _) => [top(ITest(s, b)), ...spine(body)]
     | _ => spine(body)
     };
-  | Test(b) => [ITest(e, b)]
-  | HintedTest(b, _) => [ITest(e, b)]
-  | _ => [IResult(e)]
+  | Test(b) => [top(ITest(e, b))]
+  | HintedTest(b, _) => [top(ITest(e, b))]
+  | _ => [top(IResult(e))]
   };
 };
 
@@ -371,6 +461,7 @@ let doc_of = (e_annotation: Language.IdTagged.IdTag.t): option(string) => {
   | cs => Some(String.concat(" ", cs))
   };
 };
+doc_of_fwd := doc_of;
 
 /* ---------- function anatomy (probe-sample anchors) ---------- */
 
@@ -515,6 +606,20 @@ let err_owner =
   };
 };
 
+/* path-qualified key: Geo.Dist.manhattan */
+let qname = (path: list(string), name: string): string =>
+  String.concat(".", path @ [name]);
+
+/* scan a module's (statics-expanded, labeled-product) type for a member */
+let rec sig_members = (t: Typ.t): list((string, Typ.t)) =>
+  switch (t.term) {
+  | Parens(t)
+  | Projector(_, t) => sig_members(t)
+  | Prod(xs) => List.concat_map(sig_members, xs)
+  | TupLabel({term: Label(l), _}, t) => [(l, t)]
+  | _ => []
+  };
+
 /* ---------- assembly ---------- */
 
 let extract =
@@ -528,7 +633,7 @@ let extract =
   let result_ctx: option(Ctx.t) =
     List.find_map(
       fun
-      | IResult(e) =>
+      | ([], IResult(e)) =>
         switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
         | Some(info) => Some(Info.ctx_of(info))
         | None => None
@@ -542,16 +647,65 @@ let extract =
       Ctx.lookup_var(ctx, name) |> Option.map((v: Ctx.var_entry) => v.typ)
     | None => None
     };
+  /* member types come from the enclosing module's labeled-product type,
+     walked down the path */
+  let lookup_path_type = (path: list(string), name: string): option(Typ.t) =>
+    switch (path) {
+    | [] => lookup_type(name)
+    | [root, ...rest] =>
+      List.fold_left(
+        (acc, seg) =>
+          Option.bind(acc, mty => List.assoc_opt(seg, sig_members(mty))),
+        lookup_type(root),
+        rest @ [name],
+      )
+    };
+  /* internal type aliases, per path — references to them from member
+     signatures resolve to the qualified node (nearest enclosing scope) */
+  let internal_aliases: list((list(string), string)) =
+    List.filter_map(
+      fun
+      | (path, IAlias(_, _, tpat, _)) when path != [] =>
+        switch (tpat.term) {
+        | Var(n) => Some((path, n))
+        | _ => None
+        }
+      | _ => None,
+      items,
+    );
+  let rec resolve_internal = (path: list(string), k: string): option(string) =>
+    if (List.mem((path, k), internal_aliases)) {
+      Some(qname(path, k));
+    } else {
+      switch (List.rev(path)) {
+      | [] => None
+      | [_, ...rev_parent] => resolve_internal(List.rev(rev_parent), k)
+      };
+    };
+  /* qualified ty_ref: internal alias names map to their qualified keys */
+  let ty_ref_at =
+      (~path: list(string), ~anchor: string, ty: Typ.t): (string, node_kind) => {
+    let (k, kind) = ty_ref(~anchor, ty);
+    switch (kind) {
+    | Alias
+    | Ghost =>
+      switch (resolve_internal(path, k)) {
+      | Some(q) => (q, kind)
+      | None => (k, kind)
+      }
+    | _ => (k, kind)
+    };
+  };
 
   /* Error ownership roots: the disjoint payload subtree of each item. */
   let item_root = (item: item): option(Id.t) =>
     switch (item) {
-    | IAlias(_, _, ty) => Some(Typ.rep_id(ty))
-    | ILet(_, _, def) => Some(Exp.rep_id(def))
+    | IAlias(_, _, _, ty) => Some(Typ.rep_id(ty))
+    | ILet(_, _, _, def) => Some(Exp.rep_id(def))
     | ITest(_, body) => Some(Exp.rep_id(body))
     | IResult(_) => None
     };
-  let roots = List.filter_map(item_root, items);
+  let roots = List.filter_map(((_, it)) => item_root(it), items);
   let err_roots: list(Id.t) =
     statics.error_ids
     |> List.filter_map(err_owner(~info_map, ~roots))
@@ -562,11 +716,12 @@ let extract =
     | None => false
     };
 
-  /* Aliases, in program order. */
+  /* Aliases, in program order (module-internal ones get qualified keys,
+     bare labels, and their module path). */
   let alias_nodes: list(tynode) =
     List.filter_map(
       fun
-      | IAlias(term, tpat, ty) => {
+      | (path, IAlias(anchor, doc, tpat, ty)) => {
           let name =
             switch (tpat.term) {
             | Var(n) => n
@@ -577,17 +732,23 @@ let extract =
             | Unknown(_) => true
             | _ => false
             };
+          let deps =
+            List.sort_uniq(compare, ty_vars(ty))
+            |> List.map(d =>
+                 Option.value(resolve_internal(path, d), ~default=d)
+               );
           Some(
             mk_node(
-              ~n_id=Some(Exp.rep_id(term)),
+              ~n_id=anchor,
+              ~m_path=path,
               ~kind=is_hole ? Ghost : Alias,
               ~ctrs=ctr_names(ty),
               ~n_ty=is_hole ? None : Some(pretty_ty(ty)),
-              ~n_doc=doc_of(term.annotation),
+              ~n_doc=doc,
               ~n_err=root_has_err(Some(Typ.rep_id(ty))),
-              ~deps=List.sort_uniq(compare, ty_vars(ty)),
+              ~deps,
               ~label=name,
-              name,
+              path == [] ? name : qname(path, name),
             ),
           );
         }
@@ -634,8 +795,8 @@ let extract =
      ([Todo], Int) reads Todo ┈▶ [] ┈▶ () ┈▶ Model. The replaced deps
      go to hidden_deps (still ordering the columns, no longer drawn). */
   let expanded_aliases: Hashtbl.t(string, unit) = Hashtbl.create(8);
-  let resolve_former_comp = (~former_key, ~anchor, comp: Typ.t): string => {
-    let (k, kind) = ty_ref(~anchor, comp);
+  let resolve_former_comp = (~path, ~former_key, ~anchor, comp: Typ.t): string => {
+    let (k, kind) = ty_ref_at(~path, ~anchor, comp);
     switch (kind) {
     | Builtin =>
       ensure_sat(~anchor_key=former_key, ~output=false, ~dup=former_key, k)
@@ -646,21 +807,23 @@ let extract =
   };
   List.iter(
     fun
-    | IAlias(_, tpat, ty) => {
+    | (path, IAlias(_, _, tpat, ty)) => {
         let name =
           switch (tpat.term) {
           | Var(n) => n
           | _ => "?"
           };
+        let key = path == [] ? name : qname(path, name);
         switch (unwrap_ty(ty).term) {
         | Prod(comps) when List.length(comps) > 1 =>
-          let former_key = "()@" ++ name;
+          let former_key = "()@" ++ key;
           let parts =
             List.mapi(
               (i, c) =>
                 resolve_former_comp(
+                  ~path,
                   ~former_key,
-                  ~anchor=name ++ "c" ++ string_of_int(i),
+                  ~anchor=key ++ "c" ++ string_of_int(i),
                   c,
                 ),
               comps,
@@ -668,27 +831,29 @@ let extract =
           ensure(
             mk_node(
               ~kind=Product,
+              ~m_path=path,
               ~label="()",
               ~parts,
-              ~sat=Some((name, false)),
+              ~sat=Some((key, false)),
               former_key,
             ),
           );
-          Hashtbl.replace(expanded_aliases, name, ());
+          Hashtbl.replace(expanded_aliases, key, ());
         | List(el) =>
-          let former_key = "[]@" ++ name;
+          let former_key = "[]@" ++ key;
           let part =
-            resolve_former_comp(~former_key, ~anchor=name ++ "el", el);
+            resolve_former_comp(~path, ~former_key, ~anchor=key ++ "el", el);
           ensure(
             mk_node(
               ~kind=Product,
+              ~m_path=path,
               ~label="[]",
               ~parts=[part],
-              ~sat=Some((name, false)),
+              ~sat=Some((key, false)),
               former_key,
             ),
           );
-          Hashtbl.replace(expanded_aliases, name, ());
+          Hashtbl.replace(expanded_aliases, key, ());
         | _ => ()
         };
       }
@@ -700,6 +865,7 @@ let extract =
   let bindings:
     list(
       (
+        list(string),
         string,
         Id.t,
         Typ.t,
@@ -714,8 +880,7 @@ let extract =
     ) =
     List.concat_map(
       fun
-      | ILet(term, pat, def) => {
-          let doc = doc_of(term.annotation);
+      | (path, ILet(anchor, doc, pat, def)) => {
           let err = root_has_err(Some(Exp.rep_id(def)));
           let hole = exp_has_hole(def);
           /* module literals get a {} former node instead of their
@@ -728,11 +893,12 @@ let extract =
           let anatomy = fun_anatomy(~pat, def);
           pat_names(pat)
           |> List.filter_map(name =>
-               lookup_type(name)
+               lookup_path_type(path, name)
                |> Option.map(ty =>
                     (
+                      path,
                       name,
-                      Exp.rep_id(term),
+                      Option.value(anchor, ~default=Exp.rep_id(def)),
                       ty,
                       doc,
                       err,
@@ -753,8 +919,8 @@ let extract =
   let all_uses: list(string) =
     List.concat_map(
       fun
-      | ILet(_, _, def) => exp_vars(def)
-      | IResult(e) => exp_vars(e)
+      | (_, ILet(_, _, _, def)) => exp_vars(def)
+      | (_, IResult(e)) => exp_vars(e)
       | _ => [],
       items,
     );
@@ -762,13 +928,14 @@ let extract =
     List.length(List.filter(u => u == name, all_uses));
 
   let binding_names =
-    List.map(((n, _, _, _, _, _, _, _, _, _)) => n, bindings);
+    List.map(((_, n, _, _, _, _, _, _, _, _, _)) => n, bindings);
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
       (
         (es, vs),
         (
+          path,
           name,
           id,
           ty,
@@ -781,19 +948,35 @@ let extract =
           def,
         ),
       ) => {
+        let qn = path == [] ? name : qname(path, name);
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
           let (v_key, v_kind) =
             is_mod
-              ? ("{}" ++ "@" ++ name, Product) : ty_ref(~anchor=name, ty);
-          ensure_grid(v_key, v_kind);
+              ? ("{}" ++ "@" ++ qn, Product)
+              : ty_ref_at(~path, ~anchor=qn, ty);
+          if (is_mod) {
+            /* the module former carries its OWN path (hull center) */
+            ensure(
+              mk_node(
+                ~kind=Product,
+                ~m_path=path @ [name],
+                ~label="{}",
+                v_key,
+              ),
+            );
+          } else {
+            ensure_grid(v_key, v_kind);
+          };
           (
             es,
             vs
             @ [
               {
-                v_name: name,
+                v_name: qn,
+                v_label: name,
+                m_path: path,
                 v_id: id,
                 v_key,
                 v_ty: pretty_ty(ty),
@@ -806,16 +989,16 @@ let extract =
           /* input node: single component, or a shared Product */
           let comp_refs =
             List.mapi(
-              (i, a) => ty_ref(~anchor=name ++ string_of_int(i), a),
+              (i, a) => ty_ref_at(~path, ~anchor=qn ++ string_of_int(i), a),
               args,
             );
-          let (ret_key, ret_kind) = ty_ref(~anchor=name ++ "r", ret);
+          let (ret_key, ret_kind) = ty_ref_at(~path, ~anchor=qn ++ "r", ret);
           let input_key =
             switch (comp_refs) {
             | [(k, Builtin)] when ret_kind != Builtin =>
               /* single builtin arg: terminal docked to the result node */
               ensure_grid(ret_key, ret_kind);
-              ensure_sat(~anchor_key=ret_key, ~output=false, ~dup=name, k);
+              ensure_sat(~anchor_key=ret_key, ~output=false, ~dup=qn, k);
             | [(k, kind)] =>
               ensure_grid(k, kind);
               k;
@@ -870,7 +1053,7 @@ let extract =
               ensure_sat(
                 ~anchor_key=input_key,
                 ~output=true,
-                ~dup=name,
+                ~dup=qn,
                 ret_key,
               )
             | _ =>
@@ -881,7 +1064,9 @@ let extract =
             es
             @ [
               {
-                e_name: name,
+                e_name: qn,
+                e_label: name,
+                m_path: path,
                 e_id: id,
                 e_ty: pretty_ty(ty),
                 e_src: input_key,
@@ -889,7 +1074,7 @@ let extract =
                 e_doc: doc,
                 e_err: err,
                 e_hole: hole,
-                main: use_count(name) >= 2,
+                main: path == [] && use_count(name) >= 2,
                 tests: [],
                 e_arg_ids: arg_ids,
                 e_whole_ids: whole_ids,
@@ -917,7 +1102,7 @@ let extract =
     };
   let (edge_tests, loose_tests) =
     List.fold_left(
-      ((et, lt), item) =>
+      ((et, lt), (_, item)) =>
         switch (item) {
         | ITest(term, body) =>
           let t_id = Exp.rep_id(term);
@@ -949,20 +1134,24 @@ let extract =
 
   let last_def =
     List.fold_left(
-      (acc, item) =>
-        switch (item) {
-        | IAlias(term, tpat, _) =>
-          switch (tpat.term) {
-          | Var(n) => Some((n, Exp.rep_id(term)))
-          | _ => acc
-          }
-        | ILet(term, pat, _) =>
-          switch (pat_names(pat)) {
-          | [n, ..._] => Some((n, Exp.rep_id(term)))
-          | [] => acc
-          }
-        | _ => acc
-        },
+      (acc, (path, item)) =>
+        path != []
+          ? acc
+          : (
+            switch (item) {
+            | IAlias(Some(id), _, tpat, _) =>
+              switch (tpat.term) {
+              | Var(n) => Some((n, id))
+              | _ => acc
+              }
+            | ILet(Some(id), _, pat, _) =>
+              switch (pat_names(pat)) {
+              | [n, ..._] => Some((n, id))
+              | [] => acc
+              }
+            | _ => acc
+            }
+          ),
       None,
       items,
     );
