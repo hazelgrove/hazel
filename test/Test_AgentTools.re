@@ -3018,7 +3018,7 @@ let error_print_tests = (
         let z = mk_zipper("let a : Int = true in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has errors", true, List.length(errors) > 0);
+        check(bool, "has errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
@@ -3028,7 +3028,7 @@ let error_print_tests = (
         let z = mk_zipper("let a = xyz in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has unbound errors", true, List.length(errors) > 0);
+        check(bool, "has unbound errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
