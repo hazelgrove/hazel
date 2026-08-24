@@ -341,16 +341,6 @@ type pulse = {
 let pulses: ref(list(pulse)) = ref([]);
 let pulse_ms = 650.;
 
-/* removal rings: the field dip alone is motion-only and gets masked by
-   the simultaneous layout reflow, so removals also draw an explicit
-   contracting circle — water closing over a sink point */
-type ring = {
-  ring_p: (float, float), /* model coords */
-  ring_t0: float,
-};
-let rings: ref(list(ring)) = ref([]);
-let ring_ms = 600.;
-
 let bezier =
     (
       ((x0, y0), (x1, y1), (x2, y2), (x3, y3)): (
@@ -589,7 +579,7 @@ let rec draw = (): unit => {
     };
     last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (sim_active^ || pulses^ != [] || rings^ != [] || geom != last_geom^) {
+    if (sim_active^ || pulses^ != [] || geom != last_geom^) {
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -765,42 +755,9 @@ let rec draw = (): unit => {
         },
         live_pulses,
       );
-      rings := List.filter((r: ring) => t -. r.ring_t0 < ring_ms, rings^);
-      List.iter(
-        (rg: ring) => {
-          let age = (t -. rg.ring_t0) /. ring_ms;
-          let (mx, my) = rg.ring_p;
-          let (cx, cy) = model_to_content((mx, my));
-          let sx = cx -. sl
-          and sy = cy -. st;
-          let radius = 40. *. (1. -. age) *. z;
-          let a = 0.55 *. (1. -. age) *. fade1(sx, mw) *. fade1(sy, mh);
-          if (a > 0.02 && radius > 0.5) {
-            Js.Unsafe.coerce(ctx)##.globalAlpha := a;
-            Js.Unsafe.coerce(ctx)##.strokeStyle := Js.string(fill);
-            Js.Unsafe.coerce(ctx)##.lineWidth := 1.3;
-            let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
-            let _ =
-              Js.Unsafe.meth_call(
-                ctx,
-                "arc",
-                [|
-                  Js.Unsafe.inject(sx),
-                  Js.Unsafe.inject(sy),
-                  Js.Unsafe.inject(radius),
-                  Js.Unsafe.inject(0.),
-                  Js.Unsafe.inject(2. *. Float.pi),
-                |],
-              );
-            let _ = Js.Unsafe.meth_call(ctx, "stroke", [||]);
-            ();
-          };
-        },
-        rings^,
-      );
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
     };
-    if (sim_active^ || pulses^ != [] || rings^ != [] || zoom_settling) {
+    if (sim_active^ || pulses^ != [] || zoom_settling) {
       if (! raf_running^) {
         raf_running := true;
       };
@@ -862,15 +819,13 @@ let splash = (~amp: float=default_amp, (x, y): (float, float)): unit => {
 
 let suction = ((x, y): (float, float)): unit => {
   let (cx, cy) = model_to_content((x, y));
-  deposit(cx, cy, -10.);
-  rings :=
-    [
-      {
-        ring_p: (x, y),
-        ring_t0: now(),
-      },
-      ...rings^,
-    ];
+  /* wide + strong: a narrow sim front is sub-visible at a removal site
+     (no node anchors the eye there, and the reflow moves everything
+     else); v1's analytic band was 46px wide at up to 9px displacement */
+  let sg = deposit_sigma^;
+  deposit_sigma := 3.6;
+  deposit(cx, cy, -14.);
+  deposit_sigma := sg;
   request_draw();
 };
 suction_fwd := suction;
