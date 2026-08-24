@@ -576,34 +576,40 @@ module View = {
       /* Cache for paste reuse only when nothing was trimmed: a trimmed
          sub-token string must re-parse on paste, not round-trip to the
          full segment. */
-      if (str == full && !selection_has_refractors(z.refractors, segment)) {
-        Haz3lcore.Parser.set_segment_cache(Some(segment), str);
-      };
-      JsUtil.write_clipboard(str);
+      let cache_for_paste =
+        str == full && !selection_has_refractors(z.refractors, segment)
+          ? Effect.of_sync_fun(
+              () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
+              (),
+            )
+          : Effect.Ignore;
+      Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
     let paste_from_clipboard = () =>
-      JsUtil.read_clipboard(text => {
-        let action =
-          Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-        Bonsai.Effect.Expert.handle(inject(Perform(action)));
-      });
+      Effect.bind(JsUtil.read_clipboard(), ~f=text =>
+        inject(
+          Perform(
+            Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text)),
+          ),
+        )
+      );
     /* Inject for context-menu rows. Clipboard rows need view-layer side
        effects the core can't perform: Copy/Cut write the system clipboard
        before dispatch, and PasteFromClipboard starts an async read whose
        result is dispatched as the real Paste, closing the menu
-       immediately. Runs at event-firing time (see Menu.pointerdown_attr),
-       like the keyboard clipboard handlers below. */
+       immediately. Both are Effects, so the clipboard is touched when the
+       row fires rather than when its Effect is built. */
     let perform_from_menu = (c: ContextMenu.command): Ui_effect.t(unit) =>
       switch (c) {
       | Perform(Copy) =>
-        copy_selection();
-        inject(Perform(Copy));
+        Effect.Many([copy_selection(), inject(Perform(Copy))])
       | Perform(Cut) =>
-        copy_selection();
-        inject(Perform(Cut));
+        Effect.Many([copy_selection(), inject(Perform(Cut))])
       | PasteFromClipboard =>
-        paste_from_clipboard();
-        inject(ContextMenu(ContextMenu.Model.Close));
+        Effect.Many([
+          paste_from_clipboard(),
+          inject(ContextMenu(ContextMenu.Model.Close)),
+        ])
       | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
@@ -995,8 +1001,11 @@ module View = {
               alt: Up,
               _,
             } =>
-            copy_selection();
-            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+            Effect.Many([
+              copy_selection(),
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+            ])
           | {
               key: D("x" | "X"),
               sys: Mac,
@@ -1015,12 +1024,12 @@ module View = {
               alt: Up,
               _,
             } =>
-            copy_selection();
             Effect.Many([
+              copy_selection(),
               Effect.Prevent_default,
               Effect.Stop_propagation,
               inject(Perform(Destruct(Right))),
-            ]);
+            ])
           | {
               key: D("v" | "V"),
               sys: Mac,
@@ -1039,8 +1048,11 @@ module View = {
               alt: Up,
               _,
             } =>
-            paste_from_clipboard();
-            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+            Effect.Many([
+              paste_from_clipboard(),
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+            ])
           | _ =>
             /* 3. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
