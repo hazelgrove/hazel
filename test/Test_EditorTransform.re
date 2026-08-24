@@ -894,10 +894,11 @@ let tests = (
         check_contains(~msg="the body survives", out, "8 / n == 8 / n");
         /* Reparse: the statement is a restricted binder now. */
         switch (find_theorem_stmt(parse_exp(out))) {
-        | Some({term: ForallWhere(_, _, _), _}) => ()
+        /* `forall p where g -> _` is `Forall(Where(p, g), _)`. */
+        | Some({term: Forall(p, _), _}) when Exp.pat_guard(p) != None => ()
         | Some(other) =>
           Alcotest.fail(
-            "expected a ForallWhere statement, got: " ++ Exp.show(other),
+            "expected a restricted forall statement, got: " ++ Exp.show(other),
           )
         | None => Alcotest.fail("no statement after patch: " ++ out)
         };

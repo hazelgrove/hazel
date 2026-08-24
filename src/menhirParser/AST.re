@@ -147,14 +147,12 @@ and exp =
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, proof, exp)
+  /* `fun p where g -> e` is `Fun(WherePat(p, g), e)` and
+     `forall p where g -> e` is `ForallExp(WherePat(p, g), e)`: the
+     restriction rides on the binder's PATTERN, so there are no dedicated
+     constructors. */
   | Fun(pat, exp, option(string))
-  /* `fun p where g -> e` (Grammar.re FunWhere): the guard is proof-layer
-     metadata with no dynamic effect, but it is program text, so the
-     parser keeps it. */
-  | FunWhereExp(pat, exp, exp)
   | ForallExp(pat, exp)
-  /* `forall p where g -> e` (Grammar.re ForallWhere). */
-  | ForallWhereExp(pat, exp, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
   | ExplicitNonlabel
@@ -1142,8 +1140,6 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         /* Not produced by gen_exp_sized (the prover forms are hand-written
            test inputs only), so there is nothing to shrink towards. */
-        | FunWhereExp(_)
-        | ForallWhereExp(_)
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)

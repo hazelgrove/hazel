@@ -114,8 +114,6 @@ module Utils = {
     | ExplicitNonlabel
     | Theorem(_, _, _, _)
     | Forall(_, _)
-    | ForallWhere(_, _, _)
-    | FunWhere(_, _, _)
     | Projector(_, _)
     | Var(_)
     | Module(_) => []

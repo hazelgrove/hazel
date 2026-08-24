@@ -1860,7 +1860,7 @@ let clippable_guard_tests = {
            guard's contract the decision was RE-MADE rather than the
            number blindly bumped, and `clippable_sort` is unchanged
            (pinned by the next test): an Exp frontier is still vacuous
-           (69 of 106 labels carry an Exp mold), while Pat/TPat/Typ are
+           (68 of 106 labels carry an Exp mold), while Pat/TPat/Typ are
            still the narrow, meaningful ones.
 
            Of the denominator's +3 since the previous pin, three are the
@@ -1869,8 +1869,20 @@ let clippable_guard_tests = {
            naming"). Those are Proof-sorted, so they move only the
            DENOMINATOR. The numerator drift (Exp 67->69, Typ 14->13) and
            the rest of the denominator predate that change — this
-           snapshot had gone stale without being repinned. */
-        "Exp 69/106 | Pat 8/106 | Typ 13/106 | TPat 2/106 | Rul 1/106",
+           snapshot had gone stale without being repinned.
+
+           Repinned 2026-08-24 (Exp 69->68, Pat 8->9). `where` became a
+           PATTERN constructor and the two dedicated binder tiles
+           `["fun","where","->"]` / `["forall","where","->"]` were
+           deleted, since `fun p where g -> e` is now just `Fun` of a
+           guarded pattern (docs/prover-obligations.md §2.2). Net on the
+           table: two Exp-sorted labels out, one Pat+Exp-sorted label
+           (`["where"]`) in. The decision was RE-MADE, not bumped: an Exp
+           frontier is still vacuous (68 of 106), and `where` makes
+           Pat one label LESS narrow, which strengthens rather than
+           weakens the case for clipping Pat. `clippable_sort` is
+           unchanged (pinned by the next test). */
+        "Exp 68/106 | Pat 9/106 | Typ 13/106 | TPat 2/106 | Rul 1/106",
         table,
       )
     ),

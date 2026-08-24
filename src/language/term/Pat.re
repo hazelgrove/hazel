@@ -258,7 +258,8 @@ let rec get_num_of_vars = (pat: t) =>
    guarded arm is not a case split, so it is dropped from the coverage
    matrix rather than counted as covering its constructor. Single-pattern
    binders (`fun` / `let` / `forall`) treat `where` as transparent
-   instead, matching what FunWhere / ForallWhere already do. */
+   instead: a guard there narrows the binder's domain, it does not
+   split a scrutinee. */
 let rec is_guarded = (p: t): bool =>
   switch (p |> term_of) {
   | Where(_, _) => true

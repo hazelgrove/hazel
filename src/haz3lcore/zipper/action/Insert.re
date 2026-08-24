@@ -156,53 +156,10 @@ let insert_shard_core =
   };
 };
 
-/* `forall p where g -> e` (ForallWhere) and `fun p where g -> e`
- * (FunWhere) share their leading token with plain Forall / Fun, and the
- * expansion machinery necessarily resolves the ambiguity at
- * "forall"/"fun"-typing time in favor of the two-shard label. When the
- * token "where" materializes and the lexically-closest incomplete tile
- * to the left is a `forall`/`fun` still missing its "->", upgrade that
- * tile's label to the three-shard where-form; the "where" (and, later,
- * the "->") then land through the ordinary missing-shard machinery. */
-let upgrade_forall_where = (z: t): t => {
-  let (pre, suf) = z.relatives.siblings;
-  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
-    switch (rev_pre) {
-    | [] => None
-    | [
-        Tile(
-          {label: ["forall" | "fun", "->"] as l, shards: [0], _} as tile,
-        ),
-        ...rest,
-      ] =>
-      let label = [List.hd(l), "where", "->"];
-      let mold = Form.Molds.get(Sort.Exp, label);
-      Some([
-        Piece.Tile({
-          ...tile,
-          label,
-          mold,
-        }),
-        ...rest,
-      ]);
-    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
-    };
-  switch (go(List.rev(pre))) {
-  | Some(rev_pre') => {
-      ...z,
-      relatives: {
-        ...z.relatives,
-        siblings: (List.rev(rev_pre'), suf),
-      },
-    }
-  | None => z
-  };
-};
-
 /* Phase-4d `with` clauses on citation steps: `axiom`/`axiomrev`/`revert`
  * — and, from Phase 4e's explicit-substitution rework, `contradiction`
  * — each have a with-variant form sharing their leading token, so —
- * exactly as for ForallWhere above — the expansion machinery resolves
+ * the expansion machinery resolves
  * the leading token in favor of the plain label and the "with" token
  * must upgrade the tile after the fact. The scan stops at the FIRST
  * incomplete tile to the left: `rewrite <e> with ...` (ProofAlgebrite)
@@ -355,7 +312,6 @@ let insert_shard =
       ~root,
     )
     : t => {
-  let z = t == "where" ? upgrade_forall_where(z) : z;
   let z =
     t == "with" && Zipper.find_missing_shard(t, z) == None
       ? upgrade_with_clause(z) : z;

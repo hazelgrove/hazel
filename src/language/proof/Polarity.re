@@ -462,12 +462,10 @@ let unhandled_reason = (e: Exp.t): string =>
    * fact — stated in the outer vocabulary — cannot refer to. Untangling
    * that is a scoping feature, not a polarity one. Refuse in v1. */
   | Fun(_)
-  | FunWhere(_)
   | TypFun(_)
   | FixF(_)
   | Let(_)
   | Forall(_)
-  | ForallWhere(_)
   | TyAlias(_)
   | Module(_)
   | ModuleExp(_) => "under a binder: the position's variables are not in the directed fact's vocabulary (v1 refuses)"

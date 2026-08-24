@@ -4,8 +4,9 @@ open Test_Evaluator_Prelude;
 
 /* Phase 3b: function contracts (docs/prover-obligations.md §2.2).
  *
- * `fun p where g -> e` (FunWhere) has two proof-layer effects and NO
- * dynamic effect:
+ * `fun p where g -> e` is `Fun(Where(p, g), e)` -- the contract rides on
+ * the PARAMETER PATTERN (Grammar.re Pat.Where). It has two proof-layer
+ * effects:
  *   - definition-time discharge: the body's domain conditions are
  *     checked against the guard once, at the definition
  *     (ProofCheck.definition_obligations);
@@ -58,17 +59,33 @@ let is_remote: Obligation.discharge => bool =
   | Obligation.Remote(_) => true
   | _ => false;
 
-/* --- Dynamics: the guard has no dynamic effect ------------------------ */
+/* --- Dynamics: the guard FILTERS the application ---------------------- */
 
-/* A FunWhere applies exactly like the corresponding Fun — including on
- * arguments OUTSIDE the contract (no runtime enforcement in v1,
- * Grammar.re). */
+/* `where` and `when` are the same construct (Grammar.re Pat.Where): the
+ * parameter pattern only matches an argument satisfying the guard. On a
+ * contract-satisfying argument the function applies exactly like the
+ * corresponding plain `fun`; OFF the contract the match fails and the
+ * application is Indet — the body never runs, so no `err`. */
 let test_funwhere_applies_like_fun = () => {
   parse_and_evaluate_test(
-    ~msg="contract fun applies like fun",
+    ~msg="on-contract argument: applies like fun",
     "50",
     "(fun x where x != 0 -> 100 / x)(2)",
   );
+};
+
+let test_funwhere_off_contract_is_indet = () => {
+  let result =
+    parse_exp("(fun x where x != 0 -> 100 / x)(0)") |> elaborate |> evaluate;
+  switch (result |> Exp.term_of) {
+  | Ap(_, _, _) => ()
+  | other =>
+    Alcotest.fail(
+      "off-contract application should be a stuck Ap (the body must not "
+      ++ "run), got: "
+      ++ Exp.show(Exp.fresh(other)),
+    )
+  };
 };
 
 /* --- Caller-vocabulary contract obligations (§2.2) -------------------- */
@@ -321,9 +338,14 @@ let tests = (
   "Evaluator.FunContracts",
   [
     test_case(
-      "FunWhere applies like Fun (guard has no dynamic effect)",
+      "on-contract application runs the body",
       `Quick,
       test_funwhere_applies_like_fun,
+    ),
+    test_case(
+      "off-contract application is Indet (body never runs)",
+      `Quick,
+      test_funwhere_off_contract_is_indet,
     ),
     test_case(
       "contract use emits the instantiated guard, caller vocabulary",

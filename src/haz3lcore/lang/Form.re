@@ -393,8 +393,6 @@ type compound_form =
   | TypFun
   | Poly
   | Forall
-  | ForallWhere
-  | FunWhere
   | Rec
   | Rule
   | Pipeline
@@ -537,12 +535,10 @@ let get: compound_form => t =
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
+  /* `forall p where g -> e` needs NO dedicated tile: the restriction is
+   * the infix pattern `where` (PatWhere) inside this form's Pat slot, so
+   * the binder is `Forall(Where(p, g), e)`. Same for `fun` above. */
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
-  /* Restricted binder: `forall p where g -> e` (docs/prover-obligations.md
-   * §2.2). A distinct form, not desugared — program text is truth. */
-  | ForallWhere =>
-    mk_pre_c(L, ["forall", "where", "->"], P.fun_, Exp, [Pat, Exp])
-  | FunWhere => mk_pre_c(L, ["fun", "where", "->"], P.fun_, Exp, [Pat, Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
@@ -595,7 +591,7 @@ let get: compound_form => t =
    * naming"). Auto-installed facts take FIXED names and SHADOW, so these
    * `as`/`alias` forms are how a fact stays citable past a shadowing
    * re-introduction. They sit BESIDE the unnamed forms, the same choice
-   * `ForallWhere` and `ProofRevertWith` make.
+   * `ProofRevertWith` makes.
    *
    * `assume <exp> as <name> => <proof>`. */
   | ProofAssumeAs =>
@@ -618,7 +614,7 @@ let get: compound_form => t =
     mk_op_c(L, ["axiomrev", "at", "on", "end"], Proof, [Exp, Exp, Exp])
   /* Phase-4d explicit-instantiation variants (docs/prover-obligations.md
    * open item 3). These sit BESIDE the plain forms rather than making
-   * them variadic — the same choice as `ForallWhere` beside `Forall`.
+   * them variadic.
    * `revert <fact> with <var> = <exp> => <proof>` and
    * `axiom <name> with <var> = <exp> at <idx> on <target> end`. v1 takes
    * exactly one binding per step. */
@@ -834,34 +830,13 @@ module Molds = {
     (t: Token.t) =>
       List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
 
-  /* The InfixDelimiterPrefix molds are a LAST-RESORT backup infix mode
-     (see `infix_delimiter_ops_prefixes`): they exist so that typing the
-     `in` of a let doesn't flicker between operand and operator. They must
-     never shadow a real form's mold for the same token, which is possible
-     for a token that is BOTH a single-token infix form and a prefix of an
-     alphanumeric non-leading delimiter — `where` (infix pattern guard,
-     plus the `fun _ where _ -> _` / `forall _ where _ -> _` shards) is
-     the first such token. So we split them out and re-append them after
-     the compound molds in `get_base`. */
-  let atomic_backup: Token.t => list(Mold.t) =
-    (t: Token.t) =>
-      is_infix_delimiter_op_prefix(t)
-        ? snd(get_atomic_form(InfixDelimiterPrefix)) : [];
-
-  let atomic_primary: Token.t => list(Mold.t) =
-    (t: Token.t) => {
-      let backup = atomic_backup(t);
-      atomic(t) |> List.filter(m => !List.mem(m, backup));
-    };
-
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
   /* Base: get molds from form definitions without sort filtering */
   let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] =>
-      atomic_primary(t) @ molds @ atomic_backup(t)
+    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     | _ => []

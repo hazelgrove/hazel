@@ -191,10 +191,10 @@ let check =
     | Var(_) => Ok()
     /* A lambda is total exactly when its body is, with the parameters
      * assumed total. No "it's a value, don't look" shortcut: that would
-     * make `fun x -> omega(x)` total. A FunWhere is a function value
-     * like Fun (its guard has no dynamic effect, Grammar.re). */
+     * make `fun x -> omega(x)` total. A parameter's `where` guard is
+     * irrelevant here: it can only make the function match FEWER
+     * arguments, never diverge. */
     | Fun(p, body, _, _) => go(~assumed=bind_total(assumed, p), body)
-    | FunWhere(p, _, body) => go(~assumed=bind_total(assumed, p), body)
     | TypFun(_, body, _) => go(~assumed, body)
     /* Recursion: tier 2 (§4.1). A structurally recursive fix unrolls
      * to its body with itself (a total value, by the structural
@@ -276,12 +276,6 @@ let check =
     | Asc(e1, _)
     | Closure(_, e1) => go_ap(~assumed, ~depth, e1)
     | Fun(p, body, _, _) =>
-      let assumed = bind_total(assumed, p);
-      depth <= 1
-        ? go(~assumed, body) : go_ap(~assumed, ~depth=depth - 1, body);
-    /* Application drops the contract guard (no dynamic effect), so
-     * totality of the application is totality of the body. */
-    | FunWhere(p, _, body) =>
       let assumed = bind_total(assumed, p);
       depth <= 1
         ? go(~assumed, body) : go_ap(~assumed, ~depth=depth - 1, body);

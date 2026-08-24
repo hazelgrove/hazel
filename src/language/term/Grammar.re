@@ -41,17 +41,11 @@ and exp_term('a) =
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
+  /* `fun p where g -> e` is `Fun(Where(p, g), e)` -- the function
+     contract (docs/prover-obligations.md §2.2) is carried by the
+     PARAMETER PATTERN, not by a dedicated node. See `Pat.Where` below
+     for what `where` means. */
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
-  /* Function contract `fun p where g -> e` (docs/prover-obligations.md
-     §2.2). The guard `g` is a boolean over the parameter. It has NO
-     dynamic effect in v1: a FunWhere evaluates exactly like the
-     corresponding Fun (the guard is proof-layer metadata — definition-time
-     discharge + caller-vocabulary obligations). Runtime contract
-     enforcement would change program behavior (an off-guard call would
-     error instead of running) and is a separate, future feature. Kept
-     distinct from Fun for the same reason ForallWhere is kept distinct
-     from Forall: program text is truth. */
-  | FunWhere(pat_t('a), exp_t('a), exp_t('a))
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
@@ -62,12 +56,11 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
+  /* `forall p where g -> e` is `Forall(Where(p, g), e)`: the restriction
+     rides on the binder PATTERN. The equivalence with
+     `forall p -> g ==> e` lives in the checker/rule reading
+     (ProofRule.exp_to_rule / ProofCheck). */
   | Forall(pat_t('a), exp_t('a))
-  /* Restricted binder `forall p where g -> e` (docs/prover-obligations.md
-     §2.2). Kept distinct from Forall — program text is truth; the
-     equivalence with `forall p -> g ==> e` lives in the checker/rule
-     reading (ProofRule.exp_to_rule / ProofCheck). */
-  | ForallWhere(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -126,10 +119,10 @@ and pat_term('a) =
          runtime filter is what makes that sound: you only enter the
          body when `g` holds.
 
-     The dedicated `fun p where g -> e` (FunWhere) and
-     `forall p where g -> e` (ForallWhere) tiles remain distinct nodes
-     with the same meaning as `Fun(Where(p, g), e)` /
-     `Forall(Where(p, g), e)` -- program text is truth. */
+     There is no dedicated `fun _ where _ -> _` / `forall _ where _ -> _`
+     node or tile: those spellings ARE `Fun(Where(p, g), e)` /
+     `Forall(Where(p, g), e)`, produced by the ordinary `fun`/`forall`
+     tile with this infix in its Pat slot. */
   | Where(pat_t('a), exp_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
@@ -379,18 +372,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
-        | ForallWhere(p, g, e) =>
-          ForallWhere(
-            map_pat_annotation(f, p),
-            map_exp_annotation(f, g),
-            map_exp_annotation(f, e),
-          )
-        | FunWhere(p, g, e) =>
-          FunWhere(
-            map_pat_annotation(f, p),
-            map_exp_annotation(f, g),
-            map_exp_annotation(f, e),
-          )
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -970,12 +951,19 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Forall(p, e),
       annotation: default_annotation(ann),
     };
+    /* `forall p where g -> e` / `fun p where g -> e` are sugar for a
+       binder whose PATTERN carries the guard. Kept as builders because
+       that spelling is what programs are written in. */
+    let where_pat = (p, g): pat_t(DefaultAnnotation.t) => {
+      term: Where(p, g),
+      annotation: DefaultAnnotation.default_value(),
+    };
     let forall_where = (~ann=?, p, g, e): exp_t(DefaultAnnotation.t) => {
-      term: ForallWhere(p, g, e),
+      term: Forall(where_pat(p, g), e),
       annotation: default_annotation(ann),
     };
     let fun_where = (~ann=?, p, g, e): exp_t(DefaultAnnotation.t) => {
-      term: FunWhere(p, g, e),
+      term: Fun(where_pat(p, g), e, None, None),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {

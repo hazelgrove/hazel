@@ -774,8 +774,7 @@ let tests = (
         | StepperBase.NextStep({step_kind: GeneralizeStep(m), _}) =>
           let inner = m.inner_exp |> saved_exc(~print="generalize inner_exp");
           switch (inner |> Exp.term_of) {
-          | Forall(_, _)
-          | ForallWhere(_, _, _) => ()
+          | Forall(_, _) => ()
           | _ =>
             Alcotest.fail(
               "expected a re-quantified body goal, got: " ++ Exp.show(inner),

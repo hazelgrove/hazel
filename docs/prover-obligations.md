@@ -175,7 +175,7 @@ symptom to recognise: a correct-looking edit that discharges nothing.
 `where` restrictions are installed in ONE place,
 `ProofCheck.add_where_facts`, which also installs each `&&`-conjunct of a
 conjunctive guard as its own fact — matching what
-`definition_obligations` has always done for a `FunWhere` contract, and
+`definition_obligations` has always done for a `fun p where g` contract, and
 required because `ObligationsPanel.float_binder_exp` AND-extends an
 existing guard rather than replacing it. This is fact installation, not
 slack in the discharge relation: `lookup_fact` remains `fast_equal` plus
@@ -421,14 +421,27 @@ checked normally and needs both cases.
 - A theorem with a restricted binder *is* a conditional rule; its uses emit
   the restriction as an obligation through the ordinary mechanism.
 
-#### `where` is also a pattern constructor (decided 2026-08-24)
+#### `where` IS a pattern constructor (decided 2026-08-24)
 
-`where` is now a **pattern** form, `Pat.Where(p, g)` — an infix at Pat sort
-whose right child is an ordinary Exp, the way type ascription `p : T` is an
-infix at Pat sort whose right child is a Typ (`Form.re` `PatWhere`,
-`Precedence.pat_where`). It is available wherever a pattern is: `let`, `case`
-arms, `induction` arms. It is **not a type**: no `{x: Int | P}`, no change to
-the type grammar. Restrictions stay ordinary booleans.
+`where` is a **pattern** form, `Pat.Where(p, g)` — an infix at Pat sort whose
+right child is an ordinary Exp, the way type ascription `p : T` is an infix at
+Pat sort whose right child is a Typ (`Form.re` `PatWhere`,
+`Precedence.pat_where`). It is available wherever a pattern is: `fun` and
+`forall` binders, `let`, `case` arms, `induction` arms. It is **not a type**:
+no `{x: Int | P}`, no change to the type grammar. Restrictions stay ordinary
+booleans.
+
+There is **one** construct and **one** node. The restricted binders above are
+spellings of it:
+
+    fun p where g -> e      ==  Fun(Where(p, g), e)
+    forall p where g -> e   ==  Forall(Where(p, g), e)
+
+There are no `FunWhere` / `ForallWhere` AST nodes and no
+`["fun","where","->"]` / `["forall","where","->"]` tiles: the guard is the
+infix `where` sitting in the ordinary binder tile's single Pat slot.
+Everything that needs the restriction of a binder splits it back off with
+`Exp.split_pat_guard` / `Exp.pat_guard`.
 
 `where` on a `fun`, on a `forall` and on a `case`/`induction` arm are **one
 construct** with two faces:
@@ -437,7 +450,7 @@ construct** with two faces:
   bindings `p` produced. Guard false ⇒ `DoesNotMatch` (the next case arm; a
   function application that fails to match is `Indet`, as it already is for
   any failing `fun` pattern). Guard indeterminate (symbolic, a hole, or a
-  step-limit) ⇒ `IndetMatch`. This includes `FunWhere` application:
+  step-limit) ⇒ `IndetMatch`. This includes function application:
   `(fun x where x != 0 -> 100 / x)(2)` is `50`, and `(… )(0)` does **not**
   run the body. (`PatternMatch.re`; the evaluator installs itself as
   `PatternMatch.guard_hook` to break the `Evaluator → Transition →
@@ -462,26 +475,36 @@ construct** with two faces:
   exhaustive (because of the unguarded `S(m)`), `| S(m) where P | Z` is not,
   and complementary guards (`x > 0` / `x <= 0`) with no catch-all are still
   reported inexhaustive — deciding that needs an SMT. In a **single-pattern**
-  binder (`fun` / `let` / `forall`) `where` is transparent for coverage, which
-  is exactly what the `FunWhere` / `ForallWhere` tiles already do.
+  binder (`fun` / `let` / `forall`) `where` is transparent for coverage: a
+  restriction there narrows the binder's domain, it does not split a
+  scrutinee.
 
-The dedicated `fun p where g -> e` (`FunWhere`) and `forall p where g -> e`
-(`ForallWhere`) **tiles remain**, as distinct AST nodes with the same proof
-meaning as `Fun(Where(p, g), e)` / `Forall(Where(p, g), e)` — program text is
-truth. Two AST paths, one meaning; `ProofCheck.peel_binder` and
-`peel_stmt_binders` handle both via `split_pat_guard`.
+**What collapsing the two nodes bought.** The dedicated tiles shared their
+leading token with plain `fun`/`forall`, and every parser had to special-case
+that:
 
-**Known limitation.** In the tile parser, `fun (p where g) -> e` and
-`forall (p where g) -> e` are ambiguous: the `where` of the `fun _ where _ ->`
-polytile reaches inside the parentheses and claims the token. (This spelling
-was already mis-parsed before `where` became a pattern; the change alters
-*which* wrong shape results.) Unparenthesized `fun x where g -> e` /
-`forall x where g -> e` are unaffected. Pinned by
-`Test_WherePat.test_paren_where_in_fun_binder_is_pinned`. In the menhir
-parser the guarded pattern is accepted **only** parenthesized (`(p where g)`)
-or delimited by `=>` in a case/induction arm — a general infix
-`pat: pat WHERE exp` there introduces reduce/reduce conflicts against the
-`FunWhere` / `ForallWhere` productions.
+- `Insert.upgrade_forall_where` rewrote a half-typed `["fun","->"]` tile's
+  label to the three-shard form when `where` was typed. Deleted.
+- The `fun _ where _ ->` polytile's `where` shard reached *inside*
+  parentheses, so `fun (p where g) -> e` mis-parsed. Gone: the parenthesized
+  and bare spellings now agree
+  (`Test_WherePat.test_paren_and_bare_binder_agree`).
+- `Form.Molds.get_base` had to order the `InfixDelimiterPrefix` backup molds
+  after a token's real ones, because `where` was simultaneously a shard
+  delimiter and a Pat infix. Reverted: `where` is no longer a non-leading
+  delimiter of anything, so it is no longer in
+  `infix_delimiter_ops_prefixes`.
+- menhir had two `FUN funPat WHERE ... DASH_ARROW` / `FORALL forallPat WHERE
+  ... DASH_ARROW` productions that made a general infix `pat: pat WHERE exp`
+  a reduce/reduce conflict. Gone; the general infix is in the grammar and the
+  parser is back to **zero** conflicts (`%nonassoc WHERE`, declared looser
+  than every operand operator and tighter than the structural forms, is what
+  keeps it that way).
+
+One thing `where` does still need: it is excluded from `Token.is_typ_var`.
+`forall b : Bool where b -> _` puts `where` immediately after a Typ, and if it
+also molded as a type *variable* the type-sort remolder would swallow it. It
+remains an ordinary `is_var` — the `where` hypothesis is cited by that name.
 
 ---
 
@@ -794,14 +817,14 @@ on earlier ones.
   UI-trusted), function contracts, closure-lemma library.
 
   *3b landed (2026-08-18)*: function contracts + closure-lemma library.
-  `fun p where g -> e` (`FunWhere`, mirroring the ForallWhere plumbing
-  end-to-end: forms/parse/print round-trip, statics — `g` analyzes Bool
-  with `p` in scope, otherwise types like `Fun` — substitution, alpha-
-  equality, matching). The guard has **no dynamic effect** in v1: a
-  FunWhere evaluates exactly like Fun (runtime contract enforcement would
-  change program behavior; separate future feature). The two §2.2 effects:
+  `fun p where g -> e` (originally a dedicated `FunWhere` node; since
+  2026-08-24 it is `Fun(Where(p, g), e)` — see §2.2). Statics: `g`
+  analyzes Bool with `p` in scope, otherwise types like `Fun`; plus
+  substitution, alpha-equality, matching. The guard originally had **no
+  dynamic effect**; since 2026-08-24 it FILTERS the application (§2.2).
+  The two §2.2 effects:
   (a) *caller vocabulary* — `DomainConditions.scan` no longer descends
-  into `Fun`/`FunWhere` bodies; an application of a FunWhere emits the
+  into `Fun` bodies; an application of a contract function emits the
   instantiated contract `g[p := arg]` instead; (b) *definition-time
   discharge* — at each theorem, `ProofCheck.definition_obligations` walks
   the env's non-builtin, non-recursive function definitions once, scans
@@ -987,8 +1010,7 @@ on earlier ones.
 
   *Syntax.* A `with` clause on the citation steps, as a distinct
   compound form beside each plain one (`Form.ProofAxiomWith`,
-  `ProofAxiomRevWith`, `ProofRevertWith` — the same choice as
-  `ForallWhere` beside `Forall`, so the plain forms stay
+  `ProofAxiomRevWith`, `ProofRevertWith` — so the plain forms stay
   non-variadic):
 
       axiom    <name> with <x> = <e> at <i> on <target> end
@@ -1255,7 +1277,7 @@ Auto-installed facts take their **bare base name**, always:
 There is **no freshening**. A second introduction of the same kind in an
 inner scope installs the same name again and **shadows** the outer one.
 `SemanticCtx.hypothesis_name` is the single point where this is decided;
-`Statics`' `ForallWhere`/`Assume`/`Have` arms mirror it, and the two must
+`Statics`' restricted-`Forall`/`Assume`/`Have` arms mirror it, and the two must
 stay in lockstep — the statics predicts, at edit time, the names the
 big-step checker will install.
 

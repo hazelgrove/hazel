@@ -855,16 +855,18 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
-      /* Function contract (docs/prover-obligations.md, Phase 3b): its own
-         docs, since the guard is the whole point of the form. */
-      | FunWhere(pat, guard, body) =>
+      /* Function contract (docs/prover-obligations.md, Phase 3b): a
+         `fun` whose PARAMETER carries a `where` guard gets its own docs,
+         since the guard is the whole point of that form. */
+      | Fun(pat, body, _, _) when Exp.pat_guard(pat) != None =>
+        let (bare, guard) = Exp.split_pat_guard(pat);
         message_single(
           FunWhereExp.single(
-            ~pat_id=Pat.rep_id(pat),
-            ~guard_id=Exp.rep_id(guard),
+            ~pat_id=Pat.rep_id(bare),
+            ~guard_id=Exp.rep_id(Option.get(guard)),
             ~body_id=Exp.rep_id(body),
           ),
-        )
+        );
       | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2009,6 +2011,19 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
+      /* Restricted binder (docs/prover-obligations.md, Phase 2): a
+         `forall` whose binder PATTERN carries a `where` guard gets its
+         own docs, since the restriction is citable in the proof and
+         incurred at every use. */
+      | Forall(pat, body) when Exp.pat_guard(pat) != None =>
+        let (bare, guard) = Exp.split_pat_guard(pat);
+        message_single(
+          ForallExp.where_single(
+            ~pat_id=Pat.rep_id(bare),
+            ~guard_id=Exp.rep_id(Option.get(guard)),
+            ~body_id=Exp.rep_id(body),
+          ),
+        );
       | Forall(pat, typ) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
         let body_id = List.nth(IdTagged.ids(typ), 0);
@@ -2025,17 +2040,6 @@ let get_doc =
             ),
           ForallExp.forall,
         );
-      /* Restricted binder (docs/prover-obligations.md, Phase 2): its own
-         docs, since the restriction is citable in the proof and incurred
-         at every use. */
-      | ForallWhere(pat, guard, body) =>
-        message_single(
-          ForallExp.where_single(
-            ~pat_id=Pat.rep_id(pat),
-            ~guard_id=Exp.rep_id(guard),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(

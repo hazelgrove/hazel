@@ -885,7 +885,7 @@ let rec guard_conjuncts = (g: Exp.t): list(Exp.t) =>
  * in the flat domain of §1.1 — a hypothesis asserted to denote `true`
  * whose form is `a && b` entails both `a` and `b` under the Kleene
  * reading of §1.3 — and it is what `definition_obligations` has always
- * done for a `FunWhere` contract ("the guard `g` or one of its
+ * done for a `fun p where g` contract ("the guard `g` or one of its
  * `&&`-conjuncts"). Without it the (!) panel's float exit is broken
  * exactly when the binder already carries a guard, since
  * `ObligationsPanel.float_binder_exp` AND-extends rather than replaces.
@@ -909,39 +909,9 @@ let add_where_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
   install(ctx, g);
 };
 
-/* --- `where` on a PATTERN (Grammar.re Pat.Where) ----------------------
- *
- * `p where g` in binder position means exactly what the dedicated
- * `forall p where g -> _` / `fun p where g -> _` tiles mean: install `g`
- * as the same free `where` hypothesis. Two spellings, one meaning. This
- * splits the guard back off so the peeling sites can hand it to
- * `add_where_facts` unchanged.
- *
- * `Parens` is transparent ONLY when there is a guard under it, so an
- * unguarded pattern comes back byte-identical and no existing behaviour
- * shifts. */
-let rec split_pat_guard = (p: Pat.t): (Pat.t, option(Exp.t)) =>
-  switch (p |> Pat.term_of) {
-  | Where(p', g) =>
-    let (base, inner) = split_pat_guard(p');
-    let g =
-      switch (inner) {
-      | None => g
-      | Some(g0) => Exp.fresh(BinOp(Bool(And), g0, g))
-      };
-    (base, Some(g));
-  | Parens(p') =>
-    let (base, g) = split_pat_guard(p');
-    switch (g) {
-    | None => (p, None)
-    | Some(_) => (base, g)
-    };
-  | _ => (p, None)
-  };
-
 /* `add_where_facts` for the guard a binder PATTERN carries, if any. */
 let add_pat_where_facts = (ctx: SemanticCtx.t, p: Pat.t): SemanticCtx.t =>
-  switch (split_pat_guard(p) |> snd) {
+  switch (Exp.split_pat_guard(p) |> snd) {
   | None => ctx
   | Some(g) => add_where_facts(ctx, g)
   };
@@ -996,7 +966,7 @@ let add_previous_guard_negations =
     (ctx: SemanticCtx.t, prev_pats: list(Pat.t), pat: Pat.t): SemanticCtx.t =>
   List.fold_left(
     (ctx, prev) =>
-      switch (split_pat_guard(prev)) {
+      switch (Exp.split_pat_guard(prev)) {
       | (prev_base, Some(g)) when pats_overlap(prev_base, pat) =>
         add_where_facts(ctx, Exp.fresh(UnOp(Bool(Not), g)))
       | _ => ctx
@@ -1036,8 +1006,7 @@ let rec arrow_domain_syntactic =
     | Arrow(d, _) => Some(d)
     | _ => Some(Typ.fresh(Unknown(Internal)))
     }
-  | Fun(_, _, None, _)
-  | FunWhere(_, _, _) => Some(Typ.fresh(Unknown(Internal)))
+  | Fun(_, _, None, _) => Some(Typ.fresh(Unknown(Internal)))
   /* A closure/fix wrapper around a lambda still denotes a function. */
   | Closure(_, inner)
   | FixF(_, inner, _) => arrow_domain_syntactic(~env, inner)
@@ -1153,35 +1122,18 @@ let rec peel_binder =
    * cannot see is a binder whose `where` restriction is never installed,
    * and the floated condition then stays Pending forever. */
   | Parens(inner) => peel_binder(Some(inner))
-  /* A guard the BINDER PATTERN carries (`fun (x where g) -> _`,
-   * `forall (x where g) -> _`) is peeled exactly like the dedicated
-   * tile's: same free `where` intro. */
+  /* The guard the BINDER PATTERN carries (`fun p where g -> _` IS
+   * `Fun(Where(p, g), _)`, `forall p where g -> _` IS
+   * `Forall(Where(p, g), _)`) is split back off here and installed as a
+   * free `where` intro (§2.2). */
   | Fun(p, d1, t, _) =>
     let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-    let (p, g) = split_pat_guard(p);
+    let (p, g) = Exp.split_pat_guard(p);
     Some((p, t, g, d1));
   | Forall(p, d1) =>
     /* No annotated type at this level, use Unknown. */
-    let (p, g) = split_pat_guard(p);
+    let (p, g) = Exp.split_pat_guard(p);
     Some((p, Typ.fresh(Unknown(Internal)), g, d1));
-  | ForallWhere(p, g, d1) =>
-    let (p, g') = split_pat_guard(p);
-    let g =
-      switch (g') {
-      | None => g
-      | Some(g') => Exp.fresh(BinOp(Bool(And), g', g))
-      };
-    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1));
-  /* A contract function peels like Fun, with its guard installed as a
-   * hypothesis — same free intro as ForallWhere (§2.2). */
-  | FunWhere(p, g, d1) =>
-    let (p, g') = split_pat_guard(p);
-    let g =
-      switch (g') {
-      | None => g
-      | Some(g') => Exp.fresh(BinOp(Bool(And), g', g))
-      };
-    Some((p, Typ.fresh(Unknown(Internal)), Some(g), d1));
   | _ => None
   };
 };
@@ -1198,16 +1150,11 @@ let rec peel_stmt_binders =
   /* Transparent, for the reason spelled out on `peel_binder`. */
   | Parens(inner) => peel_stmt_binders(ctx, inner)
   | Forall(p, body) =>
-    /* `forall (x where g) -> _` installs the same hypothesis the
-     * dedicated `forall x where g -> _` tile does. */
+    /* `forall p where g -> _` is `Forall(Where(p, g), _)`: the binder's
+     * restriction rides on its pattern and is installed here. */
     let ctx =
       SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
     peel_stmt_binders(add_pat_where_facts(ctx, p), body);
-  | ForallWhere(p, g, body) =>
-    let ctx =
-      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
-    let ctx = add_pat_where_facts(ctx, p);
-    peel_stmt_binders(add_where_facts(ctx, g), body);
   | _ => (ctx, goal)
   };
 
@@ -1289,9 +1236,11 @@ let definition_obligations =
            let v =
              DomainConditions.unwrap(value |> Substitution.in_exp(env));
            switch (v |> Exp.term_of) {
-           | FunWhere(p, g, body) =>
-             record_leftovers(acc, v, p, Some(g), body)
-           | Fun(p, body, _, _) => record_leftovers(acc, v, p, None, body)
+           /* `fun p where g -> body` IS `Fun(Where(p, g), body)`: split
+              the contract guard back off the parameter. */
+           | Fun(p, body, _, _) =>
+             let (p, g) = Exp.split_pat_guard(p);
+             record_leftovers(acc, v, p, g, body);
            /* FixF (recursive), non-functions, self-map Vars: skipped. */
            | _ => acc
            };
@@ -1850,7 +1799,7 @@ let rec check =
               g,
               gs,
             );
-          Exp.fresh(ForallWhere(binder, guard, goal));
+          Exp.fresh(Forall(Pat.fresh(Where(binder, guard)), goal));
         };
       /* Capture: strip every fact mentioning x from the body's scope.
        * x's own binder entry stays — it is inert once no fact mentions

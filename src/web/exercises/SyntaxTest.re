@@ -100,8 +100,6 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
   | Forall(_, body) => l |> find_fn(name, body)
-  | ForallWhere(_, g, body) => l |> find_fn(name, g) |> find_fn(name, body)
-  | FunWhere(_, g, body) => l |> find_fn(name, g) |> find_fn(name, body)
   | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
@@ -274,10 +272,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
-  | ForallWhere(args, g, body)
-  | FunWhere(args, g, body) =>
-    var_mention_upat(name, args)
-      ? false : var_mention(name, g) || var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
   | Asc(d, _) => var_mention(name, d)
@@ -345,10 +339,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
-  | ForallWhere(args, g, body)
-  | FunWhere(args, g, body) =>
-    var_mention_upat(name, args)
-      ? false : var_applied(name, g) || var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
@@ -469,9 +459,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Forall(args, body) =>
-    var_mention_upat(name, args) ? false : tail_check(name, body)
-  | ForallWhere(args, _, body)
-  | FunWhere(args, _, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)

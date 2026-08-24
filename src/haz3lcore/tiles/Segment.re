@@ -408,6 +408,17 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           let (remolded_pat, shape, rest) =
             remold_pat_uni(shape, rest, parent_sorts);
           ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+        /* A Pat tile with an EXP right nib: the `where` pattern guard
+           (Form.re PatWhere). Without this the guard would keep being
+           remolded at Pat sort, so `p where f(x)` would read `f(x)` as a
+           constructor-application PATTERN. Mirrors the Typ case above,
+           and the Pat/Typ/TPat cases in `remold_exp_uni`. */
+        | (_, {shape, sort: Exp}) =>
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat, ...parent_sorts]);
+          let (remolded_pat, shape, rest) =
+            remold_pat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_exp] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -436,6 +447,11 @@ and remold_pat = (shape, seg: t): t =>
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) =
             remold_typ_uni(shape, tl, [Sort.Pat]);
+          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+        /* Exp right nib: the `where` pattern guard. See remold_pat_uni. */
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat]);
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }

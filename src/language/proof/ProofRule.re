@@ -41,14 +41,14 @@ let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), list(Exp.t), Exp.t) =>
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
     let (bindings, guards, core) = peel_binders(e);
+    /* `forall p where g -> e` is `Forall(Where(p, g), e)`: the binder's
+       restriction rides on its pattern. */
+    let guards =
+      switch (Exp.pat_guard(p)) {
+      | None => guards
+      | Some(g) => [g, ...guards]
+      };
     (bindings' @ bindings, guards, core);
-  | ForallWhere(p, g, e) =>
-    let bindings' =
-      ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
-      |> Option.map((x: Ctx.t) => x.entries)
-      |> OptUtil.get(() => []);
-    let (bindings, guards, core) = peel_binders(e);
-    (bindings' @ bindings, [g, ...guards], core);
   | _ => ([], [], exp)
   };
 
@@ -108,22 +108,22 @@ let rec instantiate_binder = (x: Var.t, e: Exp.t, prop: Exp.t): option(Exp.t) =>
   | Parens(inner) => instantiate_binder(x, e, inner)
   | Forall(pat, body) =>
     switch (pat_binder_name(x, pat)) {
-    | Some(actual) => Some(subst(actual, body))
+    | Some(actual) =>
+      /* Instantiating a RESTRICTED binder (`forall p where g -> body`,
+         i.e. `Forall(Where(p, g), body)`) yields the conditional
+         `g[x := e] ==> body[x := e]`. */
+      switch (Exp.pat_guard(pat)) {
+      | None => Some(subst(actual, body))
+      | Some(g) =>
+        Some(
+          Exp.fresh(
+            BinOp(Bool(Implies), subst(actual, g), subst(actual, body)),
+          ),
+        )
+      }
     | None =>
       instantiate_binder(x, e, body)
       |> Option.map(b => Exp.fresh(Forall(pat, b)))
-    }
-  | ForallWhere(pat, g, body) =>
-    switch (pat_binder_name(x, pat)) {
-    | Some(actual) =>
-      Some(
-        Exp.fresh(
-          BinOp(Bool(Implies), subst(actual, g), subst(actual, body)),
-        ),
-      )
-    | None =>
-      instantiate_binder(x, e, body)
-      |> Option.map(b => Exp.fresh(ForallWhere(pat, g, b)))
     }
   | _ => None
   };
@@ -252,7 +252,6 @@ let rec bool_shape = (e: Exp.t): bool_shape =>
   | Cons(_, _)
   | ListConcat(_, _)
   | Fun(_, _, _, _)
-  | FunWhere(_, _, _)
   | TypFun(_, _, _) => NotBoolean
   | _ => Unclear
   };
@@ -523,11 +522,12 @@ let occurs_free_any =
         under(Pat.bound_vars(p) @ bound, [stmt, body]);
       | Forall(p, body) =>
         go_pat(bound, p);
-        under(Pat.bound_vars(p) @ bound, [body]);
-      | ForallWhere(p, g, body)
-      | FunWhere(p, g, body) =>
-        go_pat(bound, p);
-        under(Pat.bound_vars(p) @ bound, [g, body]);
+        /* A `where` guard on the binder pattern is an Exp under the
+           binder, like the body. */
+        under(
+          Pat.bound_vars(p) @ bound,
+          Option.to_list(Exp.pat_guard(p)) @ [body],
+        );
       | Match(scrut, cases) =>
         go(bound, scrut);
         List.iter(

@@ -15,10 +15,11 @@ open Test_Evaluator_Prelude;
  *     `where` fact (ProofCheck.add_where_facts). The runtime filter is
  *     what makes that sound.
  *
- * The dedicated `fun p where g -> e` (FunWhere) and
- * `forall p where g -> e` (ForallWhere) tiles are UNCHANGED and must
- * keep parsing and proving exactly as before; see
- * `test_fun_where_tile_unchanged` / `test_forall_where_tile_unchanged`.
+ * There are NO dedicated `fun _ where _ -> _` / `forall _ where _ -> _`
+ * nodes or tiles: those spellings ARE `Fun(Where(p, g), e)` /
+ * `Forall(Where(p, g), e)`, the ordinary binder tile with this infix in
+ * its pattern slot. See `test_fun_where_is_fun_of_where` /
+ * `test_forall_where_is_forall_of_where`.
  *
  * Reuses the Test_ProofMap / Test_Definedness harnesses. */
 
@@ -90,52 +91,56 @@ let is_inexhaustive: Mark.t => bool =
   | Mark.InexhaustiveMatch(_) => true
   | _ => false;
 
-/* ===== 1. The dedicated tiles are untouched ========================= */
+/* ===== 1. The binder spellings ARE Fun/Forall of a Where pattern ==== */
 
-/* `fun x where g -> e` still parses to FunWhere, NOT to
- * `Fun(Where(x, g), e)`. This is the fork the infix pattern `where`
- * could have stolen. */
-let test_fun_where_tile_unchanged = () =>
+/* `fun x where g -> e` is `Fun(Where(x, g), e)`. */
+let test_fun_where_is_fun_of_where = () =>
   switch (parse_exp("fun x where x != 0 -> 1 / x") |> Exp.term_of) {
-  | FunWhere(p, g, _) =>
-    Alcotest.check(
-      Alcotest.bool,
-      "FunWhere's own pattern carries NO Where node",
-      false,
-      Pat.is_guarded(p),
-    );
-    Alcotest.check(
-      Alcotest.bool,
-      "guard is the boolean the user wrote",
-      true,
-      Exp.fast_equal(g, parse_exp("x != 0")),
-    );
+  | Fun(p, _, _, _) =>
+    switch (p |> Pat.term_of) {
+    | Where(inner, g) =>
+      Alcotest.check(
+        Alcotest.bool,
+        "binds like the bare pattern",
+        true,
+        Pat.fast_equal(inner, Pat.fresh(Var("x"))),
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "guard is the boolean the user wrote",
+        true,
+        Exp.fast_equal(g, parse_exp("x != 0")),
+      );
+    | other =>
+      Alcotest.fail(
+        "the parameter carries no Where: " ++ Pat.show(Pat.fresh(other)),
+      )
+    }
   | other =>
     Alcotest.fail(
-      "`fun x where g -> e` no longer parses as FunWhere: "
-      ++ Exp.show(Exp.fresh(other)),
+      "`fun x where g -> e` should be a Fun: " ++ Exp.show(Exp.fresh(other)),
     )
   };
 
-let test_forall_where_tile_unchanged = () =>
+let test_forall_where_is_forall_of_where = () =>
   switch (parse_exp("forall x where x != 0 -> x / x == 1") |> Exp.term_of) {
-  | ForallWhere(p, _, _) =>
+  | Forall(p, _) =>
     Alcotest.check(
       Alcotest.bool,
-      "ForallWhere's own pattern carries NO Where node",
-      false,
+      "the binder pattern carries the restriction",
+      true,
       Pat.is_guarded(p),
     )
   | other =>
     Alcotest.fail(
-      "`forall x where g -> e` no longer parses as ForallWhere: "
+      "`forall x where g -> e` should be a Forall: "
       ++ Exp.show(Exp.fresh(other)),
     )
   };
 
 /* Copied from Test_Definedness.test_where_covers_scanned_condition: the
- * ForallWhere restriction still discharges the scanned denominator
- * condition Remotely and the theorem is still fully Proven. */
+ * restriction still discharges the scanned denominator condition
+ * Remotely and the theorem is still fully Proven. */
 let test_forall_where_still_proves = () => {
   let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t|};
   let (pm, proof, obs) = obligations(src);
@@ -212,6 +217,29 @@ let test_precedence_looser_than_cons = () =>
   | _ => Alcotest.fail("expected a Match")
   };
 
+/* The guard is an EXP living inside a PAT. The remolder has to switch
+ * sort at the `where` tile's right nib, or the guard keeps being read at
+ * Pat sort -- and an application there is a CONSTRUCTOR-APPLICATION
+ * pattern, not a call. Regression for `Segment.remold_pat`'s Exp
+ * right-nib case. */
+let test_guard_is_an_expression_not_a_pattern = () =>
+  switch (parse_exp("forall e0: Int where p(e0) -> e0 == e0") |> Exp.term_of) {
+  | Forall(pat, _) =>
+    switch (pat |> Pat.term_of) {
+    | Where(_, g) =>
+      Alcotest.check(
+        Alcotest.bool,
+        "the guard is the CALL `p(e0)`, not a pattern — got: "
+        ++ Exp.show(g),
+        true,
+        Exp.fast_equal(g, parse_exp("p(e0)")),
+      )
+    | other => Alcotest.fail("no Where: " ++ Pat.show(Pat.fresh(other)))
+    }
+  | other =>
+    Alcotest.fail("expected a Forall: " ++ Exp.show(Exp.fresh(other)))
+  };
+
 let test_round_trips = () => {
   Alcotest.check(
     Alcotest.string,
@@ -228,13 +256,13 @@ let test_round_trips = () => {
   /* The dedicated tiles print as before. */
   Alcotest.check(
     Alcotest.string,
-    "FunWhere tile",
+    "fun-where binder",
     "fun x where x != 0 -> 1 / x",
     print_back("fun x where x != 0 -> 1 / x"),
   );
   Alcotest.check(
     Alcotest.string,
-    "ForallWhere tile",
+    "forall-where binder",
     "forall x where x != 0 -> x / x == 1",
     print_back("forall x where x != 0 -> x / x == 1"),
   );
@@ -308,7 +336,8 @@ let test_cons_guard_filters = () => {
   );
 };
 
-/* FunWhere application: on-guard runs, off-guard does NOT run the body
+/* Function application with a guarded parameter: on-guard runs,
+ * off-guard does NOT run the body
  * (Indet, not a division error). */
 let test_fun_where_application_filters = () => {
   check_eval(
@@ -328,57 +357,28 @@ let test_fun_where_application_filters = () => {
   };
 };
 
-/* PINNED — UNRESOLVED FORK (tile/token collision).
- *
- * `fun (p where g) -> e` and `forall (p where g) -> e` do NOT mean
- * `Fun(Where(p, g), e)`. The `where` in the `fun _ where _ -> _` /
- * `forall _ where _ -> _` POLYTILE reaches inside the parentheses and
- * claims the token, so the enclosing tile molds as the three-shard
- * FunWhere/ForallWhere.
- *
- * This is not new: on the base commit the same input already parsed as
- * `FunWhere(Parens(x), Parens(x != 0), body)` -- the parens were split
- * across the tile's two child slots. Adding the infix pattern `where`
- * changes WHICH wrong shape you get (the guard now lands in the pattern
- * and the tile's guard slot is left an EmptyHole), so this spelling
- * needs a decision, not a silent resolution. The UNPARENTHESIZED
- * `fun x where g -> e` / `forall x where g -> e` are unaffected -- see
- * the two tests above.
- *
- * Consequence for this slice: in the tile parser, a `Where` pattern in a
- * `fun`/`forall` BINDER position is only reachable through this
- * spelling. The reachable, correct uses of pattern-`where` are `let`,
- * `case` arms and `induction` arms, which is what the rest of this file
- * exercises. */
-let test_paren_where_in_fun_binder_is_pinned = () =>
-  switch (parse_exp("fun (x where x != 0) -> 100 / x") |> Exp.term_of) {
-  | FunWhere(p, g, _) =>
-    Alcotest.check(
-      Alcotest.bool,
-      "the pattern absorbed the guard",
-      true,
-      Pat.is_guarded(p),
-    );
-    Alcotest.check(
-      Alcotest.bool,
-      "and the tile's own guard slot was left empty",
-      true,
-      switch (g |> Exp.term_of) {
-      | EmptyHole => true
-      | _ => false
-      },
-    );
-  | other =>
-    Alcotest.fail(
-      "pinned shape changed; re-decide the fork. Got: "
-      ++ Exp.show(Exp.fresh(other)),
-    )
-  };
+/* The pinned `fun (p where g) -> e` collision is GONE with the dedicated
+ * tiles: with no `fun _ where _ -> _` polytile, nothing reaches inside
+ * the parens to claim the token, so the parenthesized spelling means
+ * exactly what the unparenthesized one means. */
+let test_paren_and_bare_binder_agree = () => {
+  let bare = parse_exp("fun x where x != 0 -> 100 / x");
+  let parened = parse_exp("fun (x where x != 0) -> 100 / x");
+  Alcotest.check(
+    Alcotest.bool,
+    "`fun (p where g) -> e` == `fun p where g -> e` — got: "
+    ++ Exp.show(parened),
+    true,
+    Exp.fast_equal(bare, parened),
+  );
+  /* And it applies the same way. */
+  check_eval("on-guard", "50", "(fun (x where x != 0) -> 100 / x)(2)");
+};
 
 /* ===== 5. Proofs =================================================== */
 
 /* An INDUCTION arm written `| w where w != 0 =>` installs `w != 0` as a
- * `where` hypothesis in that arm, exactly as a ForallWhere binder does.
+ * `where` hypothesis in that arm, exactly as a restricted binder does.
  *
  * The program below has two arms with the SAME domain condition
  * `w != 0` (from `8 / w` in the arm goal). The guarded arm discharges it
@@ -541,17 +541,17 @@ let tests = (
   "WherePat",
   [
     test_case(
-      "fun-where tile unchanged",
+      "fun-where is Fun of Where",
       `Quick,
-      test_fun_where_tile_unchanged,
+      test_fun_where_is_fun_of_where,
     ),
     test_case(
-      "forall-where tile unchanged",
+      "forall-where is Forall of Where",
       `Quick,
-      test_forall_where_tile_unchanged,
+      test_forall_where_is_forall_of_where,
     ),
     test_case(
-      "forall-where tile still proves",
+      "forall-where still proves",
       `Quick,
       test_forall_where_still_proves,
     ),
@@ -561,6 +561,11 @@ let tests = (
       `Quick,
       test_precedence_looser_than_cons,
     ),
+    test_case(
+      "the guard is an expression, not a pattern",
+      `Quick,
+      test_guard_is_an_expression_not_a_pattern,
+    ),
     test_case("round-trips", `Quick, test_round_trips),
     test_case("statics ok", `Quick, test_statics_ok),
     test_case("guard must be Bool", `Quick, test_statics_guard_must_be_bool),
@@ -568,14 +573,14 @@ let tests = (
     test_case("case guard filters", `Quick, test_case_guard_filters),
     test_case("cons guard filters", `Quick, test_cons_guard_filters),
     test_case(
-      "FunWhere application filters",
+      "guarded-parameter application filters",
       `Quick,
       test_fun_where_application_filters,
     ),
     test_case(
-      "PINNED: `fun (p where g) ->` collides with the FunWhere tile",
+      "parenthesized and bare binder spellings agree",
       `Quick,
-      test_paren_where_in_fun_binder_is_pinned,
+      test_paren_and_bare_binder_agree,
     ),
     test_case(
       "induction arm installs its where fact",

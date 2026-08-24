@@ -882,10 +882,10 @@ let test_forall_where_parse_and_rule = () => {
   let e = parse_exp(src);
   Alcotest.check(
     Alcotest.bool,
-    "parses to ForallWhere",
+    "parses to a Forall whose binder pattern carries the guard",
     true,
     switch (Exp.term_of(e)) {
-    | ForallWhere(_, _, _) => true
+    | Forall(p, _) => Exp.pat_guard(p) != None
     | _ => false
     },
   );

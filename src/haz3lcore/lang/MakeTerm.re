@@ -945,12 +945,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
+        /* `fun p where g -> e` / `forall p where g -> e` come through
+           HERE: the guard is the infix `where` (Form.re PatWhere) inside
+           the Pat slot, so `pat` is `Where(p, g)`. No dedicated form. */
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
-        | (["forall", "where", "->"], [Pat(pat), Exp(g)]) =>
-          ForallWhere(pat, g, r)
-        | (["fun", "where", "->"], [Pat(pat), Exp(g)]) =>
-          FunWhere(pat, g, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)

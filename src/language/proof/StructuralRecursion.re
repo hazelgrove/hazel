@@ -268,24 +268,13 @@ and chain =
           p,
         )
         @ shadow(env, bound);
-      chain(~self, ~index=index + 1, ~env=env', body);
-    };
-  | FunWhere(p, guard, body) =>
-    let bound = Pat.bound_vars(p);
-    if (List.mem(self, bound)) {
-      Ok([]);
-    } else {
-      let env' =
-        pat_bind(
-          ~origin={
-            param: index,
-            comp: None,
-          },
-          ~strict=false,
-          p,
-        )
-        @ shadow(env, bound);
-      let* g = go(~self, ~env=env', guard);
+      /* A parameter's `where` guard (`fun p where g -> _`) runs on every
+         call, so a self-reference inside it counts. */
+      let* g =
+        switch (Exp.pat_guard(p)) {
+        | None => Ok([])
+        | Some(guard) => go(~self, ~env=env', guard)
+        };
       let* b = chain(~self, ~index=index + 1, ~env=env', body);
       Ok(g @ b);
     };
@@ -363,9 +352,12 @@ and go =
   | UnOp(_, e1) => go(~self, ~env, e1)
   | If(e1, e2, e3) => go_all([e1, e2, e3])
   | DeferredAp(fn, args) => go_all([fn, ...args])
-  | Fun(p, body, _, _) => under(~seed=None, p, body)
-  | FunWhere(p, guard, body) =>
-    let* g = under(~seed=None, p, guard);
+  | Fun(p, body, _, _) =>
+    let* g =
+      switch (Exp.pat_guard(p)) {
+      | None => Ok([])
+      | Some(guard) => under(~seed=None, p, guard)
+      };
     let* b = under(~seed=None, p, body);
     Ok(g @ b);
   | TypFun(_, body, _) => go(~self, ~env, body)

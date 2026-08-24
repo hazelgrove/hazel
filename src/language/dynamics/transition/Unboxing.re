@@ -181,19 +181,14 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
+    /* The parameter pattern may carry a `where` guard
+       (`fun p where g -> e` IS `Fun(Where(p, g), e)`): it rides through
+       untouched, so PatternMatch runs the guard and an off-guard
+       argument fails to match — FunAp then yields Indet and the body
+       never runs. See Grammar.re Pat.Where. */
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
-    /* A FunWhere applies like a Fun whose PARAMETER carries the guard:
-     * `fun p where g -> e` unboxes to the parameter pattern
-     * `Where(p, g)`, so PatternMatch runs the guard and an off-guard
-     * argument fails to match (FunAp then yields Indet -- the body never
-     * runs). `where` on a function and `where` on a case arm are one
-     * construct; see Grammar.re Pat.Where. */
-    | (Fun, Closure(env', {term: FunWhere(dp, g, d3), _})) =>
-      Matches(FunEnv(Pat.fresh(Where(dp, g)), d3, env'))
-    | (Fun, FunWhere(dp, g, d3)) =>
-      Matches(FunNoEnv(Pat.fresh(Where(dp, g)), d3))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
@@ -247,9 +242,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Let(_) |
         Theorem(_) |
         Forall(_) |
-        ForallWhere(_) |
         Fun(_, _, _, _) |
-        FunWhere(_) |
         TypAp(_) |
         FixF(_) |
         TyAlias(_) |

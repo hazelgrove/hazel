@@ -92,8 +92,9 @@ module F =
       |> {
         let.calc exp = exp
         and.calc ctx = ctx;
-        /* Peel the binder exactly as the checker does (Fun / Forall /
-         * ForallWhere / FunWhere): `generalize` re-quantifies goals as
+        /* Peel the binder exactly as the checker does (Fun / Forall,
+         * with any `where` guard split off the binder's PATTERN):
+         * `generalize` re-quantifies goals as
          * `Forall` nodes, so a `forall x =>` row inside a generalized
          * proof sees a Forall-shaped goal, not a Fun. A `where` guard
          * becomes a hypothesis, mirroring ProofCheck's free intro. */
@@ -153,9 +154,8 @@ module F =
             switch (exp |> Exp.term_of) {
             | Parens(inner) => DHExp.fresh(Parens(rebuild(inner)))
             | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
+            /* The pattern (guard and all) rides through untouched. */
             | Forall(p, _) => DHExp.fresh(Forall(p, last))
-            | ForallWhere(p, g, _) => DHExp.fresh(ForallWhere(p, g, last))
-            | FunWhere(p, g, _) => DHExp.fresh(FunWhere(p, g, last))
             | _ =>
               DHExp.fresh(
                 Fun(

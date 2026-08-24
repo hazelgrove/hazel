@@ -142,24 +142,24 @@ let rec match_exp =
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some(ctx)
   | (Constructor(_, _), _) => None
+  /* A binder whose PATTERN carries a `where` guard (`fun p where g -> e`
+     is `Fun(Where(p, g), e)`) must match a binder with the SAME guard:
+     `match_pat` deliberately looks through `Where` (the guard is not part
+     of the binder's shape), so the guards are matched here, where a ctx
+     is in hand. Guarded matches unguarded => None, as it did when these
+     were separate FunWhere / ForallWhere nodes. */
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
     let* alphas' = match_pat(p1, p2);
+    let* ctx =
+      match_pat_guards(~info_map, ~meta, alphas' @ alphas, ctx, p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
   | (Forall(p1, e1), Forall(p2, e2)) =>
     let* alphas' = match_pat(p1, p2);
+    let* ctx =
+      match_pat_guards(~info_map, ~meta, alphas' @ alphas, ctx, p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Forall(_, _), _) => None
-  | (ForallWhere(p1, g1, e1), ForallWhere(p2, g2, e2)) =>
-    let* alphas' = match_pat(p1, p2);
-    let* ctx = match_exp(alphas' @ alphas, ctx, g1, g2);
-    match_exp(alphas' @ alphas, ctx, e1, e2);
-  | (ForallWhere(_, _, _), _) => None
-  | (FunWhere(p1, g1, e1), FunWhere(p2, g2, e2)) =>
-    let* alphas' = match_pat(p1, p2);
-    let* ctx = match_exp(alphas' @ alphas, ctx, g1, g2);
-    match_exp(alphas' @ alphas, ctx, e1, e2);
-  | (FunWhere(_, _, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
     // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);
@@ -294,6 +294,24 @@ let rec match_exp =
 }
 
 and match_any = (_: match_ctx, _: Any.t, _: Any.t): option(unit) => None
+
+/* Match the `where` guards two binder patterns carry, if any. Both
+   unguarded matches; guarded-vs-unguarded does not. */
+and match_pat_guards =
+    (
+      ~info_map: Statics.Map.t,
+      ~meta: option(MetaVar.env),
+      alphas: alphas,
+      ctx: match_ctx,
+      p_r: Pat.t,
+      p: Pat.t,
+    )
+    : option(match_ctx) =>
+  switch (Exp.pat_guard(p_r), Exp.pat_guard(p)) {
+  | (None, None) => Some(ctx)
+  | (Some(g_r), Some(g)) => match_exp(~info_map, ~meta, alphas, ctx, g_r, g)
+  | _ => None
+  }
 
 and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {

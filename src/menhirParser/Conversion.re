@@ -247,14 +247,6 @@ module rec Exp: {
         of_menhir_ast(e2),
       )
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
-    | ForallWhereExp(p, g, e) =>
-      forall_where(
-        Pat.of_menhir_ast(p),
-        of_menhir_ast(g),
-        of_menhir_ast(e),
-      )
-    | FunWhereExp(p, g, e) =>
-      fun_where(Pat.of_menhir_ast(p), of_menhir_ast(g), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
@@ -372,11 +364,7 @@ module rec Exp: {
     | Theorem(p, e1, pf, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), Proof.of_core(pf), of_core(e2))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
-    | ForallWhere(p, g, e) =>
-      ForallWhereExp(Pat.of_core(p), Exp.of_core(g), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
-    | FunWhere(p, g, e) =>
-      FunWhereExp(Pat.of_core(p), Exp.of_core(g), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
@@ -791,10 +779,7 @@ and Pat: {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
-    /* Parenthesized so the guard cannot swallow the surrounding form's
-       delimiters when printed back. */
-    | WherePat(p, g) =>
-      parens(where_(of_menhir_ast(p), Exp.of_menhir_ast(g)))
+    | WherePat(p, g) => where_(of_menhir_ast(p), Exp.of_menhir_ast(g))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))

@@ -53,7 +53,8 @@ let is_forall = (e: Exp.t): bool =>
 
 let is_forall_where = (e: Exp.t): bool =>
   switch (e |> Exp.term_of) {
-  | ForallWhere(_, _, _) => true
+  /* `forall p where g -> _` is `Forall(Where(p, g), _)`. */
+  | Forall(p, _) => Exp.pat_guard(p) != None
   | _ => false
   };
 

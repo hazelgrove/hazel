@@ -22,8 +22,6 @@ type cls =
   | Let
   | Theorem
   | Forall
-  | ForallWhere
-  | FunWhere
   | FixF
   | TyAlias
   | Use
@@ -146,8 +144,6 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Let(_) => Let
   | Theorem(_) => Theorem
   | Forall(_) => Forall
-  | ForallWhere(_) => ForallWhere
-  | FunWhere(_) => FunWhere
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
   | Use(_) => Use
@@ -208,8 +204,6 @@ let show_cls: cls => string =
   | Let => "Let expression"
   | Theorem => "Theorem expression"
   | Forall => "Forall expression"
-  | ForallWhere => "Restricted forall expression"
-  | FunWhere => "Function with contract"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
   | Use => "Specify number format to use"
@@ -264,7 +258,6 @@ let rec is_fun = (e: t) => {
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
-  | FunWhere(_)
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
   | Dot(e1, e2) =>
@@ -300,7 +293,6 @@ let rec is_fun = (e: t) => {
   | Let(_)
   | Theorem(_)
   | Forall(_)
-  | ForallWhere(_)
   | FixF(_)
   | TyAlias(_)
   | Use(_)
@@ -363,7 +355,6 @@ let rec is_tuple_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | FunWhere(_)
     | TypFun(_)
     | Closure(_)
     | BuiltinFun(_)
@@ -371,7 +362,6 @@ let rec is_tuple_of_functions = (e: t) =>
     | Let(_)
     | Theorem(_)
     | Forall(_)
-    | ForallWhere(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -434,13 +424,11 @@ let rec get_num_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | FunWhere(_)
     | TypFun(_)
     | Var(_)
     | Let(_)
     | Theorem(_)
     | Forall(_)
-    | ForallWhere(_)
     | Filter(_)
     | TyAlias(_)
     | Use(_)
@@ -597,3 +585,36 @@ let rec of_pat = (pat: Pat.t): t => {
   | Where(p, _) => of_pat(p)
   };
 };
+
+/* --- `where` on a binder pattern --------------------------------------
+ *
+ * `fun p where g -> e` IS `Fun(Where(p, g), e)` and `forall p where g -> e`
+ * IS `Forall(Where(p, g), e)`: there is no dedicated node. Everything that
+ * used to match on a `FunWhere` / `ForallWhere` head instead splits the
+ * guard back off the binder's pattern here.
+ *
+ * `Parens` is transparent ONLY when there is a guard under it, so an
+ * unguarded pattern comes back byte-identical and nothing shifts for
+ * binders that carry no `where`. Nested guards are AND-ed, which is the
+ * reading `add_where_facts` already gives a conjunctive restriction. */
+let rec split_pat_guard = (p: Pat.t): (Pat.t, option(t)) =>
+  switch (p |> Pat.term_of) {
+  | Where(p', g) =>
+    let (base, inner) = split_pat_guard(p');
+    let g =
+      switch (inner) {
+      | None => g
+      | Some(g0) => fresh(BinOp(Bool(And), g0, g))
+      };
+    (base, Some(g));
+  | Parens(p') =>
+    let (base, g) = split_pat_guard(p');
+    switch (g) {
+    | None => (p, None)
+    | Some(_) => (base, g)
+    };
+  | _ => (p, None)
+  };
+
+/* The guard a binder pattern carries, if any. */
+let pat_guard = (p: Pat.t): option(t) => split_pat_guard(p) |> snd;

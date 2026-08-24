@@ -159,7 +159,7 @@ let no_action_ctx: action_ctx = {
 /* One theorem-level `forall` binder of the statement, kept whole so the
  * float patch can rebuild the node in place. */
 type binder = {
-  /* The Forall / ForallWhere node itself: the ExpPatch target. */
+  /* The Forall node itself: the ExpPatch target. */
   id: Id.t,
   pat: Pat.t,
   guard: option(Exp.t),
@@ -172,26 +172,20 @@ type binder = {
  * restriction is the public statement's (§2.2). */
 let rec binders_of_stmt = (e: Exp.t): list(binder) =>
   switch (Exp.term_of(e)) {
-  | Forall(p, body) => [
+  | Forall(p, body) =>
+    /* `forall p where g -> body` is `Forall(Where(p, g), body)`: split
+       the restriction back off the binder's pattern. */
+    let (bare, guard) = Exp.split_pat_guard(p);
+    [
       {
         id: Exp.rep_id(e),
-        pat: p,
-        guard: None,
+        pat: bare,
+        guard,
         body,
-        vars: Pat.bound_vars(p),
+        vars: Pat.bound_vars(bare),
       },
       ...binders_of_stmt(body),
-    ]
-  | ForallWhere(p, g, body) => [
-      {
-        id: Exp.rep_id(e),
-        pat: p,
-        guard: Some(g),
-        body,
-        vars: Pat.bound_vars(p),
-      },
-      ...binders_of_stmt(body),
-    ]
+    ];
   | Parens(e') => binders_of_stmt(e')
   | _ => []
   };
@@ -341,14 +335,14 @@ let embed_goal = (ob: Obligation.t): Exp.t =>
  * -> body`, and an existing guard is AND-extended (`g && <goal>`) rather
  * than replaced. The goal printed is `display_goal` — what the user
  * wrote at the obligation site, not the env-inlined semantic term. */
-let float_binder_exp = (~goal: Exp.t, b: binder): Exp.t =>
-  switch (b.guard) {
-  | None => Exp.fresh(ForallWhere(b.pat, goal, b.body))
-  | Some(g) =>
-    Exp.fresh(
-      ForallWhere(b.pat, Exp.fresh(BinOp(Bool(And), g, goal)), b.body),
-    )
-  };
+let float_binder_exp = (~goal: Exp.t, b: binder): Exp.t => {
+  let guard =
+    switch (b.guard) {
+    | None => goal
+    | Some(g) => Exp.fresh(BinOp(Bool(And), g, goal))
+    };
+  Exp.fresh(Forall(Pat.fresh(Where(b.pat, guard)), b.body));
+};
 
 let float_patch =
     (~ctx: action_ctx, ob: Obligation.t)

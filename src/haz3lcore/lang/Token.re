@@ -238,7 +238,16 @@ let base_typs = [
   "DrvTPat",
 ];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
-let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
+/* `where` is the infix pattern-guard delimiter (Form.re PatWhere), whose
+   LEFT operand can be an ascribed pattern: in `forall b : Bool where b ->
+   _` the `where` follows a Typ, so if it also molded as a type VARIABLE
+   the type-sort remolder would swallow it and the guard would be lost.
+   It stays a valid ordinary variable (`is_var`) — the `where` hypothesis
+   is cited by that name — just never a type name. */
+let typ_var_exclusions = ["where"];
+let is_typ_var = str =>
+  !List.mem(str, typ_var_exclusions)
+  && (is_var(str) || match(capitalized_name_regexp, str));
 
 /* List literals */
 let list_start = "[";

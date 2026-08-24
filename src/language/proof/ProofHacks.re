@@ -458,6 +458,24 @@ let rec replace_exp =
     let bvn = pat |> Pat.bindings |> Binding.variable_names;
     List.filter(v => !List.mem(v, bvn), blacklist_vars);
   };
+  /* Rewrite inside a binder pattern's `where` guard. The guard is an Exp
+     living under the binder -- exactly where the dedicated ForallWhere /
+     FunWhere nodes used to carry it -- so it needs the same rewrite the
+     body gets. Unguarded patterns come back unchanged. */
+  let rec replace_pat = (pat: Pat.t, blacklist_vars): Pat.t => {
+    let (pterm, prewrap) = Pat.unwrap(pat);
+    switch (pterm) {
+    | Where(p1, g) =>
+      prewrap(
+        Where(
+          replace_pat(p1, blacklist_vars),
+          replace_exp(g, blacklist_vars),
+        ),
+      )
+    | Parens(p1) => prewrap(Parens(replace_pat(p1, blacklist_vars)))
+    | _ => pat
+    };
+  };
 
   Exp.map_term(
     ~f_exp=
@@ -481,7 +499,7 @@ let rec replace_exp =
             exp;
           } else {
             Fun(
-              p,
+              replace_pat(p, restrict_blacklist(p, blacklist_vars)),
               replace_exp(d1, restrict_blacklist(p, blacklist_vars)),
               x,
               y,
@@ -564,39 +582,8 @@ let rec replace_exp =
             };
             exp;
           } else {
-            Forall(p, replace_exp(e, restrict_blacklist(p, blacklist_vars)))
-            |> rewrap;
-          }
-        | ForallWhere(p, g, e) =>
-          if (is_bound(p)) {
-            if (uses_blacklist_var(
-                  exp,
-                  restrict_blacklist(p, blacklist_vars),
-                )) {
-              raise(BlacklistVarFound);
-            };
-            exp;
-          } else {
-            ForallWhere(
-              p,
-              replace_exp(g, restrict_blacklist(p, blacklist_vars)),
-              replace_exp(e, restrict_blacklist(p, blacklist_vars)),
-            )
-            |> rewrap;
-          }
-        | FunWhere(p, g, e) =>
-          if (is_bound(p)) {
-            if (uses_blacklist_var(
-                  exp,
-                  restrict_blacklist(p, blacklist_vars),
-                )) {
-              raise(BlacklistVarFound);
-            };
-            exp;
-          } else {
-            FunWhere(
-              p,
-              replace_exp(g, restrict_blacklist(p, blacklist_vars)),
+            Forall(
+              replace_pat(p, restrict_blacklist(p, blacklist_vars)),
               replace_exp(e, restrict_blacklist(p, blacklist_vars)),
             )
             |> rewrap;

@@ -158,6 +158,15 @@ open AST
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
 
+/* Pattern guard `p where g` (Precedence.pat_where). LOOSER than every
+   operator that can appear on either side -- so `h :: t where a && b` is
+   `Where(Cons(h, t), a && b)` -- and TIGHTER than the structural forms,
+   so the guard ends at the binder's `->` / the rule's `=>` / the let's
+   `=`. Declaring it is what keeps the three states where WHERE meets a
+   reducible `pat` (after `pat CONS pat`, and after `FUN`/`FORALL`
+   nonAscriptingPat) conflict-free. */
+%nonassoc WHERE
+
 /* Material implication: right-associative, one level LOOSER than `||`
    (Precedence.impl = 34 vs Precedence.or_ = 33), so `a == b ==> c == d`
    is `(a == b) ==> (c == d)` and `a ==> b ==> c` is `a ==> (b ==> c)`. */
@@ -305,21 +314,6 @@ tupPatEntry:
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
-    (* Guarded pattern `(p where g)` (Form.re PatWhere / Grammar.re
-       Pat.Where).
-
-       PARENTHESIZED ONLY here, deliberately. A general infix
-       `pat: pat WHERE exp` is AMBIGUOUS in this LR grammar: after
-       `FUN nonAscriptingPat` / `FORALL nonAscriptingPat` with WHERE
-       ahead, `nonAscriptingPat` can reduce either to `funPat` (giving
-       the dedicated `fun _ where _ -> _` / `forall _ where _ -> _`
-       productions) or to `pat` (giving this one) -- 2 reduce/reduce
-       conflicts menhir resolves arbitrarily. The dedicated tiles are
-       load-bearing, so the guard is delimited here instead: by
-       CLOSE_PAREN below, and by EQUAL_ARROW in `rul`/`prul`. The
-       segment/tile parser (Haz3lcore.Parser, the canonical one) has no
-       such restriction and accepts the unparenthesized infix. *)
-    | OPEN_PAREN; p = pat; WHERE; g = exp; CLOSE_PAREN { WherePat(p, g) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(l), p)]) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
     |  P_PAT; s = STRING { InvalidPat(s) }
@@ -338,9 +332,16 @@ nonAscriptingPat:
 
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { AscPat(p1, t1) }
+    (* `fun p where g -> e`: the binder slot takes the guard directly. *)
+    | p = nonAscriptingPat; WHERE; g = exp; { WherePat(p, g) }
     | p = nonAscriptingPat; { p }
 
 pat:
+    (* Guarded pattern `p where g` (Form.re PatWhere / Grammar.re
+       Pat.Where). `fun p where g -> e` and `forall p where g -> e` are
+       just this pattern in the ordinary `fun`/`forall` binder slot --
+       there are no dedicated productions for them. *)
+    | p1 = pat; WHERE; g = exp;  { WherePat(p1, g) }
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
@@ -356,17 +357,12 @@ pat:
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
-    (* `| p where g => e`: unambiguous, the guard ends at EQUAL_ARROW. *)
-    | TURNSTILE; p = pat; WHERE; g = exp; EQUAL_ARROW; e = exp;
-        { (WherePat(p, g), e) }
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
 funExp: 
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    (* Function contract `fun p where g -> e` (Form.re FunWhere). *)
-    | FUN; p = funPat; WHERE; g = exp; DASH_ARROW; e1 = exp; { FunWhereExp (p, g, e1) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
 
 (* `forall` needs an UNPARENTHESIZED ascribed binder (`forall n: Int -> ...`
@@ -381,18 +377,16 @@ funExp:
 forallPat:
     | p = funPat { p }
     | p = nonAscriptingPat; COLON; t = typ { AscPat(p, t) }
+    (* `forall p : T where g -> e`. *)
+    | p = nonAscriptingPat; COLON; t = typ; WHERE; g = exp
+        { WherePat(AscPat(p, t), g) }
 
 forallExp:
     | FORALL; p = forallPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
-    (* Restricted binder `forall p where g -> e` (Form.re ForallWhere). *)
-    | FORALL; p = forallPat; WHERE; g = exp; DASH_ARROW; e = exp; { ForallWhereExp (p, g, e) }
 
 (* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
 prul:
     | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
-    (* `| p where g => pf`: as in `rul`. *)
-    | TURNSTILE; p = pat; WHERE; g = exp; EQUAL_ARROW; pf = proof;
-        { (WherePat(p, g), pf) }
 
 proof:
     | QUESTION { EmptyHoleProof }

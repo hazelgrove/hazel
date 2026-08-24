@@ -31,10 +31,10 @@ open Util;
  *     `is_finite(arg)` (they error on nan/inf — Phase 0 fix).
  *
  * Function bodies (Phase 3b, §2.2): the scan does NOT descend into
- * `Fun` / `FunWhere` bodies. A lambda value's body does not run until
+ * `Fun` bodies. A lambda value's body does not run until
  * applied, and body conditions are phrased in the lambda's own bound
  * variables — the wrong altitude for the caller. Instead:
- *   - applying a contract function `FunWhere(p, g, _)` emits the
+ *   - applying a contract function `Fun(Where(p, g), _)` emits the
  *     instantiated contract `g[p := arg]` — the CALLER's vocabulary,
  *     never conditions about the body's internals;
  *   - unguarded functions get their body conditions once, at the
@@ -131,9 +131,10 @@ let rec pat_var = (p: Pat.t): option(Var.t) =>
   | _ => None
   };
 
-/* The contract condition of an application whose head is a FunWhere:
- * the guard instantiated by the argument, `g[p := arg]` — the caller's
- * vocabulary (§2.2). */
+/* The contract condition of an application whose head is a lambda whose
+ * PARAMETER carries a `where` guard (`fun p where g -> _`, i.e.
+ * `Fun(Where(p, g), _)`): the guard instantiated by the argument,
+ * `g[p := arg]` — the caller's vocabulary (§2.2). */
 let contract_condition = (p: Pat.t, g: Exp.t, arg: Exp.t): option(Exp.t) =>
   pat_var(p)
   |> Option.map(x =>
@@ -187,11 +188,12 @@ let scan = (exp: Exp.t): list(Exp.t) => {
        * contract function emits its guard instantiated by the
        * argument, never conditions about the body (the body is
        * discharged once, at the definition). */
-      | FunWhere(p, g, _body) =>
-        switch (contract_condition(p, g, arg)) {
+      | Fun(fp, _body, _, _) when Exp.pat_guard(fp) != None =>
+        let (p, g) = Exp.split_pat_guard(fp);
+        switch (contract_condition(p, Option.get(g), arg)) {
         | Some(c) => emit(c)
         | None => () /* destructuring parameter: v1 skip (header) */
-        }
+        };
       | _ =>
         switch (callee_name(fn)) {
         | Some(name) => List.iter(emit, builtin_conditions(name, arg))
@@ -210,8 +212,7 @@ let scan = (exp: Exp.t): list(Exp.t) => {
            * lambda's body does not run until applied, its conditions
            * are in the wrong (callee) vocabulary, and env-bound
            * definitions are covered once at the definition site. */
-          | Fun(_)
-          | FunWhere(_) => e
+          | Fun(_) => e
           | _ => continue(e)
           };
         },

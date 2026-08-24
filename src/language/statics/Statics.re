@@ -298,7 +298,7 @@ and uexp_to_info_map =
   };
   /* `forall` is a proposition, not a value: it has no evaluation
      semantics, so outside a theorem it is flagged (as a warning, since it
-     still types as Bool). Shared by `Forall` and `ForallWhere`.
+     still types as Bool).
      Deliberately NOT extended to suppress warnings on `let`-bound
      non-computable definitions: out of scope for now. */
   let forall_warnings =
@@ -344,38 +344,28 @@ and uexp_to_info_map =
           fp,
           m,
         );
-      proof_ctx_of_goal(fp'.ctx, fbody, m);
-    | ForallWhere(fp, g, fbody) =>
-      /* Like Forall, but the `where` restriction additionally enters the
-         proof's scope as a citable hypothesis, under the same
-         name the big-step checker will use
+      /* A `where` restriction on the binder PATTERN
+         (`forall p where g -> _` IS `Forall(Where(p, g), _)`)
+         additionally enters the proof's scope as a citable hypothesis,
+         under the same name the big-step checker will use
          (`SemanticCtx.add_hypothesis` with base name "where", which is
          now the bare name itself) — mirroring the Assume statics
          below. */
-      let (fp', _, m) =
-        upat_to_info_map(
-          ~is_synswitch=false,
-          ~ctx,
-          ~co_ctx=CoCtx.empty,
-          ~ancestors=ancestors_inclusive,
-          ~probe_ids,
-          fp,
-          m,
-        );
-      let ctx = fp'.ctx;
-      /* FIXED name, no freshening: an inner `where` shadows an outer one
-         (`SemanticCtx.hypothesis_name`). */
-      let name = "where";
-      let hyp_id = IdTagged.rep_id(g);
       let ctx =
-        Ctx.extend_theorem(
-          ctx,
-          {
-            name,
-            id: hyp_id,
-            prop: Some(g),
-          },
-        );
+        switch (Exp.pat_guard(fp)) {
+        | None => fp'.ctx
+        | Some(g) =>
+          /* FIXED name, no freshening: an inner `where` shadows an outer
+             one (`SemanticCtx.hypothesis_name`). */
+          Ctx.extend_theorem(
+            fp'.ctx,
+            {
+              name: "where",
+              id: IdTagged.rep_id(g),
+              prop: Some(g),
+            },
+          )
+        };
       proof_ctx_of_goal(ctx, fbody, m);
     | _ => (ctx, m)
     };
@@ -1993,77 +1983,6 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
-        m,
-      );
-    | ForallWhere(p, g, e) =>
-      /* Restricted binder: the guard `g` and the body `e` are both
-         propositions (Bool) with the binder in scope. */
-      let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
-      let (g, g_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, g, m);
-      let (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
-      add(
-        ~elab_term=ForallWhere(p_elab, g_elab, e_elab) |> rewrap,
-        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
-        ~marks=[],
-        ~warnings=forall_warnings,
-        ~co_ctx=CoCtx.mk(ctx, p.ctx, CoCtx.union([g.co_ctx, e.co_ctx])),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([
-            p.probe_targets,
-            g.probe_targets,
-            e.probe_targets,
-          ]),
-        m,
-      );
-    | FunWhere(p, g, e) =>
-      /* Function contract (docs/prover-obligations.md §2.2): types like
-         Fun — Arrow(p.ty, body ty) — except the guard `g` additionally
-         analyzes against Bool with the parameter in scope. */
-      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (mode_pat, mode_body) = MatchedTyp.arrow_tolerant(ctx, ana);
-      let (p', _, _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let (g, g_elab, m) =
-        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, g, m);
-      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
-      /* Second pass on the pattern, as in Fun: attach the co_ctx of the
-         guard and body, preserving the ana-meet'd type. */
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=CoCtx.union([g.co_ctx, e.co_ctx]),
-          ~ana=p'.ty,
-          p,
-          m,
-        );
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
-      let marks_fun =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
-          ]
-        };
-      add(
-        ~elab_term=FunWhere(p_elab, g_elab, e_elab) |> rewrap,
-        ~elab_syn_ty=syn_ty_fun,
-        ~marks=marks_fun,
-        ~co_ctx=
-          CoCtx.union([
-            CoCtx.mk(ctx, p.ctx, CoCtx.union([g.co_ctx, e.co_ctx])),
-            pat_typ_refs,
-          ]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([
-            p.probe_targets,
-            g.probe_targets,
-            e.probe_targets,
-          ]),
         m,
       );
     | TypFun(utpat, body, tfname) =>
@@ -3847,8 +3766,9 @@ and upat_to_info_map =
     | Where(p, g) =>
       /* `p where g` (docs/prover-obligations.md §2.2): types exactly as
          `p` does, and the guard `g` additionally analyzes against Bool
-         with `p`'s bindings in scope -- the same rule FunWhere /
-         ForallWhere use for their guards. */
+         with `p`'s bindings in scope. This is the ONLY place a `where`
+         restriction is typed: `fun p where g -> e` and
+         `forall p where g -> e` are `Fun`/`Forall` of this pattern. */
       let (p', _, m) = go(~co_ctx=CoCtx.empty, p, m);
       let (g', g_elab, m) =
         uexp_to_info_map(
@@ -3861,7 +3781,7 @@ and upat_to_info_map =
           m,
         );
       /* Second pass on the pattern with the guard's uses attached, as in
-         FunWhere's statics: a variable used only in the guard is used. */
+         Fun's statics: a variable used only in the guard is used. */
       let (p, p_elab, m) =
         go(~co_ctx=CoCtx.union([co_ctx, g'.co_ctx]), ~ana=p'.ty, p, m);
       add(
@@ -3872,7 +3792,8 @@ and upat_to_info_map =
           SubexpProbeTargets.union_all([p.probe_targets, g'.probe_targets]),
         /* Coverage: transparent here, so a guarded binder in a
            SINGLE-pattern position (`fun`/`let`/`forall`) behaves exactly
-           like the equivalent FunWhere/ForallWhere does today. The
+           the way a binder restriction should: it narrows the domain,
+           it does not split a scrutinee. The
            multi-row positions (`case`, `induction`) drop guarded rows
            instead -- a guard is not a case split. See
            `unguarded_constraints` below. */
@@ -4622,7 +4543,9 @@ and proof_to_info_map =
      (docs/prover-obligations.md, Phase 4d). */
   let rec binder_typ_of_pat = (x: Var.t, pat: Pat.t): option(Typ.t) =>
     switch (pat.term) {
-    | Parens(p1) => binder_typ_of_pat(x, p1)
+    | Parens(p1)
+    /* `forall (x : Int) where g -> _`: look through the restriction. */
+    | Where(p1, _) => binder_typ_of_pat(x, p1)
     | Asc(p1, ty) =>
       switch (p1.term) {
       | Var(y) when y == x => Some(ty)
@@ -4635,11 +4558,6 @@ and proof_to_info_map =
     switch (prop.term) {
     | Parens(e1) => binder_typ_in_prop(x, e1)
     | Forall(pat, body) =>
-      switch (binder_typ_of_pat(x, pat)) {
-      | Some(_) as found => found
-      | None => binder_typ_in_prop(x, body)
-      }
-    | ForallWhere(pat, _, body) =>
       switch (binder_typ_of_pat(x, pat)) {
       | Some(_) as found => found
       | None => binder_typ_in_prop(x, body)

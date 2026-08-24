@@ -1927,9 +1927,16 @@ let built_fun_ap = (~guard: bool, ()): Exp.t => {
   let pat = Pat.fresh(Var("x"));
   let f =
     Exp.fresh(
-      guard
-        ? FunWhere(pat, Test_Evaluator_Prelude.parse_exp({|x != 0|}), body)
-        : Fun(pat, body, None, None),
+      Fun(
+        guard
+          ? Pat.fresh(
+              Where(pat, Test_Evaluator_Prelude.parse_exp({|x != 0|})),
+            )
+          : pat,
+        body,
+        None,
+        None,
+      ),
     );
   Exp.fresh(Ap(Forward, f, Test_Evaluator_Prelude.parse_exp({|y|})));
 };

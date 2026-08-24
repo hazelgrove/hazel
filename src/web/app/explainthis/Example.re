@@ -84,9 +84,20 @@ let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_theorem = mk_tile(Form.get(Theorem));
 let mk_forall = mk_tile(Form.get(Forall));
 /* Prover forms (docs/prover-obligations.md): the restricted binders and
- * the Proof sort's step forms. */
-let mk_forall_where = mk_tile(Form.get(ForallWhere));
-let mk_fun_where = mk_tile(Form.get(FunWhere));
+ * the Proof sort's step forms.
+ *
+ * `forall p where g -> e` / `fun p where g -> e` have NO tile of their
+ * own: they are the plain `forall` / `fun` tile with the infix `where`
+ * pattern (PatWhere) in its single Pat slot. These helpers keep the
+ * two-children call shape the ExplainThis data is written in. */
+let where_pat = () => mk_monotile(Form.get(PatWhere));
+let mk_binder_where = (mk_binder, children: list(list(Piece.t))) =>
+  switch (children) {
+  | [p, g] => mk_binder([p @ [where_pat()] @ g])
+  | _ => failwith("mk_binder_where: expected a pattern and a guard")
+  };
+let mk_forall_where = mk_binder_where(mk_forall);
+let mk_fun_where = mk_binder_where(mk_fun);
 let proof_seq = () => mk_monotile(Form.get(ProofSeq));
 let mk_proof_forall = mk_tile(Form.get(ProofForall));
 let mk_proof_funext = mk_tile(Form.get(ProofFunext));

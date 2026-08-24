@@ -322,8 +322,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | ModuleExp(_)
   | Asc(_)
   | Forall(_)
-  | ForallWhere(_)
-  | FunWhere(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: Language.IdTagged.IdTag.fresh(),
