@@ -46,4 +46,5 @@ let tests =
     Test_HypothesisNaming.tests,
     Test_Funext.tests,
     Test_FunctionTotality.tests,
+    Test_Equiv_Inductions.tests,
   ];
