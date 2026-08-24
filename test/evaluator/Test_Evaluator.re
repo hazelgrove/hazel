@@ -44,4 +44,5 @@ let tests =
     Test_Have.tests,
     Test_HypothesisNaming.tests,
     Test_Funext.tests,
+    Test_FunctionTotality.tests,
   ];

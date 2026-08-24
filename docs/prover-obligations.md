@@ -239,6 +239,18 @@ Consequences:
 - Quantifiers (`forall`) range over **total values**. This was already
   implicitly committed: induction's exhaustiveness via `Coverage.check` never
   covers ⊥.
+- There is ONE totality tag, and for a function-typed binder it means
+  **total map**: `forall f -> ...` licenses evaluating `f` *and applying it*
+  anywhere on its type's domain — `f(x)`, `fold_left(xs, f, acc)`. There is no
+  intermediate "total as a value but possibly looping when called"; a value you
+  may not call is not a total value. The obligation to be total therefore lands
+  at the INSTANTIATION site: instantiating such a binder at a genuinely looping
+  closure is refused (`PossiblyDivergentInstantiation`, §4.1). This is distinct
+  from domain-definedness: `inv = fun x -> 1/x` IS a total map (`1/0`
+  terminates, in `err`), and `1/0`, `head([])` and friends stay ordinary
+  obligations from the domain scan (§2). v1 cut: total *everywhere* on the
+  type's domain — `where` remains a boolean hypothesis, not a totality
+  carve-out.
 - A theorem can be **refuted** (goal rewrites to literal `false`), and
   refutation genuinely means false. Proof-⊥ (neither provable nor refutable)
   covers divergent goals and statements whose truth depends on off-domain

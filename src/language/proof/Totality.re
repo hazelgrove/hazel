@@ -9,16 +9,47 @@ open Util;
  * obligation — the caller must REFUSE the step when this check fails.
  * Conservative = when unsure, fail with a reason.
  *
+ * THE UNIFIED TOTALITY TAG
+ * -----------------------
+ * There is ONE totality tag, not two. "Total" means: you may evaluate
+ * it, and if it is a function you may APPLY it (anywhere on its type's
+ * domain). There is no intermediate status of "total as a value but
+ * possibly looping as a function" — a value you may not call is not a
+ * total value.
+ *
+ * Consequences, which this file implements:
+ *   - a quantified binder (§1.3) of arrow type denotes a TOTAL MAP.
+ *     `forall f -> ... f(x) ...` is fine: both the bare `f` and `f(x)`
+ *     are total. Quantifiers range over total maps, so instantiating
+ *     one at a genuinely looping closure (`omega`) is what gets refused
+ *     (ProofCheck.instantiation_gate), not the use of the binder.
+ *   - `fun x -> e` is total exactly when `e` is, with the pattern's
+ *     bindings assumed total (as values AND as maps, if arrow-typed).
+ *     There is deliberately no "lambdas are values, never look at the
+ *     body" shortcut: it would make `fun x -> omega(x)` a total value,
+ *     which is precisely the split this tag removes.
+ *   - a parameter of a function whose body we are walking is assumed
+ *     total, because the ARGUMENTS were checked total before we got
+ *     here. This is what lets `fold_left(xs, f, acc)` through: the
+ *     builtin's body applies its own `f` parameter, and `f` stood for a
+ *     total map at the call site.
+ *
+ * TOTALITY IS NOT DEFINEDNESS. `1/0`, `head([])` and friends terminate;
+ * they terminate in `err`. That is the domain scan's business
+ * (DomainConditions.re, which turns them into obligations), never this
+ * check's. In particular `inv = fun x -> 1/x` is a total map here.
+ *
  * What passes:
- *   - literals, quantified variables (quantifiers range over total
- *     values, §1.3), constructors, tuples/lists;
- *   - lambdas themselves (they are values — it is their APPLICATION
- *     that forces the body, which is then checked with the arguments
- *     assumed total);
- *   - applications of visibly-total functions to total arguments;
+ *   - literals, constructors, tuples/lists;
+ *   - variables — after substitution these are quantified binders,
+ *     lambda/fix parameters, or builtins, all total maps (above);
+ *   - lambdas whose BODY is total under the assumption that their
+ *     parameters are total;
+ *   - applications of total functions to total arguments — including
+ *     applications of abstract (quantified) functions;
  *   - builtin applications (every Hazel builtin terminates; their
- *     PARTIALITY is the domain scan's job, DomainConditions.re) —
- *     including int/float division, which terminates with `err`;
+ *     PARTIALITY is the domain scan's job) — including int/float
+ *     division, which terminates with `err`;
  *   - case/if with total scrutinee and all branches total.
  *
  * What fails:
@@ -33,11 +64,18 @@ open Util;
  *     the subterm order — StructuralRecursion guarantees every
  *     recursive call strictly descends), so the rest of the body is
  *     still held to this same standard. A non-structural fix fails
- *     with a reason distinguishing it from tier-1 failures.
- *   - applications whose head is a variable with no visible definition
- *     (free/abstract functions);
+ *     with a reason distinguishing it from tier-1 failures. This is
+ *     why `omega == omega` is refused even though `omega` is "only a
+ *     value" there: under the unified tag a looping map is not total.
+ *   - applying a variable that is definitely not of function type
+ *     (nonsense — the term is ill-typed or unclassifiable);
  *   - anything else we cannot positively classify (holes, exotic
  *     forms) — conservative by construction.
+ *
+ * LIMITATION (v1). Quantified functions are total EVERYWHERE on their
+ * type's domain; there is no way to quantify over a function that is
+ * total only on a carve-out. `where` remains a boolean hypothesis, not
+ * a totality domain.
  *
  * The expression is expected to be environment-substituted
  * (`Substitution.in_exp`) before calling: substitution inlines visible
@@ -63,14 +101,27 @@ let is_builtin = (ctx: Ctx.t, name: Var.t): bool =>
   | None => false
   };
 
-let is_arrow_typed = (ctx: Ctx.t, name: Var.t): bool =>
+/* Could `name` denote a function? Under the unified tag any variable
+ * that CAN be a function is assumed to be a total map, so this only
+ * rules out applying a name statics has pinned to a non-function type
+ * (an ill-typed / unclassifiable term). Unknown types and names absent
+ * from the ctx (lambda and fix parameters, whose binding site is inside
+ * the expression rather than in the surrounding context) are allowed. */
+let may_be_function = (ctx: Ctx.t, name: Var.t): bool =>
   switch (Ctx.lookup_var(ctx, name)) {
+  | None => true
   | Some(entry) =>
     switch (Typ.term_of(entry.typ)) {
-    | Arrow(_) => true
-    | _ => false
+    /* Definitely not a function. Everything else — arrows, unknowns,
+     * aliases, polymorphic and recursive types, wrappers — is allowed. */
+    | Atom(_)
+    | List(_)
+    | Sum(_)
+    | Prod(_)
+    | Label(_)
+    | ExplicitNonlabel => false
+    | _ => true
     }
-  | None => false
   };
 
 let check =
@@ -81,14 +132,23 @@ let check =
     | Ok(x) => f(x)
     | Error(_) as e => e
     };
-  /* `assumed`: self-names of enclosing structurally-recursive fixpoints,
-   * whose (applications and) values may be assumed total inside their
-   * own bodies (well-founded induction on the subterm order). Rebinding
-   * such a name shadows the assumption. */
+  /* `assumed`: names that may be treated as total — both as values and
+   * as maps (the unified tag) — inside the term we are walking:
+   *   - self-names of enclosing structurally-recursive fixpoints (sound
+   *     by well-founded induction on the subterm order);
+   *   - parameters of any function whose body we walk, since the
+   *     arguments at the application site were checked total first, and
+   *     a quantified binder standing in an argument position denotes a
+   *     total map.
+   * Rebinding such a name shadows the assumption. */
   let unshadow = (assumed: list(Var.t), p: Pat.t): list(Var.t) => {
     let bound = Pat.bound_vars(p);
     List.filter(n => !List.mem(n, bound), assumed);
   };
+  /* Enter the body of a function/fixpoint: its parameters join
+   * `assumed` (shadowing any same-named outer assumption). */
+  let bind_total = (assumed: list(Var.t), p: Pat.t): list(Var.t) =>
+    Pat.bound_vars(p) @ unshadow(assumed, p);
   /* On a reachable FixF: tier 2. Structural -> continue `k` into the
    * body with the self-names assumed total; otherwise fail with a
    * tier-2-specific reason. */
@@ -102,7 +162,7 @@ let check =
       )
       : result(unit, reason) =>
     switch (StructuralRecursion.check(fix)) {
-    | Ok () => k(~assumed=Pat.bound_vars(p) @ unshadow(assumed, p), body)
+    | Ok () => k(~assumed=bind_total(assumed, p), body)
     | Error(r) =>
       Error(
         "the recursive function `"
@@ -122,30 +182,20 @@ let check =
     | ExplicitNonlabel
     | ListLit([])
     | DrvQuote(_) => Ok()
-    /* A bare variable: after substitution these are quantified binders
-     * (which range over total VALUES, §1.3) or free names whose env
-     * entry is a self-map. An arrow-typed abstract function is only
-     * refused when APPLIED (see `go_ap`) — as a value it is total —
-     * but we follow the conservative reading and refuse arrow-typed
-     * unknowns even bare. */
-    | Var(x) =>
-      if (List.mem(x, assumed)) {
-        Ok() /* self of an enclosing structural fix: a total value */;
-      } else if (is_arrow_typed(ctx, x) && !is_builtin(ctx, x)) {
-        Error(
-          "the function `"
-          ++ x
-          ++ "` is abstract here; cannot establish its evaluation terminates",
-        );
-      } else {
-        Ok();
-      }
-    /* Lambdas are values; their bodies are checked at application.
-     * A FunWhere is a function value like Fun (its guard has no
-     * dynamic effect, Grammar.re). */
-    | Fun(_)
-    | FunWhere(_)
-    | TypFun(_) => Ok()
+    /* A bare variable: after substitution these are quantified binders,
+     * lambda/fix parameters, or builtins. All denote TOTAL MAPS under
+     * the unified tag (header), so arrow type is no obstacle — the
+     * obligation to supply a total map is discharged at the
+     * INSTANTIATION site (ProofCheck.instantiation_gate), which is
+     * where a looping closure is caught. */
+    | Var(_) => Ok()
+    /* A lambda is total exactly when its body is, with the parameters
+     * assumed total. No "it's a value, don't look" shortcut: that would
+     * make `fun x -> omega(x)` total. A FunWhere is a function value
+     * like Fun (its guard has no dynamic effect, Grammar.re). */
+    | Fun(p, body, _, _) => go(~assumed=bind_total(assumed, p), body)
+    | FunWhere(p, _, body) => go(~assumed=bind_total(assumed, p), body)
+    | TypFun(_, body, _) => go(~assumed, body)
     /* Recursion: tier 2 (§4.1). A structurally recursive fix unrolls
      * to its body with itself (a total value, by the structural
      * argument) bound — check the body under that assumption. A
@@ -178,10 +228,11 @@ let check =
     | UnOp(_, e1) => go(~assumed, e1)
     /* Non-recursive let (recursive lets already carry a FixF in their
      * definiens after elaboration). The let's bindings shadow any
-     * assumed self-names in its body. */
+     * assumed self-names in its body — but the definiens was checked
+     * total, so they are themselves assumed total (unified tag). */
     | Let(p, e1, e2) =>
       let* _ = go(~assumed, e1);
-      go(~assumed=unshadow(assumed, p), e2);
+      go(~assumed=bind_total(assumed, p), e2);
     /* case/if: total if the scrutinee and all branches are. */
     | If(e1, e2, e3) =>
       let* _ = go(~assumed, e1);
@@ -192,7 +243,8 @@ let check =
       List.fold_left(
         (acc, (p, rhs)) => {
           let* _ = acc;
-          go(~assumed=unshadow(assumed, p), rhs);
+          /* Pattern bindings destructure the (total) scrutinee. */
+          go(~assumed=bind_total(assumed, p), rhs);
         },
         Ok(),
         rules,
@@ -207,7 +259,9 @@ let check =
     }
   /* The head of an application spine. Arguments were already checked
    * total, so a lambda head reduces to its body with total values
-   * bound — check the body. `depth` counts the pending
+   * bound — check the body, with the parameters ASSUMED TOTAL (they
+   * stand for the checked arguments; if one is a function it is a total
+   * map, so the body may apply it). `depth` counts the pending
    * arguments (curried applications increment it): a lambda head
    * consumes one — the LAST consumption forces the body as an
    * expression; an inner lambda reached with arguments still pending
@@ -222,13 +276,13 @@ let check =
     | Asc(e1, _)
     | Closure(_, e1) => go_ap(~assumed, ~depth, e1)
     | Fun(p, body, _, _) =>
-      let assumed = unshadow(assumed, p);
+      let assumed = bind_total(assumed, p);
       depth <= 1
         ? go(~assumed, body) : go_ap(~assumed, ~depth=depth - 1, body);
     /* Application drops the contract guard (no dynamic effect), so
      * totality of the application is totality of the body. */
     | FunWhere(p, _, body) =>
-      let assumed = unshadow(assumed, p);
+      let assumed = bind_total(assumed, p);
       depth <= 1
         ? go(~assumed, body) : go_ap(~assumed, ~depth=depth - 1, body);
     /* All Hazel builtins terminate (partiality is `err`, scanned by
@@ -246,16 +300,27 @@ let check =
     | Ap(_, fn', arg') =>
       let* _ = go(~assumed, arg');
       go_ap(~assumed, ~depth=depth + 1, fn');
+    /* Applying a variable. Under the unified tag every function-typed
+     * name in scope denotes a TOTAL MAP, so this succeeds:
+     *   - `assumed`: a recursive call of an enclosing structural fix
+     *     (its strict descent was verified by StructuralRecursion), or
+     *     a parameter standing for an argument already checked total;
+     *   - a builtin: terminates by implementation;
+     *   - otherwise a quantified binder (§1.3) — total by the
+     *     quantifier's own meaning, enforced at instantiation.
+     * Only a name statics has pinned to a NON-function type is
+     * refused: applying it is not a divergence question at all, it is
+     * a term we cannot classify. */
     | Var(x) =>
-      if (List.mem(x, assumed)) {
-        Ok() /* a recursive call of an enclosing structural fix: its * strict descent was verified by StructuralRecursion */;
-      } else if (is_builtin(ctx, x)) {
+      if (List.mem(x, assumed)
+          || is_builtin(ctx, x)
+          || may_be_function(ctx, x)) {
         Ok();
       } else {
         Error(
-          "the definition of `"
+          "`"
           ++ x
-          ++ "` is not visible; cannot establish its application terminates",
+          ++ "` is not a function here; cannot establish this application terminates",
         );
       }
     | _ => Error("cannot establish that this application terminates")
