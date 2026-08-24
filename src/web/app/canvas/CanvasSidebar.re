@@ -1283,250 +1283,212 @@ let view =
         y: p.y -. vy /. len *. d,
       };
     };
-    let follow_edges = (dx: float, dy: float) => {
-      let sh = (p: CanvasLayout.pos) =>
-        CanvasLayout.{
-          x: p.x +. dx,
-          y: p.y +. dy,
+    /* EXACT drag follow: recompute the REAL layout with the pending
+       delta (same frame + offsets the commit will use) and apply every
+       piece of geometry imperatively — no vdom, no app render, and
+       nothing left to jump on drop. Hull circles go through the jelly
+       springs as targets. */
+    let lay_with = ((dx, dy)): option(CanvasLayout.t) => {
+      let offsets' =
+        pin == None
+          ? [
+            (n.key, (fst(base) +. dx, snd(base) +. dy)),
+            ...List.remove_assoc(n.key, offsets),
+          ]
+          : offsets;
+      let pins' =
+        switch (pin) {
+        | Some((px, py)) => [
+            (n.key, (px +. dx, py +. dy)),
+            ...List.remove_assoc(n.key, pins),
+          ]
+        | None => pins
         };
-      let set_circle = (id: string, p: CanvasLayout.pos) =>
-        switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-        | Some(el) =>
-          set_attr(el, "cx", Printf.sprintf("%.1f", p.x));
-          set_attr(el, "cy", Printf.sprintf("%.1f", p.y));
-        | None => ()
-        };
-      let former_pos = (root: string): option(CanvasLayout.pos) =>
-        List.find_opt(
-          (nl: CanvasLayout.node_layout) => nl.node.key == "{}@" ++ root,
-          lay.nodes,
+      switch (cached_frame^) {
+      | Some(fc) =>
+        Some(
+          CanvasLayout.layout(
+            ~x_scale=fc.fc_x_scale,
+            ~y_scale=fc.fc_y_scale,
+            ~origin_override=Some(fc.fc_origin),
+            ~offsets=offsets',
+            ~pins=pins',
+            graph,
+          ),
         )
-        |> Option.map((nl: CanvasLayout.node_layout) =>
-             nl.node.key == n.key ? sh(nl.p) : nl.p
-           );
-      let bridge_ts = [0.22, 0.42, 0.62, 0.82];
-      let set_bridges =
-          (e_name: string, lp: CanvasLayout.pos, fp: CanvasLayout.pos) => {
-        let en = CanvasView.sanitize(e_name);
-        List.iteri(
-          (i, t) =>
-            set_circle(
-              Printf.sprintf("hullc-b-%s-%d", en, i),
-              CanvasLayout.{
-                x: lp.x +. (fp.x -. lp.x) *. t,
-                y: lp.y +. (fp.y -. lp.y) *. t,
-              },
-            ),
-          bridge_ts,
-        );
+      | None => None
       };
-      /* the dragged node's own hull circle */
-      switch (
-        List.find_opt(
-          (nl: CanvasLayout.node_layout) => nl.node.key == n.key,
-          lay.nodes,
-        )
-      ) {
-      | Some(nl) =>
-        set_circle("hullc-n-" ++ CanvasView.sanitize(n.key), sh(nl.p))
-      | None => ()
-      };
-      /* dragging a module former: every member edge's bridge re-aims */
-      if (String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@") {
-        let root = String.sub(n.key, 3, String.length(n.key) - 3);
-        let root =
-          switch (String.index_opt(root, '.')) {
-          | Some(i) => String.sub(root, 0, i)
-          | None => root
-          };
-        List.iter(
-          (el: CanvasLayout.edge_layout) =>
-            switch (el.edge.m_path) {
-            | [r, ..._]
-                when
-                  r == root && el.edge.e_src != n.key && el.edge.dst != n.key =>
-              switch (former_pos(root)) {
-              | Some(fp) => set_bridges(el.edge.e_name, el.label_p, fp)
-              | None => ()
-              }
-            | _ => ()
-            },
-          lay.edges,
-        );
-      };
+    };
+    let apply_layout = (l: CanvasLayout.t): unit => {
+      List.iter(
+        (nl: CanvasLayout.node_layout) =>
+          set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
+        l.nodes,
+      );
       List.iter(
         (el: CanvasLayout.edge_layout) => {
           let e = el.edge;
-          let src_moves = e.e_src == n.key
-          and dst_moves = e.dst == n.key;
-          if (src_moves || dst_moves) {
-            if (el.endo) {
-              switch (
-                Util.JsUtil.get_elem_by_id_opt(
-                  "corbit-" ++ CanvasView.sanitize(e.e_name),
-                )
-              ) {
-              | Some(c) =>
-                let p = sh(el.dst_p);
-                set_attr(c, "cx", fmt'(p.x));
-                set_attr(c, "cy", fmt'(p.y));
-              | None => ()
-              };
-              let lp = sh(el.label_p);
-              set_pos(CanvasView.edge_dom_id(e.e_name), lp.x, lp.y);
-            } else {
-              let src = src_moves ? sh(el.src_p) : el.src_p;
-              let c1 = src_moves ? sh(el.c1) : el.c1;
-              let dst = dst_moves ? sh(el.dst_p) : el.dst_p;
-              let c2 = dst_moves ? sh(el.c2) : el.c2;
-              let dstp = pull_back(dst, c2, 7.);
-              switch (
-                Util.JsUtil.get_elem_by_id_opt(
-                  "cpath-" ++ CanvasView.sanitize(e.e_name),
-                )
-              ) {
-              | Some(path) =>
-                set_attr(
-                  path,
-                  "d",
-                  Printf.sprintf(
-                    "M %f,%f C %f,%f %f,%f %f,%f",
-                    src.x,
-                    src.y,
-                    c1.x,
-                    c1.y,
-                    c2.x,
-                    c2.y,
-                    dstp.x,
-                    dstp.y,
-                  ),
-                )
-              | None => ()
-              };
-              /* the label rides the curve midpoint: half the delta */
-              let lp' =
-                CanvasLayout.{
-                  x: el.label_p.x +. dx /. 2.,
-                  y: el.label_p.y +. dy /. 2.,
-                };
-              set_pos(CanvasView.edge_dom_id(e.e_name), lp'.x, lp'.y);
-              /* hull circles ride along: the label's own circle and the
-                 pseudopod back to the module former */
-              switch (e.m_path) {
-              | [root, ..._] =>
-                set_circle("hullc-l-" ++ CanvasView.sanitize(e.e_name), lp');
-                switch (former_pos(root)) {
-                | Some(fp) => set_bridges(e.e_name, lp', fp)
-                | None => ()
-                };
-              | [] => ()
-              };
-            };
-          };
-        },
-        lay.edges,
-      );
-      /* constants orbiting the dragged node */
-      List.iter(
-        (vl: CanvasLayout.value_layout) =>
-          if (vl.value.v_key == n.key) {
-            let p = sh(vl.p);
-            set_pos(CanvasView.value_dom_id(vl.value.v_name), p.x, p.y);
-          },
-        lay.values,
-      );
-      /* dotted connectors (formations, dep links): endpoints are rim
-         points, so match by the node keys carried in the layout and
-         translate the dragged side; rim angles re-derive on drop */
-
-      List.iteri(
-        (i, (ka, kb, cp, pp)) => {
-          let cm = ka == n.key
-          and pm = kb == n.key;
-          if (cm || pm) {
-            let cp = cm ? sh(cp) : cp
-            and pp = pm ? sh(pp) : pp;
-            let mx = (cp.x +. pp.x) /. 2.;
-            let pp' =
-              pull_back(
-                pp,
-                CanvasLayout.{
-                  x: mx,
-                  y: pp.y,
-                },
-                5.,
-              );
+          if (el.endo) {
             switch (
-              Util.JsUtil.get_elem_by_id_opt("cform-" ++ string_of_int(i))
+              Util.JsUtil.get_elem_by_id_opt(
+                "corbit-" ++ CanvasView.sanitize(e.e_name),
+              )
             ) {
-            | Some(el) =>
+            | Some(c) =>
+              set_attr(c, "cx", fmt'(el.dst_p.x));
+              set_attr(c, "cy", fmt'(el.dst_p.y));
+            | None => ()
+            };
+          } else {
+            let dstp = pull_back(el.dst_p, el.c2, 7.);
+            switch (
+              Util.JsUtil.get_elem_by_id_opt(
+                "cpath-" ++ CanvasView.sanitize(e.e_name),
+              )
+            ) {
+            | Some(path_el) =>
               set_attr(
-                el,
+                path_el,
                 "d",
                 Printf.sprintf(
                   "M %f,%f C %f,%f %f,%f %f,%f",
-                  cp.x,
-                  cp.y,
-                  mx,
-                  cp.y,
-                  mx,
-                  pp.y,
-                  pp'.x,
-                  pp'.y,
+                  el.src_p.x,
+                  el.src_p.y,
+                  el.c1.x,
+                  el.c1.y,
+                  el.c2.x,
+                  el.c2.y,
+                  dstp.x,
+                  dstp.y,
                 ),
               )
             | None => ()
             };
           };
+          set_pos(
+            CanvasView.edge_dom_id(e.e_name),
+            el.label_p.x,
+            el.label_p.y,
+          );
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(
+              "clead-" ++ CanvasView.sanitize(e.e_name),
+            )
+          ) {
+          | Some(lel) =>
+            set_attr(lel, "x1", fmt'(el.label_p.x));
+            set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
+            set_attr(lel, "x2", fmt'(el.label_anchor.x));
+            set_attr(lel, "y2", fmt'(el.label_anchor.y));
+          | None => ()
+          };
         },
-        lay.formations,
+        l.edges,
       );
       List.iteri(
-        (i, (ka, kb, dp, tp)) => {
-          let dm = ka == n.key
-          and tm = kb == n.key;
-          if (dm || tm) {
-            let dp = dm ? sh(dp) : dp
-            and tp = tm ? sh(tp) : tp;
-            let tp' = pull_back(tp, dp, 5.);
-            switch (
-              Util.JsUtil.get_elem_by_id_opt("cdep-" ++ string_of_int(i))
-            ) {
-            | Some(el) =>
-              set_attr(el, "x1", Printf.sprintf("%f", dp.x));
-              set_attr(el, "y1", Printf.sprintf("%f", dp.y));
-              set_attr(el, "x2", Printf.sprintf("%f", tp'.x));
-              set_attr(el, "y2", Printf.sprintf("%f", tp'.y));
-            | None => ()
-            };
+        (
+          i,
+          (_, _, cp, pp): (
+            string,
+            string,
+            CanvasLayout.pos,
+            CanvasLayout.pos,
+          ),
+        ) => {
+          let mx = (cp.x +. pp.x) /. 2.;
+          let pp' =
+            pull_back(
+              pp,
+              CanvasLayout.{
+                x: mx,
+                y: pp.y,
+              },
+              5.,
+            );
+          switch (
+            Util.JsUtil.get_elem_by_id_opt("cform-" ++ string_of_int(i))
+          ) {
+          | Some(el) =>
+            set_attr(
+              el,
+              "d",
+              Printf.sprintf(
+                "M %f,%f C %f,%f %f,%f %f,%f",
+                cp.x,
+                cp.y,
+                mx,
+                cp.y,
+                mx,
+                pp.y,
+                pp'.x,
+                pp'.y,
+              ),
+            )
+          | None => ()
           };
         },
-        lay.dep_links,
+        l.formations,
       );
-      /* label leaders on the followed edges */
+      List.iteri(
+        (
+          i,
+          (_, _, dp, tp): (
+            string,
+            string,
+            CanvasLayout.pos,
+            CanvasLayout.pos,
+          ),
+        ) => {
+          let tp' = pull_back(tp, dp, 5.);
+          switch (
+            Util.JsUtil.get_elem_by_id_opt("cdep-" ++ string_of_int(i))
+          ) {
+          | Some(el) =>
+            set_attr(el, "x1", fmt'(dp.x));
+            set_attr(el, "y1", fmt'(dp.y));
+            set_attr(el, "x2", fmt'(tp'.x));
+            set_attr(el, "y2", fmt'(tp'.y));
+          | None => ()
+          };
+        },
+        l.dep_links,
+      );
       List.iter(
-        (el: CanvasLayout.edge_layout) => {
-          let e = el.edge;
-          if (e.e_src == n.key || e.dst == n.key) {
-            switch (
-              Util.JsUtil.get_elem_by_id_opt(
-                "clead-" ++ CanvasView.sanitize(e.e_name),
-              )
-            ) {
-            | Some(lel) =>
-              let lp =
-                CanvasLayout.{
-                  x: el.label_p.x +. dx /. 2.,
-                  y: el.label_p.y +. dy /. 2.,
-                };
-              set_attr(lel, "x1", Printf.sprintf("%f", lp.x));
-              set_attr(lel, "y1", Printf.sprintf("%f", lp.y -. 8.));
-            | None => ()
-            };
-          };
-        },
-        lay.edges,
+        (vl: CanvasLayout.value_layout) =>
+          set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
+        l.values,
       );
+      CanvasJelly.set_targets(CanvasView.hull_targets(l));
+    };
+    let raf_busy = ref(false);
+    let pending: ref(option((float, float))) =
+      ref(None: option((float, float)));
+    let follow_edges = (dx: float, dy: float) => {
+      pending := Some((dx, dy));
+      if (! raf_busy^) {
+        raf_busy := true;
+        let _ =
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "requestAnimationFrame",
+            [|
+              Js.Unsafe.inject(
+                Js.Unsafe.callback(() => {
+                  raf_busy := false;
+                  switch (pending^) {
+                  | Some(d) =>
+                    switch (lay_with(d)) {
+                    | Some(l) => apply_layout(l)
+                    | None => ()
+                    }
+                  | None => ()
+                  };
+                }),
+              ),
+            |],
+          );
+        ();
+      };
     };
     let rec on_move = e => {
       let x: int = Js.Unsafe.coerce(e)##.clientX;
@@ -2380,6 +2342,9 @@ let view =
   | _ => ()
   };
   ensure_scroll_anchor(slide);
+  /* hull circles chase these targets with springs (jelly): layout
+     changes, drags, and collapses all wobble through CanvasJelly */
+  CanvasJelly.set_targets(CanvasView.hull_targets(lay));
   {
     let (prev_slide, prev_nodes) = last_node_snapshot^;
     if (prev_slide != slide) {
