@@ -43,4 +43,5 @@ let tests =
     Test_ClosureLibrary.tests,
     Test_Have.tests,
     Test_HypothesisNaming.tests,
+    Test_Equiv_Inductions.tests,
   ];
