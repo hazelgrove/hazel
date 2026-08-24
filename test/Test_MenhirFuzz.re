@@ -90,11 +90,7 @@ let arb_fuzzed = {
     let* core_exp = QCheck_Util.arb_exp_full(~minimal_idents=false, 5).gen;
     let+ choices = array_size(int_bound(24), int_bound(4));
     /* Same module-item gaps the equivalence property carves out. */
-    (
-      print_core(core_exp),
-      choices,
-      Test_Menhir.has_unsupported_mod_item(core_exp),
-    );
+    (print_core(core_exp), choices, Test_Menhir.is_carved_out(core_exp));
   };
   make(~print=((txt, _, _)) => txt, gen);
 };
