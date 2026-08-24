@@ -172,7 +172,7 @@ let rec mod_members =
           (
             path,
             ILet(
-              Some(Exp.rep_id(def)),
+              Some(Language.Mod.rep_id(m)),
               doc_of_fwd^(m.annotation),
               pat,
               def,
@@ -183,7 +183,7 @@ let rec mod_members =
           (
             path,
             IAlias(
-              Some(Typ.rep_id(ty)),
+              Some(Language.Mod.rep_id(m)),
               doc_of_fwd^(m.annotation),
               tp,
               ty,
@@ -196,7 +196,7 @@ let rec mod_members =
           let entry = (
             path,
             ILet(
-              Some(Exp.rep_id(def)),
+              Some(Language.Mod.rep_id(m)),
               doc_of_fwd^(m.annotation),
               {
                 term: Var(name),

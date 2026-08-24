@@ -928,6 +928,19 @@ let view =
                  sub-blobs with visible padding */
               let depth_pad = (owner: list(string)): float =>
                 float_of_int(List.length(owner) - List.length(path)) *. 14.;
+              /* a former grows with the depth of the module tree
+                 beneath it, recursively */
+              let subtree_bump = (fp: list(string)): float =>
+                14.
+                *. float_of_int(
+                     List.fold_left(
+                       (m, q) =>
+                         is_prefix(fp, q)
+                           ? max(m, List.length(q) - List.length(fp)) : m,
+                       0,
+                       hull_paths,
+                     ),
+                   );
               let node_circles =
                 List.filter_map(
                   (nl: CanvasLayout.node_layout) =>
@@ -944,7 +957,10 @@ let view =
                         String.length(nl.node.key) >= 3
                         && String.sub(nl.node.key, 0, 3) == "{}@";
                       let r =
-                        (former_sized ? 62. : 46.)
+                        (
+                          former_sized
+                            ? 62. +. subtree_bump(nl.node.m_path) : 46.
+                        )
                         +. depth_pad(nl.node.m_path);
                       Some((
                         exact || is_f
