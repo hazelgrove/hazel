@@ -181,7 +181,7 @@ let recursive_tests = [
         );
 
       switch (sorted) {
-      | [first, ...rest] when List.length(rest) > 0 =>
+      | [first, ...rest] when !List.is_empty(rest) =>
         /* First (outermost) should contain all others */
         List.iter(
           ~f=

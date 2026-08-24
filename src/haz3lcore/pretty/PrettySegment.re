@@ -469,7 +469,7 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
       _,
     }) =>
     /* Complete tile (has children) or opening shard (index 0) */
-    List.length(children) > 0 || shards == [0]
+    !List.is_empty(children) || shards == [0]
   /* nullary application: f() */
   | Tile(t) when Tile.is_empty_tuple_shaped(t) => true
   | _ => false
@@ -617,7 +617,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           {form: Form.Compound(Parens | Ap | ListLit | ModBody), _} as dt,
         ),
       ]
-        when s.hanging_delimiters && List.length(dt.children) > 0 =>
+        when s.hanging_delimiters && !List.is_empty(dt.children) =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
@@ -1098,7 +1098,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   | [p] =>
     switch (p) {
     /* Single tile with children: decompose */
-    | Tile(t) when List.length(t.children) > 0 =>
+    | Tile(t) when !List.is_empty(t.children) =>
       seg_finish(acc_rev, build_tile_doc(s, t, []))
     | _ => seg_finish(acc_rev, piece_doc(p))
     }
@@ -1107,7 +1107,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
-      when List.length(t.children) > 0 && Piece.is_semi(semi) =>
+      when !List.is_empty(t.children) && Piece.is_semi(semi) =>
     seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Semicolon sequence with a multi-piece item: the item is an
@@ -1216,7 +1216,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     seg_finish(acc_rev, chain_doc);
 
   /* Tile with children: decompose on-demand */
-  | [Tile(t), ...rest] when List.length(t.children) > 0 =>
+  | [Tile(t), ...rest] when !List.is_empty(t.children) =>
     seg_finish(acc_rev, build_tile_doc(s, t, rest))
 
   /* Single-token prefix (leading +): keep attached via Space */
@@ -1354,7 +1354,7 @@ and build_infix_chain_doc =
           let hangable =
             switch (actual_operand) {
             | [Tile({form: Form.Compound(ModBody), children, _})]
-                when List.length(children) > 0 =>
+                when !List.is_empty(children) =>
               true
             | _ => false
             };

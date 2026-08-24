@@ -141,7 +141,7 @@ in f(5)|});
           bool,
           "Inner probe should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
@@ -164,7 +164,7 @@ in f(1); f(2)|});
           bool,
           "Both probes should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         /* They should have DIFFERENT call_stacks (different app_ids) */
         check(
@@ -200,7 +200,7 @@ in ^^probe(f(5))|});
         /* One sample should be from the app probe (empty call_stack),
          * one from inside the function (non-empty call_stack) */
         let (app_sample, inner_sample) =
-          if (List.length(s1.call_stack) == 0) {
+          if (List.is_empty(s1.call_stack)) {
             (s1, s2);
           } else {
             (s2, s1);
@@ -244,7 +244,7 @@ in m.f(5)|},
           bool,
           "Probe inside module function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
@@ -269,7 +269,7 @@ in m.f(3)|},
           bool,
           "Probe inside module keyword function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
@@ -294,7 +294,7 @@ in m.f(1); m.f(2)|},
           bool,
           "Both should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         check(
           bool,

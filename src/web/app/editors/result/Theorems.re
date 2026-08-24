@@ -179,7 +179,7 @@ module Update = {
               },
             theorems,
           );
-        List.map(~f=((id, _, _, _)) => id, theorems) |> List.rev;
+        List.rev_map(~f=((id, _, _, _)) => id, theorems);
       }
       |> Calc.old_if_same'(thms);
 
