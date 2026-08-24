@@ -147,8 +147,15 @@ let zoom_ref = zoom; /* alias for clarity below */
 let idx = (i: int, j: int): int => j * gw^ + i;
 
 let ensure_grid = (cw: int, ch: int): unit => {
-  let w = int_of_float(Float.ceil(float_of_int(cw) /. cell)) + 3;
-  let h = int_of_float(Float.ceil(float_of_int(ch) /. cell)) + 3;
+  /* the grid extends one sponge-band beyond the viewport on every side
+     so absorption happens OFF-SCREEN: a deposit near the visible edge
+     must land in live medium, not in the absorbing frame (a node
+     removed near the panel edge used to have its suction eaten at
+     birth) */
+  let w =
+    int_of_float(Float.ceil(float_of_int(cw) /. cell)) + 3 + 2 * sponge_band;
+  let h =
+    int_of_float(Float.ceil(float_of_int(ch) /. cell)) + 3 + 2 * sponge_band;
   if (w != gw^ || h != gh^) {
     gw := w;
     gh := h;
@@ -160,8 +167,9 @@ let ensure_grid = (cw: int, ch: int): unit => {
 /* keep the field pinned to content while the viewport scrolls: shift
    cells by whole-cell deltas */
 let anchor = (sl: float, st: float): unit => {
-  let target_x = sl -. cell
-  and target_y = st -. cell;
+  let margin = float_of_int(sponge_band) *. cell;
+  let target_x = sl -. cell -. margin
+  and target_y = st -. cell -. margin;
   let dx = int_of_float(Float.round((target_x -. origin_x^) /. cell))
   and dy = int_of_float(Float.round((target_y -. origin_y^) /. cell));
   if (dx != 0 || dy != 0) {
