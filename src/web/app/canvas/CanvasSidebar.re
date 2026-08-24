@@ -372,6 +372,9 @@ let last_node_snapshot: ref((string, list((string, (float, float))))) =
 /* collapsed module hulls (root module names); toggled from the hull
    label, repaints ride Set(CanvasTick) */
 let collapsed_modules: ref(list(string)) = ref([]);
+/* collapse/expand transitions must not read as node deletions: the
+   removal differ skips its suctions inside this window */
+let collapse_fx_until: ref(float) = ref(0.);
 
 /* hide a collapsed module's internals pre-layout: members, their edges
    and orbit values, and the satellite terminals their functions grew.
@@ -1286,6 +1289,71 @@ let view =
           x: p.x +. dx,
           y: p.y +. dy,
         };
+      let set_circle = (id: string, p: CanvasLayout.pos) =>
+        switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+        | Some(el) =>
+          set_attr(el, "cx", Printf.sprintf("%.1f", p.x));
+          set_attr(el, "cy", Printf.sprintf("%.1f", p.y));
+        | None => ()
+        };
+      let former_pos = (root: string): option(CanvasLayout.pos) =>
+        List.find_opt(
+          (nl: CanvasLayout.node_layout) => nl.node.key == "{}@" ++ root,
+          lay.nodes,
+        )
+        |> Option.map((nl: CanvasLayout.node_layout) =>
+             nl.node.key == n.key ? sh(nl.p) : nl.p
+           );
+      let bridge_ts = [0.22, 0.42, 0.62, 0.82];
+      let set_bridges =
+          (e_name: string, lp: CanvasLayout.pos, fp: CanvasLayout.pos) => {
+        let en = CanvasView.sanitize(e_name);
+        List.iteri(
+          (i, t) =>
+            set_circle(
+              Printf.sprintf("hullc-b-%s-%d", en, i),
+              CanvasLayout.{
+                x: lp.x +. (fp.x -. lp.x) *. t,
+                y: lp.y +. (fp.y -. lp.y) *. t,
+              },
+            ),
+          bridge_ts,
+        );
+      };
+      /* the dragged node's own hull circle */
+      switch (
+        List.find_opt(
+          (nl: CanvasLayout.node_layout) => nl.node.key == n.key,
+          lay.nodes,
+        )
+      ) {
+      | Some(nl) =>
+        set_circle("hullc-n-" ++ CanvasView.sanitize(n.key), sh(nl.p))
+      | None => ()
+      };
+      /* dragging a module former: every member edge's bridge re-aims */
+      if (String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@") {
+        let root = String.sub(n.key, 3, String.length(n.key) - 3);
+        let root =
+          switch (String.index_opt(root, '.')) {
+          | Some(i) => String.sub(root, 0, i)
+          | None => root
+          };
+        List.iter(
+          (el: CanvasLayout.edge_layout) =>
+            switch (el.edge.m_path) {
+            | [r, ..._]
+                when
+                  r == root && el.edge.e_src != n.key && el.edge.dst != n.key =>
+              switch (former_pos(root)) {
+              | Some(fp) => set_bridges(el.edge.e_name, el.label_p, fp)
+              | None => ()
+              }
+            | _ => ()
+            },
+          lay.edges,
+        );
+      };
       List.iter(
         (el: CanvasLayout.edge_layout) => {
           let e = el.edge;
@@ -1336,11 +1404,23 @@ let view =
               | None => ()
               };
               /* the label rides the curve midpoint: half the delta */
-              set_pos(
-                CanvasView.edge_dom_id(e.e_name),
-                el.label_p.x +. dx /. 2.,
-                el.label_p.y +. dy /. 2.,
-              );
+              let lp' =
+                CanvasLayout.{
+                  x: el.label_p.x +. dx /. 2.,
+                  y: el.label_p.y +. dy /. 2.,
+                };
+              set_pos(CanvasView.edge_dom_id(e.e_name), lp'.x, lp'.y);
+              /* hull circles ride along: the label's own circle and the
+                 pseudopod back to the module former */
+              switch (e.m_path) {
+              | [root, ..._] =>
+                set_circle("hullc-l-" ++ CanvasView.sanitize(e.e_name), lp');
+                switch (former_pos(root)) {
+                | Some(fp) => set_bridges(e.e_name, lp', fp)
+                | None => ()
+                };
+              | [] => ()
+              };
             };
           };
         },
@@ -2129,18 +2209,43 @@ let view =
     | None =>
       switch (focused_ty, focused) {
       | (Some(key), _) =>
-        CanvasFocus.type_view(
-          ~globals,
-          ~editor,
-          ~inject_jump,
-          ~on_close=
-            globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-          ~dynamics=editor.dynamics,
-          ~info_map=editor.statics.info_map,
-          ~graph,
-          key,
-        )
-        |> Option.to_list
+        /* module nodes stand for the implicit module type: their panel
+           is the module VALUE, like any other constant */
+        let module_value =
+          String.length(key) >= 3 && String.sub(key, 0, 3) == "{}@"
+            ? List.find_opt(
+                (v: CanvasGraph.value) => v.v_key == key,
+                graph.values,
+              )
+            : None;
+        switch (module_value) {
+        | Some(v) => [
+            CanvasFocus.value_info(
+              ~globals,
+              ~editor,
+              ~inject_jump,
+              ~on_close=
+                () =>
+                  globals.inject_global(
+                    Set(Sidebar(SetCanvasFocusTy(None))),
+                  ),
+              v,
+            ),
+          ]
+        | None =>
+          CanvasFocus.type_view(
+            ~globals,
+            ~editor,
+            ~inject_jump,
+            ~on_close=
+              globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+            ~dynamics=editor.dynamics,
+            ~info_map=editor.statics.info_map,
+            ~graph,
+            key,
+          )
+          |> Option.to_list
+        };
       | (None, Some(name)) =>
         CanvasFocus.view(
           ~globals,
@@ -2284,7 +2389,9 @@ let view =
       List.map((nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
     let removed =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
-    if (prev_slide == slide && removed != []) {
+    if (prev_slide == slide
+        && removed != []
+        && CanvasBuffer.now() > collapse_fx_until^) {
       if (List.length(removed) <= 4) {
         List.iter(((_, (x, y))) => CanvasRipple.suction((x, y)), removed);
         CanvasLog.log(
@@ -2493,10 +2600,38 @@ let view =
     };
   };
   let on_hull_toggle = (root: string) => {
+    let collapsing = !List.mem(root, collapsed_modules^);
     collapsed_modules :=
-      List.mem(root, collapsed_modules^)
-        ? List.filter(r => r != root, collapsed_modules^)
-        : [root, ...collapsed_modules^];
+      collapsing
+        ? [root, ...collapsed_modules^]
+        : List.filter(r => r != root, collapsed_modules^);
+    collapse_fx_until := CanvasBuffer.now() +. 900.;
+    /* the effect emanates from the module node itself */
+    switch (
+      Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id("{}@" ++ root))
+    ) {
+    | Some(el) =>
+      open Js_of_ocaml;
+      let st = Js.Unsafe.coerce(el)##.style;
+      let px = (v: Js.t(Js.js_string)): float => {
+        let str = Js.to_string(v);
+        switch (String.index_opt(str, 'p')) {
+        | Some(i) =>
+          Option.value(
+            ~default=0.,
+            float_of_string_opt(String.sub(str, 0, i)),
+          )
+        | None => 0.
+        };
+      };
+      let l = px(st##.left)
+      and tp = px(st##.top);
+      let r = float_of_int(Js.Unsafe.coerce(el)##.offsetWidth) /. 2.;
+      collapsing
+        ? CanvasRipple.suction((l +. r, tp +. r))
+        : CanvasRipple.splash(~amp=8., (l +. r, tp +. r));
+    | None => ()
+    };
     globals.inject_global(Set(CanvasTick));
   };
   let on_edge_hover = (h: option(string)) => {

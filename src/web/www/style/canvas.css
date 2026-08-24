@@ -445,6 +445,32 @@
     0 0 3px var(--df-bg, #fdfdf4);
 }
 
+/* module nodes: type-styled name below, {} glyph centered inside
+   (beats the product-kind centering rule) */
+.canvas-node.canvas-node.node-module .canvas-node-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  bottom: auto;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  font-weight: bold;
+  font-size: 11px;
+  color: var(--token-typ, #9457c9);
+}
+
+.canvas-node.node-module .canvas-node-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--df-bg, #fdfdf4);
+  font-size: 11px;
+  font-family: var(--code-font, monospace);
+  pointer-events: none;
+}
+
 .canvas-node.kind-alias {
   background: color-mix(
     in srgb,

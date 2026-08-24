@@ -356,6 +356,35 @@ let layout =
           : [],
       g.nodes,
     );
+  /* member functions pull their module former toward the types they
+     touch: unranked ordering edges (row attraction, no column rank) */
+  let module_flow_pull =
+    List.concat_map(
+      (e: CanvasGraph.edge) =>
+        switch (e.m_path) {
+        | [root, ..._] =>
+          let fk = "{}@" ++ root;
+          List.mem(fk, grid_keys)
+            ? List.filter_map(
+                ((k, ranked)) =>
+                  k != fk && List.mem(k, grid_keys)
+                    ? Some(
+                        Util.GraphLayout.Spec.{
+                          src: k,
+                          dst: fk,
+                          ranked,
+                        },
+                      )
+                    : None,
+                /* rank the former after member INPUT types so it lands
+                   a column over from them; results only order rows */
+                [(e.e_src, true), (e.dst, false)],
+              )
+            : [];
+        | [] => []
+        },
+      g.edges,
+    );
   /* pinned nodes with no spec relationships float FREE of the rank
      grid: a freshly placed node would otherwise claim a row and shove
      every auto-laid node down */
@@ -364,7 +393,8 @@ let layout =
     @ derived_edges
     @ flow_edges
     @ former_rank_edges
-    @ formation_edges;
+    @ formation_edges
+    @ module_flow_pull;
   let spec_touches = (k: string): bool =>
     List.exists(
       (e: Util.GraphLayout.Spec.edge) => e.src == k || e.dst == k,
@@ -403,7 +433,8 @@ let layout =
         @ derived_edges
         @ flow_edges
         @ former_rank_edges
-        @ formation_edges,
+        @ formation_edges
+        @ module_flow_pull,
       attachments,
       col_gap: 126.,
       row_gap: 72.,

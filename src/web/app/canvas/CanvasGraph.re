@@ -779,11 +779,23 @@ let extract =
 
   /* A builtin terminal duplicated per use-site, docked to [anchor_key]. */
   let ensure_sat =
-      (~anchor_key: string, ~output: bool, ~dup: string, label: string)
+      (
+        ~m_path: list(string)=[],
+        ~anchor_key: string,
+        ~output: bool,
+        ~dup: string,
+        label: string,
+      )
       : string => {
     let key = label ++ "@" ++ dup;
     ensure(
-      mk_node(~kind=Builtin, ~sat=Some((anchor_key, output)), ~label, key),
+      mk_node(
+        ~kind=Builtin,
+        ~m_path,
+        ~sat=Some((anchor_key, output)),
+        ~label,
+        key,
+      ),
     );
     key;
   };
@@ -966,12 +978,15 @@ let extract =
               ty_ref_at(~path, ~anchor=qn, ty);
             };
           if (is_mod) {
-            /* the module former carries its OWN path (hull center) */
+            /* the module node: treat the module as having an implicit
+               module TYPE of the same name — the node is labeled like a
+               type node; its info panel shows the module value */
             ensure(
               mk_node(
                 ~kind=Product,
                 ~m_path=path @ [name],
-                ~label="{}",
+                ~n_ty=Some(pretty_ty(ty)),
+                ~label=name,
                 v_key,
               ),
             );
@@ -1007,7 +1022,13 @@ let extract =
             | [(k, Builtin)] when ret_kind != Builtin =>
               /* single builtin arg: terminal docked to the result node */
               ensure_grid(ret_key, ret_kind);
-              ensure_sat(~anchor_key=ret_key, ~output=false, ~dup=qn, k);
+              ensure_sat(
+                ~m_path=path,
+                ~anchor_key=ret_key,
+                ~output=false,
+                ~dup=qn,
+                k,
+              );
             | [(k, kind)] =>
               ensure_grid(k, kind);
               k;
@@ -1025,6 +1046,7 @@ let extract =
                     switch (kind) {
                     | Builtin =>
                       ensure_sat(
+                        ~m_path=path,
                         ~anchor_key=product_key,
                         ~output=false,
                         ~dup=product_key,
@@ -1060,6 +1082,7 @@ let extract =
             switch (ret_kind) {
             | Builtin =>
               ensure_sat(
+                ~m_path=path,
                 ~anchor_key=input_key,
                 ~output=true,
                 ~dup=qn,

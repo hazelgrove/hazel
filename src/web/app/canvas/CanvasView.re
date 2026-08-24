@@ -323,16 +323,28 @@ let node_view =
     }),
     clss(["clickable"]),
   ];
+  let is_module =
+    String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@";
   let label_nodes =
-    n.label == ""
-      ? []
-      : [span(~attrs=[clss(["canvas-node-label"])], [text(n.label)])];
+    if (is_module) {
+      [
+        /* the implicit module type: {} glyph inside, NAME below like a
+           type node */
+        span(~attrs=[clss(["canvas-node-glyph"])], [text("{}")]),
+        span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
+      ];
+    } else if (n.label == "") {
+      [];
+    } else {
+      [span(~attrs=[clss(["canvas-node-label"])], [text(n.label)])];
+    };
   div(
     ~attrs=
       [
         Attr.id(node_dom_id(n.key)),
         clss(
           ["canvas-node", kind_cls(n.kind)]
+          @ (is_module ? ["node-module"] : [])
           @ (n.n_err ? ["node-err"] : [])
           /* grows out of the placement-preview dot */
           @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
@@ -881,16 +893,21 @@ let view =
                 )
               |> List.sort_uniq(compare);
             let hull_circles =
-                (root: string): list((CanvasLayout.pos, float)) => {
+                (root: string): list((string, CanvasLayout.pos, float)) => {
               let former_key = "{}@" ++ root;
               let node_circles =
                 List.filter_map(
                   (nl: CanvasLayout.node_layout) =>
                     if (nl.node.key == former_key) {
-                      Some((nl.p, 48.));
+                      Some(("hullc-n-" ++ sanitize(nl.node.key), nl.p, 56.));
                     } else {
                       switch (nl.node.m_path) {
-                      | [r, ..._] when r == root => Some((nl.p, 34.))
+                      | [r, ..._] when r == root =>
+                        Some((
+                          "hullc-n-" ++ sanitize(nl.node.key),
+                          nl.p,
+                          40.,
+                        ))
                       | _ => None
                       };
                     },
@@ -911,24 +928,26 @@ let view =
                          circles back toward the cluster: the pseudopod
                          that keeps distant members visibly attached */
                       let lp = el.label_p;
+                      let en = sanitize(el.edge.e_name);
                       let bridge =
                         switch (former_p) {
                         | Some(fp)
                             when Float.hypot(fp.x -. lp.x, fp.y -. lp.y) > 90. =>
-                          List.map(
-                            t =>
+                          List.mapi(
+                            (i, t) =>
                               (
+                                Printf.sprintf("hullc-b-%s-%d", en, i),
                                 CanvasLayout.{
                                   x: lp.x +. (fp.x -. lp.x) *. t,
                                   y: lp.y +. (fp.y -. lp.y) *. t,
                                 },
-                                22. -. 8. *. t,
+                                30. -. 12. *. t,
                               ),
-                            [0.3, 0.55, 0.78],
+                            [0.22, 0.42, 0.62, 0.82],
                           )
                         | _ => []
                         };
-                      [(lp, 28.), ...bridge];
+                      [("hullc-l-" ++ en, lp, 34.), ...bridge];
                     | _ => []
                     },
                   lay.edges,
@@ -961,7 +980,7 @@ let view =
                             "feGaussianBlur",
                             ~attrs=[
                               Attr.create("in", "SourceGraphic"),
-                              Attr.create("stdDeviation", "12"),
+                              Attr.create("stdDeviation", "15"),
                             ],
                             [],
                           ),
@@ -989,18 +1008,32 @@ let view =
                                nl.node.key == "{}@" ++ root,
                              lay.nodes,
                            );
+                         let hue_shift = {
+                           let h =
+                             String.fold_left(
+                               (a, c) => (a * 31 + Char.code(c)) mod 7,
+                               3,
+                               root,
+                             );
+                           Printf.sprintf("hue-rotate(%ddeg)", h * 12 - 36);
+                         };
                          [
                            Node.create_svg(
                              "g",
                              ~attrs=[
                                clss(["canvas-hull"]),
                                Attr.create("filter", "url(#metaball)"),
+                               Attr.create(
+                                 "style",
+                                 "filter: url(#metaball) " ++ hue_shift ++ ";",
+                               ),
                              ],
                              List.map(
-                               ((p: CanvasLayout.pos, r)) =>
+                               ((id, p: CanvasLayout.pos, r)) =>
                                  Node.create_svg(
                                    "circle",
                                    ~attrs=[
+                                     Attr.id(id),
                                      Attr.create("cx", fmt(p.x)),
                                      Attr.create("cy", fmt(p.y)),
                                      Attr.create("r", fmt(r)),
@@ -1016,10 +1049,18 @@ let view =
                            | Some(nl) =>
                              let count =
                                List.assoc_opt(root, collapsed_counts);
+                             /* the node carries the module name now;
+                                expanded hulls show only a small
+                                collapse affordance */
                              let label =
                                switch (count) {
-                               | Some(n) => Printf.sprintf("%s (%d)", root, n)
-                               | None => root
+                               | Some(n) =>
+                                 Printf.sprintf(
+                                   "%s (%d) \xe2\x96\xb8",
+                                   root,
+                                   n,
+                                 )
+                               | None => "▾"
                                };
                              [
                                Node.create_svg(
