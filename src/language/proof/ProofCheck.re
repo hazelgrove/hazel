@@ -1054,7 +1054,8 @@ let arrow_domain_statics =
  *
  * A non-variable parameter pattern (a tuple, say) also stays applied —
  * there is no single name to substitute for. */
-let rec funext_apply = (~arg: Exp.t, f: Exp.t): Exp.t => {
+let rec funext_apply =
+        (~env: Environment.t(Exp.t), ~arg: Exp.t, f: Exp.t): Exp.t => {
   let rec param_name = (p: Pat.t): option(Var.t) =>
     switch (p |> Pat.term_of) {
     | Var(x) => Some(x)
@@ -1063,11 +1064,19 @@ let rec funext_apply = (~arg: Exp.t, f: Exp.t): Exp.t => {
     | _ => None
     };
   switch (f |> Exp.term_of) {
-  | Parens(inner) => funext_apply(~arg, inner)
+  | Parens(inner) => funext_apply(~env, ~arg, inner)
   | Fun(p, body, _, _) =>
     switch (param_name(p)) {
     | Some(x) =>
-      body |> Substitution.in_exp(Environment.of_bindings([(x, arg)]))
+      /* The body is substituted under the WHOLE semantic env, not just
+       * `x |-> arg`. A literal lambda can mention let-bound names from
+       * the surrounding proof (`let f = ... in theorem ... funext y =>`),
+       * and if those stay free `Var`s here the later per-step env
+       * substitution replaces them with fresh-id copies that no longer
+       * match the ids in the goal — every `eval`/`rewrite` pattern lookup
+       * against them then misses. `extend` puts the binder LAST so it
+       * shadows any same-named outer binding. */
+      body |> Substitution.in_exp(Environment.extend(env, (x, arg)))
     | None => Exp.fresh(Ap(Forward, f, arg))
     }
   | _ => Exp.fresh(Ap(Forward, f, arg))
@@ -1563,7 +1572,11 @@ let rec check =
           | Some(_) =>
             let ctx' = SemanticCtx.add_from_pattern(ctx, pat, domain);
             let arg = pat |> ProofHacks.pat_to_exp;
-            let ap = funext_apply(~arg);
+            /* `ctx'` env, not `ctx`: it maps the funext binder to itself
+             * (`y |-> Var(y)`), which Substitution leaves alone, so the
+             * pointwise goal keeps mentioning `y` while every OTHER name
+             * a contracted lambda body refers to is already resolved. */
+            let ap = funext_apply(~env=SemanticCtx.get_env(ctx'), ~arg);
             let pointwise = Exp.fresh(BinOp(Poly(Equals), ap(l), ap(r)));
             (Some(pointwise), ctx', []);
           }

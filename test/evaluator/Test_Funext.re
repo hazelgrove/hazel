@@ -242,6 +242,107 @@ let test_partial_function_not_cleanly_proven = () => {
   );
 };
 
+/* --- 7. Contraction resolves let-bound names -------------------------- */
+
+/* Matt's repro. A literal lambda whose body mentions a LET-BOUND name:
+ *
+ *   let f : Int -> Int = fun x -> 1 / x in
+ *   theorem t = (fun x -> f(f(x))) == (fun x : Int -> x) proof
+ *   funext y => eval f at 0 end in t
+ *
+ * Contracting the redex with only `x |-> y` in scope left `f` a free
+ * `Var` in the pointwise goal. The per-step env substitution then
+ * replaced that `Var` with a FRESH-ID copy of `fun x -> 1 / x` in the
+ * eval TARGET, while the goal still held the un-substituted `Var` — so
+ * the id-based lookup missed and every step reported PatternNotFound.
+ *
+ * Contracting under the full semantic env is what fixes it: `f` is
+ * already resolved to its definition, identically, on both sides of the
+ * lookup. */
+
+let funext_repro = (body: string): string =>
+  "let f : Int -> Int = fun x -> 1 / x in theorem t = (fun x -> f(f(x))) == (fun x : Int -> x) proof "
+  ++ body
+  ++ " in t";
+
+/* The pointwise LHS must mention `f`'s DEFINITION, not a bare `Var("f")`
+ * head. Printed rather than string-matched: the exact rendering of a
+ * substituted lambda is not the invariant, the absence of a free `f` is. */
+let test_letbound_name_is_substituted = () => {
+  let src = funext_repro("funext y => ?");
+  let (pm, proof) = run(src);
+  let goal = incoming_of(pm, funext_body(proof));
+  let printed = print_exp(goal);
+  let (l, _) =
+    switch (goal |> Exp.term_of) {
+    | BinOp(Poly(Equals), l, r) => (l, r)
+    | _ =>
+      Alcotest.fail("expected an `==` body goal, got: " ++ printed)
+    };
+  /* The head of the outer application is the thing that used to be a free
+   * `Var("f")`. Any non-Var head means the definition got inlined. */
+  let rec head_is_var = (e: Exp.t): bool =>
+    switch (e |> Exp.term_of) {
+    | Parens(inner) => head_is_var(inner)
+    | Ap(_, fn, _) => head_is_var(fn)
+    | Var(_) => true
+    | _ => false
+    };
+  Alcotest.check(
+    Alcotest.bool,
+    "the let-bound `f` is inlined in the pointwise goal, not left free "
+    ++ "(got: "
+    ++ printed
+    ++ ")",
+    false,
+    head_is_var(l),
+  );
+};
+
+/* And the consequence that made the bug visible: `eval f at 0` inside the
+ * funext body must not be a PatternNotFound. Whether that eval then has
+ * anything to STEP is a separate question (`f`'s definition is already a
+ * value); the assertion here is only that the pattern is FOUND. */
+let test_eval_in_funext_body_finds_pattern = () => {
+  let src = funext_repro("funext y => eval f at 0 end");
+  let (pm, proof) = run(src);
+  Alcotest.check(
+    Alcotest.bool,
+    "`eval f` inside funext finds its pattern (status: "
+    ++ ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof))
+    ++ ")",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* Same, for an eval of the APPLICATION rather than the bare name — the
+ * form that actually has a redex to reduce. */
+let test_eval_application_in_funext_body_finds_pattern = () => {
+  let src = funext_repro("funext y => eval f(f(y)) at 0 end");
+  let (pm, proof) = run(src);
+  Alcotest.check(
+    Alcotest.bool,
+    "`eval f(f(y))` inside funext finds its pattern (status: "
+    ++ ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof))
+    ++ ")",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
 let tests = (
   "Funext",
   [
@@ -299,6 +400,21 @@ let tests = (
       "partiality: no automatic `where`, so `inv == ...` is not clean",
       `Quick,
       test_partial_function_not_cleanly_proven,
+    ),
+    test_case(
+      "a let-bound name is inlined when funext contracts the redex",
+      `Quick,
+      test_letbound_name_is_substituted,
+    ),
+    test_case(
+      "`eval f` inside a funext body is not a PatternNotFound",
+      `Quick,
+      test_eval_in_funext_body_finds_pattern,
+    ),
+    test_case(
+      "`eval f(f(y))` inside a funext body is not a PatternNotFound",
+      `Quick,
+      test_eval_application_in_funext_body_finds_pattern,
     ),
   ],
 );
