@@ -144,7 +144,11 @@ let is_unsupported_mod_item = (e: Exp.t): bool =>
   | Match(_)
   | Let(_)
   | ModuleExp(_)
-  | TyAlias(_) => true
+  | TyAlias(_)
+  /* A generated `Seq` item is bare and only gains its parens when printed,
+     so both shapes have to be listed. The others are fine parenthesized —
+     `{ (case … end) }` agrees. */
+  | Seq(_) => true
   | Parens(inner) =>
     switch (Exp.term_of(inner)) {
     | Seq(_) => true
