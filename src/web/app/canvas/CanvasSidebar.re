@@ -1458,6 +1458,19 @@ let view =
           set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
         l.values,
       );
+      /* hull sausages track exactly (no springs for paths) */
+      List.iter(
+        path =>
+          List.iter(
+            ((id, d, _)) =>
+              switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+              | Some(el) => set_attr(el, "d", d)
+              | None => ()
+              },
+            CanvasView.hull_sausages_at(l, path),
+          ),
+        CanvasView.hull_paths_of(l),
+      );
       CanvasJelly.set_targets(CanvasView.hull_targets(l));
     };
     let raf_busy = ref(false);

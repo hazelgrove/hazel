@@ -336,25 +336,9 @@ let hull_circles_at =
           let en = sanitize(el.edge.e_name);
           let sfx = exact ? "" : vsuffix;
           let lp = el.label_p;
-          /* pseudopod aims at the edge's OWN module */
-          let bridge =
-            switch (former_pos_of(el.edge.m_path)) {
-            | Some(fp) when Float.hypot(fp.x -. lp.x, fp.y -. lp.y) > 90. =>
-              List.mapi(
-                (i, t) =>
-                  (
-                    Printf.sprintf("hullc-b-%s-%d%s", en, i, sfx),
-                    CanvasLayout.{
-                      x: lp.x +. (fp.x -. lp.x) *. t,
-                      y: lp.y +. (fp.y -. lp.y) *. t,
-                    },
-                    34. -. 12. *. t +. pad,
-                  ),
-                [0.22, 0.42, 0.62, 0.82],
-              )
-            | _ => []
-            };
-          [("hullc-l-" ++ en ++ sfx, lp, 38. +. pad), ...bridge];
+          /* the SAUSAGE along the edge is the pseudopod now */
+          ignore(former_pos_of);
+          [("hullc-l-" ++ en ++ sfx, lp, 38. +. pad)];
         },
       lay.edges,
     );
@@ -367,6 +351,46 @@ let hull_targets =
     (lay: CanvasLayout.t): list((string, CanvasLayout.pos, float)) => {
   let paths = hull_paths_of(lay);
   List.concat_map(hull_circles_at(lay, paths), paths);
+};
+
+/* member-edge SAUSAGES: the edge curve itself joins the metaball as a
+   thick round-capped stroke (the browser computes the capsule; the
+   blur+threshold unions it with the circles). Ancestor copies widen
+   by the depth difference like circles do. */
+let hull_sausage_d = (el: CanvasLayout.edge_layout): string =>
+  Printf.sprintf(
+    "M %s,%s C %s,%s %s,%s %s,%s",
+    fmt(el.src_p.x),
+    fmt(el.src_p.y),
+    fmt(el.c1.x),
+    fmt(el.c1.y),
+    fmt(el.c2.x),
+    fmt(el.c2.y),
+    fmt(el.dst_p.x),
+    fmt(el.dst_p.y),
+  );
+
+let hull_sausages_at =
+    (lay: CanvasLayout.t, path: list(string))
+    : list((string, string, float)) => {
+  let vsuffix = "--v" ++ sanitize(String.concat(".", path));
+  List.filter_map(
+    (el: CanvasLayout.edge_layout) =>
+      if (!hull_is_prefix(path, el.edge.m_path) || el.endo) {
+        None;
+      } else {
+        let exact = el.edge.m_path == path;
+        let pad =
+          float_of_int(List.length(el.edge.m_path) - List.length(path))
+          *. 14.;
+        Some((
+          "hulls-e-" ++ sanitize(el.edge.e_name) ++ (exact ? "" : vsuffix),
+          hull_sausage_d(el),
+          52. +. 2. *. pad,
+        ));
+      },
+    lay.edges,
+  );
 };
 
 let edge_label =
@@ -1119,23 +1143,40 @@ let view =
                                  "style",
                                  "filter: url(#metaball); fill: "
                                  ++ color
+                                 ++ "; stroke: "
+                                 ++ color
                                  ++ ";",
                                ),
                              ],
                              List.map(
-                               ((id, p: CanvasLayout.pos, r)) =>
+                               ((id, d, w)) =>
                                  Node.create_svg(
-                                   "circle",
+                                   "path",
                                    ~attrs=[
                                      Attr.id(id),
-                                     Attr.create("cx", fmt(p.x)),
-                                     Attr.create("cy", fmt(p.y)),
-                                     Attr.create("r", fmt(r)),
+                                     Attr.create("d", d),
+                                     Attr.create("fill", "none"),
+                                     Attr.create("stroke-width", fmt(w)),
+                                     Attr.create("stroke-linecap", "round"),
                                    ],
                                    [],
                                  ),
-                               circles,
-                             ),
+                               hull_sausages_at(lay, path),
+                             )
+                             @ List.map(
+                                 ((id, p: CanvasLayout.pos, r)) =>
+                                   Node.create_svg(
+                                     "circle",
+                                     ~attrs=[
+                                       Attr.id(id),
+                                       Attr.create("cx", fmt(p.x)),
+                                       Attr.create("cy", fmt(p.y)),
+                                       Attr.create("r", fmt(r)),
+                                     ],
+                                     [],
+                                   ),
+                                 circles,
+                               ),
                            ),
                          ]
                          @ (
