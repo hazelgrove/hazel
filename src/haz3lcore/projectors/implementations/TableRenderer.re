@@ -156,7 +156,7 @@ let build_column_menu =
       | None => []
       };
     conversion_items
-    @ (List.length(conversion_items) > 0 ? [Menu.divider] : [])
+    @ (!List.is_empty(conversion_items) ? [Menu.divider] : [])
     @ [
       leaf(~tooltip="Replace all values with holes", "Clear", () =>
         apply([clear_column(h)])
@@ -298,8 +298,8 @@ let build_column_menu =
     };
 
   structural_items
-  @ (List.length(data_items) > 0 ? [Menu.divider] @ data_items : [])
-  @ (List.length(option_items) > 0 ? [Menu.divider] @ option_items : []);
+  @ (!List.is_empty(data_items) ? [Menu.divider] @ data_items : [])
+  @ (!List.is_empty(option_items) ? [Menu.divider] @ option_items : []);
 };
 
 /* Build the column menu tree for a specific column. */

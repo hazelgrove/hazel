@@ -242,7 +242,7 @@ let handle_tuple_operation =
     ) => {
   S.(
     switch (arg.term) {
-    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
+    | Tuple([tup, ...labs]) when !List.is_empty(labs) =>
       /* Ensure all source tuple nodes get baseline info entries before
          specialized builtin tuple/label analysis rewrites parts of the arg. */
       let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
@@ -702,7 +702,7 @@ let custom_statics_deferred_ap =
   S.(
     switch (kind, args) {
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
-        when List.length(labels) > 0 =>
+        when !List.is_empty(labels) =>
       let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
       let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
