@@ -784,7 +784,13 @@ let rec draw = (): unit => {
                     let ddx = scx -. cx
                     and ddy = scy -. cy;
                     let d = Float.hypot(ddx, ddy);
-                    let w = amp *. Float.exp(-. (d /. suction_pull_r) ** 2.);
+                    /* gaussian falloff, sign made explicit: `-. x ** 2.`
+                       parses as `(-. x) ** 2.` (positive!) and blew every
+                       far dot off-screen */
+                    let q = d /. suction_pull_r;
+                    let w = amp *. Float.exp(-. (q *. q));
+                    /* a very close dot may not cross the sink */
+                    let w = min(w, d);
                     d < 1.
                       ? (ax, ay) : (ax +. ddx /. d *. w, ay +. ddy /. d *. w);
                   },
