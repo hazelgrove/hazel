@@ -343,6 +343,76 @@ let test_eval_application_in_funext_body_finds_pattern = () => {
   );
 };
 
+/* --- Insert-time binder recovery ---------------------------------------
+ *
+ * `ProofCheck.funext_binder` is what the step picker's Funext button
+ * uses to open `funext x => ?` instead of `funext ? => ?`. It is
+ * INSERT-TIME only — the rule above reads whatever binder is actually
+ * written — so these tests read the pattern it hands back, not a
+ * checking result. */
+
+let print_pat = (p: Pat.t): string =>
+  (Pat(p): Any.t)
+  |> Haz3lcore.ExpToSegment.any_to_segment(
+       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+     )
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+
+let binder_of =
+    (~env=Environment.empty, src: string): option(string) => {
+  let goal = parse_exp(src);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), goal);
+  ProofCheck.funext_binder(~info_map, ~env, goal) |> Option.map(print_pat);
+};
+
+let check_binder = (msg: string, expected: option(string), actual) =>
+  Alcotest.check(
+    Alcotest.(option(string)),
+    msg,
+    expected,
+    actual |> Option.map(String.trim),
+  );
+
+/* The LHS lambda names its parameter, so the step opens with that name —
+ * the RHS's own choice of `y` is not consulted. */
+let test_binder_from_lhs_lambda = () =>
+  check_binder(
+    "literal lambda gives its parameter",
+    Some("x"),
+    binder_of("(fun x -> x) == (fun y -> y)"),
+  );
+
+/* Nothing to read off either side: keep the hole. */
+let test_binder_opaque_is_hole = () =>
+  check_binder(
+    "opaque function equality gives no binder",
+    None,
+    binder_of("f == g"),
+  );
+
+/* The WHOLE pattern is copied: `fun (x, y) ->` has to be bound by
+ * `funext (x, y) =>`, since the binder binds everything the parameter
+ * binds. */
+let test_binder_tuple_pattern = () =>
+  check_binder(
+    "tuple parameter copies in full",
+    Some("(x, y)"),
+    binder_of("(fun (x, y) -> x) == (fun (a, b) -> a)"),
+  );
+
+/* A NAMED function: the binder comes from the definition the env holds,
+ * so `inv == inv` still opens as `funext x =>`. */
+let test_binder_named_function = () => {
+  let env =
+    Environment.of_bindings([("inv", parse_exp("fun x -> 1 / x"))]);
+  check_binder(
+    "named function reads its definition's parameter",
+    Some("x"),
+    binder_of(~env, "inv == inv"),
+  );
+};
+
 let tests = (
   "Funext",
   [
@@ -415,6 +485,26 @@ let tests = (
       "`eval f(f(y))` inside a funext body is not a PatternNotFound",
       `Quick,
       test_eval_application_in_funext_body_finds_pattern,
+    ),
+    test_case(
+      "insert: binder comes from the LHS lambda's parameter",
+      `Quick,
+      test_binder_from_lhs_lambda,
+    ),
+    test_case(
+      "insert: an opaque function equality keeps the hole binder",
+      `Quick,
+      test_binder_opaque_is_hole,
+    ),
+    test_case(
+      "insert: a tuple parameter copies whole",
+      `Quick,
+      test_binder_tuple_pattern,
+    ),
+    test_case(
+      "insert: a named function's binder comes from its definition",
+      `Quick,
+      test_binder_named_function,
     ),
   ],
 );

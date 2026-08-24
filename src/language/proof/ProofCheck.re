@@ -1083,6 +1083,60 @@ let rec funext_apply =
   };
 };
 
+/* A fresh copy of a pattern: same shape, all-new ids. `Exp` has
+ * `replace_all_ids` for exactly this; patterns lifted out of an existing
+ * program need it for the same reason — the copy is about to be written
+ * into NEW syntax, and re-using the source's ids would make two places
+ * in the program claim the same tiles. */
+let pat_replace_all_ids: Pat.t => Pat.t = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) =>
+      {
+        ...x,
+        annotation: {
+          /* Keep the lexeme (hole flavor, unknown-op tokens) so the copy
+             still displays faithfully; drop the tile provenance. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: x.annotation.lexeme,
+        },
+      }
+      |> continue;
+  (p => Pat.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, p));
+};
+
+/* The parameter pattern of a function AS WRITTEN, copied fresh.
+ *
+ * Same walk as `arrow_domain_syntactic`, and for the same reasons:
+ * Parens/Asc/Closure/FixF are transparent wrappers around the lambda,
+ * and a bare `Var` is followed through the environment so a NAMED
+ * function (`inv = fun x -> 1 / x`, goal `inv == inv`) reads its binder
+ * off the definition. The WHOLE pattern comes back, not a name — a
+ * `fun (x, y) ->` has to be bound by `funext (x, y) =>`, since the
+ * binder must bind everything the parameter binds.
+ *
+ * `None` when there is no lambda to read (both sides opaque at an arrow
+ * type), and the caller keeps a hole. */
+let rec fun_param_syntactic =
+        (~env: Environment.t(Exp.t), e: Exp.t): option(Pat.t) =>
+  switch (e |> Exp.term_of) {
+  | Parens(inner)
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | FixF(_, inner, _) => fun_param_syntactic(~env, inner)
+  | Fun(p, _, _, _) => Some(p |> pat_replace_all_ids)
+  | Var(x) =>
+    switch (Environment.lookup(env, x)) {
+    /* Guard against a self-referential binding looping the lookup. */
+    | Some({term: Var(y), _}) when y == x => None
+    | Some(d) => fun_param_syntactic(~env, d)
+    | None => None
+    }
+  | _ => None
+  };
+
 /* `Some(domain)` when `goal` is `l == r` at an arrow type; the two sides
  * come back too, so the caller can build the pointwise `l(x) == r(x)`. */
 let rec funext_goal =
@@ -1108,6 +1162,23 @@ let rec funext_goal =
       };
     domain |> Option.map(d => (l, r, d));
   | _ => None
+  };
+
+/* The binder a freshly-inserted `funext` step should start with: the
+ * LEFT-hand function's parameter pattern, if the goal has one to give.
+ * `(fun x -> x + 1) == (fun x -> 1 + x)` opens as `funext x => ?`
+ * rather than `funext ? => ?`.
+ *
+ * Left-hand only, deliberately: the two sides may name their parameters
+ * differently and the reading has to be predictable — "the binder you
+ * would have written on the left". Insert-time only; the Funext RULE
+ * reads whatever binder is actually written. */
+let funext_binder =
+    (~info_map: Statics.Map.t, ~env: Environment.t(Exp.t), goal: Exp.t)
+    : option(Pat.t) =>
+  switch (funext_goal(~info_map, ~env, goal)) {
+  | Some((l, _, _)) => fun_param_syntactic(~env, l)
+  | None => None
   };
 
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used

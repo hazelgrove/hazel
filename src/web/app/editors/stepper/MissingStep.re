@@ -437,11 +437,14 @@ module View = {
   type event =
     | AddInduction(option(Exp.t))
     | AddForall
-    /* `funext ? => ?` around this row's hole: functional
+    /* `funext <binder> => ?` around this row's hole: functional
        extensionality. No-search form (the argument's NAME is the user's
-       free choice), so one click inserts the shape with a hole binder
-       and the caret lands in it. */
-    | AddFunext
+       free choice), so one click inserts the shape and the caret lands
+       in the binder. The payload is the binder as it should first
+       appear: the goal's left-hand function's own parameter pattern
+       where there is one to copy (`ProofCheck.funext_binder`), and
+       `None` — a hole — where there is not. */
+    | AddFunext(option(Pat.t))
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
@@ -577,11 +580,21 @@ module View = {
          uses, so the button never offers a step that would immediately
          mark. The arrow requirement is what keeps it off `==` between two
          LISTS of functions, which is an induction, not an extensionality. */
-      let show_funext_button = {
+      let funext_goal_env = {
         let full_exp =
           model.full_exp |> Calc.get_saved_exc(~print="full_exp not cached");
         let env = Calc.get_saved(Environment.empty, model.cached_env);
+        (full_exp, env);
+      };
+      let show_funext_button = {
+        let (full_exp, env) = funext_goal_env;
         ProofCheck.funext_goal(~info_map, ~env, full_exp) != None;
+      };
+      /* The binder the inserted step should open with — the LHS
+         function's parameter pattern, when the goal has one to give. */
+      let funext_binder = {
+        let (full_exp, env) = funext_goal_env;
+        ProofCheck.funext_binder(~info_map, ~env, full_exp);
       };
 
       let show_function_body_button = {
@@ -702,7 +715,7 @@ module View = {
                       globals.inject_global(
                         Set(Evaluation(ForceShowRecord)),
                       ),
-                      signal(AddFunext),
+                      signal(AddFunext(funext_binder)),
                     ]),
                   "Funext",
                 ),

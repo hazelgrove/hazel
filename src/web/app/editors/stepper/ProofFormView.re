@@ -2,7 +2,8 @@ open Util;
 open Language;
 
 /* Shared rendering for the wrapping proof forms (`assume` / `revert` /
- * `generalize`): the keyword label plus the form's expression argument,
+ * `generalize` / `have` / `funext`): the keyword label plus the form's
+ * argument,
  * in the same inline-chip wrapper the other step rows use for their
  * arguments (cf. InductionStep's "Induction on:" scrutinee).
  *
@@ -12,13 +13,16 @@ open Language;
  * pieces, so there is no write-back step and nothing to keep in sync —
  * typing here edits `assume <exp> =>` in the program, which re-checks
  * like any other edit. Each of the three forms is
- * `mk_pre_c(L, [kw, "=>"], ..., [Exp])`, i.e. one child slot holding
- * the whole expression, so the target is that child in full.
+ * `mk_pre_c(L, [kw, ...], ..., [child])`, i.e. one child slot holding
+ * the whole argument, so the target is that child in full. The slot's
+ * SORT differs — Exp for the four expression forms, Pat for `funext`'s
+ * binder — but nothing about the splice does, hence `view_any_arg` with
+ * a thin wrapper per sort.
  *
  * Falls back to a read-only render (no editor chrome) when there is no
  * main editor to splice from — the cell-level stepper, or a moment when
  * the backing segment can't be located. */
-let view_arg =
+let view_any_arg =
     (
       ~globals: Globals.t,
       ~label: string,
@@ -26,10 +30,10 @@ let view_arg =
       ~main_editor: option(CodeEditable.Channel.t),
       ~focused: bool,
       ~take_focus: unit => Ui_effect.t(unit),
-      arg: option(Exp.t),
+      arg: option(Language.Any.t),
     )
     : list(WebUtil.Node.t) => {
-  let read_only = (e: Exp.t) =>
+  let read_only = (e: Language.Any.t) =>
     WebUtil.div_c(
       "proof-form-arg-static",
       [
@@ -41,7 +45,7 @@ let view_arg =
               ~fold_fn_bodies=`Text,
               globals.settings.core,
             ),
-          Exp(e),
+          e,
         ),
       ],
     );
@@ -92,3 +96,50 @@ let view_arg =
     ]
   };
 };
+
+/* The Exp-argument forms (`assume` / `revert` / `generalize` / `have`). */
+let view_arg =
+    (
+      ~globals: Globals.t,
+      ~label: string,
+      ~proof: option(Proof.t),
+      ~main_editor: option(CodeEditable.Channel.t),
+      ~focused: bool,
+      ~take_focus: unit => Ui_effect.t(unit),
+      arg: option(Exp.t),
+    )
+    : list(WebUtil.Node.t) =>
+  view_any_arg(
+    ~globals,
+    ~label,
+    ~proof,
+    ~main_editor,
+    ~focused,
+    ~take_focus,
+    arg |> Option.map((e): Language.Any.t => Exp(e)),
+  );
+
+/* `funext`'s argument is a PAT, not an Exp — `["funext", "=>"]` with a
+ * Pat child. The splice is identical (child 0 of the form in full), and
+ * so is the read-only fallback; only the sort of the thing being
+ * rendered differs. */
+let view_pat_arg =
+    (
+      ~globals: Globals.t,
+      ~label: string,
+      ~proof: option(Proof.t),
+      ~main_editor: option(CodeEditable.Channel.t),
+      ~focused: bool,
+      ~take_focus: unit => Ui_effect.t(unit),
+      arg: option(Pat.t),
+    )
+    : list(WebUtil.Node.t) =>
+  view_any_arg(
+    ~globals,
+    ~label,
+    ~proof,
+    ~main_editor,
+    ~focused,
+    ~take_focus,
+    arg |> Option.map((p): Language.Any.t => Pat(p)),
+  );

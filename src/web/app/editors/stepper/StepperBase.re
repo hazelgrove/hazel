@@ -1606,12 +1606,21 @@ and Stepper: {
   let forall_term = (): TermBase.Proof.term =>
     Forall(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole));
 
-  /* `funext ? => ?`: the binder is a HOLE. Wrapping-form convention in
-   * MissingStep — a menu only ever PICKS, and there is nothing here to
-   * search over (the argument's name is the user's free choice), so the
-   * button inserts the shape and parks the caret in the pattern. */
-  let funext_term = (): TermBase.Proof.term =>
-    Funext(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole));
+  /* `funext <binder> => ?`. Wrapping-form convention in MissingStep — a
+   * menu only ever PICKS, and there is nothing here to search over, so
+   * the button inserts the shape and parks the caret in the binder.
+   *
+   * The binder is PREFILLED from the goal's left-hand function when that
+   * function is written as a lambda (or names one): the user proving
+   * `(fun x -> x + 1) == (fun x -> 1 + x)` already called the argument
+   * `x`, and `funext ? => ?` would only ask them to say so again. It is
+   * ordinary editable syntax, so renaming it is a keystroke away.
+   * `None` — both sides opaque — keeps the hole. */
+  let funext_term = (~binder: option(Pat.t)): TermBase.Proof.term =>
+    Funext(
+      binder |> Option.value(~default=Pat.fresh(EmptyHole)),
+      Proof.fresh(EmptyHole),
+    );
 
   /* The wrapping forms: `<kw> <exp> => ?`. The body starts as a hole, so
    * inserting one never discards proof text — the hole this replaces
@@ -1831,24 +1840,15 @@ and Stepper: {
     | MakeActive(selection) => take_focus(MissingStepFocus(selection))
     | HideStepper => hide_stepper
     | AddForall => emit(forall_term())
-    /* Insert `funext ? => ?` and park the caret in the hole binder.
-     * Unlike the Exp-argument wrapping forms there is no `Arg` sub-view
-     * to take stepper focus, so this is the caret jump alone. */
-    | AddFunext =>
-      let term = funext_term();
-      Ui_effect.Many([
-        emit(term),
-        switch (main_editor, form_arg_id(term)) {
-        | (Some(channel: CodeEditable.Channel.t), Some(arg_id)) =>
-          channel.inject(Perform(Move(Goal(TileId(arg_id)))))
-        | (None, _)
-        | (_, None) => Ui_effect.Ignore
-        },
-        Ui_effect.of_sync_fun(
-          () => Haz3lcore.ProbePerform.FocusEffect.schedule_cell(),
-          (),
-        ),
-      ]);
+    /* Insert `funext <binder> => ?` and land in the binder. Its argument
+     * is a PAT rather than an Exp, but the slot is the same child-0
+     * splice the other wrapping forms use (ProofFormView.view_pat_arg),
+     * so the same three-part focus applies. */
+    | AddFunext(binder) =>
+      emit_wrapping_form(
+        ~arg_focus=FunextStep(Arg()),
+        funext_term(~binder),
+      )
     | AddInduction(scrut) => emit(induction_term(~scrut))
     | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
       emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))

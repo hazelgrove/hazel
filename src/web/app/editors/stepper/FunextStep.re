@@ -37,7 +37,12 @@ type action'('step) =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus'('step) =
-  | InnerExp('step);
+  | InnerExp('step)
+  /* The form's own binder PATTERN, edited in place as a SubEditor window
+   * onto the main editor (see ProofFormView.view_pat_arg). Carries no
+   * local model: the splice IS the proof text, so this constructor only
+   * records which sub-view holds focus. */
+  | Arg(CodeEditable.Selection.t);
 
 let init = init_step => {
   inner_exp: Calc.Pending,
@@ -181,6 +186,10 @@ module F =
             model.inner_stepper,
           );
         (InnerExp(ci): action);
+      /* The binder editor's actions belong to the main editor (they are
+       * injected through its own channel), so this row contributes no
+       * cursor info of its own. */
+      | Arg(_) => Cursor.empty
       }
     );
 
@@ -207,7 +216,7 @@ module F =
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~is_toplevel: bool,
-        ~proof as _: option(Proof.t),
+        ~proof: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         ~main_editor: option(CodeEditable.Channel.t),
         model: model,
@@ -218,6 +227,7 @@ module F =
         ~focus=
           switch (focus) {
           | Some(InnerExp(f)) => Some(f)
+          | Some(Arg(_))
           | None => None
           },
         ~inject=x => inject(InnerExp(x)),
@@ -228,7 +238,23 @@ module F =
         ~main_editor,
         model.inner_stepper,
       );
-
-    inner_stepper;
+    /* The binder chip sits ABOVE the nested stepper: `funext x =>` reads
+     * left-to-right as "bind x, then prove the body", and the body's own
+     * rows are what the nested stepper draws. */
+    ProofFormView.view_pat_arg(
+      ~globals,
+      ~label="funext: ",
+      ~proof,
+      ~main_editor,
+      ~focused=
+        switch (focus) {
+        | Some(Arg(_)) => true
+        | Some(InnerExp(_))
+        | None => false
+        },
+      ~take_focus=() => take_focus(Arg()),
+      arg_of_proof(proof),
+    )
+    @ inner_stepper;
   };
 };
