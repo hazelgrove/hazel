@@ -48,6 +48,49 @@ let expects_no_warning =
     },
   );
 
+/* --- stepper path -------------------------------------------------
+   A stepper / eval-result editor re-runs statics on an already-evaluated
+   term, which may have come out of a theorem's statement or proof. Those
+   editors pass `is_dynamic_term=true`, which threads through to
+   `Statics.mk(~in_theorem=true, ...)`, so the non-computable warnings must
+   stay quiet there. The cell editor (`is_dynamic_term=false`) keeps warning. */
+
+let statics_stepper = term =>
+  fst(
+    Statics.mk(
+      ~in_theorem=true,
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Int)),
+      term,
+    ),
+  );
+
+let statics_cached_stepper = term => {
+  let s =
+    Haz3lcore.CachedStatics.init_from_term(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=true,
+      term,
+    );
+  s.info_map;
+};
+
+let expects_no_warning_via =
+    (
+      statics_of: Exp.t => Statics.Map.t,
+      name: string,
+      source: string,
+      pred: Warning.list_item => bool,
+    ) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let s = statics_of(parse_exp(source));
+      Alcotest.check(int, name, 0, count(pred, s));
+    },
+  );
+
 /* No expression anywhere in the program carries a mark. Since `CompareFun`
    is gone, function equality must not be a static error at all. */
 let expects_no_errors = (name: string, source: string) =>
@@ -159,6 +202,59 @@ let tests = (
       "forall inside a proof is quiet",
       {|theorem t = true proof axiom refl_eq at 0 on (forall x -> x == x) end in 0|},
       is_forall_warning,
+    ),
+    /* --- stepper editors count as inside a theorem -------------------- */
+    expects_no_warning_via(
+      statics_stepper,
+      "stepper: bare forall is quiet",
+      {|forall x -> x == x|},
+      is_forall_warning,
+    ),
+    expects_no_warning_via(
+      statics_stepper,
+      "stepper: function == is quiet",
+      {|(fun x -> x) == (fun x -> x)|},
+      is_fun_eq_warning,
+    ),
+    expects_no_warning_via(
+      statics_stepper,
+      "stepper: function != is quiet",
+      {|(fun x -> x) != (fun x -> x)|},
+      is_fun_eq_warning,
+    ),
+    expects_no_warning_via(
+      statics_stepper,
+      "stepper: forall-where is quiet",
+      {|forall x where x != 0 -> x / x == 1|},
+      is_forall_warning,
+    ),
+    /* Same, through the editor-facing entry point the stepper actually
+       uses (`CachedStatics.init_from_term(~is_dynamic_term=true)`). */
+    expects_no_warning_via(
+      statics_cached_stepper,
+      "stepper (cached): bare forall is quiet",
+      {|forall x -> x == x|},
+      is_forall_warning,
+    ),
+    expects_no_warning_via(
+      statics_cached_stepper,
+      "stepper (cached): function == is quiet",
+      {|(fun x -> x) == (fun x -> x)|},
+      is_fun_eq_warning,
+    ),
+    /* The memo cache key includes `in_theorem`, so a stepper result must
+       not silence the cell editor for the same term (or vice versa). */
+    test_case(
+      "cell path still warns after the stepper path is cached",
+      `Quick,
+      () => {
+        let src = {|forall x -> x == x|};
+        let e = parse_exp(src);
+        let quiet = statics_stepper(e);
+        Alcotest.check(int, "stepper quiet", 0, count(is_forall_warning, quiet));
+        let loud = statics(e);
+        Alcotest.check(bool, "cell warns", true, count(is_forall_warning, loud) > 0);
+      },
     ),
   ],
 );

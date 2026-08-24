@@ -5475,7 +5475,7 @@ let with_initial_theorems = (ctx: Ctx.t): Ctx.t =>
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((ana, ctx, e, probe_ids, in_theorem)) => {
       let ctx = with_initial_theorems(ctx);
       let (_, elab, m) =
         uexp_to_info_map(
@@ -5483,6 +5483,7 @@ let mk =
           ~ctx,
           ~ancestors=[],
           ~probe_ids,
+          ~in_theorem,
           e,
           Id.Map.empty,
         );
@@ -5510,9 +5511,11 @@ let mk =
     (
       ~ana=Typ.temp(Unknown(SynSwitch)),
       ~probe_ids=Id.Map.empty,
+      ~in_theorem=false,
       core: CoreSettings.t,
       ctx,
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, in_theorem))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));
