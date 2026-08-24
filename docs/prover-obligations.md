@@ -269,6 +269,13 @@ constrains their off-domain behavior. This asymmetry is the entire
 consistency argument; eval steps (definition unfolding) remain unconditionally
 sound because divergence stays ⊥.
 
+Contrast the list-append primitive `@`, which *does* have defining equations
+(`[] @ ys == ys` and `(x :: xs) @ ys == x :: (xs @ ys)`), and since
+`hz-symbolic-lists` those equations fire on **constructor form** rather than
+only on ground list literals — so `eval` unfolds `@` even when the tail or the
+right operand is a quantified variable. There is deliberately no right-unit
+step (`xs @ []`), which needs induction.
+
 ### 1.5 Floats are total (IEEE)
 
 Float arithmetic is deliberately total in Hazel: `1.0 /. 0.0` is the *value*

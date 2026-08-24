@@ -1116,14 +1116,50 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), d1 => ListConcat1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(env), d2 => ListConcat2(d1, d2) |> wrap_ctx, d2);
-      let-unbox ds1 = (ListLit, d1');
-      let-unbox ds2 = (ListLit, d2');
-      Step({
-        expr: list_lit(ds1 @ ds2),
-        side_effects: [],
-        kind: ListConcat,
-        is_value: true,
-      });
+      switch (Unboxing.unbox(ListLit, d1'), Unboxing.unbox(ListLit, d2')) {
+      /* Ground fast path: both sides are known-length literals, so a single
+         step concatenates them into one literal. */
+      | (Matches(ds1), Matches(ds2)) =>
+        Step({
+          expr: list_lit(ds1 @ ds2),
+          side_effects: [],
+          kind: ListConcat,
+          is_value: true,
+        })
+      /* Otherwise use the defining equations of @, which only require the
+         LEFT side to be in constructor form:
+           [] @ ys        -->  ys
+           (x :: xs) @ ys -->  x :: (xs @ ys)
+         This lets @ step when the right side (or the cons tail) is merely
+         final, e.g. a quantified variable in a proof. Note there is
+         deliberately no right-unit rule: `m @ []` needs induction, so it
+         correctly stays stuck. */
+      | _ =>
+        switch (Unboxing.unbox(ListLitn(0), d1')) {
+        | Matches(_) =>
+          Step({
+            expr: d2',
+            side_effects: [],
+            kind: ListConcat,
+            is_value: false,
+          })
+        | DoesNotMatch
+        | IndetMatch =>
+          switch (Unboxing.unbox(Cons, d1')) {
+          | Matches((x, xs)) =>
+            Step({
+              expr: cons(x, list_concat(xs, d2')),
+              side_effects: [],
+              kind: ListConcat,
+              is_value: false,
+            })
+          /* Left side is not a list constructor (a variable or a hole): no
+             defining equation applies. */
+          | DoesNotMatch
+          | IndetMatch => Indet
+          }
+        }
+      };
     | ListLit(ds) =>
       let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =

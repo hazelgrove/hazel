@@ -15,6 +15,7 @@ let tests =
     Test_Evaluator_Function.tests,
     Test_Evaluator_Fixpoint.tests,
     Test_Evaluator_List.tests,
+    Test_SymbolicListBuiltins.tests,
     Test_Evaluator_Atom.tests,
     Test_Evaluator_Let.tests,
     Test_Evaluator_Operators.tests,
