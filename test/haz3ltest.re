@@ -31,6 +31,7 @@ let (suite, _) =
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_PatRootEditor.tests,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,

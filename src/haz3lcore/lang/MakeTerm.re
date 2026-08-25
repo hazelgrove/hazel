@@ -1649,5 +1649,17 @@ let for_projection =
 let from_zip_for_sem = (z: Zipper.t, ~root) =>
   go(Dump.to_segment(z, ~root));
 
+/* Semantic PAT for a Pat-rooted editor (modular-editors header cells):
+   the pat-sorted sibling of from_zip_for_sem. Feedback for such cells
+   comes from the stitched master program (exercises precedent), so no
+   standalone pat statics entry is needed — just the term. */
+let from_zip_for_pat = (z: Zipper.t): Pat.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.Pat);
+  switch (Segment.skel(seg)) {
+  | exception _ => Pat.fresh(EmptyHole)
+  | skel => pat(unsorted(Sort.Pat, skel, seg))
+  };
+};
+
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
