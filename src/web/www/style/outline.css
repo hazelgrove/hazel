@@ -6,6 +6,7 @@
 #outline-sidebar {
   grid-row: 2 / span 2;
   grid-column: 1 / span 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -13,7 +14,34 @@
   font-size: 12px;
   color: var(--BR3, #6a5a3a);
   background: var(--ui-bkg, #f6efdc);
-  border-right: 0.6px solid var(--BR2, #b5a377);
+  /* the edge stroke lives on .outline-resize (one hairline, draggable) */
+}
+
+#outline-sidebar[open] {
+  width: var(--outline-w, 210px);
+}
+
+/* the panel edge: visually a 0.6px rule like every other divider;
+   a wider invisible hit strip makes it grabbable */
+#outline-sidebar .outline-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--BR2, #b5a377) 3px,
+    var(--BR2, #b5a377) calc(3px + 0.6px),
+    transparent calc(3px + 0.6px)
+  );
+}
+
+#outline-sidebar:not([open]) .outline-resize {
+  pointer-events: none;
 }
 
 #outline-sidebar > summary.outline-title {
@@ -39,10 +67,8 @@
 #outline-sidebar .outline-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   padding: 6px 8px 12px 8px;
-  min-width: 190px;
-  max-width: 280px;
 }
 
 #outline-sidebar .outline-label {

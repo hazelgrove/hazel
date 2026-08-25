@@ -9,6 +9,44 @@ open Node;
 
 let clss = cs => Attr.classes(cs);
 
+/* drag-to-resize: pointer capture on the edge handle writes the width
+   to a ROOT css variable (--outline-w), so it survives re-renders and
+   needs no model state */
+let resize_attrs: list(Attr.t) = {
+  Js_of_ocaml.[
+    Attr.on_pointerdown(evt => {
+      let target = Js.Unsafe.coerce(evt)##.target;
+      let _ =
+        Js.Unsafe.meth_call(
+          target,
+          "setPointerCapture",
+          [|Js.Unsafe.get(Js.Unsafe.coerce(evt), "pointerId")|],
+        );
+      Effect.Prevent_default;
+    }),
+    Attr.on_mousemove(evt => {
+      let buttons: int = Js.Unsafe.coerce(evt)##.buttons;
+      if (buttons land 1 != 0) {
+        let x: int = Js.Unsafe.coerce(evt)##.clientX;
+        let w = max(140, min(420, x));
+        let root =
+          Js.Unsafe.coerce(Dom_html.document)##.documentElement##.style;
+        let _ =
+          Js.Unsafe.meth_call(
+            root,
+            "setProperty",
+            [|
+              Js.Unsafe.inject(Js.string("--outline-w")),
+              Js.Unsafe.inject(Js.string(string_of_int(w) ++ "px")),
+            |],
+          );
+        ();
+      };
+      Effect.Ignore;
+    }),
+  ];
+};
+
 let kind_glyph = (k: OutlineTree.kind): string =>
   switch (k) {
   | KModule => {js|⛁|js}
@@ -34,6 +72,9 @@ let rec node_view =
         )
         : Node.t => {
   let is_focused = n.o_id != None && n.o_id == focused;
+  /* type items have no Exp-rooted body to focus (their RHS is a TYPE);
+     typ-rooted cells are future work */
+  let focusable = n.o_kind != OutlineTree.KType;
   let label =
     div(
       ~attrs=
@@ -45,7 +86,13 @@ let rec node_view =
         ]
         @ (
           switch (n.o_id) {
-          | Some(id) => [Attr.on_click(_ => jump(id))]
+          /* while focused, a plain click RETARGETS the focus: jumping
+             at master ids would raise (they don't exist in the cell) */
+          | Some(id) when focused != None && focusable => [
+              Attr.on_click(_ => focus(id)),
+            ]
+          | Some(id) when focused == None => [Attr.on_click(_ => jump(id))]
+          | Some(_)
           | None => []
           }
         ),
@@ -58,7 +105,7 @@ let rec node_view =
       ]
       @ (
         switch (n.o_id) {
-        | Some(id) => [
+        | Some(id) when focusable => [
             span(
               ~attrs=[
                 clss(["outline-focus-btn"]),
@@ -70,6 +117,7 @@ let rec node_view =
               [text({js|⊙|js})],
             ),
           ]
+        | Some(_)
         | None => []
         }
       ),
@@ -120,6 +168,7 @@ let view =
         ~attrs=[clss(["outline-title"])],
         [text({js|☰ outline|js})],
       ),
+      div(~attrs=[clss(["outline-resize"]), ...resize_attrs], []),
       div(
         ~attrs=[clss(["outline-body"])],
         banner

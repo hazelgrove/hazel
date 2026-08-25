@@ -718,6 +718,27 @@ module Update = {
     | RenameSlide
     | DeleteSlide;
 
+  /* splice any live focus back and clear it — MUST run before any
+     operation that changes which slide [current] denotes, else a later
+     unfocus would splice into the wrong slide */
+  let commit_focus = (model: Model.t): Model.t =>
+    switch (model.focus) {
+    | None => model
+    | Some(f) => {
+        ...model,
+        scratchpads:
+          ListUtil.put_nth(
+            model.current,
+            Focus.spliced_master(
+              f,
+              List.nth(model.scratchpads, model.current),
+            ),
+            model.scratchpads,
+          ),
+        focus: None,
+      }
+    };
+
   let export_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
@@ -905,12 +926,23 @@ module Update = {
         switch (Focus.find_def(fid, master_seg)) {
         | None => model |> Updated.return_quiet
         | Some(def_seg) =>
+          /* freeze the ctx the DEFINITION BODY actually sees: the def
+             term's own info (includes the self-binding for recursive
+             lets); fall back to the ctx at the let, then builtins */
+          let info_map = editor.editor.statics.info_map;
+          let info_of = id => Haz3lcore.Id.Map.find_opt(id, info_map);
+          let def_info =
+            List.fold_left(
+              (acc, p: Haz3lcore.Piece.t) =>
+                acc == None ? info_of(Haz3lcore.Piece.id(p)) : acc,
+              None,
+              def_seg,
+            );
           let f_ctx =
-            switch (
-              Haz3lcore.Id.Map.find_opt(fid, editor.editor.statics.info_map)
-            ) {
-            | Some(info) => Language.Info.ctx_of(info)
-            | None =>
+            switch (def_info, info_of(fid)) {
+            | (Some(info), _)
+            | (None, Some(info)) => Language.Info.ctx_of(info)
+            | (None, None) =>
               Language.Builtins.ctx_init(
                 Some(Language.Operators.default_mode),
               )
@@ -1015,6 +1047,7 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
+      let model = commit_focus(model);
       WorkerClient.cancel();
       let* current = i |> Updated.return(~historic=false);
       Persist.hydrate_current(
@@ -1026,6 +1059,7 @@ module Update = {
         },
       );
     | AddSlide =>
+      let model = commit_focus(model);
       WorkerClient.cancel();
       Updated.return(
         add_new_slide(
@@ -1036,6 +1070,7 @@ module Update = {
         ),
       );
     | AddDrvSlide =>
+      let model = commit_focus(model);
       WorkerClient.cancel();
       Updated.return(
         add_new_slide(
@@ -1046,6 +1081,7 @@ module Update = {
         ),
       );
     | RenameSlide =>
+      let model = commit_focus(model);
       let current = List.nth(model.scratchpads, model.current);
       let new_name =
         prompt_slide_name(
@@ -1077,6 +1113,7 @@ module Update = {
         });
       };
     | DeleteSlide =>
+      let model = commit_focus(model);
       let confirmed =
         JsUtil.confirm(
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
@@ -1113,6 +1150,7 @@ module Update = {
       };
 
     | ResetCurrent =>
+      let model = commit_focus(model);
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({agent, _}) =>
@@ -1156,6 +1194,7 @@ module Update = {
       );
       model |> return_quiet;
     | FinishImportScratchpad(data) =>
+      let model = commit_focus(model);
       // reset file input so same file can be re-imported if desired
       JsUtil.reset_file_input("import-scratchpad");
       switch (data) {
