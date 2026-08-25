@@ -901,7 +901,18 @@ module Update = {
       | Drv(_) => model |> return_quiet
       };
     | FocusDef(fid) =>
-      /* if already focused, splice the current focus back first */
+      /* if already focused, splice the current focus back first; the
+         fresh master cell has EMPTY statics, so remember the old parked
+         master's info_map for the ctx capture below */
+      let stale_info_map =
+        switch (model.focus) {
+        | Some(f) =>
+          switch (f.f_parked.kind) {
+          | Code({editor, _}) => Some(editor.editor.statics.info_map)
+          | _ => None
+          }
+        | None => None
+        };
       let model =
         switch (model.focus) {
         | Some(f) => {
@@ -929,7 +940,13 @@ module Update = {
           /* freeze the ctx the DEFINITION BODY actually sees: the def
              term's own info (includes the self-binding for recursive
              lets); fall back to the ctx at the let, then builtins */
-          let info_map = editor.editor.statics.info_map;
+          let info_map = {
+            let m = editor.editor.statics.info_map;
+            switch (Haz3lcore.Id.Map.is_empty(m), stale_info_map) {
+            | (true, Some(old)) => old /* retarget: fresh master unstaticked */
+            | _ => m
+            };
+          };
           let info_of = id => Haz3lcore.Id.Map.find_opt(id, info_map);
           let def_info =
             List.fold_left(
@@ -1456,6 +1473,9 @@ module View = {
             | Some(Selection.Cell(s)) => Some(s)
             | _ => None
             },
+          /* focused single-definition cells show no result strip: the
+             pane describes the WHOLE program's run, which is parked */
+          ~result_kind=?model.focus == None ? None : Some(`NoResults),
           ~locked=false,
           ~lines=true,
           editor,

@@ -21,23 +21,21 @@
   width: var(--outline-w, 210px);
 }
 
-/* the panel edge: visually a 0.6px rule like every other divider;
-   a wider invisible hit strip makes it grabbable */
+/* the panel edge: the adjacent code cell's own left border IS the
+   divider (drawing our own made a double line) — the handle is just
+   an invisible grab strip with the resize cursor */
 #outline-sidebar .outline-resize {
   position: absolute;
   top: 0;
-  right: -3px;
-  width: 7px;
+  right: -4px;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   z-index: 5;
-  background: linear-gradient(
-    to right,
-    transparent 3px,
-    var(--BR2, #b5a377) 3px,
-    var(--BR2, #b5a377) calc(3px + 0.6px),
-    transparent calc(3px + 0.6px)
-  );
+}
+
+#outline-sidebar .outline-resize:hover {
+  background: color-mix(in srgb, var(--BR2, #b5a377) 25%, transparent);
 }
 
 #outline-sidebar:not([open]) .outline-resize {

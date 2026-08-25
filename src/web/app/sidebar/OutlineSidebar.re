@@ -9,40 +9,64 @@ open Node;
 
 let clss = cs => Attr.classes(cs);
 
-/* drag-to-resize: pointer capture on the edge handle writes the width
-   to a ROOT css variable (--outline-w), so it survives re-renders and
-   needs no model state */
+/* drag-to-resize: pointerdown attaches DOCUMENT-level move/up
+   listeners (the pointer leaves the thin handle immediately when
+   dragging); width goes to a ROOT css variable (--outline-w), so it
+   survives re-renders and needs no model state */
 let resize_attrs: list(Attr.t) = {
   Js_of_ocaml.[
-    Attr.on_pointerdown(evt => {
-      let target = Js.Unsafe.coerce(evt)##.target;
+    Attr.on_pointerdown(_ => {
+      let doc = Js.Unsafe.coerce(Dom_html.document);
+      let move_ref = ref(Js.Unsafe.inject(Js.null));
+      let up_ref = ref(Js.Unsafe.inject(Js.null));
+      let on_move =
+        Js.Unsafe.callback(evt => {
+          let x: int = Js.Unsafe.coerce(evt)##.clientX;
+          let w = max(140, min(420, x));
+          let root =
+            Js.Unsafe.coerce(Dom_html.document)##.documentElement##.style;
+          let _ =
+            Js.Unsafe.meth_call(
+              root,
+              "setProperty",
+              [|
+                Js.Unsafe.inject(Js.string("--outline-w")),
+                Js.Unsafe.inject(Js.string(string_of_int(w) ++ "px")),
+              |],
+            );
+          ();
+        });
+      let on_up =
+        Js.Unsafe.callback(_ => {
+          let _ =
+            Js.Unsafe.meth_call(
+              doc,
+              "removeEventListener",
+              [|Js.Unsafe.inject(Js.string("mousemove")), move_ref^|],
+            );
+          let _ =
+            Js.Unsafe.meth_call(
+              doc,
+              "removeEventListener",
+              [|Js.Unsafe.inject(Js.string("mouseup")), up_ref^|],
+            );
+          ();
+        });
+      move_ref := Js.Unsafe.inject(on_move);
+      up_ref := Js.Unsafe.inject(on_up);
       let _ =
         Js.Unsafe.meth_call(
-          target,
-          "setPointerCapture",
-          [|Js.Unsafe.get(Js.Unsafe.coerce(evt), "pointerId")|],
+          doc,
+          "addEventListener",
+          [|Js.Unsafe.inject(Js.string("mousemove")), move_ref^|],
+        );
+      let _ =
+        Js.Unsafe.meth_call(
+          doc,
+          "addEventListener",
+          [|Js.Unsafe.inject(Js.string("mouseup")), up_ref^|],
         );
       Effect.Prevent_default;
-    }),
-    Attr.on_mousemove(evt => {
-      let buttons: int = Js.Unsafe.coerce(evt)##.buttons;
-      if (buttons land 1 != 0) {
-        let x: int = Js.Unsafe.coerce(evt)##.clientX;
-        let w = max(140, min(420, x));
-        let root =
-          Js.Unsafe.coerce(Dom_html.document)##.documentElement##.style;
-        let _ =
-          Js.Unsafe.meth_call(
-            root,
-            "setProperty",
-            [|
-              Js.Unsafe.inject(Js.string("--outline-w")),
-              Js.Unsafe.inject(Js.string(string_of_int(w) ++ "px")),
-            |],
-          );
-        ();
-      };
-      Effect.Ignore;
     }),
   ];
 };

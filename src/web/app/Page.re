@@ -876,7 +876,17 @@ module View = {
           switch (m.focus) {
           | Some(f) =>
             switch (f.f_parked.kind) {
-            | Code({editor, _}) => Some(editor.editor.statics.term)
+            /* from the parked ZIPPER, not parked statics: a re-target
+               parks a freshly spliced master whose statics are empty
+               (memoized MakeTerm — the parked zipper never changes) */
+            | Code({editor, _}) =>
+              Some(
+                Haz3lcore.MakeTerm.from_zip_for_sem(
+                  editor.editor.editor.state.zipper,
+                  ~root=Exp,
+                ).
+                  term,
+              )
             | _ => None
             }
           | None => None
