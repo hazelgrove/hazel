@@ -20,8 +20,7 @@ let read_file = (path: string): option(string) =>
 
 let check_variant = (name: string): unit => {
   let path = "hazel-programs/mega/" ++ name;
-  let path =
-    Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
+  let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
   switch (read_file(path)) {
   | None => fail("unreadable: " ++ name)
   | Some(src) =>
@@ -61,14 +60,14 @@ let check_variant = (name: string): unit => {
         );
       };
       let t1 = Sys.time();
-      let (result, state) =
-        Evaluator.evaluate(~env=Builtins.env_init, elab);
+      let (result, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
       let eval_ms = (Sys.time() -. t1) *. 1000.;
       let tests = EvaluatorState.get_tests(state);
       let n_tests = List.length(tests);
       let failing =
         List.filter(
-          ((_, reports)) => TestMap.joint_status(reports) != TestStatus.Pass,
+          ((_, reports)) =>
+            TestMap.joint_status(reports) != TestStatus.Pass,
           tests,
         );
       List.iter(

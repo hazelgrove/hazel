@@ -41,32 +41,29 @@ let time_statics = (src: string): option(float) =>
 let tests = (
   "BenchStatics",
   [
-    test_case(
-      "corpus statics timing (informational)",
-      `Quick,
-      () =>
-        List.iter(
-          name => {
-            let path = "hazel-programs/bench/" ++ name;
-            let path =
-              Sys.file_exists(path) ? path : "../hazel-programs/bench/" ++ name;
-            switch (read_file(path)) {
-            | None => Printf.printf("BENCHSTATICS %s: <unreadable>\n", name)
-            | Some(src) =>
-              switch (time_statics(src)) {
-              | Some(ms) =>
-                Printf.printf(
-                  "BENCHSTATICS %s (%d lines): %.0fms\n",
-                  name,
-                  List.length(String.split_on_char('\n', src)),
-                  ms,
-                )
-              | None => Printf.printf("BENCHSTATICS %s: <no parse>\n", name)
-              }
-            };
-          },
-          ["bench-1k.hz", "bench-2k5.hz", "bench-5k.hz"],
-        ),
+    test_case("corpus statics timing (informational)", `Quick, () =>
+      List.iter(
+        name => {
+          let path = "hazel-programs/bench/" ++ name;
+          let path =
+            Sys.file_exists(path) ? path : "../hazel-programs/bench/" ++ name;
+          switch (read_file(path)) {
+          | None => Printf.printf("BENCHSTATICS %s: <unreadable>\n", name)
+          | Some(src) =>
+            switch (time_statics(src)) {
+            | Some(ms) =>
+              Printf.printf(
+                "BENCHSTATICS %s (%d lines): %.0fms\n",
+                name,
+                List.length(String.split_on_char('\n', src)),
+                ms,
+              )
+            | None => Printf.printf("BENCHSTATICS %s: <no parse>\n", name)
+            }
+          };
+        },
+        ["bench-1k.hz", "bench-2k5.hz", "bench-5k.hz"],
+      )
     ),
   ],
 );

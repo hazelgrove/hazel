@@ -135,8 +135,8 @@ module Model = {
      its scratchpad slot untouched (statics warm, zipper immutable
      while the stack is open). Closing splices every entry's header
      into its pattern slot and body into its definition slot.
-     Transient — never persisted; persistence reads through
-     effective_current, which splices live. */
+     Transient — never persisted; persistence splices live
+     (Persist.persist_spliced, a text-backed snapshot). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type stack_entry = {
     e_id: Haz3lcore.Id.t, /* the item tile's id in the master */
@@ -558,12 +558,25 @@ module Persist = {
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
 
   /* the scratchpad persistence should see: the master with any live
-     focus-cell edits spliced in — never the bare focus cell */
-  let effective_current = (model: Model.t): Scratchpad.t => {
-    let sp = List.nth(model.scratchpads, model.current);
-    switch (model.focus) {
-    | Some(f) => Focus.spliced_master(f, sp)
-    | None => sp
+     focus-cell edits spliced in — never the bare focus cell. But it
+     must NOT build a live editor for the spliced program: cell_of_seg
+     pays CachedSyntax.init (MakeTerm + Measured) and Zipper.sexp_of_t
+     re-serializes the whole zipper — measured at ~2s + ~2.5s PER
+     AUTOSAVE TICK on Mega 1k. The spliced zipper's caret is synthetic
+     anyway (the live caret is in a stack cell), so snapshot as
+     TEXT-backed persistence — the same lossless path committed .hz
+     slides load through. */
+  let persist_spliced =
+      (f: Model.focus_t, editor: CellEditor.Model.t)
+      : CellEditor.Model.persistent => {
+    let z = Focus.splice_all(f) |> Zipper.unzip;
+    CellEditor.Model.{
+      editor:
+        Editor.Model.mk_persistent(
+          PersistentZipper.of_text(PersistentZipper.to_string(z) ++ "\n"),
+          ~root=Sort.Exp,
+        ),
+      result: EvalResult.Model.persist(editor.result),
     };
   };
 
@@ -576,11 +589,16 @@ module Persist = {
         names,
       },
     );
-    let sp = effective_current(model);
+    let sp = List.nth(model.scratchpads, model.current);
     switch (sp.dormant, sp.kind) {
     | (true, _) => () /* never write a placeholder over the stored slide */
     | (false, Code({editor, agent})) =>
-      switch (CellEditor.Model.persist(editor)) {
+      switch (
+        switch (model.focus) {
+        | Some(f) => persist_spliced(f, editor)
+        | None => CellEditor.Model.persist(editor)
+        }
+      ) {
       | e =>
         /* The slide blob carries the editor only; the conversation
            lives solely under the :agent key (it used to be embedded
@@ -1525,6 +1543,17 @@ module Update = {
     };
   };
 
+  /* per-entry calculate memo (see calc_entry): FIXPOINT check. An
+     entry that comes in physically identical to the last calculate's
+     OUTPUT is already calculated — update only replaces an entry's
+     record when it's edited, so unchanged entries hit this on every
+     recalculate (evaluator-streaming actions trigger them
+     constantly). Reuse also preserves the entry's physical identity,
+     which the stack view cache keys on. */
+  let calc_entry_memo:
+    Hashtbl.t(Haz3lcore.Id.t, (Language.CoreSettings.t, Model.stack_entry)) =
+    Hashtbl.create(8);
+
   let calculate =
       (
         ~settings,
@@ -1551,7 +1580,10 @@ module Update = {
         );
       /* calculate every stack cell: bodies with their frozen ctx
          (statics off entirely for non-Exp roots, i.e. type bodies);
-         headers molding-only */
+         headers molding-only. Memoized per entry: a keystroke in one
+         cell must not re-run statics for the others (their zippers
+         are unchanged), and reuse must preserve entry IDENTITY so the
+         stack view cache can hit. Force-refresh frames recompute. */
       let statics_off = (cs: Language.CoreSettings.t) =>
         Language.CoreSettings.{
           ...cs,
@@ -1559,28 +1591,43 @@ module Update = {
           dynamics: false,
         };
       let calc_entry = (e: Model.stack_entry): Model.stack_entry => {
-        let body_is_exp = e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
-        Model.{
-          ...e,
-          e_header:
-            CellEditor.Update.calculate(
-              ~settings=statics_off(settings),
-              ~is_edited,
-              ~statics_mode,
-              ~queue_worker=None,
-              ~stitch=x => x,
-              e.e_header,
-            ),
-          e_body:
-            CellEditor.Update.calculate(
-              ~settings=body_is_exp ? settings : statics_off(settings),
-              ~is_edited,
-              ~statics_mode,
-              ~ctx=e.e_ctx,
-              ~queue_worker=None,
-              ~stitch=x => x,
-              e.e_body,
-            ),
+        let reuse =
+          statics_mode != CodeWithStatics.StaticsForce
+            ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
+              | Some((s', prev)) when prev === e && s' === settings =>
+                Some(prev)
+              | _ => None
+              }
+            : None;
+        switch (reuse) {
+        | Some(prev) => prev
+        | None =>
+          let body_is_exp = e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
+          let e' =
+            Model.{
+              ...e,
+              e_header:
+                CellEditor.Update.calculate(
+                  ~settings=statics_off(settings),
+                  ~is_edited,
+                  ~statics_mode,
+                  ~queue_worker=None,
+                  ~stitch=x => x,
+                  e.e_header,
+                ),
+              e_body:
+                CellEditor.Update.calculate(
+                  ~settings=body_is_exp ? settings : statics_off(settings),
+                  ~is_edited,
+                  ~statics_mode,
+                  ~ctx=e.e_ctx,
+                  ~queue_worker=None,
+                  ~stitch=x => x,
+                  e.e_body,
+                ),
+            };
+          Hashtbl.replace(calc_entry_memo, e.e_id, (settings, e'));
+          e';
         };
       };
       let model = {
@@ -1595,16 +1642,23 @@ module Update = {
             model.focus,
           ),
       };
+      /* While a stack is open the master's zipper cannot change (all
+         edits route to stack cells; splices happen in update), so skip
+         its calculate entirely — otherwise every debounced
+         StaticsForce frame re-runs whole-program statics (multi-second
+         on mega programs) for an editor that isn't even displayed. */
       let new_ed =
-        CellEditor.Update.calculate(
-          ~settings,
-          ~autoprobe_mode,
-          ~is_edited,
-          ~statics_mode,
-          ~queue_worker,
-          ~stitch=x => x,
-          editor,
-        );
+        model.focus != None
+          ? editor
+          : CellEditor.Update.calculate(
+              ~settings,
+              ~autoprobe_mode,
+              ~is_edited,
+              ~statics_mode,
+              ~queue_worker,
+              ~stitch=x => x,
+              editor,
+            );
       let dispatch = (_key, action) =>
         schedule_action(CellAction(ResultAction(action)));
       EvalRequest.request(
@@ -1797,6 +1851,31 @@ module View = {
   type event =
     | MakeActive(Selection.t);
 
+  /* Stack-cell view cache: with N cells open, a keystroke in one cell
+     must not rebuild the other N-1 cell views (measured 150-380ms per
+     keystroke at 5 cells vs 10-70ms at 1 on Mega 1k). Reusing the
+     physically-same nodes also short-circuits the vdom diff. Keyed on
+     everything the cell view reads; models/settings by physical
+     identity, small values structurally. Pruned to the live stack
+     every render. */
+  type stack_cache_key = {
+    k_index: int,
+    k_header_sel: option(CellEditor.Selection.t),
+    k_body_sel: option(CellEditor.Selection.t),
+    k_meta_down: bool,
+    k_visible_rows: option(Globals.VisibleRows.t),
+  };
+  type cached_cell = {
+    c_key: stack_cache_key,
+    c_header: CellEditor.Model.t,
+    c_body: CellEditor.Model.t,
+    c_settings: Settings.t,
+    c_font_metrics: FontMetrics.t,
+    c_colors: option(ColorSteps.colorMap),
+    c_nodes: list(Virtual_dom.Vdom.Node.t),
+  };
+  let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
+
   let view =
       (
         ~globals,
@@ -1811,61 +1890,98 @@ module View = {
     | Code({editor, _}) =>
       /* the STACK: [header band, body cell] per entry, thin rules
          between; rendered INSTEAD of the master cell */
-      let stack_views = (f: Model.focus_t) =>
-        List.concat(
+      let stack_views = (f: Model.focus_t) => {
+        let prev = stack_cache^;
+        let rendered =
           List.mapi(
-            (i, e: Model.stack_entry) =>
-              [
-                Virtual_dom.Vdom.Node.div(
-                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
-                  [
-                    CellEditor.View.view(
-                      ~globals,
-                      ~signal=
-                        fun
-                        | MakeActive(sel) =>
-                          signal(MakeActive(StackH(i, sel))),
-                      ~inject=a => inject(StackHeader(i, a)),
-                      ~selected=
-                        switch (selected) {
-                        | Some(Selection.StackH(j, sel)) when j == i =>
-                          Some(sel)
-                        | _ => None
-                        },
-                      ~result_kind=`NoResults,
-                      ~locked=false,
-                      ~lines=false,
-                      e.e_header,
-                    ),
-                  ],
-                ),
-                Virtual_dom.Vdom.Node.div(
-                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
-                  [
-                    CellEditor.View.view(
-                      ~globals,
-                      ~signal=
-                        fun
-                        | MakeActive(sel) =>
-                          signal(MakeActive(StackB(i, sel))),
-                      ~inject=a => inject(StackBody(i, a)),
-                      ~selected=
-                        switch (selected) {
-                        | Some(Selection.StackB(j, sel)) when j == i =>
-                          Some(sel)
-                        | _ => None
-                        },
-                      ~result_kind=`NoResults,
-                      ~locked=false,
-                      ~lines=true,
-                      e.e_body,
-                    ),
-                  ],
-                ),
-              ],
+            (i, e: Model.stack_entry) => {
+              let header_sel =
+                switch (selected) {
+                | Some(Selection.StackH(j, sel)) when j == i => Some(sel)
+                | _ => None
+                };
+              let body_sel =
+                switch (selected) {
+                | Some(Selection.StackB(j, sel)) when j == i => Some(sel)
+                | _ => None
+                };
+              let key = {
+                k_index: i,
+                k_header_sel: header_sel,
+                k_body_sel: body_sel,
+                k_meta_down: globals.Globals.Model.meta_down,
+                k_visible_rows: globals.Globals.Model.visible_rows,
+              };
+              switch (List.assoc_opt(e.e_id, prev)) {
+              | Some(c)
+                  when
+                    c.c_key == key
+                    && c.c_header === e.e_header
+                    && c.c_body === e.e_body
+                    && c.c_settings === globals.Globals.Model.settings
+                    && c.c_font_metrics === globals.Globals.Model.font_metrics
+                    && c.c_colors === globals.Globals.Model.color_highlights => (
+                  e.e_id,
+                  c,
+                )
+              | _ =>
+                let nodes = [
+                  Virtual_dom.Vdom.Node.div(
+                    ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
+                    [
+                      CellEditor.View.view(
+                        ~globals,
+                        ~signal=
+                          fun
+                          | MakeActive(sel) =>
+                            signal(MakeActive(StackH(i, sel))),
+                        ~inject=a => inject(StackHeader(i, a)),
+                        ~selected=header_sel,
+                        ~result_kind=`NoResults,
+                        ~locked=false,
+                        ~lines=false,
+                        e.e_header,
+                      ),
+                    ],
+                  ),
+                  Virtual_dom.Vdom.Node.div(
+                    ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
+                    [
+                      CellEditor.View.view(
+                        ~globals,
+                        ~signal=
+                          fun
+                          | MakeActive(sel) =>
+                            signal(MakeActive(StackB(i, sel))),
+                        ~inject=a => inject(StackBody(i, a)),
+                        ~selected=body_sel,
+                        ~result_kind=`NoResults,
+                        ~locked=false,
+                        ~lines=true,
+                        e.e_body,
+                      ),
+                    ],
+                  ),
+                ];
+                (
+                  e.e_id,
+                  {
+                    c_key: key,
+                    c_header: e.e_header,
+                    c_body: e.e_body,
+                    c_settings: globals.Globals.Model.settings,
+                    c_font_metrics: globals.Globals.Model.font_metrics,
+                    c_colors: globals.Globals.Model.color_highlights,
+                    c_nodes: nodes,
+                  },
+                );
+              };
+            },
             f.f_entries,
-          ),
-        );
+          );
+        stack_cache := rendered;
+        List.concat_map(((_, c)) => c.c_nodes, rendered);
+      };
       switch (model.focus) {
       | Some(f) =>
         (SlideContent.get_content(current.name) |> Option.to_list)

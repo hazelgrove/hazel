@@ -135,4 +135,17 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
     items,
   );
 
-let of_term = (e: Exp.t): list(node) => of_exp(e);
+/* memoized on the term's PHYSICAL identity: statics rebuilds the term
+   only when the program changes, so between edits (and on every
+   render while a focus stack is open) this is a pointer compare —
+   the unmemoized walk was O(program) per keystroke */
+let cache: ref(option((Exp.t, list(node)))) = ref(None);
+
+let of_term = (e: Exp.t): list(node) =>
+  switch (cache^) {
+  | Some((prev, tree)) when prev === e => tree
+  | _ =>
+    let tree = of_exp(e);
+    cache := Some((e, tree));
+    tree;
+  };
