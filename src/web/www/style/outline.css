@@ -241,3 +241,31 @@
   color: var(--R1, #c33);
   opacity: 0.85;
 }
+
+/* slide-loading frame (SwitchSlide paints this before hydration) */
+#main .slide-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40vh;
+  color: var(--BR3, #6a5a3a);
+  opacity: 0.7;
+  font-family: var(--code-font, monospace);
+}
+
+#main .slide-loading .slide-loading-dot {
+  font-size: 8px;
+  animation: slide-loading-pulse 1s ease-in-out infinite;
+  margin-right: 4px;
+}
+
+@keyframes slide-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}

@@ -1055,6 +1055,8 @@ module Update = {
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | UnfocusDef
     | RefreshStatics
+    | HydrateCurrent /* deferred slide hydration (SwitchSlide shows a
+                        loading frame first) */
     | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
     | SwitchSlide(int)
@@ -1552,15 +1554,28 @@ module Update = {
     | SwitchSlide(i) =>
       let model = commit_focus(model);
       WorkerClient.cancel();
-      let* current = i |> Updated.return(~historic=false);
+      /* hydration (parse + first statics) can take seconds on large
+         slides: paint a loading frame first, then hydrate. A plain
+         schedule_action drains before the next render, so defer via a
+         real timer. */
+      ignore(
+        Js_of_ocaml.Dom_html.window##setTimeout(
+          Js_of_ocaml.Js.wrap_callback(() => schedule_action(HydrateCurrent)),
+          30.,
+        ),
+      );
+      {
+        ...model,
+        current: i,
+      }
+      |> Updated.return(~historic=false);
+    | HydrateCurrent =>
       Persist.hydrate_current(
         ~settings=settings.core,
         is_documentation ? "doc" : "scratch",
-        {
-          ...model,
-          current,
-        },
-      );
+        model,
+      )
+      |> Updated.return(~historic=false)
     | AddSlide =>
       let model = commit_focus(model);
       WorkerClient.cancel();
@@ -2255,173 +2270,198 @@ module View = {
         model: Model.t,
       ) => {
     let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code({editor, _}) =>
-      /* the STACK: [header band, body cell] per entry, thin rules
-         between; rendered INSTEAD of the master cell */
-      let stack_views = (f: Model.focus_t) => {
-        let prev = stack_cache^;
-        let rendered =
-          List.mapi(
-            (i, e: Model.stack_entry) => {
-              let header_sel =
-                switch (selected) {
-                | Some(Selection.StackH(j, sel)) when j == i => Some(sel)
-                | _ => None
-                };
-              let body_sel =
-                switch (selected) {
-                | Some(Selection.StackB(j, sel)) when j == i => Some(sel)
-                | _ => None
-                };
-              let key = {
-                k_index: i,
-                k_header_sel: header_sel,
-                k_body_sel: body_sel,
-                k_meta_down: globals.Globals.Model.meta_down,
-                k_visible_rows: globals.Globals.Model.visible_rows,
-              };
-              switch (List.assoc_opt(e.e_id, prev)) {
-              | Some(c)
-                  when
-                    c.c_key == key
-                    && c.c_header === e.e_header
-                    && c.c_body === e.e_body
-                    && c.c_settings === globals.Globals.Model.settings
-                    && c.c_font_metrics === globals.Globals.Model.font_metrics
-                    && c.c_colors === globals.Globals.Model.color_highlights => (
-                  e.e_id,
-                  c,
-                )
-              | _ =>
-                /* qualifier chip: the def's module path (stable while
-                   the stack is open — the master term is frozen) */
-                let qualifier =
-                  switch (
-                    OutlineTree.path_of(e.e_id, editor.editor.statics.term)
-                  ) {
-                  | [] => []
-                  | path => [
-                      Virtual_dom.Vdom.Node.span(
-                        ~attrs=[
-                          Virtual_dom.Vdom.Attr.classes(["focus-qualifier"]),
-                        ],
-                        [
-                          Virtual_dom.Vdom.Node.text(
-                            String.concat(".", path) ++ ".",
-                          ),
-                        ],
-                      ),
-                    ]
+    if (current.dormant) {
+      [
+        /* SwitchSlide painted this frame before hydration: the next
+           update parses + runs first statics, which blocks for a bit on
+           large slides */
+        Virtual_dom.Vdom.Node.div(
+          ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading"])],
+          [
+            Virtual_dom.Vdom.Node.span(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading-dot"])],
+              [Virtual_dom.Vdom.Node.text({js|●|js})],
+            ),
+            Virtual_dom.Vdom.Node.text(" loading "),
+            Virtual_dom.Vdom.Node.text(current.name),
+            Virtual_dom.Vdom.Node.text({js|…|js}),
+          ],
+        ),
+      ];
+    } else {
+      switch (current.kind) {
+      | Code({editor, _}) =>
+        /* the STACK: [header band, body cell] per entry, thin rules
+           between; rendered INSTEAD of the master cell */
+        let stack_views = (f: Model.focus_t) => {
+          let prev = stack_cache^;
+          let rendered =
+            List.mapi(
+              (i, e: Model.stack_entry) => {
+                let header_sel =
+                  switch (selected) {
+                  | Some(Selection.StackH(j, sel)) when j == i => Some(sel)
+                  | _ => None
                   };
-                let nodes = [
-                  Virtual_dom.Vdom.Node.div(
-                    ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
-                    qualifier
-                    @ [
-                      CellEditor.View.view(
-                        ~globals,
-                        ~signal=
-                          fun
-                          | MakeActive(sel) =>
-                            signal(MakeActive(StackH(i, sel))),
-                        ~inject=a => inject(StackHeader(i, a)),
-                        ~selected=header_sel,
-                        ~result_kind=`NoResults,
-                        ~locked=false,
-                        ~lines=false,
-                        e.e_header,
-                      ),
-                    ],
-                  ),
-                  Virtual_dom.Vdom.Node.div(
-                    ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
-                    [
-                      CellEditor.View.view(
-                        ~globals,
-                        ~signal=
-                          fun
-                          | MakeActive(sel) =>
-                            signal(MakeActive(StackB(i, sel))),
-                        ~inject=a => inject(StackBody(i, a)),
-                        ~selected=body_sel,
-                        ~result_kind=`NoResults,
-                        ~locked=false,
-                        ~lines=true,
-                        e.e_body,
-                      ),
-                    ],
-                  ),
-                ];
-                (
-                  e.e_id,
-                  {
-                    c_key: key,
-                    c_header: e.e_header,
-                    c_body: e.e_body,
-                    c_settings: globals.Globals.Model.settings,
-                    c_font_metrics: globals.Globals.Model.font_metrics,
-                    c_colors: globals.Globals.Model.color_highlights,
-                    c_nodes: nodes,
-                  },
-                );
-              };
-            },
-            f.f_entries,
-          );
-        stack_cache := rendered;
-        List.concat_map(((_, c)) => c.c_nodes, rendered)
-        @ [
-          /* trailing slack: any entry (incl. the last) can align to
-             the viewport top, and the user can scroll to position any
-             def where they like */
-          Virtual_dom.Vdom.Node.div(
-            ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
-            [],
-          ),
-        ];
-      };
-      switch (model.focus) {
-      | Some(f) =>
-        (SlideContent.get_content(current.name) |> Option.to_list)
-        @ stack_views(f)
-      | None =>
-        (SlideContent.get_content(current.name) |> Option.to_list)
-        @ [
-          CellEditor.View.view(
-            ~globals,
-            ~signal=
-              fun
-              | MakeActive(selection) =>
-                signal(MakeActive(Cell(selection))),
-            ~inject=a => inject(CellAction(a)),
-            ~selected=
-              switch (selected) {
-              | Some(Selection.Cell(s)) => Some(s)
-              | _ => None
+                let body_sel =
+                  switch (selected) {
+                  | Some(Selection.StackB(j, sel)) when j == i => Some(sel)
+                  | _ => None
+                  };
+                let key = {
+                  k_index: i,
+                  k_header_sel: header_sel,
+                  k_body_sel: body_sel,
+                  k_meta_down: globals.Globals.Model.meta_down,
+                  k_visible_rows: globals.Globals.Model.visible_rows,
+                };
+                switch (List.assoc_opt(e.e_id, prev)) {
+                | Some(c)
+                    when
+                      c.c_key == key
+                      && c.c_header === e.e_header
+                      && c.c_body === e.e_body
+                      && c.c_settings === globals.Globals.Model.settings
+                      && c.c_font_metrics
+                      === globals.Globals.Model.font_metrics
+                      && c.c_colors === globals.Globals.Model.color_highlights => (
+                    e.e_id,
+                    c,
+                  )
+                | _ =>
+                  /* qualifier chip: the def's module path (stable while
+                     the stack is open — the master term is frozen) */
+                  let qualifier =
+                    switch (
+                      OutlineTree.path_of(e.e_id, editor.editor.statics.term)
+                    ) {
+                    | [] => []
+                    | path => [
+                        Virtual_dom.Vdom.Node.span(
+                          ~attrs=[
+                            Virtual_dom.Vdom.Attr.classes([
+                              "focus-qualifier",
+                            ]),
+                          ],
+                          [
+                            Virtual_dom.Vdom.Node.text(
+                              String.concat(".", path) ++ ".",
+                            ),
+                          ],
+                        ),
+                      ]
+                    };
+                  let nodes = [
+                    Virtual_dom.Vdom.Node.div(
+                      ~attrs=[
+                        Virtual_dom.Vdom.Attr.classes(["focus-header"]),
+                      ],
+                      qualifier
+                      @ [
+                        CellEditor.View.view(
+                          ~globals,
+                          ~signal=
+                            fun
+                            | MakeActive(sel) =>
+                              signal(MakeActive(StackH(i, sel))),
+                          ~inject=a => inject(StackHeader(i, a)),
+                          ~selected=header_sel,
+                          ~result_kind=`NoResults,
+                          ~locked=false,
+                          ~lines=false,
+                          e.e_header,
+                        ),
+                      ],
+                    ),
+                    Virtual_dom.Vdom.Node.div(
+                      ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
+                      [
+                        CellEditor.View.view(
+                          ~globals,
+                          ~signal=
+                            fun
+                            | MakeActive(sel) =>
+                              signal(MakeActive(StackB(i, sel))),
+                          ~inject=a => inject(StackBody(i, a)),
+                          ~selected=body_sel,
+                          ~result_kind=`NoResults,
+                          ~locked=false,
+                          ~lines=true,
+                          e.e_body,
+                        ),
+                      ],
+                    ),
+                  ];
+                  (
+                    e.e_id,
+                    {
+                      c_key: key,
+                      c_header: e.e_header,
+                      c_body: e.e_body,
+                      c_settings: globals.Globals.Model.settings,
+                      c_font_metrics: globals.Globals.Model.font_metrics,
+                      c_colors: globals.Globals.Model.color_highlights,
+                      c_nodes: nodes,
+                    },
+                  );
+                };
               },
-            ~locked=false,
-            ~lines=true,
-            editor,
-          ),
-        ]
+              f.f_entries,
+            );
+          stack_cache := rendered;
+          List.concat_map(((_, c)) => c.c_nodes, rendered)
+          @ [
+            /* trailing slack: any entry (incl. the last) can align to
+               the viewport top, and the user can scroll to position any
+               def where they like */
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
+              [],
+            ),
+          ];
+        };
+        switch (model.focus) {
+        | Some(f) =>
+          (SlideContent.get_content(current.name) |> Option.to_list)
+          @ stack_views(f)
+        | None =>
+          (SlideContent.get_content(current.name) |> Option.to_list)
+          @ [
+            CellEditor.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(selection) =>
+                  signal(MakeActive(Cell(selection))),
+              ~inject=a => inject(CellAction(a)),
+              ~selected=
+                switch (selected) {
+                | Some(Selection.Cell(s)) => Some(s)
+                | _ => None
+                },
+              ~locked=false,
+              ~lines=true,
+              editor,
+            ),
+          ]
+        };
+      | Drv(m) =>
+        DerivationExerciseMode.View.view(
+          ~globals,
+          ~signal=
+            fun
+            | MakeActive(s) => signal(MakeActive(Drv(s))),
+          ~inject=a => inject(DrvAction(a)),
+          ~inject_explainthis,
+          ~selection=
+            switch (selected) {
+            | Some(Selection.Drv(s)) => Some(s)
+            | _ => None
+            },
+          ~scratch_mode=true,
+          m,
+        )
       };
-    | Drv(m) =>
-      DerivationExerciseMode.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive(s) => signal(MakeActive(Drv(s))),
-        ~inject=a => inject(DrvAction(a)),
-        ~inject_explainthis,
-        ~selection=
-          switch (selected) {
-          | Some(Selection.Drv(s)) => Some(s)
-          | _ => None
-          },
-        ~scratch_mode=true,
-        m,
-      )
     };
   };
 
