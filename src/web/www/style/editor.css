@@ -641,6 +641,13 @@ svg:has(.child-line) {
 .context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
   background-color: transparent;
 }
+.context-menu .named-menu-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.context-menu .group .contents .named-menu-item.disabled:hover {
+  background-color: transparent;
+}
 .context-menu .named-menu-item .menu-shortcut {
   margin-left: auto;
   padding-left: 1em;
