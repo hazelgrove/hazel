@@ -95,7 +95,7 @@
 
 #outline-sidebar .outline-glyph {
   display: inline-block;
-  width: 15px;
+  width: 13px;
   opacity: 0.7;
 }
 
@@ -115,16 +115,19 @@
   display: none;
 }
 
+/* taller chevrons, close to icon height (andrew, tentative) */
 #outline-sidebar summary.outline-summary::before {
-  content: "\25b8";
+  content: "\276f";
   display: inline-block;
-  width: 10px;
-  font-size: 9px;
-  opacity: 0.6;
+  width: 9px;
+  font-size: 10.5px;
+  opacity: 0.55;
+  transform-origin: 40% 55%;
 }
 
 #outline-sidebar details[open] > summary.outline-summary::before {
-  content: "\25be";
+  content: "\276f";
+  transform: rotate(90deg);
 }
 
 #outline-sidebar .ol-module {

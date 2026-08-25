@@ -427,6 +427,17 @@ module Selection = {
     | _ => None
     };
 
+  /* the selection an outline add/ensure should land on (see
+     ScratchMode.Selection.stack_add_selection) */
+  let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_add_selection(sa, m)
+      |> Option.map(s => Scratch(s))
+    | _ => None
+    };
+
   let default_selection =
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))

@@ -32,6 +32,7 @@ let (suite, _) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_PatRootEditor.tests,
+      Test_StackFocus.tests,
       Test_BenchStatics.tests,
       Test_MegaCorpus.tests,
       Test_StringUtil.tests,

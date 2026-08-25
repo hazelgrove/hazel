@@ -227,6 +227,49 @@ module Focus = {
     | Tile(t) => t.label == [";"]
     | _ => false
     };
+  /* Edge-whitespace handling: the raw pat/def slices carry the
+     master's padding (spaces around the pat, the linebreak+indent
+     before a def) — in an isolated cell that reads as stray
+     whitespace begging to be deleted. Cells hold the TRIMMED core;
+     the splice re-wraps with whatever edge whitespace the (stale)
+     master copy still carries, so padding round-trips without being
+     stored. Comments are content, not padding — they stay. */
+  let is_edge_ws = (p: Piece.t): bool =>
+    switch (p) {
+    | Secondary({content: Whitespace(_), _}) => true
+    | _ => false
+    };
+
+  let trim_ws = (seg: Segment.t): (Segment.t, Segment.t, Segment.t) => {
+    let rec take = ps =>
+      switch (ps) {
+      | [p, ...rest] when is_edge_ws(p) =>
+        let (pre, core) = take(rest);
+        ([p, ...pre], core);
+      | _ => ([], ps)
+      };
+    let (pre, rest) = take(seg);
+    let (fus, eroc) = take(List.rev(rest));
+    (pre, List.rev(eroc), List.rev(fus));
+  };
+
+  let core_ws = (seg: Segment.t): Segment.t => {
+    let (_, core, _) = trim_ws(seg);
+    core;
+  };
+
+  /* re-wrap [content] in the edge whitespace of the segment [find]
+     locates in [seg] (the master's copy, untouched while focused) */
+  let rewrap_ws =
+      (find: (Id.t, Segment.t) => option(Segment.t), fid, seg, content)
+      : Segment.t =>
+    switch (find(fid, seg)) {
+    | Some(old) =>
+      let (pre, _, suf) = trim_ws(old);
+      pre @ content @ suf;
+    | None => content
+    };
+
   /* does [seg] contain a piece with id [target] (recursively)? */
   let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
     List.exists(
@@ -446,18 +489,27 @@ module Focus = {
           e_id: fid,
           e_header:
             (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
-              Option.value(find_pat(fid, master_seg), ~default=[]),
+              core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
             ),
-          e_body: (is_type ? typ_cell_of_seg : cell_of_seg)(def_seg),
+          e_body:
+            (is_type ? typ_cell_of_seg : cell_of_seg)(core_ws(def_seg)),
           e_ctx,
         },
       );
     };
 
-  /* splice ONE entry's header+body home into [seg] */
+  /* splice ONE entry's header+body home into [seg], restoring the
+     edge whitespace the master's stale copies still carry */
   let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
-    splice_def(e.e_id, zip_of_cell(e.e_body), seg)
-    |> splice_pat(e.e_id, zip_of_cell(e.e_header));
+    splice_def(
+      e.e_id,
+      rewrap_ws(find_def, e.e_id, seg, zip_of_cell(e.e_body)),
+      seg,
+    )
+    |> splice_pat(
+         e.e_id,
+         rewrap_ws(find_pat, e.e_id, seg, zip_of_cell(e.e_header)),
+       );
 
   /* the master segment with every live entry spliced home */
   let splice_all = (focus: Model.focus_t): Segment.t =>
@@ -481,6 +533,70 @@ module Focus = {
       }
     | _ => sp
     };
+};
+
+/* the outline's ids in document order — the stack mirrors this order */
+let outline_order = (term: Language.Exp.t): list(Haz3lcore.Id.t) => {
+  let rec flatten = (acc, ns: list(OutlineTree.node)) =>
+    List.fold_left(
+      (acc, n: OutlineTree.node) =>
+        flatten(
+          switch (n.o_id) {
+          | Some(id) => [id, ...acc]
+          | None => acc
+          },
+          n.o_children,
+        ),
+      acc,
+      ns,
+    );
+  List.rev(flatten([], OutlineTree.of_term(term)));
+};
+
+/* where a cell for [fid] goes (or sits) in the stack: entries keep
+   PROGRAM order, not click order */
+let stack_position =
+    (~term, fid: Haz3lcore.Id.t, entries: list(Model.stack_entry)): int => {
+  let rec index_of = (k, l: list(Model.stack_entry)) =>
+    switch (l) {
+    | [] => None
+    | [e, ..._] when e.e_id == fid => Some(k)
+    | [_, ...rest] => index_of(k + 1, rest)
+    };
+  switch (index_of(0, entries)) {
+  | Some(j) => j
+  | None =>
+    let order = outline_order(term);
+    let rank = id => {
+      let rec go = (k, l) =>
+        switch (l) {
+        | [] => max_int
+        | [x, ..._] when x == id => k
+        | [_, ...rest] => go(k + 1, rest)
+        };
+      go(0, order);
+    };
+    let r = rank(fid);
+    List.length(
+      List.filter((e: Model.stack_entry) => rank(e.e_id) < r, entries),
+    );
+  };
+};
+
+let insert_entry =
+    (~term, entry: Model.stack_entry, entries: list(Model.stack_entry))
+    : list(Model.stack_entry) => {
+  let pos = stack_position(~term, entry.e_id, entries);
+  let rec ins = (k, es) =>
+    k == 0
+      ? [entry, ...es]
+      : (
+        switch (es) {
+        | [] => [entry]
+        | [e, ...rest] => [e, ...ins(k - 1, rest)]
+        }
+      );
+  ins(pos, entries);
 };
 
 module Persist = {
@@ -1213,8 +1329,7 @@ module Update = {
               |> Updated.return
             };
           } else {
-            /* add to the stack (in outline/program order not enforced;
-               append) */
+            /* add to the stack, keeping program order */
             let info_map = editor.editor.statics.info_map;
             switch (Focus.mk_entry(~info_map, fid, f.f_master_seg)) {
             | None => model |> Updated.return_quiet
@@ -1225,7 +1340,12 @@ module Update = {
                   Some(
                     Model.{
                       ...f,
-                      f_entries: f.f_entries @ [entry],
+                      f_entries:
+                        insert_entry(
+                          ~term=editor.editor.statics.term,
+                          entry,
+                          f.f_entries,
+                        ),
                     },
                   ),
               }
@@ -1259,7 +1379,12 @@ module Update = {
                   Some(
                     Model.{
                       ...f,
-                      f_entries: f.f_entries @ [entry],
+                      f_entries:
+                        insert_entry(
+                          ~term=editor.editor.statics.term,
+                          entry,
+                          f.f_entries,
+                        ),
                     },
                   ),
               }
@@ -1935,17 +2060,7 @@ module Selection = {
                 id => List.mem(id, items),
                 Language.Info.ancestors_of(info),
               );
-            let rec index_of = (k, es: list(Model.stack_entry)) =>
-              switch (es) {
-              | [] => None
-              | [e, ..._] when e.e_id == fid => Some(k)
-              | [_, ...rest] => index_of(k + 1, rest)
-              };
-            let j =
-              switch (index_of(0, f.f_entries)) {
-              | Some(j) => j
-              | None => List.length(f.f_entries) /* FocusEnsure appends */
-              };
+            let j = stack_position(~term=statics.term, fid, f.f_entries);
             /* the binder lives in the pattern (header cell) for defs,
                in the definition body for e.g. ADT constructors */
             let in_header =
@@ -1969,6 +2084,33 @@ module Selection = {
       | _ => None
       }
     );
+  };
+
+  /* the selection an outline add/ensure should land on: the body pane
+     of [fid] at its (future) stack position. None for removals — the
+     selection stays put. */
+  let stack_add_selection = (action: Update.t, model: Model.t): option(t) => {
+    let target = (fid, entries) => {
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Drv(_) => None
+      | Code({editor, _}) =>
+        Some(
+          StackB(
+            stack_position(~term=editor.editor.statics.term, fid, entries),
+            MainEditor,
+          ),
+        )
+      };
+    };
+    switch (action, model.focus) {
+    | (FocusEnsure(fid), Some(f)) => target(fid, f.f_entries)
+    | (FocusToggle(fid), Some(f)) =>
+      List.exists((e: Model.stack_entry) => e.e_id == fid, f.f_entries)
+        ? None : target(fid, f.f_entries)
+    | (FocusToggle(_), None) => Some(StackB(0, MainEditor))
+    | _ => None
+    };
   };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {

@@ -4,8 +4,9 @@ open Node;
 /* OutlineSidebar — the collapsible module/definition outline.
    Navigation: click = jump. Focus: the ⊙ button TOGGLES a definition
    in the focus STACK (stacked header/body cells replace the master
-   editor); plain click while a stack is open replaces the stack with
-   that one definition. The banner splices everything home. */
+   editor); plain click while a stack is open ADDS that definition to
+   the stack (or moves to it if present) — it never replaces the
+   stack. The banner splices everything home. */
 
 let clss = cs => Attr.classes(cs);
 
@@ -126,8 +127,9 @@ let rec node_view =
         ]
         @ (
           switch (n.o_id) {
-          /* while a stack is open, a plain click REPLACES the stack
-             (jumping at master ids would target the hidden editor) */
+          /* while a stack is open, a plain click ADDS/moves-to that
+             cell (jumping at master ids would target the hidden
+             editor) */
           | Some(id) when any_focus => [Attr.on_click(_ => focus(id))]
           | Some(id) => [Attr.on_click(_ => jump(id))]
           | None => []

@@ -359,6 +359,21 @@ module Update = {
         Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
       | None => ()
       };
+      /* outline adds move the selection (and DOM focus, which also
+         scrolls the new cell into view) to the added cell */
+      let selection =
+        switch (followup) {
+        | Some(_) => selection
+        | None =>
+          switch (
+            Editors.Selection.stack_add_selection(action, model.editors)
+          ) {
+          | Some(s) =>
+            Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+            s;
+          | None => selection
+          }
+        };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -890,7 +905,9 @@ module View = {
 
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
-        ~focus=id => inject(Editors(Scratch(FocusDef(id)))),
+        /* plain click with a stack open ADDS (or moves to) that cell —
+           never replaces the stack (andrew: replacing was a footgun) */
+        ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
         ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
         ~focused_entries,
