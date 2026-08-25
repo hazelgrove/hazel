@@ -340,6 +340,25 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      /* Cross-cell jump-to-definition: a stack cell's jump whose binder
+         lives in another definition is rewritten to (ensure the target
+         is stacked, select it, then a follow-up caret jump) — mirroring
+         the JumpToTile flow above. */
+      let (action, selection, followup) =
+        switch (Editors.Selection.stack_jump_override(action, model.editors)) {
+        | Some((action', selection, followup)) => (
+            action',
+            selection,
+            Some(followup),
+          )
+        | None => (action, model.selection, None)
+        };
+      switch (followup) {
+      | Some(k) =>
+        schedule_action(Editors(k));
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+      | None => ()
+      };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -361,6 +380,7 @@ module Update = {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =

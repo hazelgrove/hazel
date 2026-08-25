@@ -412,6 +412,21 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
     };
 
+  /* Cross-cell jump-to-definition in scratch/documentation stacks
+     (see ScratchMode.Selection.stack_jump_override): (ensure-entry
+     action, new selection, follow-up caret jump) */
+  let stack_jump_override =
+      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_jump_override(sa, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
   let default_selection =
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))

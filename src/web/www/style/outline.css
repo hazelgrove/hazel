@@ -14,16 +14,28 @@
   font-size: 12px;
   color: var(--BR3, #6a5a3a);
   background: var(--ui-bkg, #f6efdc);
-  /* the edge stroke lives on .outline-resize (one hairline, draggable) */
+  /* the panel edge: the sidebar owns the divider (editor cells are
+     borderless in outline modes — a cell-side border stopped where
+     the cell content did) */
+  border-right: 0.6px solid var(--BR2, #b5a377);
 }
 
 #outline-sidebar[open] {
   width: var(--outline-w, 210px);
 }
 
-/* the panel edge: the adjacent code cell's own left border IS the
-   divider (drawing our own made a double line) — the handle is just
-   an invisible grab strip with the resize cursor */
+/* Chrome slots details content into an internal ::details-content
+   box; without this the flex sizing never reaches .outline-body and
+   the sidebar can't scroll */
+#outline-sidebar[open]::details-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* the resize handle is an invisible grab strip with the resize
+   cursor, straddling the border */
 #outline-sidebar .outline-resize {
   position: absolute;
   top: 0;
@@ -162,10 +174,22 @@
   background: var(--BR1, #d8c9a3);
 }
 
-/* focused-definition header band (the `name : type` pat editor) */
+/* editor panes carry no borders in outline modes — the outline
+   sidebar owns the left divider, headers own the entry rules */
+#main.Scratch .cell,
+#main.Documentation .cell {
+  border-left: none;
+}
+
+/* focused-definition header band (the `name : type` pat editor):
+   distinguished by background, not rules — top border only between
+   entries (the topmost header has no preceding body) */
 #main .focus-header {
-  background: var(--ui-bkg, #f6efdc);
-  border-bottom: 0.6px solid var(--BR2, #b5a377);
+  background: var(--T2, #f1e9d2);
+}
+
+#main .focus-body ~ .focus-header {
+  border-top: 0.6px solid var(--BR2, #b5a377);
 }
 
 #main .focus-header .cell {
@@ -177,11 +201,6 @@
    the horizontal share (andrew: no vertical padding) */
 #main .focus-header .cell-item {
   padding: 0 16px;
-}
-
-/* stacked body cells: thin rule between entries */
-#main .focus-body {
-  border-bottom: 0.6px solid var(--BR2, #b5a377);
 }
 
 #outline-sidebar .outline-focus-btn.outline-btn-on {

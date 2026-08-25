@@ -227,6 +227,20 @@ module Focus = {
     | Tile(t) => t.label == [";"]
     | _ => false
     };
+  /* does [seg] contain a piece with id [target] (recursively)? */
+  let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        Piece.id(p) == target
+        || (
+          switch (p) {
+          | Tile(t) => List.exists(seg_contains_id(target), t.children)
+          | _ => false
+          }
+        ),
+      seg,
+    );
+
   /* split [ps] at the first `;` piece: (def run, separator + rest) */
   let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
     let rec go = (acc, ps) =>
@@ -896,6 +910,7 @@ module Update = {
     | StackBody(int, CellEditor.Update.t)
     | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
+    | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | UnfocusDef
     | RefreshStatics
     | AgentAction(Agent.Update.Action.t)
@@ -1220,6 +1235,39 @@ module Update = {
         }
       | Drv(_) => model |> Updated.return_quiet
       };
+    | FocusEnsure(fid) =>
+      /* cross-cell jump support: add [fid] to the stack iff absent
+         (never removes; requires an open stack — the master handles
+         its own jumps) */
+      switch (model.focus) {
+      | None => model |> Updated.return_quiet
+      | Some(f) =>
+        if (List.exists((e: Model.stack_entry) => e.e_id == fid, f.f_entries)) {
+          model |> Updated.return_quiet;
+        } else {
+          let scratchpad = List.nth(model.scratchpads, model.current);
+          switch (scratchpad.kind) {
+          | Drv(_) => model |> Updated.return_quiet
+          | Code({editor, _}) =>
+            let info_map = editor.editor.statics.info_map;
+            switch (Focus.mk_entry(~info_map, fid, f.f_master_seg)) {
+            | None => model |> Updated.return_quiet
+            | Some(entry) =>
+              {
+                ...model,
+                focus:
+                  Some(
+                    Model.{
+                      ...f,
+                      f_entries: f.f_entries @ [entry],
+                    },
+                  ),
+              }
+              |> Updated.return
+            };
+          };
+        }
+      }
     | UnfocusDef =>
       switch (model.focus) {
       | None => model |> Updated.return_quiet
@@ -1835,6 +1883,92 @@ module Selection = {
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
     };
+  };
+
+  /* Cross-cell jump-to-definition: a stack cell's jump whose binder is
+     OUTSIDE the cell becomes (ensure the binder's outline item is in
+     the stack, select the pane holding the binder, then a follow-up
+     caret jump there). None = local jump or not a jump — take the
+     normal path. */
+  let stack_jump_override =
+      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
+    Util.OptUtil.Syntax.(
+      switch (action, model.focus) {
+      | (
+          StackBody(
+            i,
+            MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+          ),
+          Some(f),
+        ) =>
+        let* entry = List.nth_opt(f.f_entries, i);
+        let cell_map = entry.e_body.editor.statics.info_map;
+        let* ci =
+          Indicated.ci_of(entry.e_body.editor.editor.state.zipper, cell_map);
+        let* binding_id = Language.Info.get_binding_site(ci);
+        if (Id.Map.mem(binding_id, cell_map)) {
+          None; /* binder is inside this cell: the cell's own jump works */
+        } else {
+          let scratchpad = List.nth(model.scratchpads, model.current);
+          switch (scratchpad.kind) {
+          | Drv(_) => None
+          | Code({editor, _}) =>
+            let statics = editor.editor.statics;
+            let* info = Id.Map.find_opt(binding_id, statics.info_map);
+            /* the nearest enclosing outline item is the def to focus */
+            let rec outline_ids = (acc, ns: list(OutlineTree.node)) =>
+              List.fold_left(
+                (acc, n: OutlineTree.node) =>
+                  outline_ids(
+                    switch (n.o_id) {
+                    | Some(id) => [id, ...acc]
+                    | None => acc
+                    },
+                    n.o_children,
+                  ),
+                acc,
+                ns,
+              );
+            let items = outline_ids([], OutlineTree.of_term(statics.term));
+            let* fid =
+              List.find_opt(
+                id => List.mem(id, items),
+                Language.Info.ancestors_of(info),
+              );
+            let rec index_of = (k, es: list(Model.stack_entry)) =>
+              switch (es) {
+              | [] => None
+              | [e, ..._] when e.e_id == fid => Some(k)
+              | [_, ...rest] => index_of(k + 1, rest)
+              };
+            let j =
+              switch (index_of(0, f.f_entries)) {
+              | Some(j) => j
+              | None => List.length(f.f_entries) /* FocusEnsure appends */
+              };
+            /* the binder lives in the pattern (header cell) for defs,
+               in the definition body for e.g. ADT constructors */
+            let in_header =
+              Focus.seg_contains_id(
+                binding_id,
+                Option.value(
+                  Focus.find_pat(fid, f.f_master_seg),
+                  ~default=[],
+                ),
+              );
+            let caret: CellEditor.Update.t =
+              MainEditor(Perform(Move(Goal(TileId(binding_id)))));
+            Some((
+              Update.FocusEnsure(fid),
+              in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
+              in_header
+                ? Update.StackHeader(j, caret) : Update.StackBody(j, caret),
+            ));
+          };
+        };
+      | _ => None
+      }
+    );
   };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {
