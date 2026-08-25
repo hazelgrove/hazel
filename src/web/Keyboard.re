@@ -73,9 +73,13 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "Home") => now(Select(Resize(Line(Left))))
     | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
-    | _ when String.length(key) == 1 =>
-      /* Note: length==1 prevent specials like
-       * SHIFT from being captured here */
+    | _ when Unicode.length(key) == 1 =>
+      /* One grapheme cluster, which is exactly what KeyboardEvent.key
+       * reports for a character key -- named keys ("Shift", "Enter",
+       * "ArrowLeft", "F1", "Dead", "Process", ...) are all several
+       * clusters long, so they still fall through. Counting BYTES here
+       * (as this used to) silently dropped every non-ASCII key: `é` is
+       * two bytes and `😀` is four. */
       now(Insert(key))
     | _ => None
     }
