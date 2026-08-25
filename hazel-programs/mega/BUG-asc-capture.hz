@@ -1,0 +1,31 @@
+# DEV DYNAMICS BUG REPRO (found composing the mega corpus 2026-08-25): #
+# a constructor value passed through a let-arrow-ascribed module member #
+# and captured in a closure handed to a builtin (mapi) gets stuck as #
+# Asc(...) at case-match time. countRow below evaluates to a stuck #
+# BinOp chain instead of 2. Rewriting setAt with param ascriptions #
+# (fun (row: [Cell], ...) ->) or removing the capture makes it pass. #
+# The mega corpus generator (build_mega.py) uses param ascriptions #
+# everywhere for this reason. #
+module M = {
+  type Cell =
+    + Empty
+    + Planted(Int, Int);
+  let isPlanted : Cell -> Bool = fun cell ->
+    case cell
+    | Empty => false
+    | Planted(_, _) => true
+    end;
+  let setAt : ([Cell], Int, Cell) -> [Cell] = fun (row, targetCol, newCell) ->
+    mapi(row, fun (c, cell) ->
+      if c == targetCol then newCell else cell
+    );
+  let countRow : [Cell] -> Int = fun row ->
+    fold_left(row, fun (a2, cell) ->
+      if isPlanted(cell) then a2 + 1 else a2
+    , 0);
+  let dbg : () -> Int = fun _ ->
+    let r1 = setAt([Empty, Empty, Empty], 0, Planted(1, 2)) in
+    let r2 = setAt(r1, 1, Planted(3, 4)) in
+    countRow(r2)
+} in
+M.dbg(()) == 2
