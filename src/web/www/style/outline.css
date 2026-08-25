@@ -103,3 +103,37 @@
   opacity: 0.6;
   padding: 6px;
 }
+
+/* focus affordances (phase 2) */
+#outline-sidebar .outline-focus-btn {
+  display: none;
+  margin-left: 6px;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+#outline-sidebar .outline-label:hover .outline-focus-btn {
+  display: inline;
+}
+
+#outline-sidebar .outline-focus-btn:hover {
+  opacity: 1;
+}
+
+#outline-sidebar .outline-label.outline-focused {
+  background: var(--BR1, #d8c9a3);
+  font-weight: bold;
+}
+
+#outline-sidebar .outline-unfocus {
+  cursor: pointer;
+  padding: 3px 6px;
+  margin-bottom: 6px;
+  border: 0.6px solid var(--BR2, #b5a377);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--BR1, #d8c9a3) 45%, white);
+}
+
+#outline-sidebar .outline-unfocus:hover {
+  background: var(--BR1, #d8c9a3);
+}

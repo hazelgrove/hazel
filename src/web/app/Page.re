@@ -858,12 +858,39 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
-    /* module/definition outline (modular-editors phase 1) */
-    let outline =
+    /* module/definition outline (modular-editors phases 1-2) */
+    let outline = {
+      let focused =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) =>
+          Option.map((f: ScratchMode.Model.focus_t) => f.f_id, m.focus)
+        | _ => None
+        };
+      /* while focused, the visible statics is the focus cell's; the
+         outline must keep showing the MASTER program's tree */
+      let outline_term =
+        switch (model.editors, focused) {
+        | (Scratch(m), Some(_))
+        | (Documentation(m), Some(_)) =>
+          switch (m.focus) {
+          | Some(f) =>
+            switch (f.f_parked.kind) {
+            | Code({editor, _}) => Some(editor.editor.statics.term)
+            | _ => None
+            }
+          | None => None
+          }
+        | _ => None
+        };
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
-        current_editor.statics.term,
+        ~focus=id => inject(Editors(Scratch(FocusDef(id)))),
+        ~unfocus=inject(Editors(Scratch(UnfocusDef))),
+        ~focused,
+        Option.value(outline_term, ~default=current_editor.statics.term),
       );
+    };
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =

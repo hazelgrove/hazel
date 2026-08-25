@@ -129,10 +129,25 @@ module Scratchpad = {
 };
 
 module Model = {
+  /* Definition-focus mode (modular-editors phase 2): the current
+     slide's master cell is PARKED and a cell holding just one
+     definition takes its place, so every existing route (actions,
+     statics, view, cursor) targets the focus cell unchanged. Unfocus
+     splices the (possibly edited) definition back into the master.
+     Transient — never persisted; persistence reads through
+     effective_scratchpad. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_t = {
+    f_id: Haz3lcore.Id.t, /* focused definition's piece id in the master */
+    f_parked: Scratchpad.t, /* the master slide, held aside */
+    f_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: int,
     scratchpads: list(Scratchpad.t),
+    focus: option(focus_t),
   };
 
   /* The monolithic export/import format (per-slide keys are the live
@@ -160,6 +175,128 @@ module Model = {
      <prefix>:_meta         → slide_meta (current_index, names)
      <prefix>:<name>        → CellEditor.Model.persistent
      <prefix>:<name>:agent  → Agent.Persistent.t */
+/* ---- definition-focus helpers (modular-editors phase 2) ----
+   Focus targets the definition's RHS child segment (between `=` and
+   `in`/`;`) — a complete, properly-grouted expression, per the adopted
+   cell design (plan §2). Slicing the whole `let…in` tile instead
+   leaves a prefix tile without its operand and crashes Skel. */
+module Focus = {
+  open Haz3lcore;
+
+  let ends_with_in = (t: Base.tile): bool =>
+    switch (List.rev(t.label)) {
+    | ["in", ..._] => true
+    | _ => false
+    };
+  let is_semi = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => t.label == [";"]
+    | _ => false
+    };
+  /* split [ps] at the first `;` piece: (def run, separator + rest) */
+  let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
+    let rec go = (acc, ps) =>
+      switch (ps) {
+      | [] => (List.rev(acc), [])
+      | [p, ..._] when is_semi(p) => (List.rev(acc), ps)
+      | [p, ...rest] => go([p, ...acc], rest)
+      };
+    go([], ps);
+  };
+
+  /* The definition RHS for the item tile [fid]:
+     - `let … = … in` (3 shards): the def is the tile's LAST CHILD;
+     - module-member `let … =` (2 shards): the def is the SIBLING run
+       after the tile, up to the member separator `;` (or segment end).
+     Returns a complete, properly-grouted child segment either way. */
+  let rec find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) => {
+    let rec scan = (ps: list(Piece.t)): option(Segment.t) =>
+      switch (ps) {
+      | [] => None
+      | [Piece.Tile(t), ...rest] when t.id == fid =>
+        if (ends_with_in(t)) {
+          switch (List.rev(t.children)) {
+          | [def, ..._] => Some(def)
+          | [] => None
+          };
+        } else {
+          Some(fst(split_at_semi(rest)));
+        }
+      | [Piece.Tile(t), ...rest] =>
+        switch (
+          List.fold_left(
+            (acc, child) => acc == None ? find_def(fid, child) : acc,
+            None,
+            t.children,
+          )
+        ) {
+        | Some(d) => Some(d)
+        | None => scan(rest)
+        }
+      | [_, ...rest] => scan(rest)
+      };
+    scan(seg);
+  };
+
+  /* replace the definition RHS of item [fid] with [repl] */
+  let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
+    let rec scan = (ps: list(Piece.t)): list(Piece.t) =>
+      switch (ps) {
+      | [] => []
+      | [Piece.Tile(t), ...rest] when t.id == fid =>
+        if (ends_with_in(t)) {
+          let t' =
+            switch (List.rev(t.children)) {
+            | [_, ...rev_rest] => {
+                ...t,
+                children: List.rev([repl, ...rev_rest]),
+              }
+            | [] => t
+            };
+          [Piece.Tile(t'), ...rest];
+        } else {
+          let (_, tail) = split_at_semi(rest);
+          [Piece.Tile(t), ...repl] @ tail;
+        }
+      | [Piece.Tile(t), ...rest] => [
+          Piece.Tile({
+            ...t,
+            children: List.map(splice_def(fid, repl), t.children),
+          }),
+          ...scan(rest),
+        ]
+      | [p, ...rest] => [p, ...scan(rest)]
+      };
+    scan(seg);
+  };
+
+  let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
+    Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
+
+  let cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
+    seg |> Zipper.unzip |> Editor.Model.mk(~root=Exp) |> CellEditor.Model.mk;
+
+  /* the master slide with the live focus-cell content spliced back in
+     (pure; used by unfocus AND by persistence while focused) */
+  let spliced_master =
+      (focus: Model.focus_t, current: Scratchpad.t): Scratchpad.t =>
+    switch (focus.f_parked.kind, current.kind) {
+    | (Code(parked), Code({editor: focus_cell, agent})) =>
+      let master_seg = zip_of_cell(parked.editor);
+      let new_seg =
+        splice_def(focus.f_id, zip_of_cell(focus_cell), master_seg);
+      {
+        ...focus.f_parked,
+        kind:
+          Code({
+            editor: cell_of_seg(new_seg),
+            agent,
+          }),
+      };
+    | _ => focus.f_parked
+    };
+};
+
 module Persist = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slide_meta = {
@@ -248,6 +385,16 @@ module Persist = {
      but reuse the agent field). */
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
 
+  /* the scratchpad persistence should see: the master with any live
+     focus-cell edits spliced in — never the bare focus cell */
+  let effective_current = (model: Model.t): Scratchpad.t => {
+    let sp = List.nth(model.scratchpads, model.current);
+    switch (model.focus) {
+    | Some(f) => Focus.spliced_master(f, sp)
+    | None => sp
+    };
+  };
+
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
     save_meta(
@@ -257,7 +404,7 @@ module Persist = {
         names,
       },
     );
-    let sp = List.nth(model.scratchpads, model.current);
+    let sp = effective_current(model);
     switch (sp.dormant, sp.kind) {
     | (true, _) => () /* never write a placeholder over the stored slide */
     | (false, Code({editor, agent})) =>
@@ -395,6 +542,7 @@ module Persist = {
               : Scratchpad.dormant_code(name),
           names,
         ),
+      focus: None,
     };
   };
 
@@ -544,6 +692,7 @@ let integrate_share =
     Model.{
       current: List.length(model.scratchpads),
       scratchpads: model.scratchpads @ [new_sp],
+      focus: None,
     };
   };
 };
@@ -553,6 +702,8 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
+    | FocusDef(Haz3lcore.Id.t)
+    | UnfocusDef
     | RefreshStatics
     | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
@@ -650,6 +801,7 @@ module Update = {
     let add_empty_slide = (name): Model.t => {
       current: List.length(model.scratchpads),
       scratchpads: model.scratchpads @ [blank(name)],
+      focus: None,
     };
     switch (is_documentation) {
     | false =>
@@ -727,6 +879,86 @@ module Update = {
         };
       | Drv(_) => model |> return_quiet
       };
+    | FocusDef(fid) =>
+      /* if already focused, splice the current focus back first */
+      let model =
+        switch (model.focus) {
+        | Some(f) => {
+            ...model,
+            scratchpads:
+              ListUtil.put_nth(
+                model.current,
+                Focus.spliced_master(
+                  f,
+                  List.nth(model.scratchpads, model.current),
+                ),
+                model.scratchpads,
+              ),
+            focus: None,
+          }
+        | None => model
+        };
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Code({editor, agent}) =>
+        let master_seg = Focus.zip_of_cell(editor);
+        switch (Focus.find_def(fid, master_seg)) {
+        | None => model |> Updated.return_quiet
+        | Some(def_seg) =>
+          let f_ctx =
+            switch (
+              Haz3lcore.Id.Map.find_opt(fid, editor.editor.statics.info_map)
+            ) {
+            | Some(info) => Language.Info.ctx_of(info)
+            | None =>
+              Language.Builtins.ctx_init(
+                Some(Language.Operators.default_mode),
+              )
+            };
+          let focus_cell = Focus.cell_of_seg(def_seg);
+          Model.{
+            current: model.current,
+            scratchpads:
+              ListUtil.put_nth(
+                model.current,
+                Scratchpad.{
+                  ...scratchpad,
+                  kind:
+                    Code({
+                      editor: focus_cell,
+                      agent,
+                    }),
+                },
+                model.scratchpads,
+              ),
+            focus:
+              Some({
+                f_id: fid,
+                f_parked: scratchpad,
+                f_ctx,
+              }),
+          }
+          |> Updated.return;
+        };
+      | Drv(_) => model |> Updated.return_quiet
+      };
+    | UnfocusDef =>
+      switch (model.focus) {
+      | None => model |> Updated.return_quiet
+      | Some(f) =>
+        let restored =
+          Focus.spliced_master(
+            f,
+            List.nth(model.scratchpads, model.current),
+          );
+        Model.{
+          current: model.current,
+          scratchpads:
+            ListUtil.put_nth(model.current, restored, model.scratchpads),
+          focus: None,
+        }
+        |> Updated.return;
+      }
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
@@ -872,6 +1104,7 @@ module Update = {
                 {
                   scratchpads: new_sp,
                   current: max(model.current - 1, 0),
+                  focus: None,
                 },
               );
         Updated.return(m);
@@ -991,12 +1224,14 @@ module Update = {
             worker_request := worker_request^ @ [("", req_value)]
           },
         );
+      let ctx = Option.map((f: Model.focus_t) => f.f_ctx, model.focus);
       let new_ed =
         CellEditor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
           ~is_edited,
           ~statics_mode,
+          ~ctx?,
           ~queue_worker,
           ~stitch=x => x,
           editor,
