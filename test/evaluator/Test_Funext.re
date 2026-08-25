@@ -276,8 +276,7 @@ let test_letbound_name_is_substituted = () => {
   let (l, _) =
     switch (goal |> Exp.term_of) {
     | BinOp(Poly(Equals), l, r) => (l, r)
-    | _ =>
-      Alcotest.fail("expected an `==` body goal, got: " ++ printed)
+    | _ => Alcotest.fail("expected an `==` body goal, got: " ++ printed)
     };
   /* The head of the outer application is the thing that used to be a free
    * `Var("f")`. Any non-Var head means the definition got inlined. */
@@ -358,8 +357,7 @@ let print_pat = (p: Pat.t): string =>
      )
   |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
 
-let binder_of =
-    (~env=Environment.empty, src: string): option(string) => {
+let binder_of = (~env=Environment.empty, src: string): option(string) => {
   let goal = parse_exp(src);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), goal);
@@ -404,12 +402,124 @@ let test_binder_tuple_pattern = () =>
 /* A NAMED function: the binder comes from the definition the env holds,
  * so `inv == inv` still opens as `funext x =>`. */
 let test_binder_named_function = () => {
-  let env =
-    Environment.of_bindings([("inv", parse_exp("fun x -> 1 / x"))]);
+  let env = Environment.of_bindings([("inv", parse_exp("fun x -> 1 / x"))]);
   check_binder(
     "named function reads its definition's parameter",
     Some("x"),
     binder_of(~env, "inv == inv"),
+  );
+};
+
+/* --- id uniqueness of the synthesized pointwise goal ------------------ */
+
+/* The body's incoming goal is SYNTHESIZED: `f(x) == g(x)` is assembled
+ * from the incoming goal's own two sides plus one argument tree lifted
+ * out of the funext binder. Every one of those pieces arrives carrying
+ * the ids it had in the source program, and the argument is written into
+ * BOTH sides — so without freshening, the goal claims the binder's tiles
+ * twice and re-claims tiles that are still live in the funext row and
+ * the main editor. Duplicate ids inside one expression are what makes
+ * `Highlight.of_tile` fail on a shard-count mismatch (double-click in
+ * the inner stepper), and shared-with-the-outside ids are what park the
+ * caret in the wrong place on a single click.
+ *
+ * Mirrors `Test_EditorTransform.duplicate_tile_ids`: collect, count,
+ * assert zero repeats. */
+let all_ids = (e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) => {
+      acc := x.annotation.ids @ acc^;
+      continue(x);
+    };
+  let _: Exp.t =
+    e |> Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+  acc^ |> List.filter(id => id != Id.invalid);
+};
+
+let duplicates = (ids: list(Id.t)): list(Id.t) => {
+  let seen = Hashtbl.create(64);
+  List.filter(
+    id =>
+      switch (Hashtbl.find_opt(seen, id)) {
+      | Some () => true
+      | None =>
+        Hashtbl.add(seen, id, ());
+        false;
+      },
+    ids,
+  );
+};
+
+let check_no_duplicate_ids = (msg: string, e: Exp.t) => {
+  let dups = duplicates(all_ids(e));
+  Alcotest.check(
+    Alcotest.int,
+    msg
+    ++ " — duplicated ids: "
+    ++ String.concat(", ", List.map(Id.to_string, dups))
+    ++ "\nin: "
+    ++ print_exp(e),
+    0,
+    List.length(dups),
+  );
+};
+
+/* The minimal shape: one binder, written into both sides. */
+let test_body_goal_ids_unique_minimal = () => {
+  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof funext x => ? in t|};
+  let (pm, proof) = run(src);
+  check_no_duplicate_ids(
+    "the pointwise body goal has no duplicate ids",
+    incoming_of(pm, funext_body(proof)),
+  );
+};
+
+/* Matt's repro: named functions on both sides, so neither application
+ * contracts and the shared `xs` argument survives into the goal twice —
+ * the case where the double-click crash actually showed up. */
+let matt_repro = {|let plus = fun (x,y) -> x + y in
+let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+
+theorem t =
+    sum == fold_left(_, sum, 0)
+proof
+    funext xs => ?
+in t|};
+
+let test_body_goal_ids_unique_named = () => {
+  let (pm, proof) = run(matt_repro);
+  check_no_duplicate_ids(
+    "the pointwise goal of a named-function funext has no duplicate ids",
+    incoming_of(pm, funext_body(proof)),
+  );
+};
+
+/* And the goal must not re-use the OUTER `f == g`'s ids either: those
+ * tiles belong to the theorem's own editor, and sharing them is what
+ * made a click inside the inner stepper jump out to the parent row. */
+let test_body_goal_ids_disjoint_from_outer = () => {
+  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof funext x => ? in t|};
+  let (pm, proof) = run(src);
+  let outer = all_ids(incoming_of(pm, proof));
+  let body = all_ids(incoming_of(pm, funext_body(proof)));
+  let seen = Hashtbl.create(64);
+  List.iter(id => Hashtbl.replace(seen, id, ()), outer);
+  let shared = List.filter(id => Hashtbl.mem(seen, id), body);
+  Alcotest.check(
+    Alcotest.int,
+    "the pointwise goal shares no ids with the outer function equality "
+    ++ "— shared: "
+    ++ String.concat(", ", List.map(Id.to_string, shared)),
+    0,
+    List.length(shared),
   );
 };
 
@@ -505,6 +615,21 @@ let tests = (
       "insert: a named function's binder comes from its definition",
       `Quick,
       test_binder_named_function,
+    ),
+    test_case(
+      "ids: the pointwise body goal has no duplicate ids",
+      `Quick,
+      test_body_goal_ids_unique_minimal,
+    ),
+    test_case(
+      "ids: a named-function pointwise goal has no duplicate ids",
+      `Quick,
+      test_body_goal_ids_unique_named,
+    ),
+    test_case(
+      "ids: the pointwise goal is disjoint from the outer goal",
+      `Quick,
+      test_body_goal_ids_disjoint_from_outer,
     ),
   ],
 );

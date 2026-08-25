@@ -1104,7 +1104,7 @@ let pat_replace_all_ids: Pat.t => Pat.t = {
         },
       }
       |> continue;
-  (p => Pat.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, p));
+  p => Pat.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, p);
 };
 
 /* The parameter pattern of a function AS WRITTEN, copied fresh.
@@ -1648,7 +1648,39 @@ let rec check =
              * pointwise goal keeps mentioning `y` while every OTHER name
              * a contracted lambda body refers to is already resolved. */
             let ap = funext_apply(~env=SemanticCtx.get_env(ctx'), ~arg);
-            let pointwise = Exp.fresh(BinOp(Poly(Equals), ap(l), ap(r)));
+            /* Freshen the WHOLE assembled goal. This is synthesized
+             * syntax spliced together out of three trees that all still
+             * carry their source ids, so without it the pointwise goal
+             * breaks id uniqueness twice over:
+             *
+             *   - the same `arg` node is written into BOTH sides (`f(x)`
+             *     and `g(x)` share one `x` subtree), so one expression
+             *     claims the funext binder's tiles twice. Double-clicking
+             *     in the inner stepper then runs `Highlight.of_tile` over
+             *     a tile whose shard count doesn't match, and it
+             *     `failwith`s.
+             *   - `l`/`r` are the incoming goal's own subtrees, not
+             *     copies, so every token they contribute is also live in
+             *     the funext row's editor and the main editor. Clicking
+             *     one parks the caret in the outer occurrence.
+             *
+             * `replace_all_ids` is a structural traversal, so the twice-
+             * written `arg` gets a DISTINCT fresh id per occurrence; it
+             * also drops shard provenance, which is what the mismatched
+             * `Highlight.of_tile` was reading. `StepperBase.embed_exp`
+             * already does exactly this when splicing an expression into
+             * proof syntax — the synthesized body incoming needs it for
+             * the same reason.
+             *
+             * The ids must be freshened HERE, before the ProofMap records
+             * the body's incoming: the inner stepper overlay and every
+             * `nth_exp_env`/eval/rewrite lookup on the body resolve
+             * against this tree, so it is the one that has to be
+             * internally unique. Keeping the ids aligned with the outer
+             * goal is not a feature to preserve — it is the bug. */
+            let pointwise =
+              Exp.fresh(BinOp(Poly(Equals), ap(l), ap(r)))
+              |> Exp.replace_all_ids;
             (Some(pointwise), ctx', []);
           }
         }
