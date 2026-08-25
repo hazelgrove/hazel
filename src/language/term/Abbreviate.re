@@ -27,12 +27,13 @@ let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
 let available = ref(0);
 
 module AbbrevBudget = {
+  /* Display columns, matching the rest of the budget accounting. */
   let label_estimated_length = (~label: Exp.t): int =>
     switch (label |> Exp.term_of) {
-    | Label(name) => String.length(name)
-    | Var(name) => String.length(name)
-    | Invalid(str) => String.length(str)
-    | Atom(String(str)) => String.length(str)
+    | Label(name)
+    | Var(name) => Unicode.Width.columns_of_string(name)
+    | Invalid(str)
+    | Atom(String(str)) => Unicode.Width.columns_of_string(str)
     | _ => 0
     };
 
@@ -340,33 +341,6 @@ module AbbrevSequence = {
    display characters, not bytes. */
 let ellipsis_cost = 1;
 
-let abbreviate_str = (min_len: int, s: string): string => {
-  let len = String.length(s);
-  if (len < 2 || len <= min_len) {
-    /* String fits in budget or is too short to truncate */
-    available := available^ - len;
-    s;
-  } else {
-    /* Effective prefix: at least 0 chars */
-    let prefix_len = max(0, min_len - 1);
-    let truncated_display_len = prefix_len + ellipsis_cost;
-    /* If truncation+ellipsis would be >= full string, just use full string */
-    if (truncated_display_len >= len) {
-      available := available^ - len;
-      s;
-    } else {
-      let str =
-        if (prefix_len > 0) {
-          String.sub(s, 0, prefix_len) ++ flat_ellipses;
-        } else {
-          flat_ellipses;
-        };
-      available := available^ - truncated_display_len;
-      str;
-    };
-  };
-};
-
 let is_comment_token = (s: string): bool => {
   let len: int = String.length(s);
   if (len == 1) {
@@ -433,6 +407,12 @@ let abbreviate_string_token = (~min_len: int, s: string): string => {
   };
 };
 
+/* Truncation for the non-string tokens (vars, constructors, invalid text).
+   Same budget arithmetic as `abbreviate_string_token`: display columns, cut
+   on grapheme boundaries so we never emit half a codepoint. */
+let abbreviate_str = (min_len: int, s: string): string =>
+  abbreviate_string_token(~min_len, s);
+
 /* Abbreviate a label. Returns `Label(s) if the full label fits,
    or `Invalid(s) if truncated. Using Invalid for truncated labels
    avoids backtick-quoting by ExpToSegment (which quotes labels
@@ -444,21 +424,21 @@ let abbreviate_label =
         | `Label(string)
         | `Invalid(string)
       ] => {
-  let len = String.length(s);
+  let len = Unicode.Width.columns_of_string(s);
   let budget = available^;
   if (budget >= len) {
     available := available^ - len;
     `Label(s);
   } else {
     /* Truncated form: prefix + ellipsis, rendered as Invalid (no quoting) */
-    let prefix_len = max(0, budget - ellipsis_cost);
-    let cost = prefix_len + ellipsis_cost;
-    let str =
-      if (prefix_len > 0) {
-        String.sub(s, 0, prefix_len) ++ flat_ellipses;
-      } else {
-        flat_ellipses;
-      };
+    let prefix_budget = max(0, budget - ellipsis_cost);
+    let prefix =
+      String.concat(
+        "",
+        take_grapheme_prefix(prefix_budget, Unicode.to_list(s)),
+      );
+    let cost = Unicode.Width.columns_of_string(prefix) + ellipsis_cost;
+    let str = prefix ++ flat_ellipses;
     available := available^ - cost;
     `Invalid(str);
   };
