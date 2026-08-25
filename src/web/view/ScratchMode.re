@@ -364,17 +364,31 @@ module Focus = {
   let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
     Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
 
+  /* caret starts at the TOP of a fresh cell: unzip's default
+     direction (Right) would leave it after the whole segment */
   let cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-    seg |> Zipper.unzip |> Editor.Model.mk(~root=Exp) |> CellEditor.Model.mk;
+    seg
+    |> Zipper.unzip(~direction=Left)
+    |> Editor.Model.mk(~root=Exp)
+    |> CellEditor.Model.mk;
 
   let pat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-    seg |> Zipper.unzip |> Editor.Model.mk(~root=Pat) |> CellEditor.Model.mk;
+    seg
+    |> Zipper.unzip(~direction=Left)
+    |> Editor.Model.mk(~root=Pat)
+    |> CellEditor.Model.mk;
 
   let typ_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-    seg |> Zipper.unzip |> Editor.Model.mk(~root=Typ) |> CellEditor.Model.mk;
+    seg
+    |> Zipper.unzip(~direction=Left)
+    |> Editor.Model.mk(~root=Typ)
+    |> CellEditor.Model.mk;
 
   let tpat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-    seg |> Zipper.unzip |> Editor.Model.mk(~root=TPat) |> CellEditor.Model.mk;
+    seg
+    |> Zipper.unzip(~direction=Left)
+    |> Editor.Model.mk(~root=TPat)
+    |> CellEditor.Model.mk;
 
   /* is the item tile a `type … = …` alias? (roots differ: Typ body,
      TPat header) */
