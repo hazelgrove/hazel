@@ -322,6 +322,25 @@ let defstatics_bench = (): unit =>
           List.length(DefStatics.all_warning_ids(ds1)),
         );
         parity("cold", term1, ds1);
+        {
+          /* grafted-elaboration parity: evaluating the graft must give
+             the same value as evaluating the monolithic elaboration */
+
+          let (_, mono_elab) = Statics.mk_unmemoized(settings, ctx, term1);
+          switch (DefStatics.whole_elab(ds1)) {
+          | None => Printf.printf("DEFSTATICS %s graft: SHAPE GAP\n", name)
+          | Some(graft_elab) =>
+            let (v1, _) =
+              Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
+            let (v2, _) =
+              Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
+            Printf.printf(
+              "DEFSTATICS %s graft-eval parity: %b\n",
+              name,
+              Exp.fast_equal(v1, v2),
+            );
+          };
+        };
         /* non-export edit: last digit 9 -> 8, deep in the program */
         let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
         assert(f2);

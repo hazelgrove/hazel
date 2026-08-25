@@ -26,11 +26,15 @@ type item = {
   d_exports: list(Ctx.entry),
   d_free: list(string), /* free expression vars of pat+def */
   d_ctx_out: Ctx.t,
+  d_elab: Exp.t, /* elaboration of the hollow item */
+  d_hole: option(Id.t) /* the body hole's id (None: trailing exp) */
 };
 
 type t = {
   items: list(item),
-  term: Exp.t /* the whole term these items were computed from */
+  term: Exp.t, /* the whole term these items were computed from */
+  probe_ids: Id.Map.t(unit),
+  merged: Statics.Map.t /* union of the items' maps, kept incrementally */
 };
 
 let rec strip = (e: Exp.t): Exp.t =>
@@ -145,9 +149,18 @@ let export_delta =
 let last_analyzed: ref(int) = ref(0);
 
 /* compute one item's statics in isolation: body swapped for a hole */
-let calc_item = (~settings, ~ctx_in: Ctx.t, node: Exp.t): item => {
+let calc_item =
+    (~settings, ~probe_ids=Id.Map.empty, ~ctx_in: Ctx.t, node: Exp.t): item => {
   incr(last_analyzed);
   let hole = Exp.fresh(EmptyHole);
+  let is_tail =
+    switch (node.term) {
+    | Let(_)
+    | TyAlias(_)
+    | ModuleExp(_)
+    | Seq(_) => false
+    | _ => true
+    };
   let hollow_term: Exp.term =
     switch (node.term) {
     | Let(p, d, _) => Let(p, d, hole)
@@ -160,7 +173,8 @@ let calc_item = (~settings, ~ctx_in: Ctx.t, node: Exp.t): item => {
     ...node,
     term: hollow_term,
   };
-  let (map, _) = Statics.mk_unmemoized(settings, ctx_in, hollow);
+  let (map, elab) =
+    Statics.mk_unmemoized(~probe_ids, settings, ctx_in, hollow);
   let ctx_out =
     switch (Statics.Map.lookup_exp(Exp.rep_id(hole), map)) {
     | Some(info) => info.ctx
@@ -190,6 +204,9 @@ let calc_item = (~settings, ~ctx_in: Ctx.t, node: Exp.t): item => {
       }
     };
   };
+  /* the hole is scaffolding, not program: keep it out of the merged
+     whole-program view (ctx_out was already read above) */
+  let map = is_tail ? map : Id.Map.remove(Exp.rep_id(hole), map);
   {
     d_id: Exp.rep_id(node),
     d_node: node,
@@ -200,6 +217,8 @@ let calc_item = (~settings, ~ctx_in: Ctx.t, node: Exp.t): item => {
     d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
     d_free: free,
     d_ctx_out: ctx_out,
+    d_elab: elab,
+    d_hole: is_tail ? None : Some(Exp.rep_id(hole)),
   };
 };
 
@@ -260,7 +279,14 @@ let depends = (free: list(string), dirty: list(string)): bool =>
    names it doesn't use (sound for typing; Γ display of unrelated
    names can lag until the item is next recomputed). Structural edits
    (item added/removed/reordered) fall back to a full recompute. */
-let calc = (~settings, ~prev: option(t)=?, whole: Exp.t): t => {
+let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
+  Id.Map.union((_, _x, y) => Some(y), a, b);
+
+let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
+  Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
+
+let calc =
+    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   last_analyzed := 0;
   let nodes = chain(whole);
   let aligned =
@@ -272,24 +298,37 @@ let calc = (~settings, ~prev: option(t)=?, whole: Exp.t): t => {
       Some(p.items)
     | _ => None
     };
-  let items =
+  let (items, merged) =
     switch (aligned) {
     | None =>
       /* cold / structural edit: compute every item in chain order */
       let (items_rev, _) =
         List.fold_left(
           ((acc, ctx), node) => {
-            let it = calc_item(~settings, ~ctx_in=ctx, node);
+            let it = calc_item(~settings, ~probe_ids, ~ctx_in=ctx, node);
             ([it, ...acc], it.d_ctx_out);
           },
           ([], ctx0),
           nodes,
         );
-      List.rev(items_rev);
+      let items = List.rev(items_rev);
+      (
+        items,
+        List.fold_left(
+          (m, it) => map_union(m, it.d_map),
+          Id.Map.empty,
+          items,
+        ),
+      );
     | Some(prev_items) =>
-      let (items_rev, _, _, _) =
+      let prev_merged =
+        switch (prev) {
+        | Some(p) => p.merged
+        | None => Id.Map.empty
+        };
+      let (items_rev, _, _, _, merged) =
         List.fold_left2(
-          ((acc, ctx, dirty_vars, dirty_types), node, p: item) => {
+          ((acc, ctx, dirty_vars, dirty_types, merged), node, p: item) => {
             let clean =
               !dirty_types
               && head_equal(p.d_node, node)
@@ -320,9 +359,10 @@ let calc = (~settings, ~prev: option(t)=?, whole: Exp.t): t => {
                 ctx_out,
                 shadow_filter(it.d_exports, dirty_vars),
                 dirty_types,
+                merged,
               );
             } else {
-              let it = calc_item(~settings, ~ctx_in=ctx, node);
+              let it = calc_item(~settings, ~probe_ids, ~ctx_in=ctx, node);
               let delta = export_delta(p.d_exports, it.d_exports);
               let (it, ctx_out) =
                 switch (delta) {
@@ -344,20 +384,104 @@ let calc = (~settings, ~prev: option(t)=?, whole: Exp.t): t => {
                 | VarsChanged(vs) => (vs @ incoming, dirty_types)
                 | TypesChanged => (incoming, true)
                 };
-              ([it, ...acc], ctx_out, dirty_vars, dirty_types);
+              (
+                [it, ...acc],
+                ctx_out,
+                dirty_vars,
+                dirty_types,
+                map_union(map_remove_keys(p.d_map, merged), it.d_map),
+              );
             };
           },
-          ([], ctx0, [], false),
+          ([], ctx0, [], false, prev_merged),
           nodes,
           prev_items,
         );
-      List.rev(items_rev);
+      (List.rev(items_rev), merged);
     };
   {
     items,
     term: whole,
+    probe_ids,
+    merged,
   };
 };
+
+/* Stitch the per-item elaborations into a whole-program elaboration:
+   each hollow item's elab contains its body hole; graft the next
+   item's (already-grafted) elab in its place. Descends only through
+   body-position shapes — None means an unexpected elab shape (the
+   caller degrades to no-eval rather than crashing). Depth is the
+   ITEM's elab depth, not the program's, so this stays within the
+   browser's stack where a monolithic elaboration doesn't. */
+let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
+  if (List.mem(hole_id, e.annotation.ids)) {
+    Some(acc);
+  } else {
+    let re = (term: Exp.term) => {
+      ...e,
+      term,
+    };
+    switch (e.term) {
+    | Let(p, d, b) =>
+      graft_at(hole_id, acc, b) |> Option.map(b => re(Let(p, d, b)))
+    | Seq(a, b) =>
+      graft_at(hole_id, acc, b) |> Option.map(b => re(Seq(a, b)))
+    | TyAlias(tp, ty, b) =>
+      graft_at(hole_id, acc, b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+    | Filter(f, b) =>
+      graft_at(hole_id, acc, b) |> Option.map(b => re(Filter(f, b)))
+    | Parens(b) =>
+      graft_at(hole_id, acc, b) |> Option.map(b => re(Parens(b)))
+    | _ => None
+    };
+  };
+
+let whole_elab = (t: t): option(Exp.t) => {
+  let rec go = (items: list(item)): option(Exp.t) =>
+    switch (items) {
+    | [] => None
+    | [last] =>
+      switch (last.d_hole) {
+      | None => Some(last.d_elab) /* trailing exp: real elab */
+      | Some(_) => None /* items with holes need a successor */
+      }
+    | [it, ...rest] =>
+      switch (go(rest), it.d_hole) {
+      | (Some(acc), Some(h)) => graft_at(h, acc, it.d_elab)
+      | _ => None
+      }
+    };
+  go(t.items);
+};
+
+/* single-slot auto cache: the scratch/documentation master is the one
+   whole-program editor; slide switches and structural edits fall back
+   to a full recompute via calc's own alignment check */
+let slot: ref(option(t)) = ref(None);
+
+let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+  let prev =
+    switch (slot^) {
+    | Some(p) when compare(p.probe_ids, probe_ids) == 0 => Some(p)
+    | _ => None
+    };
+  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+  slot := Some(t);
+  t;
+};
+
+/* item ids (outline id domain) currently carrying errors — the
+   outline badge feed; reads the auto-cache slot */
+let error_item_ids = (): list(Id.t) =>
+  switch (slot^) {
+  | None => []
+  | Some(t) =>
+    List.filter_map(
+      it => it.d_error_ids == [] ? None : Some(it.d_id),
+      t.items,
+    )
+  };
 
 /* whole-program views over the per-item results */
 let all_error_ids = (t: t): list(Id.t) =>

@@ -1842,6 +1842,7 @@ module Update = {
               ~autoprobe_mode,
               ~is_edited,
               ~statics_mode,
+              ~compositional=true,
               ~queue_worker,
               ~stitch=x => x,
               editor,

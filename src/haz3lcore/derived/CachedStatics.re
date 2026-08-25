@@ -167,3 +167,44 @@ let init =
   settings.statics
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
     : empty;
+
+/* COMPOSITIONAL init for whole-program (Exp-rooted, top-level) editors:
+   statics via DefStatics — per top-level item with chained ctxs — so
+   an edit re-analyzes only the dirty set, and no monolithic
+   whole-program statics/elaboration recursion runs (which STACK
+   OVERFLOWS in the browser on some large programs, e.g. mega-2k).
+   The whole-program elaboration is grafted from the per-item elabs;
+   if a graft boundary has an unexpected shape we degrade to a
+   no-eval error term instead of crashing. Falls back to the
+   monolithic path for non-Exp roots or custom ctx/ana. */
+let init_compositional =
+    (~settings: CoreSettings.t, ~stitch, ~root, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else if (root != Sort.Exp) {
+    init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
+  } else {
+    let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
+    let term = make_term_result.term |> stitch;
+    let probe_ids = probe_ids_of_zipper(z);
+    let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+    let info_map = ds.merged;
+    let elaborated =
+      switch () {
+      | _ when !settings.dynamics && !settings.elaborate =>
+        dh_err("Dynamics & Elaboration disabled")
+      | _ =>
+        switch (DefStatics.whole_elab(ds)) {
+        | Some(elab) => elab
+        | None => dh_err("Compositional elaboration gap")
+        }
+      };
+    {
+      term,
+      elaborated,
+      info_map,
+      error_ids: DefStatics.all_error_ids(ds),
+      warning_ids: DefStatics.all_warning_ids(ds),
+      targets: compute_targets(~settings, ~info_map, ~probe_ids),
+    };
+  };

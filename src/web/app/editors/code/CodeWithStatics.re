@@ -144,6 +144,7 @@ module Update = {
         ~autoprobe_mode=false,
         ~is_edited,
         ~statics_mode=StaticsNormal,
+        ~compositional=false,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -157,15 +158,26 @@ module Update = {
      * then skips the shape pass via phys-eq on info_map/elaborated. */
     let statics =
       statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
+        ? compositional
+            /* whole-program editors: per-item statics (DefStatics) —
+               only the dirty items re-analyze, and no monolithic
+               whole-program recursion runs (browser stack overflow on
+               large programs) */
+            ? CachedStatics.init_compositional(
+                ~settings,
+                ~stitch,
+                ~root=editor.root,
+                editor.state.zipper,
+              )
+            : CachedStatics.init(
+                ~settings,
+                ~stitch,
+                ~ctx?,
+                ~ana?,
+                ~is_dynamic_term,
+                ~root=editor.root,
+                editor.state.zipper,
+              )
         : statics;
 
     let editor =
