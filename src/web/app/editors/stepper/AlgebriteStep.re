@@ -56,13 +56,13 @@ module F =
         ~settings as _: Calc.t(CoreSettings.t),
         ~hidden as _: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx as _: Calc.t(SemanticCtx.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
-        ~info_map as _,
+        ~info_map,
         ~proof_info_map as _,
         ~ana as _,
         ~proof: Calc.t(Proof.t),
-        ~proof_map as _: Calc.t(ProofMap.t),
+        ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {at_idx, at_exp, with_exp, next_exp} = model;
@@ -81,8 +81,29 @@ module F =
       next_exp
       |> Calc.map_saved(Option.some)
       |> {
-        let.calc exp = exp;
-        ProofCheck.algebrite_step_outgoing(~at_idx, ~at_exp, ~with_exp, exp);
+        let.calc exp = exp
+        and.calc ctx = ctx
+        and.calc info_map = info_map
+        and.calc proof = proof
+        and.calc proof_map = proof_map;
+        /* Same source-of-truth order as AxiomStep:
+         *   1. the big-step ProofMap entry for this proof sub-term,
+         *   2. otherwise re-run the canonical rewrite locally.
+         * Either way the target is located env-aware, so the row agrees
+         * with the checker (and with the `at <n>` the overlay wrote
+         * against the env-inlined display). */
+        switch (ProofMap.lookup(Proof.rep_id(proof), proof_map)) {
+        | Some({outgoing: Some(_) as outgoing, _}) => outgoing
+        | _ =>
+          ProofCheck.algebrite_step_outgoing(
+            ~info_map,
+            ~env=SemanticCtx.get_env(ctx),
+            ~at_idx,
+            ~at_exp,
+            ~with_exp,
+            exp,
+          )
+        };
       }
       |> Calc.to_option;
     {

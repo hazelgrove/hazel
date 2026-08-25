@@ -418,6 +418,24 @@ let is_float_typed = (~info_map: Statics.Map.t, e: Exp.t): bool =>
   | None => float_head(e)
   };
 
+/* Rewrite (`AlgebriteStep`) locates its target the SAME way eval/axiom
+ * steps do: env-aware (`nth_exp_env_target`, not `nth_exp_target`).
+ *
+ * The `at <n>` index is written by the stepper overlay, which computes
+ * it with `ProofHacks.exp_idx` over the goal AS DISPLAYED — and the
+ * displayed goal is env-inlined, so recursive bindings appear as their
+ * `FixF` bodies and contribute extra occurrences. Counting on the
+ * un-substituted goal here would number occurrences differently from
+ * the UI that produced the number, so a click on the `0` of
+ * `fold_left(_, sum, 0)` (written as `at 2`, since `sum`'s inlined body
+ * contributes two earlier `0`s) reported PatternNotFound.
+ *
+ * Counting therefore happens on the substituted tree and the match is
+ * mapped back to an id in the original goal, exactly as
+ * `nth_exp_env`/`nth_exp_env_pat` already do for eval. An occurrence
+ * that exists only inside an inlined body has no id in the original
+ * goal, cannot be rewritten there, and still reports PatternNotFound —
+ * which is the honest answer, not a numbering bug. */
 let algebrite_step_outgoing =
     (
       ~info_map: Statics.Map.t=Statics.Map.empty,
@@ -429,7 +447,7 @@ let algebrite_step_outgoing =
     )
     : option(Exp.t) =>
   switch (
-    ProofHacks.nth_exp_target(~info_map, ~env, at_exp, at_idx, incoming)
+    ProofHacks.nth_exp_env_target(~info_map, ~env, at_exp, at_idx, incoming)
   ) {
   | None => None
   | Some(e) =>
@@ -447,7 +465,7 @@ let algebrite_step_outgoing_result =
     )
     : result(Exp.t, ProofMark.t) =>
   switch (
-    ProofHacks.nth_exp_target(~info_map, ~env, at_exp, at_idx, incoming)
+    ProofHacks.nth_exp_env_target(~info_map, ~env, at_exp, at_idx, incoming)
   ) {
   | None =>
     Error(

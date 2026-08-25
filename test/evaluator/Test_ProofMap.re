@@ -392,6 +392,58 @@ let test_rewrite_finds_pattern = () => {
   );
 };
 
+/* Rewrite occurrence numbering must agree with the stepper overlay,
+ * which writes `at <n>` by counting occurrences in the goal AS
+ * DISPLAYED — i.e. env-inlined. In this program the goal
+ * `sum == fold_left(_, sum, 0)` contains a single literal `0`, but the
+ * inlined body of `sum` contributes two earlier ones, so clicking the
+ * `0` in `fold_left(_, sum, 0)` yields `at 2`. Before the fix the
+ * checker counted on the un-substituted goal (`nth_exp_target`, which
+ * for a ground target ignores `~env`), found no third `0`, and reported
+ * PatternNotFound on a rewrite the UI itself had written. */
+let rewrite_zero_src = {|let plus = fun (x,y) -> x + y in
+let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+
+theorem t =
+    sum == fold_left(_, sum, 0)
+proof
+    rewrite 0 with 0 + 0 at 2 end
+in t|};
+
+let test_rewrite_zero_at_inlined_index = () => {
+  let (state, _, elab) = rewrite_zero_src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "`rewrite 0 with 0 + 0 at 2` must not report PatternNotFound",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+  /* And `at 2` must land on the goal's own `0`, not somewhere inside an
+   * inlined copy of `sum`. */
+  let entry =
+    switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+    | Some(entry) => entry
+    | None => Alcotest.fail("no proof-map entry for the rewrite")
+    };
+  check_exp(
+    "the goal's own `0` is the one rewritten",
+    "sum == fold_left(_, sum, 0 + 0)",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
 /* Same as above but under `use Nat`, mirroring the user's program. The
  * `use Nat` sets the numeric operator mode to Nat, so both the goal's
  * `x + x` and the rewrite's `at_exp` must elaborate to Nat(Plus) and
@@ -1319,6 +1371,11 @@ let tests = (
       test_pattern_not_found_mark,
     ),
     test_case("rewrite finds pattern", `Quick, test_rewrite_finds_pattern),
+    test_case(
+      "rewrite at an env-inlined occurrence index",
+      `Quick,
+      test_rewrite_zero_at_inlined_index,
+    ),
     test_case(
       "rewrite finds pattern under use Nat",
       `Quick,

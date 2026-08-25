@@ -867,6 +867,39 @@ let tests = (
        root at the right goal. The equal-indent chrome itself lives in
        HaveStep.view_content / stepper.css. */
     test_case(
+      "rewrite: an env-inlined `at` index still fills in next_exp",
+      `Quick,
+      () => {
+        /* The stepper overlay writes `at <n>` by counting occurrences in
+           the goal as DISPLAYED (env-inlined), so `at 2` here names the
+           single literal `0` of `sum == fold_left(_, sum, 0)` — the two
+           earlier ones live in the inlined body of `sum`. The
+           AlgebriteStep row must resolve that the same way the checker
+           does (ProofMap outgoing first, then an env-aware local
+           rewrite) rather than leaving next_exp uncalculated. */
+        let src = {|let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+theorem t = sum == fold_left(_, sum, 0)
+proof rewrite 0 with 0 + 0 at 2 end
+in t|};
+        switch (promote(~src, ~goal="sum == fold_left(_, sum, 0)", ())) {
+        | StepperBase.NextStep({step_kind: AlgebriteStep(m), _}) =>
+          check(
+            string,
+            "row's next_exp is the rewritten goal",
+            "sum == fold_left(_, sum, 0 + 0)",
+            m.next_exp
+            |> saved_exc(~print="algebrite next_exp")
+            |> Test_ProofMap.print_exp,
+          )
+        | _ => Alcotest.fail("expected NextStep(AlgebriteStep) row")
+        };
+      },
+    ),
+    test_case(
       "have: a proof-side have promotes to a HaveStep row",
       `Quick,
       () => {
