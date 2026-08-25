@@ -1,0 +1,80 @@
+type JellyAnon = (
+  get_acne= Bool,
+  red= Bool,
+  black= Bool,
+  white= Bool,
+  green= Bool,
+  yellow= Bool,
+  brown= Bool,
+  orange= Bool,
+  pink= Bool,
+  purple= Bool
+) in
+let jellyAnon : [JellyAnon] = (
+  [
+    (true, false, false, false, true, false, false, true, false, false),
+    (true, false, true, false, true, true, false, false, false, false),
+    (false, false, false, false, true, false, false, false, true, false),
+    (false, false, false, false, false, true, false, false, false, false),
+    (false, false, false, false, false, true, false, false, true, false),
+    (true, false, true, false, false, false, false, true, true, false),
+    (false, false, true, false, false, false, false, false, true, false),
+    (true, false, false, false, false, false, true, true, false, false),
+    (true, false, false, false, false, false, false, true, false, false),
+    (false, true, false, false, false, true, true, false, true, false)
+  ]
+) in
+# Using alternative buildColumn that takes projection to new tuple #
+# The version taking a string can be used but it would give no static errors #
+let build_column
+: poly r1 ->
+  poly r2 ->
+    poly r3 -> ([r1], r1 -> r2, (r1, r2) -> r3) -> [r3] =
+  typfun r1 ->
+    typfun r2 ->
+      typfun r3 ->
+        fun (table, project, build_result) ->
+          map(table, fun r : r1 -> build_result(r, project(r))) in
+let incorrect =
+  let eat_black_and_white =
+    fun r : JellyAnon -> r.`black and white` == true in
+  build_column@<JellyAnon>@<(`eat black and white`= Bool)>@<(
+    get_acne= Bool,
+    red= Bool,
+    black= Bool,
+    white= Bool,
+    green= Bool,
+    yellow= Bool,
+    brown= Bool,
+    orange= Bool,
+    pink= Bool,
+    purple= Bool,
+    `eat black and white`= Bool
+  )>(
+    jellyAnon,
+    fun r -> (`eat black and white`= eat_black_and_white(r)),
+    fun (a, (`eat black and white`= b)) -> a ... (`eat black and white`= b)
+  )
+  in
+let correct =
+  let eat_black_and_white =
+    fun r : JellyAnon -> r.black == true && r.white == true in
+  build_column@<JellyAnon>@<(`eat black and white`= Bool)>@<(
+    get_acne= Bool,
+    red= Bool,
+    black= Bool,
+    white= Bool,
+    green= Bool,
+    yellow= Bool,
+    brown= Bool,
+    orange= Bool,
+    pink= Bool,
+    purple= Bool,
+    `eat black and white`= Bool
+  )>(
+    jellyAnon,
+    fun r -> (`eat black and white`= eat_black_and_white(r)),
+    fun (a, (`eat black and white`= b)) -> a ... (`eat black and white`= b)
+  )
+  in
+?
