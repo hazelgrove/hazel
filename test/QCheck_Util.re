@@ -3,12 +3,24 @@ open Language;
 open QCheck;
 open MenhirParser;
 
-/**
- * An arbitrary generator for expressions of type `Exp.t`.
- * This uses the generator from the menhirParser AST to produce random instances of `Exp.t`
- * for property-based testing.
- */
-let arb_exp = (~minimal_idents: bool, size: int) => {
+let with_ppx_minimal_idents =
+    (minimal_idents: bool, gen: Gen.t('a)): Gen.t('a) =>
+  st => {
+    let prev = AST.ppx_minimal_idents^;
+    AST.ppx_minimal_idents := minimal_idents;
+    switch (gen(st)) {
+    | x =>
+      AST.ppx_minimal_idents := prev;
+      x;
+    | exception e =>
+      AST.ppx_minimal_idents := prev;
+      raise(e);
+    };
+  };
+
+/* Full-syntax variants: every Menhir AST constructor. `size` is depth fuel;
+ * ~6 is the safe ceiling, beyond which construction OOMs. */
+let arb_exp_full = (~minimal_idents=false, size: int) => {
   let show_core_exp = exp =>
     exp
     |> ExpToSegment.exp_to_segment(
@@ -16,7 +28,13 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
          _,
        )
     |> Printer.of_segment(~holes="?", _);
-  let arb_exp =
+  let menhir_arb = AST.arb_exp_full(size);
+  let menhir_arb =
+    set_gen(
+      with_ppx_minimal_idents(minimal_idents, menhir_arb.gen),
+      menhir_arb,
+    );
+  let mapped =
     map(
       ~rev=
         (core_exp: Exp.t) => {
@@ -27,12 +45,12 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
       (menhir_exp: AST.exp) =>
         Conversion.Exp.of_menhir_ast(menhir_exp)
         |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh()),
-      AST.arb_exp(~minimal_idents, size),
+      menhir_arb,
     );
-  set_print(show_core_exp, arb_exp);
+  set_print(show_core_exp, mapped);
 };
 
-let arb_typ = (~minimal_idents: bool, size: int) => {
+let arb_typ_full = (~minimal_idents=false, size: int) => {
   let show_core_typ = typ =>
     typ
     |> ExpToSegment.typ_to_segment(
@@ -41,18 +59,24 @@ let arb_typ = (~minimal_idents: bool, size: int) => {
          _,
        )
     |> Printer.of_segment(~holes="?", _);
-  let arb_typ =
+  let menhir_arb = AST.arb_typ_full(size);
+  let menhir_arb =
+    set_gen(
+      with_ppx_minimal_idents(minimal_idents, menhir_arb.gen),
+      menhir_arb,
+    );
+  let mapped =
     map(
       ~rev=
-        (core_exp: Typ.t) => {
-          core_exp
+        (core_typ: Typ.t) => {
+          core_typ
           |> Grammar.map_typ_annotation(_ => false)
           |> Conversion.Typ.of_core
         },
       (menhir_typ: AST.typ) =>
         Conversion.Typ.of_menhir_ast(menhir_typ)
         |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh()),
-      AST.arb_typ(~minimal_idents, size),
+      menhir_arb,
     );
-  set_print(show_core_typ, arb_typ);
+  set_print(show_core_typ, mapped);
 };

@@ -27,13 +27,9 @@ let match_pattern =
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
-  | Wild => Matches([])
-  | ExplicitNonlabel =>
-    raise(
-      Failure(
-        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
-      ),
-    )
+  | Wild
+  /* Elab rewrites bare pat ExplicitNonlabel to Wild; treat leftovers the same. */
+  | ExplicitNonlabel => Matches([])
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);

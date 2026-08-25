@@ -52,10 +52,20 @@ let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 let livelit_ident = '^' ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let comment = '#' [^ '#' '\n']* '#'
+(* Face-shaped invalid tiles (same set as AST.invalid_token_examples).
+   Exact matches so Menhir can round-trip MakeTerm Invalids; longest-match
+   keeps these ahead of `?`/`_`/`o`/unknown `^`. *)
+let invalid_face =
+  "^o^" | "^_^" | "^w^" | "o^o" | "?_?" | "$_$"
 
 rule token = 
     parse 
-    | "undef" { UNDEF}
+    | invalid_face as s { INVALID s }
+    | "undefined" { UNDEF}
+    | "theorem" { THEOREM }
+    | "forall" { FORALL }
+    | "proof_object" { PROOF_OBJECT }
+    | "proof_of" { PROOF_OF }
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}

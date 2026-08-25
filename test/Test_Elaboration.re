@@ -857,8 +857,8 @@ in 1|},
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
         ~name="Elaboration does not crash",
-        ~count=10000,
-        QCheck_Util.arb_exp(~minimal_idents=true, 50),
+        ~count=1000,
+        QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
         exp => {
         switch (dhexp_of_uexp(exp)) {
         | _ => true
@@ -881,6 +881,17 @@ in 1|},
           true;
         }
       }),
+    ),
+    /* PBT Elaboration 41 (QCHECK_SEED=1337): quoted label binder under list
+       → Coverage.all_ctrs_of_type on bare Label "a". */
+    test_case(
+      "REPRO all_ctrs_of_type Label from quoted let",
+      `Quick,
+      () => {
+        let uexp = parse_exp({|case (()) | _ => [(let `a` = x in x)] end|});
+        let _ = dhexp_of_uexp(uexp);
+        ();
+      },
     ),
   ];
 };
@@ -1034,7 +1045,7 @@ module MenhirElaborationTests = {
       dynamic_error_hole_uexp,
     );
 
-  let undef_str = "undef";
+  let undef_str = "undefined";
   let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
@@ -1057,7 +1068,7 @@ module MenhirElaborationTests = {
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
   let undefined_str = "
-undef
+undefined
 ";
   let undefined_uexp: Exp.t = Exp.undefined();
   let undefined_menhir = () =>

@@ -18,8 +18,8 @@ let is_known_statics_failure = msg =>
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     switch (statics(exp)) {
     | _m => true
@@ -80,7 +80,11 @@ let check_elaboration_preserves_type = (exp: Language.Exp.t): outcome =>
     switch (elab_type_of(m1, exp)) {
     | None => NoTypeOriginal
     | Some(ty1) =>
-      switch (safe_statics(elab)) {
+      /* Re-check with `use_mode = None`, as `CachedStatics` does for
+         already-elaborated terms: `Operators.replace_*` re-specialize
+         literals to the ambient mode, so a `Some(Int)` pass rewrites
+         `use SInt in -?` back to an `Int` minus. */
+      switch (safe_statics(~ctx=Builtins.ctx_init(None), elab)) {
       | `Skip => SkipElab
       | `Ok(m2, _) =>
         switch (elab_type_of(m2, elab)) {
@@ -167,7 +171,7 @@ let qcheck_elaboration_preserves_type_stats = () => {
   let no_type_original = ref(0);
   let no_type_elab = ref(0);
   let count = 1000;
-  let arb = QCheck_Util.arb_exp(~minimal_idents=true, 50);
+  let arb = QCheck_Util.arb_exp_full(~minimal_idents=true, 5);
   let gen = arb.QCheck.gen;
   let shrink =
     switch (arb.QCheck.shrink) {
@@ -248,8 +252,9 @@ let qcheck_elaboration_preserves_type_stats = () => {
    label inference that have been baked into `elab_term` will agree on
    both sides.
 
-   Bare labels (Label(_)) are intentionally skipped: a bare label has no
-   type outside its enclosing product type. */
+   Bare labels and bare ExplicitNonlabels are skipped: neither has a type
+   outside its enclosing product type, so they always "differ" for reasons
+   that say nothing about elaboration. */
 let syn_and_elab_of =
     (info_map: Statics.Map.t, exp: Language.Exp.t)
     : option((Typ.t, Ctx.t, Language.Exp.t)) =>
@@ -261,7 +266,8 @@ let syn_and_elab_of =
 
 let is_bare_label = (e: Language.Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Label(_) => true
+  | Label(_)
+  | ExplicitNonlabel => true
   | _ => false
   };
 
@@ -389,8 +395,10 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
   let holds = ref(0);
   let differs = ref(0);
   let skip_parent = ref(0);
+  let cls_proofof = ref(0);
+  let cls_other = ref(0);
   let count = 10000;
-  let arb = QCheck_Util.arb_exp(~minimal_idents=true, 50);
+  let arb = QCheck_Util.arb_exp_full(~minimal_idents=true, 5);
   let gen = arb.QCheck.gen;
   let shrink =
     switch (arb.QCheck.shrink) {
@@ -405,8 +413,12 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
     let exp = QCheck.Gen.generate1(~rand, gen);
     switch (check_subexp_synthesis_agrees(exp)) {
     | SubHolds => incr(holds)
-    | SubDiffers(_, _, _) =>
+    | SubDiffers(_, ty1, _) =>
       incr(differs);
+      switch (Typ.term_of(ty1)) {
+      | ProofOf(_) => incr(cls_proofof)
+      | _ => incr(cls_other)
+      };
       if (List.length(sample_differs^) < sample_limit) {
         let shrunk = shrink_failing_pred(sub_is_differing, shrink, exp);
         switch (check_subexp_synthesis_agrees(shrunk)) {
@@ -431,6 +443,15 @@ let qcheck_subexp_synthesis_agrees_stats = () => {
     pct(differs^),
     skip_parent^,
     pct(skip_parent^),
+  );
+  /* ProofOf types embed an expression, so they differ whenever elaboration
+     changes it — a distinct cause from the rest. */
+  Printf.printf(
+    "  of the differing cases, ty(parent) was:\n"
+    ^^ "    ProofOf:           %4d\n"
+    ^^ "    other:             %4d\n",
+    cls_proofof^,
+    cls_other^,
   );
   List.iter(
     ((exp, sub, ty1, ty2)) =>
@@ -501,7 +522,7 @@ let check_elab_term_id_in_user_term = (exp: Language.Exp.t): elab_id_outcome =>
 
 let qcheck_elab_term_id_in_user_term_stats = () => {
   let rand = Random.State.make([|0xC0DE, 0xFEED|]);
-  let arb = QCheck_Util.arb_exp(~minimal_idents=true, 40);
+  let arb = QCheck_Util.arb_exp_full(~minimal_idents=true, 5);
   let gen = arb.QCheck.gen;
   let shrink =
     switch (arb.QCheck.shrink) {

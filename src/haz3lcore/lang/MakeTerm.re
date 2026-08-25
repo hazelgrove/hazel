@@ -63,6 +63,19 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
 let is_sig_seq = is_nary(Any.is_sig, ";");
 
+/* Menhir erases `(e)` in the AST; peel Parens before classifying `.` / `=`
+   tips so `e . ((`l`))` matches `e . `l`` rather than becoming a MultiHole. */
+let rec exp_unparens = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(inner) => exp_unparens(inner)
+  | _ => e
+  };
+let rec typ_unparens = (t: Typ.t): Typ.t =>
+  switch (t.term) {
+  | Parens(inner) => typ_unparens(inner)
+  | _ => t
+  };
+
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
    during parsing and need to be flattened into a proper list for Module(items).
@@ -908,6 +921,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
+            let l = exp_unparens(l);
             switch (l.term) {
             | Deferral(_) =>
               TupLabel(
@@ -935,8 +949,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
                 r,
               );
-            }
+            };
           | (["."], []) =>
+            let r = exp_unparens(r);
             switch (r.term) {
             | Var(name)
             | Constructor(name, _) =>
@@ -956,7 +971,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 l,
                 rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
               );
-            }
+            };
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -1247,6 +1262,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | _ => ret(TupLabel(l, r))
         }
       | ([(_id, (["."], []))], []) =>
+        let r = typ_unparens(r);
         switch (r.term) {
         | Var(name) =>
           ret(
@@ -1259,7 +1275,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
             ),
           )
         | _ => ret(ProdProjection(l, r))
-        }
+        };
       | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
@@ -1301,6 +1317,15 @@ and mod_ = unsorted => {
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
   let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  let as_mod_exp = (tm: unsorted): TermBase.Mod.term => {
+    let e = exp(tm);
+    switch (e.term) {
+    | EmptyHole
+    | MultiHole(_) => hole(tm)
+    | Invalid(s) => Invalid(s)
+    | _ => ModExp(e)
+    };
+  };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1312,8 +1337,11 @@ and mod_term: unsorted => TermBase.Mod.term = {
         let e = exp(Op(tiles));
         switch (e.term) {
         | EmptyHole
-        | MultiHole(_)
-        | Invalid(_) => ret(hole(tm))
+        | MultiHole(_) => ret(hole(tm))
+        /* Keep face/invalid tiles: kids_of_unsorted is empty for a leaf
+           invalid, so Mod.hole would erase the token and `{ o^o }` would
+           disagree with Menhir. */
+        | Invalid(s) => ret(Invalid(s))
         | _ => ret(ModExp(e))
         };
       }
@@ -1340,11 +1368,10 @@ and mod_term: unsorted => TermBase.Mod.term = {
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
-  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  /* Wrap as ModExp whenever `exp` can form a real term (including
+     `e:T` = Bin(Exp, Typ)); only true leftovers become a hole, which
+     flatten_mod would split into separate items. */
+  | (Bin(_) | Pre(_) | Post(_)) as tm => ret(as_mod_exp(tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);

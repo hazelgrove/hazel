@@ -521,6 +521,9 @@ module Transition = (EV: EV_MODE) => {
       });
     | Theorem(_) =>
       let. _ = otherwise(env, d);
+      // The theorem and body are not requirements, so they still mention
+      // variables from env; keep the closure so they stay resolvable.
+      let.wrap_closure _ = (env, d);
       Indet;
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
@@ -540,6 +543,8 @@ module Transition = (EV: EV_MODE) => {
     // Note[Matt]: we could make this spin, but for now it's indet
     | Forall(_) =>
       let. _ = otherwise(env, d);
+      // Same as Theorem: the body is not a requirement, so keep the closure.
+      let.wrap_closure _ = (env, d);
       Indet;
     | TypFun(_)
     | Fun(_, _, _, _) =>
@@ -1168,11 +1173,17 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
       Indet;
-    | DynamicErrorHole(d, err) =>
+    | DynamicErrorHole(inner, err) =>
       let. _ = otherwise(env, d => DynamicErrorHole(d, err) |> rewrap)
-      and. _ =
-        req_final(req(env), d1 => DynamicErrorHole(d1, err) |> wrap_ctx, d);
-      let.wrap_closure _ = (env, d);
+      and. inner' =
+        req_final(
+          req(env),
+          d1 => DynamicErrorHole(d1, err) |> wrap_ctx,
+          inner,
+        );
+      /* Wrap the hole, not the child — `inner` used to shadow the outer `d`
+         and Environment-mode wrap_closure dropped the DynamicErrorHole. */
+      let.wrap_closure _ = (env, DynamicErrorHole(inner', err) |> rewrap);
       Indet;
     | Asc(d', t) =>
       switch (Ascriptions.transition(d)) {

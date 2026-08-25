@@ -80,25 +80,23 @@ let menhir_parse = (s: string): option(Exp.t) =>
   | exception _ => None
   };
 
-let equal_terms =
-  Equality.(
-    equality({
-      ...syntactic_settings,
-      ignore_parens: true,
-      ignore_projectors: true,
-    }).
-      exp
-  );
+let equal_terms = (e1: Exp.t, e2: Exp.t): bool =>
+  Canonicalize.roundtrip_eq.exp(Canonicalize.exp(e1), Canonicalize.exp(e2));
 
 let arb_fuzzed = {
   open QCheck;
   let gen = {
     open Gen;
-    let* core_exp = QCheck_Util.arb_exp(~minimal_idents=false, 6).gen;
+    let* core_exp = QCheck_Util.arb_exp_full(~minimal_idents=false, 5).gen;
     let+ choices = array_size(int_bound(24), int_bound(4));
-    (print_core(core_exp), choices);
+    /* Same module-item gaps the equivalence property carves out. */
+    (
+      print_core(core_exp),
+      choices,
+      Test_Menhir.has_unsupported_mod_item(core_exp),
+    );
   };
-  make(~print=((txt, _)) => txt, gen);
+  make(~print=((txt, _, _)) => txt, gen);
 };
 
 let qcheck_fuzz_test =
@@ -106,7 +104,8 @@ let qcheck_fuzz_test =
     ~name="Menhir and MakeTerm agree on whitespace-fuzzed text",
     ~count=300,
     arb_fuzzed,
-    ((txt, choices)) => {
+    ((txt, choices, unsupported)) => {
+      QCheck.assume(!unsupported);
       let fuzzed = fuzz_whitespace(choices, txt);
       switch (make_term_parse(fuzzed), menhir_parse(fuzzed)) {
       | (Some(mk), Some(mh)) => equal_terms(mk, mh)
