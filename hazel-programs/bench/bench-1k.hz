@@ -1,0 +1,1059 @@
+let bench_1 = (
+  # No type correlates to missing schema. There is no error as it's valid data without labels#
+  let missingSchema = [("Bob", 12, "blue"), ("Alice", 17, "green"), ("Eve", 13, "red")] in
+  
+  type Schema = [(name = String, age = Int, `favorite color` = String)] in
+  
+  # The missing row is represented as a hole. #
+  let missingRow : Schema = [("Bob", 12, "blue"), ("Alice", 17, "green"), ?] in
+  
+  # The missing cell is represented as a hole#
+  let missingCell : Schema = [("Bob", 12, ?), ("Alice", 17, "green"), ("Eve", 13, "red")] in
+  
+  # The age/name columns are swapped. The error is added to every relevant cell and says which column it's for as well as the type error #
+  let swappedColumns : Schema = [(12, "Bob", "blue"), (17, "Alice","green"), (13, "Eve", "red")] in
+  
+  # Error marks are added onto the tuples.  The last row uses explicit labels which makes the inconsistency easier to identify  by marking the unknown label.#
+  let schemaTooShort : [(name = String, age = Int)] = [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    (name = "Eve", age = 13, `favorite color` = "red")
+  ] in
+  
+  # Error marks are added onto the tuples showing the inconsistency. The last row uses explicit labels which makes the inconsistency easier to identity #
+  let schemaTooLong : [(name = String, age = Int, `favorite number` = Int, `favorite color` = String)] = [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    (name = "Eve", age = 13, `favorite color` = "red")
+  ] in
+  ?
+) in
+let bench_2 = (
+  type Image = ? in
+  # Representing column names as projection functions for better error localization since we don't do first-class labels #
+  let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> Image = ? in
+  # Using ? for the categorical variables #
+  let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image = ? in
+  
+  let mid_final =
+    type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+    let gradebook : [GradebookEntry] = ^^fold([
+      ("Bob",   12, 8, 9, 77, 7, 9, 87),
+      ("Alice", 17, 6, 8, 88, 8, 7, 85),
+      ("Eve",   13, 7, 9, 84, 8, 8, 77)
+    ]) in
+    # Currently requires explicit type application. Error message is localized to error and shows what possible labels are. #
+    let incorrect = scatter_plot@<GradebookEntry>(gradebook, fun r -> r.mid, fun r -> r.final) in
+    let correct = scatter_plot@<GradebookEntry>(gradebook, fun r -> r.midterm, fun r -> r.final) in
+    ? in
+  
+  let black_and_white =
+    type JellyAnon = (
+      get_acne = Bool,
+      red = Bool,
+      black = Bool,
+      white = Bool,
+      green = Bool,
+      yellow = Bool,
+      brown = Bool,
+      orange = Bool,
+      pink = Bool,
+      purple = Bool
+    ) in
+    let jellyAnon : [JellyAnon] = ^^fold([
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+    ]) in
+    # Using alternative buildColumn that takes projection to new tuple #
+    # The version taking a string can be used but it would give no static errors #
+    let build_column : poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, (r1, r2) -> r3) -> [r3] =
+      typfun r1 -> typfun r2 -> typfun r3 -> fun (table, project, build_result) -> map(table, fun r : r1 -> build_result(r, project(r))) in
+    let incorrect =
+      let eat_black_and_white = fun r : JellyAnon -> r.`black and white` == true in
+      build_column@<JellyAnon>@<(`eat black and white` = Bool)>@<(
+        get_acne = Bool,
+        red = Bool,
+        black = Bool,
+        white = Bool,
+        green = Bool,
+        yellow = Bool,
+        brown = Bool,
+        orange = Bool,
+        pink = Bool,
+        purple = Bool,
+        `eat black and white` = Bool
+      )>(jellyAnon, fun r -> (`eat black and white` = eat_black_and_white(r)), fun (a, b) -> a ... (`eat black and white` = b))
+      # b is being autolabeled here# in
+    let correct =
+      let eat_black_and_white = fun r : JellyAnon -> r.black == true && r.white == true in
+      build_column@<JellyAnon>@<(`eat black and white` = Bool)>@<(
+        get_acne = Bool,
+        red = Bool,
+        black = Bool,
+        white = Bool,
+        green = Bool,
+        yellow = Bool,
+        brown = Bool,
+        orange = Bool,
+        pink = Bool,
+        purple = Bool,
+        `eat black and white` = Bool
+      )>(jellyAnon, fun r -> (`eat black and white` = eat_black_and_white(r)), fun (a, b) -> a ... (`eat black and white` = b))
+      # b is being autolabeled here# in
+    ? in
+  
+  let pie_count =
+    type JellyAnon = (
+      get_acne = Bool,
+      red = Bool,
+      black = Bool,
+      white = Bool,
+      green = Bool,
+      yellow = Bool,
+      brown = Bool,
+      orange = Bool,
+      pink = Bool,
+      purple = Bool
+    ) in
+    let jellyAnon : [JellyAnon] = ^^fold([
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+      (^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+      (^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+    ]) in
+    let count =
+      typfun row ->
+        typfun v ->
+          fun (t1 : [row], proj : row -> v) ->
+            let go =
+              fun (groups : [(value = v, count = Int)], row : row) ->
+                case find_opt(groups, fun g -> g.value == proj(row))
+                | None => (value = proj(row), count = 1) :: groups
+                | Some(value=_v,count=c) => (value = proj(row), count = c + 1) :: filter(groups, fun g -> g.value != proj(row))
+                end in
+            fold_left(t1, go, []) : [(value = v, count = Int)] in
+    let incorrect =
+      pie_chart@<(value = Bool, count = Int)>(count@<JellyAnon>@<Bool>(jellyAnon, fun r -> r.get_acne), fun r -> r.`true`, fun r -> r.get_acne) in
+    let correct =
+      pie_chart@<(value = Bool, count = Int)>(count@<JellyAnon>@<Bool>(jellyAnon, fun r -> r.get_acne), fun r -> r.value, fun r -> r.count) in
+    ? in
+  ?
+) in
+let bench_3 = (
+  type Image = ? in
+  # Representing column names as projection functions for better error localization since we don't do first-class labels #
+  let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> Image = ? in
+  # Using ? for the categorical variables #
+  let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image = ? in
+  
+  let brown_get_acne =
+    type JellyNamed = (
+      name = String,
+      get_acne = Bool,
+      red = Bool,
+      black = Bool,
+      white = Bool,
+      green = Bool,
+      yellow = Bool,
+      brown = Bool,
+      orange = Bool,
+      pink = Bool,
+      purple = Bool
+    ) in
+    let jellyNamed : [JellyNamed] = (
+      [
+        ("Emily",    (true), (false), (false), (false), (true), (false), (false), (true), (false), (false)),
+        ("Jacob",    (true), (false), (true), (false), (true), (true), (false), (false), (false), (false)),
+        ("Emma",     (false), (false), (false), (false), (true), (false), (false), (false), (true), (false)),
+        ("Aidan",    (false), (false), (false), (false), (false), (true), (false), (false), (false), (false)),
+        ("Madison",  (false), (false), (false), (false), (false), (true), (false), (false), (true), (false)),
+        ("Ethan",    (true), (false), (true), (false), (false), (false), (false), (true), (true), (false)),
+        ("Hannah",   (false), (false), (true), (false), (false), (false), (false), (false), (true), (false)),
+        ("Matthew",  (true), (false), (false), (false), (false), (false), (true), (true), (false), (false)),
+        ("Hailey",   (true), (false), (false), (false), (false), (false), (false), (true), (false), (false)),
+        ("Nicholas", (false), (true), (false), (false), (false), (true), (true), (false), (true), (false))
+      ]
+    ) in
+    let brown_and_get_acne = fun r : JellyNamed -> r.brown && r.get_acne in
+    let count = (
+      typfun row ->
+        typfun v ->
+          fun (t1 : [row], proj : row -> v) ->
+            let go =
+              fun (groups : [(value = v, count = Int)], row : row) ->
+                case find_opt(groups, fun g -> g.value == proj(row))
+                | None => (value = proj(row), count = 1) :: groups
+                | Some(value=_v,count=c) => (value = proj(row), count = c + 1) :: filter(groups, fun g -> g.value != proj(row))
+                end in
+            fold_left(t1, go, []) : [(value = v, count = Int)]
+    ) in
+    let build_column : poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, (r1, r2) -> r3) -> [r3] = (
+      typfun r1 -> typfun r2 -> typfun r3 -> fun (table, project, build_result) -> map(table, fun r : r1 -> build_result(r, project(r)))
+    ) in
+    let _incorrect =
+      let brown_and_get_acne_table =
+        build_column@<JellyNamed>@<Bool>@<(
+          name = String,
+          get_acne = Bool,
+          red = Bool,
+          black = Bool,
+          white = Bool,
+          green = Bool,
+          yellow = Bool,
+          brown = Bool,
+          orange = Bool,
+          pink = Bool,
+          purple = Bool,
+          part2 = Bool
+        )>(jellyNamed, brown_and_get_acne, fun (t, v) -> t ... (part2 = v)) in
+      count@<(
+        name = String,
+        get_acne = Bool,
+        red = Bool,
+        black = Bool,
+        white = Bool,
+        green = Bool,
+        yellow = Bool,
+        brown = Bool,
+        orange = Bool,
+        pink = Bool,
+        purple = Bool,
+        part2 = Bool
+      )>@<Bool>(brown_and_get_acne_table, fun r -> r.`brown and get acne`) in
+    let correct =
+      let brown_and_get_acne_table =
+        build_column@<JellyNamed>@<Bool>@<(
+          name = String,
+          get_acne = Bool,
+          red = Bool,
+          black = Bool,
+          white = Bool,
+          green = Bool,
+          yellow = Bool,
+          brown = Bool,
+          orange = Bool,
+          pink = Bool,
+          purple = Bool,
+          `brown and get acne` = Bool
+        )>(jellyNamed, brown_and_get_acne, fun (t, v) -> t ... (`brown and get acne` = v)) in
+      count@<(
+        name = String,
+        get_acne = Bool,
+        red = Bool,
+        black = Bool,
+        white = Bool,
+        green = Bool,
+        yellow = Bool,
+        brown = Bool,
+        orange = Bool,
+        pink = Bool,
+        purple = Bool,
+        `brown and get acne` = Bool
+      )>@<Bool>(brown_and_get_acne_table, fun r -> r.`brown and get acne`) in
+    test
+      correct == [(value=false, count=9), (value = true, count = 1)] end in
+  
+  let get_only_row =
+    let tfilter = (typfun row -> fun (t1 : [row], pred : row -> Bool) -> filter(t1, pred)) in
+    type Student = (name = String, age = Int, favorite_color = String) in
+    let students : [Student] = ([("Bob", 12, "blue"), ("Alice", 17, "green"), ("Eve", 13, "red")]) in
+    let _incorrect =
+      # No static error. Dynamic error `undefined.favorite_color`#
+      nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 1).favorite_color in
+    let correct = nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 0).favorite_color in
+    test
+      correct == "green" end in
+  
+  let favorite_color =
+    let tfilter = (typfun row -> fun (t1 : [row], pred : row -> Bool) -> filter(t1, pred)) in
+    type Student = (name = String, age = Int, favorite_color = String) in
+    let students : [Student] = ([("Bob", 12, "blue"), ("Alice", 17, "green"), ("Eve", 13, "red")]) in
+    let _incorrect = tfilter@<Student>(students, fun r -> r.favorite_color) in
+    let correct = tfilter@<Student>(students, fun r -> r.favorite_color == "green") in
+    test
+      correct == [("Alice", 17, "green") : Student] end in
+  ?
+) in
+let bench_4 = (
+  let brown_jellybeans =
+    type JellyAnon = (
+      get_acne = Bool,
+      red = Bool,
+      black = Bool,
+      white = Bool,
+      green = Bool,
+      yellow = Bool,
+      brown = Bool,
+      orange = Bool,
+      pink = Bool,
+      purple = Bool
+    ) in
+    let jellyAnon : [JellyAnon] = (
+      [
+        ((true), (false), (false), (false), (true), (false), (false), (true), (false), (false)),
+        ((true), (false), (true), (false), (true), (true), (false), (false), (false), (false)),
+        ((false), (false), (false), (false), (true), (false), (false), (false), (true), (false)),
+        ((false), (false), (false), (false), (false), (true), (false), (false), (false), (false)),
+        ((false), (false), (false), (false), (false), (true), (false), (false), (true), (false)),
+        ((true), (false), (true), (false), (false), (false), (false), (true), (true), (false)),
+        ((false), (false), (true), (false), (false), (false), (false), (false), (true), (false)),
+        ((true), (false), (false), (false), (false), (false), (true), (true), (false), (false)),
+        ((true), (false), (false), (false), (false), (false), (false), (true), (false), (false)),
+        ((false), (true), (false), (false), (false), (true), (true), (false), (true), (false))
+      ]
+    ) in
+    # Version that uses string params for the column names gives no static errors #
+    let v1 =
+      let get_value = fun (r, c : String) -> (to_lvs(r) |> find_opt(_, fun label = l, value = _v -> l == c)) |> option_map(_, fun e -> e.value) in
+      let nrows = length in
+      let tfilter = filter in
+      let option_get =
+        fun o ->
+          case o
+          | Some(v) => v
+          end in
+      let incorrect =
+        let keep = fun r -> get_value(r, "color") |> option_get in
+        let count_participants = fun (t, _color) -> nrows(tfilter(t, keep)) in
+        count_participants(jellyAnon, "brown") in
+      let correct =
+        let count_participants =
+          fun (t, color) ->
+            let keep = fun r -> get_value(r, color) |> option_get in
+            nrows(tfilter(t, keep)) in
+        count_participants(jellyAnon, "brown") in
+      ? in
+    # Version that uses higher order functions to get static errors #
+    let v2 =
+      let nrows = length in
+      let tfilter = filter in
+      let incorrect =
+        let keep = fun (r : JellyAnon) -> r.color in
+        let count_participants = typfun row -> fun (t : [row], _color : row -> Bool) -> length(filter(t, keep)) in
+        count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown) in
+      let correct =
+        let count_participants =
+          typfun row ->
+            fun (t : [row], color : row -> Bool) ->
+              let keep = fun (r : row) -> color(r) in
+              length(filter(t, keep)) in
+        count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown) in
+      ? in
+    ? in
+  
+  let employee_to_department =
+    type OptInt = + None + Some(Int) in
+    type Employee = (last_name = String, department_id = OptInt) in
+    let employees : [Employee] = (
+      [("Rafferty", Some(31)), ("Jones", Some(33)), ("Heisenberg", Some(33)), ("Robinson", Some(34)), ("Smith", Some(34)), ("Williams", None)]
+    ) in
+    type Department = (department_id = Int, department_name = String) in
+    let departments : [Department] = ([(31, "Sales"), (33, "Engineering"), (34, "Clerical"), (35, "Marketing")]) in
+    let tfilter = typfun row -> fun (t : [row], pred : (row -> Bool)) -> filter(t, pred) : [row] in
+    let get_row = typfun row -> fun (t : [row], n : Int) -> nth(t, n) : row in
+    let build_column = typfun row -> typfun row' -> fun (t : [row], fn : (row -> row')) -> map(t, fn) : [row'] in
+    let incorrect =
+      let last_name_to_dept_id =
+        fun (dept_tab : [Department], name : String) ->
+          let match_name = fun (r : Department) -> r.last_name == name in
+          let matched_tab = tfilter@<Department>(dept_tab, match_name) in
+          let matched_row = get_row@<Department>(matched_tab, 0) in
+          matched_row.`department_id` in
+      let employee_to_department =
+        fun (_name : String, empl_tab : [Employee], dept_tab : [Department]) ->
+          build_column@<Employee>@<(last_name = String, department_id = OptInt, department_name = String)>(empl_tab, fun r -> r ... (department_name = last_name_to_dept_id(dept_tab, r.`last_name`))) in
+      ? in
+    let correct =
+      let dept_id_to_dept_name =
+        fun (dept_tab : [Department], dept_id : Int) ->
+          let match_name = fun (r : Department) -> r.department_id == dept_id in
+          let matched_tab = tfilter@<Department>(dept_tab, match_name) in
+          let matched_row = get_row@<Department>(matched_tab, 0) in
+          matched_row.department_name in
+      let employee_to_department =
+        fun (name : String, empl_tab : [Employee], dept_tab : [Department]) ->
+          let match_name = fun r -> r.last_name == name in
+          let matched_tab = tfilter@<Employee>(empl_tab, match_name) in
+          let matched_row = get_row@<Employee>(matched_tab, 0) in
+          let dept_id = matched_row.department_id in
+          dept_id_to_dept_name(
+            dept_tab,
+            case dept_id
+            | Some(dept_id) => dept_id
+            | _ => ?
+            end
+          ) in
+      test
+        employee_to_department("Jones", employees, departments) == "Engineering" end in
+    ? in
+  ?
+) in
+let bench_5 = (
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = ^^fold([
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve",   13, 7, 9, 84, 8, 8, 77)
+  ]) in
+  
+  # Version with String Columns matching API #
+  let get_value = fun (r, c) -> find(to_lvs(r), fun e -> e.label == c).value in
+  let dot_product = fun (t1, c1 : String, c2 : String) -> fold_left(map(t1, fun r -> (get_value(r,c1) * get_value(r, c2))), int_plus, 0) in
+  ^^probe(dot_product(gradebook, "quiz1", "quiz2"))
+  ;
+  
+  # Version using function for column access #
+  let dot_product =
+    typfun R -> fun (t1 : [R], c1 : R -> Int, c2 : R -> Int) -> fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0) : Int in
+  let result =
+    dot_product@<(name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int)>(gradebook, fun e -> e.quiz1, fun e -> e.quiz2) in
+  ^^probe(result)
+) in
+let bench_6 = (
+  let get_value = fun (r : ?, label : String) -> find(to_lvs(r),fun e ->e.label ==label).value in
+  let add_rows = typfun row -> fun (r : row, rs : [row]) -> rs @ [r] in
+  let add_col = fun (t : [?], c : String, vs : [?]) -> zip(t, vs) |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+  let remove_duplicates = fun (xs : [?]) -> fold_left(xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], []) in
+  let build_col = fun (t : [?], c : String, f : ? -> ?) -> map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
+  let empty_table : [()] = [] in
+  let table_of_column =
+    fun c, vs ->
+      let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in
+      add_col(t1, c, vs) in
+  let get_col = fun (t, c : String) -> map(t, fun r -> to_lvs(r) |> find(_,fun label=l, value=_v -> (l == c))).value in
+  let group_by_retentive =
+    fun t, c ->
+      let keys = get_col(t, c) |> remove_duplicates |> table_of_column("key", _) in
+      let make_group =
+        fun kr ->
+          let k = kr.key in
+          filter(t, fun r -> get_value(r, c) == k) in
+      build_col(keys, "groups", make_group) in
+  
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ] in
+  
+  group_by_retentive(gradebook, "name")
+) in
+let bench_7 = (
+  let get_value = fun (r : ?, label : String) -> find(to_lvs(r), fun e ->e.label == label).value in
+  let add_rows = typfun row -> fun (r : row, rs : [row]) -> rs @ [r] in
+  let add_col = fun (t : [?], c : String, vs : [?]) -> zip(t, vs) |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+  let remove_duplicates = fun (xs : [?]) -> fold_left(xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], []) in
+  let drop_columns =
+    fun (t : [?], c : [String]) -> map(t, fun row -> to_lvs(row) |> filter(_, fun entry -> ! any(c, fun s -> entry.label == s)) |> from_lvs) in
+  let build_col = fun (t : [?], c : String, f : ? -> ?) -> map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
+  let empty_table : [()] = [] in
+  let table_of_column =
+    fun c, vs ->
+      let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in
+      add_col(t1, c, vs) in
+  let get_col = fun (t, c : String) -> map(t, fun r -> to_lvs(r) |> find(_, fun (label=l, value=_v) -> (l == c))).value in
+  let group_by_subtractive =
+    fun t, c ->
+      let keys = get_col(t, c) |> remove_duplicates |> table_of_column("key", _) in
+      let make_group =
+        fun kr ->
+          let k = kr.key in
+          let g = filter(t, fun r -> get_value(r, c) == k) in
+          drop_columns(g, [c]) in
+      build_col(keys, "groups", make_group) in
+  
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ] in
+  
+  group_by_subtractive(gradebook, "name")
+) in
+let bench_8 = (
+  let fisherTest = (
+    fun (xs : [Bool], ys : [Bool]) ->
+      let zipped = zip(xs, ys) in
+      let contigencyTable =
+        fold_left(
+          zipped,
+          fun (
+            ((a,b),(c,d)),
+            e
+            : (Bool, Bool)
+          ) ->
+            case e
+            | (false, false) => ((a+1,b), (c, d))
+            | (false, true) => ((a,b+1), (c, d))
+            | (true, false) => ((a,b), (c + 1, d))
+            | (true, true) => ((a,b), (c, d + 1))
+            end,
+          ((0,0), (0, 0))
+        ) in
+      let factorial = fun (n : Int) -> if n == 0 then 1 else n * factorial(n - 1) in
+      let ((a,b), (c, d)) = contigencyTable in
+      let numerator = factorial(a + b) * factorial(c + d) * factorial(a + c) * factorial(b + d) in
+      let denominator = factorial(a) * factorial(b) * factorial(c) * factorial(d) * factorial(a + b + c + d) in
+      float_of_int(numerator) /. float_of_int(denominator)
+  ) in
+  
+  let pHacking =
+    fun t ->
+      let jelly_anon = map(t, fun r -> omit_labels(r, `get_acne`)) in
+      let get_acne = t.get_acne in
+      let header = to_lvs(head(jelly_anon)) |> map(_, fun e -> e.label) in
+      map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value))))
+      |> filter(_, fun (_c, p) -> p <. 0.05)
+      |> map(_, fun (c, _p) -> "We found a link between " ++ c ++ " jelly beans and acne (p < 0.05).") in
+  
+  type JellyNamed = (
+    name = String,
+    get_acne = Bool,
+    red = Bool,
+    black = Bool,
+    white = Bool,
+    green = Bool,
+    yellow = Bool,
+    brown = Bool,
+    orange = Bool,
+    pink = Bool,
+    purple = Bool
+  ) in
+  let jellyNamed : [JellyNamed] = [
+    ("Emily",    (true), (false), (false), (false), (true), (false), (false), (true), (false), (false)),
+    ("Jacob",    (true), (false), (true), (false), (true), (true), (false), (false), (false), (false)),
+    ("Emma",     (false), (false), (false), (false), (true), (false), (false), (false), (true), (false)),
+    ("Aidan",    (false), (false), (false), (false), (false), (true), (false), (false), (false), (false)),
+    ("Madison",  (false), (false), (false), (false), (false), (true), (false), (false), (true), (false)),
+    ("Ethan",    (true), (false), (true), (false), (false), (false), (false), (true), (true), (false)),
+    ("Hannah",   (false), (false), (true), (false), (false), (false), (false), (false), (true), (false)),
+    ("Matthew",  (true), (false), (false), (false), (false), (false), (true), (true), (false), (false)),
+    ("Hailey",   (true), (false), (false), (false), (false), (false), (false), (true), (false), (false)),
+    ("Nicholas", (false), (true), (false), (false), (false), (true), (true), (false), (true), (false))
+  ] in
+  
+  pHacking(map(jellyNamed, fun r -> omit_labels(r, `name`)))
+) in
+let bench_9 = (
+  let fisherTest = (
+    fun (xs : [Bool], ys : [Bool]) ->
+      let zipped = zip(xs, ys) in
+      let contigencyTable =
+        fold_left(
+          zipped,
+          fun (
+            ((a,b),(c,d)),
+            e
+            : (Bool, Bool)
+          ) ->
+            case e
+            | (false, false) => ((a+1,b), (c, d))
+            | (false, true) => ((a,b+1), (c, d))
+            | (true, false) => ((a,b), (c + 1, d))
+            | (true, true) => ((a,b), (c, d + 1))
+            end,
+          ((0,0), (0, 0))
+        ) in
+      let factorial = fun (n : Int) -> if n == 0 then 1 else n * factorial(n - 1) in
+      let ((a,b), (c, d)) = contigencyTable in
+      let numerator = factorial(a + b) * factorial(c + d) * factorial(a + c) * factorial(b + d) in
+      let denominator = factorial(a) * factorial(b) * factorial(c) * factorial(d) * factorial(a + b + c + d) in
+      float_of_int(numerator) /. float_of_int(denominator)
+  ) in
+  type JellyAnon = (
+    get_acne = Bool,
+    red = Bool,
+    black = Bool,
+    white = Bool,
+    green = Bool,
+    yellow = Bool,
+    brown = Bool,
+    orange = Bool,
+    pink = Bool,
+    purple = Bool
+  ) in
+  let jellyAnon : [JellyAnon] = (
+    [
+      ((true), (false), (false), (false), (true), (false), (false), (true), (false), (false)),
+      ((true), (false), (true), (false), (true), (true), (false), (false), (false), (false)),
+      ((false), (false), (false), (false), (true), (false), (false), (false), (true), (false)),
+      ((false), (false), (false), (false), (false), (true), (false), (false), (false), (false)),
+      ((false), (false), (false), (false), (false), (true), (false), (false), (true), (false)),
+      ((true), (false), (true), (false), (false), (false), (false), (true), (true), (false)),
+      ((false), (false), (true), (false), (false), (false), (false), (false), (true), (false)),
+      ((true), (false), (false), (false), (false), (false), (true), (true), (false), (false)),
+      ((true), (false), (false), (false), (false), (false), (false), (true), (false), (false)),
+      ((false), (true), (false), (false), (false), (true), (true), (false), (true), (false))
+    ]
+  ) in
+  
+  let pHacking =
+    fun t ->
+      let jelly_anon = map(t, fun r -> omit_labels(r, `get_acne`)) in
+      let get_acne = t.get_acne in
+      let header = to_lvs(head(jelly_anon)) |> map(_, fun e -> e.label) in
+      map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value))))
+      |> filter(_, fun (_c, p) -> p <. 0.05)
+      |> map(_, fun (c, _p) -> "We found a link between " ++ c ++ " jelly beans and acne (p < 0.05).") in
+  
+  pHacking(jellyAnon)
+) in
+let bench_10 = (
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ] in
+  let sum = fold_left(_, int_plus, 0) in
+  map(
+    gradebook,
+    fun gb ->
+      let scores = to_lvs(gb) |> filter(_, fun e -> string_match("quiz.*", e.label)) |> map(_, fun e -> e.value) in
+      gb ... (average_score = float_of_int(sum(scores)) /. float_of_int(length(scores)))
+  )
+) in
+let bench_11 = (
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ] in
+  let ^^probe(quiz_col_names) = range(1, 5) |> map(_, fun i -> "quiz" ++ string_of_int(i)) in
+  let sum = fold_left(_, int_plus, 0) in
+  map(
+    gradebook,
+    fun gb ->
+      let scores = to_lvs(gb) |> filter(_, fun e -> mem(quiz_col_names, e.label)) |> map(_, fun e -> e.value) in
+      gb ... (average_score = float_of_int(sum(scores)) /. float_of_int(length(scores)))
+  )
+) in
+let bench_12 = (
+  # Example Tables from B2T2 #
+  # Tables copied from https://github.com/brownplt/B2T2/blob/main/ExampleTables.md #
+  type OptInt = + None + Some(Int) in
+  type OptString = + None + Some(String) in
+  type Student = (name = String, age = Int, favorite_color = String) in
+  let students : [Student] = [("Bob", 12, "blue"), ^^probe(("Alice", 17, "green")), ("Eve", 13, "red")] in
+  
+  type StudentMissing = (name = String, age = OptInt, favorite_color = OptString) in
+  let studentsMissing : [StudentMissing] = [("Bob", None, Some("blue")), ("Alice", Some(17), Some("green")), ^^probe(("Eve", Some(13), None))] in
+  
+  type Employee = (last_name = String, department_id = OptInt) in
+  let employees : [Employee] = [
+    ("Rafferty", Some(31)),
+    ("Jones", Some(33)),
+    ("Heisenberg", Some(33)),
+    ("Robinson", Some(34)),
+    ("Smith", Some(34)),
+    ("Williams", None)
+  ] in
+  
+  type Department = (department_id = Int, department_name = String) in
+  let departments : [Department] = [(31, "Sales"), (33, "Engineering"), (34, "Clerical"), (35, "Marketing")] in
+  
+  type JellyAnon = (
+    get_acne = Bool,
+    red = Bool,
+    black = Bool,
+    white = Bool,
+    green = Bool,
+    yellow = Bool,
+    brown = Bool,
+    orange = Bool,
+    pink = Bool,
+    purple = Bool
+  ) in
+  let jellyAnon : [JellyAnon] = [
+    (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+    (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+    (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+    (^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    (^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+    (^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+    (^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+    (^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+  ] in
+  
+  type JellyNamed = (
+    name = String,
+    get_acne = Bool,
+    red = Bool,
+    black = Bool,
+    white = Bool,
+    green = Bool,
+    yellow = Bool,
+    brown = Bool,
+    orange = Bool,
+    pink = Bool,
+    purple = Bool
+  ) in
+  let jellyNamed : [JellyNamed] = [
+    ("Emily",    ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+    ("Jacob",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+    ("Emma",     ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    ("Aidan",    ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+    ("Madison",  ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    ("Ethan",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+    ("Hannah",   ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+    ("Matthew",  ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+    ("Hailey",   ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+    ("Nicholas", ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+  ] in
+  
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ] in
+  
+  type GradebookEntryMissing = (
+    name = String,
+    age = Int,
+    quiz1 = OptInt,
+    quiz2 = OptInt,
+    midterm = Int,
+    quiz3 = OptInt,
+    quiz4 = Int,
+    final = Int
+  ) in
+  let gradebookMissing : [GradebookEntryMissing] = [
+    ("Bob",   12, Some(8), Some(9), 77, Some(7), 9, 87),
+    ("Alice", 17, Some(6), Some(8), 88, None, 7, 85),
+    ("Eve", 13, None, Some(9), 84, Some(8), 8, 77)
+  ] in
+  
+  type GradebookEntrySeq = (name = String, age = Int, quizzes = [Int], midterm = Int, final = Int) in
+  let gradebookSeq : [GradebookEntrySeq] = [
+    ("Bob",   12, [8, 9, 7, 9], 77, 87),
+    ("Alice", 17, [6, 8, 8, 7], 88, 85),
+    ("Eve", 13, [7, 9, 8, 8], 84, 77)
+  ] in
+  
+  type GradebookEntryTable = (name = String, age = Int, quizzes = [(quizNo = Int, grade = Int)], midterm = Int, final = Int) in
+  let gradebookTable : [GradebookEntryTable] = [
+    ("Bob",   12, [(1, 8), (2, 9), (3, 7), (4, 9)], 77, 87),
+    ("Alice", 17, [(1, 6), (2, 8), (3, 8), (4, 7)], 88, 85),
+    ("Eve", 13, [(1, 7), (2, 9), (3, 8), (4, 8)], 84, 77)
+  ] in
+  ¿
+) in
+let bench_13 = (
+  type Student = (name = String, age = Int, favorite_color = String) in
+  let students : [Student] = ([("Bob", 12, "blue"), ("Alice", 17, "green"), ("Eve", 13, "red")]) in
+  let get_row =
+    let _requires = [(enforced = (false), "n is in range(nrows(t))")] in
+    let _ensures = [] in
+    # Tables are just lists so nth is just list nth #
+    let get_row = nth_opt in
+    test
+      get_row([(name="Bob", age=12)], 0) == Some((name = "Bob", age = 12)) end in
+  let get_value =
+    let requires = [(enforced = (false), "c is in header(r)")] in
+    let ensures = [(enforced = (false), "v is of sort schema(r)[c]")] in
+    # This is just the projection operator `.` If you use it directly you get the requires/ensures constraints #
+    let get_value = fun (r, c : String) -> (to_lvs(r) |> find_opt(_, fun label = l, value = _v -> l == c)) |> option_map(_, fun e -> e.value) in
+    # Examples #
+    test
+      get_value((name="Bob", age=12), "name") == Some("Bob") end;
+    test
+      get_value((name="Bob", age=12), "age") == Some(12) end;
+    # Using projection #
+    test
+      (name="Bob", age=12).name == "Bob" end;
+    ? in
+  
+  let get_column1 =
+    let requires = [(enforced = (false), "n is in range(ncols(t))")] in
+    let ensures = [
+      (enforced=(false), "length(vs) is equal to nrows(t)"),
+      (enforced = (false), "for all v in vs, v is of sort schema(t)[header(t)[n]]")
+    ] in
+    # We don't currently have positional projection on tuples as a builtin #
+    let get_column1 = fun (t, n : Int) -> map(t, fun r -> to_lvs(r) |> nth(_, n)).value in
+    # Examples #
+    test
+      get_column1(students, 0) == ["Bob", "Alice", "Eve"] end;
+    test
+      get_column1(students, 1) == [12, 17, 13] end;
+    ? in
+  
+  let get_column2 =
+    let _requires = [(enforced = (false), "c is in header(t)")] in
+    let _ensures = [
+      (enforced=(false), "for all v in vs, v is of sort schema(t)[c]"),
+      (enforced = (false), "length(vs) is equal to nrows(t)")
+    ] in
+    # This is just the projection operator `.` If you use it directly you get the non-length requires/ensures constraints #
+    let get_column2 = fun (t, c : String) -> map(t, fun r -> to_lvs(r) |> find(_,fun label=l, value=_v -> (l == c))).value in
+    # Examples #
+    test
+      get_column2(students, "name") == ["Bob", "Alice", "Eve"] end;
+    test
+      get_column2(students, "age") == [12, 17, 13] end;
+    # Using projection #
+    test
+      students.name == ["Bob", "Alice", "Eve"] end;
+    test
+      students.age == [12, 17, 13] end in
+  ?
+) in
+let bench_14 = (
+  type Student = (name = String, age = Int, favorite_color = String) in
+  let students : [Student] = ([("Bob", 12, "blue"), ("Alice", 17, "green"), ("Eve", 13, "red")]) in
+  type GradebookEntry = (name = String, age = Int, quiz1 = Int, quiz2 = Int, midterm = Int, quiz3 = Int, quiz4 = Int, final = Int) in
+  let gradebook : [GradebookEntry] = (
+    [("Bob",   12, 8, 9, 77, 7, 9, 87), ("Alice", 17, 6, 8, 88, 8, 7, 85), ("Eve", 13, 7, 9, 84, 8, 8, 77)]
+  ) in
+  let count =
+    # V1: This version is more idiomatic and uses a higher order function to project out the value. #
+    let v1 =
+      let _requires = [(enforced=(true), "c is in header(t1)"), (enforced = (false), "schema(t1)[c] is a categorical sort")] in
+      let _ensures = [
+        (enforced=(true), "header(t2) is equal to ['value', 'count']"),
+        (enforced=(true), "schema(t2)['value'] is equal to schema(t1)[c]"),
+        (enforced=(true), "schema(t2)['count'] is equal to Number"),
+        (
+          enforced = (false),
+          "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) — Note: if there are missing values in the input, this constraint requires one row for missing values in the output."
+        )
+      ] in
+      # This utilizes the primitive_pivot operation to group the categorical variables. To work on numbers another method would need to be used. #
+      let count =
+        typfun row ->
+          typfun key ->
+            fun (t1 : [row], c : (row -> key)) ->
+              case t1
+              | [] => []
+              | (r :: tl) =>
+                let k = c(r) in
+                let counts = count@<row>@<key>(tl, c) in
+                case find_opt(counts, fun entry -> k == entry.value)
+                |None => (value = k, count = 1) :: counts
+                |Some((value=key,count=c)) => (value = key, count = c + 1) :: filter(counts, fun entry -> k != entry.value)
+                end
+              end
+              : [(value = key, count = Int)] in
+      test
+        count@<Student>@<String>(students, fun r -> r.favorite_color) == [("blue", 1), ("green", 1), ("red", 1)] : [(value = String, count = Int)] end in
+    # V2: This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism and first class labels no constraints are ensured #
+    let v2 =
+      let _requires = [(enforced=(true), "c is in header(t1)"), (enforced = (false), "schema(t1)[c] is a categorical sort")] in
+      let _ensures = [
+        (enforced=(true), "header(t2) is equal to ['value', 'count']"),
+        (enforced=(false), "schema(t2)['value'] is equal to schema(t1)[c]"),
+        (enforced=(true), "schema(t2)['count'] is equal to Number"),
+        (
+          enforced = (false),
+          "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) — Note: if there are missing values in the input, this constraint requires one row for missing values in the output."
+        )
+      ] in
+      # This utilizes the primitive_pivot operation to group the categorical variables. To work on numbers another method would need to be used. #
+      let count =
+        fun (t1 : [?], c : String) ->
+          (
+            flat_map(t1, to_lvs)
+            |> filter(_, fun e -> (e.label == c))
+            |> group_by_label(_, `value`)
+            |> to_lvs
+            |> map(_, fun e -> (value = e.label) ... (count = length(e.value)))
+          )
+          : [(value = String, count = Int)] in
+      test
+        count(students, "favorite_color") == [("blue", 1), ("green", 1), ("red", 1)] : [(value = String, count = Int)] end in
+    ? in
+  let bin =
+    # This version takes a string column name and can't guarantee the column is a number #
+    let v1 =
+      let _requires = [(enforced=(false), "c is in header(t1)"), (enforced = (false), "schema(t1)[c] is Number")] in
+      let _ensures = [
+        (enforced=(true), "header(t2) is equal to ['group', 'count']"),
+        (enforced=(true), "schema(t2)['group'] is String"),
+        (enforced = (true), "schema(t2)['count'] is Number")
+      ] in
+      let bin_int =
+        fun (is : [Int], bin_size : Int) ->
+          let floored = map(is, fun i -> i / bin_size * bin_size) in
+          let grouped =
+            fold_left(
+              floored,
+              fun (
+                acc,
+                i
+              ) ->
+                case find_opt(acc, fun (i', _count) -> i == i')
+                | None => (i, 1) :: acc
+                | Some((i, cnt)) => (i, cnt + 1) :: filter(acc, fun (i', _count) -> i != i')
+                end,
+              []
+            ) in
+          map(grouped, fun (i, cnt) -> (group = (i, i + bin_size), count = cnt)) in
+      let bin =
+        fun (t1 : [?], c : String, n : Int) ->
+          let entries = flat_map(t1, to_lvs) |> filter(_, fun e -> (e.label == c)) in
+          let vals = entries.value in
+          let bins = bin_int(vals, n) in
+          map(
+            bins,
+            fun e ->
+              e
+              ... (
+                group =
+                let (group = (min, max), _) = e in
+                string_of_int(min) ++ " <= " ++ c ++ " < " ++ string_of_int(max)
+              )
+          )
+          : [(group = String, count = Int)] in
+      test
+        bin(gradebook, "final", 2)
+        == [(group="76 <= final < 78", count=1), (group="84 <= final < 86", count=1), (group = "86 <= final < 88", count = 1)]
+        : [(group = String, count = Int)] end in
+    # This version takes an explicit projection to gurantee the requires constraints#
+    let v2 =
+      let _requires = [(enforced=(true), "c is in header(t1)"), (enforced = (true), "schema(t1)[c] is Number")] in
+      let _ensures = [
+        (enforced=(true), "header(t2) is equal to ['group', 'count']"),
+        (enforced=(true), "schema(t2)['group'] is String"),
+        (enforced = (true), "schema(t2)['count'] is Number")
+      ] in
+      let bin_int =
+        fun (is : [Int], bin_size : Int) ->
+          let floored = map(is, fun i -> i / bin_size * bin_size) in
+          let grouped =
+            fold_left(
+              floored,
+              fun (
+                acc,
+                i
+              ) ->
+                case find_opt(acc, fun (i', _count) -> i == i')
+                | None => (i, 1) :: acc
+                | Some((i, cnt)) => (i, cnt + 1) :: filter(acc, fun (i', _count) -> i != i')
+                end,
+              []
+            ) in
+          map(grouped, fun (i, cnt) -> (group = (i, i + bin_size), count = cnt)) in
+      let bin =
+        typfun row ->
+          fun (t1 : [row], c : String, c_project : (row -> Int), n : Int) ->
+            let vals = map(t1, c_project) in
+            let bins = bin_int(vals, n) in
+            map(
+              bins,
+              fun e ->
+                e
+                ... (
+                  group =
+                  let (group = (min, max), _) = e in
+                  string_of_int(min) ++ " <= " ++ c ++ " < " ++ string_of_int(max)
+                )
+            )
+            : [(group = String, count = Int)] in
+      test
+        bin@<GradebookEntry>(gradebook, "final", fun r -> r.final, 2)
+        == [(group="76 <= final < 78", count=1), (group="84 <= final < 86", count=1), (group = "86 <= final < 88", count = 1)]
+        : [(group = String, count = Int)] end in
+    ? in
+  let pivot_table =
+    let _requires = [
+      (enforced=(false), "for all c in cs, c is in header(t1)"),
+      (enforced=(false), "for all c in cs, schema(t1)[c] is a categorical sort"),
+      (enforced=(false), "ci2 is in header(t1)"),
+      (enforced = (false), "concat(cs, [c11, ... , cn1]) has no duplicates")
+    ] in
+    let _ensures = [
+      (enforced=(false), "fi consumes Seq<schema(t1)[ci2]>"),
+      (enforced=(false), "header(t2) is equal to concat(cs, [c11, ... , cn1])"),
+      (enforced=(false), "for all c in cs, schema(t2)[c] is equal to schema(t1)[c]"),
+      (enforced = (false), "schema(t2)[ci1] is equal to the sort of outputs of fi for all i")
+    ] in
+    let pivot_table =
+      fun (t1 : [?], cs : [String], aggs : [(String, String, ? -> ?)]) ->
+        let groups =
+          fold_left(
+            t1,
+            (fun (groups, row) ->
+              let k = filter(to_lvs(row), fun e -> mem(cs, e.label)) |> from_lvs in
+              let _group_tup = from_lvs(k) in
+              case find_opt(groups, fun (gk, _) -> k == gk)
+              | None => (k, [row]) :: groups
+              | Some((_key, rows)) => (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+              end),
+            []
+          ) in
+        map(
+          groups,
+          fun (k, g) ->
+            k
+            ... (
+              map(
+                aggs,
+                fun (dest_col, source_col, reduction) ->
+                  let vals = filter_map(g, fun r -> find_opt(to_lvs(r), fun e -> e.label == source_col) |> option_map(_, fun e -> e.value)) in
+                  let reduced = reduction(vals) in
+                  (label = dest_col, value = reduced)
+              )
+              |> from_lvs
+            )
+        ) in
+    let average = fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+    test
+      pivot_table(students, ["favorite_color"], [("age-average", "age", average)])
+      == [("red", 13), ("green", 17), ("blue", 12)] : [(favorite_color = String, `age-average` = Int)] end in
+  let group_by =
+    let _requires = [] in
+    let _ensures = [
+      (enforced=(true), "schema(r1) is equal to schema(t1)"),
+      (enforced=(true), "schema(r2) is equal to schema(t1)"),
+      (enforced=(true), "schema(t2) is equal to schema(r3)"),
+      (
+        enforced = (false),
+        "nrows(t2) is equal to length(removeDuplicates(ks)), where ks is the results of applying key to each row of t1. ks can be defined with select and getColumn."
+      )
+    ] in
+    let group_by =
+      typfun r1 ->
+        typfun r3 ->
+          typfun K ->
+            typfun V ->
+              fun (t1 : [r1], key : (r1 -> K), project : (r1 -> V), aggregate : ((K, [V]) -> r3)) ->
+                let grouped =
+                  fold_left(
+                    t1,
+                    (fun (groups:[(K, [r1])], row:r1) ->
+                      let k = key(row) in
+                      case find_opt(groups, fun (gk, _) -> k == gk)
+                      | None => (k, [row]) :: groups
+                      | Some((_key, rows)) => (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+                      end),
+                    []
+                  ) in
+                map(grouped, fun (k, g) -> aggregate(k, map(g, project))) : [r3] in
+    test
+      let average = fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+      let abstract_age = fun (r : GradebookEntry) -> if r.age <= 12 then "kid" else if r.age <= 18 then "teenager" else "adult" in
+      group_by@<GradebookEntry>@<?>@<String>@<Int>(gradebook, abstract_age, fun r -> r.final, fun (k, vs) -> (key = k, average = average(vs)))
+      == [(key="teenager", average=81), (key = "kid", average = 87)] end in
+  ?
+) in
+bench_1
