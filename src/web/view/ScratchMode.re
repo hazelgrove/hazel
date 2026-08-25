@@ -145,6 +145,11 @@ module Model = {
        parked zipper never changes while focused, and persistence
        splices EVERY autosave tick — don't re-zip each second */
     f_master_seg: Haz3lcore.Segment.t,
+    /* the HEADER editor: the definition's pattern+signature (`size :
+       Point -> Int`), a Pat-ROOTED cell above the body (plan §2).
+       Statics stay OFF in it (the name is a BINDER — exp statics
+       would mark it unbound). */
+    f_header: CellEditor.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -280,6 +285,59 @@ module Focus = {
   let cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
     seg |> Zipper.unzip |> Editor.Model.mk(~root=Exp) |> CellEditor.Model.mk;
 
+  let pat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
+    seg |> Zipper.unzip |> Editor.Model.mk(~root=Pat) |> CellEditor.Model.mk;
+
+  /* the pattern (header) is the FIRST child for every focusable item
+     shape: `let <pat> = …` 2- and 3-shard alike */
+  let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
+    List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          switch (p) {
+          | Tile(t) when t.id == fid =>
+            switch (t.children) {
+            | [pat, ..._] => Some(pat)
+            | [] => None
+            }
+          | Tile(t) =>
+            List.fold_left(
+              (acc, child) => acc == None ? find_pat(fid, child) : acc,
+              None,
+              t.children,
+            )
+          | _ => None
+          }
+        },
+      None,
+      seg,
+    );
+
+  let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when t.id == fid =>
+          switch (t.children) {
+          | [_, ...rest] =>
+            Piece.Tile({
+              ...t,
+              children: [repl, ...rest],
+            })
+          | [] => p
+          }
+        | Tile(t) =>
+          Piece.Tile({
+            ...t,
+            children: List.map(splice_pat(fid, repl), t.children),
+          })
+        | _ => p
+        },
+      seg,
+    );
+
   /* the master slide with the live focus-cell content spliced back in
      (pure; used by unfocus AND by persistence while focused) */
   let spliced_master =
@@ -287,7 +345,8 @@ module Focus = {
     switch (focus.f_parked.kind, current.kind) {
     | (Code(_), Code({editor: focus_cell, agent})) =>
       let new_seg =
-        splice_def(focus.f_id, zip_of_cell(focus_cell), focus.f_master_seg);
+        splice_def(focus.f_id, zip_of_cell(focus_cell), focus.f_master_seg)
+        |> splice_pat(focus.f_id, zip_of_cell(focus.f_header));
       {
         ...focus.f_parked,
         kind:
@@ -705,6 +764,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
+    | HeaderAction(CellEditor.Update.t)
     | FocusDef(Haz3lcore.Id.t)
     | UnfocusDef
     | RefreshStatics
@@ -968,6 +1028,10 @@ module Update = {
               )
             };
           let focus_cell = Focus.cell_of_seg(def_seg);
+          let header_cell =
+            Focus.pat_cell_of_seg(
+              Option.value(Focus.find_pat(fid, master_seg), ~default=[]),
+            );
           Model.{
             current: model.current,
             scratchpads:
@@ -989,6 +1053,7 @@ module Update = {
                 f_parked: scratchpad,
                 f_ctx,
                 f_master_seg: master_seg,
+                f_header: header_cell,
               }),
           }
           |> Updated.return;
@@ -1011,6 +1076,20 @@ module Update = {
           focus: None,
         }
         |> Updated.return;
+      }
+    | HeaderAction(a) =>
+      switch (model.focus) {
+      | None => model |> Updated.return_quiet
+      | Some(f) =>
+        let* new_header = CellEditor.Update.update(~settings, a, f.f_header);
+        {
+          ...model,
+          focus:
+            Some({
+              ...f,
+              f_header: new_header,
+            }),
+        };
       }
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
@@ -1285,6 +1364,34 @@ module Update = {
           },
         );
       let ctx = Option.map((f: Model.focus_t) => f.f_ctx, model.focus);
+      /* the header cell: molding/measuring only — statics would run
+         EXP checks on a pattern; dynamics has nothing to run */
+      let focus =
+        Option.map(
+          (f: Model.focus_t) =>
+            Model.{
+              ...f,
+              f_header:
+                CellEditor.Update.calculate(
+                  ~settings=
+                    Language.CoreSettings.{
+                      ...settings,
+                      statics: false,
+                      dynamics: false,
+                    },
+                  ~is_edited,
+                  ~statics_mode,
+                  ~queue_worker=None,
+                  ~stitch=x => x,
+                  f.f_header,
+                ),
+            },
+          model.focus,
+        );
+      let model = {
+        ...model,
+        focus,
+      };
       let new_ed =
         CellEditor.Update.calculate(
           ~settings,
@@ -1355,6 +1462,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
+    | HeaderCell(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -1372,6 +1480,18 @@ module Selection = {
             editor,
           );
         Update.CellAction(a);
+      | (HeaderCell(selection), Code(_)) =>
+        switch (model.focus) {
+        | Some(f) =>
+          let+ a =
+            CellEditor.Selection.get_cursor_info(
+              ~inject=a => inject(HeaderAction(a)),
+              ~selection,
+              f.f_header,
+            );
+          Update.HeaderAction(a);
+        | None => empty
+        }
       | (Drv(selection), Drv(m)) =>
         let+ a =
           DerivationExerciseMode.Selection.get_cursor_info(
@@ -1381,6 +1501,7 @@ module Selection = {
           );
         Update.DrvAction(a);
       | (Cell(_), Drv(_))
+      | (HeaderCell(_), Drv(_))
       | (Drv(_), Code(_))
       | (TextBox, _) => empty
       };
@@ -1464,7 +1585,38 @@ module View = {
     let current = List.nth(model.scratchpads, model.current);
     switch (current.kind) {
     | Code({editor, _}) =>
+      /* focused: the HEADER band (pat-rooted `name : type` editor)
+         sits above the body cell (plan §2 interleaved design) */
+      let header =
+        switch (model.focus) {
+        | Some(f) => [
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
+              [
+                CellEditor.View.view(
+                  ~globals,
+                  ~signal=
+                    fun
+                    | MakeActive(sel) =>
+                      signal(MakeActive(HeaderCell(sel))),
+                  ~inject=a => inject(HeaderAction(a)),
+                  ~selected=
+                    switch (selected) {
+                    | Some(Selection.HeaderCell(s)) => Some(s)
+                    | _ => None
+                    },
+                  ~result_kind=`NoResults,
+                  ~locked=false,
+                  ~lines=false,
+                  f.f_header,
+                ),
+              ],
+            ),
+          ]
+        | None => []
+        };
       (SlideContent.get_content(current.name) |> Option.to_list)
+      @ header
       @ [
         CellEditor.View.view(
           ~globals,
@@ -1484,7 +1636,7 @@ module View = {
           ~lines=true,
           editor,
         ),
-      ]
+      ];
     | Drv(m) =>
       DerivationExerciseMode.View.view(
         ~globals,

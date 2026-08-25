@@ -161,3 +161,15 @@
 #outline-sidebar .outline-unfocus:hover {
   background: var(--BR1, #d8c9a3);
 }
+
+/* focused-definition header band (the `name : type` pat editor) */
+#main .focus-header {
+  background: var(--ui-bkg, #f6efdc);
+  border-bottom: 0.6px solid var(--BR2, #b5a377);
+  padding: 2px 0;
+}
+
+#main .focus-header .cell {
+  background: transparent;
+  border: none;
+}
