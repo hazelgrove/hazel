@@ -92,10 +92,21 @@ let rec node_view =
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
           ~focused: option(Language.Id.t),
+          ~focused_label: option(string),
           n: OutlineTree.node,
         )
         : Node.t => {
   let is_focused = n.o_id != None && n.o_id == focused;
+  /* the focused row's name tracks the header editor LIVE */
+  let n =
+    switch (is_focused, focused_label) {
+    | (true, Some(l)) =>
+      OutlineTree.{
+        ...n,
+        o_label: l,
+      }
+    | _ => n
+    };
   /* type items have no Exp-rooted body to focus (their RHS is a TYPE);
      typ-rooted cells are future work */
   let focusable = n.o_kind != OutlineTree.KType;
@@ -156,7 +167,7 @@ let rec node_view =
         create("summary", ~attrs=[clss(["outline-summary"])], [label]),
         div(
           ~attrs=[clss(["outline-kids"])],
-          List.map(node_view(~jump, ~focus, ~focused), kids),
+          List.map(node_view(~jump, ~focus, ~focused, ~focused_label), kids),
         ),
       ],
     )
@@ -169,6 +180,7 @@ let view =
       ~focus: Language.Id.t => Effect.t(unit),
       ~unfocus: Effect.t(unit),
       ~focused: option(Language.Id.t),
+      ~focused_label: option(string)=None,
       term: Language.Exp.t,
     )
     : Node.t => {
@@ -204,7 +216,10 @@ let view =
                 [text("no definitions")],
               ),
             ]
-            : List.map(node_view(~jump, ~focus, ~focused), roots)
+            : List.map(
+                node_view(~jump, ~focus, ~focused, ~focused_label),
+                roots,
+              )
         ),
       ),
     ],

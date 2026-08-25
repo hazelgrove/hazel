@@ -46,6 +46,11 @@ let rec find_hz = (dir: string): list(string) =>
     |> List.concat_map(entry => {
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
+         /* hazel-programs/mega: thousands-of-lines perf corpora — the
+            menhir differential on them costs minutes-to-hours per file
+            and proves nothing new (they're composed from already-swept
+            sources). The FastParseCorpus ratchet still covers them. */
+         | true when Filename.basename(path) == "mega" => []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []

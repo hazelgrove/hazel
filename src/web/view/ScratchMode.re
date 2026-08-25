@@ -159,6 +159,27 @@ module Model = {
     focus: option(focus_t),
   };
 
+  /* the focused definition's LIVE name, read from the header cell's
+     text each render — so outline labels track header renames before
+     any splice-back */
+  let focused_header_name = (model: t): option(string) =>
+    Option.bind(
+      model.focus,
+      (f: focus_t) => {
+        let txt =
+          Haz3lcore.MarkerParse.to_text(
+            f.f_header.editor.editor.state.zipper,
+          );
+        let name =
+          switch (String.index_opt(txt, ':')) {
+          | Some(i) => String.sub(txt, 0, i)
+          | None => txt
+          };
+        let name = String.trim(name);
+        name == "" ? None : Some(name);
+      },
+    );
+
   /* The monolithic export/import format (per-slide keys are the live
      storage; see Persist below). */
   [@deriving (show({with_path: false}), sexp, yojson)]

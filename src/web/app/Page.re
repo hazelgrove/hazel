@@ -893,11 +893,18 @@ module View = {
           }
         | _ => None
         };
+      let focused_label =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) => ScratchMode.Model.focused_header_name(m)
+        | _ => None
+        };
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~focus=id => inject(Editors(Scratch(FocusDef(id)))),
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
         ~focused,
+        ~focused_label,
         Option.value(outline_term, ~default=current_editor.statics.term),
       );
     };
