@@ -1763,41 +1763,64 @@ let rec check =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
   | Have(e, sub, body) =>
-    /* `have <exp> proof <subproof> => <body>` — forward reasoning, the
-     * "lemma cut" idiom, and the target of §3.3's "prove here" exit
-     * (docs/prover-obligations.md).
+    /* `have <exp> proof <subproof> => <body>` — the CUT rule, and the
+     * target of §3.3's "prove here" exit (docs/prover-obligations.md).
      *
-     * `assume` with a proof attached, and deliberately the same shape:
+     * Have is an ordinary TWO-PREMISE rule, not a special shape. With
+     * incoming goal `G` it incurs exactly two obligations, both recorded
+     * on the have's own node, the way a two-condition axiom would:
      *
-     * - the SUBPROOF's incoming goal is `<exp>` itself, checked in the
-     *   ENCLOSING scope (it may not cite the have's own hypothesis);
-     * - the BODY sees `<exp>` as a citable hypothesis under the auto-name
-     *   "have", unconditionally — that is what lets an obligation inside
-     *   the body discharge against it through ordinary channel-1 lookup
-     *   (§4.2) the moment the wrapper is written, before the subproof is
-     *   finished;
-     * - the have's OWN obligation for `<exp>` is dropped exactly when the
-     *   subproof discharges it (literal `true`, clean subtree — the same
-     *   test `ProofMap.status_of_proof` applies to a whole proof), and
-     *   otherwise runs the ordinary discharge channels and typically
-     *   stays Pending. So the wrapper never launders anything: it MOVES
-     *   the obligation from the incurring step up to the have, where the
-     *   attached proof can retire it.
+     *   1. prove `<exp>` in the ENCLOSING scope (the subproof may not
+     *      cite the have's own hypothesis — otherwise `have P proof
+     *      <cite P> => ...` would prove anything);
+     *   2. prove `G` in the scope EXTENDED with `<exp>` under the
+     *      auto-name "have".
      *
-     * Pass-through and mark-free, like assume: the outgoing is the
-     * body's, and an unfinished subproof is an incomplete proof, not a
-     * broken step. */
+     * The two attached proofs are what retire them: obligation 1 is
+     * dropped exactly when the subproof reaches literal `true` with a
+     * clean subtree, obligation 2 exactly when the BODY does. An
+     * unretired premise is a Pending obligation — "this premise is still
+     * open" — not a broken step, so the form stays mark-free like
+     * `assume`.
+     *
+     * Asymmetry in HOW they are retired, and it is deliberate:
+     *
+     * - obligation 1 also runs the ordinary discharge channels
+     *   (`discharge_goal`), so an already-known `<exp>` goes Remote /
+     *   Evaluated without the user writing a subproof at all;
+     * - obligation 2 does NOT. Its scope contains the freshly installed
+     *   `have` hypothesis, so channel-1 lookup would discharge it for
+     *   free whenever `G` happens to equal `<exp>` — trivialising the
+     *   second premise against the very fact the rule is introducing.
+     *   It is Pending until the body's proof closes it.
+     *
+     * The hypothesis is installed UNCONDITIONALLY, whether or not the
+     * subproof is finished: that is what lets obligations incurred by
+     * STEPS INSIDE the body discharge against it through ordinary
+     * channel-1 lookup (§4.2) the moment the wrapper is written. That
+     * channel is for body steps, not for obligation 2 above.
+     *
+     * Outgoing is the body's, as before. Note that this makes obligation
+     * 2 Pending exactly when the have's own outgoing is not a clean
+     * `true` — i.e. only when `full_status_of_proof` already reads
+     * Incomplete — so a pending second premise never masquerades as
+     * ProvenModulo. The one shape it misreports is `Seq(Have(...), tail)`,
+     * a have used as a mid-chain pass-through with the goal closed AFTER
+     * it: under the two-premise reading that is simply the wrong place to
+     * continue (the tail is outside the have's scope anyway), and the
+     * stepper never writes it. */
     let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
     let (out_sub, m_sub) = check(~step, ~info_map, ~ctx, Some(hyp), sub);
     let true_exp = Exp.temp(Atom(Bool(true)));
-    let sub_proves =
-      switch (out_sub) {
+    let proves = (out, m, p) =>
+      switch (out) {
       | Some(o) =>
-        Exp.fast_equal(o, true_exp) && ProofMap.proof_is_clean(m_sub, sub)
+        Exp.fast_equal(o, true_exp) && ProofMap.proof_is_clean(m, p)
       | None => false
       };
-    let obligations =
-      sub_proves
+    /* Premise 1: `<exp>` in the enclosing scope. */
+    let sub_obligations =
+      proves(out_sub, m_sub, sub)
         ? []
         : [
           Obligation.{
@@ -1811,10 +1834,30 @@ let rec check =
     let (ctx', _binding) = SemanticCtx.add_hypothesis(ctx, "have", hyp);
     let (out_body, m_body) =
       check(~step, ~info_map, ~ctx=ctx', incoming, body);
+    /* Premise 2: the incoming goal, in the extended scope. Its bindings
+     * are ctx' — the panel's local context for this row should show the
+     * `have` hypothesis the premise is allowed to use. Recorded only
+     * when there IS an incoming goal to prove. */
+    let body_obligations =
+      switch (incoming) {
+      | Some(goal) when !proves(out_body, m_body, body) => [
+          Obligation.{
+            origin: id,
+            bindings: SemanticCtx.get_ctx(ctx').entries,
+            goal,
+            /* No "as written" form: unlike `<exp>`, the incoming goal
+             * reaches this arm already env-inlined by the chain above. */
+            display_goal: goal,
+            discharge: Obligation.Pending,
+          },
+        ]
+      | Some(_)
+      | None => []
+      };
     (
       out_body,
       record(
-        ~obligations,
+        ~obligations=sub_obligations @ body_obligations,
         id,
         incoming,
         out_body,

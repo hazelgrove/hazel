@@ -1845,10 +1845,7 @@ and Stepper: {
      * splice the other wrapping forms use (ProofFormView.view_pat_arg),
      * so the same three-part focus applies. */
     | AddFunext(binder) =>
-      emit_wrapping_form(
-        ~arg_focus=FunextStep(Arg()),
-        funext_term(~binder),
-      )
+      emit_wrapping_form(~arg_focus=FunextStep(Arg()), funext_term(~binder))
     | AddInduction(scrut) => emit(induction_term(~scrut))
     | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
       emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))

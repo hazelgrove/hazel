@@ -6,30 +6,33 @@ open Calc.Syntax;
 /* `have <exp> proof <subproof> => <body>` as a stepper row
  * (docs/prover-obligations.md §3.3's "prove here" exit).
  *
- * `have` is the one wrapping form with TWO proof children, and they play
- * different structural roles — which is exactly why it cannot be a
- * copy of AssumeStep:
+ * Have is the CUT rule: an ordinary two-premise proof rule whose two
+ * premises are its two proof children (ProofCheck's Have arm records one
+ * obligation for each on this node). So it renders like any other
+ * multi-premise rule — induction being the other one — as TWO nested
+ * obligation regions at the SAME indent, each with the same chrome and a
+ * header naming the goal it discharges:
  *
- * - the SUBPROOF is a proof of a DIFFERENT goal (`<exp>`, checked in the
- *   enclosing scope) that must reach literal `true`. So it reads like an
- *   induction case: its own boxed region, its own chain, its own target
- *   row. Rendering it inline in the outer chain would claim the outer
- *   goal had moved to `<exp>`, which it has not.
- * - the BODY continues the OUTER goal with `<exp>` installed as the
- *   auto-named hypothesis `have`. So it reads like Assume's body: rows
- *   at the outer level, no extra chrome, the have's outgoing IS the
- *   body's (ProofCheck's Have arm).
+ * - the SUBPROOF proves `<exp>`, checked in the ENCLOSING scope (it may
+ *   not cite the have's own hypothesis);
+ * - the BODY proves the incoming goal, in the scope EXTENDED with
+ *   `<exp>` under the auto-name `have`.
+ *
+ * Neither is "the outer chain continuing": both are premises of this
+ * step, and the reader should be able to tell which is which without
+ * counting indents. They deliberately reuse `.induction-case` /
+ * `.induction-case-header` rather than any have-specific chrome — have
+ * is not a big enough feature to earn a stepper shape of its own.
  *
  * Hence: one keyword+argument row (ProofFormView.view_arg, the
- * proposition inline-editable as child 0 like assume's), then a nested
- * boxed stepper for the subproof, then the body's rows as the
- * continuation chain.
+ * proposition inline-editable as child 0 like assume's), then the two
+ * premise regions.
  *
  * BOTH children's goals come from the checker's ProofMap (looked up by
  * each child's own `rep_id`) and are never re-derived here: the
  * subproof's incoming is the env-inlined proposition, the body's is the
- * outer goal passed through. That is what makes step-picking inside
- * either child root at the right goal.
+ * outer goal passed through (have's outgoing is still the body's). That
+ * is what makes step-picking inside either child root at the right goal.
  *
  * Types are defined outside the functor to make it easier to use them in
  * other files. */
@@ -47,12 +50,12 @@ type model'('stepper) = {
    * subtree, so the box always shows how far it actually got against
    * that target (cf. InductionCase's last_exp). */
   sub_last_exp: Calc.saved(Exp.t),
-  /* The BODY's goal and scope. The goal is the checker's body incoming
-   * (the outer goal, passed through — `have` never moves it); the scope
-   * mirrors ProofCheck's `add_hypothesis(ctx, "have", hyp)`, which is
-   * what makes the auto-name `have` citable from the body's rows and
-   * what discharges body obligations through ordinary channel-1 lookup
-   * even while the subproof is still open. */
+  /* The BODY premise's goal and scope. The goal is the checker's body
+   * incoming (the outer goal, passed through — `have` never moves it);
+   * the scope mirrors ProofCheck's `add_hypothesis(ctx, "have", hyp)`,
+   * which is what makes the auto-name `have` citable from the body's
+   * rows and what discharges obligations incurred BY BODY STEPS through
+   * ordinary channel-1 lookup even while the subproof is still open. */
   body_exp: Calc.saved(Exp.t),
   body_ctx: Calc.saved(SemanticCtx.t),
   body_stepper: 'stepper,
@@ -320,30 +323,45 @@ module F =
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~is_toplevel: bool,
+        /* Unused: BOTH premises render as nested regions with
+         * `~is_toplevel=false`, so the parent's flag never reaches a
+         * child. Letting the body inherit it made its picker render as
+         * the root working step — the "this is the outer chain" misread
+         * this step deliberately drops. */
+        ~is_toplevel as _: bool,
         ~proof: option(Proof.t),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         ~main_editor: option(CodeEditable.Channel.t),
         model: model,
       ) => {
     module StepperTargetBox = StepperTargetBox.F(Stepper);
-    /* The subproof: its own boxed region with a "proof of <exp>" header
-     * and its own target row, because it proves a goal of its own. The
-     * target is literal `true` — the same test ProofCheck's Have arm
-     * applies before dropping the have's obligation — so an unfinished
-     * subproof shows the gap it still has to close. */
+    let goal_code = (e: Exp.t) =>
+      CodeViewable.view_any(
+        ~globals,
+        ~settings=
+          Haz3lcore.ExpToSegment.Settings.of_core(
+            ~inline=true,
+            ~fold_fn_bodies=`Text,
+            globals.settings.core,
+          ),
+        Exp(e),
+      );
+    /* One premise region: `.induction-case` chrome (shared with
+     * induction's cases, the other multi-premise rule), a header naming
+     * the goal, and the premise's own chain inside. Both of have's
+     * premises go through this, so neither can accidentally read as more
+     * or less nested than the other. */
+    let premise =
+        (~header: list(WebUtil.Node.t), rows: list(WebUtil.Node.t)) =>
+      WebUtil.div_c(
+        "induction-case",
+        [WebUtil.div_c("induction-case-header", header)] @ rows,
+      );
+    /* Premise 1 — the subproof of `<exp>`. Target row against literal
+     * `true`, the same test ProofCheck's Have arm applies before dropping
+     * this premise's obligation, so an unfinished subproof shows the gap
+     * it still has to close. */
     let sub_box = {
-      let goal_code = (e: Exp.t) =>
-        CodeViewable.view_any(
-          ~globals,
-          ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=true,
-              ~fold_fn_bodies=`Text,
-              globals.settings.core,
-            ),
-          Exp(e),
-        );
       /* Header shows the proposition AS WRITTEN when the syntax is in
        * scope: the checker's incoming is env-inlined, so a goal
        * mentioning a let-bound `f` would arrive with f's whole lambda
@@ -375,38 +393,51 @@ module F =
           model.sub_last_exp |> Calc.get_saved_exc(~print="have sub_last_exp"),
         );
       [
-        WebUtil.div_c(
-          "have-subproof",
-          [
-            WebUtil.div_c(
-              "have-subproof-header",
-              [WebUtil.Node.text("proof of "), goal_code(header_goal)],
-            ),
-          ]
-          @ rows,
+        premise(
+          ~header=[WebUtil.Node.text("proof of "), goal_code(header_goal)],
+          rows,
         ),
       ];
     };
-    /* The body: rows at the OUTER level, like Assume's — the have's
-     * outgoing is the body's, so the chain simply flows on. */
-    let body_rows =
-      Stepper.view(
-        ~globals,
-        ~focus=
-          switch (focus) {
-          | Some(Body(f)) => Some(f)
-          | Some(SubProof(_))
-          | Some(Arg(_))
-          | None => None
-          },
-        ~inject=x => inject(Body(x)),
-        ~take_focus=x => take_focus(Body(x)),
-        ~hide_stepper,
-        ~is_toplevel,
-        ~edit_syntax,
-        ~main_editor,
-        model.body_stepper,
-      );
+    /* Premise 2 — the incoming goal, WITH `have` in scope. Same chrome
+     * and same indent as premise 1: it is the have's second premise, not
+     * the outer chain resuming. Its normal trailing picker is the
+     * "target", so no target box here.
+     *
+     * `~is_toplevel=false`, like premise 1: inheriting the parent's flag
+     * made the body's picker render as the ROOT working step, which is
+     * precisely the "this is the outer chain" misread. */
+    let body_box = {
+      let rows =
+        Stepper.view(
+          ~globals,
+          ~focus=
+            switch (focus) {
+            | Some(Body(f)) => Some(f)
+            | Some(SubProof(_))
+            | Some(Arg(_))
+            | None => None
+            },
+          ~inject=x => inject(Body(x)),
+          ~take_focus=x => take_focus(Body(x)),
+          ~hide_stepper,
+          ~is_toplevel=false,
+          ~edit_syntax,
+          ~main_editor,
+          model.body_stepper,
+        );
+      [
+        premise(
+          ~header=[
+            WebUtil.Node.text("with `have`, proof of "),
+            goal_code(
+              model.body_exp |> Calc.get_saved_exc(~print="have body_exp"),
+            ),
+          ],
+          rows,
+        ),
+      ];
+    };
     ProofFormView.view_arg(
       ~globals,
       ~label="Have: ",
@@ -423,6 +454,6 @@ module F =
       arg_of_proof(proof),
     )
     @ sub_box
-    @ body_rows;
+    @ body_box;
   };
 };

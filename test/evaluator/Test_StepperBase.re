@@ -848,15 +848,24 @@ let tests = (
       },
     ),
     // ============================================================
-    // `have`: nested subproof stepper + body continuation
+    // `have`: two nested obligation regions
     // ============================================================
-    /* `have <exp> proof <sub> => <body>` is the one wrapping form with TWO
-       proof children, and they play different roles: the subproof proves
-       `<exp>` (its own goal, target literal `true`), the body continues
-       the OUTER goal with `<exp>` installed as the auto-named `have`
-       hypothesis. `Have` used to map to None in kind_of_proof, so NEITHER
-       child rendered — including the subproof hole the (!) panel's "Prove
-       here" writes, which is exactly the row the user needs. */
+    /* `have <exp> proof <sub> => <body>` is the cut rule: a two-premise
+       rule whose premises are its two proof children, rendered as two
+       nested regions at the SAME indent with the same chrome (HaveStep
+       reuses `.induction-case`, induction being the other multi-premise
+       rule). Premise 1 proves `<exp>` in the enclosing scope, target
+       literal `true`; premise 2 proves the OUTER goal with `<exp>`
+       installed as the auto-named `have` hypothesis — not the outer chain
+       resuming, though have's outgoing is still the body's. `Have` used
+       to map to None in kind_of_proof, so NEITHER child rendered —
+       including the subproof hole the (!) panel's "Prove here" writes,
+       which is exactly the row the user needs.
+
+       These tests are model-level: they pin each premise's goal, scope
+       and picker, which is what makes step-picking inside either region
+       root at the right goal. The equal-indent chrome itself lives in
+       HaveStep.view_content / stepper.css. */
     test_case(
       "have: a proof-side have promotes to a HaveStep row",
       `Quick,
@@ -935,9 +944,9 @@ let tests = (
           | StepperBase.Finished =>
             Alcotest.fail("have subproof did not render a step row")
           };
-          /* And it reached `true`, which is what drops the have's own
-             obligation (ProofCheck's `sub_proves`) and what the nested
-             box's target row is compared against. */
+          /* And it reached `true`, which is what drops premise 1's
+             obligation and what the region's target row is compared
+             against. */
           check(
             bool,
             "subproof's reached expression is literal true",
@@ -955,9 +964,9 @@ let tests = (
       "have: the body chain continues with the OUTER goal",
       `Quick,
       () => {
-        /* `have` is a pass-through (its outgoing is the body's), so the
-           body's incoming is the outer goal unchanged — read off the
-           checker, not re-derived. */
+        /* Premise 2's goal. `have` is a pass-through (its outgoing is the
+           body's), so the body's incoming is the outer goal unchanged —
+           read off the checker, not re-derived. */
         let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
         switch (promote(~src, ~goal="x == 1", ())) {
         | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
@@ -973,7 +982,7 @@ let tests = (
       },
     ),
     test_case(
-      "have: the body's hole is a picker row rooted at the outer goal",
+      "have: the body premise's hole is a picker row rooted at the outer goal",
       `Quick,
       () => {
         let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
@@ -1002,8 +1011,10 @@ let tests = (
       `Quick,
       () => {
         /* Installed UNCONDITIONALLY (ProofCheck's Have arm), even with the
-           subproof still a hole — that is what lets a body obligation
-           discharge against it the moment the wrapper is written. */
+           subproof still a hole — that is what lets an obligation
+           incurred by a STEP INSIDE the body discharge against it the
+           moment the wrapper is written. (Premise 2's own obligation is
+           deliberately NOT discharged this way; see ProofCheck.) */
         let src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
         switch (promote(~src, ~goal="x == 1", ())) {
         | StepperBase.NextStep({step_kind: HaveStep(m), _}) =>
@@ -1081,8 +1092,8 @@ let tests = (
            "Prove here" — which writes
            `Have(y != 0, ?, <the existing region>)`
            (ObligationsPanel.have_patch). Before HaveStep that produced no
-           stepper at all for the new subproof; here both chains must show
-           up, each rooted at its own goal. */
+           stepper at all for the new subproof; here both premise regions
+           must show up, each rooted at its own goal. */
         let src = "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof have y != 0 proof ? => ? in t";
         let (proof, pm) = checked_proof(src);
         /* Seeded with the env-INLINED statement, as Theorems.re does. */
