@@ -69,6 +69,10 @@ let get_string: secondary_content => string =
     | Whitespace(s) => s
     };
 
+/* Grapheme clusters. For layout use `columns`: a comment can contain wide
+   characters, which occupy two columns each. */
 let length = (s: t): int => Token.length(get_string(s.content));
+
+let columns = (s: t): int => Token.columns(get_string(s.content));
 
 let id = w => w.id;
