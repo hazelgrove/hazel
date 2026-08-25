@@ -274,10 +274,13 @@ module Update = {
         | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
         // Using the webworker:
         | Some(queue_worker) =>
+          /* the worker keeps its own incremental cache per key — do
+             NOT ship prev (it dominated the payload; see
+             WorkerServer.Request.prev_source) */
           queue_worker({
             expr: elab,
             eval_info_map,
-            prev: prev_incr,
+            prev: UseResident,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -286,7 +289,7 @@ module Update = {
             WorkerServer.evaluate_sync({
               expr: elab,
               eval_info_map,
-              prev: prev_incr,
+              prev: Seed(prev_incr),
             })
           ) {
           | Ok((exp, state)) =>

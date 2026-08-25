@@ -5,11 +5,24 @@ module Js = Js_of_ocaml.Js;
 type key = string;
 
 module Request = {
+  /* The incremental cache is WORKER-RESIDENT (keyed per batch key):
+     shipping the whole previous cache with every request was a
+     historical artifact of the ephemeral-worker era (PR #2222) — it
+     dominated the request payload and once overflowed structured
+     clone (#2368). `UseResident` tells the worker to use its own
+     cache for this key; a stale or missing resident cache is
+     CORRECTNESS-SAFE (reuse_check re-verifies every entry) and only
+     costs a colder eval. `Seed` is for callers that own their cache
+     (the sync main-thread path, tests). */
+  [@deriving (show, sexp, yojson)]
+  type prev_source =
+    | UseResident
+    | Seed(Language.EvaluatorState.incr_eval);
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    prev: Language.EvaluatorState.incr_eval,
+    prev: prev_source,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -220,11 +233,39 @@ let error_response = exn =>
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   };
 
+/* the worker's own per-key incremental caches (async path) */
+let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+  Hashtbl.create(4);
+
+let resolve_prev =
+    (~key: option(key)=?, prev: Request.prev_source)
+    : Language.EvaluatorState.incr_eval =>
+  switch (prev, key) {
+  | (Seed(p), _) => p
+  | (UseResident, Some(k)) =>
+    Option.value(
+      Hashtbl.find_opt(resident, k),
+      ~default=Language.IncrEval.empty,
+    )
+  | (UseResident, None) => Language.IncrEval.empty
+  };
+
+let store_resident = (key: key, response: Response.value): unit =>
+  switch (response) {
+  | Ok((_, state)) =>
+    Hashtbl.replace(
+      resident,
+      key,
+      Language.EvaluatorState.get_incr_eval(state),
+    )
+  | Error(_) => ()
+  };
+
 let evaluate_sync = (req_value: Request.value): Response.value => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.evaluate(
-      ~prev,
+      ~prev=resolve_prev(prev),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
@@ -287,7 +328,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let stream =
     switch (
       Language.ReusePass.reuse_pass(
-        ~prev,
+        ~prev=resolve_prev(~key, prev),
         ~eval_info=eval_info_map,
         ~env=Language.Builtins.env_init,
         expr,
@@ -299,11 +340,11 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   (key, stream);
 };
 
-let start_evaluation = (req_value: Request.value): evaluation_start => {
+let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev,
+      ~prev=resolve_prev(~key, prev),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
@@ -391,14 +432,15 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (start_evaluation(req_value)) {
+    switch (start_evaluation(~key, req_value)) {
     | CompletedImmediately(response) =>
+      store_resident(key, response);
       evaluate_next_batch_item(
         model,
         request_id,
         [(key, response), ...completed],
         remaining,
-      )
+      );
     | Yielding(evaluation) =>
       let model = {
         ...model,
@@ -423,13 +465,15 @@ and begin_latest_batch = model =>
   | Some({request_id, batch}) =>
     evaluate_next_batch_item(model, request_id, [], batch)
   }
-and finish_current_item = (model, running, response) =>
+and finish_current_item = (model, running, response) => {
+  store_resident(running.key, response);
   evaluate_next_batch_item(
     model,
     running.request_id,
     [(running.key, response), ...running.completed],
     running.remaining,
-  )
+  );
+}
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {
