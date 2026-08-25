@@ -232,3 +232,12 @@
   display: inline;
   opacity: 0.9;
 }
+
+/* error badge on outline rows whose definition carries type errors */
+#outline-sidebar .outline-err-badge {
+  margin-left: 5px;
+  font-size: 7px;
+  vertical-align: 1px;
+  color: var(--R1, #c33);
+  opacity: 0.85;
+}

@@ -460,6 +460,43 @@ module Focus = {
   /* the master slide with the live focus-cell content spliced back in
      (pure; used by unfocus AND by persistence while focused) */
   /* build a stack entry for the item [fid] (None if not found) */
+  /* the ctx INSIDE the def — params included, which matters for
+     funlets: the first info found among the def's pieces, falling
+     back to the item's own info */
+  let captured_ctx =
+      (~info_map: Language.Statics.Map.t, fid: Id.t, def_seg: Segment.t)
+      : option(Language.Ctx.t) => {
+    let info_of = id => Id.Map.find_opt(id, info_map);
+    let rec seg_info = (seg: Segment.t) =>
+      List.fold_left(
+        (acc, p: Piece.t) =>
+          switch (acc) {
+          | Some(_) => acc
+          | None =>
+            switch (info_of(Piece.id(p))) {
+            | Some(i) => Some(i)
+            | None =>
+              switch (p) {
+              | Tile(t) =>
+                List.fold_left(
+                  (acc, ch) => acc == None ? seg_info(ch) : acc,
+                  None,
+                  t.children,
+                )
+              | _ => None
+              }
+            }
+          },
+        None,
+        seg,
+      );
+    switch (seg_info(def_seg), info_of(fid)) {
+    | (Some(info), _)
+    | (None, Some(info)) => Some(Language.Info.ctx_of(info))
+    | (None, None) => None
+    };
+  };
+
   let mk_entry =
       (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
       : option(Model.stack_entry) =>
@@ -467,35 +504,10 @@ module Focus = {
     | None => None
     | Some(def_seg) =>
       let is_type = is_type_item(fid, master_seg);
-      let info_of = id => Id.Map.find_opt(id, info_map);
-      let rec seg_info = (seg: Segment.t) =>
-        List.fold_left(
-          (acc, p: Piece.t) =>
-            switch (acc) {
-            | Some(_) => acc
-            | None =>
-              switch (info_of(Piece.id(p))) {
-              | Some(i) => Some(i)
-              | None =>
-                switch (p) {
-                | Tile(t) =>
-                  List.fold_left(
-                    (acc, ch) => acc == None ? seg_info(ch) : acc,
-                    None,
-                    t.children,
-                  )
-                | _ => None
-                }
-              }
-            },
-          None,
-          seg,
-        );
       let e_ctx =
-        switch (seg_info(def_seg), info_of(fid)) {
-        | (Some(info), _)
-        | (None, Some(info)) => Language.Info.ctx_of(info)
-        | (None, None) =>
+        switch (captured_ctx(~info_map, fid, def_seg)) {
+        | Some(ctx) => ctx
+        | None =>
           Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
         };
       Some(
@@ -1776,6 +1788,72 @@ module Update = {
           ...cs,
           statics: false,
           dynamics: false,
+        };
+      /* TRACK B while a stack is open: on the debounced Force frame,
+         re-run compositional statics on the SPLICED program so
+         cross-cell effects propagate — a rename/retype in one cell
+         errors its dependents, and the outline badges update. Only
+         dirty items re-analyze; open cells whose item changed get
+         their frozen ctx recaptured (a fresh entry record), which
+         forces their own recalc below. */
+      let model =
+        switch (model.focus) {
+        | Some(f) when statics_mode == CodeWithStatics.StaticsForce =>
+          let prev_items =
+            switch (Haz3lcore.DefStatics.current()) {
+            | Some(p) => p.items
+            | None => []
+            };
+          let spliced = Focus.splice_all(f);
+          let term = Haz3lcore.MakeTerm.go(spliced).term;
+          let probe_ids =
+            Haz3lcore.CachedStatics.probe_ids_of_zipper(
+              editor.editor.editor.state.zipper,
+            );
+          let ds =
+            Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+          let fresh = it => !List.exists(p => p === it, prev_items);
+          let f_entries =
+            List.map(
+              (e: Model.stack_entry) =>
+                switch (
+                  /* the entry may be a MODULE MEMBER: its containing
+                     top-level item is the one whose map knows its id */
+                  List.find_opt(
+                    (it: Haz3lcore.DefStatics.item) =>
+                      it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
+                    ds.items,
+                  )
+                ) {
+                | Some(it) when fresh(it) =>
+                  switch (Focus.find_def(e.e_id, spliced)) {
+                  | Some(def_seg) =>
+                    switch (
+                      Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)
+                    ) {
+                    | Some(ctx) => {
+                        ...e,
+                        e_ctx: ctx,
+                      }
+                    | None => e
+                    }
+                  | None => e
+                  }
+                | _ => e
+                },
+              f.f_entries,
+            );
+          {
+            ...model,
+            focus:
+              Some(
+                Model.{
+                  ...f,
+                  f_entries,
+                },
+              ),
+          };
+        | _ => model
         };
       let calc_entry = (e: Model.stack_entry): Model.stack_entry => {
         let reuse =

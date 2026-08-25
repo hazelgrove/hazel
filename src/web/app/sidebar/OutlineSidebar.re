@@ -93,9 +93,15 @@ let rec node_view =
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
           ~focused_entries: list((Language.Id.t, option(string))),
+          ~error_items: list(Language.Id.t),
           n: OutlineTree.node,
         )
         : Node.t => {
+  let has_err =
+    switch (n.o_id) {
+    | Some(id) => List.mem(id, error_items)
+    | None => false
+    };
   let stacked =
     switch (n.o_id) {
     | Some(id) => List.mem_assoc(id, focused_entries)
@@ -143,6 +149,19 @@ let rec node_view =
         text(n.o_label),
       ]
       @ (
+        has_err
+          ? [
+            span(
+              ~attrs=[
+                clss(["outline-err-badge"]),
+                Attr.title("contains type errors"),
+              ],
+              [text({js|●|js})],
+            ),
+          ]
+          : []
+      )
+      @ (
         switch (n.o_id) {
         | Some(id) => [
             span(
@@ -175,7 +194,7 @@ let rec node_view =
         div(
           ~attrs=[clss(["outline-kids"])],
           List.map(
-            node_view(~jump, ~focus, ~toggle, ~focused_entries),
+            node_view(~jump, ~focus, ~toggle, ~focused_entries, ~error_items),
             kids,
           ),
         ),
@@ -191,6 +210,7 @@ let view =
       ~toggle: Language.Id.t => Effect.t(unit),
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
+      ~error_items: list(Language.Id.t),
       term: Language.Exp.t,
     )
     : Node.t => {
@@ -227,7 +247,13 @@ let view =
               ),
             ]
             : List.map(
-                node_view(~jump, ~focus, ~toggle, ~focused_entries),
+                node_view(
+                  ~jump,
+                  ~focus,
+                  ~toggle,
+                  ~focused_entries,
+                  ~error_items,
+                ),
                 roots,
               )
         ),

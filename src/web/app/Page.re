@@ -94,7 +94,31 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, [editor.editor])]
+      | Code({editor, _}) =>
+        /* open stack cells report their problems too (live, unlike the
+           master's frozen copy of the same definitions) */
+        let stack: list((option(string), list(CodeEditable.Model.t))) =
+          switch (m.focus) {
+          | None => []
+          | Some(f) =>
+            List.map(
+              (e: ScratchMode.Model.stack_entry) =>
+                (
+                  Some(
+                    Option.value(
+                      ScratchMode.Model.header_name(e),
+                      ~default="cell",
+                    ),
+                  ),
+                  [e.e_body.editor],
+                ),
+              f.f_entries,
+            )
+          };
+        let master: list((option(string), list(CodeEditable.Model.t))) = [
+          (None, [editor.editor]),
+        ];
+        master @ stack;
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -909,6 +933,7 @@ module View = {
            never replaces the stack (andrew: replacing was a footgun) */
         ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
         ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
+        ~error_items=Haz3lcore.DefStatics.error_item_ids(),
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
         ~focused_entries,
         /* the master stays in its scratchpad slot while the stack is

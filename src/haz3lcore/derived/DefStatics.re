@@ -471,6 +471,8 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   t;
 };
 
+let current = (): option(t) => slot^;
+
 /* item ids (outline id domain) currently carrying errors — the
    outline badge feed; reads the auto-cache slot */
 let error_item_ids = (): list(Id.t) =>
