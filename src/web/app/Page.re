@@ -860,52 +860,23 @@ module View = {
     let current_editor = Update.get_editor(model);
     /* module/definition outline (modular-editors phases 1-2) */
     let outline = {
-      let focused =
+      /* every stacked definition's id (+ live header name) */
+      let focused_entries =
         switch (model.editors) {
         | Scratch(m)
-        | Documentation(m) =>
-          Option.map((f: ScratchMode.Model.focus_t) => f.f_id, m.focus)
-        | _ => None
+        | Documentation(m) => ScratchMode.Model.focused_names(m)
+        | _ => []
         };
-      /* while focused, the visible statics is the focus cell's; the
-         outline must keep showing the MASTER program's tree */
-      let outline_term =
-        switch (model.editors, focused) {
-        | (Scratch(m), Some(_))
-        | (Documentation(m), Some(_)) =>
-          switch (m.focus) {
-          | Some(f) =>
-            switch (f.f_parked.kind) {
-            /* from the parked ZIPPER, not parked statics: a re-target
-               parks a freshly spliced master whose statics are empty
-               (memoized MakeTerm — the parked zipper never changes) */
-            | Code({editor, _}) =>
-              Some(
-                Haz3lcore.MakeTerm.from_zip_for_sem(
-                  editor.editor.editor.state.zipper,
-                  ~root=Exp,
-                ).
-                  term,
-              )
-            | _ => None
-            }
-          | None => None
-          }
-        | _ => None
-        };
-      let focused_label =
-        switch (model.editors) {
-        | Scratch(m)
-        | Documentation(m) => ScratchMode.Model.focused_header_name(m)
-        | _ => None
-        };
+
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~focus=id => inject(Editors(Scratch(FocusDef(id)))),
+        ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
-        ~focused,
-        ~focused_label,
-        Option.value(outline_term, ~default=current_editor.statics.term),
+        ~focused_entries,
+        /* the master stays in its scratchpad slot while the stack is
+           open (statics warm), so its term is always current */
+        current_editor.statics.term,
       );
     };
     let indicated_id =

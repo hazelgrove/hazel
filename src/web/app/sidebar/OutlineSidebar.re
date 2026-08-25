@@ -1,18 +1,33 @@
 open Virtual_dom.Vdom;
 open Node;
 
-/* OutlineSidebar — the collapsible module/definition outline
-   (plans/modular-editors.md §1). Phase 1: navigation (click = jump).
-   Phase 2: per-definition FOCUS (the ⊙ button swaps the editor to
-   just that definition; the banner splices it back). Expansion state
-   rides native <details>/<summary> — no model state. */
+/* OutlineSidebar — the collapsible module/definition outline.
+   Navigation: click = jump. Focus: the ⊙ button TOGGLES a definition
+   in the focus STACK (stacked header/body cells replace the master
+   editor); plain click while a stack is open replaces the stack with
+   that one definition. The banner splices everything home. */
 
 let clss = cs => Attr.classes(cs);
 
+let kind_glyph = (k: OutlineTree.kind): string =>
+  switch (k) {
+  | KModule => {js|⛁|js}
+  | KFn => {js|ƒ|js}
+  | KConst => {js|·|js}
+  | KType => {js|τ|js}
+  };
+
+let kind_cls = (k: OutlineTree.kind): string =>
+  switch (k) {
+  | KModule => "ol-module"
+  | KFn => "ol-fn"
+  | KConst => "ol-const"
+  | KType => "ol-type"
+  };
+
 /* drag-to-resize: pointerdown attaches DOCUMENT-level move/up
-   listeners (the pointer leaves the thin handle immediately when
-   dragging); width goes to a ROOT css variable (--outline-w), so it
-   survives re-renders and needs no model state */
+   listeners (pointer events — canceled pointerdown suppresses compat
+   mouseup); width rides a ROOT css variable */
 let resize_attrs: list(Attr.t) = {
   Js_of_ocaml.[
     Attr.on_pointerdown(_ => {
@@ -71,61 +86,50 @@ let resize_attrs: list(Attr.t) = {
   ];
 };
 
-let kind_glyph = (k: OutlineTree.kind): string =>
-  switch (k) {
-  | KModule => {js|⛁|js}
-  | KFn => {js|ƒ|js}
-  | KConst => {js|·|js}
-  | KType => {js|τ|js}
-  };
-
-let kind_cls = (k: OutlineTree.kind): string =>
-  switch (k) {
-  | KModule => "ol-module"
-  | KFn => "ol-fn"
-  | KConst => "ol-const"
-  | KType => "ol-type"
-  };
-
 let rec node_view =
         (
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
-          ~focused: option(Language.Id.t),
-          ~focused_label: option(string),
+          ~toggle: Language.Id.t => Effect.t(unit),
+          ~focused_entries: list((Language.Id.t, option(string))),
           n: OutlineTree.node,
         )
         : Node.t => {
-  let is_focused = n.o_id != None && n.o_id == focused;
-  /* the focused row's name tracks the header editor LIVE */
-  let n =
-    switch (is_focused, focused_label) {
-    | (true, Some(l)) =>
-      OutlineTree.{
-        ...n,
-        o_label: l,
-      }
-    | _ => n
+  let stacked =
+    switch (n.o_id) {
+    | Some(id) => List.mem_assoc(id, focused_entries)
+    | None => false
     };
-  let focusable = true;
+  let any_focus = focused_entries != [];
+  /* the focused row's name tracks its header editor LIVE */
+  let n =
+    switch (n.o_id) {
+    | Some(id) =>
+      switch (List.assoc_opt(id, focused_entries)) {
+      | Some(Some(live)) =>
+        OutlineTree.{
+          ...n,
+          o_label: live,
+        }
+      | _ => n
+      }
+    | None => n
+    };
   let label =
     div(
       ~attrs=
         [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
-            @ (is_focused ? ["outline-focused"] : []),
+            @ (stacked ? ["outline-focused"] : []),
           ),
         ]
         @ (
           switch (n.o_id) {
-          /* while focused, a plain click RETARGETS the focus: jumping
-             at master ids would raise (they don't exist in the cell) */
-          | Some(id) when focused != None && focusable => [
-              Attr.on_click(_ => focus(id)),
-            ]
-          | Some(id) when focused == None => [Attr.on_click(_ => jump(id))]
-          | Some(_)
+          /* while a stack is open, a plain click REPLACES the stack
+             (jumping at master ids would target the hidden editor) */
+          | Some(id) when any_focus => [Attr.on_click(_ => focus(id))]
+          | Some(id) => [Attr.on_click(_ => jump(id))]
           | None => []
           }
         ),
@@ -138,19 +142,22 @@ let rec node_view =
       ]
       @ (
         switch (n.o_id) {
-        | Some(id) when focusable => [
+        | Some(id) => [
             span(
               ~attrs=[
-                clss(["outline-focus-btn"]),
-                Attr.title("focus this definition"),
+                clss(
+                  ["outline-focus-btn"] @ (stacked ? ["outline-btn-on"] : []),
+                ),
+                Attr.title(
+                  stacked ? "close this cell" : "open in the editor stack",
+                ),
                 Attr.on_click(_ =>
-                  Effect.Many([Effect.Stop_propagation, focus(id)])
+                  Effect.Many([Effect.Stop_propagation, toggle(id)])
                 ),
               ],
-              [text({js|⊙|js})],
+              [text(stacked ? {js|⊖|js} : {js|⊙|js})],
             ),
           ]
-        | Some(_)
         | None => []
         }
       ),
@@ -165,7 +172,10 @@ let rec node_view =
         create("summary", ~attrs=[clss(["outline-summary"])], [label]),
         div(
           ~attrs=[clss(["outline-kids"])],
-          List.map(node_view(~jump, ~focus, ~focused, ~focused_label), kids),
+          List.map(
+            node_view(~jump, ~focus, ~toggle, ~focused_entries),
+            kids,
+          ),
         ),
       ],
     )
@@ -176,22 +186,22 @@ let view =
     (
       ~jump: Language.Id.t => Effect.t(unit),
       ~focus: Language.Id.t => Effect.t(unit),
+      ~toggle: Language.Id.t => Effect.t(unit),
       ~unfocus: Effect.t(unit),
-      ~focused: option(Language.Id.t),
-      ~focused_label: option(string)=None,
+      ~focused_entries: list((Language.Id.t, option(string))),
       term: Language.Exp.t,
     )
     : Node.t => {
   let roots = OutlineTree.of_term(term);
   let banner =
-    switch (focused) {
-    | Some(_) => [
+    switch (focused_entries) {
+    | [] => []
+    | [_, ..._] => [
         div(
           ~attrs=[clss(["outline-unfocus"]), Attr.on_click(_ => unfocus)],
-          [text({js|✕ unfocus — whole program|js})],
+          [text({js|✕ close all — whole program|js})],
         ),
       ]
-    | None => []
     };
   create(
     "details",
@@ -215,7 +225,7 @@ let view =
               ),
             ]
             : List.map(
-                node_view(~jump, ~focus, ~focused, ~focused_label),
+                node_view(~jump, ~focus, ~toggle, ~focused_entries),
                 roots,
               )
         ),

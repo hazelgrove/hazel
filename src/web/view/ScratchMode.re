@@ -129,27 +129,32 @@ module Scratchpad = {
 };
 
 module Model = {
-  /* Definition-focus mode (modular-editors phase 2): the current
-     slide's master cell is PARKED and a cell holding just one
-     definition takes its place, so every existing route (actions,
-     statics, view, cursor) targets the focus cell unchanged. Unfocus
-     splices the (possibly edited) definition back into the master.
+  /* Definition-focus mode, STACKED (modular-editors phases 2-3):
+     focusing definitions opens a STACK of (header, body) cell pairs
+     rendered INSTEAD of the master cell — the master itself stays in
+     its scratchpad slot untouched (statics warm, zipper immutable
+     while the stack is open). Closing splices every entry's header
+     into its pattern slot and body into its definition slot.
      Transient — never persisted; persistence reads through
-     effective_scratchpad. */
+     effective_current, which splices live. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type stack_entry = {
+    e_id: Haz3lcore.Id.t, /* the item tile's id in the master */
+    /* header: pattern+signature, PAT- (or TPAT-)rooted, statics OFF
+       (the name is a binder) */
+    e_header: CellEditor.Model.t,
+    /* body: the definition RHS, EXP- (or TYP-)rooted */
+    e_body: CellEditor.Model.t,
+    e_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus_t = {
-    f_id: Haz3lcore.Id.t, /* focused definition's piece id in the master */
-    f_parked: Scratchpad.t, /* the master slide, held aside */
-    f_ctx: Language.Ctx.t, /* frozen outer ctx at the definition */
-    /* the parked master's zipped segment, cached at focus time: the
-       parked zipper never changes while focused, and persistence
-       splices EVERY autosave tick — don't re-zip each second */
+    f_entries: list(stack_entry),
+    /* the master's zipped segment, cached when the stack opens (and
+       updated when an entry closes): persistence splices every
+       autosave tick — don't re-zip each second */
     f_master_seg: Haz3lcore.Segment.t,
-    /* the HEADER editor: the definition's pattern+signature (`size :
-       Point -> Int`), a Pat-ROOTED cell above the body (plan §2).
-       Statics stay OFF in it (the name is a BINDER — exp statics
-       would mark it unbound). */
-    f_header: CellEditor.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -159,26 +164,25 @@ module Model = {
     focus: option(focus_t),
   };
 
-  /* the focused definition's LIVE name, read from the header cell's
-     text each render — so outline labels track header renames before
-     any splice-back */
-  let focused_header_name = (model: t): option(string) =>
-    Option.bind(
-      model.focus,
-      (f: focus_t) => {
-        let txt =
-          Haz3lcore.MarkerParse.to_text(
-            f.f_header.editor.editor.state.zipper,
-          );
-        let name =
-          switch (String.index_opt(txt, ':')) {
-          | Some(i) => String.sub(txt, 0, i)
-          | None => txt
-          };
-        let name = String.trim(name);
-        name == "" ? None : Some(name);
-      },
-    );
+  let header_name = (e: stack_entry): option(string) => {
+    let txt =
+      Haz3lcore.MarkerParse.to_text(e.e_header.editor.editor.state.zipper);
+    let name =
+      switch (String.index_opt(txt, ':')) {
+      | Some(i) => String.sub(txt, 0, i)
+      | None => txt
+      };
+    let name = String.trim(name);
+    name == "" ? None : Some(name);
+  };
+
+  /* (id, live name) for every stack entry — outline labels track
+     header renames before any splice-back */
+  let focused_names = (model: t): list((Haz3lcore.Id.t, option(string))) =>
+    switch (model.focus) {
+    | None => []
+    | Some(f) => List.map(e => (e.e_id, header_name(e)), f.f_entries)
+    };
 
   /* The monolithic export/import format (per-slide keys are the live
      storage; see Persist below). */
@@ -384,22 +388,84 @@ module Focus = {
 
   /* the master slide with the live focus-cell content spliced back in
      (pure; used by unfocus AND by persistence while focused) */
-  let spliced_master =
-      (focus: Model.focus_t, current: Scratchpad.t): Scratchpad.t =>
-    switch (focus.f_parked.kind, current.kind) {
-    | (Code(_), Code({editor: focus_cell, agent})) =>
-      let new_seg =
-        splice_def(focus.f_id, zip_of_cell(focus_cell), focus.f_master_seg)
-        |> splice_pat(focus.f_id, zip_of_cell(focus.f_header));
-      {
-        ...focus.f_parked,
+  /* build a stack entry for the item [fid] (None if not found) */
+  let mk_entry =
+      (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+      : option(Model.stack_entry) =>
+    switch (find_def(fid, master_seg)) {
+    | None => None
+    | Some(def_seg) =>
+      let is_type = is_type_item(fid, master_seg);
+      let info_of = id => Id.Map.find_opt(id, info_map);
+      let rec seg_info = (seg: Segment.t) =>
+        List.fold_left(
+          (acc, p: Piece.t) =>
+            switch (acc) {
+            | Some(_) => acc
+            | None =>
+              switch (info_of(Piece.id(p))) {
+              | Some(i) => Some(i)
+              | None =>
+                switch (p) {
+                | Tile(t) =>
+                  List.fold_left(
+                    (acc, ch) => acc == None ? seg_info(ch) : acc,
+                    None,
+                    t.children,
+                  )
+                | _ => None
+                }
+              }
+            },
+          None,
+          seg,
+        );
+      let e_ctx =
+        switch (seg_info(def_seg), info_of(fid)) {
+        | (Some(info), _)
+        | (None, Some(info)) => Language.Info.ctx_of(info)
+        | (None, None) =>
+          Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+        };
+      Some(
+        Model.{
+          e_id: fid,
+          e_header:
+            (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
+              Option.value(find_pat(fid, master_seg), ~default=[]),
+            ),
+          e_body: (is_type ? typ_cell_of_seg : cell_of_seg)(def_seg),
+          e_ctx,
+        },
+      );
+    };
+
+  /* splice ONE entry's header+body home into [seg] */
+  let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
+    splice_def(e.e_id, zip_of_cell(e.e_body), seg)
+    |> splice_pat(e.e_id, zip_of_cell(e.e_header));
+
+  /* the master segment with every live entry spliced home */
+  let splice_all = (focus: Model.focus_t): Segment.t =>
+    List.fold_left(
+      (seg, e) => splice_entry(e, seg),
+      focus.f_master_seg,
+      focus.f_entries,
+    );
+
+  /* the master scratchpad with live stack edits spliced in (pure;
+     used by unfocus AND by persistence while the stack is open) */
+  let spliced_master = (focus: Model.focus_t, sp: Scratchpad.t): Scratchpad.t =>
+    switch (sp.kind) {
+    | Code({agent, _}) => {
+        ...sp,
         kind:
           Code({
-            editor: cell_of_seg(new_seg),
+            editor: cell_of_seg(splice_all(focus)),
             agent,
           }),
-      };
-    | _ => focus.f_parked
+      }
+    | _ => sp
     };
 };
 
@@ -808,8 +874,10 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
-    | HeaderAction(CellEditor.Update.t)
-    | FocusDef(Haz3lcore.Id.t)
+    | StackHeader(int, CellEditor.Update.t)
+    | StackBody(int, CellEditor.Update.t)
+    | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
+    | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | UnfocusDef
     | RefreshStatics
     | AgentAction(Agent.Update.Action.t)
@@ -1008,102 +1076,130 @@ module Update = {
       | Drv(_) => model |> return_quiet
       };
     | FocusDef(fid) =>
-      /* if already focused, splice the current focus back first; the
-         fresh master cell has EMPTY statics, so remember the old parked
-         master's info_map for the ctx capture below */
-      let stale_info_map =
-        switch (model.focus) {
-        | Some(f) =>
-          switch (f.f_parked.kind) {
-          | Code({editor, _}) => Some(editor.editor.statics.info_map)
-          | _ => None
-          }
-        | None => None
-        };
-      let model =
-        switch (model.focus) {
-        | Some(f) => {
-            ...model,
-            scratchpads:
-              ListUtil.put_nth(
-                model.current,
-                Focus.spliced_master(
-                  f,
-                  List.nth(model.scratchpads, model.current),
-                ),
-                model.scratchpads,
-              ),
-            focus: None,
-          }
-        | None => model
-        };
+      /* replace the whole stack with this one definition */
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
-      | Code({editor, agent}) =>
-        let master_seg = Focus.zip_of_cell(editor);
-        switch (Focus.find_def(fid, master_seg)) {
-        | None => model |> Updated.return_quiet
-        | Some(def_seg) =>
-          /* freeze the ctx the DEFINITION BODY actually sees: the def
-             term's own info (includes the self-binding for recursive
-             lets); fall back to the ctx at the let, then builtins */
-          let info_map = {
-            let m = editor.editor.statics.info_map;
-            switch (Haz3lcore.Id.Map.is_empty(m), stale_info_map) {
-            | (true, Some(old)) => old /* retarget: fresh master unstaticked */
-            | _ => m
-            };
+      | Code({editor, _}) =>
+        let master_seg =
+          switch (model.focus) {
+          /* stack already open: splice its entries home first */
+          | Some(f) => Focus.splice_all(f)
+          | None => Focus.zip_of_cell(editor)
           };
-          let info_of = id => Haz3lcore.Id.Map.find_opt(id, info_map);
-          let def_info =
-            List.fold_left(
-              (acc, p: Haz3lcore.Piece.t) =>
-                acc == None ? info_of(Haz3lcore.Piece.id(p)) : acc,
-              None,
-              def_seg,
-            );
-          let f_ctx =
-            switch (def_info, info_of(fid)) {
-            | (Some(info), _)
-            | (None, Some(info)) => Language.Info.ctx_of(info)
-            | (None, None) =>
-              Language.Builtins.ctx_init(
-                Some(Language.Operators.default_mode),
-              )
-            };
-          let is_type = Focus.is_type_item(fid, master_seg);
-          let focus_cell =
-            (is_type ? Focus.typ_cell_of_seg : Focus.cell_of_seg)(def_seg);
-          let header_cell =
-            (is_type ? Focus.tpat_cell_of_seg : Focus.pat_cell_of_seg)(
-              Option.value(Focus.find_pat(fid, master_seg), ~default=[]),
-            );
-          Model.{
-            current: model.current,
-            scratchpads:
-              ListUtil.put_nth(
-                model.current,
-                Scratchpad.{
-                  ...scratchpad,
-                  kind:
-                    Code({
-                      editor: focus_cell,
-                      agent,
-                    }),
-                },
-                model.scratchpads,
-              ),
+        let info_map = editor.editor.statics.info_map;
+        switch (Focus.mk_entry(~info_map, fid, master_seg)) {
+        | None => model |> Updated.return_quiet
+        | Some(entry) =>
+          {
+            ...model,
             focus:
-              Some({
-                f_id: fid,
-                f_parked: scratchpad,
-                f_ctx,
-                f_master_seg: master_seg,
-                f_header: header_cell,
-              }),
+              Some(
+                Model.{
+                  f_entries: [entry],
+                  f_master_seg: master_seg,
+                },
+              ),
           }
-          |> Updated.return;
+          |> Updated.return
         };
+      | Drv(_) => model |> Updated.return_quiet
+      };
+    | FocusToggle(fid) =>
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Code({editor, _}) =>
+        switch (model.focus) {
+        | None =>
+          /* no stack yet: same as single focus */
+          let master_seg = Focus.zip_of_cell(editor);
+          let info_map = editor.editor.statics.info_map;
+          switch (Focus.mk_entry(~info_map, fid, master_seg)) {
+          | None => model |> Updated.return_quiet
+          | Some(entry) =>
+            {
+              ...model,
+              focus:
+                Some(
+                  Model.{
+                    f_entries: [entry],
+                    f_master_seg: master_seg,
+                  },
+                ),
+            }
+            |> Updated.return
+          };
+        | Some(f) =>
+          if (List.exists(
+                (e: Model.stack_entry) => e.e_id == fid,
+                f.f_entries,
+              )) {
+            /* remove: splice that entry home; empty stack = unfocus */
+            let closing =
+              List.find(
+                (e: Model.stack_entry) => e.e_id == fid,
+                f.f_entries,
+              );
+            let master_seg = Focus.splice_entry(closing, f.f_master_seg);
+            let rest =
+              List.filter(
+                (e: Model.stack_entry) => e.e_id != fid,
+                f.f_entries,
+              );
+            switch (rest) {
+            | [] =>
+              let restored =
+                Focus.spliced_master(
+                  Model.{
+                    f_entries: [],
+                    f_master_seg: master_seg,
+                  },
+                  scratchpad,
+                );
+              {
+                ...model,
+                scratchpads:
+                  ListUtil.put_nth(
+                    model.current,
+                    restored,
+                    model.scratchpads,
+                  ),
+                focus: None,
+              }
+              |> Updated.return;
+            | _ =>
+              {
+                ...model,
+                focus:
+                  Some(
+                    Model.{
+                      f_entries: rest,
+                      f_master_seg: master_seg,
+                    },
+                  ),
+              }
+              |> Updated.return
+            };
+          } else {
+            /* add to the stack (in outline/program order not enforced;
+               append) */
+            let info_map = editor.editor.statics.info_map;
+            switch (Focus.mk_entry(~info_map, fid, f.f_master_seg)) {
+            | None => model |> Updated.return_quiet
+            | Some(entry) =>
+              {
+                ...model,
+                focus:
+                  Some(
+                    Model.{
+                      ...f,
+                      f_entries: f.f_entries @ [entry],
+                    },
+                  ),
+              }
+              |> Updated.return
+            };
+          }
+        }
       | Drv(_) => model |> Updated.return_quiet
       };
     | UnfocusDef =>
@@ -1115,27 +1211,71 @@ module Update = {
             f,
             List.nth(model.scratchpads, model.current),
           );
-        Model.{
-          current: model.current,
+        {
+          ...model,
           scratchpads:
             ListUtil.put_nth(model.current, restored, model.scratchpads),
           focus: None,
         }
         |> Updated.return;
       }
-    | HeaderAction(a) =>
+    | StackHeader(i, a) =>
       switch (model.focus) {
       | None => model |> Updated.return_quiet
       | Some(f) =>
-        let* new_header = CellEditor.Update.update(~settings, a, f.f_header);
-        {
-          ...model,
-          focus:
-            Some({
-              ...f,
-              f_header: new_header,
-            }),
-        };
+        switch (List.nth_opt(f.f_entries, i)) {
+        | None => model |> Updated.return_quiet
+        | Some(entry) =>
+          let* new_header =
+            CellEditor.Update.update(~settings, a, entry.e_header);
+          {
+            ...model,
+            focus:
+              Some(
+                Model.{
+                  ...f,
+                  f_entries:
+                    ListUtil.put_nth(
+                      i,
+                      {
+                        ...entry,
+                        e_header: new_header,
+                      },
+                      f.f_entries,
+                    ),
+                },
+              ),
+          };
+        }
+      }
+    | StackBody(i, a) =>
+      switch (model.focus) {
+      | None => model |> Updated.return_quiet
+      | Some(f) =>
+        switch (List.nth_opt(f.f_entries, i)) {
+        | None => model |> Updated.return_quiet
+        | Some(entry) =>
+          let* new_body =
+            CellEditor.Update.update(~settings, a, entry.e_body);
+          {
+            ...model,
+            focus:
+              Some(
+                Model.{
+                  ...f,
+                  f_entries:
+                    ListUtil.put_nth(
+                      i,
+                      {
+                        ...entry,
+                        e_body: new_body,
+                      },
+                      f.f_entries,
+                    ),
+                },
+              ),
+          };
+        }
       }
     | CellAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
@@ -1409,45 +1549,51 @@ module Update = {
             worker_request := worker_request^ @ [("", req_value)]
           },
         );
-      let ctx = Option.map((f: Model.focus_t) => f.f_ctx, model.focus);
-      /* a TYPE-focused body cell is Typ-rooted: exp statics/dynamics
-         don't apply (same policy as the header) */
-      let body_is_exp = editor.editor.editor.root == Haz3lcore.Sort.Exp;
-      let settings =
-        body_is_exp
-          ? settings
-          : Language.CoreSettings.{
-              ...settings,
-              statics: false,
-              dynamics: false,
-            };
-      /* the header cell: molding/measuring only — statics would run
-         EXP checks on a pattern; dynamics has nothing to run */
-      let focus =
-        Option.map(
-          (f: Model.focus_t) =>
-            Model.{
-              ...f,
-              f_header:
-                CellEditor.Update.calculate(
-                  ~settings=
-                    Language.CoreSettings.{
-                      ...settings,
-                      statics: false,
-                      dynamics: false,
-                    },
-                  ~is_edited,
-                  ~statics_mode,
-                  ~queue_worker=None,
-                  ~stitch=x => x,
-                  f.f_header,
-                ),
-            },
-          model.focus,
-        );
+      /* calculate every stack cell: bodies with their frozen ctx
+         (statics off entirely for non-Exp roots, i.e. type bodies);
+         headers molding-only */
+      let statics_off = (cs: Language.CoreSettings.t) =>
+        Language.CoreSettings.{
+          ...cs,
+          statics: false,
+          dynamics: false,
+        };
+      let calc_entry = (e: Model.stack_entry): Model.stack_entry => {
+        let body_is_exp = e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
+        Model.{
+          ...e,
+          e_header:
+            CellEditor.Update.calculate(
+              ~settings=statics_off(settings),
+              ~is_edited,
+              ~statics_mode,
+              ~queue_worker=None,
+              ~stitch=x => x,
+              e.e_header,
+            ),
+          e_body:
+            CellEditor.Update.calculate(
+              ~settings=body_is_exp ? settings : statics_off(settings),
+              ~is_edited,
+              ~statics_mode,
+              ~ctx=e.e_ctx,
+              ~queue_worker=None,
+              ~stitch=x => x,
+              e.e_body,
+            ),
+        };
+      };
       let model = {
         ...model,
-        focus,
+        focus:
+          Option.map(
+            (f: Model.focus_t) =>
+              Model.{
+                ...f,
+                f_entries: List.map(calc_entry, f.f_entries),
+              },
+            model.focus,
+          ),
       };
       let new_ed =
         CellEditor.Update.calculate(
@@ -1455,7 +1601,6 @@ module Update = {
           ~autoprobe_mode,
           ~is_edited,
           ~statics_mode,
-          ~ctx?,
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -1519,7 +1664,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
-    | HeaderCell(CellEditor.Selection.t)
+    | StackH(int, CellEditor.Selection.t)
+    | StackB(int, CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -1537,16 +1683,36 @@ module Selection = {
             editor,
           );
         Update.CellAction(a);
-      | (HeaderCell(selection), Code(_)) =>
-        switch (model.focus) {
-        | Some(f) =>
+      | (StackH(i, selection), Code(_)) =>
+        switch (
+          Option.bind(model.focus, (f: Model.focus_t) =>
+            List.nth_opt(f.f_entries, i)
+          )
+        ) {
+        | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(HeaderAction(a)),
+              ~inject=a => inject(StackHeader(i, a)),
               ~selection,
-              f.f_header,
+              entry.e_header,
             );
-          Update.HeaderAction(a);
+          Update.StackHeader(i, a);
+        | None => empty
+        }
+      | (StackB(i, selection), Code(_)) =>
+        switch (
+          Option.bind(model.focus, (f: Model.focus_t) =>
+            List.nth_opt(f.f_entries, i)
+          )
+        ) {
+        | Some(entry) =>
+          let+ a =
+            CellEditor.Selection.get_cursor_info(
+              ~inject=a => inject(StackBody(i, a)),
+              ~selection,
+              entry.e_body,
+            );
+          Update.StackBody(i, a);
         | None => empty
         }
       | (Drv(selection), Drv(m)) =>
@@ -1558,7 +1724,8 @@ module Selection = {
           );
         Update.DrvAction(a);
       | (Cell(_), Drv(_))
-      | (HeaderCell(_), Drv(_))
+      | (StackH(_), Drv(_))
+      | (StackB(_), Drv(_))
       | (Drv(_), Code(_))
       | (TextBox, _) => empty
       };
@@ -1642,58 +1809,88 @@ module View = {
     let current = List.nth(model.scratchpads, model.current);
     switch (current.kind) {
     | Code({editor, _}) =>
-      /* focused: the HEADER band (pat-rooted `name : type` editor)
-         sits above the body cell (plan §2 interleaved design) */
-      let header =
-        switch (model.focus) {
-        | Some(f) => [
-            Virtual_dom.Vdom.Node.div(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
+      /* the STACK: [header band, body cell] per entry, thin rules
+         between; rendered INSTEAD of the master cell */
+      let stack_views = (f: Model.focus_t) =>
+        List.concat(
+          List.mapi(
+            (i, e: Model.stack_entry) =>
               [
-                CellEditor.View.view(
-                  ~globals,
-                  ~signal=
-                    fun
-                    | MakeActive(sel) =>
-                      signal(MakeActive(HeaderCell(sel))),
-                  ~inject=a => inject(HeaderAction(a)),
-                  ~selected=
-                    switch (selected) {
-                    | Some(Selection.HeaderCell(s)) => Some(s)
-                    | _ => None
-                    },
-                  ~result_kind=`NoResults,
-                  ~locked=false,
-                  ~lines=false,
-                  f.f_header,
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
+                  [
+                    CellEditor.View.view(
+                      ~globals,
+                      ~signal=
+                        fun
+                        | MakeActive(sel) =>
+                          signal(MakeActive(StackH(i, sel))),
+                      ~inject=a => inject(StackHeader(i, a)),
+                      ~selected=
+                        switch (selected) {
+                        | Some(Selection.StackH(j, sel)) when j == i =>
+                          Some(sel)
+                        | _ => None
+                        },
+                      ~result_kind=`NoResults,
+                      ~locked=false,
+                      ~lines=false,
+                      e.e_header,
+                    ),
+                  ],
+                ),
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
+                  [
+                    CellEditor.View.view(
+                      ~globals,
+                      ~signal=
+                        fun
+                        | MakeActive(sel) =>
+                          signal(MakeActive(StackB(i, sel))),
+                      ~inject=a => inject(StackBody(i, a)),
+                      ~selected=
+                        switch (selected) {
+                        | Some(Selection.StackB(j, sel)) when j == i =>
+                          Some(sel)
+                        | _ => None
+                        },
+                      ~result_kind=`NoResults,
+                      ~locked=false,
+                      ~lines=true,
+                      e.e_body,
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ]
-        | None => []
-        };
-      (SlideContent.get_content(current.name) |> Option.to_list)
-      @ header
-      @ [
-        CellEditor.View.view(
-          ~globals,
-          ~signal=
-            fun
-            | MakeActive(selection) => signal(MakeActive(Cell(selection))),
-          ~inject=a => inject(CellAction(a)),
-          ~selected=
-            switch (selected) {
-            | Some(Selection.Cell(s)) => Some(s)
-            | _ => None
-            },
-          /* focused single-definition cells show no result strip: the
-             pane describes the WHOLE program's run, which is parked */
-          ~result_kind=?model.focus == None ? None : Some(`NoResults),
-          ~locked=false,
-          ~lines=true,
-          editor,
-        ),
-      ];
+            f.f_entries,
+          ),
+        );
+      switch (model.focus) {
+      | Some(f) =>
+        (SlideContent.get_content(current.name) |> Option.to_list)
+        @ stack_views(f)
+      | None =>
+        (SlideContent.get_content(current.name) |> Option.to_list)
+        @ [
+          CellEditor.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive(selection) =>
+                signal(MakeActive(Cell(selection))),
+            ~inject=a => inject(CellAction(a)),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.Cell(s)) => Some(s)
+              | _ => None
+              },
+            ~locked=false,
+            ~lines=true,
+            editor,
+          ),
+        ]
+      };
     | Drv(m) =>
       DerivationExerciseMode.View.view(
         ~globals,

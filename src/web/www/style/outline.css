@@ -178,3 +178,13 @@
 #main .focus-header .cell-item {
   padding: 0 16px;
 }
+
+/* stacked body cells: thin rule between entries */
+#main .focus-body {
+  border-bottom: 0.6px solid var(--BR2, #b5a377);
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-on {
+  display: inline;
+  opacity: 0.9;
+}
