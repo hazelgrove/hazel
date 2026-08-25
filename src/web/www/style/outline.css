@@ -1,25 +1,26 @@
-/* Outline sidebar (modular-editors phase 1): a details panel docked
-   left; native details/summary expansion, thin minimal chrome. */
+/* Outline sidebar (modular-editors phase 1): a REAL grid panel in
+   column 1, spanning the focus-bar + main rows — it takes space from
+   the editor rather than hovering over it. Collapsed, it is just its
+   thin vertical tab (fit-content column). */
 
 #outline-sidebar {
-  position: fixed;
-  left: 0;
-  top: 48px;
-  bottom: 28px;
-  z-index: 20;
+  grid-row: 2 / span 2;
+  grid-column: 1 / span 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   font-family: var(--code-font, monospace);
   font-size: 12px;
   color: var(--BR3, #6a5a3a);
-  max-width: 260px;
+  background: var(--ui-bkg, #f6efdc);
+  border-right: 0.6px solid var(--BR2, #b5a377);
 }
 
 #outline-sidebar > summary.outline-title {
   cursor: pointer;
   user-select: none;
   writing-mode: vertical-rl;
-  padding: 8px 3px;
-  background: var(--BR1, #d8c9a3);
-  border-radius: 0 6px 6px 0;
+  padding: 10px 4px;
   opacity: 0.75;
   list-style: none;
 }
@@ -30,18 +31,18 @@
 
 #outline-sidebar[open] > summary.outline-title {
   writing-mode: horizontal-tb;
-  border-radius: 0;
   opacity: 1;
   padding: 4px 10px;
+  border-bottom: 0.6px solid var(--BR2, #b5a377);
 }
 
 #outline-sidebar .outline-body {
-  background: color-mix(in srgb, var(--BR1, #d8c9a3) 22%, white);
-  border-right: 0.6px solid var(--BR2, #b5a377);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  max-height: calc(100vh - 110px);
   padding: 6px 8px 12px 8px;
-  min-width: 180px;
+  min-width: 190px;
+  max-width: 280px;
 }
 
 #outline-sidebar .outline-label {
@@ -79,7 +80,7 @@
 }
 
 #outline-sidebar summary.outline-summary::before {
-  content: "▸";
+  content: "\25b8";
   display: inline-block;
   width: 10px;
   font-size: 9px;
@@ -87,7 +88,7 @@
 }
 
 #outline-sidebar details[open] > summary.outline-summary::before {
-  content: "▾";
+  content: "\25be";
 }
 
 #outline-sidebar .ol-module {
