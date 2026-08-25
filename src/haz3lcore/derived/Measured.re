@@ -345,7 +345,7 @@ let of_segment_inner =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
         ([], new_indent, size, map);
       | None =>
-        let size = Point.mk(~row=0, ~col=Secondary.length(w));
+        let size = Point.mk(~row=0, ~col=Secondary.columns(w));
         ([Piece.Secondary(w), ...seg], prev_indent, size, map);
       };
     let (measure, map) = calc(prev_indent, origin, map, size);
