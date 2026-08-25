@@ -705,6 +705,9 @@ and Proof: {
     | Invalid(_)
     | MultiHole(_) => EmptyHoleProof
     | Seq(p1, p2) => ProofSeq(of_core(p1), of_core(p2))
+    /* Grouping only; the menhir AST is unparenthesized, exactly as for
+       the Exp/Pat/Typ `Parens` arms above. */
+    | Parens(p) => of_core(p)
     | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
     | Funext(p, body) => ProofFunext(Pat.of_core(p), of_core(body))
     | Assume(e, None, body) => ProofAssume(Exp.of_core(e), of_core(body))

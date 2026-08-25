@@ -4620,6 +4620,13 @@ and proof_to_info_map =
       any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p2), m);
     let elab = rewrap(Seq(proof_of_any(p1_elab), proof_of_any(p2_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  /* Grouping only: recurse with the same ctx and re-wrap, exactly as the
+     Exp `Parens` arm does. */
+  | Parens(p) =>
+    let (_, p_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p), m);
+    let elab = rewrap(Parens(proof_of_any(p_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     /* Check the index against Int and the at-expression by synthesis. */
     let (_, at_idx_elab, m) =

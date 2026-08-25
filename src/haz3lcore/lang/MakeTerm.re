@@ -1875,6 +1875,17 @@ and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
       | ([t], []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
+      /* Grouping parens, mirroring the Exp/Pat arms: a Proof child is
+         taken as-is, and an incomplete or cross-sort child becomes a
+         proof HOLE inside the parens rather than dropping the tile. */
+      | (["(", ")"], [Proof(body)]) => ret(Parens(body))
+      | (["(", ")"], [kid]) =>
+        ret(
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Proof.hole([kid]),
+          }),
+        )
       | (
           ["axiom", "at", "on", "end"],
           [Exp(equality), Exp(at_idx), Exp(at_exp)],

@@ -104,6 +104,7 @@ let rewrite_proof =
           | Contradiction(_)
           | EvalStep(_) => p.term
           | Seq(p1, p2) => Seq(walk(p1), walk(p2))
+          | Parens(inner) => Parens(walk(inner))
           | Induction(e, as_name, cases) =>
             Induction(
               e,
@@ -158,12 +159,13 @@ let rec find_seq_parent =
       | None => find_seq_parent(~target_id, p2)
       };
     }
-  | Forall(_, body)
-  | Funext(_, body)
-  | Assume(_, _, body)
-  | Generalize(_, body)
-  | Alias(_, _, body)
-  | Revert(_, _, body) => find_seq_parent(~target_id, body)
+  | Parens(inner)
+  | Forall(_, inner)
+  | Funext(_, inner)
+  | Assume(_, _, inner)
+  | Generalize(_, inner)
+  | Alias(_, _, inner)
+  | Revert(_, _, inner) => find_seq_parent(~target_id, inner)
   | Have(_, sub, body) =>
     switch (find_seq_parent(~target_id, sub)) {
     | Some(_) as r => r

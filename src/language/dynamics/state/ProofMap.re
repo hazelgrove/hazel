@@ -111,6 +111,7 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | AlgebriteStep(_)
     | EvalStep(_) => true
     | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
+    | Parens(p) => proof_is_clean(pm, p)
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)
@@ -172,6 +173,7 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | EvalStep(_) => []
     | Seq(p1, p2) =>
       obligations_of_proof(pm, p1) @ obligations_of_proof(pm, p2)
+    | Parens(p) => obligations_of_proof(pm, p)
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)
@@ -200,6 +202,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | AlgebriteStep(_)
     | EvalStep(_) => []
     | Seq(p1, p2) => rep_ids_of_proof(p1) @ rep_ids_of_proof(p2)
+    | Parens(p) => rep_ids_of_proof(p)
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)

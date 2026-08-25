@@ -289,7 +289,8 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | Assume(_, _, b)
   | Alias(_, _, b)
   | Generalize(_, b)
-  | Revert(_, _, b) => find_have(b)
+  | Revert(_, _, b)
+  | Parens(b) => find_have(b)
   | Induction(_, _, cases) =>
     List.fold_left(
       (acc, (_, b)) =>

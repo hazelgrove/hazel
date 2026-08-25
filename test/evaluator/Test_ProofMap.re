@@ -271,6 +271,7 @@ let rec find_marked_sub =
       | Some(_) as s => s
       | None => find_marked_sub(pm, p2)
       }
+    | Parens(body)
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)

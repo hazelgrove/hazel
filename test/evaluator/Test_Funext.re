@@ -523,9 +523,113 @@ let test_body_goal_ids_disjoint_from_outer = () => {
   );
 };
 
+/* --- Grouping parens around a proof ----------------------------------- */
+
+/* `( funext x => ... )` is a ParensProof tile: a Proof-sorted paren whose
+ * child is the wrapping form. Before ParensProof existed, `(` in a proof
+ * slot remolded as an Exp paren and the `funext` inside it was a sort
+ * mismatch, so this parsed as a MultiHole. */
+let test_parens_parse_shape = () => {
+  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof ( funext x => ) in t|};
+  let proof = Test_ProofMap.find_theorem_proof(parse_exp(src));
+  switch (proof) {
+  | Some({term: Parens({term: Funext(_, {term: EmptyHole, _}), _}), _}) =>
+    ()
+  | Some(p) =>
+    Alcotest.fail(
+      "expected Parens(Funext(_, EmptyHole)), got " ++ Proof.show(p),
+    )
+  | None => Alcotest.fail("no theorem found")
+  };
+};
+
+/* The program that motivated ParensProof (Matt, 2026-08-25). Checked as
+ * a PARSE test only: whether `sum == fold_left(_, sum, 0)` type-checks is
+ * a separate question from whether `( funext xs =>)` groups. */
+let test_parens_motivating_program = () => {
+  let src = {|let plus = fun (x,y) -> x + y in
+let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+
+theorem t =
+    sum == fold_left(_, sum, 0)
+proof
+    ( funext xs =>)
+in
+|};
+  switch (Test_ProofMap.find_theorem_proof(parse_exp(src))) {
+  | Some({term: Parens({term: Funext(_, _), _}), _}) => ()
+  | Some(p) =>
+    Alcotest.fail(
+      "expected the proof to be Parens(Funext(...)), got " ++ Proof.show(p),
+    )
+  | None => Alcotest.fail("no theorem found")
+  };
+};
+
+/* The checker sees straight through the parens: a parenthesized proof
+ * that would prove the theorem still proves it. */
+let test_parens_transparent_to_checker = () =>
+  check_status(
+    "a parenthesized funext proof still proves",
+    ProofMap.Proven,
+    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ( funext x => rewrite x + 1 with 1 + x at 0 end; axiom refl_eq at 0 on 1 + x == 1 + x end ) in t|},
+  );
+
+/* The stepper sees through them too: `split_proof` must unwrap the parens
+ * BEFORE looking for a `;` chain, so the head is still the Funext and the
+ * promoted row is a FunextStep — the parens must not eat the wrapping
+ * form. */
+let test_parens_transparent_to_stepper = () => {
+  let inner =
+    Proof.fresh(Funext(Pat.fresh(Var("x")), Proof.fresh(EmptyHole)));
+  let (head, tail) =
+    Web.StepperBase.Stepper.split_proof(Proof.fresh(Parens(inner)));
+  Alcotest.check(
+    Alcotest.bool,
+    "a parenthesized leaf step has no tail",
+    true,
+    tail == None,
+  );
+  switch (head.term) {
+  | Funext(_, _) => ()
+  | _ => Alcotest.fail("split_proof did not unwrap the parens to the funext")
+  };
+  switch (Web.StepperBase.Stepper.kind_of_proof(Proof.fresh(Parens(inner)))) {
+  | Some(FunextStep(_)) => ()
+  | _ =>
+    Alcotest.fail(
+      "kind_of_proof on a parenthesized funext is not a FunextStep",
+    )
+  };
+};
+
 let tests = (
   "Funext",
   [
+    test_case(
+      "grouping parens: `( funext x => )` parses as Parens(Funext(...))",
+      `Quick,
+      test_parens_parse_shape,
+    ),
+    test_case(
+      "grouping parens: the motivating program parses",
+      `Quick,
+      test_parens_motivating_program,
+    ),
+    test_case(
+      "grouping parens: the checker sees through them",
+      `Quick,
+      test_parens_transparent_to_checker,
+    ),
+    test_case(
+      "grouping parens: split_proof/kind_of_proof see through them",
+      `Quick,
+      test_parens_transparent_to_stepper,
+    ),
     test_case(
       "happy path: pointwise commute proves as `f == g`",
       `Quick,

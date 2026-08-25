@@ -379,6 +379,7 @@ type compound_form =
   | ParensPat
   | ParensTyp
   | ParensTPat
+  | ParensProof
   | ApExpEmpty
   | ApExp
   | ApPatEmpty
@@ -523,6 +524,11 @@ let get: compound_form => t =
   | ParensPat => mk_parens(Pat)
   | ParensTyp => mk_parens(Typ)
   | ParensTPat => mk_parens(TPat) // HACk (Issue #1913)
+  /* Grouping parens at Proof sort. Sits with the other `mk_parens`
+     entries so `(` in a Proof-sorted hole remolds to a Proof paren
+     rather than falling through to `ParensExp`; `Molds.try_get` filters
+     candidates by output sort, so the two never compete. */
+  | ParensProof => mk_parens(Proof)
   | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
   | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
   | ApPatEmpty => mk_post_c(LT, ["()"], P.ap, Pat, [])

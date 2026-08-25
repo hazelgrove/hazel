@@ -944,6 +944,32 @@ end|}),
       {|Theorem: simple|},
       {|theorem x = 1 proof axiom y at y on y end in x|},
     ),
+    /* Grouping parens at Proof sort (ParensProof). Before this form
+       existed, `(` in a proof slot remolded as an Exp paren and the
+       wrapping form inside it became a MultiHole. */
+    roundtrip_test(
+      {|Theorem: parenthesized proof|},
+      {|theorem x = 1 proof ( axiom y at y on y end ) in x|},
+    ),
+    /* Control: an UNWRITTEN hole body prints back as a `?` monotile at
+       both sorts, with and without the parens — a pre-existing grout
+       behaviour, not something ParensProof introduces. */
+    roundtrip_test(
+      {|Theorem: funext with an unwritten hole body|},
+      {|theorem x = 1 proof funext y =>? in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized funext with an unwritten hole body|},
+      {|theorem x = 1 proof ( funext y =>? ) in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized funext with a hole body|},
+      {|theorem x = 1 proof ( funext y => ? ) in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized proof as the left arm of a `;`|},
+      {|theorem x = 1 proof ( funext y => ? ); axiom y at y on y end in x|},
+    ),
     roundtrip_test(
       {|Theorem: spaced|},
       {|theorem x  =  1  proof  axiom y at y on y end  in  x|},
@@ -2010,6 +2036,54 @@ let proof_embedded_paren_tests = (
         at_exp: built_fun_ap(~guard=true, ()),
       }),
       {|theorem t = 1 == 1 proof eval(fun x where x != 0 -> 100 / x)(y) at 0 end in t|},
+    ),
+    /* A BUILT `Seq` whose LEFT arm is a wrapping form: the wrapping
+       form's body slot extends rightward (P.fun_ is looser than P.semi),
+       so without grouping parens `funext y => ?; eval ...` reparses as
+       `Funext(y, Seq(?, eval ...))`. ParensProof is what makes this
+       printable. */
+    proof_paren_test(
+      {|Seq left arm: a wrapping form is parenthesized|},
+      Seq(
+        Proof.fresh(Funext(Pat.fresh(Var("y")), Proof.fresh(EmptyHole))),
+        Proof.fresh(
+          EvalStep({
+            at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+            at_exp: Exp.fresh(Var("y")),
+          }),
+        ),
+      ),
+      {|theorem t = 1 == 1 proof(funext y => ?); eval y at 0 end in t|},
+    ),
+    /* Control: `;` is associative and right-associative, so a
+       left-nested Seq still prints flat — no parens churn. */
+    proof_paren_test(
+      {|Seq left arm: a nested Seq still prints flat|},
+      Seq(
+        Proof.fresh(
+          Seq(
+            Proof.fresh(
+              EvalStep({
+                at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+                at_exp: Exp.fresh(Var("a")),
+              }),
+            ),
+            Proof.fresh(
+              EvalStep({
+                at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+                at_exp: Exp.fresh(Var("b")),
+              }),
+            ),
+          ),
+        ),
+        Proof.fresh(
+          EvalStep({
+            at_idx: Exp.fresh(Atom(Int(Bigint.of_int(0)))),
+            at_exp: Exp.fresh(Var("c")),
+          }),
+        ),
+      ),
+      {|theorem t = 1 == 1 proof eval a at 0 end; eval b at 0 end; eval c at 0 end in t|},
     ),
   ],
 );

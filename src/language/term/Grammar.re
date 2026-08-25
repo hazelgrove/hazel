@@ -190,6 +190,12 @@ and proof_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Seq(proof_t('a), proof_t('a))
+  /* `( <proof> )`: pure grouping, exactly as `Parens` is for Exp/Pat/Typ.
+   * Semantically TRANSPARENT everywhere — the checker, statics, and the
+   * stepper all see straight through to the inner proof. It exists so a
+   * wrapping form like `funext x => ...` can be delimited inside a
+   * larger proof (e.g. the left arm of a `;` sequence). */
+  | Parens(proof_t('a))
   /* `instantiation` is the optional `with <var> = <exp>` clause
    * (docs/prover-obligations.md, Phase 4d): an EXPLICIT instantiation of
    * one of the cited rule's binders, seeded into the match context
@@ -484,6 +490,7 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Seq(p1, p2) =>
           Seq(map_proof_annotation(f, p1), map_proof_annotation(f, p2))
+        | Parens(p) => Parens(map_proof_annotation(f, p))
         | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
           AxiomStep({
             at_idx: map_exp_annotation(f, at_idx),

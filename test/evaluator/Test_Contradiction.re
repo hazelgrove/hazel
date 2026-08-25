@@ -133,6 +133,7 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
     | Some(_) as s => s
     | None => find_contradiction(b)
     }
+  | Parens(b)
   | Forall(_, b)
   | Funext(_, b)
   | Assume(_, _, b)

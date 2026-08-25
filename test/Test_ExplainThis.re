@@ -139,6 +139,11 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
       Proof.fresh(Contradiction(some_exp(), inst())),
     ]
   | Have => [Proof.fresh(Have(some_exp(), hole_proof(), hole_proof()))]
+  /* Parens are transparent: their doc IS the inner form's, so the
+     representative wraps a form that has a worked example. */
+  | Parens => [
+      Proof.fresh(Parens(Proof.fresh(Funext(some_pat(), hole_proof())))),
+    ]
   };
 
 /* The degenerate forms carry a message but no worked example. */
@@ -159,7 +164,8 @@ let example_free = (cls: Proof.cls): bool =>
   | Revert
   | Contradiction
   | Have
-  | Alias => false
+  | Alias
+  | Parens => false
   };
 
 let check_doc =

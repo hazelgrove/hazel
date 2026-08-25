@@ -203,6 +203,7 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | Contradiction(_)
     | EvalStep(_) => false
     | Seq(a, b) => proof_contains(~origin, a) || proof_contains(~origin, b)
+    | Parens(body)
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)
@@ -240,6 +241,7 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
     | Seq(a, b) =>
       proof_contains(~origin, a)
         ? case_vars_to(~origin, ~acc, a) : case_vars_to(~origin, ~acc, b)
+    | Parens(body)
     | Forall(_, body)
     | Assume(_, _, body)
     | Generalize(_, body)
@@ -387,6 +389,8 @@ let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
     | Some(_) as r => r
     | None => scope_body_containing(~origin, b)
     }
+  /* Parens are not a scope — look straight through them. */
+  | Parens(inner) => scope_body_containing(~origin, inner)
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)

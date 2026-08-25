@@ -1447,6 +1447,11 @@ let rec check =
     let (out1, m1) = check(~step, ~info_map, ~ctx, incoming, p1);
     let (out2, m2) = check(~step, ~info_map, ~ctx, out1, p2);
     (out2, record(id, incoming, out2, ProofMap.union(m1, m2)));
+  /* Grouping only: transparent. Same incoming, same ctx; the parens node
+   * records the inner step's outgoing so the UI can key off either id. */
+  | Parens(p) =>
+    let (out, m) = check(~step, ~info_map, ~ctx, incoming, p);
+    (out, record(id, incoming, out, m));
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let (outgoing, marks, obligations) =
       switch (incoming) {

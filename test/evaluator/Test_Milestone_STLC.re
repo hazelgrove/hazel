@@ -69,6 +69,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Invalid(_) => "invalid"
     | MultiHole(_) => "multihole"
     | Seq(_) => "seq"
+    | Parens(_) => "parens"
     | Forall(_) => "forall"
     | Funext(_) => "funext"
     | Assume(_) => "assume"

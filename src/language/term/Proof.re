@@ -15,7 +15,8 @@ type cls =
   | Revert
   | Contradiction
   | Have
-  | Alias;
+  | Alias
+  | Parens;
 
 include TermBase.Proof;
 
@@ -29,12 +30,15 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Proof.term =>
   | [_, ..._] => MultiHole(tms)
   };
 
-let cls_of_term: Grammar.proof_term('a) => cls =
+let rec cls_of_term: Grammar.proof_term('a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
   | MultiHole(_) => MultiHole
   | Seq(_, _) => Seq
+  /* Transparent, exactly as `Exp.cls_of_term` treats `Parens`: the
+     cursor inspector should report the form INSIDE the parens. */
+  | Parens(p) => cls_of_term(p.term)
   | AxiomStep(_) => AxiomStep
   | AlgebriteStep(_) => AlgebriteStep
   | Induction(_, _, _) => Induction
@@ -65,6 +69,7 @@ let show_cls: cls => string =
   | Contradiction => "Contradiction step"
   | Alias => "Alias step"
   | Have => "Have step"
+  | Parens => "Parenthesized proof"
   | EvalStep => "Eval step";
 
 let temp: term => t =
@@ -102,6 +107,9 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     List.length(xs) == List.length(ys)
     && List.for_all2(Equality.syntactic.any, xs, ys)
   | (Seq(a1, a2), Seq(b1, b2)) => fast_equal(a1, b1) && fast_equal(a2, b2)
+  /* Grouping only: compare through the parens on either side. */
+  | (Parens(a), _) => fast_equal(a, p2)
+  | (_, Parens(b)) => fast_equal(p1, b)
   | (
       AxiomStep({
         at_idx: i1,
@@ -195,6 +203,7 @@ let rec has_hole = (p: t): bool =>
   | Invalid(_)
   | MultiHole(_) => true
   | Seq(p1, p2) => has_hole(p1) || has_hole(p2)
+  | Parens(p) => has_hole(p)
   | AxiomStep(_)
   | AlgebriteStep(_) => false
   | Induction(_, _, cases) =>
@@ -280,12 +289,14 @@ let as_name_has_hole = (as_name: option(Pat.t)): bool =>
  * "…" continuation row in the stepper, while a hole in an argument
  * position (an induction case pattern or scrutinee, a forall binder, an
  * axiom's target) has no other visible indicator. */
-let args_have_hole = (p: t): bool =>
+let rec args_have_hole = (p: t): bool =>
   switch (p.term) {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
   | Seq(_, _) => false
+  /* Transparent: the parens have no arguments of their own. */
+  | Parens(p) => args_have_hole(p)
   | AxiomStep({at_idx, at_exp, equality, instantiation, direction: _}) =>
     exp_has_hole(at_idx)
     || exp_has_hole(at_exp)

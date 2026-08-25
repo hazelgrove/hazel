@@ -352,6 +352,34 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sig(_) => Precedence.min
   };
 
+/* Proof analogue of `external_precedence`: the loosest level this proof
+   term's own tile occupies. Only the WRAPPING forms (whose body slot
+   extends rightward to the end of the enclosing proof) and the infix
+   `;` can be broken by a following tile; everything else is either a
+   leaf or fully delimited (`... end`) and never needs defending. */
+let external_precedence_proof = (p: Proof.t) =>
+  switch (Annotated.term_of(p)) {
+  | EmptyHole
+  | Invalid(_)
+  | Parens(_)
+  | AxiomStep(_)
+  | AlgebriteStep(_)
+  | EvalStep(_)
+  | Contradiction(_)
+  | Induction(_, _, _) => Precedence.max
+  | Seq(_, _) => Precedence.semi
+  | Forall(_, _)
+  | Funext(_, _)
+  | Assume(_, _, _)
+  | Alias(_, _, _)
+  | Generalize(_, _)
+  | Revert(_, _, _)
+  | Have(_, _, _) => Precedence.fun_
+  /* A proof MultiHole prints as a single `?` monotile (see
+     `proof_to_pretty`), so unlike the Exp case it is indivisible. */
+  | MultiHole(_) => Precedence.max
+  };
+
 /* Conditional parenthesization helpers.
    With Defensive: add parens based on precedence comparison (original behavior).
    With Structural: never add parens here; only explicit Parens nodes in the term are emitted.
@@ -1087,13 +1115,34 @@ and parenthesize_proof =
     parenthesize_pat(~parenthesization, ~show_ascriptions, ~show_filters, p);
   let go =
     parenthesize_proof(~parenthesization, ~show_ascriptions, ~show_filters);
+  /* The Proof analogue of `paren_at`: defend a child that would
+     otherwise be re-associated by a looser enclosing tile. */
+  let go_at = (level: Precedence.t, p: Proof.t): Proof.t => {
+    let p = go(p);
+    switch (parenthesization) {
+    | Structural => p
+    | Defensive =>
+      switch (Annotated.term_of(p)) {
+      | Parens(_) => p
+      | _ =>
+        external_precedence_proof(p) >= level ? Proof.fresh(Parens(p)) : p
+      }
+    };
+  };
   let (term, rewrap: TermBase.Proof.term => Proof.t) =
     IdTagged.unwrap(proof);
   switch (term) {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_) => proof
-  | Seq(p1, p2) => Seq(go(p1), go(p2)) |> rewrap
+  | Parens(p) => Parens(go(p)) |> rewrap
+  /* `;` is right-associative, so only the LEFT child needs defending,
+     and only against the WRAPPING forms: `funext x => a; b` would
+     otherwise reparse as `Funext(x, Seq(a, b))`. A left-nested `Seq`
+     defends at `semi`, which is tighter than `fun_`, so it still prints
+     flat — `;` is associative, and flattening is what the stepper's
+     `split_proof` re-association already assumes. */
+  | Seq(p1, p2) => Seq(go_at(Precedence.fun_, p1), go(p2)) |> rewrap
   | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
   | Funext(x, body) => Funext(go_pat(x), go(body)) |> rewrap
   | Assume(e, as_name, body) =>
@@ -3491,6 +3540,9 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     }
   | Invalid(s) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, s)))
   | MultiHole(_) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, "?")))
+  | Parens(inner) =>
+    let+ inner = proof_to_pretty(~settings, inner);
+    wrap(p, [mk_form(ParensProof, id, [inner])]);
   | Seq(p1, p2) =>
     let+ s1 = proof_to_pretty(~settings, p1)
     and+ s2 = proof_to_pretty(~settings, p2);

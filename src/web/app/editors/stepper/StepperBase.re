@@ -900,6 +900,12 @@ and Stepper: {
    * "insert with a hole, then focus the hole" contract is testable
    * without the view layer. */
   let form_arg_id: TermBase.Proof.term => option(Id.t);
+  /* Exposed so the "grouping parens are transparent to the stepper"
+   * contract is testable directly: `split_proof` must unwrap a
+   * `Parens` before looking for a `;` chain, and `kind_of_proof` must
+   * report the INNER form's step kind. */
+  let split_proof: Proof.t => (Proof.t, option(Proof.t));
+  let kind_of_proof: Proof.t => option(step_kind_model);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = next_step;
@@ -1004,6 +1010,10 @@ and Stepper: {
    * current step and has no further chain. */
   let rec split_proof = (p: Proof.t): (Proof.t, option(Proof.t)) =>
     switch (p) {
+    /* Grouping parens are transparent to the stepper: unwrap BEFORE
+     * looking for a `;` chain or a leaf, so `( funext x => ? )` still
+     * splits with a Funext head. */
+    | {term: Parens(inner), _} => split_proof(inner)
     /* Re-associate a left-nested Seq (an inserted step lands as
      * `Seq(Seq(new, old), tail)` on the AST-owned path, where no reparse
      * flattens the `;` chain) so the head is always a leaf step. The
@@ -1026,8 +1036,9 @@ and Stepper: {
     };
 
   /* The hole-shaped proof terms that a MissingStep row stands in for. */
-  let is_hole_proof = (p: Proof.t): bool =>
+  let rec is_hole_proof = (p: Proof.t): bool =>
     switch (p.term) {
+    | Parens(inner) => is_hole_proof(inner)
     | EmptyHole
     | Invalid(_)
     | MultiHole(_) => true
@@ -1049,8 +1060,10 @@ and Stepper: {
   /* The step kind a proof sub-term calls for, as a placeholder model whose
    * fields the kind's own `calculate` fills in from the proof on the same
    * pass (see `AxiomStep.calculate`). */
-  let kind_of_proof = (proof_head: Proof.t): option(step_kind_model) =>
+  let rec kind_of_proof = (proof_head: Proof.t): option(step_kind_model) =>
     switch (proof_head.term) {
+    /* Transparent: the parens do not have a step kind of their own. */
+    | Parens(inner) => kind_of_proof(inner)
     | AxiomStep({direction, _}) =>
       Some(
         AxiomStep({
@@ -1109,9 +1122,10 @@ and Stepper: {
    *
    * Hole collapse (EmptyHole / Invalid / MultiHole → MissingStep) is
    * handled by `calculate`, not here. */
-  let adapt_step_kind =
-      (sk: step_kind_model, proof_head: Proof.t): step_kind_model =>
+  let rec adapt_step_kind =
+          (sk: step_kind_model, proof_head: Proof.t): step_kind_model =>
     switch (proof_head.term, sk) {
+    | (Parens(inner), _) => adapt_step_kind(sk, inner)
     | (AxiomStep(_), AxiomStep(_))
     | (AlgebriteStep(_), AlgebriteStep(_))
     | (EvalStep(_), EvalStep(_))
@@ -1657,8 +1671,9 @@ and Stepper: {
    * slot after insertion (see `emit_wrapping_form`); the serializer
    * stamps term ids onto the pieces it emits, so an EmptyHole argument
    * arrives in the segment as a Grout carrying exactly this id. */
-  let form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
+  let rec form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
     switch (t) {
+    | Parens(inner) => form_arg_id(inner.term)
     | Assume(e, _, _)
     | Alias(_, e, _)
     | Revert(e, _, _)

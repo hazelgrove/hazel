@@ -950,6 +950,11 @@ let equality =
       };
     let rec proof' = (p1: TermBase.Proof.t, p2: TermBase.Proof.t): bool =>
       switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
+      // Wrappers when ignored: unwrap. These cases must come first.
+      | (Parens(x), _) when ignore_parens => proof'(x, p2)
+      | (_, Parens(x)) when ignore_parens => proof'(p1, x)
+      | (Parens(x), Parens(y)) => proof'(x, y)
+      | (Parens(_), _) => false
       | (EmptyHole, EmptyHole) => true
       | (EmptyHole, _) => false
       | (Invalid(s1), Invalid(s2)) => s1 == s2

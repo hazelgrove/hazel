@@ -1466,6 +1466,7 @@ and Proof: {
         | Invalid(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Seq(p1, p2) => Seq(proof_map_term(p1), proof_map_term(p2))
+        | Parens(p) => Parens(proof_map_term(p))
         | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
           AxiomStep({
             at_idx: exp_map_term(at_idx),

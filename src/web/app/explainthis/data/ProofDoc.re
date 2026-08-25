@@ -732,11 +732,13 @@ let alias = (~name_id: Id.t, ~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
 
 /* Total over the Proof sort: the compiler is the completeness check that
    no prover form falls back to a generic message. */
-let single = (p: Proof.t): Simple.t =>
+let rec single = (p: Proof.t): Simple.t =>
   switch (p.term) {
   | EmptyHole => empty_hole
   | MultiHole(_) => multi_hole
   | Invalid(_) => invalid
+  /* Grouping only: explain the form inside the parens. */
+  | Parens(inner) => single(inner)
   | Seq(p1, p2) => seq(~fst_id=Proof.rep_id(p1), ~snd_id=Proof.rep_id(p2))
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let (name_id, idx_id, target_id) = (
