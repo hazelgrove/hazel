@@ -1172,7 +1172,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)

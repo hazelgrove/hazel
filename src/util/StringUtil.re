@@ -1,29 +1,18 @@
 let cat = String.concat("");
 
-let remove_nth = (n, t) => {
-  assert(n < String.length(t));
-  String.sub(t, 0, n) ++ String.sub(t, n + 1, String.length(t) - n - 1);
-};
-
-let remove_first = remove_nth(0);
-let remove_last = t => remove_nth(String.length(t) - 1, t);
-
-let insert_nth = (n, s, t) => {
-  assert(n < String.length(t));
-  String.sub(t, 0, n) ++ s ++ String.sub(t, n, String.length(t) - n);
-};
-
-let split_nth = (n, t) => {
-  assert(n < String.length(t));
-  (String.sub(t, 0, n), String.sub(t, n, String.length(t) - n));
-};
-
-let to_list = s => List.init(String.length(s), i => String.make(1, s.[i]));
+/* NOTE: there are deliberately no byte-indexed nth/split/to_list helpers
+   here. Text in the editor is indexed by grapheme cluster (see Unicode);
+   a byte-indexed `to_list` in particular is indistinguishable at the call
+   site from the correct `Unicode.to_list` and silently splits any
+   non-ASCII character into its bytes. */
 
 let repeat = (n, s) => String.concat("", List.init(n, _ => s));
 
+/* Truncates on a grapheme boundary: cutting mid-cluster would emit
+   invalid UTF-8. */
 let abbreviate = (max_len, s) =>
-  String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
+  Unicode.length(s) > max_len
+    ? fst(Unicode.split_nth(s, max_len)) ++ "..." : s;
 
 type regexp = Js_of_ocaml.Regexp.regexp;
 
@@ -31,6 +20,38 @@ let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
 
 let match = (r: regexp, s: string): bool =>
   Js_of_ocaml.Regexp.string_match(r, s, 0) |> Option.is_some;
+
+/* `regexp`/`match` above are BYTE-oriented: Js_of_ocaml.Regexp maps each
+   byte of the pattern and subject to one JS character, so a class holding a
+   non-ASCII character (or `\s`, which matches U+00A0) constrains individual
+   UTF-8 bytes. The pair below compiles with `u` over decoded text instead. */
+
+type unicode_regexp = Js_of_ocaml.Js.t(Js_of_ocaml.Js.regExp);
+
+/* Falls back to no `u` for the patterns it rejects (`\-`, a lone `{`), so
+   compiling never turns a working pattern into an exception. */
+let unicode_regexp_factory: Js_of_ocaml.Js.Unsafe.any =
+  Js_of_ocaml.Js.Unsafe.eval_string(
+    "(function (pattern, flags) {\n"
+    ++ "  try { return new RegExp(pattern, flags + 'u'); }\n"
+    ++ "  catch (e) { return new RegExp(pattern, flags); }\n"
+    ++ "})",
+  );
+
+/* `~global` is not cosmetic: replace and split need `g`, but a `g`-flagged
+   regex is stateful under `test` (lastIndex advances between calls), so
+   predicates must compile without it. */
+let unicode_regexp = (~global=false, src: string): unicode_regexp =>
+  Js_of_ocaml.Js.Unsafe.fun_call(
+    unicode_regexp_factory,
+    [|
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(src)),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(global ? "g" : "")),
+    |],
+  );
+
+let unicode_match = (r: unicode_regexp, s: string): bool =>
+  Js_of_ocaml.Js.to_bool(r##test(Js_of_ocaml.Js.string(s)));
 
 let replace = Js_of_ocaml.Regexp.global_replace;
 
@@ -55,6 +76,9 @@ let plain_search: (string, string, int) => int =
 
 let to_lines = String.split_on_char('\n');
 
+/* Grapheme clusters per line. For LAYOUT widths use
+   Unicode.Width.columns_of_string, which counts the two columns a wide
+   cluster occupies. */
 let line_widths = (s: string): list(int) =>
   s |> to_lines |> List.map(Unicode.length);
 
@@ -150,18 +174,13 @@ let trim_trailing_whitespace = (str: string): string => {
   String.concat("\n", trimmed_lines);
 };
 
+/* Every non-empty prefix, cut on grapheme boundaries. */
 let prefixes = (s: string): list(string) => {
-  let len = String.length(s);
-  let rec aux = (i: int) =>
-    if (i > len) {
-      [];
-    } else {
-      [String.sub(s, 0, i)] @ aux(i + 1);
-    };
+  let len = Unicode.length(s);
   if (len == 0) {
     [""];
   } else {
-    aux(1);
+    List.init(len, i => fst(Unicode.split_nth(s, i + 1)));
   };
 };
 
