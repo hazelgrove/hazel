@@ -149,3 +149,23 @@ let of_term = (e: Exp.t): list(node) =>
     cache := Some((e, tree));
     tree;
   };
+
+/* ancestor labels of the node with id [fid], outermost first — the
+   stacked header's qualifier chip (e.g. ["Geo"] for a member of
+   module Geo, ["Geo", "area"] for a let nested in a member fn) */
+let path_of = (fid: Id.t, e: Exp.t): list(string) => {
+  let rec go = (trail, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          n.o_id == Some(fid)
+            ? Some(List.rev(trail))
+            : go([n.o_label, ...trail], n.o_children)
+        },
+      None,
+      ns,
+    );
+  go([], of_term(e)) |> Option.value(~default=[]);
+};

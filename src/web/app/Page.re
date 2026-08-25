@@ -356,7 +356,7 @@ module Update = {
       switch (followup) {
       | Some(k) =>
         schedule_action(Editors(k));
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
       | None => ()
       };
       /* outline adds move the selection (and DOM focus, which also
@@ -369,7 +369,7 @@ module Update = {
             Editors.Selection.stack_add_selection(action, model.editors)
           ) {
           | Some(s) =>
-            Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+            Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
             s;
           | None => selection
           }

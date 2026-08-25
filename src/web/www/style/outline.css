@@ -189,6 +189,28 @@
    entries (the topmost header has no preceding body) */
 #main .focus-header {
   background: var(--T2, #f1e9d2);
+  display: flex;
+  align-items: baseline;
+}
+
+/* module-path chip; reads as one path with the name, so the header
+   cell's own inset collapses after it */
+#main .focus-header .focus-qualifier {
+  padding-left: 16px;
+  opacity: 0.5;
+  font-family: var(--code-font, monospace);
+  white-space: nowrap;
+}
+
+#main .focus-header .focus-qualifier ~ * .cell-item {
+  padding: 0 16px 0 1px;
+}
+
+/* trailing slack below the stack: jump targets can align to the
+   viewport top even near the program's end */
+#main .stack-slack {
+  flex: 0 0 auto;
+  height: calc(100% - 6em);
 }
 
 #main .focus-body ~ .focus-header {

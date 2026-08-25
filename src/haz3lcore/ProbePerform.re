@@ -10,6 +10,7 @@ module FocusEffect = {
   type target =
     | Editor
     | Cell
+    | CellTop /* Cell + align its stack entry to the viewport top */
     | Probe(Id.t);
 
   let scheduled: ref(option(target)) = ref(None);
@@ -31,6 +32,12 @@ module FocusEffect = {
     scheduled := Some(Cell);
   };
 
+  /* As schedule_cell, but also aligns the target's stack entry to the
+     top of the viewport (jump-to-definition, outline adds). */
+  let schedule_cell_top = (): unit => {
+    scheduled := Some(CellTop);
+  };
+
   /* Execute any scheduled focus (called from Main.re after_display).
    * Returns whether focus was executed. */
   let execute = (): bool =>
@@ -42,6 +49,11 @@ module FocusEffect = {
     | Some(Cell) =>
       scheduled := None;
       JsUtil.focus_active_cell();
+    | Some(CellTop) =>
+      scheduled := None;
+      let focused = JsUtil.focus_active_cell();
+      JsUtil.align_active_cell_top();
+      focused;
     | Some(Probe(probe_id)) =>
       scheduled := None;
       let elem_id = Id.cls(probe_id);

@@ -130,6 +130,50 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
+/* Align the active cell's stack entry to the TOP of the viewport
+   (jump-to-definition lands the target under the reader's eyes; the
+   stack's trailing slack space makes this reachable even for the last
+   entry). The scroll target is the entry's HEADER band when the cell
+   is a stack body, so the name stays visible. */
+let align_active_cell_top = (): unit =>
+  switch (get_elem_by_id_opt(active_cell_id)) {
+  | None => ()
+  | Some(elem) =>
+    let target = {
+      let closest = sel =>
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            elem,
+            "closest",
+            [|Js.Unsafe.inject(Js.string(sel))|],
+          ),
+        );
+      switch (closest(".focus-body")) {
+      | Some(body) =>
+        switch (Js.Opt.to_option(body##.previousElementSibling)) {
+        | Some(prev) => Some(prev)
+        | None => Some(body)
+        }
+      | None => closest(".focus-header")
+      };
+    };
+    switch (target) {
+    | None => ()
+    | Some(t) =>
+      let _: unit =
+        Js.Unsafe.meth_call(
+          t,
+          "scrollIntoView",
+          [|
+            Js.Unsafe.obj([|
+              ("block", Js.Unsafe.inject(Js.string("start"))),
+            |]),
+          |],
+        );
+      ();
+    };
+  };
+
 let clipboard_shim = {
   Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };

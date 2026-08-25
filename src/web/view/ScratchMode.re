@@ -2201,10 +2201,31 @@ module View = {
                   c,
                 )
               | _ =>
+                /* qualifier chip: the def's module path (stable while
+                   the stack is open — the master term is frozen) */
+                let qualifier =
+                  switch (
+                    OutlineTree.path_of(e.e_id, editor.editor.statics.term)
+                  ) {
+                  | [] => []
+                  | path => [
+                      Virtual_dom.Vdom.Node.span(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes(["focus-qualifier"]),
+                        ],
+                        [
+                          Virtual_dom.Vdom.Node.text(
+                            String.concat(".", path) ++ ".",
+                          ),
+                        ],
+                      ),
+                    ]
+                  };
                 let nodes = [
                   Virtual_dom.Vdom.Node.div(
                     ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-header"])],
-                    [
+                    qualifier
+                    @ [
                       CellEditor.View.view(
                         ~globals,
                         ~signal=
@@ -2256,7 +2277,16 @@ module View = {
             f.f_entries,
           );
         stack_cache := rendered;
-        List.concat_map(((_, c)) => c.c_nodes, rendered);
+        List.concat_map(((_, c)) => c.c_nodes, rendered)
+        @ [
+          /* trailing slack: any entry (incl. the last) can align to
+             the viewport top, and the user can scroll to position any
+             def where they like */
+          Virtual_dom.Vdom.Node.div(
+            ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
+            [],
+          ),
+        ];
       };
       switch (model.focus) {
       | Some(f) =>
