@@ -4310,38 +4310,82 @@ and mpat_to_info_map =
   };
 };
 
-let mk =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
-      let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana,
-          ~ctx,
-          ~ancestors=[],
-          ~probe_ids,
-          e,
-          Id.Map.empty,
+let mk_impl = ((ana, ctx, e, probe_ids)) => {
+  let (_, elab, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
+  /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
+     Ensure they all resolve to the same info entry for cursor features. */
+  let m_ref = ref(m);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        let info_opt = List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+        switch (info_opt) {
+        | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+        | None => ()
+        };
+        ();
+      },
+      e,
+    );
+  (m_ref^, elab);
+};
+
+/* Memo on the TERM'S PHYSICAL identity, small and bounded. The old
+   Core.Memo.general(~cache_size_bound=1000) with polymorphic hash+eq
+   was measured (Test_BenchStatics memo probe): every id-stable edit
+   version of a program collides into one hash bucket, and — worse —
+   up to 1000 entries each retain a whole (term, ctx) key plus a whole
+   (info_map, elaborated) result, a memory trap on large programs. All
+   hits that actually occur are physically-identical terms (MakeTerm's
+   own memo keeps terms pointer-stable between edits), so a K-entry
+   pointer-keyed LRU keeps every real hit. The small components (ana,
+   probe_ids) are rebuilt per call, so they compare structurally. */
+let mk_cache:
+  ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
+  ref([]);
+let mk_cache_max = 16;
+
+let mk = ((ana, ctx, e, probe_ids) as key) => {
+  let key_eq = ((ana', ctx', e', probe_ids')) =>
+    e' === e
+    && ctx' === ctx
+    && compare(ana', ana) == 0
+    && compare(probe_ids', probe_ids) == 0;
+  switch (List.find_opt(((k, _)) => key_eq(k), mk_cache^)) {
+  | Some((k, r)) =>
+    mk_cache :=
+      [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
+    r;
+  | None =>
+    let rec take = (n, l) =>
+      n <= 0
+        ? []
+        : (
+          switch (l) {
+          | [] => []
+          | [x, ...xs] => [x, ...take(n - 1, xs)]
+          }
         );
-      /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
-         Ensure they all resolve to the same info entry for cursor features. */
-      let m_ref = ref(m);
-      let _ =
-        Grammar.map_exp_annotation(
-          ({ids, _}: IdTagged.IdTag.t) => {
-            let info_opt =
-              List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
-            switch (info_opt) {
-            | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
-            | None => ()
-            };
-            ();
-          },
-          e,
-        );
-      (m_ref^, elab);
-    },
-  );
+    let r = mk_impl(key);
+    mk_cache := [(key, r), ...take(mk_cache_max - 1, mk_cache^)];
+    r;
+  };
+};
+
+/* For callers that manage their own caching (DefStatics): skips the
+   memo so per-item calls don't churn its small LRU. */
+let mk_unmemoized =
+    (
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~probe_ids=Id.Map.empty,
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics
+    ? mk_impl((ana, ctx, exp, probe_ids))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));
 
 let mk =
     (

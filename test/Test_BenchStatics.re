@@ -38,6 +38,127 @@ let time_statics = (src: string): option(float) =>
     Some((Sys.time() -. t0) *. 1000.);
   };
 
+/* Surgical segment edits, id-preserving — the shape of a real
+   one-keystroke change. repl_last prefers the LAST occurrence,
+   repl_first the FIRST. */
+let rec repl_last =
+        (~needle: string, ~repl: string, ps: list(Piece.t))
+        : (bool, list(Piece.t)) =>
+  switch (ps) {
+  | [] => (false, [])
+  | [p, ...rest] =>
+    let (done_, rest') = repl_last(~needle, ~repl, rest);
+    if (done_) {
+      (true, [p, ...rest']);
+    } else {
+      switch (p) {
+      | Tile(t) when t.label == [needle] => (
+          true,
+          [
+            Piece.Tile({
+              ...t,
+              label: [repl],
+            }),
+            ...rest',
+          ],
+        )
+      | Tile(t) =>
+        let (d, kids') =
+          repl_last_kids(~needle, ~repl, List.rev(t.children));
+        d
+          ? (
+            true,
+            [
+              Piece.Tile({
+                ...t,
+                children: List.rev(kids'),
+              }),
+              ...rest',
+            ],
+          )
+          : (false, [p, ...rest']);
+      | _ => (false, [p, ...rest'])
+      };
+    };
+  }
+and repl_last_kids = (~needle, ~repl, kids_rev) =>
+  switch (kids_rev) {
+  | [] => (false, [])
+  | [k, ...rest] =>
+    let (d, k') = repl_last(~needle, ~repl, k);
+    d
+      ? (true, [k', ...rest])
+      : {
+        let (d2, rest') = repl_last_kids(~needle, ~repl, rest);
+        (d2, [k, ...rest']);
+      };
+  };
+
+let rec repl_first =
+        (~needle: string, ~repl: string, ps: list(Piece.t))
+        : (bool, list(Piece.t)) =>
+  switch (ps) {
+  | [] => (false, [])
+  | [p, ...rest] =>
+    switch (p) {
+    | Tile(t) when t.label == [needle] => (
+        true,
+        [
+          Piece.Tile({
+            ...t,
+            label: [repl],
+          }),
+          ...rest,
+        ],
+      )
+    | Tile(t) =>
+      let (d, kids') = repl_first_kids(~needle, ~repl, t.children);
+      if (d) {
+        (
+          true,
+          [
+            Piece.Tile({
+              ...t,
+              children: kids',
+            }),
+            ...rest,
+          ],
+        );
+      } else {
+        let (d2, rest') = repl_first(~needle, ~repl, rest);
+        (d2, [p, ...rest']);
+      };
+    | _ =>
+      let (d, rest') = repl_first(~needle, ~repl, rest);
+      (d, [p, ...rest']);
+    }
+  }
+and repl_first_kids = (~needle, ~repl, kids) =>
+  switch (kids) {
+  | [] => (false, [])
+  | [k, ...rest] =>
+    let (d, k') = repl_first(~needle, ~repl, k);
+    d
+      ? (true, [k', ...rest])
+      : {
+        let (d2, rest') = repl_first_kids(~needle, ~repl, rest);
+        (d2, [k, ...rest']);
+      };
+  };
+
+let parse_seg_of = (src: string): Segment.t =>
+  switch (
+    FastParse.of_text(
+      ~materialize=Triggers.invoked_projector,
+      ~collect_refractors=true,
+      ~root=Exp,
+      src,
+    )
+  ) {
+  | Some(seg) => seg
+  | None => failwith("BENCH: parse failed")
+  };
+
 /* Statics.mk memoization probe (informational): the memo is
    Core.Memo.general with POLYMORPHIC hash+equality on
    (ana, ctx, term, probe_ids). Term ids are part of both, so the
@@ -66,62 +187,9 @@ let memo_probe = (): unit => {
       | Some(seg) => seg
       | None => failwith("MEMOBENCH: parse failed")
       };
-    /* replace the LAST tile labeled "9" with [digit], preserving ids
-       and every other piece — the shape of a real one-keystroke edit
-       deep in the program */
-    let rec repl_seg =
-            (digit: string, ps: list(Piece.t)): (bool, list(Piece.t)) =>
-      switch (ps) {
-      | [] => (false, [])
-      | [p, ...rest] =>
-        let (done_, rest') = repl_seg(digit, rest);
-        if (done_) {
-          (true, [p, ...rest']);
-        } else {
-          switch (p) {
-          | Tile(t) when t.label == ["9"] => (
-              true,
-              [
-                Piece.Tile({
-                  ...t,
-                  label: [digit],
-                }),
-                ...rest',
-              ],
-            )
-          | Tile(t) =>
-            let (d, kids') = repl_kids(digit, List.rev(t.children));
-            d
-              ? (
-                true,
-                [
-                  Piece.Tile({
-                    ...t,
-                    children: List.rev(kids'),
-                  }),
-                  ...rest',
-                ],
-              )
-              : (false, [p, ...rest']);
-          | _ => (false, [p, ...rest'])
-          };
-        };
-      }
-    and repl_kids = (digit, kids_rev) =>
-      switch (kids_rev) {
-      | [] => (false, [])
-      | [k, ...rest] =>
-        let (d, k') = repl_seg(digit, k);
-        d
-          ? (true, [k', ...rest])
-          : {
-            let (d2, rest') = repl_kids(digit, rest);
-            (d2, [k, ...rest']);
-          };
-      };
     let seg1 = parse_seg(src);
     let variant = digit => {
-      let (found, seg) = repl_seg(digit, seg1);
+      let (found, seg) = repl_last(~needle="9", ~repl=digit, seg1);
       assert(found);
       MakeTerm.go(seg).term;
     };
@@ -189,9 +257,128 @@ let memo_probe = (): unit => {
   };
 };
 
+/* DefStatics (compositional statics) benchmark + parity gate:
+   - COLD: engine result must carry the same ERROR ids as whole-program
+     Statics.mk (warnings are engine-corrected, counts reported only);
+   - INCR non-export edit (deep digit swap): expect 1 item recomputed;
+   - INCR export-type edit (first ascription Int->Bool): expect the
+     users of that binding to recompute, and parity to hold on the
+     edited program too. */
+let defstatics_bench = (): unit =>
+  List.iter(
+    name => {
+      let path = "hazel-programs/mega/" ++ name;
+      let path =
+        Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
+      switch (read_file(path)) {
+      | None => Printf.printf("DEFSTATICS %s: <unreadable>\n", name)
+      | Some(src) =>
+        let settings = CoreSettings.on;
+        let ctx = Builtins.ctx_init(Some(Operators.default_mode));
+        let seg1 = parse_seg_of(src);
+        let term1 = MakeTerm.go(seg1).term;
+        let sorted = ids => List.sort_uniq(compare, ids);
+        let whole = term => {
+          let (map, _) = Statics.mk_unmemoized(settings, ctx, term);
+          sorted(Statics.Map.error_ids(map));
+        };
+        let parity = (label, term, ds) => {
+          let w = whole(term);
+          let e = sorted(DefStatics.all_error_ids(ds));
+          if (w == e) {
+            Printf.printf(
+              "DEFSTATICS %s %s: parity OK (%d errors)\n",
+              name,
+              label,
+              List.length(w),
+            );
+          } else {
+            Printf.printf(
+              "DEFSTATICS %s %s: PARITY MISMATCH whole=%d engine=%d\n",
+              name,
+              label,
+              List.length(w),
+              List.length(e),
+            );
+          };
+        };
+        let time = (label, f) => {
+          let t0 = Sys.time();
+          let r = f();
+          Printf.printf(
+            "DEFSTATICS %s %s: %.0fms\n",
+            name,
+            label,
+            (Sys.time() -. t0) *. 1000.,
+          );
+          r;
+        };
+        let ds1 =
+          time("engine cold", () => DefStatics.calc(~settings, term1));
+        Printf.printf(
+          "DEFSTATICS %s items: %d, warnings: %d\n",
+          name,
+          List.length(ds1.items),
+          List.length(DefStatics.all_warning_ids(ds1)),
+        );
+        parity("cold", term1, ds1);
+        /* non-export edit: last digit 9 -> 8, deep in the program */
+        let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
+        assert(f2);
+        let term2 = MakeTerm.go(seg2).term;
+        let ds2 =
+          time("incr non-export edit", () =>
+            DefStatics.calc(~settings, ~prev=ds1, term2)
+          );
+        Printf.printf(
+          "DEFSTATICS %s non-export analyzed: %d items\n",
+          name,
+          DefStatics.last_analyzed^,
+        );
+        parity("non-export", term2, ds2);
+        /* export-type edit: first ascription Int -> Bool */
+        let (f3, seg3) = repl_first(~needle="Int", ~repl="Bool", seg1);
+        assert(f3);
+        let term3 = MakeTerm.go(seg3).term;
+        let ds3 =
+          time("incr export-type edit", () =>
+            DefStatics.calc(~settings, ~prev=ds1, term3)
+          );
+        Printf.printf(
+          "DEFSTATICS %s export-type analyzed: %d items\n",
+          name,
+          DefStatics.last_analyzed^,
+        );
+        parity("export-type", term3, ds3);
+        /* CROSS-MODULE cascade: retype the first selfcheck ascription
+           (Bool -> String); MetaRunner consumes every selfcheck, so
+           downstream items must re-analyze and new errors appear */
+        let (f4, seg4) = repl_first(~needle="Bool", ~repl="String", seg1);
+        assert(f4);
+        let term4 = MakeTerm.go(seg4).term;
+        let ds4 =
+          time("incr cross-module cascade", () =>
+            DefStatics.calc(~settings, ~prev=ds1, term4)
+          );
+        Printf.printf(
+          "DEFSTATICS %s cascade analyzed: %d items\n",
+          name,
+          DefStatics.last_analyzed^,
+        );
+        parity("cascade", term4, ds4);
+      };
+    },
+    ["mega-1k.hz", "mega-4k.hz"],
+  );
+
 let tests = (
   "BenchStatics",
   [
+    test_case(
+      "DefStatics compositional (informational)",
+      `Quick,
+      defstatics_bench,
+    ),
     test_case("Statics.mk memoization (informational)", `Quick, memo_probe),
     test_case("corpus statics timing (informational)", `Quick, () =>
       List.iter(
