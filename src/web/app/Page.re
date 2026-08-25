@@ -858,6 +858,12 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    /* module/definition outline (modular-editors phase 1) */
+    let outline =
+      OutlineSidebar.view(
+        ~jump=id => globals.inject_global(JumpToTile(id)),
+        current_editor.statics.term,
+      );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
@@ -917,6 +923,7 @@ module View = {
         editors_view,
       ),
       sidebar,
+      outline,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

@@ -1,0 +1,104 @@
+/* Outline sidebar (modular-editors phase 1): a details panel docked
+   left; native details/summary expansion, thin minimal chrome. */
+
+#outline-sidebar {
+  position: fixed;
+  left: 0;
+  top: 48px;
+  bottom: 28px;
+  z-index: 20;
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  color: var(--BR3, #6a5a3a);
+  max-width: 260px;
+}
+
+#outline-sidebar > summary.outline-title {
+  cursor: pointer;
+  user-select: none;
+  writing-mode: vertical-rl;
+  padding: 8px 3px;
+  background: var(--BR1, #d8c9a3);
+  border-radius: 0 6px 6px 0;
+  opacity: 0.75;
+  list-style: none;
+}
+
+#outline-sidebar > summary.outline-title::-webkit-details-marker {
+  display: none;
+}
+
+#outline-sidebar[open] > summary.outline-title {
+  writing-mode: horizontal-tb;
+  border-radius: 0;
+  opacity: 1;
+  padding: 4px 10px;
+}
+
+#outline-sidebar .outline-body {
+  background: color-mix(in srgb, var(--BR1, #d8c9a3) 22%, white);
+  border-right: 0.6px solid var(--BR2, #b5a377);
+  overflow-y: auto;
+  max-height: calc(100vh - 110px);
+  padding: 6px 8px 12px 8px;
+  min-width: 180px;
+}
+
+#outline-sidebar .outline-label {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+#outline-sidebar .outline-label:hover {
+  background: var(--BR1, #d8c9a3);
+}
+
+#outline-sidebar .outline-glyph {
+  display: inline-block;
+  width: 15px;
+  opacity: 0.7;
+}
+
+#outline-sidebar .outline-kids {
+  margin-left: 14px;
+  border-left: 0.6px solid
+    color-mix(in srgb, var(--BR2, #b5a377) 50%, transparent);
+  padding-left: 4px;
+}
+
+#outline-sidebar summary.outline-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+#outline-sidebar summary.outline-summary::-webkit-details-marker {
+  display: none;
+}
+
+#outline-sidebar summary.outline-summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 10px;
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+#outline-sidebar details[open] > summary.outline-summary::before {
+  content: "▾";
+}
+
+#outline-sidebar .ol-module {
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-type {
+  color: var(--token-typ, #9457c9);
+}
+
+#outline-sidebar .outline-empty {
+  opacity: 0.6;
+  padding: 6px;
+}
