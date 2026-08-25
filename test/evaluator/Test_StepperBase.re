@@ -203,6 +203,7 @@ let test_calculate =
     (
       ~exp: Exp.t,
       ~ctx=Builtins.ctx_init(Some(Int)),
+      ~env=Builtins.env_init,
       ~ana=IdTagged.FreshGrammar.Typ.int(),
       ~proof=empty_hole_proof(),
       ~proof_map=Calc.OldValue(Language.ProofMap.empty),
@@ -211,8 +212,7 @@ let test_calculate =
     : StepperBase.next_step => {
   let settings = Calc.NewValue(CoreSettings.on);
   let exp_calc = Calc.NewValue(exp);
-  let ctx_calc =
-    Calc.NewValue(SemanticCtx.of_ctx_and_env(ctx, Builtins.env_init));
+  let ctx_calc = Calc.NewValue(SemanticCtx.of_ctx_and_env(ctx, env));
   let ana_calc = Calc.NewValue(ana);
 
   StepperBase.Stepper.calculate(
@@ -1546,47 +1546,267 @@ in t|};
         };
       },
     ),
-    /* A missing-step row's expression is what its overlay WRITES into
-       the proof text (`axiom ... on <exp> end`). It must be the goal as
-       WRITTEN, not the env-inlined one: the theorem statement the app
-       seeds the first row with is the evaluator's record, and
-       `Transition.re`'s Theorem rule runs `Substitution.in_exp(env, e)`
-       before recording it, so a goal mentioning a let-bound `f` arrives
-       with f's whole lambda spliced in. The checker's ProofMap keeps the
-       written form; the row must prefer it. */
+    /* The checker keeps the written goal (`f(y)`); the row must show
+       the env-substituted Fun so function folding can print the name.
+       Skipping subst to preserve quoting was wrong: `nth_exp_env` and
+       `EditorTransform.editable` already cover write-back. */
     test_case(
-      "missing-step row takes its goal from the checker, not the inlined statement",
+      "missing-step row env-substitutes the checker's written goal",
       `Quick,
       () => {
         let src = "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == f(y) proof ? in t";
-        let (proof, pm) = checked_proof(src);
-        /* What Theorems.re seeds the first row with today: the recorded
-           (env-inlined) statement, peeled. */
-        let inlined_goal =
-          parse_exp(
-            "(fun x where x != 0 -> 100 / x)(y) == (fun x where x != 0 -> 100 / x)(y)",
-          );
+        let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let env =
+          switch (EvaluatorState.get_theorems(state)) {
+          | [(_, _, env, _), ..._] => env
+          | [] => Alcotest.fail("no recorded theorem env")
+          };
+        /* Seed with the written names — the row must subst them away. */
+        let written_goal = parse_exp("f(y) == f(y)");
         let result =
           test_calculate(
-            ~exp=inlined_goal,
+            ~exp=written_goal,
             ~ctx=ctx_with_x,
+            ~env,
             ~proof=Calc.NewValue(proof),
             ~proof_map=Calc.NewValue(pm),
             mk_missing_step(),
           );
         switch (result) {
         | StepperBase.MissingStep(m, _) =>
-          let printed =
-            m.full_exp
-            |> saved_exc(~print="full_exp")
-            |> Test_ProofMap.print_exp;
+          let shown = m.full_exp |> saved_exc(~print="full_exp");
+          let rec is_fun_ap = (e: Exp.t): bool =>
+            switch (e.term) {
+            | Ap(_, {term: Fun(_) | FixF(_) | Closure(_), _}, _) => true
+            | Ap(_, inner, _) => is_fun_ap(inner)
+            | Parens(inner)
+            | Asc(inner, _) => is_fun_ap(inner)
+            | BinOp(_, l, r) => is_fun_ap(l) || is_fun_ap(r)
+            | _ => false
+            };
           check(
             string,
-            "row goal is the written form",
-            "f(y) == f(y)",
-            printed,
+            "row is not the unsubstituted written names",
+            "inlined",
+            Test_ProofMap.print_exp(shown) == "f(y) == f(y)"
+              ? "written" : "inlined",
+          );
+          check(
+            bool,
+            "let-bound f is inlined as a function value",
+            true,
+            is_fun_ap(shown),
           );
         | _ => Alcotest.fail("expected a MissingStep row")
+        };
+      },
+    ),
+    test_case(
+      "the synthesized trailing hole env-substitutes the step's outgoing",
+      `Quick,
+      () => {
+        /* After every leaf step, calculate_full_step synthesizes a
+           trailing MissingStep with `~proof=None`. That row cannot look
+           up ProofMap, so it has to receive an already-substituted
+           `next_exp` — otherwise the hole under the step shows the
+           written names while the step's own row shows the inlined Fun. */
+        let src = "let f = fun x -> x in theorem t = f == f proof funext x => ? in t";
+        let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let env =
+          switch (EvaluatorState.get_theorems(state)) {
+          | [(_, _, env, _), ..._] => env
+          | [] => Alcotest.fail("no recorded theorem env")
+          };
+        let result =
+          test_calculate(
+            ~exp=parse_exp("f == f"),
+            ~ctx=ctx_with_x,
+            ~env,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        switch (result) {
+        | StepperBase.NextStep({
+            next_step: MissingStep(m, _),
+            _,
+          }) =>
+          let shown = m.full_exp |> saved_exc(~print="trailing full_exp");
+          let rec has_fun = (e: Exp.t): bool =>
+            switch (e.term) {
+            | Fun(_)
+            | FixF(_)
+            | Closure(_) => true
+            | BinOp(_, l, r) => has_fun(l) || has_fun(r)
+            | Ap(_, f, a) => has_fun(f) || has_fun(a)
+            | Parens(inner)
+            | Asc(inner, _) => has_fun(inner)
+            | _ => false
+            };
+          check(
+            string,
+            "trailing hole is not the unsubstituted written names",
+            "inlined",
+            Test_ProofMap.print_exp(shown) == "f == f" ? "written" : "inlined",
+          );
+          check(
+            bool,
+            "let-bound f is inlined as a function value",
+            true,
+            has_fun(shown),
+          );
+        | _ =>
+          Alcotest.fail(
+            "expected NextStep(Funext) with a synthesized trailing MissingStep",
+          )
+        };
+      },
+    ),
+    test_case(
+      "inlined recursive applications still offer eval steps",
+      `Quick,
+      () => {
+        /* `<sum>([]) == <fold_left+>(_, <sum>, 0)([])`: display subst
+           puts FixF in the tree, but the overlay must still quote the
+           written names so VarLookup is AvailableSteps, not AutoStep. */
+        let src = {|let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+theorem t = sum([]) == fold_left(_, sum, 0)([])
+proof ?
+in t|};
+        let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let env =
+          switch (EvaluatorState.get_theorems(state)) {
+          | [(_, _, env, _), ..._] => env
+          | [] => Alcotest.fail("no recorded theorem env")
+          };
+        let result =
+          test_calculate(
+            ~exp=parse_exp("sum([]) == fold_left(_, sum, 0)([])"),
+            ~ctx=ctx_with_x,
+            ~env,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        switch (result) {
+        | StepperBase.MissingStep(m, _) =>
+          switch (m.next_steps |> Calc.get_saved_opt) {
+          | Some(EvaluatorStep.AvailableSteps([_, ..._])) => ()
+          | Some(EvaluatorStep.AvailableSteps([])) =>
+            Alcotest.fail("inlined applications offered no eval steps")
+          | Some(EvaluatorStep.AutoStep(_)) =>
+            Alcotest.fail(
+              "eval overlay collapsed to AutoStep (FixUnwrap of inlined FixF)",
+            )
+          | None => Alcotest.fail("next_steps not calculated")
+          }
+        | _ => Alcotest.fail("expected a MissingStep row")
+        };
+      },
+    ),
+    test_case(
+      "funext body still offers eval of an applied recursive function",
+      `Quick,
+      () => {
+        /* Display subst inlines `sum` / `fold_left` as `FixF`. Computing
+           `get_status` on that term treats hidden FixUnwrap as AutoStep
+           and wipes the overlay — the steppable places on
+           `<sum>([]) == <fold_left>([], <sum>, 0)` go missing. Eval
+           overlay must quote the WRITTEN goal so VarLookup stays
+           available. */
+        let src = {|let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+theorem t = sum == fold_left(_, sum, 0)
+proof funext xs => ?
+in t|};
+        let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let env =
+          switch (EvaluatorState.get_theorems(state)) {
+          | [(_, _, env, _), ..._] => env
+          | [] => Alcotest.fail("no recorded theorem env")
+          };
+        let result =
+          test_calculate(
+            ~exp=parse_exp("sum == fold_left(_, sum, 0)"),
+            ~ctx=ctx_with_x,
+            ~env,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        let inner_missing =
+          switch (result) {
+          | StepperBase.NextStep({
+              step_kind: FunextStep({inner_stepper, _}),
+              _,
+            }) =>
+            switch (inner_stepper) {
+            | StepperBase.MissingStep(m, _) => m
+            | _ =>
+              Alcotest.fail("funext body is not a MissingStep hole")
+            }
+          | _ => Alcotest.fail("expected NextStep(FunextStep)")
+          };
+        let shown = inner_missing.full_exp |> saved_exc(~print="funext body");
+        let rec has_fix = (e: Exp.t): bool =>
+          switch (e.term) {
+          | FixF(_) => true
+          | Fun(_)
+          | Closure(_) => false
+          | Ap(_, f, a) => has_fix(f) || has_fix(a)
+          | DeferredAp(f, args) =>
+            has_fix(f) || List.exists(has_fix, args)
+          | BinOp(_, l, r) => has_fix(l) || has_fix(r)
+          | Parens(inner)
+          | Asc(inner, _) => has_fix(inner)
+          | _ => false
+          };
+        check(
+          bool,
+          "pointwise goal is display-substituted (FixF inlined)",
+          true,
+          has_fix(shown),
+        );
+        switch (inner_missing.next_steps |> Calc.get_saved_opt) {
+        | Some(EvaluatorStep.AvailableSteps([_, ..._])) => ()
+        | Some(EvaluatorStep.AvailableSteps([])) =>
+          Alcotest.fail("funext body offered no eval steps")
+        | Some(EvaluatorStep.AutoStep(_)) =>
+          Alcotest.fail(
+            "funext body eval overlay collapsed to AutoStep (FixUnwrap of inlined FixF)",
+          )
+        | None => Alcotest.fail("funext body next_steps not calculated")
         };
       },
     ),

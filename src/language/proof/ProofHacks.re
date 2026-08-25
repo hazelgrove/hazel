@@ -221,6 +221,51 @@ let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
     exp,
   );
 
+/* Immediate expression children, in `map_term` order. Used to walk two
+ * trees in lockstep when one is the env-substituted display of the other:
+ * wrapping nodes (`Ap`, `BinOp`, …) keep their ids, but a `Var` may
+ * become a `Fun`/`FixF` with a fresh id. */
+let immediate_exp_children = (e: Exp.t): list(Exp.t) => {
+  let kids = ref([]);
+  let root_id = Exp.rep_id(e);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, inner) =>
+          if (Exp.rep_id(inner) == root_id) {
+            cont(inner);
+          } else {
+            kids := [inner, ...kids^];
+            inner;
+          },
+      e,
+    );
+  List.rev(kids^);
+};
+
+/* The id of the node in `onto` that occupies the same position as `id`
+ * in `from`. `Some(id)` when the id survived substitution; the inlined
+ * function when a `Var` was replaced by a `Fun`/`FixF`/`Closure`. */
+let rec map_rep_id = (~from: Exp.t, ~onto: Exp.t, id: Id.t): option(Id.t) =>
+  if (Exp.rep_id(from) == id) {
+    Some(Exp.rep_id(onto));
+  } else {
+    let from_kids = immediate_exp_children(from);
+    let onto_kids = immediate_exp_children(onto);
+    List.length(from_kids) == List.length(onto_kids)
+      ? List.fold_left2(
+          (acc, f, o) =>
+            switch (acc) {
+            | Some(_) as s => s
+            | None => map_rep_id(~from=f, ~onto=o, id)
+            },
+          None,
+          from_kids,
+          onto_kids,
+        )
+      : None;
+  };
+
 let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   let term = exp |> Exp.term_of;
   let rewrap: Pat.term => Pat.t =

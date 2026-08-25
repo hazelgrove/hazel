@@ -206,7 +206,7 @@ module F =
           _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         _: model,
       ) =>
-    WebUtil.Node.text("funext");
+    WebUtil.Node.text("extensionality");
 
   let view_content =
       (
@@ -239,11 +239,11 @@ module F =
         model.inner_stepper,
       );
     /* The binder chip sits ABOVE the nested stepper: `funext x =>` reads
-     * left-to-right as "bind x, then prove the body", and the body's own
-     * rows are what the nested stepper draws. */
+     * left-to-right as "name the argument, then prove the body", and the
+     * body's own rows are what the nested stepper draws. */
     ProofFormView.view_pat_arg(
       ~globals,
-      ~label="funext: ",
+      ~label="argument: ",
       ~proof,
       ~main_editor,
       ~focused=

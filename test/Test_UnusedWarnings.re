@@ -238,5 +238,12 @@ let tests = (
       "let x = (a=1, b=2) in let y = 3 in x ... (a=y)",
       [],
     ),
+    /* Funext binders name the arbitrary argument of the pointwise goal;
+       the proof need not mention them. */
+    check_unused(
+      "funext: binder not flagged unused in a hole body",
+      "theorem t = (fun x -> x) == (fun x -> x) proof funext y => ? in t",
+      [],
+    ),
   ],
 );

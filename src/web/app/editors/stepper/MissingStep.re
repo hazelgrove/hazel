@@ -69,6 +69,10 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
+    /* The checker's written goal. `full_exp` is the env-substituted
+     * display (`<sum>([])`); eval overlay / `eval <exp> at <n>` quote
+     * this form so inlined `FixF`s are not mistaken for auto-unwraps. */
+    eval_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
     cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
@@ -82,6 +86,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
+    eval_exp: Calc.Pending,
     assumptions: Calc.Pending,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
@@ -223,10 +228,25 @@ module Update = {
     | Calc.NewValue(x) => Calc.NewValue(f(x))
     };
 
+  /* Map an eval-step id from the written goal onto the displayed term
+   * so underlines land on `<sum>` rather than a vanished `Var`. */
+  let display_step_id = (model: Model.t, step: EvaluatorStep.step): Id.t => {
+    let display = model.full_exp |> Calc.get_saved_opt;
+    let written = model.eval_exp |> Calc.get_saved_opt;
+    let written_id = EvaluatorStep.get_step_id(step);
+    switch (written, display) {
+    | (Some(from), Some(onto)) =>
+      ProofHacks.map_rep_id(~from, ~onto, written_id)
+      |> Option.value(~default=written_id)
+    | _ => written_id
+    };
+  };
+
   let calculate =
       (
         ~settings: CoreSettings.t,
         ~exp: Calc.t(Exp.t),
+        ~eval_exp as eval_in: Calc.t(Exp.t)=exp,
         ~ctx: Calc.t(SemanticCtx.t),
         {
           proof,
@@ -236,6 +256,7 @@ module Update = {
           assumptions,
           selected_exp,
           full_exp,
+          eval_exp: saved_eval_exp,
           selected_id,
           open_box,
           cached_env,
@@ -246,6 +267,8 @@ module Update = {
      * rendered, so callers can hand us a fresh `Calc.t` without forcing
      * the editor (and the selection it holds) to be rebuilt. */
     let exp = Calc.set(~eq=Exp.fast_equal, Calc.get_value(exp), full_exp);
+    let eval_exp =
+      Calc.set(~eq=Exp.fast_equal, Calc.get_value(eval_in), saved_eval_exp);
     let editor =
       editor
       |> {
@@ -266,12 +289,20 @@ module Update = {
      * up covers them. */
     let info_map =
       editor |> map_calc(e => CodeEditable.Model.get_statics(e).info_map);
+    /* Eval steps are computed on the WRITTEN goal + env. The displayed
+     * term already has `sum` inlined as `FixF`, and those hidden
+     * FixUnwraps would otherwise collapse `get_status` to AutoStep and
+     * wipe the overlay. */
     let new_next_steps =
       next_steps
       |> {
-        let.calc exp = exp
+        let.calc eval_exp = eval_exp
         and.calc ctx = ctx;
-        EvaluatorStep.get_status(~settings, exp, SemanticCtx.get_env(ctx));
+        EvaluatorStep.get_status(
+          ~settings,
+          eval_exp,
+          SemanticCtx.get_env(ctx),
+        );
       };
     let selected_id =
       // hacky way to get a currently-selected id
@@ -321,6 +352,7 @@ module Update = {
       refls
       |> {
         let.calc exp = exp
+        and.calc eval_exp = eval_exp
         and.calc ctx = ctx
         and.calc new_next_steps = new_next_steps
         and.calc info_map = info_map;
@@ -331,13 +363,16 @@ module Update = {
             | EvaluatorStep.AutoStep(_) => []
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
+        let display_id = (s: EvaluatorStep.step) =>
+          ProofHacks.map_rep_id(
+            ~from=eval_exp,
+            ~onto=exp,
+            EvaluatorStep.get_step_id(s),
+          )
+          |> Option.value(~default=EvaluatorStep.get_step_id(s));
         ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
         |> List.filter(e =>
-             !
-               List.exists(
-                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
-                 next_steps,
-               )
+             !List.exists(s => e |> Exp.rep_id == display_id(s), next_steps)
            );
       };
     let open_box =
@@ -395,6 +430,7 @@ module Update = {
       refls: refls |> Calc.save,
       assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
+      eval_exp: eval_exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
       cached_env: cached_env |> Calc.save,
@@ -556,7 +592,7 @@ module View = {
               | AutoStep(_) => []
               | AvailableSteps(steps) => steps
             )
-            |> List.map(step => step |> EvaluatorStep.get_step_id),
+            |> List.map(step => Update.display_step_id(model, step)),
           )
         | None => None
         };

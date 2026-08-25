@@ -1003,6 +1003,23 @@ and Stepper: {
          ~root=Exp,
        );
 
+  /* Display-side env substitution. The checker keeps the written goal
+   * (`sum == fold_left(_, sum, 0)`); showing that verbatim leaves the
+   * names as Vars. Substituting once turns them into the Fun/FixF
+   * values the env already holds, and function folding prints those as
+   * `<sum>` / `<fold_left>`. Quoting still matches modulo env
+   * (`nth_exp_env`); `EditorTransform.editable` / `fold_fn_bodies=`Text``
+   * keep chips out of the proof text.
+   *
+   * Once only: a second pass would unfold recursive calls inside
+   * already-inlined bodies (see `SemanticCtx.of_program_state`).
+   *
+   * Eval overlay is computed on the WRITTEN term, not this result: an
+   * inlined `FixF` is not a value, and its hidden FixUnwrap would
+   * collapse `get_status` to AutoStep and hide every steppable place. */
+  let subst_for_display = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t =>
+    Substitution.in_exp(SemanticCtx.get_env(ctx), e);
+
   /* Decompose the proof sub-term passed to a step. A `Seq(head, tail)`
    * represents "step then more steps", so the head describes the current
    * step kind and the tail is recursed into `next_step`. A leaf-shaped
@@ -1158,6 +1175,7 @@ and Stepper: {
       (
         ~settings: Calc.t(CoreSettings.t),
         ~exp: Calc.t(Exp.t),
+        ~eval_exp: Calc.t(Exp.t)=exp,
         ~ctx: Calc.t(SemanticCtx.t),
         ~proof: option(Proof.t),
         m: MissingStep.Model.t,
@@ -1166,6 +1184,7 @@ and Stepper: {
     MissingStep.Update.calculate(
       ~settings=Calc.get_value(settings),
       ~exp,
+      ~eval_exp,
       ~ctx,
       {
         ...m,
@@ -1186,14 +1205,26 @@ and Stepper: {
           )
           : step_model => {
     let make_editor = make_editor(~settings);
+    let subst = subst_for_display(~ctx=Calc.get_value(ctx));
+    /* Display (env-substituted) and written current of this row. Eval
+     * overlay quotes the written form; the editor shows the display. */
+    let written_current = (entry: cached_proof_map_entry): option(Exp.t) =>
+      switch (entry) {
+      | EntryFound(entry) =>
+        switch (editor_exps_of_entry(entry)) {
+        | Some((_pre, current, _post)) => Some(current)
+        | None => None
+        }
+      | EntryNotFound => None
+      };
     let editor_groups = (entry: cached_proof_map_entry) =>
       switch (entry) {
       | EntryFound(entry) =>
         switch (editor_exps_of_entry(entry)) {
         | Some((pre, current, post)) => (
-            List.map(make_editor, pre),
-            Some(current),
-            List.map(make_editor, post),
+            List.map(e => make_editor(subst(e)), pre),
+            Some(subst(current)),
+            List.map(e => make_editor(subst(e)), post),
           )
         | None => ([], None, [])
         }
@@ -1248,6 +1279,22 @@ and Stepper: {
             | None => Calc.get_value(exp)
             },
           ),
+        ~eval_exp=
+          Calc.NewValue(
+            switch (written_current(cached_proof_map_entry)) {
+            | Some(e) => e
+            | None =>
+              model.insert.eval_exp
+              |> Calc.saved_to_option
+              |> Option.value(
+                   ~default=
+                     switch (current_exp) {
+                     | Some(e) => e
+                     | None => Calc.get_value(exp)
+                     },
+                 )
+            },
+          ),
         ~ctx,
         ~proof=None,
         model.insert,
@@ -1283,12 +1330,17 @@ and Stepper: {
     };
     /* Steps chain off each other's results, so whatever follows this step
      * starts from its outgoing expression — which can only have moved if
-     * the proof or the checker's output did. */
+     * the proof or the checker's output did. ProofMap outgoing is the
+     * written form; subst here because the synthesized trailing hole
+     * (`proof_tail = None`) has no proof leaf to look up and displays
+     * `next_exp` verbatim. The `exp` fallback is already display-
+     * substituted by the caller. */
     let next_exp =
       switch (cached_proof_map_entry) {
       | EntryFound({outgoing: Some(outgoing), _}) =>
+        let e = subst(outgoing);
         Calc.is_new(proof) || Calc.is_new(proof_map)
-          ? Calc.NewValue(outgoing) : Calc.OldValue(outgoing)
+          ? Calc.NewValue(e) : Calc.OldValue(e);
       | EntryFound(_)
       | EntryNotFound => exp
       };
@@ -1333,6 +1385,14 @@ and Stepper: {
           calculate_missing_step(
             ~settings,
             ~exp=next_exp,
+            ~eval_exp=
+              switch (cached_proof_map_entry) {
+              | EntryFound({outgoing: Some(outgoing), _}) =>
+                Calc.is_new(proof) || Calc.is_new(proof_map)
+                  ? Calc.NewValue(outgoing) : Calc.OldValue(outgoing)
+              | EntryFound(_)
+              | EntryNotFound => next_exp
+              },
             ~ctx,
             ~proof=None,
             prev_missing,
@@ -1380,19 +1440,11 @@ and Stepper: {
         (~proof_head: Proof.t, ~prev_tail: next_step, m: MissingStep.Model.t)
         : next_step => {
       /* Prefer the CHECKER's incoming goal for this hole over the goal
-       * the caller threaded down. `calculate_full_step` already does
-       * this (via `editor_groups`); a missing-step row used to be the
-       * one row that didn't, and it is the row whose overlay WRITES
-       * expressions back into the proof text (`axiom ... on <exp> end`).
-       * The two differ: the theorem statement seeding the first row is
-       * the evaluator's record, which `Transition.re`'s Theorem rule
-       * env-inlines before recording (`Substitution.in_exp(env, e)`),
-       * so a goal mentioning a let-bound `f` arrives with f's whole
-       * lambda spliced in at every occurrence. The ProofMap keeps the
-       * form the user wrote, and the checker matches at_exps modulo
-       * env (`nth_exp_env`), so quoting the written form still checks.
+       * the caller threaded down, then env-substitute it for display.
+       * Eval overlay still quotes the written form: inlined `FixF`s
+       * would otherwise auto-unwrap and wipe the steppable places.
        * Falls back to `exp` when nothing has been checked yet. */
-      let exp =
+      let written =
         switch (
           ProofMap.lookup(
             Proof.rep_id(proof_head),
@@ -1401,15 +1453,28 @@ and Stepper: {
         ) {
         | Some(entry) =>
           switch (editor_exps_of_entry(entry)) {
-          | Some((_pre, current, _post)) => Calc.NewValue(current)
-          | None => exp
+          | Some((_pre, current, _post)) => Some(current)
+          | None => None
           }
+        | None => None
+        };
+      let exp =
+        switch (written) {
+        | Some(current) =>
+          Calc.NewValue(
+            subst_for_display(~ctx=Calc.get_value(ctx), current),
+          )
         | None => exp
         };
       let m =
         calculate_missing_step(
           ~settings,
           ~exp,
+          ~eval_exp=
+            switch (written) {
+            | Some(current) => Calc.NewValue(current)
+            | None => exp
+            },
           ~ctx,
           ~proof=Some(proof_head),
           m,
@@ -2503,7 +2568,10 @@ and Stepper: {
               editor,
               taken_steps: [],
               next_steps:
-                List.map(EvaluatorStep.get_step_id, available_steps),
+                List.map(
+                  MissingStep.Update.display_step_id(m),
+                  available_steps,
+                ),
               refls: List.map(Exp.rep_id, refls),
             },
           );

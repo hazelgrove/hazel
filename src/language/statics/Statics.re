@@ -5087,9 +5087,12 @@ and proof_to_info_map =
     let elab = rewrap(Forall(pat_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
   | Funext(pat, body) =>
-    /* `funext x => body`: same shape as Forall — the binder enters the
-       variable namespace for the sub-proof. */
-    let (pat_info, pat_elab, m) =
+    /* Binder enters the variable namespace for the sub-proof. The name
+     * is for the pointwise goal `f(x) == g(x)` the checker synthesizes;
+     * the proof text need not mention it (a hole, or a step that never
+     * quotes `x`). First pass extends ctx; second pass pretends every
+     * binder is used so UnusedVar does not fire. */
+    let (pat_info, _, _) =
       upat_to_info_map(
         ~is_synswitch=false,
         ~ctx,
@@ -5103,6 +5106,31 @@ and proof_to_info_map =
         ~ctx=pat_info.ctx,
         ~ancestors=ancestors_inclusive,
         Proof(body),
+        m,
+      );
+    let used =
+      pat
+      |> Pat.bindings
+      |> Binding.variable_names
+      |> List.fold_left(
+           (acc, name) =>
+             CoCtx.union([
+               acc,
+               CoCtx.singleton(
+                 name,
+                 Pat.rep_id(pat),
+                 Unknown(Internal) |> Typ.temp,
+               ),
+             ]),
+           CoCtx.empty,
+         );
+    let (_, pat_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=used,
+        ~ancestors=ancestors_inclusive,
+        pat,
         m,
       );
     let elab = rewrap(Funext(pat_elab, proof_of_any(body_elab)));
