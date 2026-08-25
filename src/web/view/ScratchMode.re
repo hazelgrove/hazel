@@ -309,6 +309,29 @@ module Focus = {
   let pat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
     seg |> Zipper.unzip |> Editor.Model.mk(~root=Pat) |> CellEditor.Model.mk;
 
+  let typ_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
+    seg |> Zipper.unzip |> Editor.Model.mk(~root=Typ) |> CellEditor.Model.mk;
+
+  let tpat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
+    seg |> Zipper.unzip |> Editor.Model.mk(~root=TPat) |> CellEditor.Model.mk;
+
+  /* is the item tile a `type … = …` alias? (roots differ: Typ body,
+     TPat header) */
+  let rec is_type_item = (fid: Id.t, seg: Segment.t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when t.id == fid =>
+          switch (t.label) {
+          | ["type", ..._] => true
+          | _ => false
+          }
+        | Tile(t) => List.exists(is_type_item(fid), t.children)
+        | _ => false
+        },
+      seg,
+    );
+
   /* the pattern (header) is the FIRST child for every focusable item
      shape: `let <pat> = …` 2- and 3-shard alike */
   let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
@@ -1048,9 +1071,11 @@ module Update = {
                 Some(Language.Operators.default_mode),
               )
             };
-          let focus_cell = Focus.cell_of_seg(def_seg);
+          let is_type = Focus.is_type_item(fid, master_seg);
+          let focus_cell =
+            (is_type ? Focus.typ_cell_of_seg : Focus.cell_of_seg)(def_seg);
           let header_cell =
-            Focus.pat_cell_of_seg(
+            (is_type ? Focus.tpat_cell_of_seg : Focus.pat_cell_of_seg)(
               Option.value(Focus.find_pat(fid, master_seg), ~default=[]),
             );
           Model.{
@@ -1385,6 +1410,17 @@ module Update = {
           },
         );
       let ctx = Option.map((f: Model.focus_t) => f.f_ctx, model.focus);
+      /* a TYPE-focused body cell is Typ-rooted: exp statics/dynamics
+         don't apply (same policy as the header) */
+      let body_is_exp = editor.editor.editor.root == Haz3lcore.Sort.Exp;
+      let settings =
+        body_is_exp
+          ? settings
+          : Language.CoreSettings.{
+              ...settings,
+              statics: false,
+              dynamics: false,
+            };
       /* the header cell: molding/measuring only — statics would run
          EXP checks on a pattern; dynamics has nothing to run */
       let focus =

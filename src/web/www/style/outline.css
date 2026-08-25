@@ -172,3 +172,9 @@
   background: transparent;
   border: none;
 }
+
+/* the standard cell inset is 16px all around; the header keeps only
+   the horizontal share (andrew: no vertical padding) */
+#main .focus-header .cell-item {
+  padding: 0 16px;
+}

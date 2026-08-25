@@ -107,9 +107,7 @@ let rec node_view =
       }
     | _ => n
     };
-  /* type items have no Exp-rooted body to focus (their RHS is a TYPE);
-     typ-rooted cells are future work */
-  let focusable = n.o_kind != OutlineTree.KType;
+  let focusable = true;
   let label =
     div(
       ~attrs=
