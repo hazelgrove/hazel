@@ -54,6 +54,39 @@ let parse_exp = (s: string) => {
   };
 };
 
+/* Build probe capture targets from a zipper's refractors: the union of the
+ * manual and ephemeral probe ids, each paired with the refs visible at that
+ * probe (refs_in for expressions, bound_in for patterns). */
+let targets_of_zipper =
+    (z: Haz3lcore.Zipper.t, info_map: Statics.Map.t): Sample.targets => {
+  /* Extract probe IDs directly from zipper's refractors.
+   * Map values to unit since we only need the IDs as keys. */
+  let probe_ids =
+    Id.Map.union(
+      (_, _, _) => Some(),
+      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+    );
+  /* Build targets from probe_ids, computing refs for each */
+  Id.Map.fold(
+    (id, (), acc) => {
+      let refs =
+        switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) => Statics.Map.refs_in(info_map, id)
+        | None =>
+          switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) => Statics.Map.bound_in(info_map, id)
+          | None => []
+          }
+        };
+      let spec: Sample.capture_spec = {refs: refs};
+      Id.Map.add(id, spec, acc);
+    },
+    probe_ids,
+    Id.Map.empty,
+  );
+};
+
 /* Parse code with probes (^^probe syntax), elaborate it, and build targets */
 let parse_with_probes =
     (s: string): (Exp.t, Exp.t, Statics.Map.t, Sample.targets) => {
@@ -62,39 +95,10 @@ let parse_with_probes =
   | Some(z) =>
     let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let term = make_term_result.term;
-    /* Extract probe IDs directly from zipper's refractors.
-     * Map values to unit since we only need the IDs as keys. */
-    let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-      );
-
     /* Build statics map for refs lookup and evaluation */
     let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-
-    /* Build targets from probe_ids, computing refs for each */
-    let targets: Sample.targets =
-      Id.Map.fold(
-        (id, (), acc) => {
-          let refs =
-            switch (Statics.Map.lookup_exp(id, info_map)) {
-            | Some(_) => Statics.Map.refs_in(info_map, id)
-            | None =>
-              switch (Statics.Map.lookup_pat(id, info_map)) {
-              | Some(_) => Statics.Map.bound_in(info_map, id)
-              | None => []
-              }
-            };
-          let spec: Sample.capture_spec = {refs: refs};
-          Id.Map.add(id, spec, acc);
-        },
-        probe_ids,
-        Id.Map.empty,
-      );
-
+    let targets = targets_of_zipper(z, info_map);
     (term, elaborated, info_map, targets);
   };
 };
@@ -140,10 +144,19 @@ let parse_and_evaluate_test =
     elaborate(parse_exp(actual)),
   );
 
-let step_limited = (t: Alcotest.testable('a)) =>
+let equal_limited_result =
+    (lr1: Evaluator.limited_result, lr2: Evaluator.limited_result) =>
+  switch (lr1, lr2) {
+  | (LimitedCompleted((exp1, _)), LimitedCompleted((exp2, _))) =>
+    Exp.equal(exp1, exp2)
+  | (StepLimitExceeded, StepLimitExceeded) => true
+  | _ => false
+  };
+
+let step_limited =
   testable(
-    Fmt.using(Evaluator.show_step_constrained(pp(t)), Fmt.string),
-    Evaluator.equal_step_constrained(equal(t)),
+    Fmt.using(Evaluator.show_limited_result, Fmt.string),
+    equal_limited_result,
   );
 let single_step = (exp: Exp.t) => {
   let step =
@@ -160,8 +173,7 @@ let single_step = (exp: Exp.t) => {
 };
 
 let full_small_step_reduction =
-    (~step_limit=1000, exp: TermBase.exp_t)
-    : Evaluator.step_constrained(Exp.t) => {
+    (~step_limit=1000, exp: TermBase.exp_t): Evaluator.limited_result => {
   let rec go = (~steps_counter=0, exp: TermBase.exp_t): option(Exp.t) =>
     if (steps_counter > step_limit) {
       None;
@@ -174,7 +186,7 @@ let full_small_step_reduction =
 
   switch (go(~steps_counter=0, exp)) {
   | None => StepLimitExceeded
-  | Some(new_exp) => Completed(new_exp)
+  | Some(new_exp) => LimitedCompleted((new_exp, EvaluatorState.empty))
   };
 };
 

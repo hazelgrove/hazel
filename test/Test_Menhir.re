@@ -9,6 +9,7 @@ let alco_check =
       equality({
         ...syntactic_settings,
         ignore_parens: true,
+        ignore_projectors: true,
       })
     ).
       exp,
@@ -79,6 +80,37 @@ let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
     },
   );
 
+/* Names take Unicode (everything but Token.operator_chars), so the ocamllex
+ * alphabet has to accept them too or text stops round-tripping. Parse, print,
+ * reparse: the printed form must be stable and must still contain the name. */
+let print_exp = exp =>
+  Haz3lcore.Printer.of_segment(
+    ~holes="?",
+    Haz3lcore.ExpToSegment.(
+      exp_to_segment(
+        ~settings=Settings.editable(~inline=true),
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp),
+      )
+    ),
+  );
+
+let menhir_roundtrip_test = (name: string, source: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let parse = s =>
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(s));
+      let once = print_exp(parse(source));
+      Alcotest.check(
+        Alcotest.string,
+        "reprints identically",
+        once,
+        print_exp(parse(once)),
+      );
+    },
+  );
+
 let menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, actual: string) =>
   test_case(name, speed_level, () => {
@@ -100,7 +132,7 @@ let menhir_maketerm_equivalent_test =
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=100,
+    ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
@@ -121,6 +153,7 @@ let qcheck_menhir_maketerm_equivalent_test =
             equality({
               ...syntactic_settings,
               ignore_parens: true,
+              ignore_projectors: true,
             })
           ).
             exp(
@@ -179,6 +212,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,
+            hole_tiles: false,
             project_tables: false,
           },
           core_exp,
@@ -195,8 +229,42 @@ let qcheck_menhir_serialized_equivalent_test =
          normalize both sides through of_core(of_menhir_ast(...)) which
          canonicalizes these forms. This only affects this test (not the
          78 other named tests, which use hand-written expected ASTs). */
+      /* Also strip Paren nodes in all sorts: Defensive printing adds
+         parens, and of_core now faithfully preserves them as
+         ParenPat/ParenTyp instead of silently dropping them. */
+      /* Fixpoint unwrap: conversion can nest Parens (ParenPat over the
+         paren-carrying TuplePat, e.g. source `(())`), and map_term's
+         cont replaces a node with its mapped argument WITHOUT re-running
+         the callback on it — single-layer unwrapping leaves the inner
+         Parens behind. */
+      let rec unwrap_exp = (e: TermBase.exp_t) =>
+        switch (e.term) {
+        | Parens(inner) => unwrap_exp(inner)
+        | _ => e
+        };
+      let rec unwrap_pat = (p: TermBase.pat_t) =>
+        switch (p.term) {
+        | Parens(inner) => unwrap_pat(inner)
+        | _ => p
+        };
+      let rec unwrap_typ = (t: TermBase.typ_t) =>
+        switch (t.term) {
+        | Parens(inner) => unwrap_typ(inner)
+        | _ => t
+        };
+      let strip_parens =
+        Exp.map_term(
+          ~f_exp=(cont, e) => cont(unwrap_exp(e)),
+          ~f_pat=(cont, p) => cont(unwrap_pat(p)),
+          ~f_typ=(cont, t) => cont(unwrap_typ(t)),
+          _,
+        );
       let normalize = exp =>
-        Conversion.Exp.of_core(Conversion.Exp.of_menhir_ast(exp));
+        Conversion.Exp.of_menhir_ast(exp)
+        |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
+        |> strip_parens
+        |> Grammar.map_exp_annotation(_ => false)
+        |> Conversion.Exp.of_core;
       AST.equal_exp(normalize(menhir_parsed), normalize(exp));
     },
   );
@@ -205,6 +273,30 @@ let tests =
   Fresh.(
     "MenhirParser",
     Exp.[
+      /* Grammar gap fills 2026-08-06: multi-param fun, fun-level type
+         ascription (arrow types need parens), single-caret livelits.
+         Equivalence against MakeTerm is the contract that matters. */
+      menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      menhir_maketerm_equivalent_test(
+        "multi-param fun three",
+        "fun nodes, x, y -> nodes + x + y",
+      ),
+      menhir_maketerm_equivalent_test(
+        "fun with tuple ascription",
+        "fun (m, a) : (Int, Bool) -> m",
+      ),
+      menhir_maketerm_equivalent_test(
+        "fun with bare ascription",
+        "fun a : Int -> a",
+      ),
+      menhir_maketerm_equivalent_test(
+        "fun with parenthesized arrow ascription",
+        "fun f : (Int -> Int) -> f(1)",
+      ),
+      menhir_maketerm_equivalent_test(
+        "multi-param fun with ascription",
+        "fun a, b : (Int, Int) -> a",
+      ),
       full_parser_test("Integer Literal", int(8), "8"),
       full_parser_test(
         "Fun",
@@ -229,6 +321,53 @@ let tests =
         "Let",
         let_(Fresh.Pat.var("x"), int(5), var("x")),
         "let x = 5 in x",
+      ),
+      full_parser_test(
+        "Let with an accented name",
+        let_(Fresh.Pat.var("caf\xc3\xa9"), int(5), var("caf\xc3\xa9")),
+        "let caf\xc3\xa9 = 5 in caf\xc3\xa9",
+      ),
+      full_parser_test(
+        "Let with a CJK name",
+        let_(
+          Fresh.Pat.var("\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"),
+          int(5),
+          var("\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"),
+        ),
+        "let \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e = 5 in \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e",
+      ),
+      full_parser_test(
+        "Emoji-led name is a variable",
+        let_(
+          Fresh.Pat.var("\xf0\x9f\x98\x80x"),
+          int(5),
+          var("\xf0\x9f\x98\x80x"),
+        ),
+        "let \xf0\x9f\x98\x80x = 5 in \xf0\x9f\x98\x80x",
+      ),
+      full_parser_test(
+        "Operator adjacent to a Unicode name",
+        bin_op(Int(Plus), var("caf\xc3\xa9"), int(1)),
+        "caf\xc3\xa9 + 1",
+      ),
+      menhir_only_test(
+        "Constructor with a trailing emoji",
+        constructor("Foo\xf0\x9f\x98\x80", None),
+        "Foo\xf0\x9f\x98\x80",
+      ),
+      menhir_roundtrip_test(
+        "Accented name round-trips",
+        "let caf\xc3\xa9 = 5 in caf\xc3\xa9 + 1",
+      ),
+      /* © is a symbol, not a letter. It used to be an operator, so this
+       * split into three tokens; the ocamllex alphabet has to agree. */
+      menhir_roundtrip_test(
+        "Symbol inside a name round-trips",
+        "let a\xc2\xa9b = 5 in a\xc2\xa9b + 1",
+      ),
+      menhir_roundtrip_test(
+        "CJK name round-trips",
+        "let \xe6\x97\xa5\xe6\x9c\xac = 5 in \xe6\x97\xa5\xe6\x9c\xac + 1",
       ),
       full_parser_test("Tuple", tuple([int(4), int(5)]), "(4, 5)"),
       full_parser_test(
@@ -847,19 +986,17 @@ let ex5 = list_of_mylist(x) in
         "Nested module keyword",
         {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
       ),
-      /* H.1 fix: singleton labeled tuple type now parses in Menhir */
-      /* Menhir wraps `(x : (a=Int))` as parens(asc(x, parens(tup_label)))
-         via AscPat rule at line 294 + conversion at line 599 */
+      /* Singleton labeled tuple type: source parens are explicit
+         (ParenTyp) and a lone labeled entry is still a product —
+         asc(x, parens(prod([a=Int]))), MakeTerm parity. */
       menhir_only_test(
         "Singleton labeled tuple type",
         Fresh.Exp.(
           let_(
             Fresh.Pat.(
-              parens(
-                asc(
-                  var("x"),
-                  Fresh.Typ.(parens(tup_label(label("a"), int()))),
-                ),
+              asc(
+                var("x"),
+                Fresh.Typ.(parens(prod([tup_label(label("a"), int())]))),
               )
             ),
             int(1),

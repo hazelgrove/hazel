@@ -38,17 +38,23 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    let clipboard = Unicode.nfc_outside_strings(clipboard);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
-      (
-        Parser.can_fast_paste(clipboard, z, ~root)
-          ? Parser.fast_paste(clipboard, z, ~root)
-          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
-      )
-      |> Option.map(maybe_reassoc_thorough)
-      |> return(CantPaste)
-    }
+      /* console-visible paste telemetry (dev): which parser ran and why */
+      let n = string_of_int(String.length(clipboard)) ++ " chars";
+      switch (Parser.fast_paste(clipboard, z, ~root)) {
+      | Ok(z) =>
+        print_endline("FastParse paste (" ++ n ++ "): linear path");
+        Ok(maybe_reassoc_thorough(z));
+      | Error(why) =>
+        print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
+        Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        |> Option.map(maybe_reassoc_thorough)
+        |> return(CantPaste);
+      };
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z, ~root) |> return(Cant_destruct)
@@ -226,6 +232,6 @@ let go =
   | ToggleLineComment =>
     Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
     |> return(Cant_destruct)
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };

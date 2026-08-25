@@ -14,11 +14,18 @@ let (suite, _) =
     ~argv=Sys.argv,
     "HazelTests",
     [
+      Test_LazyHydration.tests,
+      Test_Undo.tests,
+      Test_FastParseCorpus.tests,
+      Test_FastParse.tests,
+      Test_MenhirFuzz.tests,
+      Test_MenhirCorpus.tests,
       Test_ListUtil.tests,
       Test_OptUtil.tests,
       Test_Atom.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
+      Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -31,7 +38,11 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_Unicode.tests
+    @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
+    @ Test_AgentMultiTool.tests
+    @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
@@ -63,7 +74,9 @@ let (suite, _) =
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
-    @ Test_DerivationCase.tests,
+    @ Test_DerivationCase.tests
+    @ Test_PromptFactory.tests
+    @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

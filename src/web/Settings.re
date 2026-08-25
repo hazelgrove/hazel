@@ -75,7 +75,13 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
-      debug_collapsed: [],
+      /* Start the Worker Messaging benchmark section collapsed so it doesn't
+         run by default (benchmarking is gated on the section being expanded).
+         Must match WorkerMessagingSection.title. */
+      debug_collapsed: ["Worker Messaging"],
+      /* Only the active encoding (Marshal) is benchmarked by default; Direct
+         and Sexp start unchecked. */
+      worker_encodings: [WorkerServer.Marshal],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -167,13 +173,6 @@ module Update = {
     | CapUndoStack
     | ShowRowLines
     | ShowIncrementalDeco;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Evaluation(ShowSettings) => false
-    | _ => true
-    };
-  };
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -394,6 +393,10 @@ module Update = {
               settings.sidebar,
             ),
         }
+      | Sidebar(ToggleWorkerEncoding(e)) => {
+          ...settings,
+          sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
+        }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
           explainThis: {
@@ -474,7 +477,14 @@ module Update = {
         }
       }
     )
-    |> Updated.return(~scroll_active=false);
+    |> Updated.return(
+         ~scroll_active=false,
+         ~historic=
+           switch (action) {
+           | Evaluation(ShowSettings) => false
+           | _ => true
+           },
+       );
   };
 };
 

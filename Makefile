@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -28,9 +28,11 @@ change-deps:
 
 setup-instructor:
 	cp src/web/exercises/settings/ExerciseSettings_instructor.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_instructor.re src/web/exercises/settings/TutorialSettings.re
 
-setup-student: 
+setup-student:
 	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_student.re src/web/exercises/settings/TutorialSettings.re
 
 dev-helper: setup-zarith
 	dune fmt --auto-promote || true
@@ -85,10 +87,27 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+# Report definitions that nothing references, using the .ocaml-index files dune
+# already builds. See scripts/find_dead_code.py for the predicate and its limits.
+# Analyses whichever ExerciseSettings/TutorialSettings variant is currently in
+# place; deliberately does not run setup-instructor, which would flip a student
+# checkout. Do not point this at a bisect_ppx-instrumented build.
+dead-code:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build
+
+dead-code-json:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=json
+
+dead-code-summary:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=markdown
+
 ci: setup-zarith
 	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
-	
+
 generate-coverage-html:
 	bisect-ppx-report html
 

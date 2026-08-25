@@ -19,15 +19,6 @@ module Update = {
 
   exception CantReset;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Perform(action) => Action.is_historic(action)
-    | TAB => true
-    | ContextMenu(_) => false
-    | DebugConsole(_) => false
-    };
-  };
-
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
@@ -50,6 +41,7 @@ module Update = {
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
+           ~historic=Action.is_historic(action),
            ~is_edit=
              Action.is_edit(action)
              /* When probe_all is on, Refractor actions don't require
@@ -534,7 +526,9 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
+        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
+        ~pending_eval_ids: list(Id.t)=[],
+        ~show_active_eval: bool=false,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -549,6 +543,75 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
+    /* Editor-level clipboard helpers. Bypass the page-level
+       on_copy/on_paste path because Firefox refuses to dispatch
+       native clipboard events to non-editable focused elements
+       (the editor div has tabindex(0) but is not contenteditable).
+       Shared by the keyboard shortcuts and the context menu. */
+    let selection_has_refractors =
+        (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
+      if (List.is_empty(refractors.manuals)) {
+        false;
+      } else {
+        let ids = Haz3lcore.Segment.ids(selection);
+        List.exists(
+          id =>
+            List.exists(
+              ((id2, _)) => Id.equal(id, id2),
+              refractors.manuals,
+            ),
+          ids,
+        );
+      };
+    let copy_selection = () => {
+      let z = model.editor.state.zipper;
+      let segment = z.selection.content;
+      let full =
+        Printer.of_segment(
+          ~indent=" ",
+          ~refractors=z.refractors.manuals,
+          segment,
+        );
+      let str = Zipper.trim_selected_text(z, full);
+      /* Cache for paste reuse only when nothing was trimmed: a trimmed
+         sub-token string must re-parse on paste, not round-trip to the
+         full segment. */
+      let cache_for_paste =
+        str == full && !selection_has_refractors(z.refractors, segment)
+          ? Effect.of_sync_fun(
+              () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
+              (),
+            )
+          : Effect.Ignore;
+      Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
+    };
+    let paste_from_clipboard = () =>
+      Effect.bind(JsUtil.read_clipboard(), ~f=text =>
+        inject(
+          Perform(
+            Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text)),
+          ),
+        )
+      );
+    /* Inject for context-menu rows. Clipboard rows need view-layer side
+       effects the core can't perform: Copy/Cut write the system clipboard
+       before dispatch, and PasteFromClipboard starts an async read whose
+       result is dispatched as the real Paste, closing the menu
+       immediately. Both are Effects, so the clipboard is touched when the
+       row fires rather than when its Effect is built. */
+    let perform_from_menu = (c: ContextMenu.command): Ui_effect.t(unit) =>
+      switch (c) {
+      | Perform(Copy) =>
+        Effect.Many([copy_selection(), inject(Perform(Copy))])
+      | Perform(Cut) =>
+        Effect.Many([copy_selection(), inject(Perform(Cut))])
+      | PasteFromClipboard =>
+        Effect.Many([
+          paste_from_clipboard(),
+          inject(ContextMenu(ContextMenu.Model.Close)),
+        ])
+      | Perform(a) => inject(Perform(a))
+      };
     /* Sync document-level listeners (click-outside + keyboard) for the
      * context menu. Keys are dispatched at capture phase so the editor's
      * window-level handler doesn't see them while the menu is open. */
@@ -562,7 +625,7 @@ module View = {
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
             ~dispatch_menu=a => inject(ContextMenu(a)),
-            ~dispatch_action=a => inject(Perform(a)),
+            ~dispatch_action=perform_from_menu,
             model.context_menu,
             key_str,
           ),
@@ -600,7 +663,7 @@ module View = {
                   [],
                 ),
                 ContextMenu.view(
-                  ~inject=a => inject(Perform(a)),
+                  ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
@@ -665,26 +728,31 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* Tint the background behind ids reused from the last run (cache hits)
-     * with an icy wash, so the user can see what the incremental evaluator
-     * is skipping. Gated behind a nut-menu setting because it's distracting
-     * during normal editing. */
+    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
+     * evaluation highlights are transient progress feedback, so keep them on
+     * while the worker is running. */
     let incr_eval_overlay =
-      if (globals.settings.show_incremental_deco) {
-        [
+      switch (
+        predicted_reuse,
+        globals.settings.show_incremental_deco || pending_eval_ids != [],
+      ) {
+      | (Some(predicted_reuse), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
-                incr_eval,
+                ~pending_eval_ids,
+                ~show_active_eval,
+                ~show_frozen=globals.settings.show_incremental_deco,
+                predicted_reuse,
               ),
             ],
           ),
-        ];
-      } else {
-        [];
+        ]
+      | (None, _)
+      | (Some(_), false) => []
       };
     let overlays =
       incr_eval_overlay
@@ -716,6 +784,34 @@ module View = {
         ? Some(Keyboard.mouse_modifier_chunk(globals.settings.core)) : None;
     };
 
+    /* True when a click location falls within the measured extent of
+       the current selection (approximated by its first/last pieces).
+       Right-click uses this to keep the selection alive so the context
+       menu's Cut/Copy can act on it. */
+    let click_in_selection = (click: Point.t): bool => {
+      let z = model.editor.state.zipper;
+      switch (z.selection.content) {
+      | [] => false
+      | [first, ..._] as content =>
+        let measured = model.editor.syntax.measured;
+        switch (
+          try(
+            Some((
+              Measured.find_p(first, measured),
+              Measured.find_p(ListUtil.last(content), measured),
+            ))
+          ) {
+          | _ => None
+          }
+        ) {
+        | None => false
+        | Some((head, tail)) =>
+          Point.compare(click, head.origin) >= 0
+          && Point.compare(click, tail.last) <= 0
+        };
+      };
+    };
+
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
@@ -743,12 +839,17 @@ module View = {
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
-        Effect.Many([
-          //Effect.Stop_propagation,
-          Effect.Prevent_default,
-          inject(Perform(Move(Point(loc(mouse), None)))),
-          inject(ContextMenu(ContextMenu.Model.Toggle)),
-        ])
+        /* Right-click inside the selection keeps it (so the menu's
+           Cut/Copy apply to it); outside, move the caret to the click
+           location as a plain click would before opening the menu. */
+        Effect.Many(
+          [Effect.Prevent_default]
+          @ (
+            click_in_selection(loc(mouse))
+              ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
+          )
+          @ [inject(ContextMenu(ContextMenu.Model.Toggle))],
+        )
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
         DragClass.add(mouse.current_target);
@@ -848,48 +949,6 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
-        /* Editor-level clipboard helpers. Bypass the page-level
-           on_copy/on_paste path because Firefox refuses to dispatch
-           native clipboard events to non-editable focused elements
-           (the editor div has tabindex(0) but is not contenteditable). */
-        let selection_has_refractors =
-            (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
-          if (List.is_empty(refractors.manuals)) {
-            false;
-          } else {
-            let ids = Haz3lcore.Segment.ids(selection);
-            List.exists(
-              id =>
-                List.exists(
-                  ((id2, _)) => Id.equal(id, id2),
-                  refractors.manuals,
-                ),
-              ids,
-            );
-          };
-        let copy_selection = () => {
-          let segment = z.selection.content;
-          let full =
-            Printer.of_segment(
-              ~indent=" ",
-              ~refractors=z.refractors.manuals,
-              segment,
-            );
-          let str = Zipper.trim_selected_text(z, full);
-          /* Cache for paste reuse only when nothing was trimmed: a trimmed
-             sub-token string must re-parse on paste, not round-trip to the
-             full segment. */
-          if (str == full && !selection_has_refractors(z.refractors, segment)) {
-            Haz3lcore.Parser.set_segment_cache(Some(segment), str);
-          };
-          JsUtil.write_clipboard(str);
-        };
-        let paste_from_clipboard = () =>
-          JsUtil.read_clipboard(text => {
-            let action =
-              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-            Bonsai.Effect.Expert.handle(inject(Perform(action)));
-          });
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
@@ -942,8 +1001,11 @@ module View = {
               alt: Up,
               _,
             } =>
-            copy_selection();
-            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+            Effect.Many([
+              copy_selection(),
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+            ])
           | {
               key: D("x" | "X"),
               sys: Mac,
@@ -962,12 +1024,12 @@ module View = {
               alt: Up,
               _,
             } =>
-            copy_selection();
             Effect.Many([
+              copy_selection(),
               Effect.Prevent_default,
               Effect.Stop_propagation,
               inject(Perform(Destruct(Right))),
-            ]);
+            ])
           | {
               key: D("v" | "V"),
               sys: Mac,
@@ -986,8 +1048,11 @@ module View = {
               alt: Up,
               _,
             } =>
-            paste_from_clipboard();
-            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+            Effect.Many([
+              paste_from_clipboard(),
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+            ])
           | _ =>
             /* 3. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */

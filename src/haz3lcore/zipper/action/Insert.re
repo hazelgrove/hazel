@@ -431,9 +431,18 @@ let delimiter_label = (char: string): Label.t =>
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
 let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
-  let content = z.selection.content;
+  /* Sort is read before the remainders move: they are fragments of the
+   * tokens already at this position, so the wrapping tile's mold is the
+   * one it would get without them. */
   let sort = Relatives.sort(~root, z.relatives);
+  /* A char-level selection holds whole boundary pieces; only the selected
+   * characters go inside the new tile, the rest stay outside it. */
+  let (left_rem, content, right_rem) = Zipper.split_char_selection(z);
   let (left_sibs, right_sibs) = z.relatives.siblings;
+  let (left_sibs, right_sibs) = (
+    left_sibs @ left_rem,
+    right_rem @ right_sibs,
+  );
   let label = delimiter_label(char);
   let mold = Form.Molds.get(sort, label);
   let ancestor: Ancestor.t = {
@@ -496,6 +505,33 @@ let segment_text = (content: Segment.t): string =>
     content,
   );
 
+/* Text actually covered by the selection. A char-level selection keeps whole
+ * pieces in `selection.content`, with the real boundaries recorded as Inner
+ * offsets, so trim the unselected head/tail of the boundary tokens. */
+let selected_text = (z: t): string => {
+  let content = z.selection.content;
+  let text = segment_text(content);
+  let (left_offset, right_offset) = Zipper.char_selection_offsets(z);
+  let trim = (n: int, s: string) =>
+    Token.split_nth(s, max(0, min(n, Token.length(s))));
+  let drop_left =
+    switch (left_offset, content) {
+    | (Some(n), [p, ..._]) when Piece.token_of(p) != None => n + 1
+    | _ => 0
+    };
+  let drop_right =
+    switch (right_offset, ListUtil.last_opt(content)) {
+    | (Some(n), Some(p)) =>
+      switch (Piece.token_of(p)) {
+      | Some(tok) => Token.length(tok) - (n + 1)
+      | None => 0
+      }
+    | _ => 0
+    };
+  let text = snd(trim(drop_left, text));
+  fst(trim(Token.length(text) - drop_right, text));
+};
+
 /* Check if text is valid for wrapping in the given delimiter.
  * Rejects text containing the delimiter char or newlines. */
 let is_valid_quote_content = (delim: string, text: string): bool =>
@@ -505,29 +541,44 @@ let is_valid_quote_content = (delim: string, text: string): bool =>
  * Returns None if the text contains invalid characters, causing
  * fallthrough to normal insert behavior (selection replacement). */
 let wrap_quote = (char: string, z: t, ~root): option(t) => {
-  let content = z.selection.content;
-  let text = segment_text(content);
+  let text = selected_text(z);
   if (!is_valid_quote_content(char, text)) {
     None;
   } else {
-    let z = destroy_selection(z);
-    if (Token.is_comment_delim(char)) {
-      let comment = "#" ++ text ++ "#";
-      let piece = Piece.mk_secondary(Id.mk(), comment);
+    /* Delete exactly the selected characters. For a char-level selection
+     * this splits the boundary tokens and keeps their exterior, leaving the
+     * caret Inner at the seam when both halves survive in one token. */
+    let z = Zipper.normalize_char_selection(z);
+    let z =
+      Selection.is_empty(z.selection)
+        /* Already normalized away; an Inner caret here is the seam. */
+        ? z
+        /* Whole-piece selection: an Inner caret left over from the destroyed
+         * selection would be misread against whatever ends up on the right. */
+        : destroy_selection(z) |> Caret.set(Outer);
+    let token =
+      Token.is_comment_delim(char)
+        ? "#" ++ text ++ "#" : char ++ text ++ char;
+    switch (z.caret, Zipper.neighbor_tokens(z)) {
+    | (Inner(idx), (_, Some(t))) =>
+      /* Seam inside a surviving token: split it around the new one. */
+      split(z, token, idx + 1, t, ~root)
+    | _ =>
+      let piece =
+        if (Token.is_comment_delim(char)) {
+          Piece.mk_secondary(Id.mk(), token);
+        } else {
+          let sort = Relatives.sort(~root, z.relatives);
+          let mold = Form.Molds.get(sort, [token]);
+          Piece.Tile({
+            id: Id.mk(),
+            label: [token],
+            mold,
+            shards: [0],
+            children: [],
+          });
+        };
       Some(Zipper.insert_segment(z, [piece], ~root));
-    } else {
-      let token = char ++ text ++ char;
-      let sort = Relatives.sort(~root, z.relatives);
-      let mold = Form.Molds.get(sort, [token]);
-      let tile: Piece.t =
-        Tile({
-          id: Id.mk(),
-          label: [token],
-          mold,
-          shards: [0],
-          children: [],
-        });
-      Some(Zipper.insert_segment(z, [tile], ~root));
     };
   };
 };

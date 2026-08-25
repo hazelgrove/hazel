@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -438,6 +439,21 @@ let tests = (
     test_case("ProdProjection - empty label", `Quick, () => {
       type_equivalent_to_make_term("(``=Int).``")
     }),
+    test_case("ProdProjection - non-ASCII quoted label", `Quick, () => {
+      /* The Typ-sort decoder used to slice quoted labels with a byte offset
+       * and a grapheme length, truncating any label with a non-ASCII
+       * character into invalid UTF-8. Spaces keep this one quoted; a bare
+       * `café` is a name now, so it prints unquoted (next case). */
+      type_equivalent_to_make_term(
+        "(`café au lait`=Int).`café au lait`",
+      )
+    }),
+    test_case("ProdProjection - Unicode name as label", `Quick, () => {
+      /* Names take Unicode, so this label needs no quoting. */
+      type_equivalent_to_make_term(
+        "(café=Int).café",
+      )
+    }),
     test_case("ProdProjection - label with spaces", `Quick, () => {
       type_equivalent_to_make_term(
         "(`label with spaces`=Int).`label with spaces`",
@@ -509,6 +525,7 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -1127,6 +1144,7 @@ let grout_structural_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 

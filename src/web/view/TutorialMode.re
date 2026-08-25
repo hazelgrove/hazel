@@ -231,18 +231,6 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Editor(_, action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    | ResetEditor(_) => true
-    | ResetTutorial => true
-    | MoveToNextExercise
-    | MoveToPrevExercise
-    | Change_report_view => false
-    };
-  };
-
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let statics_mode =
@@ -279,38 +267,26 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = Tutorial.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          Tutorial.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=Tutorial.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            Tutorial.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
@@ -563,7 +539,7 @@ module View = {
             let inner_result = hidden_tests.result.result;
             let result = inner_result |> Util.Calc.get_value;
             switch (result) {
-            | ResultPending =>
+            | ResultPending(_) =>
               div(
                 ~attrs=[Attr.classes(["checkmark-grey", "pending"])],
                 [text("🤔")],

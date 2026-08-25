@@ -45,6 +45,16 @@ let get_probes_by_line =
     IntMap.empty,
   );
 
+/* Longest grapheme prefix of `s` fitting within `cols` display columns. */
+let prefix_within_columns = (cols: int, s: string): string => {
+  let idx = Unicode.Width.column_to_grapheme_index(s, cols);
+  /* That rounds up through the cluster straddling `cols`; back off so the
+   * prefix never exceeds the budget. */
+  let idx =
+    Unicode.Width.columns_through_prefix(s, idx) > cols ? idx - 1 : idx;
+  fst(Unicode.split_nth(s, max(0, idx)));
+};
+
 /* Format a single sample value as text */
 let format_value = (~max_length: int=50, value: Exp.t): string => {
   let seg =
@@ -52,6 +62,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        hole_tiles: false,
       },
       value |> DHExp.strip_ascriptions,
     );
@@ -59,9 +70,11 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
     Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
   /* Remove any remaining newlines */
   let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
-  /* Truncate if too long */
-  if (String.length(str) > max_length) {
-    String.sub(str, 0, max_length - 3) ++ "...";
+  /* Truncate if too long. `max_length` bounds how much of a line the value
+   * takes up, so it is measured in display columns, and the cut lands on a
+   * grapheme boundary rather than mid-codepoint. */
+  if (Unicode.Width.columns_of_string(str) > max_length) {
+    prefix_within_columns(max_length - 3, str) ++ "...";
   } else {
     str;
   };

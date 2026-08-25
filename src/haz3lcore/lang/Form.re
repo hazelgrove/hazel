@@ -365,6 +365,7 @@ type compound_form =
   | Not
   | TypSumSingle
   | UnaryMinus
+  | UnaryMinusPat
   // N-ARY OPS (on the semantics level)
   | CommaExp
   | CommaPat
@@ -474,6 +475,7 @@ let get: compound_form => t =
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
+  | UnaryMinusPat => mk_prefix("-", Pat, P.neg)
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
@@ -572,7 +574,17 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.map(Token.prefixes)
   |> List.concat;
 
-let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
+/* Hot predicate: runs per atomic-form candidate on every molding query
+   (so, superlinearly during text parsing), so membership is a hash set
+   rather than a List.mem scan with polymorphic compare. The table is
+   closure-private, built once at module init — NOT inlined into a
+   Hashtbl.mem(..., _) partial application, whose desugaring would
+   rebuild it on every call. */
+let is_infix_delimiter_op_prefix: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
+  t => Hashtbl.mem(tbl, t);
+};
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
@@ -599,7 +611,11 @@ let amiguous_polymorphs: list(Token.t) = {
   single_token_labels |> List.filter(appears_in_other_forms);
 };
 
-let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
+let is_ambiguous_polymorph: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(16);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
+  t => Hashtbl.mem(tbl, t);
+};
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
