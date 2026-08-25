@@ -64,7 +64,7 @@ let run =
       Web.CanvasGraph.spine(term)
       |> List.filter_map(
            fun
-           | Web.CanvasGraph.ILet(_, pat, def)
+           | (_, Web.CanvasGraph.ILet(_, _, pat, def))
                when List.mem("update", Web.CanvasGraph.pat_names(pat)) =>
              Some(Web.CanvasGraph.fun_anatomy(~pat, def))
            | _ => None,
