@@ -42,13 +42,13 @@ let resize_attrs: list(Attr.t) = {
             Js.Unsafe.meth_call(
               doc,
               "removeEventListener",
-              [|Js.Unsafe.inject(Js.string("mousemove")), move_ref^|],
+              [|Js.Unsafe.inject(Js.string("pointermove")), move_ref^|],
             );
           let _ =
             Js.Unsafe.meth_call(
               doc,
               "removeEventListener",
-              [|Js.Unsafe.inject(Js.string("mouseup")), up_ref^|],
+              [|Js.Unsafe.inject(Js.string("pointerup")), up_ref^|],
             );
           ();
         });
@@ -58,13 +58,13 @@ let resize_attrs: list(Attr.t) = {
         Js.Unsafe.meth_call(
           doc,
           "addEventListener",
-          [|Js.Unsafe.inject(Js.string("mousemove")), move_ref^|],
+          [|Js.Unsafe.inject(Js.string("pointermove")), move_ref^|],
         );
       let _ =
         Js.Unsafe.meth_call(
           doc,
           "addEventListener",
-          [|Js.Unsafe.inject(Js.string("mouseup")), up_ref^|],
+          [|Js.Unsafe.inject(Js.string("pointerup")), up_ref^|],
         );
       Effect.Prevent_default;
     }),

@@ -140,7 +140,11 @@ module Model = {
   type focus_t = {
     f_id: Haz3lcore.Id.t, /* focused definition's piece id in the master */
     f_parked: Scratchpad.t, /* the master slide, held aside */
-    f_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
+    f_ctx: Language.Ctx.t, /* frozen outer ctx at the definition */
+    /* the parked master's zipped segment, cached at focus time: the
+       parked zipper never changes while focused, and persistence
+       splices EVERY autosave tick — don't re-zip each second */
+    f_master_seg: Haz3lcore.Segment.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -281,10 +285,9 @@ module Focus = {
   let spliced_master =
       (focus: Model.focus_t, current: Scratchpad.t): Scratchpad.t =>
     switch (focus.f_parked.kind, current.kind) {
-    | (Code(parked), Code({editor: focus_cell, agent})) =>
-      let master_seg = zip_of_cell(parked.editor);
+    | (Code(_), Code({editor: focus_cell, agent})) =>
       let new_seg =
-        splice_def(focus.f_id, zip_of_cell(focus_cell), master_seg);
+        splice_def(focus.f_id, zip_of_cell(focus_cell), focus.f_master_seg);
       {
         ...focus.f_parked,
         kind:
@@ -985,6 +988,7 @@ module Update = {
                 f_id: fid,
                 f_parked: scratchpad,
                 f_ctx,
+                f_master_seg: master_seg,
               }),
           }
           |> Updated.return;
