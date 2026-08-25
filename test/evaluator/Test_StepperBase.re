@@ -296,6 +296,54 @@ let promote =
 let facts_of_ctx = (ctx: SemanticCtx.t): list((string, Exp.t)) =>
   SemanticCtx.facts(ctx) |> List.map(((name, _id, fact)) => (name, fact));
 
+/* Every tile id in a segment, children AND folded projector interiors
+   included (cf. test/Test_EditorTransform.re, which stops at
+   projectors). A chip's syntax is still measured, so a repeated id in
+   there is the shard-mismatch crash in latent form: `Highlight.of_tile`
+   demands exactly one measurement per shard. */
+let rec segment_tile_ids = (seg: Segment.t): list(Id.t) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => [
+          Piece.id(p),
+          ...segment_tile_ids(List.concat(t.children)),
+        ]
+      | Projector(pr) => segment_tile_ids([pr.syntax])
+      | Grout(_)
+      | Secondary(_) => []
+      },
+    seg,
+  );
+
+let duplicated = (ids: list(Id.t)): list(Id.t) => {
+  let seen = Hashtbl.create(64);
+  List.filter(
+    id =>
+      switch (Hashtbl.find_opt(seen, id)) {
+      | Some () => true
+      | None =>
+        Hashtbl.add(seen, id, ());
+        false;
+      },
+    ids,
+  );
+};
+
+/* The last MissingStep row in a chain: the synthesized hole after every
+   written step. */
+let rec last_missing_step =
+        (ns: StepperBase.next_step): option(Web.MissingStep.Model.t) =>
+  switch (ns) {
+  | StepperBase.MissingStep(m, tail) =>
+    switch (last_missing_step(tail)) {
+    | Some(_) as later => later
+    | None => Some(m)
+    }
+  | StepperBase.NextStep({next_step, _}) => last_missing_step(next_step)
+  | StepperBase.Finished => None
+  };
+
 let saved_exc = (~print: string, x: Calc.saved('a)): 'a =>
   switch (x) {
   | Calc.Calculated(v) => v
@@ -1724,6 +1772,84 @@ in t|};
           }
         | _ => Alcotest.fail("expected a MissingStep row")
         };
+      },
+    ),
+    test_case(
+      "fold_left overlay ids are unique in the trailing missing step",
+      `Quick,
+      () => {
+        /* The user's program: an `eval` step is already written, so the
+           row after it is a synthesized MissingStep whose display term
+           has `sum` / `fold_left` inlined. Both the row's own segment
+           and the ids it underlines must be free of duplicates, or
+           `Highlight.of_tile` raises a shard mismatch. */
+        let src = {|let plus = fun (x,y) -> x + y in
+let sum(xs) = case xs
+| [] => 0
+| x::xs => x + sum(xs)
+end
+in
+theorem t = sum([]) == fold_left(_, sum, 0)([])
+proof eval fold_left(_, sum, 0)([]) at 0 end
+in t|};
+        let (state, _, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let env =
+          switch (EvaluatorState.get_theorems(state)) {
+          | [(_, _, env, _), ..._] => env
+          | [] => Alcotest.fail("no recorded theorem env")
+          };
+        let result =
+          test_calculate(
+            ~exp=parse_exp("sum([]) == fold_left(_, sum, 0)([])"),
+            ~ctx=ctx_with_x,
+            ~env,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        let m =
+          switch (last_missing_step(result)) {
+          | Some(m) => m
+          | None => Alcotest.fail("no trailing MissingStep row")
+          };
+        let seg =
+          (m.editor |> saved_exc(~print="missing step editor")).editor.state.
+            zipper
+          |> Zipper.unselect_and_zip;
+        let ids = segment_tile_ids(seg);
+        let dups = duplicated(ids);
+        check(
+          int,
+          "trailing missing-step segment has duplicated tile ids: "
+          ++ String.concat(", ", List.map(Id.to_string, dups)),
+          0,
+          List.length(dups),
+        );
+        let steps =
+          switch (m.next_steps |> Calc.get_saved_opt) {
+          | Some(EvaluatorStep.AvailableSteps(steps)) => steps
+          | Some(EvaluatorStep.AutoStep(_)) => []
+          | None => Alcotest.fail("next_steps not calculated")
+          };
+        let bad =
+          steps
+          |> List.map(Web.MissingStep.Update.display_step_id(m))
+          |> List.filter(id =>
+               List.length(List.filter(i => Id.equal(i, id), ids)) > 1
+             );
+        check(
+          int,
+          "overlay step ids that are not unique in the segment: "
+          ++ String.concat(", ", List.map(Id.to_string, bad)),
+          0,
+          List.length(bad),
+        );
       },
     ),
     test_case(
