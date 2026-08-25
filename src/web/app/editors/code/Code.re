@@ -167,11 +167,12 @@ let of_delim' =
                   ~is_raw=true,
                   token,
                 )
-        /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
-           occupies the two columns Measured gave it. Pure ASCII -- nearly
-           every token -- skips straight to a text node. */
+              /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
+                 occupies the two columns Measured gave it. Pure ASCII -- nearly
+                 every token -- skips straight to a text node. */
               : Unicode.is_simple_ascii(token)
-              ? [text(token)] : GraphemeView.render(~font_metrics, token),
+                  ? [text(token)]
+                  : GraphemeView.render(~font_metrics, token),
       );
     },
   );
