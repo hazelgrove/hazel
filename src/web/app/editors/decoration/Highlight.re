@@ -356,6 +356,89 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
 /* Fraction of a group's width covered by the active-eval sweep bar. */
 let sweep_width_ratio = 0.45;
 
+let svg_of_bbox =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~clss: list(string),
+      ~sweep: bool=false,
+      ~path_cmds: list(SvgUtil.Path.cmd),
+      bb: bbox,
+    )
+    : Node.t => {
+  let width_f = bb.max_col -. bb.min_col;
+  let height = bb.max_row - bb.min_row + 1;
+  let height_f = float_of_int(height);
+
+  /* Clip-path ids must be document-unique; derive one from the group's
+   * bounding box (cols are fractional, so scale to tenths of a column). */
+  let clip_id =
+    Printf.sprintf(
+      "incremental-active-%d-%d-%d-%d",
+      int_of_float(bb.min_col *. 10.0),
+      bb.min_row,
+      int_of_float(bb.max_col *. 10.0),
+      bb.max_row,
+    );
+  let active_sweep =
+    if (sweep) {
+      let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+      [
+        Node.create_svg(
+          "defs",
+          [
+            Node.create_svg(
+              "clipPath",
+              ~attrs=[Attr.create("id", clip_id)],
+              [SvgUtil.Path.view(~attrs=[], path_cmds)],
+            ),
+          ],
+        ),
+        Node.create_svg(
+          "g",
+          ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
+          [
+            Node.create_svg(
+              "rect",
+              ~attrs=[
+                Attr.classes(["incremental-sweep"]),
+                Attr.create("x", "0"),
+                Attr.create("y", "0"),
+                Attr.create("width", Printf.sprintf("%f", sweep_width)),
+                Attr.create("height", Printf.sprintf("%f", height_f)),
+              ],
+              [],
+            ),
+          ],
+        ),
+      ];
+    } else {
+      [];
+    };
+
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes(["shard"] @ clss),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+          bb.min_col *. font_metrics.col_width,
+          float_of_int(bb.min_row) *. font_metrics.row_height,
+          width_f *. font_metrics.col_width,
+          height_f *. font_metrics.row_height,
+        ),
+      ),
+      Attr.create(
+        "viewBox",
+        Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+      ),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
+    [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
+  );
+};
+
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
@@ -367,82 +450,9 @@ let svg_of_group =
   switch (bbox_of(rows)) {
   | None => None
   | Some(bb) =>
-    let width_f = bb.max_col -. bb.min_col;
-    let height = bb.max_row - bb.min_row + 1;
-    let height_f = float_of_int(height);
-
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
-    /* Clip-path ids must be document-unique; derive one from the group's
-     * bounding box (cols are fractional, so scale to tenths of a column). */
-    let clip_id =
-      Printf.sprintf(
-        "incremental-active-%d-%d-%d-%d",
-        int_of_float(bb.min_col *. 10.0),
-        bb.min_row,
-        int_of_float(bb.max_col *. 10.0),
-        bb.max_row,
-      );
-    let active_sweep =
-      if (sweep) {
-        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
-        [
-          Node.create_svg(
-            "defs",
-            [
-              Node.create_svg(
-                "clipPath",
-                ~attrs=[Attr.create("id", clip_id)],
-                [SvgUtil.Path.view(~attrs=[], path_cmds)],
-              ),
-            ],
-          ),
-          Node.create_svg(
-            "g",
-            ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
-            [
-              Node.create_svg(
-                "rect",
-                ~attrs=[
-                  Attr.classes(["incremental-sweep"]),
-                  Attr.create("x", "0"),
-                  Attr.create("y", "0"),
-                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
-                  Attr.create("height", Printf.sprintf("%f", height_f)),
-                ],
-                [],
-              ),
-            ],
-          ),
-        ];
-      } else {
-        [];
-      };
-
-    Some(
-      Node.create_svg(
-        "svg",
-        ~attrs=[
-          Attr.classes(["shard"] @ clss),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-              bb.min_col *. font_metrics.col_width,
-              float_of_int(bb.min_row) *. font_metrics.row_height,
-              width_f *. font_metrics.col_width,
-              height_f *. font_metrics.row_height,
-            ),
-          ),
-          Attr.create(
-            "viewBox",
-            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
-          ),
-          Attr.create("preserveAspectRatio", "none"),
-        ],
-        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
-      ),
-    );
+    Some(svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb));
   };
 
 /* Clip partial-token boundaries for char-level selections.
@@ -675,6 +685,65 @@ let color =
   | None => []
   };
 
+let bbox_of_range =
+    (~measured: Measured.t, (origin: Point.t, final: Point.t)): option(bbox) =>
+  if (final.row < origin.row) {
+    None;
+  } else {
+    List.init(final.row - origin.row + 1, i => origin.row + i)
+    |> List.fold_left(
+         (acc, row) =>
+           switch (acc, Measured.Rows.find_opt(row, measured.rows)) {
+           | (None, _)
+           | (_, None) => None
+           | (Some(bb), Some(shape: Measured.Rows.shape)) =>
+             let left =
+               float_of_int(row == origin.row ? origin.col : shape.indent);
+             let right =
+               float_of_int(row == final.row ? final.col : shape.max_col);
+             Some({
+               ...bb,
+               min_col: min(bb.min_col, left),
+               max_col: max(bb.max_col, right),
+             });
+           },
+         Some({
+           min_col: float_of_int(origin.col),
+           max_col: float_of_int(origin.col),
+           min_row: origin.row,
+           max_row: final.row,
+         }),
+       );
+  };
+
+let color_range =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Measured.t,
+      ~sweep: bool=false,
+      clss: list(string),
+      range: (Point.t, Point.t),
+    )
+    : list(Node.t) =>
+  switch (bbox_of_range(~measured, range)) {
+  | None => []
+  | Some(bb) =>
+    let width = bb.max_col -. bb.min_col;
+    let height = float_of_int(bb.max_row - bb.min_row + 1);
+    let path_cmds =
+      SvgUtil.Path.[
+        M({
+          x: 0.0,
+          y: 0.0,
+        }),
+        H({x: width}),
+        V({y: height}),
+        H({x: 0.0}),
+        Z,
+      ];
+    [svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb)];
+  };
+
 let colors =
     (
       ~font_metrics: FontMetrics.t,
@@ -772,23 +841,33 @@ let incr_eval =
   div_c(
     "incremental-highlights",
     List.concat_map(
-      ((id, _)) =>
-        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      ((_, range)) =>
+        color_range(
+          ~font_metrics,
+          ~measured=syntax.measured,
+          ["incremental-frozen"],
+          range,
+        ),
       visible_ranges(frozen_outermost),
     )
     @ List.concat_map(
-        ((id, _)) =>
-          color(~syntax, ~font_metrics, ["incremental-pending"], id),
+        ((_, range)) =>
+          color_range(
+            ~font_metrics,
+            ~measured=syntax.measured,
+            ["incremental-pending"],
+            range,
+          ),
         visible_ranges(pending_inactive_ranges),
       )
     @ List.concat_map(
-        ((id, _)) =>
-          color(
-            ~syntax,
+        ((_, range)) =>
+          color_range(
             ~font_metrics,
+            ~measured=syntax.measured,
             ~sweep=true,
             ["incremental-pending", "incremental-active"],
-            id,
+            range,
           ),
         visible_ranges(active_ids),
       ),
