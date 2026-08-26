@@ -1,8 +1,6 @@
 open Js_of_ocaml;
 open OptUtil.Syntax;
 
-let opt = OptUtil.and_then;
-
 type request = Js.t(XmlHttpRequest.xmlHttpRequest);
 
 type method =
@@ -42,19 +40,9 @@ module Json = {
   let to_string = Yojson.Safe.to_string;
   let from_string = Yojson.Safe.from_string;
 
-  let bool = (json: t): option(bool) =>
-    switch (json) {
-    | `Bool(b) => Some(b)
-    | _ => None
-    };
   let int = (json: t): option(int) =>
     switch (json) {
     | `Int(n) => Some(n)
-    | _ => None
-    };
-  let float = (json: t): option(float) =>
-    switch (json) {
-    | `Float(f) => Some(f)
     | _ => None
     };
   let str = (json: t): option(string) =>
@@ -335,155 +323,6 @@ let request_streaming =
     abort: () => {
       aborted := true;
       req##abort;
-      finish();
-    },
-  };
-};
-
-let node_request =
-    (
-      ~debug=false,
-      ~with_credentials=false,
-      ~method: method,
-      ~hostname: string, /* Do not include 'https://' */
-      ~path: string,
-      ~headers: list((string, string))=[],
-      ~body: Json.t=`Null,
-      handler: option(Json.t) => unit,
-    )
-    : unit => {
-  let https = Js.Unsafe.js_expr("require('https')");
-  debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
-  let options =
-    Printf.sprintf(
-      "({hostname: \"%s\", path: \"%s\", method: \"%s\", headers: { %s } })",
-      hostname,
-      path,
-      string_of_method(method),
-      headers
-      |> List.map(((k, v)) => Printf.sprintf("\"%s\": \"%s\"", k, v))
-      |> String.concat(","),
-    );
-  debug ? Printf.printf("options: %s", options) : ();
-  let callback =
-    Js.wrap_callback(res => {
-      let data = ref("");
-      res##on(
-        Js.string("data"),
-        Js.wrap_callback(chunk =>
-          data := data^ ++ Js.to_string(chunk##toString)
-        ),
-      );
-      res##on(
-        Js.string("end"),
-        Js.wrap_callback(_ =>
-          handler(
-            try(Some(Json.from_string(data.contents))) {
-            | _ => None
-            },
-          )
-        ),
-      );
-    });
-  let req = https##request(Js.Unsafe.js_expr(options), callback);
-  if (with_credentials) {
-    req##withCredentials := Js._true;
-  };
-  ignore(
-    req##on(
-      Js.string("error"),
-      Js.wrap_callback(error => {
-        Firebug.console##log("Error occurred:");
-        Firebug.console##log(error);
-        handler(None);
-      }),
-    ),
-  );
-  ignore(req##write(Js.string(Json.to_string(body))));
-  ignore(req##end_());
-};
-
-/** Streaming counterpart to [node_request]. Mirrors [request_streaming] on the
-    Node.js path: per-chunk SSE line parsing, one-shot [on_done]. Aborting
-    [req##destroy()]s the in-flight request. */
-let node_request_streaming =
-    (
-      ~debug=false,
-      ~with_credentials=false,
-      ~method: method,
-      ~hostname: string, /* Do not include 'https://' */
-      ~path: string,
-      ~headers: list((string, string))=[],
-      ~body: Json.t=`Null,
-      ~on_chunk: Json.t => unit,
-      ~on_done: unit => unit,
-      (),
-    )
-    : streaming_handle => {
-  let https = Js.Unsafe.js_expr("require('https')");
-  debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
-  let options =
-    Printf.sprintf(
-      "({hostname: \"%s\", path: \"%s\", method: \"%s\", headers: { %s } })",
-      hostname,
-      path,
-      string_of_method(method),
-      headers
-      |> List.map(((k, v)) => Printf.sprintf("\"%s\": \"%s\"", k, v))
-      |> String.concat(","),
-    );
-  let leftover = ref("");
-  let done_called = ref(false);
-  let feed_lines = lines =>
-    List.iter(
-      line =>
-        switch (parse_sse_line(line)) {
-        | Some(json) => on_chunk(json)
-        | None => ()
-        },
-      lines,
-    );
-  let absorb = (chunk_str: string) => {
-    let (complete, trailing) = split_sse_lines(leftover^ ++ chunk_str);
-    leftover := trailing;
-    feed_lines(complete);
-  };
-  let finish = () =>
-    if (! done_called^) {
-      done_called := true;
-      if (leftover^ != "") {
-        feed_lines([leftover^]);
-        leftover := "";
-      };
-      on_done();
-    };
-  let callback =
-    Js.wrap_callback(res => {
-      res##on(
-        Js.string("data"),
-        Js.wrap_callback(chunk => absorb(Js.to_string(chunk##toString))),
-      );
-      res##on(Js.string("end"), Js.wrap_callback(_ => finish()));
-    });
-  let req = https##request(Js.Unsafe.js_expr(options), callback);
-  if (with_credentials) {
-    req##withCredentials := Js._true;
-  };
-  ignore(
-    req##on(
-      Js.string("error"),
-      Js.wrap_callback(error => {
-        Firebug.console##log("Streaming request error:");
-        Firebug.console##log(error);
-        finish();
-      }),
-    ),
-  );
-  ignore(req##write(Js.string(Json.to_string(body))));
-  ignore(req##end_());
-  {
-    abort: () => {
-      ignore(req##destroy());
       finish();
     },
   };

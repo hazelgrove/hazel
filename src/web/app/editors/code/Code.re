@@ -191,7 +191,7 @@ let view =
             Aba.mk(t.shards, t.children)
             |> Aba.join(i => [of_delim(t, i)], of_segment)
             |> List.concat;
-          switch (classes(Tile.id(t))) {
+          switch (classes(t.id)) {
           | [] => children
           | clss => [span(~attrs=[Attr.classes(clss)], children)]
           };
