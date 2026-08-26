@@ -16,14 +16,6 @@ let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
 let flat_ellipses_term_pat = (): TermBase.pat_t =>
   IdTagged.fresh(Invalid(flat_ellipses): Pat.term);
-let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
-  switch (term.term) {
-  | Invalid(s) => s == flat_ellipses
-  | Atom(String(s)) => s == flat_ellipses
-  | Constructor(s, _) => s == flat_ellipses
-  | Var(s) => s == flat_ellipses
-  | _ => false
-  };
 let available = ref(0);
 
 module AbbrevBudget = {
@@ -78,26 +70,6 @@ module AbbrevBudget = {
             );
       distribute(parts - 1, []);
     };
-
-  let label_cap = (~label: Exp.t, ~available: int): int => {
-    let estimated_label_len: int = label_estimated_length(~label);
-    let desired: int = estimated_label_len + 1;
-    let half: int = available / 2;
-    let proposed: int = half < desired ? desired : half;
-    let capped: int = proposed < 1 ? 1 : proposed;
-    capped > available ? available : capped;
-  };
-
-  let label_min_budget = (~label: Exp.t): int => {
-    let est: int = label_estimated_length(~label);
-    if (est >= 3) {
-      3;
-    } else if (est == 2) {
-      2;
-    } else {
-      1;
-    };
-  };
 };
 
 module AbbrevSequence = {
@@ -447,7 +419,6 @@ let abbreviate_label =
 let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal);
 let indet_term_pat: Pat.term = Invalid("?");
-let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
 
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {

@@ -218,7 +218,6 @@ let is_float = str =>
   !match(int_regexp, str)
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
-let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 
 /* CASE. Hazel tells constructors from variables by capitalization, but most
  * of Unicode has no case at all. Caseless characters count as NON-uppercase,
@@ -424,4 +423,3 @@ let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
 /* Unicode probe brackets for CLI text output */
 let probe_start = "⟦";
 let probe_end = "⟧";
-let probe_lbl = [probe_start, probe_end];

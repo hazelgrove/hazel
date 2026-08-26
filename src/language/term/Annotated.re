@@ -25,8 +25,3 @@ let unwrap = x => (
     term: term',
   },
 );
-
-let empty = term => {
-  term,
-  annotation: (),
-};

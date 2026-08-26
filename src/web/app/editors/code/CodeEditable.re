@@ -1,7 +1,6 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
-type editor_id = string;
 open Util;
 
 /* A selectable editable code container component with statics and type-directed code completion. */

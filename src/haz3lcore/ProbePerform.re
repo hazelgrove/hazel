@@ -655,20 +655,6 @@ let toggle_probe =
     };
   };
 
-let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
-  let* ci = Indicated.ci_of(z, info_map);
-  let* ci =
-    switch (ci) {
-    | InfoExp({
-        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
-        _,
-      }) =>
-      Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map)
-    | _ => Some(ci)
-    };
-  Info.get_binding_site(ci);
-};
-
 /* STEP-INTO: Sample-Level Navigation Through Execution Traces
  *
  * Step-into operates at the SAMPLE level, not the syntax level. When f(x) is
