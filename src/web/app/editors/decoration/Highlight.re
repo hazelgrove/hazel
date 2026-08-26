@@ -709,6 +709,7 @@ let incr_eval_uncached =
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
       ~show_frozen: bool=true,
+      ~show_pending: bool=true,
       predicted_reuse: Language.EvaluatorState.incr_eval,
     ) => {
   let range_eq = ((o1, l1), (o2, l2)) =>
@@ -758,8 +759,19 @@ let incr_eval_uncached =
   };
   let frozen_ids =
     show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
+  /* The passive pending tint ranges EVERY not-yet-evaluated region —
+     computing and drawing it is O(program rows) per streamed chunk, so
+     it is opt-in (show_pending = the Incremental Reuse setting). The
+     ACTIVE sweep needs only the head region. */
   let pending_eval_ranges =
-    pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
+    (
+      show_pending
+        ? pending_eval_ids
+        : show_active_eval
+            ? ListUtil.hd_opt(pending_eval_ids) |> Option.to_list : []
+    )
+    |> ranged_ids_of
+    |> List.sort(range_compare);
   let active_ids =
     if (show_active_eval) {
       pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
@@ -809,6 +821,7 @@ let incr_eval =
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
       ~show_frozen: bool=true,
+      ~show_pending: bool=true,
       predicted_reuse: Language.EvaluatorState.incr_eval,
     ) => {
   let key = [|
@@ -817,6 +830,7 @@ let incr_eval =
     Obj.repr(pending_eval_ids),
     Obj.repr(show_active_eval),
     Obj.repr(show_frozen),
+    Obj.repr(show_pending),
     Obj.repr(font_metrics),
   |];
   let key_eq = (a: array(Obj.t), b: array(Obj.t)) => {
@@ -834,6 +848,7 @@ let incr_eval =
         ~pending_eval_ids,
         ~show_active_eval,
         ~show_frozen,
+        ~show_pending,
         predicted_reuse,
       );
     let rec take = (n, xs) =>

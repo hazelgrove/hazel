@@ -42,6 +42,9 @@ type entry('state) = {
   prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
   state: 'state,
+  /* step count at RECORD time: monotone in this run's evaluation
+     order — the stream collector orders same-chunk regions by it */
+  seq: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

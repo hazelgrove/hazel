@@ -108,9 +108,15 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty;
+  /* Measured only exists to place projector boxes: when the recomputed
+     shapes come out identical (the common case — statics/dynamics
+     change every streamed chunk, projector shapes almost never do),
+     keep the old layout. Re-measuring the whole program here was an
+     O(program) cost on EVERY dynamics change. */
   let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+    compare(shape_map, old.shape_map) == 0
+      ? old.measured
+      : Measured.of_segment(old.segment, shape_map, Id.Map.empty);
   {
     ...old,
     shape_map,

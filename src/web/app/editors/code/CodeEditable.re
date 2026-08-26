@@ -608,7 +608,6 @@ module View = {
             }
           )
         : [];
-    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
@@ -677,6 +676,7 @@ module View = {
                 ~pending_eval_ids,
                 ~show_active_eval,
                 ~show_frozen=globals.settings.show_incremental_deco,
+                ~show_pending=globals.settings.show_incremental_deco,
                 predicted_reuse,
               ),
             ],

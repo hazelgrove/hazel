@@ -126,6 +126,10 @@ module Model = {
 module Update = {
   open Updated;
 
+  /* incremental stream-collector state: keyed inside by elab identity,
+     so a new evaluation (new elab) resets it automatically */
+  let stream_inc: ref(option(StreamCollector.Inc.t)) = ref(None);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleStepper
@@ -365,7 +369,16 @@ module Update = {
         and.calc streaming_outbox = streaming_outbox;
         switch (streaming_outbox) {
         | Some(streaming_outbox) =>
-          Some(StreamCollector.collect_stream_state(streaming_outbox, elab))
+          /* incremental: O(chunk) per stream message instead of an
+             O(program) walk (the walk was ~1s per chunk on mega-2k) */
+          let (inc, state) =
+            StreamCollector.collect_stream_state_inc(
+              ~prev=stream_inc^,
+              streaming_outbox,
+              elab,
+            );
+          stream_inc := inc;
+          Some(state);
         | None => None
         };
       };

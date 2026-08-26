@@ -668,9 +668,125 @@ let probe_capture_parity = (): unit => {
   };
 };
 
+/* Incremental StreamCollector parity: drive a real yielding evaluation
+   of mega-1k, and at every drained chunk compare the O(program)-walk
+   collector against the incremental frontier collector — probes, test
+   results, and completion must agree at each step. */
+let stream_collector_parity = (): unit => {
+  let path = "hazel-programs/mega/mega-1k.hz";
+  let path =
+    Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
+  switch (read_file(path)) {
+  | None => Printf.printf("STREAMINC: corpus unreadable\n")
+  | Some(src) =>
+    let settings = CoreSettings.on;
+    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
+    let term = MakeTerm.go(parse_seg_of(src)).term;
+    let (info_map, elab) = Statics.mk_unmemoized(settings, ctx, term);
+    let eval_info =
+      EvalInfo.of_info_map(
+        ~probe_all=false,
+        ~targets=Sample.no_targets,
+        info_map,
+      );
+    let evaluation =
+      Evaluator.start_yielding_evaluation(
+        ~eval_info,
+        ~env=Builtins.env_init,
+        elab,
+      );
+    let merged = ref(IncrEval.empty_outbox);
+    let inc = ref(None);
+    let chunks = ref(0);
+    let mismatches = ref(0);
+    let compare_states = () => {
+      let walk = StreamCollector.collect_stream_state(merged^, elab);
+      let (inc', fast) =
+        StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
+      inc := inc';
+      let probes_eq =
+        compare(
+          EvaluatorState.get_probes(walk),
+          EvaluatorState.get_probes(fast),
+        )
+        == 0;
+      let tests_eq =
+        compare(
+          EvaluatorState.get_tests(walk),
+          EvaluatorState.get_tests(fast),
+        )
+        == 0;
+      if (!(probes_eq && tests_eq)) {
+        incr(mismatches);
+        if (mismatches^ <= 3) {
+          let tw = EvaluatorState.get_tests(walk);
+          let tf = EvaluatorState.get_tests(fast);
+          let rec first_diff = (i, a, b) =>
+            switch (a, b) {
+            | ([], []) => (-1)
+            | ([], _)
+            | (_, []) => i
+            | ([x, ...a], [y, ...b]) =>
+              compare(x, y) == 0 ? first_diff(i + 1, a, b) : i
+            };
+          Printf.printf(
+            "STREAMINC chunk %d MISMATCH probes=%b tests walk=%d fast=%d first_diff=%d\n",
+            chunks^,
+            probes_eq,
+            List.length(tw),
+            List.length(tf),
+            first_diff(0, tw, tf),
+          );
+          let digest = l =>
+            String.concat(
+              " ",
+              List.map(
+                ((id, reps)) =>
+                  String.sub(Id.to_string(id), 0, 4)
+                  ++ ":"
+                  ++ string_of_int(List.length(reps))
+                  ++ TestStatus.show(TestMap.joint_status(reps)),
+                l,
+              ),
+            );
+          Printf.printf("  walk: %s\n  fast: %s\n", digest(tw), digest(tf));
+          Printf.printf(
+            "  sorted_eq=%b\n",
+            compare(List.sort(compare, tw), List.sort(compare, tf)) == 0,
+          );
+        };
+      };
+    };
+    let rec drive = ev =>
+      switch (Evaluator.run_yielding_slice(~step_budget=2000, ev)) {
+      | Evaluator.EvaluationYielded(ev) =>
+        let update = Evaluator.drain_streaming_outbox(ev);
+        if (!IncrEval.outbox_is_empty(update)) {
+          merged := IncrEval.merge_outbox(update, merged^);
+          incr(chunks);
+          compare_states();
+        };
+        drive(ev);
+      | Evaluator.EvaluationCompleted((_, final_state)) =>
+        let (_, fast) =
+          StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
+        Printf.printf(
+          "STREAMINC chunks=%d mismatches=%d final tests: stream<=eval %b\n",
+          chunks^,
+          mismatches^,
+          List.length(EvaluatorState.get_tests(fast))
+          <= List.length(EvaluatorState.get_tests(final_state)),
+        );
+      };
+    drive(evaluation);
+    check(int, "incremental collector parity", 0, mismatches^);
+  };
+};
+
 let tests = (
   "BenchStatics",
   [
+    test_case("stream collector parity", `Quick, stream_collector_parity),
     test_case("probe capture parity", `Quick, probe_capture_parity),
     test_case("payload probe (informational)", `Quick, payload_probe),
     test_case(
