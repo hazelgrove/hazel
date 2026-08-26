@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Util;
 
-let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
 let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
 let meta = (): string => {
@@ -11,20 +10,6 @@ let meta = (): string => {
   | PC => "ctrl"
   };
 };
-
-/* Alt+N: Option+N on Mac is a dead key, so we match on code */
-let is_new_slide = (k: Key.t): bool =>
-  k.alt == Down
-  && k.shift == Up
-  && k.meta == Up
-  && k.ctrl == Up
-  && k.code == "KeyN"
-  && (
-    switch (k.key) {
-    | D(_) => true
-    | U(_) => false
-    }
-  );
 
 /* Mouse-drag chunkiness. The "Character-level mouse" setting
  * (selection_chunkiness) sets the no-modifier default — applied in
