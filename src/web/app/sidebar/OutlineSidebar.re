@@ -10,6 +10,17 @@ open Node;
 
 let clss = cs => Attr.classes(cs);
 
+/* structural operations on a TOP-LEVEL definition, offered from the
+   row's context menu; handled by ScratchMode (segment surgery on the
+   master program) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type def_op =
+  | NewBelow
+  | Duplicate
+  | MoveUp
+  | MoveDown
+  | Delete;
+
 let kind_glyph = (k: OutlineTree.kind): string =>
   switch (k) {
   | KModule => {js|⛁|js}
@@ -92,6 +103,8 @@ let rec node_view =
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
+          ~top_level: bool,
+          ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
           ~focused_entries: list((Language.Id.t, option(string))),
           ~error_items: list(Language.Id.t),
           n: OutlineTree.node,
@@ -140,6 +153,22 @@ let rec node_view =
           | Some(id) when any_focus => [Attr.on_click(_ => focus(id))]
           | Some(id) => [Attr.on_click(_ => jump(id))]
           | None => []
+          }
+        )
+        @ (
+          /* structural ops are TOP-LEVEL only for now (member
+             granularity is docketed) */
+          switch (n.o_id) {
+          | Some(id) when top_level => [
+              Attr.on_contextmenu(evt => {
+                let x =
+                  float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX);
+                let y =
+                  float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientY);
+                Effect.Many([Effect.Prevent_default, menu_open(id, x, y)]);
+              }),
+            ]
+          | _ => []
           }
         ),
       [
@@ -195,13 +224,72 @@ let rec node_view =
         div(
           ~attrs=[clss(["outline-kids"])],
           List.map(
-            node_view(~jump, ~focus, ~toggle, ~focused_entries, ~error_items),
+            node_view(
+              ~jump,
+              ~focus,
+              ~toggle,
+              ~top_level=false,
+              ~menu_open,
+              ~focused_entries,
+              ~error_items,
+            ),
             kids,
           ),
         ),
       ],
     )
   };
+};
+
+let menu_view =
+    (
+      ~menu_close: Effect.t(unit),
+      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      (id: Language.Id.t, x: float, y: float),
+    )
+    : list(Node.t) => {
+  let item = (op, label_txt) =>
+    div(
+      ~attrs=[
+        clss(["outline-def-menu-item"]),
+        Attr.on_click(_ => Effect.Many([menu_close, def_op(op, id)])),
+      ],
+      [text(label_txt)],
+    );
+  [
+    div(
+      ~attrs=[
+        clss(["outline-menu-backdrop"]),
+        Attr.on_click(_ => menu_close),
+        Attr.on_wheel(_ => menu_close),
+        Attr.on_contextmenu(_ =>
+          Effect.Many([Effect.Prevent_default, menu_close])
+        ),
+      ],
+      [],
+    ),
+    div(
+      ~attrs=[
+        clss(["outline-def-menu"]),
+        Attr.style(
+          Css_gen.combine(
+            Css_gen.create(
+              ~field="left",
+              ~value=Printf.sprintf("%.0fpx", x),
+            ),
+            Css_gen.create(~field="top", ~value=Printf.sprintf("%.0fpx", y)),
+          ),
+        ),
+      ],
+      [
+        item(NewBelow, "new definition below"),
+        item(Duplicate, "duplicate"),
+        item(MoveUp, "move up"),
+        item(MoveDown, "move down"),
+        item(Delete, "delete"),
+      ],
+    ),
+  ];
 };
 
 let view =
@@ -212,6 +300,10 @@ let view =
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
+      ~menu: option((Language.Id.t, float, float)),
+      ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
+      ~menu_close: Effect.t(unit),
+      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       term: Language.Exp.t,
     )
     : Node.t => {
@@ -252,6 +344,8 @@ let view =
                   ~jump,
                   ~focus,
                   ~toggle,
+                  ~top_level=true,
+                  ~menu_open,
                   ~focused_entries,
                   ~error_items,
                 ),
@@ -259,6 +353,12 @@ let view =
               )
         ),
       ),
-    ],
+    ]
+    @ (
+      switch (menu) {
+      | Some(m) => menu_view(~menu_close, ~def_op, m)
+      | None => []
+      }
+    ),
   );
 };

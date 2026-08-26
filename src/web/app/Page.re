@@ -966,6 +966,13 @@ module View = {
         | _ => []
         };
 
+      /* structural def ops only make sense in scratch-style modes */
+      let is_scratch =
+        switch (model.editors) {
+        | Scratch(_)
+        | Documentation(_) => true
+        | _ => false
+        };
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
         /* plain click with a stack open ADDS (or moves to) that cell —
@@ -975,6 +982,15 @@ module View = {
         ~error_items=Haz3lcore.DefStatics.error_item_ids(),
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
         ~focused_entries,
+        ~menu=is_scratch ? ScratchMode.outline_menu^ : None,
+        ~menu_open=
+          (id, x, y) =>
+            is_scratch
+              ? inject(Editors(Scratch(OutlineMenu(Some((id, x, y))))))
+              : Virtual_dom.Vdom.Effect.Ignore,
+        ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
+        ~def_op=
+          (op, id) => inject(Editors(Scratch(OutlineDefOp(op, id)))),
         /* the master stays in its scratchpad slot while the stack is
            open (statics warm), so its term is always current */
         current_editor.statics.term,

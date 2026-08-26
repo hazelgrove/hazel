@@ -561,6 +561,170 @@ module Focus = {
     };
 };
 
+/* outline context-menu state (row id + screen position): transient
+   UI, module-level like the other view caches — not model data */
+let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
+
+/* Structural operations on TOP-LEVEL definitions (outline context
+   menu): insert / duplicate / move / delete. All act on the LIVE
+   whole-program segment (spliced when a stack is open) and rebuild
+   the master editor. Untouched items keep their piece ids, so open
+   cells still find their definitions and probes stay pinned. */
+module Restructure = {
+  open Haz3lcore;
+
+  /* (item id, top-level piece index, is_def) per chain item, in
+     program order; spans are contiguous: an item runs from its start
+     to the next item's start (trailing trivia travels with it) */
+  let item_starts = (seg: Segment.t): list((Id.t, int, bool)) => {
+    let term = MakeTerm.go(seg).term;
+    let is_def = (e: Language.Exp.t) =>
+      switch (e.term) {
+      | Let(_)
+      | TyAlias(_)
+      | ModuleExp(_)
+      | Seq(_) => true
+      | _ => false
+      };
+    let chain = DefStatics.chain(term);
+    let info = List.map(e => (Language.Exp.rep_id(e), is_def(e)), chain);
+    List.filteri((_, _) => true, seg)
+    |> List.mapi((i, p: Piece.t) => (i, Piece.id(p)))
+    |> List.filter_map(((i, pid)) =>
+         switch (List.assoc_opt(pid, info)) {
+         | Some(d) => Some((pid, i, d))
+         | None => None
+         }
+       );
+  };
+
+  let parse = (txt: string): option(Segment.t) =>
+    FastParse.of_text(
+      ~materialize=Triggers.invoked_projector,
+      ~collect_refractors=true,
+      ~root=Exp,
+      txt,
+    );
+
+  let first_tile_id = (seg: Segment.t): option(Id.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => Some(t.id)
+        | _ => None
+        },
+      seg,
+    );
+
+  let rec take = (n, xs) =>
+    switch (n, xs) {
+    | (0, _)
+    | (_, []) => []
+    | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
+    };
+  let rec drop = (n, xs) =>
+    switch (n, xs) {
+    | (0, _)
+    | (_, []) => xs
+    | (n, [_, ...xs]) => drop(n - 1, xs)
+    };
+  let slice = (a, b, xs) => take(b - a, drop(a, xs));
+
+  /* apply [op] to the def [fid] within [seg]; returns the new segment
+     plus (for insert/duplicate) the created item's id to focus */
+  let apply =
+      (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
+      : option((Segment.t, option(Id.t))) => {
+    let starts = Array.of_list(item_starts(seg));
+    let n = Array.length(starts);
+    let len = List.length(seg);
+    let idx = {
+      let rec go = j =>
+        j >= n
+          ? None
+          : {
+            let (id, _, _) = starts[j];
+            id == fid ? Some(j) : go(j + 1);
+          };
+      go(0);
+    };
+    let start_of = j => {
+      let (_, i, _) = starts[j];
+      i;
+    };
+    let end_of = j => j + 1 < n ? start_of(j + 1) : len;
+    let is_def = j => {
+      let (_, _, d) = starts[j];
+      d;
+    };
+    /* outline row ids can be tiles INSIDE the item (module binders
+       etc): fall back to the span that CONTAINS the id */
+    let idx =
+      switch (idx) {
+      | Some(_) as r => r
+      | None =>
+        let rec scan = j =>
+          j >= n
+            ? None
+            : Focus.seg_contains_id(
+                fid,
+                slice(start_of(j), end_of(j), seg),
+              )
+                ? Some(j) : scan(j + 1);
+        scan(0);
+      };
+    switch (idx) {
+    | None => None
+    | Some(j) =>
+      switch (op) {
+      | Delete =>
+        Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
+      | MoveUp when j > 0 =>
+        let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
+        Some((
+          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
+          None,
+        ));
+      | MoveDown when j + 1 < n && is_def(j + 1) =>
+        let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
+        Some((
+          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
+          None,
+        ));
+      | MoveUp
+      | MoveDown => None
+      | NewBelow =>
+        /* a bare `let _ = _ in` is not a complete program: parse with
+           a dummy tail, then drop the trailing tail tile */
+        let strip_tail = (sk: Segment.t): Segment.t =>
+          switch (List.rev(sk)) {
+          | [Piece.Tile(_), ...rest] => List.rev(rest)
+          | _ => sk
+          };
+        switch (parse("let new_def = ? in\n0")) {
+        | None => None
+        | Some(sk) =>
+          let sk = strip_tail(sk);
+          let at = end_of(j);
+          Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
+        };
+      | Duplicate =>
+        let span = slice(start_of(j), end_of(j), seg);
+        let txt = MarkerParse.to_text(Zipper.unzip(span));
+        switch (parse(txt)) {
+        | None => None
+        | Some(copy) =>
+          let at = end_of(j);
+          Some((
+            take(at, seg) @ copy @ drop(at, seg),
+            first_tile_id(copy),
+          ));
+        };
+      }
+    };
+  };
+};
+
 /* the outline's ids in document order — the stack mirrors this order */
 let outline_order = (term: Language.Exp.t): list(Haz3lcore.Id.t) => {
   let rec flatten = (acc, ns: list(OutlineTree.node)) =>
@@ -1053,6 +1217,8 @@ module Update = {
     | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
+    | OutlineMenu(option((Haz3lcore.Id.t, float, float)))
+    | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
     | UnfocusDef
     | RefreshStatics
     | HydrateCurrent /* deferred slide hydration (SwitchSlide shows a
@@ -1421,6 +1587,93 @@ module Update = {
           };
         }
       }
+    | OutlineMenu(m) =>
+      outline_menu := m;
+      model |> Updated.return_quiet;
+    | OutlineDefOp(op, fid) =>
+      outline_menu := None;
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Drv(_) => model |> Updated.return_quiet
+      | Code({editor, agent}) =>
+        let live_seg =
+          switch (model.focus) {
+          | Some(f) => Focus.splice_all(f)
+          | None => Focus.zip_of_cell(editor)
+          };
+        switch (Restructure.apply(op, fid, live_seg)) {
+        | None => model |> Updated.return_quiet
+        | Some((new_seg, focus_target)) =>
+          /* rebuild the master from the restructured segment; keep the
+             result model (it re-evaluates on the elab change anyway).
+             Statics are seeded SYNCHRONOUSLY: the outline reads the
+             master's statics.term, and while a stack is open the
+             master's own calculate is skipped — a fresh empty statics
+             would blank the outline. */
+          let fresh = Focus.cell_of_seg(new_seg);
+          let statics =
+            Haz3lcore.CachedStatics.init_compositional(
+              ~settings=settings.core,
+              ~stitch=x => x,
+              ~root=Haz3lcore.Sort.Exp,
+              fresh.editor.editor.state.zipper,
+            );
+          let new_editor: CellEditor.Model.t = {
+            editor: {
+              ...fresh.editor,
+              statics,
+            },
+            result: editor.result,
+          };
+          let new_sp = {
+            ...scratchpad,
+            kind:
+              Code({
+                editor: new_editor,
+                agent,
+              }),
+          };
+          /* a DELETEd definition's open cell closes with it; an empty
+             stack unfocuses (the rebuilt master is already live) */
+          let focus =
+            switch (model.focus) {
+            | None => None
+            | Some(f) =>
+              let entries =
+                op == OutlineSidebar.Delete
+                  ? List.filter(
+                      (e: Model.stack_entry) => e.e_id != fid,
+                      f.f_entries,
+                    )
+                  : f.f_entries;
+              entries == []
+                ? None
+                : Some(
+                    Model.{
+                      f_entries: entries,
+                      f_master_seg: new_seg,
+                    },
+                  );
+            };
+          /* statics realign on the next Force frame; open the new
+             definition as a cell */
+          CodeWithStatics.StaticsDebounce.force_on_next := true;
+          switch (focus_target) {
+          | Some(id) =>
+            schedule_action(
+              focus == None ? FocusToggle(id) : FocusEnsure(id),
+            )
+          | None => ()
+          };
+          {
+            ...model,
+            scratchpads:
+              ListUtil.put_nth(model.current, new_sp, model.scratchpads),
+            focus,
+          }
+          |> Updated.return;
+        };
+      };
     | UnfocusDef =>
       switch (model.focus) {
       | None => model |> Updated.return_quiet

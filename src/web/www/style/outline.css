@@ -247,6 +247,32 @@
   color: var(--R1, #c33);
 }
 
+/* right-click def menu: new-below / duplicate / move / delete */
+.outline-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.outline-def-menu {
+  position: fixed;
+  z-index: 41;
+  min-width: 12em;
+  background: var(--T0, #fff);
+  border: 1px solid var(--T3, #ccc);
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  padding: 3px 0;
+}
+.outline-def-menu-item {
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.outline-def-menu-item:hover {
+  background: var(--T2, #eee);
+}
+
 /* slide-loading frame (SwitchSlide paints this before hydration) */
 #main .slide-loading {
   display: flex;
