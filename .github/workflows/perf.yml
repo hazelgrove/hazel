@@ -68,7 +68,8 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          # Off; see .github/actions/setup-hazel-toolchain for why.
+          # Keyed on the run id, so never an exact hit, yet it uploads hundreds
+          # of MB every run -- churn that evicts the switch cache below.
           dune-cache: false
 
       # Cache the opam switch keyed on head's lockfile for exact hit on re-runs.

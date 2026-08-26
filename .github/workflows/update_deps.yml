@@ -33,7 +33,8 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          # Off; see .github/actions/setup-hazel-toolchain for why.
+          # Keyed on the run id, so never an exact hit, yet it uploads hundreds
+          # of MB every run, crowding out the caches that do hit.
           dune-cache: false
 
       - name: Install dune

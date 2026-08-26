@@ -19,14 +19,11 @@ runs:
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
-        # Off: setup-ocaml keys this cache on the run id, so it can never be an
-        # exact hit, yet uploads hundreds of MB every run. That churn is what
-        # evicts the _opam entry below, since both share GitHub's 10GB
-        # per-repository budget. In-run caching is unaffected (DUNE_CACHE).
+        # Keyed on the run id, so never an exact hit, yet it uploads hundreds of
+        # MB every run -- the churn that evicts the _opam entry below. In-run
+        # caching is unaffected; DUNE_CACHE handles that.
         dune-cache: false
 
-    # Single-writer: only dev and bot-update-deps save the switch, so the many
-    # daily branch runs cannot evict the entry they all depend on.
     - name: Retrieve the switch environment if cached
       id: opam-cache-switch
       uses: actions/cache/restore@v4
@@ -58,10 +55,11 @@ runs:
         export OPAMYES=1
         opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
 
-    # Explicit rather than actions/cache's post hook, so only a switch that
-    # installed cleanly is saved. cache-hit is 'true' only on an exact match, so
-    # a restore-keys warm start still saves under the new lockfile hash -- which
-    # is what lets a dependency bump populate the cache for everyone else.
+    # Only dev and bot-update-deps write, so the daily branch runs cannot evict
+    # the entry they all read. Explicit rather than actions/cache's post hook, so
+    # only a cleanly installed switch is saved -- and since cache-hit is 'true'
+    # only on an exact match, a warm start re-saves under the new lockfile hash,
+    # refilling the cache after a dependency bump.
     - name: Save the switch environment to cache
       if: >-
         steps.opam-cache-switch.outputs.cache-hit != 'true' &&

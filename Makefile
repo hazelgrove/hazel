@@ -104,30 +104,24 @@ dead-code-summary:
 	dune build @ocaml-index --profile dev
 	python3 scripts/find_dead_code.py --no-build --format=markdown
 
-# The CI entry points. Unlike `test` / `test-quick` these never --auto-promote:
-# in CI a formatting or expect-test violation should be reported, not silently
-# rewritten into a checkout that gets thrown away.
-#
-# There is deliberately no `dune build --profile dev` here. It used to precede
-# the instrumented runtest, but dev is the *lax* profile (`-warn-error -A`, see
-# the (env) stanzas in src/*/dune) while release is strict, so it caught nothing
-# the release build misses, and `dune runtest` builds its own dependencies.
+# The CI entry points. Unlike `test` / `test-quick`, none of these
+# --auto-promote: a violation in CI should be reported, not rewritten into a
+# checkout that is thrown away.
+
+# No `dune build --profile dev` first: dev is the lax profile (`-warn-error -A`,
+# see the (env) stanzas in src/*/dune), so it caught nothing the release build
+# misses, and runtest builds its own dependencies.
 ci: setup-zarith
 	dune runtest --instrument-with bisect_ppx --force
 
-# @test-quick runs the suite under alcotest's -q filter, skipping the
-# Slow-tagged QCheck property tests that dominate the full suite's runtime.
+# alcotest's -q filter, which skips the Slow-tagged QCheck tests that dominate
+# the suite's runtime.
 ci-quick: setup-zarith
 	dune build @test-quick --profile dev
 
-# The strict-warning gate (issue #2456). dune's release profile promotes warnings
-# to errors and dev does not, so warnings in test/ used to print into the job log
-# and pass: the release build covers only src, and the instrumented runtest that
-# covers test/ runs under dev.
-#
-# @check type-checks every tree without linking, so this reaches test/ without a
-# second js_of_ocaml build of the test bundle -- cheap for the same reason. It
-# does not replace the release build of src, which validates jsoo linking.
+# The strict-warning gate (issue #2456): release promotes warnings to errors,
+# and @check reaches test/ -- which no release build covers -- by type-checking
+# without linking, so it costs no second js_of_ocaml build of the test bundle.
 ci-check:
 	dune build @check --profile release
 

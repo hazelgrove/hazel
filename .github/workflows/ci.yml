@@ -1,15 +1,5 @@
-# Authoritative CI: the status to require on dev, and what the merge queue will
-# gate on (issue #2203). Branch previews are deploy.yml's job, not this one.
-#
-# The full suite lives here and runs on every trigger. The static gates (fmt,
-# release build, warnings) are *also* here, but guarded to `merge_group || fork`
-# -- the two cases a `push` event cannot reach, and so the only cases deploy.yml
-# does not already cover. Without the guard a same-repo PR would run each gate
-# twice, once per event, and report two reds for one cause.
-#
-# The guard is a step-level `if` on purpose: a job-level one would still emit a
-# `skipped` check run. It reads only the event payload, so it needs no API lookup
-# and cannot race with PR creation.
+# The full test suite, and the status to require on dev once the merge queue
+# lands (issue #2203). Branch previews are deploy.yml's job, not this one.
 name: CI
 
 on:
@@ -26,8 +16,7 @@ jobs:
   Test:
     name: Test
     runs-on: ubuntu-latest
-    # GitHub's default job cap is 360 min, and the toolchain install has no step
-    # timeout of its own. Sized to sit above the `Run tests` step plus setup.
+    # Without this, GitHub's 360-min default applies.
     timeout-minutes: 90
     permissions:
       contents: read
@@ -38,29 +27,27 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      # The three static gates below duplicate deploy.yml's `Static checks` and
-      # `Deploy branch preview`, so they run only where those cannot: a fork
-      # never fires `push`, and gh-readonly-queue/** is excluded from deploy.yml.
-      #
-      # The merge_group clause is load-bearing. There, github.event.pull_request
-      # is null, so the fork test alone is false and the queue -- the thing about
-      # to become the required check -- would silently lose all three gates.
+      # deploy.yml already runs the three gates below on every branch push, so
+      # here they cover only what a `push` cannot reach: forks, which never fire
+      # one, and the merge queue, which deploy.yml excludes. `merge_group` is
+      # load-bearing -- github.event.pull_request is null there, so the fork test
+      # alone is false and the queue would silently lose all three. Step-level
+      # rather than job-level, because a job-level `if` still emits a `skipped`
+      # check run.
       - name: Check formatting
         if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: opam exec -- dune build @src/fmt @test/fmt --profile dev
 
-      # Strict-warning gate for src, and the only thing that validates
-      # js_of_ocaml linking. dune's release profile promotes warnings to errors
-      # and dev does not; this rests on those profile defaults rather than on any
-      # per-library (env) override.
+      # Strict warnings over src -- dune's release profile promotes them to
+      # errors -- and the only step that validates js_of_ocaml linking.
       - name: Build release
         if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
 
-      # Extends that gate to test/, the one tree the release build never covered
-      # (issue #2456). Type-check only, so it does not rebuild the test bundle.
+      # The same strictness over test/, which no release build reaches (issue
+      # #2456). Type-check only, so it does not relink the test bundle.
       - name: Check warnings
         if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: |
@@ -69,14 +56,13 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        # Raised from 20 on dev: the Slow-tagged QCheck property tests pushed
-        # the full suite past it. Headroom is under 2x, so check the trend before
-        # adding another expensive suite.
+        # Headroom over the ~32-min suite is under 2x; check the trend before
+        # adding another expensive one.
         timeout-minutes: 60
 
-      # Annotated results UI, not the gate -- `Run tests` exits non-zero on
-      # failure by itself. Skipped on forks, whose token is read-only, so
-      # publishing a check run would fail and mark the whole PR red.
+      # Results UI, not the gate: the step above already fails on a red suite.
+      # Skipped on forks, whose token is read-only, so publishing a check run
+      # would fail and mark the whole PR red.
       - name: Test Report
         if: ${{ always() && github.event.pull_request.head.repo.fork != true }}
         uses: dorny/test-reporter@v1
@@ -85,13 +71,11 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          # false: `Run tests` already fails the job on a red suite, and with
-          # this true a compile error produces a second, confusing "no report
-          # found" failure on top of the real one.
+          # True would add a confusing second "no report found" failure on top
+          # of a compile error the job has already failed on.
           fail-on-empty: false
-          # Default is true, which writes to the job summary and creates no
-          # check run -- so there was no `Test Report` status to link to or to
-          # require on dev. false restores the annotated check run.
+          # True (the default) writes to the job summary and creates no check
+          # run, leaving no `Test Report` status to link to or require.
           use-actions-summary: false
 
       # Forks get no secrets, so the upload would fail rather than add anything.

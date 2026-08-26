@@ -1,34 +1,26 @@
-# Everything that should happen on every branch push: the static gates, a fast
-# test signal, and the preview. One concern per job, so each failure lands as its
-# own named check rather than a shared red.
-#
-# Nothing here uses `needs:`. Previews are deliberately not gated on tests or on
-# formatting: a red suite should not stop you looking at your branch.
-#
-# This workflow owns the static gates for same-repo branches; ci.yml repeats them
-# guarded to the cases a `push` event cannot reach, so each gate runs once per
-# commit. Full-suite CI is ci.yml.
+# Every branch push: the static gates, a fast test signal, and the preview, one
+# concern per job so each failure lands as its own named check. Nothing uses
+# `needs:` -- a red suite should not stop you looking at your branch. The full
+# suite runs in ci.yml.
 name: Deploy
 
 on:
   push:
-    # Queue temp branches must not publish speculative merges as previews. Their
-    # CI comes from ci.yml's merge_group trigger instead.
+    # A speculative merge commit must not be published as a branch preview.
     branches-ignore:
       - "gh-readonly-queue/**"
 
 concurrency:
-  # Per-branch: a global group has queue depth 1, so a third concurrent run would
-  # cancel a queued one. cancel-in-progress so a newer commit supersedes an older
-  # in-flight run rather than deploying stale output.
+  # Per-branch: a global group has queue depth 1, so a third concurrent run
+  # would cancel a queued one. Newer commits supersede in-flight ones rather
+  # than deploying stale output.
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # The static gates, on their own check. Deliberately does not build src under
-  # release: the Deploy job below already does that for the preview, and that
-  # build is what validates js_of_ocaml linking. @check type-checks src *and*
-  # test/ without linking, which is the part no other job covers (issue #2456).
+  # No release build of src here: the Deploy job below already does one for the
+  # preview. `make ci-check` covers what that misses -- test/, type-checked
+  # without linking (issue #2456).
   Checks:
     name: Static checks
     if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
@@ -54,7 +46,7 @@ jobs:
     name: Deploy branch preview
     if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
     runs-on: ubuntu-latest
-    # No step here has a timeout, and GitHub's default job cap is 360 min.
+    # Without this, GitHub's 360-min default applies.
     timeout-minutes: 45
     steps:
       # NOTE: position the below lines in the code between two steps
@@ -114,14 +106,10 @@ jobs:
           exit 1
         working-directory: ./build-target
 
-  # `make ci-quick` uses alcotest's -q filter, which drops the Slow-tagged cases
-  # -- the large majority of the full suite's wall clock. That is what makes this
-  # cheap enough to run on every push.
-  #
-  # It remains a subset of ci.yml's full run: alcotest has no slow-only filter
-  # (-q selects Quick, with no inverse), so a broken quick test reports red here
-  # and in `Test`. Removing that overlap needs a speed partition in
-  # test/haz3ltest.re plus a @test-slow alias.
+  # alcotest's -q filter drops the Slow-tagged cases, which are ~92% of the full
+  # suite's wall clock -- that is what makes a test signal on every push
+  # affordable. It stays a strict subset: -q selects Quick and has no inverse,
+  # so a broken quick case reports red here and in the full run too.
   Quick:
     name: Quick tests
     if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
@@ -140,8 +128,7 @@ jobs:
         run: opam exec -- make ci-quick
         timeout-minutes: 20
 
-      # Annotated results UI, not the gate -- `Run quick tests` exits non-zero on
-      # failure by itself.
+      # Results UI, not the gate: the step above already fails on a red suite.
       - name: Quick Test Report
         if: always()
         uses: dorny/test-reporter@v1
@@ -150,6 +137,7 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          # See ci.yml for both of these.
+          # Both non-default: the job already fails on a red suite without
+          # them, and the default summary output creates no check run.
           fail-on-empty: false
           use-actions-summary: false
