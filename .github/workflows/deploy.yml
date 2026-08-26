@@ -1,12 +1,19 @@
-# Every branch push: the static gates, a fast test signal, and the preview, one
-# concern per job so each failure lands as its own named check. Nothing uses
-# `needs:` -- a red suite should not stop you looking at your branch. The full
-# suite runs in ci.yml.
+# Branch previews. Deliberately independent of ci.yml: no `needs:`, no shared
+# job, nothing to wait on -- a red suite should not stop you looking at your
+# branch, which is when you most want to.
+#
+# Forks never reach this workflow, since a fork's pushes happen in the fork.
+# Merge-queue branches are excluded because a speculative merge commit must not
+# be published as a preview.
+#
+# This job's release build is also the only thing that links src/web's `main`
+# and `worker` js_of_ocaml executables. The checks in ci.yml type-check without
+# linking, and the test bundle links the `web` library but not those two entry
+# points.
 name: Deploy
 
 on:
   push:
-    # A speculative merge commit must not be published as a branch preview.
     branches-ignore:
       - "gh-readonly-queue/**"
 
@@ -18,33 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # No release build of src here: the Deploy job below already does one for the
-  # preview. `make ci-check` covers what that misses -- test/, type-checked
-  # without linking (issue #2456).
-  Checks:
-    name: Static checks
-    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Checkout the hazel repo on the current branch
-        uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-hazel-toolchain
-
-      # No --auto-promote: a misformatted commit should fail, not be rewritten
-      # into a checkout that is then thrown away.
-      - name: Check formatting
-        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
-
-      - name: Check warnings
-        run: |
-          export DUNE_CACHE=enabled
-          opam exec -- make ci-check
-
   Deploy:
     name: Deploy branch preview
-    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
     runs-on: ubuntu-latest
     # Without this, GitHub's 360-min default applies.
     timeout-minutes: 45
@@ -105,39 +87,3 @@ jobs:
           echo "Push failed after 10 attempts"
           exit 1
         working-directory: ./build-target
-
-  # alcotest's -q filter drops the Slow-tagged cases, which are ~92% of the full
-  # suite's wall clock -- that is what makes a test signal on every push
-  # affordable. It stays a strict subset: -q selects Quick and has no inverse,
-  # so a broken quick case reports red here and in the full run too.
-  Quick:
-    name: Quick tests
-    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      checks: write # dorny/test-reporter publishes a check run
-    steps:
-      - name: Checkout the hazel repo on the current branch
-        uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-hazel-toolchain
-
-      - name: Run quick tests
-        run: opam exec -- make ci-quick
-        timeout-minutes: 20
-
-      # Results UI, not the gate: the step above already fails on a red suite.
-      - name: Quick Test Report
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Quick Test Report
-          path: ./_build/default/test/junit_tests*.xml
-          reporter: java-junit
-          fail-on-error: true
-          # Both non-default: the job already fails on a red suite without
-          # them, and the default summary output creates no check run.
-          fail-on-empty: false
-          use-actions-summary: false
