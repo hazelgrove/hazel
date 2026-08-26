@@ -22,9 +22,6 @@ module Rows = {
   };
   type t = IntMap.t(shape);
 
-  let max_col = (rs: list(row), map: t) =>
-    rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
-
   let min_col = (rs: list(row), map: t) =>
     rs
     |> List.map(r => find(r, map).indent)

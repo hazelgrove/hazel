@@ -38,10 +38,6 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
-
-  let zipper = (model: t) => model.editor.editor.state.zipper;
-
-  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
