@@ -693,8 +693,16 @@ let colors =
     ),
   );
 
+/* Identity-keyed memo: this overlay re-renders on every streamed eval
+   chunk, and frozen_ids walks every reusable entry's subtree — without
+   the memo that cost lands per render, per editor. Inputs are stable
+   across chunks except pending_eval_ids (which IS in the key, so
+   chunk-boundary changes still re-render). */
+let incr_eval_memo: ref(list((array(Obj.t), Node.t))) = ref([]);
+let incr_eval_memo_max = 8;
+
 /* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
-let incr_eval =
+let incr_eval_uncached =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
@@ -705,8 +713,6 @@ let incr_eval =
     ) => {
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
   let ranged_ids_of = ids =>
     ids
     |> List.sort_uniq(Id.compare)
@@ -723,21 +729,33 @@ let incr_eval =
     | 0 => Point.compare(l1, l2)
     | cmp => cmp
     };
-  let outermost = ranged_ids =>
-    List.fold_left(
-      (acc, (id, r)) =>
-        if (List.exists(
-              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
-              ranged_ids,
-            )
-            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
-          acc;
-        } else {
-          [(id, r), ...acc];
-        },
-      [],
-      ranged_ids,
-    );
+  /* linear sweep over ranges sorted (start asc, end desc): a range is
+     outermost iff it extends past everything already covered. The old
+     all-pairs containment scan was O(n²) and n here is EVERY id under
+     every reusable entry — thousands on mega programs, and this runs
+     on each render while an eval is pending. */
+  let outermost = ranged_ids => {
+    let cmp = (a, b) => {
+      let (_, (o1, l1)) = a;
+      let (_, (o2, l2)) = b;
+      switch (Point.compare(o1, o2)) {
+      | 0 => Point.compare(l2, l1) /* wider first */
+      | c => c
+      };
+    };
+    let sorted = List.sort(cmp, ranged_ids);
+    let (out, _) =
+      List.fold_left(
+        ((acc, covered), (id, (o, l))) =>
+          switch (covered) {
+          | Some(cl) when Point.compare(l, cl) <= 0 => (acc, covered)
+          | _ => ([(id, (o, l)), ...acc], Some(l))
+          },
+        ([], None),
+        sorted,
+      );
+    out;
+  };
   let frozen_ids =
     show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
@@ -782,4 +800,50 @@ let incr_eval =
         active_ids,
       ),
   );
+};
+
+let incr_eval =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      ~pending_eval_ids: list(Id.t)=[],
+      ~show_active_eval: bool=false,
+      ~show_frozen: bool=true,
+      predicted_reuse: Language.EvaluatorState.incr_eval,
+    ) => {
+  let key = [|
+    Obj.repr(predicted_reuse),
+    Obj.repr(syntax),
+    Obj.repr(pending_eval_ids),
+    Obj.repr(show_active_eval),
+    Obj.repr(show_frozen),
+    Obj.repr(font_metrics),
+  |];
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)) => {
+    let n = Array.length(a);
+    let rec go = i => i >= n || a[i] === b[i] && go(i + 1);
+    Array.length(b) == n && go(0);
+  };
+  switch (List.find_opt(((k, _)) => key_eq(k, key), incr_eval_memo^)) {
+  | Some((_, node)) => node
+  | None =>
+    let node =
+      incr_eval_uncached(
+        ~font_metrics,
+        ~syntax,
+        ~pending_eval_ids,
+        ~show_active_eval,
+        ~show_frozen,
+        predicted_reuse,
+      );
+    let rec take = (n, xs) =>
+      switch (n, xs) {
+      | (0, _)
+      | (_, []) => []
+      | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
+      };
+    incr_eval_memo :=
+      [(key, node), ...take(incr_eval_memo_max - 1, incr_eval_memo^)];
+    node;
+  };
 };

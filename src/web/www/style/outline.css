@@ -247,6 +247,15 @@
   color: var(--R1, #c33);
 }
 
+/* roll-up badge: an ancestor row shows the dot only while COLLAPSED
+   (expanded, the deepest containing row carries it instead) */
+#outline-sidebar .outline-err-roll {
+  display: none;
+}
+#outline-sidebar details:not([open]) > summary .outline-err-roll {
+  display: inline;
+}
+
 /* right-click def menu: new-below / duplicate / move / delete */
 .outline-menu-backdrop {
   position: fixed;

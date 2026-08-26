@@ -306,16 +306,24 @@ module View = {
             | None => own
             };
           },
+          /* master tint/pending in cells only with the incremental deco
+             setting ON: these inputs change per streamed chunk, so
+             threading them unconditionally re-rendered every open cell
+             on every chunk */
           ~predicted_reuse=
             switch (master_result) {
-            | Some(mr) => EvalResult.Model.predicted_reuse(mr)
+            | Some(mr) when globals.settings.show_incremental_deco =>
+              EvalResult.Model.predicted_reuse(mr)
+            | Some(_)
             | None => EvalResult.Model.predicted_reuse(model.result)
             },
           ~pending_eval_ids=
             EvalResult.Model.pending_eval_ids(model.result)
             @ (
               switch (master_result) {
-              | Some(mr) => EvalResult.Model.pending_eval_ids(mr)
+              | Some(mr) when globals.settings.show_incremental_deco =>
+                EvalResult.Model.pending_eval_ids(mr)
+              | Some(_)
               | None => []
               }
             ),
@@ -323,7 +331,9 @@ module View = {
             EvalResult.Model.eval_is_pending(model.result)
             || (
               switch (master_result) {
-              | Some(mr) => EvalResult.Model.eval_is_pending(mr)
+              | Some(mr) when globals.settings.show_incremental_deco =>
+                EvalResult.Model.eval_is_pending(mr)
+              | Some(_)
               | None => false
               }
             ),

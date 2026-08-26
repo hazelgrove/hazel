@@ -973,13 +973,63 @@ module View = {
         | Documentation(_) => true
         | _ => false
         };
+      /* error attribution at OUTLINE granularity: each error badges the
+         DEEPEST row containing it; ancestor rows get a roll-up badge
+         that CSS shows only while collapsed (andrew: error goes on the
+         deepest thing not hidden by a collapse) */
+      let (error_items, error_subtree) = {
+        let term = current_editor.statics.term;
+        /* prefer the DefStatics slot: it stays live during stacked
+           editing (the master's own statics are frozen then) */
+        let (info_map, error_ids) =
+          switch (Haz3lcore.DefStatics.current()) {
+          | Some(ds) => (ds.merged, Haz3lcore.DefStatics.all_error_ids(ds))
+          | None => (
+              current_editor.statics.info_map,
+              current_editor.statics.error_ids,
+            )
+          };
+        let outline_ids = {
+          let rec go = (acc, ns: list(OutlineTree.node)) =>
+            List.fold_left(
+              (acc, n: OutlineTree.node) =>
+                go(
+                  switch (n.o_id) {
+                  | Some(id) => [id, ...acc]
+                  | None => acc
+                  },
+                  n.o_children,
+                ),
+              acc,
+              ns,
+            );
+          go([], OutlineTree.of_term(term));
+        };
+        let in_outline = id => List.mem(id, outline_ids);
+        List.fold_left(
+          ((direct, roll), err_id) => {
+            let path =
+              switch (Haz3lcore.Id.Map.find_opt(err_id, info_map)) {
+              | Some(info) => [err_id, ...Language.Info.ancestors_of(info)]
+              | None => [err_id]
+              };
+            switch (List.filter(in_outline, path)) {
+            | [] => (direct, roll)
+            | [deepest, ...above] => ([deepest, ...direct], above @ roll)
+            };
+          },
+          ([], []),
+          error_ids,
+        );
+      };
       OutlineSidebar.view(
         ~jump=id => globals.inject_global(JumpToTile(id)),
         /* plain click with a stack open ADDS (or moves to) that cell —
            never replaces the stack (andrew: replacing was a footgun) */
         ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
         ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
-        ~error_items=Haz3lcore.DefStatics.error_item_ids(),
+        ~error_items,
+        ~error_subtree,
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),
         ~focused_entries,
         ~menu=is_scratch ? ScratchMode.outline_menu^ : None,

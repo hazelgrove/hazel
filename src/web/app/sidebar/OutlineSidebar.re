@@ -16,6 +16,8 @@ let clss = cs => Attr.classes(cs);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type def_op =
   | NewBelow
+  | NewTypeBelow
+  | NewModuleBelow
   | Duplicate
   | MoveUp
   | MoveDown
@@ -105,6 +107,7 @@ let rec node_view =
           ~toggle: Language.Id.t => Effect.t(unit),
           ~top_level: bool,
           ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
+          ~error_subtree: list(Language.Id.t),
           ~focused_entries: list((Language.Id.t, option(string))),
           ~error_items: list(Language.Id.t),
           n: OutlineTree.node,
@@ -115,6 +118,16 @@ let rec node_view =
     | Some(id) => List.mem(id, error_items)
     | None => false
     };
+  /* subtree carries an error: badge shown by CSS only while COLLAPSED
+     (the deepest visible row owns the error otherwise) */
+  let has_roll_err =
+    !has_err
+    && (
+      switch (n.o_id) {
+      | Some(id) => List.mem(id, error_subtree)
+      | None => false
+      }
+    );
   let stacked =
     switch (n.o_id) {
     | Some(id) => List.mem_assoc(id, focused_entries)
@@ -192,6 +205,19 @@ let rec node_view =
           : []
       )
       @ (
+        has_roll_err
+          ? [
+            span(
+              ~attrs=[
+                clss(["outline-err-badge", "outline-err-roll"]),
+                Attr.title("contains type errors (collapsed)"),
+              ],
+              [text({js|●|js})],
+            ),
+          ]
+          : []
+      )
+      @ (
         switch (n.o_id) {
         | Some(id) => [
             span(
@@ -230,6 +256,7 @@ let rec node_view =
               ~toggle,
               ~top_level=false,
               ~menu_open,
+              ~error_subtree,
               ~focused_entries,
               ~error_items,
             ),
@@ -283,6 +310,8 @@ let menu_view =
       ],
       [
         item(NewBelow, "new definition below"),
+        item(NewTypeBelow, "new type below"),
+        item(NewModuleBelow, "new module below"),
         item(Duplicate, "duplicate"),
         item(MoveUp, "move up"),
         item(MoveDown, "move down"),
@@ -300,6 +329,7 @@ let view =
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
+      ~error_subtree: list(Language.Id.t),
       ~menu: option((Language.Id.t, float, float)),
       ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
       ~menu_close: Effect.t(unit),
@@ -346,6 +376,7 @@ let view =
                   ~toggle,
                   ~top_level=true,
                   ~menu_open,
+                  ~error_subtree,
                   ~focused_entries,
                   ~error_items,
                 ),

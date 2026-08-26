@@ -1661,5 +1661,16 @@ let from_zip_for_pat = (z: Zipper.t): Pat.t => {
   };
 };
 
+/* Semantic TYP for a Typ-rooted editor (modular-editors type-alias
+   body cells): statics for such cells wrap this in a TyAlias so the
+   cursor inspector has real type info. */
+let from_zip_for_typ = (z: Zipper.t): Typ.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.Typ);
+  switch (Segment.skel(seg)) {
+  | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
+  | skel => typ(unsorted(Sort.Typ, skel, seg))
+  };
+};
+
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

@@ -175,6 +175,36 @@ let init =
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
     : empty;
 
+/* Typ-rooted cells (type-alias bodies in the editor stack): wrap the
+   type in a TyAlias under the frozen ctx so the info map carries real
+   InfoTyp entries — cursor inspector, sort refinement, type errors.
+   Wrapper node ids are fresh and never rendered in the cell, so their
+   marks stay invisible there (and the Problems panel filters to ids
+   present in each editor's own term). */
+let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let ty = MakeTerm.from_zip_for_typ(z);
+    let term: Exp.t =
+      Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Type cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
 /* COMPOSITIONAL init for whole-program (Exp-rooted, top-level) editors:
    statics via DefStatics — per top-level item with chained ctxs — so
    an edit re-analyzes only the dirty set, and no monolithic

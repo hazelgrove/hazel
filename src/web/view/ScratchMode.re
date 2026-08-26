@@ -693,7 +693,9 @@ module Restructure = {
         ));
       | MoveUp
       | MoveDown => None
-      | NewBelow =>
+      | NewBelow
+      | NewTypeBelow
+      | NewModuleBelow =>
         /* a bare `let _ = _ in` is not a complete program: parse with
            a dummy tail, then drop the trailing tail tile */
         let strip_tail = (sk: Segment.t): Segment.t =>
@@ -701,7 +703,13 @@ module Restructure = {
           | [Piece.Tile(_), ...rest] => List.rev(rest)
           | _ => sk
           };
-        switch (parse("let new_def = ? in\n0")) {
+        let skel_txt =
+          switch (op) {
+          | NewTypeBelow => "type NewType = ? in\n0"
+          | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
+          | _ => "let new_def = ? in\n0"
+          };
+        switch (parse(skel_txt)) {
         | None => None
         | Some(sk) =>
           let sk = strip_tail(sk);
@@ -1604,27 +1612,42 @@ module Update = {
         switch (Restructure.apply(op, fid, live_seg)) {
         | None => model |> Updated.return_quiet
         | Some((new_seg, focus_target)) =>
-          /* rebuild the master from the restructured segment; keep the
-             result model (it re-evaluates on the elab change anyway).
-             Statics are seeded SYNCHRONOUSLY: the outline reads the
+          /* Statics are seeded SYNCHRONOUSLY: the outline reads the
              master's statics.term, and while a stack is open the
              master's own calculate is skipped — a fresh empty statics
              would blank the outline. */
-          let fresh = Focus.cell_of_seg(new_seg);
           let statics =
             Haz3lcore.CachedStatics.init_compositional(
               ~settings=settings.core,
               ~stitch=x => x,
               ~root=Haz3lcore.Sort.Exp,
-              fresh.editor.editor.state.zipper,
+              Zipper.unzip(~direction=Left, new_seg),
             );
-          let new_editor: CellEditor.Model.t = {
-            editor: {
-              ...fresh.editor,
-              statics,
-            },
-            result: editor.result,
-          };
+          let new_editor: CellEditor.Model.t =
+            switch (model.focus) {
+            | Some(_) =>
+              /* master hidden while stacked: SKIP the whole-program
+                 editor rebuild (cell_of_seg re-measures everything,
+                 seconds on mega) — the zipper goes stale but every
+                 consumer while stacked reads f_master_seg, and
+                 unfocus rebuilds from it */
+              {
+                editor: {
+                  ...editor.editor,
+                  statics,
+                },
+                result: editor.result,
+              }
+            | None =>
+              let fresh = Focus.cell_of_seg(new_seg);
+              {
+                editor: {
+                  ...fresh.editor,
+                  statics,
+                },
+                result: editor.result,
+              };
+            };
           let new_sp = {
             ...scratchpad,
             kind:
@@ -2237,6 +2260,18 @@ module Update = {
         | Some(prev) => prev
         | None =>
           let body_is_exp = e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
+          let body_is_typ = e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
+          /* type bodies: STATICS on (wrapped-alias init gives the
+             inspector real type info), dynamics off */
+          let body_settings =
+            body_is_exp
+              ? settings
+              : body_is_typ
+                  ? Language.CoreSettings.{
+                      ...settings,
+                      dynamics: false,
+                    }
+                  : statics_off(settings);
           let e' =
             Model.{
               ...e,
@@ -2251,7 +2286,7 @@ module Update = {
                 ),
               e_body:
                 CellEditor.Update.calculate(
-                  ~settings=body_is_exp ? settings : statics_off(settings),
+                  ~settings=body_settings,
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
@@ -2643,6 +2678,19 @@ module View = {
            between; rendered INSTEAD of the master cell */
         let stack_views = (f: Model.focus_t) => {
           let prev = stack_cache^;
+          /* master tint/pending only invalidate cell views when the
+             incremental deco setting is ON (they change per streamed
+             chunk — unconditional tracking re-rendered every open cell
+             on every chunk) */
+          let deco_on = globals.Globals.Model.settings.show_incremental_deco;
+          let deco_reuse =
+            deco_on
+              ? EvalResult.Model.predicted_reuse(editor.result)
+              : Language.IncrEval.empty;
+          let deco_pending =
+            deco_on ? EvalResult.Model.pending_eval_ids(editor.result) : [];
+          let deco_active =
+            deco_on && EvalResult.Model.eval_is_pending(editor.result);
           let rendered =
             List.mapi(
               (i, e: Model.stack_entry) => {
@@ -2674,12 +2722,9 @@ module View = {
                       && c.c_font_metrics
                       === globals.Globals.Model.font_metrics
                       && c.c_colors === globals.Globals.Model.color_highlights
-                      && c.c_reuse
-                      === EvalResult.Model.predicted_reuse(editor.result)
-                      && c.c_pending
-                      === EvalResult.Model.pending_eval_ids(editor.result)
-                      && c.c_active
-                      == EvalResult.Model.eval_is_pending(editor.result) => (
+                      && c.c_reuse === deco_reuse
+                      && c.c_pending === deco_pending
+                      && c.c_active == deco_active => (
                     e.e_id,
                     c,
                   )
@@ -2710,28 +2755,35 @@ module View = {
                      ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
                   let pane_focus =
                       (idx, to_header, move: Haz3lcore.Action.move) =>
-                    idx < 0 || idx >= List.length(f.f_entries)
-                      ? Virtual_dom.Vdom.Effect.Ignore
-                      : Virtual_dom.Vdom.Effect.Many([
-                          signal(
-                            MakeActive(
-                              to_header
-                                ? StackH(idx, MainEditor)
-                                : StackB(idx, MainEditor),
-                            ),
-                          ),
-                          inject(
+                    if (idx < 0 || idx >= List.length(f.f_entries)) {
+                      Virtual_dom.Vdom.Effect.Ignore;
+                    } else {
+                      /* DOM focus must follow the selection to the new
+                         pane (after render — the active-cell id moves
+                         with the re-render) or the caret vanishes and
+                         arrows scroll the page */
+                      Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+                      Virtual_dom.Vdom.Effect.Many([
+                        signal(
+                          MakeActive(
                             to_header
-                              ? StackHeader(
-                                  idx,
-                                  MainEditor(Perform(Move(move))),
-                                )
-                              : StackBody(
-                                  idx,
-                                  MainEditor(Perform(Move(move))),
-                                ),
+                              ? StackH(idx, MainEditor)
+                              : StackB(idx, MainEditor),
                           ),
-                        ]);
+                        ),
+                        inject(
+                          to_header
+                            ? StackHeader(
+                                idx,
+                                MainEditor(Perform(Move(move))),
+                              )
+                            : StackBody(
+                                idx,
+                                MainEditor(Perform(Move(move))),
+                              ),
+                        ),
+                      ]);
+                    };
                   let header_escape = (d: Util.Direction.t) =>
                     switch (d) {
                     | Left => pane_focus(i - 1, false, End)
@@ -2795,12 +2847,9 @@ module View = {
                       c_settings: globals.Globals.Model.settings,
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
-                      c_reuse:
-                        EvalResult.Model.predicted_reuse(editor.result),
-                      c_pending:
-                        EvalResult.Model.pending_eval_ids(editor.result),
-                      c_active:
-                        EvalResult.Model.eval_is_pending(editor.result),
+                      c_reuse: deco_reuse,
+                      c_pending: deco_pending,
+                      c_active: deco_active,
                       c_nodes: nodes,
                     },
                   );

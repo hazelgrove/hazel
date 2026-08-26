@@ -174,26 +174,30 @@ module Update = {
       || is_edited
       && statics_mode != StaticsDefer
       || probes_changed
-        ? compositional
-            /* whole-program editors: per-item statics (DefStatics) —
-               only the dirty items re-analyze, and no monolithic
-               whole-program recursion runs (browser stack overflow on
-               large programs) */
-            ? CachedStatics.init_compositional(
-                ~settings,
-                ~stitch,
-                ~root=editor.root,
-                editor.state.zipper,
-              )
-            : CachedStatics.init(
-                ~settings,
-                ~stitch,
-                ~ctx?,
-                ~ana?,
-                ~is_dynamic_term,
-                ~root=editor.root,
-                editor.state.zipper,
-              )
+        ? editor.root == Sort.Typ
+            /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+               entries for the inspector) under the provided ctx */
+            ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+            : compositional
+                /* whole-program editors: per-item statics (DefStatics) —
+                   only the dirty items re-analyze, and no monolithic
+                   whole-program recursion runs (browser stack overflow on
+                   large programs) */
+                ? CachedStatics.init_compositional(
+                    ~settings,
+                    ~stitch,
+                    ~root=editor.root,
+                    editor.state.zipper,
+                  )
+                : CachedStatics.init(
+                    ~settings,
+                    ~stitch,
+                    ~ctx?,
+                    ~ana?,
+                    ~is_dynamic_term,
+                    ~root=editor.root,
+                    editor.state.zipper,
+                  )
         : statics;
 
     let editor =
