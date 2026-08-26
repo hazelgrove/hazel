@@ -504,9 +504,63 @@ let load_pipeline_probe = (): unit =>
     ["mega-1k.hz", "mega-2k.hz", "mega-4k.hz"],
   );
 
+/* TEMP: how big/slow was shipping `prev` to the worker? Marshal the
+   request payload with and without the incremental cache, for a mega
+   program after one evaluation. */
+let payload_probe = (): unit => {
+  let path = "hazel-programs/mega/mega-1k.hz";
+  let path =
+    Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
+  switch (read_file(path)) {
+  | None => Printf.printf("PAYLOAD: corpus unreadable\n")
+  | Some(src) =>
+    let seg = parse_seg_of(src);
+    let term = MakeTerm.go(seg).term;
+    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
+    let (map, elab) = Statics.mk_unmemoized(CoreSettings.on, ctx, term);
+    let ei =
+      EvalInfo.of_info_map(~probe_all=false, ~targets=Sample.no_targets, map);
+    let (_, state) =
+      Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab);
+    let prev = EvaluatorState.get_incr_eval(state);
+    let time_size = (label, v) => {
+      let t0 = Sys.time();
+      let s = Marshal.to_string(v, []);
+      Printf.printf(
+        "PAYLOAD %s: %d KB, %.1fms to marshal\n",
+        label,
+        String.length(s) / 1024,
+        (Sys.time() -. t0) *. 1000.,
+      );
+    };
+    time_size("expr+eval_info (kept)", (elab, ei));
+    time_size("prev cache (no longer shipped)", prev);
+    time_size("old full request", (elab, ei, prev));
+    /* the #2368 crash shape: big computed VALUES live only in the
+       cache (not shared with the elab) */
+    let src2 = "let x = range(1, 20000) in length(x)";
+    let seg2 = parse_seg_of(src2);
+    let term2 = MakeTerm.go(seg2).term;
+    let (map2, elab2) = Statics.mk_unmemoized(CoreSettings.on, ctx, term2);
+    let ei2 =
+      EvalInfo.of_info_map(
+        ~probe_all=false,
+        ~targets=Sample.no_targets,
+        map2,
+      );
+    let (_, state2) =
+      Evaluator.evaluate(~eval_info=ei2, ~env=Builtins.env_init, elab2);
+    let prev2 = EvaluatorState.get_incr_eval(state2);
+    time_size("BIG-VALUE expr+eval_info (kept)", (elab2, ei2));
+    time_size("BIG-VALUE prev cache (no longer shipped)", prev2);
+    time_size("BIG-VALUE old full request", (elab2, ei2, prev2));
+  };
+};
+
 let tests = (
   "BenchStatics",
   [
+    test_case("payload probe (informational)", `Quick, payload_probe),
     test_case(
       "DefStatics compositional (informational)",
       `Quick,
