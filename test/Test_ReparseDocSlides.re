@@ -36,7 +36,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
           ~root=Exp,
           String.trim(text),
         ),
-        Parser.to_segment(text, ~root=Exp),
+        ParsedCorpus.to_segment(~root=Exp, text),
       ) {
       | (None, _) => () /* fallback slide (menhir gap): fidelity checked above */
       | (Some(_), None) =>

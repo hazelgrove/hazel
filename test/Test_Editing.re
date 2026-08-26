@@ -17,8 +17,6 @@ let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
 let selection_char = "§"; /* Note this is two bytes */
-let caret_regexp = StringUtil.regexp(caret_char);
-
 let printer = (z: Zipper.t): string => {
   Printer.of_zipper(
     ~holes=convex_char,
@@ -2423,13 +2421,6 @@ let module_tests = [
 
    The test_complete helper checks both printer output AND that no
    incomplete tiles remain, which catches the structural breakage. */
-
-/* Helper: check that a zipper has a non-empty backpack (i.e. there are
- * missing shards from incomplete tiles visible at the caret position).
- * A non-empty backpack after entering what should be a complete program
- * indicates structural breakage. */
-let zip_backpack_empty = (z: Zipper.t): bool =>
-  Zipper.local_backpack(z) == [];
 
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right

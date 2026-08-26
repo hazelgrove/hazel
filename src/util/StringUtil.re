@@ -1,5 +1,3 @@
-let cat = String.concat("");
-
 /* NOTE: there are deliberately no byte-indexed nth/split/to_list helpers
    here. Text in the editor is indexed by grapheme cluster (see Unicode);
    a byte-indexed `to_list` in particular is indistinguishable at the call
@@ -84,8 +82,6 @@ let line_widths = (s: string): list(int) =>
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);
-
-let num_lines = (s: string): int => s |> to_lines |> List.length;
 
 let num_linebreaks = (s: string) => {
   s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
