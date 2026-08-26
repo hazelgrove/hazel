@@ -367,6 +367,27 @@ let calc =
       Some(p.items)
     | _ => None
     };
+  /* probe ids are an ANALYSIS input (witness stamping): an item whose
+     map contains a toggled probe id must re-analyze. Everything else
+     stays clean — a probe toggle costs one item, not the program. */
+  let probe_delta =
+    switch (prev) {
+    | Some(p) =>
+      Id.Map.merge(
+        (_, a, b) =>
+          switch (a, b) {
+          | (Some (), Some ())
+          | (None, None) => None
+          | _ => Some()
+          },
+        p.probe_ids,
+        probe_ids,
+      )
+    | None => Id.Map.empty
+    };
+  let probe_dirty = (p: item): bool =>
+    !Id.Map.is_empty(probe_delta)
+    && Id.Map.exists((pid, ()) => Id.Map.mem(pid, p.d_map), probe_delta);
   let (items, merged) =
     switch (aligned) {
     | None =>
@@ -401,7 +422,8 @@ let calc =
             let clean =
               !dirty_types
               && head_equal(p.d_node, node)
-              && !depends(p.d_free, dirty_vars);
+              && !depends(p.d_free, dirty_vars)
+              && !probe_dirty(p);
             if (clean) {
               let (it, ctx_out) =
                 ctx === p.d_ctx_in
@@ -531,12 +553,9 @@ let whole_elab = (t: t): option(Exp.t) => {
 let slot: ref(option(t)) = ref(None);
 
 let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
-  let prev =
-    switch (slot^) {
-    | Some(p) when compare(p.probe_ids, probe_ids) == 0 => Some(p)
-    | _ => None
-    };
-  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+  /* probe changes no longer bust the slot: calc's probe-aware dirtying
+     re-analyzes exactly the items whose maps contain a toggled id */
+  let t = calc(~settings, ~prev=?slot^, ~probe_ids, whole);
   slot := Some(t);
   t;
 };

@@ -8,7 +8,12 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
-  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
+  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  /* the probe ids the info_map was ANALYZED with (per-node probe_targets
+     witnesses depend on them). with_targets deliberately does NOT update
+     this: it refreshes only `targets`, so a mismatch against the zipper's
+     current probes means the map itself is stale for probing. */
+  probe_ids: Id.Map.t(unit),
 };
 
 let empty: t = {
@@ -24,6 +29,7 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
+  probe_ids: Id.Map.empty,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -120,6 +126,7 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
+    probe_ids,
   };
 };
 
@@ -206,5 +213,6 @@ let init_compositional =
       error_ids: DefStatics.all_error_ids(ds),
       warning_ids: DefStatics.all_warning_ids(ds),
       targets: compute_targets(~settings, ~info_map, ~probe_ids),
+      probe_ids,
     };
   };

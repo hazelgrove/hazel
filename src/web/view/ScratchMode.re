@@ -1879,6 +1879,7 @@ module Update = {
                     ~info_map=ds.merged,
                     ~probe_ids,
                   ),
+                probe_ids,
               },
             );
           let fresh = it => !List.exists(p => p === it, prev_items);

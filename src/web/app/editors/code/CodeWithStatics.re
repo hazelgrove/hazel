@@ -155,9 +155,25 @@ module Update = {
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
      * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
+     * then skips the shape pass via phys-eq on info_map/elaborated.
+     * PROBE EXCEPTION: probe ids are an ANALYSIS input (per-node
+     * probe_targets witnesses) — deferring the recompute lets this
+     * frame's eval request go out with fresh targets but a stale map,
+     * and the worker's incremental cache then replays sampleless until
+     * the next edit. A probe change recomputes NOW (cheap: DefStatics
+     * probe-aware dirtying re-analyzes only the probed item). */
+    let probes_changed =
+      Id.Map.compare(
+        compare,
+        CachedStatics.probe_ids_of_zipper(editor.state.zipper),
+        statics.probe_ids,
+      )
+      != 0;
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+      statics_mode == StaticsForce
+      || is_edited
+      && statics_mode != StaticsDefer
+      || probes_changed
         ? compositional
             /* whole-program editors: per-item statics (DefStatics) —
                only the dirty items re-analyze, and no monolithic

@@ -602,7 +602,40 @@ let probe_capture_parity = (): unit => {
       Statics.mk_unmemoized(~probe_ids, settings, ctx, term);
     let (tm, pm) = capture_count(map_m, elab_m);
     Printf.printf("PROBECAP mono: targets=%d captured=%d\n", tm, pm);
-    let ds = DefStatics.calc(~settings, ~probe_ids, term);
+    /* probe toggle must be INCREMENTAL: only the item containing the
+       toggled id re-analyzes (probe-aware dirtying), and the result
+       must still capture like a cold probe-aware run */
+    let ds0 = DefStatics.calc(~settings, term);
+    let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
+    Printf.printf(
+      "PROBECAP toggle-on analyzed: %d of %d items\n",
+      DefStatics.last_analyzed^,
+      List.length(ds.items),
+    );
+    check(
+      bool,
+      "probe toggle re-analyzes a strict subset",
+      true,
+      DefStatics.last_analyzed^ < List.length(ds.items),
+    );
+    let ds_off = DefStatics.calc(~settings, ~prev=ds, term);
+    Printf.printf(
+      "PROBECAP toggle-off analyzed: %d\n",
+      DefStatics.last_analyzed^,
+    );
+    switch (Statics.Map.lookup_exp(Exp.rep_id(term), ds_off.merged)) {
+    | Some(info) =>
+      check(
+        bool,
+        "toggle-off clears the root witness",
+        true,
+        SubexpProbeTargets.equal(
+          info.probe_targets,
+          SubexpProbeTargets.empty,
+        ),
+      )
+    | None => Printf.printf("PROBECAP toggle-off: no root entry\n")
+    };
     /* WITNESS parity at the roots: incremental-eval reuse keys on
        InfoExp.probe_targets — stale/empty witnesses mean the cached
        run replays sampleless. Compare mono vs comp at the top root. */
