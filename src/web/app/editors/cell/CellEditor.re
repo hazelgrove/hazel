@@ -98,11 +98,22 @@ module Update = {
         ~statics_mode=CodeWithStatics.StaticsNormal,
         ~compositional=false,
         ~ctx=?,
+        ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* Cell dynamics = own evaluation's samples, plus (for stack cells)
+       the WHOLE-PROGRAM samples flowing in from the master's stacked
+       eval — the master's win on conflicts (it saw real call sites) */
+    let mk_dynamics = result => {
+      let own = EvalResult.Model.dynamics(result);
+      switch (extra_dynamics) {
+      | Some(extra) => Id.Map.union((_, m, _) => Some(m), extra, own)
+      | None => own
+      };
+    };
     /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
@@ -113,7 +124,7 @@ module Update = {
         ~compositional,
         ~ctx?,
         ~stitch,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=mk_dynamics(result),
         ~is_dynamic_term=false,
         editor,
       );
@@ -156,7 +167,7 @@ module Update = {
           ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=mk_dynamics(result),
           ~is_dynamic_term=false,
           editor,
         );
@@ -220,6 +231,7 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
+        ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -275,7 +287,16 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics={
+            /* stack cells: whole-program samples from the master's
+               stacked eval flow in over the cell's own (see
+               Update.mk_dynamics — same merge, view side) */
+            let own = EvalResult.Model.dynamics(model.result);
+            switch (extra_dynamics) {
+            | Some(extra) => Id.Map.union((_, m, _) => Some(m), extra, own)
+            | None => own
+            };
+          },
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),

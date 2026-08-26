@@ -282,6 +282,75 @@ let depends = (free: list(string), dirty: list(string)): bool =>
 let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
   Id.Map.union((_, _x, y) => Some(y), a, b);
 
+/* Item statics runs with the continuation hollowed, so an item ROOT's
+   info misses everything about LATER items. Two root fields feed the
+   evaluator's incremental reuse_check, and both must look monolithic
+   or the resident cache replays stale runs:
+     - probe_targets (= probes under the node): left stale, adding a
+       probe deep in the program looks like "nothing changed" at the
+       top-level spine and the cached run replays sampleless;
+     - co_ctx (= names used under the node): reuse-map Dirty flags
+       (a re-bound definition dirtying its callers) are consulted
+       through exactly this co_ctx, so without the suffix's names a
+       spine root reuses right past a dirtied binding and the whole
+       suffix — call sites included — replays from cache.
+   Patch the merged view: each non-tail root's witness/co_ctx becomes
+   its own unioned with the items below it (minus its own bindings,
+   for co_ctx — the same scoping a monolithic analysis applies). */
+let fix_spine_infos =
+    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
+    : Statics.Map.t => {
+  let probes_in = (it: item): SubexpProbeTargets.t =>
+    Id.Map.fold(
+      (pid, (), acc) =>
+        Id.Map.mem(pid, it.d_map)
+          ? SubexpProbeTargets.add_self(~is_probed=true, pid, acc) : acc,
+      probe_ids,
+      SubexpProbeTargets.empty,
+    );
+  let (merged, _, _) =
+    List.fold_right(
+      (it: item, (m, below_wit, below_co)) => {
+        let bound = List.map(entry_name, it.d_exports);
+        let below_co_scoped =
+          List.filter(((name, _)) => !List.mem(name, bound), below_co);
+        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, m)) {
+        | (Some(_), Some(info)) =>
+          let co_ctx = CoCtx.union([info.co_ctx, below_co_scoped]);
+          let m =
+            Id.Map.add(
+              it.d_id,
+              Info.InfoExp({
+                ...info,
+                probe_targets:
+                  SubexpProbeTargets.union(info.probe_targets, below_wit),
+                co_ctx,
+              }),
+              m,
+            );
+          (m, SubexpProbeTargets.union(probes_in(it), below_wit), co_ctx);
+        | _ =>
+          /* tail item (info already whole-suffix accurate) or no
+             InfoExp at the root (e.g. module forms): thread what we
+             know upward without patching */
+          let own_co =
+            switch (Statics.Map.lookup_exp(it.d_id, m)) {
+            | Some(info) => info.co_ctx
+            | None => CoCtx.empty
+            };
+          (
+            m,
+            SubexpProbeTargets.union(probes_in(it), below_wit),
+            CoCtx.union([own_co, below_co_scoped]),
+          );
+        };
+      },
+      items,
+      (merged, SubexpProbeTargets.empty, CoCtx.empty),
+    );
+  merged;
+};
+
 let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
   Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
 
@@ -399,6 +468,7 @@ let calc =
         );
       (List.rev(items_rev), merged);
     };
+  let merged = fix_spine_infos(~probe_ids, items, merged);
   {
     items,
     term: whole,

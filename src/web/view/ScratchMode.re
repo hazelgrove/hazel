@@ -1757,6 +1757,13 @@ module Update = {
     };
   };
 
+  /* The spliced whole-program statics computed while a stack is open
+     (Force frames + first open frame): term + merged map + grafted
+     elaboration. Feeds the master's EvalResult so whole-program
+     DYNAMICS keeps running while stacked — probes with out-of-cell
+     call sites sample, the result strip stays live. */
+  let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
+
   /* per-entry calculate memo (see calc_entry): FIXPOINT check. An
      entry that comes in physically identical to the last calculate's
      OUTPUT is already calculated — update only replaces an entry's
@@ -1765,7 +1772,10 @@ module Update = {
      constantly). Reuse also preserves the entry's physical identity,
      which the stack view cache keys on. */
   let calc_entry_memo:
-    Hashtbl.t(Haz3lcore.Id.t, (Language.CoreSettings.t, Model.stack_entry)) =
+    Hashtbl.t(
+      Haz3lcore.Id.t,
+      (Language.CoreSettings.t, Language.Dynamics.Map.t, Model.stack_entry),
+    ) =
     Hashtbl.create(8);
 
   let calculate =
@@ -1811,9 +1821,15 @@ module Update = {
          dirty items re-analyze; open cells whose item changed get
          their frozen ctx recaptured (a fresh entry record), which
          forces their own recalc below. */
+      if (model.focus == None) {
+        stacked_statics := None;
+      };
       let model =
         switch (model.focus) {
-        | Some(f) when statics_mode == CodeWithStatics.StaticsForce =>
+        | Some(f)
+            when
+              statics_mode == CodeWithStatics.StaticsForce
+              || stacked_statics^ == None =>
           let prev_items =
             switch (Haz3lcore.DefStatics.current()) {
             | Some(p) => p.items
@@ -1821,12 +1837,50 @@ module Update = {
             };
           let spliced = Focus.splice_all(f);
           let term = Haz3lcore.MakeTerm.go(spliced).term;
+          /* probes live in ZIPPERS: union the master's with every open
+             cell's, so a probe placed in a cell reaches the
+             whole-program evaluation */
+          let probe_union = (a, b) =>
+            Id.Map.union((_, x, _) => Some(x), a, b);
           let probe_ids =
-            Haz3lcore.CachedStatics.probe_ids_of_zipper(
-              editor.editor.editor.state.zipper,
+            List.fold_left(
+              (acc, e: Model.stack_entry) =>
+                probe_union(
+                  acc,
+                  Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                    e.e_body.editor.editor.state.zipper,
+                  ),
+                ),
+              Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                editor.editor.editor.state.zipper,
+              ),
+              f.f_entries,
             );
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+          stacked_statics :=
+            Some(
+              Haz3lcore.CachedStatics.{
+                term,
+                elaborated:
+                  switch (Haz3lcore.DefStatics.whole_elab(ds)) {
+                  | Some(elab) => elab
+                  | None =>
+                    Haz3lcore.CachedStatics.dh_err(
+                      "Compositional elaboration gap",
+                    )
+                  },
+                info_map: ds.merged,
+                error_ids: Haz3lcore.DefStatics.all_error_ids(ds),
+                warning_ids: Haz3lcore.DefStatics.all_warning_ids(ds),
+                targets:
+                  Haz3lcore.CachedStatics.compute_targets(
+                    ~settings,
+                    ~info_map=ds.merged,
+                    ~probe_ids,
+                  ),
+              },
+            );
           let fresh = it => !List.exists(p => p === it, prev_items);
           let f_entries =
             List.map(
@@ -1870,11 +1924,57 @@ module Update = {
           };
         | _ => model
         };
+      /* While a stack is open the master's zipper cannot change (all
+         edits route to stack cells; splices happen in update), so its
+         EDITOR calculate is skipped — but its RESULT keeps evaluating
+         the SPLICED program (stacked_statics): whole-program dynamics
+         stays live while stacked. Requests only fire when the grafted
+         elaboration actually changed (Calc-gated inside). */
+      let new_ed =
+        switch (model.focus, stacked_statics^) {
+        | (Some(_), Some(synth)) =>
+          let result =
+            EvalResult.Update.calculate(
+              ~settings={
+                ...settings,
+                assist: false,
+              },
+              ~queue_worker,
+              ~is_edited,
+              synth,
+              editor.result,
+            );
+          {
+            ...editor,
+            result,
+          };
+        | (Some(_), None) => editor
+        | (None, _) =>
+          CellEditor.Update.calculate(
+            ~settings,
+            ~autoprobe_mode,
+            ~is_edited,
+            ~statics_mode,
+            ~compositional=true,
+            ~queue_worker,
+            ~stitch=x => x,
+            editor,
+          )
+        };
+      /* whole-program samples flow into every cell (probes with
+         out-of-cell call sites); the memo gates on the dynamics map's
+         identity so cells re-render when new samples land */
+      let extra_dyn =
+        switch (model.focus) {
+        | Some(_) => EvalResult.Model.dynamics(new_ed.result)
+        | None => Language.Dynamics.Map.empty
+        };
       let calc_entry = (e: Model.stack_entry): Model.stack_entry => {
         let reuse =
           statics_mode != CodeWithStatics.StaticsForce
             ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
-              | Some((s', prev)) when prev === e && s' === settings =>
+              | Some((s', d', prev))
+                  when prev === e && s' === settings && d' === extra_dyn =>
                 Some(prev)
               | _ => None
               }
@@ -1901,12 +2001,17 @@ module Update = {
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
+                  ~extra_dynamics=extra_dyn,
                   ~queue_worker=None,
                   ~stitch=x => x,
                   e.e_body,
                 ),
             };
-          Hashtbl.replace(calc_entry_memo, e.e_id, (settings, e'));
+          Hashtbl.replace(
+            calc_entry_memo,
+            e.e_id,
+            (settings, extra_dyn, e'),
+          );
           e';
         };
       };
@@ -1922,24 +2027,6 @@ module Update = {
             model.focus,
           ),
       };
-      /* While a stack is open the master's zipper cannot change (all
-         edits route to stack cells; splices happen in update), so skip
-         its calculate entirely — otherwise every debounced
-         StaticsForce frame re-runs whole-program statics (multi-second
-         on mega programs) for an editor that isn't even displayed. */
-      let new_ed =
-        model.focus != None
-          ? editor
-          : CellEditor.Update.calculate(
-              ~settings,
-              ~autoprobe_mode,
-              ~is_edited,
-              ~statics_mode,
-              ~compositional=true,
-              ~queue_worker,
-              ~stitch=x => x,
-              editor,
-            );
       let dispatch = (_key, action) =>
         schedule_action(CellAction(ResultAction(action)));
       EvalRequest.request(
@@ -2387,6 +2474,8 @@ module View = {
                           ~result_kind=`NoResults,
                           ~locked=false,
                           ~lines=true,
+                          ~extra_dynamics=
+                            EvalResult.Model.dynamics(editor.result),
                           e.e_body,
                         ),
                       ],
@@ -2409,7 +2498,39 @@ module View = {
               f.f_entries,
             );
           stack_cache := rendered;
+          /* the whole program's RESULT stays live below the stack (the
+             master keeps evaluating the spliced program) */
+          let (result_footer, _overlays) =
+            EvalResult.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
+                | JumpTo(id) =>
+                  Virtual_dom.Vdom.Effect.Many([
+                    signal(MakeActive(Cell(MainEditor))),
+                    inject(
+                      CellAction(
+                        MainEditor(Perform(Move(Goal(TileId(id))))),
+                      ),
+                    ),
+                  ]),
+              ~inject=a => inject(CellAction(ResultAction(a))),
+              ~selected=
+                switch (selected) {
+                | Some(Selection.Cell(Result(a))) => Some(a)
+                | _ => None
+                },
+              ~locked=false,
+              editor.result,
+            );
           List.concat_map(((_, c)) => c.c_nodes, rendered)
+          @ [
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
+              result_footer,
+            ),
+          ]
           @ [
             /* trailing slack: any entry (incl. the last) can align to
                the viewport top, and the user can scroll to position any

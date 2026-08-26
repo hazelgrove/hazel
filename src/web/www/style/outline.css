@@ -269,3 +269,9 @@
     opacity: 1;
   }
 }
+
+/* the whole-program result, live below the stack */
+#main .stack-result {
+  border-top: 0.6px solid var(--BR2, #b5a377);
+  background: var(--T2, #f1e9d2);
+}
