@@ -3,13 +3,6 @@ open Virtual_dom.Vdom;
 open ExplainThisForm;
 open Language;
 
-let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => {
-  let (c, _) = ColorSteps.get_color(id, mapping);
-  let classes = Attr.class_("highlight-" ++ c);
-  let attrs = [classes];
-  Node.span(~attrs, msg);
-};
-
 let exp_show =
     (syntax: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
   let editor =

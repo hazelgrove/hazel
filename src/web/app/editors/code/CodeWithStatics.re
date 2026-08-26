@@ -105,7 +105,6 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
-  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 type statics_mode =

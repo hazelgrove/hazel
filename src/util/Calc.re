@@ -67,12 +67,6 @@ let map = (x: t('a), f: 'a => 'b): t('b) =>
   | NewValue(x) => NewValue(f(x))
   };
 
-let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
-  switch (y) {
-  | NewValue(y) when eq(x, y) => OldValue(x)
-  | _ => NewValue(x)
-  };
-
 // ================================================================================
 // saved('a) is used to store a value that has been calculated in the model
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -148,13 +142,6 @@ let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   | Calculated(_) => NewValue(x)
   };
 
-let const = (y: unit => 'a, x: saved('a)) => {
-  switch (x) {
-  | Pending => NewValue(y())
-  | Calculated(x) => OldValue(x)
-  };
-};
-
 /* Save takes a value of t('a) that has been recalculated and stores it in a
    saved so it can be put back in the model */
 let save = (x: t('a)): saved('a) =>
@@ -162,8 +149,6 @@ let save = (x: t('a)): saved('a) =>
   | OldValue(x)
   | NewValue(x) => Calculated(x)
   };
-
-let saved_to_option = get_saved_opt;
 
 // ================================================================================
 // Helper functions:

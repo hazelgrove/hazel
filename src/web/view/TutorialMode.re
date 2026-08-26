@@ -67,20 +67,6 @@ module Model = {
     | _ => false
     };
   };
-  let test_count = (exercise: t) => {
-    let test_results =
-      Tutorial.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
-        exercise.cells,
-      );
-
-    switch (Tutorial.get_stitched(HiddenTests, test_results)) {
-    | Some(test_results) => test_results.total
-    | None => 0
-    };
-  };
-
   let return_title = (exercise: t) =>
     if (all_tests_passed(exercise)) {
       exercise.editors.title ++ " ✔";

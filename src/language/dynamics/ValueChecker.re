@@ -52,30 +52,6 @@ module CV = Transition(ValueCheckerEVMode);
 let rec check_value = (~in_closure=?, env: Environment.t(Exp.t), d) =>
   CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
 
-let rec check_value_mod_ctx = (~in_closure=?, env: Environment.t(Exp.t), d) =>
-  switch (DHExp.term_of(d)) {
-  | Var(x) =>
-    switch (Environment.lookup(env, x)) {
-    | Some(v) => check_value_mod_ctx(~in_closure?, env, v)
-    | None =>
-      CV.transition(
-        check_value_mod_ctx,
-        ~mode=`Environment,
-        ~in_closure?,
-        env,
-        d,
-      )
-    }
-  | _ =>
-    CV.transition(
-      check_value_mod_ctx,
-      ~mode=`Environment,
-      ~in_closure?,
-      env,
-      d,
-    )
-  };
-
 /* Check if an expression is a fully-evaluated value */
 let is_value = (exp: Exp.t): bool =>
   check_value(Environment.empty, exp) == Value;

@@ -1078,8 +1078,6 @@ let tpat_view =
   };
 };
 
-let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
-
 let view_of_info =
     (~globals, ~live_typing_info, ~is_live_typing_error, ci): list(Node.t) => {
   let wrapper = status_view => [

@@ -4,54 +4,6 @@ open Util.WebUtil;
 open Haz3lcore;
 open Language;
 
-let jump_to = (~globals: Globals.t, id: Id.t, _) =>
-  globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
-
-let exp_view = (~available, term: Exp.t) =>
-  Abbreviate.abbreviate_exp(~available, term)
-  |> fst
-  |> ExpToSegment.exp_to_segment(
-       ~settings=
-         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-     );
-
-let pat_view = (~available, term: Pat.t) =>
-  Abbreviate.abbreviate_pat(~available, term)
-  |> fst
-  |> (x => Grammar.Pat(x))
-  |> ExpToSegment.any_to_segment(
-       ~settings=
-         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-     );
-
-let segment_of = (~default, ~available=8, term: Any.t): option(Segment.t) =>
-  switch (term) {
-  | Exp(x) => Some(exp_view(~available, x))
-  | Pat(x) => Some(pat_view(~available, x))
-  | _ => default
-  };
-
-let term_view =
-    (
-      ~globals: Globals.t,
-      ~default,
-      ~background,
-      ~text_only,
-      ~available=8,
-      term: Any.t,
-    )
-    : option(Node.t) => {
-  open Util.OptUtil.Syntax;
-  let+ segment = segment_of(~default, ~available, term);
-  ProjectorView.flex_code(
-    ~background,
-    ~text_only,
-    ~font_metrics=globals.font_metrics,
-    Sort.Exp,
-    segment,
-  );
-};
-
 let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 
 let legend_sample =
@@ -129,16 +81,6 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
-/* A joined pill: pointer icon (outline) + kbd badge (filled).
- * Reads as "click, then press key". */
-let _click_kbd = (shortcut: string) =>
-  span(
-    ~attrs=[clss(["click-kbd-pill"])],
-    [
-      span(~attrs=[clss(["click-part"])], [text({js|➤|js})]),
-      span(~attrs=[clss(["kbd-part"])], [text(shortcut)]),
-    ],
-  );
 let click_kbd = kbd;
 
 let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
@@ -613,20 +555,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
     div(
       ~attrs=[clss(["eval-controls"])],
-      [
-        run_button(~explain_this_inject, ~editor),
-        // Widgets.toggle_named(
-        //   ~tooltip="Auto-eval",
-        //   eval_mode_ref^ == Auto ? "A" : "M",
-        //   eval_mode_ref^ == Auto,
-        //   _ => {
-        //     eval_mode_ref := eval_mode_ref^ == Auto ? Manual : Auto;
-        //     explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-        //   },
-        // ),
-        // ...eval_mode_ref^ == Manual
-        //      ? [run_button(~explain_this_inject, ~editor)] : [],
-      ],
+      [run_button(~explain_this_inject, ~editor)],
     ),
     div(
       ~attrs=[clss(["panel", "prints"])],

@@ -16,49 +16,8 @@ module Model = {
 };
 
 module Update = {
-  open Updated;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeSelectable.Update.t;
-
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
-    let* editor =
-      CodeSelectable.Update.update(~settings, action, model.editor);
-    Model.{
-      editor,
-      taken_steps: model.taken_steps,
-      next_steps: model.next_steps,
-      refls: model.refls,
-    };
-  };
-
-  let calculate =
-      (
-        ~settings,
-        ~is_edited,
-        ~stitch,
-        ~dynamics: Calc.t(Language.Dynamics.t),
-        ~ana,
-        {editor, taken_steps, next_steps, refls}: Model.t,
-      )
-      : Model.t => {
-    let editor =
-      CodeSelectable.Update.calculate(
-        ~settings,
-        ~is_edited,
-        ~stitch,
-        ~dynamics,
-        ~is_dynamic_term=true,
-        ~ana,
-        editor,
-      );
-    {
-      editor,
-      taken_steps,
-      next_steps,
-      refls,
-    };
-  };
 };
 
 module Selection = {

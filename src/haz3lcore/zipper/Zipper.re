@@ -21,13 +21,6 @@ let init: unit => t =
     refractors: Refractor.init,
   };
 
-let next_blank = _ => Id.mk();
-
-let delete_parent = (z: t): t => {
-  ...z,
-  relatives: Relatives.delete_parent(z.relatives),
-};
-
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
@@ -1044,14 +1037,6 @@ module Caret = {
     max_idx < 0 ? None : Some(max_idx);
   };
 
-  /* Returns the delimiter index that the caret is adjacent to.
-   * For non-tiles and monotiles this is always zero */
-  let delim_idx = (z: t) =>
-    switch (snd(z.relatives.siblings), z.relatives.ancestors) {
-    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
-    | _ => 0
-    };
-
   /* Direction the caret is facing in */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {
@@ -1362,14 +1347,6 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
       };
     };
   };
-};
-
-let serialize = (z: t): string => {
-  sexp_of_t(z) |> Sexplib.Sexp.to_string;
-};
-
-let deserialize = (data: string): t => {
-  Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
 
 let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {

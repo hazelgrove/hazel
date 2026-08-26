@@ -81,22 +81,6 @@ let toggle_named = (~name="", ~tooltip=?, ~warning=?, icon, active, action) => {
   );
 };
 
-let file_select_button = (~tooltip="", id, icon, on_input) => {
-  /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
-  label(
-    ~attrs=[Attr.for_(id)],
-    [
-      Vdom_input_widgets.File_select.single(
-        ~extra_attrs=[Attr.class_("file-select-button"), Attr.id(id)],
-        ~accept=[`Extension("json")],
-        ~on_input,
-        (),
-      ),
-      div(~attrs=[clss(["icon"]), Attr.title(tooltip)], [icon]),
-    ],
-  );
-};
-
 let file_select_button_named =
     (~tooltip="", ~accept=[`Extension("json")], id, icon, on_input) =>
   /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
