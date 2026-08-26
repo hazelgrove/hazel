@@ -720,7 +720,7 @@
 }
 
 /* Metric-table styling shared by every instrumented section: Worker Messaging
-   and the profiling ones (Evaluation / Statics / Editor & Memory / Frame
+   and the telemetry ones (Evaluation / Statics / Editor & Memory / Frame
    Timing). */
 #debug-sidebar .perf-scroll {
   overflow-x: auto; /* wide numbers scroll rather than clip */

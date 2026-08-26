@@ -1,4 +1,4 @@
-/* Collector for the per-frame profiling panels; see PerfMetrics.re. The stage
+/* Collector for the per-frame telemetry panels; see PerfMetrics.re. The stage
  * timers and recorders are self-gating, so callers never check whether a panel
  * is open. */
 

@@ -1,4 +1,4 @@
-/* Data for the per-frame profiling panels (Statics, Editor & Memory, Frame
+/* Data for the per-frame telemetry panels (Statics, Editor & Memory, Frame
  * Timing): where a keystroke's time goes, plus cheap structural counts of the
  * current editor. Timings are captured at web-side call boundaries in
  * CodeEditable / CodeWithStatics / Page.Update.calculate / History — core is
@@ -92,7 +92,7 @@ let add =
   );
 
 /* Time f, folding its span into the frame under construction with `into`, and
- * return f's result. Only times when profiling is on, so call sites needn't
+ * return f's result. Only times when telemetry is on, so call sites needn't
  * duplicate the wrapped call. */
 let time: 'a. ((frame, Core.Time_ns.Span.t) => frame, unit => 'a) => 'a =
   (into, f) =>

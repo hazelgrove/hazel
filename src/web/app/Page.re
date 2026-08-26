@@ -412,7 +412,7 @@ module Update = {
         || debug_panel_open(EditorSection.title)
         || debug_panel_open(FrameSection.title),
     );
-    /* Everything below is one frame for the profiling panels. */
+    /* Everything below is one frame for the telemetry panels. */
     PerfMetrics.time_frame(() => {
       let editors =
         Editors.Update.calculate(

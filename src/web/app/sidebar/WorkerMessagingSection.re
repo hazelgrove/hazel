@@ -8,7 +8,7 @@ open Util.WebUtil;
    while the panel is open. All requests share one table so columns line up;
    each request is a bold `#N` group row plus a lighter `response` sub-row, one
    row per encoding under each. Shares PerfFormat's table, formatting, and
-   heat-map with the profiling sections. Implements DebugSection.S. */
+   heat-map with the telemetry sections. Implements DebugSection.S. */
 
 let title = "Worker Messaging";
 
