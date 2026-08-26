@@ -45,10 +45,16 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
+let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
+  /* term_data comes from the EXP-rooted parse above: in a Pat/TPat/Typ-
+     rooted cell those term sorts are a misparse, and the sort-
+     consistency highlight then flags every token. Drop it so tokens
+     color by their MOLD sort (correct — molds came from the master
+     splice), matching the whole-program view. */
+  let term_data = root == Sort.Exp ? term_data : Id.Map.empty;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -78,8 +84,8 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~root=Sort.Exp, z: Zipper.t) =>
+  mk(~root, z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
 
 let mark_old: t => t =
   old => {
@@ -132,9 +138,10 @@ let elaborated_phys_eq =
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate =
+    (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    mk(~root, z, ~info_map, ~dyn_map, ~elaborated);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
