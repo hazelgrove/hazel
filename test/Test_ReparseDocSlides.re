@@ -7,7 +7,6 @@
 open Web;
 open Alcotest;
 open Haz3lcore;
-open EditingPrelude;
 
 let doc_slides: list((string, CellEditor.Model.persistent)) =
   snd(Lazy.force(Init.startup).documentation);
