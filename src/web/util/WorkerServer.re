@@ -486,9 +486,21 @@ let post_stream_update =
     );
   };
 
-let flush_stream_update = (model, request_id, key, evaluation) => {
-  let update = Language.Evaluator.drain_streaming_outbox(evaluation);
-  post_stream_update(model, request_id, key, update);
+/* Stream posts are THROTTLED: every posted update costs the client a
+   full update/calculate/render cycle, and un-throttled per-slice posts
+   flooded mega programs with hundreds of chunks (each ~O(program) on
+   the main thread). Undrained entries keep accumulating in the
+   evaluation's outbox; completion flushes unconditionally. */
+let last_stream_post: ref(float) = ref(0.);
+let stream_min_interval_ms = 100.;
+
+let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
+  let now: float = Js.Unsafe.global##.Date##now();
+  if (force || now -. last_stream_post^ >= stream_min_interval_ms) {
+    last_stream_post := now;
+    let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+    post_stream_update(model, request_id, key, update);
+  };
 };
 
 /* At completion: what is left of the outbox, held for the result message
