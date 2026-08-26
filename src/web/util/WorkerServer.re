@@ -340,8 +340,22 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   (key, stream);
 };
 
+let stream_min_interval_ms: ref(float) = ref(100.);
+
 let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
+  /* stream cadence scales with program size: each posted chunk costs
+     the client a stream-collection + recalc cycle that grows with the
+     program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
+     drowned the main thread. Clamped to [100ms, 1s]. */
+  stream_min_interval_ms :=
+    max(
+      100.,
+      min(
+        1000.,
+        float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
+      ),
+    );
   switch (
     Language.Evaluator.start_yielding_evaluation(
       ~prev=resolve_prev(~key, prev),
@@ -403,11 +417,10 @@ let post_stream_update =
    the main thread). Undrained entries keep accumulating in the
    evaluation's outbox; completion flushes unconditionally. */
 let last_stream_post: ref(float) = ref(0.);
-let stream_min_interval_ms = 100.;
 
 let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
   let now: float = Js.Unsafe.global##.Date##now();
-  if (force || now -. last_stream_post^ >= stream_min_interval_ms) {
+  if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
     last_stream_post := now;
     let update = Language.Evaluator.drain_streaming_outbox(evaluation);
     post_stream_update(model, request_id, key, update);
@@ -434,6 +447,24 @@ let post_reuse_plan = (model, request: Request.t) =>
 let schedule_async = callback =>
   ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
+/* The UI never consumes the incremental cache from ASYNC responses:
+   the next request's prev is WORKER-RESIDENT and reuse predictions
+   arrive via ReusePlan. Strip it AFTER store_resident so the
+   completion payload doesn't marshal the whole entry map back across
+   the boundary (it rivals the old request-side prev-cache in size). */
+let slim_response = (response: Response.value): Response.value =>
+  switch (response) {
+  | Ok((exp, state)) =>
+    Ok((
+      exp,
+      Language.EvaluatorState.{
+        ...state,
+        incr_eval: Language.IncrEval.empty,
+      },
+    ))
+  | Error(_) as e => e
+  };
+
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
   | [] =>
@@ -450,7 +481,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, response), ...completed],
+        [(key, slim_response(response)), ...completed],
         remaining,
       );
     | Yielding(evaluation) =>
@@ -482,7 +513,7 @@ and finish_current_item = (model, running, response) => {
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, response), ...running.completed],
+    [(running.key, slim_response(response)), ...running.completed],
     running.remaining,
   );
 }

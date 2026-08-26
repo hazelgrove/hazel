@@ -115,8 +115,47 @@ module Update = {
               f.f_entries,
             )
           };
+        /* dedup: the master's copy of an OPEN definition is frozen while
+           its cell is live — mask master errors/warnings covered by open
+           items so each problem is listed once (under the cell's name) */
+        let master_editor: CodeEditable.Model.t = editor.editor;
+        let master_editor =
+          switch (m.focus, Haz3lcore.DefStatics.current()) {
+          | (Some(f), Some(ds)) =>
+            let open_maps =
+              List.filter_map(
+                (e: ScratchMode.Model.stack_entry) =>
+                  List.find_opt(
+                    (it: Haz3lcore.DefStatics.item) =>
+                      it.d_id == e.e_id
+                      || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                    ds.items,
+                  )
+                  |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
+                f.f_entries,
+              );
+            let covered = id =>
+              List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
+            {
+              ...master_editor,
+              statics: {
+                ...master_editor.statics,
+                error_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.error_ids,
+                  ),
+                warning_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.warning_ids,
+                  ),
+              },
+            };
+          | _ => master_editor
+          };
         let master: list((option(string), list(CodeEditable.Model.t))) = [
-          (None, [editor.editor]),
+          (None, [master_editor]),
         ];
         master @ stack;
       | Drv(dm) =>

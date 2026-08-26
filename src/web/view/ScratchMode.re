@@ -2332,6 +2332,7 @@ module View = {
      every render. */
   type stack_cache_key = {
     k_index: int,
+    k_stack_len: int, /* escape closures bound-check against it */
     k_header_sel: option(CellEditor.Selection.t),
     k_body_sel: option(CellEditor.Selection.t),
     k_meta_down: bool,
@@ -2344,6 +2345,12 @@ module View = {
     c_settings: Settings.t,
     c_font_metrics: FontMetrics.t,
     c_colors: option(ColorSteps.colorMap),
+    /* master-derived decoration inputs rendered inside the cell
+       (frozen tint, pending/active-eval): identity-tracked so cached
+       nodes don't show stale decorations */
+    c_reuse: Language.EvaluatorState.incr_eval,
+    c_pending: list(Haz3lcore.Id.t),
+    c_active: bool,
     c_nodes: list(Virtual_dom.Vdom.Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
@@ -2398,6 +2405,7 @@ module View = {
                   };
                 let key = {
                   k_index: i,
+                  k_stack_len: List.length(f.f_entries),
                   k_header_sel: header_sel,
                   k_body_sel: body_sel,
                   k_meta_down: globals.Globals.Model.meta_down,
@@ -2412,7 +2420,13 @@ module View = {
                       && c.c_settings === globals.Globals.Model.settings
                       && c.c_font_metrics
                       === globals.Globals.Model.font_metrics
-                      && c.c_colors === globals.Globals.Model.color_highlights => (
+                      && c.c_colors === globals.Globals.Model.color_highlights
+                      && c.c_reuse
+                      === EvalResult.Model.predicted_reuse(editor.result)
+                      && c.c_pending
+                      === EvalResult.Model.pending_eval_ids(editor.result)
+                      && c.c_active
+                      == EvalResult.Model.eval_is_pending(editor.result) => (
                     e.e_id,
                     c,
                   )
@@ -2439,6 +2453,42 @@ module View = {
                         ),
                       ]
                     };
+                  /* arrow keys at a pane's edge walk the stack:
+                     ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
+                  let pane_focus =
+                      (idx, to_header, move: Haz3lcore.Action.move) =>
+                    idx < 0 || idx >= List.length(f.f_entries)
+                      ? Virtual_dom.Vdom.Effect.Ignore
+                      : Virtual_dom.Vdom.Effect.Many([
+                          signal(
+                            MakeActive(
+                              to_header
+                                ? StackH(idx, MainEditor)
+                                : StackB(idx, MainEditor),
+                            ),
+                          ),
+                          inject(
+                            to_header
+                              ? StackHeader(
+                                  idx,
+                                  MainEditor(Perform(Move(move))),
+                                )
+                              : StackBody(
+                                  idx,
+                                  MainEditor(Perform(Move(move))),
+                                ),
+                          ),
+                        ]);
+                  let header_escape = (d: Util.Direction.t) =>
+                    switch (d) {
+                    | Left => pane_focus(i - 1, false, End)
+                    | Right => pane_focus(i, false, Start)
+                    };
+                  let body_escape = (d: Util.Direction.t) =>
+                    switch (d) {
+                    | Left => pane_focus(i, true, End)
+                    | Right => pane_focus(i + 1, true, Start)
+                    };
                   let nodes = [
                     Virtual_dom.Vdom.Node.div(
                       ~attrs=[
@@ -2457,6 +2507,7 @@ module View = {
                           ~result_kind=`NoResults,
                           ~locked=false,
                           ~lines=false,
+                          ~escape=header_escape,
                           e.e_header,
                         ),
                       ],
@@ -2475,8 +2526,8 @@ module View = {
                           ~result_kind=`NoResults,
                           ~locked=false,
                           ~lines=true,
-                          ~extra_dynamics=
-                            EvalResult.Model.dynamics(editor.result),
+                          ~master_result=editor.result,
+                          ~escape=body_escape,
                           e.e_body,
                         ),
                       ],
@@ -2491,6 +2542,12 @@ module View = {
                       c_settings: globals.Globals.Model.settings,
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
+                      c_reuse:
+                        EvalResult.Model.predicted_reuse(editor.result),
+                      c_pending:
+                        EvalResult.Model.pending_eval_ids(editor.result),
+                      c_active:
+                        EvalResult.Model.eval_is_pending(editor.result),
                       c_nodes: nodes,
                     },
                   );

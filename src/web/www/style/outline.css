@@ -242,6 +242,11 @@
   opacity: 0.85;
 }
 
+/* erroring rows also tint the name itself (keep the dot; andrew) */
+#outline-sidebar .outline-label.outline-has-err {
+  color: var(--R1, #c33);
+}
+
 /* slide-loading frame (SwitchSlide paints this before hydration) */
 #main .slide-loading {
   display: flex;

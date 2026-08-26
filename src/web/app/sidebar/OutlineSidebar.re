@@ -128,7 +128,8 @@ let rec node_view =
         [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
-            @ (stacked ? ["outline-focused"] : []),
+            @ (stacked ? ["outline-focused"] : [])
+            @ (has_err ? ["outline-has-err"] : []),
           ),
         ]
         @ (

@@ -231,7 +231,14 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
-        ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
+        /* stack cells: the MASTER's whole-program result feeds this
+           cell's dynamic decorations — samples, frozen-reuse tint,
+           pending/active-eval indicators (the cell's own result never
+           evaluates while stacked) */
+        ~master_result: option(EvalResult.Model.t)=?,
+        /* arrow-key at the buffer's edge: hosts (e.g. the editor
+           stack) route the caret to a neighboring pane */
+        ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -281,25 +288,45 @@ module View = {
               ? EditMode.ReadOnly
               : Editable({
                   inject: action => inject(MainEditor(action)),
-                  escape: _ => Ui_effect.Ignore,
+                  escape,
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics={
-            /* stack cells: whole-program samples from the master's
-               stacked eval flow in over the cell's own (see
-               Update.mk_dynamics — same merge, view side) */
             let own = EvalResult.Model.dynamics(model.result);
-            switch (extra_dynamics) {
-            | Some(extra) => Id.Map.union((_, m, _) => Some(m), extra, own)
+            switch (master_result) {
+            | Some(mr) =>
+              Id.Map.union(
+                (_, m, _) => Some(m),
+                EvalResult.Model.dynamics(mr),
+                own,
+              )
             | None => own
             };
           },
-          ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
-          ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
-          ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
+          ~predicted_reuse=
+            switch (master_result) {
+            | Some(mr) => EvalResult.Model.predicted_reuse(mr)
+            | None => EvalResult.Model.predicted_reuse(model.result)
+            },
+          ~pending_eval_ids=
+            EvalResult.Model.pending_eval_ids(model.result)
+            @ (
+              switch (master_result) {
+              | Some(mr) => EvalResult.Model.pending_eval_ids(mr)
+              | None => []
+              }
+            ),
+          ~show_active_eval=
+            EvalResult.Model.eval_is_pending(model.result)
+            || (
+              switch (master_result) {
+              | Some(mr) => EvalResult.Model.eval_is_pending(mr)
+              | None => false
+              }
+            ),
           model.editor,
         ),
       ]
