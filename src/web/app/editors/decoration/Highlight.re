@@ -698,6 +698,7 @@ let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
+      ~visible: option(Globals.VisibleRows.t)=?,
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
       ~show_frozen: bool=true,
@@ -757,18 +758,28 @@ let incr_eval =
              active_ids,
            )
        );
+  let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) =>
+    switch (visible) {
+    | None => ranges
+    | Some({first, last}) =>
+      List.filter(
+        ((_, (origin: Point.t, final: Point.t))) =>
+          origin.row <= last && final.row >= first,
+        ranges,
+      )
+    };
   let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
   div_c(
     "incremental-highlights",
     List.concat_map(
       ((id, _)) =>
         color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      frozen_outermost,
+      visible_ranges(frozen_outermost),
     )
     @ List.concat_map(
         ((id, _)) =>
           color(~syntax, ~font_metrics, ["incremental-pending"], id),
-        pending_inactive_ranges,
+        visible_ranges(pending_inactive_ranges),
       )
     @ List.concat_map(
         ((id, _)) =>
@@ -779,7 +790,7 @@ let incr_eval =
             ["incremental-pending", "incremental-active"],
             id,
           ),
-        active_ids,
+        visible_ranges(active_ids),
       ),
   );
 };

@@ -742,6 +742,7 @@ module View = {
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                ~visible?,
                 ~pending_eval_ids,
                 ~show_active_eval,
                 ~show_frozen=globals.settings.show_incremental_deco,
