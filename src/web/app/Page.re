@@ -772,16 +772,6 @@ module View = {
     );
   };
 
-  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
-    Widgets.toggle(
-      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
-      "🔬",
-      globals.settings.autoprobe_mode,
-      _ =>
-      inject(Update.Globals(Set(AutoprobeMode)))
-    ),
-  ];
-
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],

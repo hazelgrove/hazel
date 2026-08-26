@@ -37,10 +37,6 @@ module Event = {
     alt: held,
   };
 
-  /* Note these methods are ineffective when used with PointerEvents */
-  let num_clicks = (evt): int => Js.Unsafe.coerce(evt)##.detail;
-  let is_double_click = (evt): bool => num_clicks(evt) == 2;
-
   let button = (evt): button =>
     switch (Js.Unsafe.coerce(evt)##.button) {
     | 0 => Left
