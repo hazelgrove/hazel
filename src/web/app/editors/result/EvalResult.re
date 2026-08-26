@@ -255,12 +255,18 @@ module Update = {
     let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
-     * entries contain OCaml closures. */
+     * entries contain OCaml closures. LAZY: the projection folds the
+     * WHOLE info_map (O(program)), and this calculate runs on every
+     * action — including each streaming-eval update, where nothing
+     * forces it. Post-load stream processing on mega programs was
+     * paying it hundreds of times. */
     let eval_info_map =
-      EvalInfo.of_info_map(
-        ~probe_all=Calc.get_value(settings).probe_all,
-        ~targets=Calc.get_value(targets),
-        statics.info_map,
+      lazy(
+        EvalInfo.of_info_map(
+          ~probe_all=Calc.get_value(settings).probe_all,
+          ~targets=Calc.get_value(targets),
+          statics.info_map,
+        )
       );
     let result =
       result
@@ -279,7 +285,7 @@ module Update = {
              WorkerServer.Request.prev_source) */
           queue_worker({
             expr: elab,
-            eval_info_map,
+            eval_info_map: Lazy.force(eval_info_map),
             prev: UseResident,
           });
           ProgramResult.awaiting_worker_ack;
@@ -288,7 +294,7 @@ module Update = {
           switch (
             WorkerServer.evaluate_sync({
               expr: elab,
-              eval_info_map,
+              eval_info_map: Lazy.force(eval_info_map),
               prev: Seed(prev_incr),
             })
           ) {
@@ -345,7 +351,7 @@ module Update = {
       | (NewValue(ProgramResult.ResultOk(_)), None) =>
         ReusePass.reuse_pass(
           ~prev=prev_incr,
-          ~eval_info=eval_info_map,
+          ~eval_info=Lazy.force(eval_info_map),
           ~env=Builtins.env_init,
           Calc.get_value(elab),
         )
