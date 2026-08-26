@@ -828,6 +828,33 @@ module Persist = {
     prefix ++ ":" ++ name;
   let agent_key = (prefix: string, name: string): string =>
     prefix ++ ":" ++ name ++ ":agent";
+  let caret_key = (prefix: string, name: string): string =>
+    prefix ++ ":" ++ name ++ ":caret";
+
+  /* set when a loaded slide has a saved caret; the next calculate
+     schedules the Move(Point) (measured exists by then) */
+  let pending_caret: ref(option(Point.t)) = ref(None);
+
+  let read_caret = (prefix: string, name: string): unit =>
+    switch (HazelDB.kv_get(caret_key(prefix, name))) {
+    | Some(txt) =>
+      switch (String.split_on_char(' ', String.trim(txt))) {
+      | [r, c] =>
+        switch (int_of_string_opt(r), int_of_string_opt(c)) {
+        | (Some(row), Some(col)) =>
+          pending_caret :=
+            Some(
+              Point.{
+                row,
+                col,
+              },
+            )
+        | _ => ()
+        }
+      | _ => ()
+      }
+    | None => ()
+    };
 
   let save_meta = (prefix: string, m: slide_meta): unit => {
     let key = meta_key(prefix);
@@ -940,10 +967,40 @@ module Persist = {
     switch (sp.dormant, sp.kind) {
     | (true, _) => () /* never write a placeholder over the stored slide */
     | (false, Code({editor, agent})) =>
+      /* UNSTACKED saves are text-backed too: Zipper.sexp_of_t costs
+         ~2.5s per autosave tick at 1k lines. The caret can't ride the
+         text, so it saves as a (row col) side key and restores as a
+         Move(Point) after hydration. */
+      switch (model.focus) {
+      | Some(_) => ()
+      | None =>
+        let z = editor.editor.editor.state.zipper;
+        switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
+        | exception _ => ()
+        | Point.{row, col} =>
+          HazelDB.kv_save(
+            caret_key(prefix, sp.name),
+            string_of_int(row) ++ " " ++ string_of_int(col),
+          )
+        };
+      };
       switch (
         switch (model.focus) {
         | Some(f) => persist_spliced(f, editor)
-        | None => CellEditor.Model.persist(editor)
+        | None =>
+          CellEditor.Model.{
+            editor:
+              Editor.Model.mk_persistent(
+                PersistentZipper.of_text(
+                  PersistentZipper.to_string(
+                    editor.editor.editor.state.zipper,
+                  )
+                  ++ "\n",
+                ),
+                ~root=Sort.Exp,
+              ),
+            result: EvalResult.Model.persist(editor.result),
+          }
         }
       ) {
       | e =>
@@ -979,6 +1036,7 @@ module Persist = {
 
   let load_scratchpad =
       (~settings, prefix: string, name: string): Scratchpad.t => {
+    read_caret(prefix, name);
     switch (load_slide_kind(prefix, name)) {
     | Some(CodePersist({editor: e, agent})) =>
       let agent =
@@ -1244,6 +1302,7 @@ module Update = {
     | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
+    | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, float, float)))
     | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
     | UnfocusDef
@@ -1614,6 +1673,38 @@ module Update = {
           };
         }
       }
+    | RestoreCaret(p) =>
+      /* clearing here (not at schedule time) makes delivery robust:
+         the boot-time calculate runs with a no-op scheduler, so the
+         ref keeps re-scheduling until a real action loop picks it up */
+      Persist.pending_caret := None;
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Code({editor, agent}) =>
+        let* new_ed =
+          CellEditor.Update.update(
+            ~settings,
+            MainEditor(Perform(Move(Point(p, None)))),
+            editor,
+          );
+        {
+          ...model,
+          scratchpads:
+            ListUtil.put_nth(
+              model.current,
+              {
+                ...scratchpad,
+                kind:
+                  Code({
+                    editor: new_ed,
+                    agent,
+                  }),
+              },
+              model.scratchpads,
+            ),
+        };
+      | Drv(_) => model |> Updated.return_quiet
+      };
     | OutlineMenu(m) =>
       outline_menu := m;
       model |> Updated.return_quiet;
@@ -2090,6 +2181,12 @@ module Update = {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
     | Code({editor, agent}) =>
+      /* restore a loaded slide's saved caret: the Move runs as its own
+         follow-up action, after this calculate builds measured */
+      switch (Persist.pending_caret^) {
+      | Some(p) => schedule_action(RestoreCaret(p))
+      | None => ()
+      };
       let worker_request = ref([]);
       let queue_worker =
         Some(
