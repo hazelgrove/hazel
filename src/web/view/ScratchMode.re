@@ -140,9 +140,12 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type stack_entry = {
     e_id: Haz3lcore.Id.t, /* the item tile's id in the master */
-    /* header: pattern+signature, PAT- (or TPAT-)rooted, statics OFF
-       (the name is a binder) */
+    /* header: pattern+signature, PAT- (or TPAT-)rooted */
     e_header: CellEditor.Model.t,
+    /* module items: binder is an MPat — wrapped pat statics would
+       misread the capitalized name as a constructor, so their headers
+       stay statics-off */
+    e_mod: bool,
     /* body: the definition RHS, EXP- (or TYP-)rooted */
     e_body: CellEditor.Model.t,
     e_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
@@ -407,6 +410,21 @@ module Focus = {
       seg,
     );
 
+  let rec is_module_item = (fid: Id.t, seg: Segment.t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when t.id == fid =>
+          switch (t.label) {
+          | ["module", ..._] => true
+          | _ => false
+          }
+        | Tile(t) => List.exists(is_module_item(fid), t.children)
+        | _ => false
+        },
+      seg,
+    );
+
   /* the pattern (header) is the FIRST child for every focusable item
      shape: `let <pat> = …` 2- and 3-shard alike */
   let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
@@ -513,6 +531,7 @@ module Focus = {
       Some(
         Model.{
           e_id: fid,
+          e_mod: is_module_item(fid, master_seg),
           e_header:
             (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
               core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
@@ -2276,10 +2295,21 @@ module Update = {
             Model.{
               ...e,
               e_header:
+                /* headers get wrapped statics (init_pat/init_tpat):
+                   inspector + sort styling; binders bind into the
+                   wrapper so nothing reads unbound. Module headers
+                   stay statics-off (MPat binder). */
                 CellEditor.Update.calculate(
-                  ~settings=statics_off(settings),
+                  ~settings=
+                    e.e_mod
+                      ? statics_off(settings)
+                      : Language.CoreSettings.{
+                          ...settings,
+                          dynamics: false,
+                        },
                   ~is_edited,
                   ~statics_mode,
+                  ~ctx=e.e_ctx,
                   ~queue_worker=None,
                   ~stitch=x => x,
                   e.e_header,

@@ -1672,5 +1672,14 @@ let from_zip_for_typ = (z: Zipper.t): Typ.t => {
   };
 };
 
+/* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
+let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
+  let seg = Dump.to_segment(z, ~root=Sort.TPat);
+  switch (Segment.skel(seg)) {
+  | exception _ => TPat.fresh(EmptyHole)
+  | skel => tpat(unsorted(Sort.TPat, skel, seg))
+  };
+};
+
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

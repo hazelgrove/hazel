@@ -59,8 +59,17 @@ let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
     [],
   );
 
+/* Runs on the MAIN thread per streamed chunk: the completed-id list is
+   every id under every completed entry (thousands, duplicated), so the
+   membership test must be a set — the old List.exists scan was
+   O(pending × completed) per chunk. */
 let remove_streamed_ids =
     (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) => {
-  let completed_ids = IncrEval.visible_ids(stream.completed);
-  List.filter(id => !List.exists(Id.equal(id), completed_ids), pending_ids);
+  let completed =
+    List.fold_left(
+      (acc, id) => Id.Map.add(id, (), acc),
+      Id.Map.empty,
+      IncrEval.visible_ids(stream.completed),
+    );
+  List.filter(id => !Id.Map.mem(id, completed), pending_ids);
 };

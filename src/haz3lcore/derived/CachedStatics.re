@@ -205,6 +205,65 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
     };
   };
 
+/* Pat-rooted cells (`name : T` header editors): wrap the pattern as a
+   function parameter so it types under the frozen ctx — InfoPat
+   entries for the inspector + sort styling. The hole body keeps the
+   binders from reading as unused. */
+let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let p = MakeTerm.from_zip_for_pat(z);
+    let term: Exp.t = Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Header cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
+/* TPat-rooted cells (type-alias header editors): wrap as the alias
+   binder of an unknown type. */
+let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  if (!settings.statics) {
+    empty;
+  } else {
+    let ctx =
+      Option.value(
+        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
+        ctx,
+      );
+    let tp = MakeTerm.from_zip_for_tpat(z);
+    let term: Exp.t =
+      Exp.fresh(
+        TyAlias(
+          tp,
+          Typ.fresh(Unknown(Hole(EmptyHole))),
+          Exp.fresh(Tuple([])),
+        ),
+      );
+    let (info_map, _) = Statics.mk(settings, ctx, term);
+    {
+      term,
+      elaborated: dh_err("Header cell: no dynamics"),
+      info_map,
+      error_ids: Statics.Map.error_ids(info_map),
+      warning_ids: [],
+      targets: Sample.no_targets,
+      probe_ids: Id.Map.empty,
+    };
+  };
+
 /* COMPOSITIONAL init for whole-program (Exp-rooted, top-level) editors:
    statics via DefStatics — per top-level item with chained ctxs — so
    an edit re-analyzes only the dirty set, and no monolithic
