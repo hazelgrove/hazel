@@ -20,7 +20,7 @@ let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
 let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
   Option.bind(Token.of_projector_invoke_base(s), refractor_kind_of_name);
 
-/* Is this whole token a refractor trigger (e.g. "^^type", "^^probe")?
+/* Is this whole token a refractor trigger (e.g. "^^statics", "^^probe")?
    "^^probe" / "^^probe_table" ==> true
    "^^slider" / "let" / "^^"   ==> false */
 let is_refractor_trigger = (s: string): bool =>
