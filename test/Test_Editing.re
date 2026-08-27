@@ -5296,13 +5296,13 @@ let inner_destruct_tests = [
       ],
     ~goal={|"aa" +"+"~¦"x"|},
   ),
-  /* Only `c` is wrapped; `ab` and `d` survive on either side. The trailing
-   * hole is how Hazel already grouts three adjacent operands — typing
+  /* Only `c` is wrapped; `ab` and `d` survive on either side. The flanking
+   * grout is how Hazel already grouts three adjacent operands — typing
    * `ab"c"d` from scratch produces the same shape. */
   test(
     ~name="Wrap char-level selection interior to a token in quotes",
     ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("\"")],
-    ~goal={|ab~"c"¦d?|},
+    ~goal={|ab~"c"~¦d|},
   ),
   test(
     ~name="Wrap char-level selection spanning a token boundary in quotes",
