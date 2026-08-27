@@ -65,8 +65,20 @@ module Model = {
     | Shortcuts => Some(ShortcutConfiguration.expected_type)
     };
 
+  /* Applied on every successful evaluation of a config slide.
+
+     Colors is a direct DOM effect: CSS variables live on the document, so
+     they outlive any re-render on their own. Shortcuts cannot do that — the
+     command palette is rebuilt from scratch on every cursor change — so it
+     records the override table in settings instead, where the palette build
+     reads it and persistence carries it across reloads. */
   let perform_side_effect =
-      (config_type: config_type, value: Language.Exp.t): unit => {
+      (
+        ~schedule_global: Globals.Update.t => unit,
+        config_type: config_type,
+        value: Language.Exp.t,
+      )
+      : unit => {
     switch (config_type) {
     | ColorScheme =>
       switch (value.term) {
@@ -94,7 +106,14 @@ module Model = {
         );
       | _ => ()
       }
-    | Shortcuts => ShortcutConfiguration.perform_shortcut_side_effect(value)
+    | Shortcuts =>
+      schedule_global(
+        Set(
+          SetShortcutOverrides(
+            ShortcutConfiguration.overrides_of_value(value),
+          ),
+        ),
+      )
     };
   };
 
@@ -213,6 +232,7 @@ module Update = {
   let update =
       (
         ~schedule_action as _,
+        ~schedule_global: Globals.Update.t => unit,
         ~settings: Settings.t,
         action: t,
         model: Model.t,
@@ -223,7 +243,7 @@ module Update = {
       switch (a) {
       | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _}))) =>
         let (config_type, _) = Model.get_current_config(model);
-        Model.perform_side_effect(config_type, result);
+        Model.perform_side_effect(~schedule_global, config_type, result);
       // Continue with normal cell update
       | _ => ()
       };

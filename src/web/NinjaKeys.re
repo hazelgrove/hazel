@@ -45,27 +45,36 @@ let of_contextual_action =
   ];
 };
 
-let initialize = (actions: list(ContextualAction.t)) => {
-  let opts = Array.of_list(List.map(of_contextual_action, actions));
+/* The Shortcuts config slide wins over the built-in ~hotkey literals at the
+   ContextualAction.mk sites. An action the config leaves Unbound maps to
+   None here, which CLEARS the default rather than falling back to it.
+
+   Overrides are applied on the way in rather than mutated afterwards: this
+   function is called from Page.View.view on every cursor change, so any
+   post-hoc mutation of `data` would be overwritten on the next keystroke. */
+let apply_override =
+    (
+      ~overrides: list((string, option(string))),
+      action: ContextualAction.t,
+    )
+    : ContextualAction.t =>
+  switch (List.assoc_opt(action.label, overrides)) {
+  | Some(hotkey) => {
+      ...action,
+      hotkey,
+    }
+  | None => action
+  };
+
+let initialize =
+    (
+      ~overrides: list((string, option(string)))=[],
+      actions: list(ContextualAction.t),
+    ) => {
+  let opts =
+    actions
+    |> List.map(apply_override(~overrides))
+    |> List.map(of_contextual_action)
+    |> Array.of_list;
   Js.Unsafe.set(elem(), "data", Js.array(opts));
-};
-
-/* Rewrite one palette entry's displayed hotkey in place, so the command
-   palette reflects a shortcut rebound from the Shortcuts config slide. */
-let update_shortcut_hotkey = (id, hotkey: string): unit => {
-  let data = Js.Unsafe.get(elem(), "data");
-
-  // Map over the array data and if the id matches, update the hotkey
-  let new_data =
-    Array.map(
-      item => {
-        let item_id = Js.Unsafe.get(item, "id") |> Js.to_string;
-        if (item_id == id) {
-          Js.Unsafe.set(item, "hotkey", Js.Optdef.option(Some(hotkey)));
-        };
-        item;
-      },
-      data |> Js.to_array,
-    );
-  Js.Unsafe.set(elem(), "data", Js.array(new_data));
 };

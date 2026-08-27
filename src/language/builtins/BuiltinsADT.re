@@ -194,12 +194,46 @@ module JSON = {
     );
 };
 
+/* Keyboard shortcuts, used as the analyzed type of the Shortcuts config
+ * slide (see ShortcutConfiguration / ConfigurationMode).
+ *
+ * `Meta` is deliberately abstract rather than a literal "cmd"/"ctrl"
+ * string: it resolves to cmd on macOS and ctrl elsewhere at the moment a
+ * binding is applied, so one config program means the same thing on every
+ * machine. `Ctrl` is the literal control key, for bindings that should NOT
+ * follow the platform.
+ *
+ * `Unbound` is how an action says it has no shortcut — the reason the type
+ * is a sum rather than a bare String. */
+module Shortcut = {
+  /* type KeyMod = Meta + Ctrl + Shift + Alt */
+  let key_mod: Typ.t =
+    sum_type([
+      ("Meta", None),
+      ("Ctrl", None),
+      ("Shift", None),
+      ("Alt", None),
+    ]);
+
+  /* The chord: which modifiers are held, and the key itself. */
+  let chord: Typ.t = prod([list(var("KeyMod")), string()]);
+
+  /* type Shortcut = Unbound + Bound(([KeyMod], String)) */
+  let t: Typ.t = sum_type([("Unbound", None), ("Bound", Some(chord))]);
+  /* No shared constructor VALUES here on purpose: FreshGrammar mints an id
+     when the combinator is CALLED, so a module-level value would hand the
+     same id to every occurrence and the editor would see one tile with N
+     shards. Callers build their own (see ShortcutConfiguration). */
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
+  ("KeyMod", Shortcut.key_mod),
+  ("Shortcut", Shortcut.t),
   ("$Meta", meta_type),
 ];
 

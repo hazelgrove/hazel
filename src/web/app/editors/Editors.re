@@ -199,6 +199,7 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
+        ~schedule_global: Globals.Update.t => unit,
         action: t,
         model: Model.t,
       ) => {
@@ -217,6 +218,7 @@ module Update = {
       let* config =
         ConfigurationMode.Update.update(
           ~schedule_action=a => schedule_action(Configuration(a)),
+          ~schedule_global,
           ~settings=globals.settings,
           action,
           m,

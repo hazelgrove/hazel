@@ -1,199 +1,134 @@
 open Language;
 open Language.Unboxing;
 
+/* A modifier as the *user* writes it. `Meta` is deliberately abstract: it
+   means "the platform's command modifier", and is resolved to cmd/ctrl only
+   at the moment a binding is applied (see string_of_key_mod). That is what
+   lets one config program mean the same thing on every machine. `Ctrl` is
+   the literal control key, for bindings that should not follow the
+   platform. Mirrors the KeyMod type in the builtin context. */
+type key_mod =
+  | Meta
+  | Ctrl
+  | Shift
+  | Alt;
+
+/* Mirrors the builtin Shortcut type: an action either has a chord or has no
+   shortcut at all. `Unbound` is why this is a sum and not a bare String. */
+type binding =
+  | Unbound
+  | Bound(list(key_mod), string);
+
 type shortcut = {
   action_name: string,
-  hotkey: string,
+  binding,
 };
 
 module DefaultConfiguration = {
-  /* Default shortcut configuration - extracted from Shortcuts.ml */
+  let bound = (action_name, mods, key) => {
+    action_name,
+    binding: Bound(mods, key),
+  };
+  let unbound = action_name => {
+    action_name,
+    binding: Unbound,
+  };
+
+  /* The action names must match the ContextualAction labels built in
+     Page.re / CodeEditable.re — those labels are the palette entry ids that
+     an override is looked up by. */
   let shortcuts = [
-    {
-      action_name: "Undo",
-      hotkey: "ctrl+z",
-    },
-    {
-      action_name: "Redo",
-      hotkey: "ctrl+shift+z",
-    },
-    {
-      action_name: "Go to Definition",
-      hotkey: "F12",
-    },
-    {
-      action_name: "Go to Previous Hole",
-      hotkey: "shift+tab",
-    },
-    {
-      action_name: "Go To Next Hole",
-      hotkey: "?",
-    },
-    {
-      action_name: "Select current term",
-      hotkey: "ctrl+d",
-    },
-    {
-      action_name: "Select All",
-      hotkey: "ctrl+a",
-    },
-    {
-      action_name: "Toggle Selection Focus",
-      hotkey: "?",
-    },
-    {
-      action_name: "Set Selection Focus Left",
-      hotkey: "ctrl+alt+shift+left",
-    },
-    {
-      action_name: "Set Selection Focus Right",
-      hotkey: "ctrl+alt+shift+right",
-    },
-    {
-      action_name: "Fold",
-      hotkey: "alt + f",
-    },
-    {
-      action_name: "Probe",
-      hotkey: "alt+v",
-    },
-    {
-      action_name: "Type",
-      hotkey: "alt+t",
-    },
-    {
-      action_name: "Livelit",
-      hotkey: "alt+l",
-    },
-    {
-      action_name: "Toggle Statics",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Completion",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Whitespace",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Print Benchmarks",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Toggle Dynamics",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Elaboration",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Function Bodies",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Case Clauses",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show fixpoints",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Ascription Steps",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Lookup Steps",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Stepper Filters",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Hidden Steps",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Sidebar",
-      hotkey: "?",
-    },
-    {
-      action_name: "Toggle Show Docs Feedback",
-      hotkey: "?",
-    },
-    {
-      action_name: "TyDi Assistant",
-      hotkey: "ctrl+/",
-    },
-    {
-      action_name: "Export Scratch Slide",
-      hotkey: "?",
-    },
-    {
-      action_name: "Export For Init",
-      hotkey: "?",
-    },
-    {
-      action_name: "Export Submission",
-      hotkey: "?",
-    },
-    {
-      action_name: "Reparse Current Editor",
-      hotkey: "?",
-    },
-    {
-      action_name: "Run Benchmark",
-      hotkey: "F7",
-    },
-    {
-      action_name: "Introduce",
-      hotkey: "ctrl+i",
-    },
-    {
-      action_name: "Add New Buffer",
-      hotkey: "?",
-    },
-    {
-      action_name: "Rename Current Buffer",
-      hotkey: "?",
-    },
-    {
-      action_name: "Delete Current Buffer",
-      hotkey: "?",
-    },
-    {
-      action_name: "Export Exercise Module",
-      hotkey: "?",
-    },
-    {
-      action_name: "Export Transitionary Exercise Module",
-      hotkey: "?",
-    },
-    {
-      action_name: "Export Grading Exercise Module",
-      hotkey: "?",
-    },
+    bound("Undo", [Meta], "z"),
+    bound("Redo", [Meta, Shift], "z"),
+    bound("Go to Definition", [], "F12"),
+    bound("Go to Previous Hole", [Shift], "tab"),
+    unbound("Go To Next Hole"),
+    bound("Select current term", [Meta], "d"),
+    bound("Select All", [Meta], "a"),
+    unbound("Toggle Selection Focus"),
+    bound("Set Selection Focus Left", [Meta, Alt, Shift], "left"),
+    bound("Set Selection Focus Right", [Meta, Alt, Shift], "right"),
+    bound("Fold", [Alt], "f"),
+    bound("Probe", [Alt], "v"),
+    bound("Type", [Alt], "t"),
+    bound("Livelit", [Alt], "l"),
+    unbound("Toggle Statics"),
+    unbound("Toggle Completion"),
+    unbound("Toggle Show Whitespace"),
+    unbound("Toggle Print Benchmarks"),
+    unbound("Toggle Toggle Dynamics"),
+    unbound("Toggle Show Elaboration"),
+    unbound("Toggle Show Function Bodies"),
+    unbound("Toggle Show Case Clauses"),
+    unbound("Toggle Show fixpoints"),
+    unbound("Toggle Show Ascription Steps"),
+    unbound("Toggle Show Lookup Steps"),
+    unbound("Toggle Show Stepper Filters"),
+    unbound("Toggle Show Hidden Steps"),
+    unbound("Toggle Show Sidebar"),
+    unbound("Toggle Show Docs Feedback"),
+    bound("TyDi Assistant", [Meta], "/"),
+    unbound("Export Scratch Slide"),
+    unbound("Export For Init"),
+    unbound("Export Submission"),
+    unbound("Reparse Current Editor"),
+    bound("Run Benchmark", [], "F7"),
+    bound("Introduce", [Meta], "i"),
+    unbound("Add New Buffer"),
+    unbound("Rename Current Buffer"),
+    unbound("Delete Current Buffer"),
+    unbound("Export Exercise Module"),
+    unbound("Export Transitionary Exercise Module"),
+    unbound("Export Grading Exercise Module"),
   ];
 };
 
-let shortcut_theme = (shortcuts: list(shortcut)): Language.Exp.t => {
-  open Language;
-  open IdTagged.FreshGrammar.Exp;
-  let labeled_elements =
-    List.map(
-      ({action_name, hotkey}) =>
-        tup_label(label(action_name), string(hotkey)),
-      shortcuts,
-    );
-  tuple(labeled_elements);
+/* Built fresh per occurrence, never hoisted to a module-level value:
+   FreshGrammar mints the id when the combinator is CALLED, so a shared
+   value would give every occurrence the same id and the editor would
+   collapse them into one tile with N shards. Unannotated, exactly as a
+   constructor the user typed would parse — statics resolves it from the
+   builtin context. */
+let ctr = (name: string): Exp.t =>
+  IdTagged.FreshGrammar.Exp.constructor(name, None);
+
+let exp_of_key_mod = (m: key_mod): Exp.t =>
+  ctr(
+    switch (m) {
+    | Meta => "Meta"
+    | Ctrl => "Ctrl"
+    | Shift => "Shift"
+    | Alt => "Alt"
+    },
+  );
+
+let exp_of_binding = (b: binding): Exp.t => {
+  IdTagged.FreshGrammar.Exp.(
+    switch (b) {
+    | Unbound => ctr("Unbound")
+    | Bound(mods, key) =>
+      ap(
+        Forward,
+        ctr("Bound"),
+        tuple([list_lit(List.map(exp_of_key_mod, mods)), string(key)]),
+      )
+    }
+  );
+};
+
+let shortcut_theme = (shortcuts: list(shortcut)): Exp.t => {
+  IdTagged.FreshGrammar.Exp.(
+    tuple(
+      List.map(
+        ({action_name, binding}) =>
+          tup_label(label(action_name), exp_of_binding(binding)),
+        shortcuts,
+      ),
+    )
+  );
 };
 
 let source = {
-  open Language;
   open Haz3lcore;
   let exp =
     IdTagged.FreshGrammar.(
@@ -215,54 +150,90 @@ let source = {
   |> PersistentZipper.persist;
 };
 
-/* The type the Shortcuts slide is analyzed against: a labeled tuple with one
-   String field per known action. Analyzing the editor against this is what
-   makes a misspelled action name or a non-String hotkey a type error in the
-   config buffer itself, rather than something silently dropped by
-   perform_shortcut_side_effect below. */
+/* The type the Shortcuts slide is analyzed against: one `Shortcut` field per
+   known action. `Shortcut` and `KeyMod` come from the builtin context (see
+   BuiltinsADT), so the slide needs no type declarations of its own. */
 let expected_type = {
-  Language.(
-    IdTagged.FreshGrammar.Typ.(
-      prod(
-        List.map(
-          ({action_name, _}) => tup_label(label(action_name), string()),
-          DefaultConfiguration.shortcuts,
-        ),
-      )
+  IdTagged.FreshGrammar.Typ.(
+    prod(
+      List.map(
+        ({action_name, _}) =>
+          tup_label(label(action_name), var("Shortcut")),
+        DefaultConfiguration.shortcuts,
+      ),
     )
   );
 };
 
-let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {
-  switch (value.term) {
-  | Tuple(tup_labels) =>
-    // We should consider using projection to extract these
-    let shortcuts =
-      List.concat_map(
-        (x: Language.Exp.t) => {
-          switch (x.term) {
-          | TupLabel(label, value) =>
-            switch (label.term, Unboxing.unbox(Atom(String), value)) {
-            | (Label(action_name), Matches(hotkey)) => [
-                (action_name, hotkey),
-              ]
-            | _ => []
-            }
-          | _ => []
-          }
-        },
-        tup_labels,
-      );
-    List.iter(
-      ((action_name, hotkey)) => {
-        // Update the hotkey for this action via NinjaKeys
-        NinjaKeys.update_shortcut_hotkey(
-          action_name,
-          hotkey,
-        )
-      },
-      shortcuts,
-    );
-  | _ => ()
+/* Resolve a modifier to what hotkeys-js expects. This is the ONLY place the
+   platform is consulted, which is what keeps the config program itself
+   system-independent. */
+let string_of_key_mod = (m: key_mod): string =>
+  switch (m) {
+  | Meta => Keyboard.meta()
+  | Ctrl => "ctrl"
+  | Shift => "shift"
+  | Alt => "alt"
   };
+
+/* Canonical order (meta, ctrl, alt, shift) so the palette shows a stable
+   label; hotkeys-js itself compares sorted key codes, so order is display
+   only. */
+let string_of_chord = (mods: list(key_mod), key: string): string => {
+  let ordered =
+    List.filter(m => List.mem(m, mods), [Meta, Ctrl, Alt, Shift]);
+  String.concat("+", List.map(string_of_key_mod, ordered) @ [key]);
 };
+
+let key_mod_of_value = (v: Exp.t): option(key_mod) =>
+  List.find_map(
+    ((name, m)) =>
+      switch (unbox(SumNoArg(name), v)) {
+      | Matches () => Some(m)
+      | _ => None
+      },
+    [("Meta", Meta), ("Ctrl", Ctrl), ("Shift", Shift), ("Alt", Alt)],
+  );
+
+let binding_of_value = (v: Exp.t): option(binding) =>
+  switch (unbox(SumNoArg("Unbound"), v)) {
+  | Matches () => Some(Unbound)
+  | _ =>
+    switch (unbox(SumWithArg("Bound"), v)) {
+    | Matches(arg) =>
+      switch (unbox(Tuple(2), arg)) {
+      | Matches([mods, key]) =>
+        switch (unbox(ListLit, mods), unbox(Atom(String), key)) {
+        | (Matches(ms), Matches(k)) =>
+          Some(Bound(List.filter_map(key_mod_of_value, ms), k))
+        | _ => None
+        }
+      | _ => None
+      }
+    | _ => None
+    }
+  };
+
+/* Read the evaluated Shortcuts slide back out as an override table.
+   Actions the program leaves `Unbound` map to None, which is what clears a
+   default binding rather than leaving it in place. */
+let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
+  switch (value.term) {
+  | Tuple(entries) =>
+    List.filter_map(
+      (x: Exp.t) =>
+        switch (x.term) {
+        | TupLabel(l, v) =>
+          switch (l.term, binding_of_value(v)) {
+          | (Label(action_name), Some(Unbound)) =>
+            Some((action_name, None))
+          | (Label(action_name), Some(Bound(mods, key))) =>
+            Some((action_name, Some(string_of_chord(mods, key))))
+          | _ => None
+          }
+        | _ => None
+        },
+      entries,
+    )
+  | _ => []
+  };

@@ -198,6 +198,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -320,6 +321,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -361,6 +363,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_global=a => schedule_action(Globals(a)),
           action,
           model.editors,
         );
@@ -940,7 +943,10 @@ module View = {
       ) => {
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(cursor.contextual_actions);
+    NinjaKeys.initialize(
+      ~overrides=model.globals.settings.shortcut_overrides,
+      cursor.contextual_actions,
+    );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
