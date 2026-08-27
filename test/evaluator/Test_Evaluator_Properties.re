@@ -719,6 +719,14 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
-    // QCheck_alcotest.to_alcotest(qcheck_preservation_test), // Disabled due to known issues with preservation
+    /* Preservation does not currently hold: stepping can produce a type that
+       is not more precise than the original. */
+    test_case("Preservation of types (disabled)", `Quick, () => {
+      [@warning "-21"]
+      {
+        Alcotest.skip();
+        ignore(QCheck_alcotest.to_alcotest(qcheck_preservation_test));
+      }
+    }),
   ],
 );

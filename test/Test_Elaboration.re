@@ -18,8 +18,6 @@ let dhexp_typ =
       exp,
   );
 
-let mk_map = term =>
-  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 let dhexp_of_uexp = u => {
   let (_, elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
@@ -142,17 +140,6 @@ module PlainTests = {
 
   let let_exp = () =>
     alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
-
-  let u5 = Exp.(bin_op(Int(Plus), bool(false), var("y")));
-
-  let d5 =
-    Exp.(
-      bin_op(
-        Int(Plus),
-        asc(bool(false), Typ.int()),
-        asc(var("y"), Typ.int()),
-      )
-    );
 
   let u6: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
