@@ -1635,6 +1635,194 @@ let for_projection =
     }
   );
 
+/* ===== Incremental whole-program TERM (plans/modular-editors.md §9d)
+   =====
+   The stacked-editing Force frame and outline restructure ops re-ran
+   [go] over the whole spliced program (~165ms at 2k lines) even
+   though DefStatics then re-analyzes only the changed item. Their
+   only consumer is the TERM (statics/outline/elab) — display maps
+   (terms/term_data) are per-cell — so this parses each TOP-LEVEL
+   ITEM's piece span separately (memoized on piece identity: splices
+   rebuild the top-level list but reuse item pieces) and grafts the
+   chain, mirroring DefStatics' hollow-item composition. An item
+   sliced away from its continuation is nonconvex; a synthetic convex
+   grout stands in for the body and the graft replaces it. */
+module Incr = {
+  let is_semi = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => t.label == [";"]
+    | _ => false
+    };
+  let is_in_tile = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) =>
+      switch (List.rev(t.label)) {
+      | ["in", ..._] => true
+      | _ => false
+      }
+    | _ => false
+    };
+
+  /* top-level item slices, in order (boundaries: `…in`-tiles and
+     top-level `;`s; the remainder is the tail) */
+  let slices = (seg: Segment.t): list(Segment.t) => {
+    let arr = Array.of_list(seg);
+    let len = Array.length(arr);
+    let slice = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+    let rec walk = (i, start, acc) =>
+      if (i >= len) {
+        start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
+      } else if (is_in_tile(arr[i]) || is_semi(arr[i])) {
+        walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
+      } else {
+        walk(i + 1, start, acc);
+      };
+    walk(0, 0, []);
+  };
+
+  let seg_eq = (a: Segment.t, b: Segment.t): bool => {
+    let rec go = (xs, ys) =>
+      switch (xs, ys) {
+      | ([], []) => true
+      | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
+      | _ => false
+      };
+    go(a, b);
+  };
+
+  type entry = {
+    e_pieces: Segment.t,
+    e_term: Exp.t,
+    e_hole: option(Id.t) /* the synthetic body hole to graft into */
+  };
+
+  /* keyed by the item's FIRST piece id (stable across splices for
+     unchanged items; an edited item re-mints its changed pieces) */
+  let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
+  let last: ref(option((Segment.t, Exp.t))) = ref(None);
+  let analyzed: ref(int) = ref(0); /* observability for tests */
+
+  let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
+    let attempt = (ps: Segment.t) =>
+      switch (Segment.skel(ps)) {
+      | skel =>
+        map := TermMap.empty;
+        term_data := Id.Map.empty;
+        projectors := Id.Map.empty;
+        projector_list := [];
+        adopted_ids := [];
+        secondary_map := Segment.SecondaryCollection.collect(ps);
+        Some(exp(unsorted(Exp, skel, ps)));
+      | exception _ => None
+      };
+    switch (attempt(pieces)) {
+    | Some(term) => (term, None)
+    | None =>
+      /* nonconvex: the item's body operand was the next item — stand
+         in a convex grout and let the graft replace it */
+      let hole_id = Id.mk();
+      let ps =
+        pieces
+        @ [
+          Piece.Grout({
+            id: hole_id,
+            shape: Convex,
+          }),
+        ];
+      switch (attempt(ps)) {
+      | Some(term) => (term, Some(hole_id))
+      | None => (Exp.fresh(EmptyHole), None) /* degenerate input */
+      };
+    };
+  };
+
+  let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
+    if (List.mem(hole_id, e.annotation.ids)) {
+      Some(acc);
+    } else {
+      let re = (term: Exp.term) => {
+        ...e,
+        term,
+      };
+      switch (e.term) {
+      | Let(p, d, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Let(p, d, b)))
+      | Seq(a, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Seq(a, b)))
+      | TyAlias(tp, ty, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+      | ModuleExp(mp, d, b) =>
+        graft_at(hole_id, acc, b)
+        |> Option.map(b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Filter(f, b)))
+      | Parens(b) =>
+        graft_at(hole_id, acc, b) |> Option.map(b => re(Parens(b)))
+      | _ => None
+      };
+    };
+
+  let term_of = (seg: Segment.t): Exp.t => {
+    analyzed := 0;
+    switch (last^) {
+    | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
+    | _ =>
+      let items = slices(seg);
+      let keyed =
+        List.filter_map(
+          ps =>
+            switch (ps) {
+            | [] => None
+            | [p, ..._] => Some((Piece.id(p), ps))
+            },
+          items,
+        );
+      let entries =
+        List.map(
+          ((key, ps)) =>
+            switch (Id.Map.find_opt(key, memo^)) {
+            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
+            | _ =>
+              incr(analyzed);
+              let (term, hole) = parse_item(ps);
+              let e = {
+                e_pieces: ps,
+                e_term: term,
+                e_hole: hole,
+              };
+              (key, e);
+            },
+          keyed,
+        );
+      memo :=
+        List.fold_left(
+          (m, (key, e)) => Id.Map.add(key, e, m),
+          Id.Map.empty,
+          entries,
+        );
+      let rec graft = (es: list((Id.t, entry))): Exp.t =>
+        switch (es) {
+        | [] => Exp.fresh(EmptyHole)
+        | [(_, e)] => e.e_term
+        | [(_, e), ...rest] =>
+          let below = graft(rest);
+          switch (e.e_hole) {
+          | Some(h) =>
+            switch (graft_at(h, below, e.e_term)) {
+            | Some(t) => t
+            | None => e.e_term /* shape gap: keep the hollow item */
+            }
+          | None => e.e_term /* item didn't need a hole: drop the rest?
+                                 (shouldn't happen for non-last items) */
+          };
+        };
+      let term = graft(entries);
+      last := Some((seg, term));
+      term;
+    };
+  };
+};
+
 let from_zip_for_sem = (z: Zipper.t, ~root) =>
   go(Dump.to_segment(z, ~root));
 

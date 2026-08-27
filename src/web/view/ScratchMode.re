@@ -2460,7 +2460,7 @@ module Update = {
               ? Haz3lcore.CachedStatics.init_compositional_term(
                   ~settings=settings.core,
                   ~probe_ids,
-                  MakeTerm.go(new_seg).term,
+                  MakeTerm.Incr.term_of(new_seg),
                 )
               : Haz3lcore.CachedStatics.empty;
           let stays_stacked =
@@ -3066,7 +3066,10 @@ module Update = {
             | None => []
             };
           let spliced = Focus.splice_all(f);
-          let term = Haz3lcore.MakeTerm.go(spliced).term;
+          /* per-item incremental parse: unchanged items reuse their
+             terms (parity test-gated); a one-cell edit re-parses one
+             item instead of the whole program (~165ms at 2k) */
+          let term = Haz3lcore.MakeTerm.Incr.term_of(spliced);
           /* probes live in ZIPPERS: union the master's with every open
              cell's, so a probe placed in a cell reaches the
              whole-program evaluation */

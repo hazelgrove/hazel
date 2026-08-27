@@ -758,6 +758,70 @@ let structural_alignment = (): unit => {
   run("duplicate", ~expect_analyzed=3, term_of([a, a2, b, c, d, tail]));
 };
 
+/* Incremental MakeTerm parity: the grafted per-item term must carry
+   the same chain ids and statics as the monolithic parse, and reuse
+   must be per-item (one edited item => one item re-parsed). */
+let incr_maketerm_parity = (): unit => {
+  let settings = CoreSettings.on;
+  let ctx = Builtins.ctx_init(Some(Operators.default_mode));
+  let check_prog = (label, seg) => {
+    let t_mono = MakeTerm.go(seg).term;
+    let t_incr = MakeTerm.Incr.term_of(seg);
+    let chain_ids = t => List.map(Exp.rep_id, DefStatics.chain(t));
+    check(
+      bool,
+      label ++ ": chain ids",
+      true,
+      chain_ids(t_mono) == chain_ids(t_incr),
+    );
+    let errs = t => {
+      let (map, _) = Statics.mk_unmemoized(settings, ctx, t);
+      List.sort_uniq(compare, Statics.Map.error_ids(map));
+    };
+    check(
+      bool,
+      label ++ ": statics errors",
+      true,
+      errs(t_mono) == errs(t_incr),
+    );
+    Printf.printf(
+      "INCRMK %s: full term compare equal: %b\n",
+      label,
+      compare(t_mono, t_incr) == 0,
+    );
+  };
+  check_prog(
+    "small",
+    parse_seg_of("let a = 1 in\ntest a == 1 end;\nlet b = a + 1 in\nb"),
+  );
+  let path = "hazel-programs/mega/mega-1k.hz";
+  let path =
+    Sys.file_exists(path) ? path : "../hazel-programs/mega/mega-1k.hz";
+  switch (read_file(path)) {
+  | None => Printf.printf("INCRMK: corpus unreadable\n")
+  | Some(src) =>
+    let seg = parse_seg_of(src);
+    check_prog("mega-1k", seg);
+    /* reuse: same segment (fresh list, same pieces) => 0 items parsed */
+    let seg' = List.map(p => p, seg);
+    let _ = MakeTerm.Incr.term_of(seg');
+    check(int, "recombination reuse", 0, MakeTerm.Incr.analyzed^);
+    /* one-item edit => one item re-parsed */
+    let (found, seg2) = repl_last(~needle="9", ~repl="8", seg);
+    assert(found);
+    let t2 = MakeTerm.Incr.term_of(seg2);
+    check(int, "one edit, one item", 1, MakeTerm.Incr.analyzed^);
+    let t2_mono = MakeTerm.go(seg2).term;
+    check(
+      bool,
+      "edited: chain ids",
+      true,
+      List.map(Exp.rep_id, DefStatics.chain(t2_mono))
+      == List.map(Exp.rep_id, DefStatics.chain(t2)),
+    );
+  };
+};
+
 /* Incremental StreamCollector parity: drive a real yielding evaluation
    of mega-1k, and at every drained chunk compare the O(program)-walk
    collector against the incremental frontier collector — probes, test
@@ -879,6 +943,7 @@ let tests = (
     test_case("stream collector parity", `Quick, stream_collector_parity),
     test_case("probe capture parity", `Quick, probe_capture_parity),
     test_case("structural alignment", `Quick, structural_alignment),
+    test_case("incremental MakeTerm parity", `Quick, incr_maketerm_parity),
     test_case("payload probe (informational)", `Quick, payload_probe),
     test_case(
       "DefStatics compositional (informational)",
