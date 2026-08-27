@@ -37,6 +37,9 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* per-editor chunk memo for incremental re-measurement; rides the
+     generation chain via {...old} so each editor keeps its own */
+  m_cache: Measured.Incr.cache,
 };
 
 // should not be serializing
@@ -45,7 +48,13 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
+let mk =
+    (~root=Sort.Exp, ~m_cache=?, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
+  let m_cache =
+    switch (m_cache) {
+    | Some(c) => c
+    | None => Measured.Incr.mk_cache()
+    };
   let segment = Zipper.unselect_and_zip(z);
   /* non-Exp-rooted cells parse ONCE at their own root sort — the
      Exp-rooted [go] misparses them (every token sort-inconsistent),
@@ -68,7 +77,12 @@ let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_shape_map);
+    Measured.Incr.of_segment(
+      ~cache=m_cache,
+      segment,
+      projector_shapes,
+      refractor_shape_map,
+    );
   {
     old: false,
     segment,
@@ -84,6 +98,7 @@ let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    m_cache,
   };
 };
 
@@ -119,7 +134,12 @@ let refresh_shapes =
   let measured =
     compare(shape_map, old.shape_map) == 0
       ? old.measured
-      : Measured.of_segment(old.segment, shape_map, Id.Map.empty);
+      : Measured.Incr.of_segment(
+          ~cache=old.m_cache,
+          old.segment,
+          shape_map,
+          Id.Map.empty,
+        );
   {
     ...old,
     shape_map,
@@ -175,7 +195,7 @@ let calculate =
         selection_ids: Selection.selection_ids(z.selection),
       };
     } else {
-      mk(~root, z, ~info_map, ~dyn_map, ~elaborated);
+      mk(~root, ~m_cache=old.m_cache, z, ~info_map, ~dyn_map, ~elaborated);
     };
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
