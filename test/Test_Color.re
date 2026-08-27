@@ -230,6 +230,65 @@ let math_tests = [
   test_case("fade survives maths", `Quick, fade_is_transparent_to_maths),
 ];
 
+/* The picker converts to sRGB to show a hex code and back when one is typed
+   in, so a round trip has to land where it started. It cannot be exact —
+   sRGB has 8 bits per channel and OKLCH does not — but it must be closer than
+   a quantisation step, or a colour would visibly drift each time someone
+   opened the RGB tab. */
+let srgb_roundtrips = ((name, l, c, h), ()) => {
+  let (l', c', h') = C.oklch_of_rgb(C.rgb_of_oklch((l, c, h)));
+  let near = (what, expected, got, tol) =>
+    check(
+      bool,
+      Printf.sprintf(
+        "%s: %s %.3f -> %.3f (tol %.3f)",
+        name,
+        what,
+        expected,
+        got,
+        tol,
+      ),
+      true,
+      Float.abs(expected -. got) < tol,
+    );
+  near("lightness", l, l', 0.6);
+  near("chroma", c, c', 0.006);
+  /* Hue is meaningless at zero chroma, where the round trip may return any
+     angle for the same colour. */
+  if (c > 0.02) {
+    near("hue", h, h', 2.0);
+  };
+};
+
+/* In-gamut colours only: OKLCH describes colours sRGB cannot hold, and those
+   clamp on the way through — which is correct, but not a round trip. */
+let srgb_colors = [
+  ("mid grey", 52., 0.0, 0.),
+  ("sand", 99., 0.012, 90.),
+  ("stone", 52., 0.03, 220.),
+  ("moss", 70., 0.15, 150.),
+  ("clay", 97., 0.025, 90.),
+  ("shale dark", 30., 0.04, 250.),
+];
+
+let hex_parses = () => {
+  let eq = (what, a, b) => check(string, what, a, b);
+  /* white and black are the corners the conversion is easiest to get wrong */
+  eq("white", "#ffffff", C.hex_of_oklch((100., 0., 0.)));
+  eq("black", "#000000", C.hex_of_oklch((0., 0., 0.)));
+  let hex = s =>
+    switch (C.oklch_of_css(s)) {
+    | Some(t) => C.hex_of_oklch(t)
+    | None => "unparsed"
+    };
+  eq("#rrggbb", "#3366cc", hex("#3366cc"));
+  eq("shorthand expands", "#3366cc", hex("#36c"));
+  eq("no hash", "#3366cc", hex("3366cc"));
+  eq("uppercase", "#3366cc", hex("#3366CC"));
+  eq("rgb()", "#3366cc", hex("rgb(51, 102, 204)"));
+  check(bool, "garbage rejected", true, C.oklch_of_css("nope") == None);
+};
+
 let tests = [
   (
     "Color.roundtrip",
@@ -248,4 +307,12 @@ let tests = [
     ],
   ),
   ("Color.math", math_tests),
+  (
+    "Color.srgb",
+    List.map(
+      ((n, _, _, _) as c) => test_case(n, `Quick, srgb_roundtrips(c)),
+      srgb_colors,
+    )
+    @ [test_case("hex and rgb parsing", `Quick, hex_parses)],
+  ),
 ];

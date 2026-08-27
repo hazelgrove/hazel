@@ -494,6 +494,115 @@ module Color = {
       ++ " "
       ++ num(a)
       ++ "%, transparent)";
+
+  /* ---- sRGB conversion ----
+
+     OKLCH is the palette's working space, but people arrive with hex codes
+     and the picker offers an RGB mode, so both directions are needed. These
+     are the Ottosson matrices; `l` is 0..100 here, 0..1 in the maths. */
+
+  let srgb_of_linear = (c: float): float =>
+    c <= 0.0031308 ? 12.92 *. c : 1.055 *. c ** (1.0 /. 2.4) -. 0.055;
+  let linear_of_srgb = (c: float): float =>
+    c <= 0.04045 ? c /. 12.92 : ((c +. 0.055) /. 1.055) ** 2.4;
+
+  /* Clamped to the sRGB cube: OKLCH describes colours no display can show,
+     and every consumer here wants a drawable byte. */
+  let rgb_of_oklch = ((l, c, h): (float, float, float)): (int, int, int) => {
+    let hr = h *. Float.pi /. 180.;
+    let (a, b) = (c *. cos(hr), c *. sin(hr));
+    let l' = l /. 100.;
+    let (l_, m_, s_) = (
+      l' +. 0.3963377774 *. a +. 0.2158037573 *. b,
+      l' -. 0.1055613458 *. a -. 0.0638541728 *. b,
+      l' -. 0.0894841775 *. a -. 1.2914855480 *. b,
+    );
+    let (lc, mc, sc) = (l_ *. l_ *. l_, m_ *. m_ *. m_, s_ *. s_ *. s_);
+    let byte = v =>
+      int_of_float(
+        Float.round(
+          Float.min(1., Float.max(0., srgb_of_linear(v))) *. 255.,
+        ),
+      );
+    (
+      byte(4.0767416621 *. lc -. 3.3077115913 *. mc +. 0.2309699292 *. sc),
+      byte((-1.2684380046) *. lc +. 2.6097574011 *. mc -. 0.3413193965 *. sc),
+      byte((-0.0041960863) *. lc -. 0.7034186147 *. mc +. 1.7076147010 *. sc),
+    );
+  };
+
+  let oklch_of_rgb = ((r, g, b): (int, int, int)): (float, float, float) => {
+    let lin = v => linear_of_srgb(float_of_int(v) /. 255.);
+    let (r, g, b) = (lin(r), lin(g), lin(b));
+    let cbrt = x => x < 0. ? -. (-. x ** (1. /. 3.)) : x ** (1. /. 3.);
+    let (l_, m_, s_) = (
+      cbrt(0.4122214708 *. r +. 0.5363325363 *. g +. 0.0514459929 *. b),
+      cbrt(0.2119034982 *. r +. 0.6806995451 *. g +. 0.1073969566 *. b),
+      cbrt(0.0883024619 *. r +. 0.2817188376 *. g +. 0.6299787005 *. b),
+    );
+    let ll = 0.2104542553 *. l_ +. 0.7936177850 *. m_ -. 0.0040720468 *. s_;
+    let a = 1.9779984951 *. l_ -. 2.4285922050 *. m_ +. 0.4505937099 *. s_;
+    let bb = 0.0259040371 *. l_ +. 0.7827717662 *. m_ -. 0.8086757660 *. s_;
+    let h = atan2(bb, a) *. 180. /. Float.pi;
+    (ll *. 100., sqrt(a *. a +. bb *. bb), h < 0. ? h +. 360. : h);
+  };
+
+  let hex_of_oklch = (t: (float, float, float)): string => {
+    let (r, g, b) = rgb_of_oklch(t);
+    Printf.sprintf("#%02x%02x%02x", r, g, b);
+  };
+
+  /* Accepts #rgb, #rrggbb, and rgb(r, g, b), with or without the hash. */
+  let oklch_of_css = (s: string): option((float, float, float)) => {
+    let s = String.trim(String.lowercase_ascii(s));
+    let hex_digit = c =>
+      switch (c) {
+      | '0' .. '9' => Some(Char.code(c) - 48)
+      | 'a' .. 'f' => Some(Char.code(c) - 87)
+      | _ => None
+      };
+    /* The length check has to gate the indexing, not sit beside it in a
+       tuple: every branch of a tuple is evaluated, so a malformed string
+       raised Invalid_argument instead of returning None. */
+    let of_hex = h => {
+      let n = String.length(h);
+      if (n != 3 && n != 6) {
+        None;
+      } else {
+        let w = n == 3 ? 1 : 2;
+        let pair = i =>
+          switch (hex_digit(h.[i]), hex_digit(h.[i + w - 1])) {
+          | (Some(a), Some(b)) => Some(w == 1 ? a * 17 : a * 16 + b)
+          | _ => None
+          };
+        switch (pair(0), pair(w), pair(2 * w)) {
+        | (Some(r), Some(g), Some(b)) => Some(oklch_of_rgb((r, g, b)))
+        | _ => None
+        };
+      };
+    };
+    let strip = (p, s) => {
+      let n = String.length(p);
+      String.length(s) > n && String.sub(s, 0, n) == p
+        ? Some(String.sub(s, n, String.length(s) - n)) : None;
+    };
+    switch (strip("#", s)) {
+    | Some(h) => of_hex(h)
+    | None =>
+      switch (strip("rgb(", s)) {
+      | Some(rest) when String.length(rest) > 0 =>
+        let rest = String.sub(rest, 0, String.length(rest) - 1);
+        switch (
+          String.split_on_char(',', rest)
+          |> List.map(x => int_of_string_opt(String.trim(x)))
+        ) {
+        | [Some(r), Some(g), Some(b)] => Some(oklch_of_rgb((r, g, b)))
+        | _ => None
+        };
+      | _ => of_hex(s)
+      }
+    };
+  };
 };
 
 // List of type aliases to add to the context
