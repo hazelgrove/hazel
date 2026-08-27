@@ -25,6 +25,7 @@ let (suite, _) =
       Test_Atom.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
+      Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_FormId.tests,
@@ -38,6 +39,7 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_Unicode.tests
     @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests

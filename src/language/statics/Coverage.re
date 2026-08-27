@@ -203,14 +203,6 @@ module Matrix = {
   let contains_row = (idx: int, m: t): bool =>
     List.exists((row: row) => row.idx == idx, m);
 
-  let has_multiple_columns = (m: t): bool =>
-    switch (m) {
-    | [] => false
-    | [{idx: _, cols: []}, ..._] => false
-    | [{idx: _, cols: [_]}, ..._] => false
-    | [{idx: _, cols: _}, ..._] => true
-    };
-
   let rev = (m: t): t => List.rev(m);
 };
 

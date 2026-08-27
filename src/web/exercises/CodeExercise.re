@@ -36,11 +36,6 @@ type point_distribution = {
   impl_grading: int,
 };
 
-let validate_point_distribution =
-    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-  test_validation + mutation_testing + impl_grading == 100
-    ? () : failwith("Invalid point distribution in exercise.");
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
@@ -58,14 +53,6 @@ type p('code) = {
 };
 
 type record = p(Zipper.t);
-
-let id_of = p => {
-  p.id;
-};
-
-let find_id_opt = (id, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -232,113 +219,6 @@ let editor_positions = (eds: p('a)) =>
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
-let idx_of_pos = (pos, p: p('code)) =>
-  switch (pos) {
-  | Prelude => 0
-  | CorrectImpl => 1
-  | YourTestsTesting => 2
-  | YourTestsValidation => 3
-  | YourImpl => 4
-  | HiddenBugs(i) =>
-    if (i < List.length(p.hidden_bugs)) {
-      5 + i;
-    } else {
-      failwith("invalid hidden bug index");
-    }
-  | HiddenTests => 5 + List.length(p.hidden_bugs)
-  };
-
-let pos_of_idx = (p: p('code), idx: int) =>
-  switch (idx) {
-  | 0 => Prelude
-  | 1 => CorrectImpl
-  | 2 => YourTestsTesting
-  | 3 => YourTestsValidation
-  | 4 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx < 5 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
-    } else if (idx == 5 + List.length(p.hidden_bugs)) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
-  };
-
-/* Fast-first: FastParse with pin collection; the fallback inside
-   from_backup_text logs itself (SLOW PARSE ...). */
-let zipper_of_code = code =>
-  PersistentZipper.from_backup_text(code, ~root=Exp);
-
-let transition: transitionary_spec => spec =
-  (
-    {
-      id,
-      title,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    },
-  ) => {
-    let prelude = zipper_of_code(prelude);
-    let correct_impl = zipper_of_code(correct_impl);
-    let your_tests = {
-      let tests = zipper_of_code(your_tests.tests);
-      {
-        tests,
-        required: your_tests.required,
-        provided: your_tests.provided,
-      };
-    };
-    let your_impl = zipper_of_code(your_impl);
-    let hidden_bugs =
-      List.fold_left(
-        (acc, {impl, hint}) => {
-          let impl = zipper_of_code(impl);
-          acc
-          @ [
-            {
-              impl,
-              hint,
-            },
-          ];
-        },
-        [],
-        hidden_bugs,
-      );
-    let hidden_tests = {
-      let {tests, hints} = hidden_tests;
-      let tests = zipper_of_code(tests);
-      {
-        tests,
-        hints,
-      };
-    };
-    {
-      id,
-      title,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    };
-  };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_spec = p(PersistentZipper.t);
 
@@ -462,20 +342,6 @@ let delete_buggy_impl = (state: state, index: int) => {
   };
 };
 
-let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl: wrong_impl(Editor.t) = {
-    impl,
-    hint: new_hint,
-  };
-  {
-    eds: {
-      ...state.eds,
-      hidden_bugs:
-        Util.ListUtil.put_nth(idx, buggy_impl, state.eds.hidden_bugs),
-    },
-  };
-};
-
 let update_exercise_prompt = ({eds}: state, new_prompt: string) => {
   eds: {
     ...eds,
@@ -563,16 +429,6 @@ let update_module_name = ({eds}: state, new_module_name: string) => {
   eds: {
     ...eds,
     module_name: new_module_name,
-  },
-};
-
-let update_prov_tests = ({eds}: state, new_prov_tests: int) => {
-  eds: {
-    ...eds,
-    your_tests: {
-      ...eds.your_tests,
-      provided: new_prov_tests,
-    },
   },
 };
 
@@ -686,103 +542,6 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
-let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
-  switch (e1.term) {
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_)
-  | DynamicErrorHole(_)
-  | Undefined
-  | Deferral(_)
-  | Atom(_)
-  | DrvQuote(_)
-  | ListLit(_)
-  | TupleExtension(_)
-  | Constructor(_)
-  | Closure(_)
-  | Fun(_)
-  | TypFun(_)
-  | FixF(_)
-  | Forall(_)
-  | Tuple(_)
-  | TupLabel(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Dot(_)
-  | Var(_)
-  | Ap(_)
-  | TypAp(_)
-  | DeferredAp(_)
-  | If(_)
-  | Test(_)
-  | HintedTest(_)
-  | Parens(_)
-  | Projector(_)
-  | Cons(_)
-  | ListConcat(_)
-  | LivelitName(_)
-  | UnOp(_)
-  | BinOp(_)
-  | BuiltinFun(_)
-  | Module(_)
-  | Asc(_)
-  | ProofObject(_)
-  | Match(_) => {
-      term: Seq(e1, e2),
-      annotation: Language.IdTagged.IdTag.fresh(),
-    }
-  | Seq(e11, e12) =>
-    let e12' = append_exp(e12, e2);
-    {
-      term: Seq(e11, e12'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Filter(kind, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Filter(kind, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Let(p, edef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Let(p, edef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Theorem(p, thm, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Theorem(p, thm, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | TyAlias(tp, tdef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: TyAlias(tp, tdef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Use(t, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Use(t, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | ModuleExp(mp, def, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: ModuleExp(mp, def, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  };
-};
-
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   EditorUtil.append_exp(
     EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
@@ -890,19 +649,6 @@ let export_transitionary_module = (_module_name, {eds, _}: state) => {
   let prefix = "let exercise: Exercise.t = Code (CodeExercise.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ "))\n";
-  data;
-};
-
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n"
-  ++ "module CodeExercise = GradePrelude.CodeExercise\n"
-  ++ "let prompt = ()\n";
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: CodeExercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
   data;
 };
 

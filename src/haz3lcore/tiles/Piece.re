@@ -5,8 +5,6 @@ type t = piece;
 
 let secondary = w => Secondary(w);
 let grout = g => Grout(g);
-let tile = t => Tile(t);
-
 let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
@@ -76,8 +74,6 @@ let nib_sorts =
     _ => (Sort.Any, Sort.Any),
   );
 
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
-
 let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
@@ -130,16 +126,6 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
-let is_projector: t => option(projector) =
-  fun
-  | Projector(p) => Some(p)
-  | _ => None;
-
-let label: t => option(Label.t) =
-  fun
-  | Tile(t) => Some(Tile.label(t))
-  | _ => None;
-
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
@@ -164,30 +150,6 @@ let is_case_rule: t => bool =
   fun
   | Tile(t) => Tile.is_case_rule(t)
   | _ => false;
-
-let replace_id = (id: Id.t, p: t): t =>
-  switch (p) {
-  | Tile(t) =>
-    Tile({
-      ...t,
-      id,
-    })
-  | Grout(g) =>
-    Grout({
-      ...g,
-      id,
-    })
-  | Secondary(w) =>
-    Secondary({
-      ...w,
-      id,
-    })
-  | Projector(p) =>
-    Projector({
-      ...p,
-      id,
-    })
-  };
 
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 

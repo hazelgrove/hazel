@@ -256,7 +256,9 @@ let absorb_comments =
 let is_infix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) when Tile.arity(t) == 1 =>
-    Mold.is_infix_op(Tile.mold(t)) && !Piece.is_comma(p) && !Piece.is_semi(p)
+    Mold.is_infix_op(Tile.mold(t))
+    && !Piece.is_comma(p)
+    && !Piece.is_semi(p)
   | _ => false
   };
 
@@ -1080,14 +1082,7 @@ let prettify =
 
 type pretty = Segment.t;
 
-let p_concat = (pretty2: pretty, pretty1: pretty) => pretty1 @ pretty2;
-let p_or = (_pretty2: pretty, pretty1: pretty) => pretty1;
-let p_orif = (cond, pretty2: pretty, pretty1: pretty) =>
-  if (cond) {pretty1} else {pretty2};
 let p_just = (segment: Segment.t): pretty => segment;
-
-let p_concat = (pretties: list(pretty)) =>
-  List.fold_left(p_concat, [], pretties);
 
 let (let+) = (pretty, f) => f(pretty);
 let (and+) = (pretty1, pretty2) => (pretty1, pretty2);

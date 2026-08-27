@@ -8,8 +8,6 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let id = (t: t) => t.id;
-
 let label = (t: t): Label.t => Form.label_of(t.form);
 let mold = (t: t): Mold.t => Form.mold_of(t.form, t.sort);
 let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
@@ -195,10 +193,6 @@ let disassemble = ({id, form, sort, shards, children}: t): segment => {
   Aba.mk(shards, children)
   |> Aba.join(s => [to_piece(s)], Fun.id)
   |> List.concat;
-};
-
-let disintegrate = ({id, form, sort, shards, _}: t): list(tile) => {
-  split_shards(id, form, sort, shards);
 };
 
 let reassemble = (match: Aba.t(t, segment)): t => {

@@ -83,7 +83,7 @@ let shadow_exercise : Tutorial.spec =
          the name of a previously bound variable. However, this makes it \
          impossible to refer to the previous binding within the scope of the \
          new binding; we say that variable has been `shadowed`. For example, \
-         the expression `let y = 8 in let y = 0 in x` would evaluate to 0. \n\n\
+         the expression `let y = 8 in let y = 0 in y` would evaluate to 0. \n\n\
          Now, let's try it. First, define a variable x to any number you want. \
          Then, shadow x to the value 7. Make sure you that in both let \
          expression the variable has the same name. ";

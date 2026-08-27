@@ -57,8 +57,6 @@ let is_empty_tuple_form: Form.t => bool =
 type tile = (Id.t, (head, list(Any.t)));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, Any.t);
-let single = (id, subst) => ([(id, subst)], []);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
@@ -348,17 +346,6 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       Some(u),
     )
   | t => BadEntry(t);
-
-let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
-    term: Var(ctr),
-  };
-  switch (value) {
-  | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
-  };
-};
 
 let is_hole_label = (t: string) =>
   t == " "
@@ -1231,7 +1218,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
         | (_, (F(Tok(t)), [])) when Token.is_typ_var(t) => Var(t)
         | (_, (F(Tok(t)), [])) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
         | (_, (F(Compound(Parens)), [Typ(body)])) => Parens(body)
         | (_, (ProjWrap, [Typ(body)])) => body.term
         | (_, (F(Compound(ListLit)), [Typ(body)])) => List(body)
