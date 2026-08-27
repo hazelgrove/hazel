@@ -626,7 +626,7 @@ module Local = {
        no token can span a linebreak. */
     let introduce =
         (z: Zipper.t, code: string): result(Zipper.t, Action.Failure.t) => {
-      let code = StringUtil.trim_leading(code);
+      let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
       switch (Parser.to_segment(code, ~root=Exp)) {
       | Some(segment) =>
         Ok(

@@ -56,18 +56,6 @@ module Utils = {
     };
   };
 
-  let mpat_to_info = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
-    let e = MPat.rep_id(term);
-    Id.Map.find(e, info_map);
-  };
-
-  let mpat_to_mpat = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.mpat => {
-    switch (mpat_to_info(term, info_map)) {
-    | InfoMPat(mpat_info) => mpat_info
-    | _ => raise(Failure("No mpat info found"))
-    };
-  };
-
   let child_expressions_of_exp = (term: TermBase.exp_t): list(TermBase.exp_t) => {
     /*
      Returns the child expressions within the given expression.
@@ -350,10 +338,6 @@ type t = HighLevelNodeMapModel.t;
 
 let id_of = (node: node) => {
   Info.id_of(node.info);
-};
-
-let unwrap = (t: option(t)): t => {
-  Option.get(t);
 };
 
 let find = (node_map: t, id: Id.t) => {
@@ -1174,36 +1158,6 @@ module Public = {
   let id_of =
     // Gets the id of a node
     id_of;
-  let unwrap =
-    // Unwraps the result of building the tree
-    unwrap;
-  let find =
-    // Finds a node in the tree by its id
-    find;
-  let id_to_name =
-    // Gets the name of a node given its id
-    id_to_name;
-  let parent_of =
-    // Gets the parent of a node
-    parent_of;
-  let children_of =
-    // Gets the children of a node
-    children_of;
-  let descendants_of =
-    // Gets all of the descendants of a node
-    descendants_of;
-  let siblings_of =
-    // Gets the siblings of a node
-    siblings_of;
-  let next_sibling_of =
-    // Gets the next sibling of a node
-    next_sibling_of;
-  let prev_sibling_of =
-    // Gets the previous sibling of a node
-    prev_sibling_of;
-  let gather_top_level =
-    // Gathers the top-level nodes from the tree
-    gather_top_level;
   let path_to_id =
     // Gets the node id from a path
     path_to_id;

@@ -61,28 +61,6 @@ module Local = {
     WorkbenchTools.delete_subtask,
   ];
 
-  let get_string_arg = (~arg: option(string), ~fail_with: string) => {
-    switch (arg) {
-    | Some(arg) => arg
-    | None => raise(Failure(fail_with))
-    };
-  };
-
-  let get_path = (~path: option(string)) => {
-    switch (path) {
-    | Some(path) => path
-    | None => raise(Failure("A path must be provided for the action"))
-    };
-  };
-
-  let get_paths = (~paths: option(list(string))) => {
-    switch (paths) {
-    | Some(paths) => paths
-    | None =>
-      raise(Failure("A list of paths must be provided for the action"))
-    };
-  };
-
   /** Read an optional string field: None when absent or empty-string, Some otherwise.
       Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
       no-path branch of insert_before/insert_after. */
@@ -334,149 +312,11 @@ module Local = {
       };
     action;
   };
-
-  let string_of = (action: action) => {
-    switch (action) {
-    | AgentContextAction(Expand(paths)) =>
-      "expand(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | AgentContextAction(Collapse(paths)) =>
-      "collapse(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(PlaceProbe(paths)) =>
-      "place_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(RemoveProbe(paths)) =>
-      "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(ToggleProbe(paths)) =>
-      "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | StaticsAction(PlaceStatics(paths)) =>
-      "place_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | StaticsAction(RemoveStatics(paths)) =>
-      "remove_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | StaticsAction(ToggleStatics(paths)) =>
-      "toggle_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | SyntaxProjectorAction(PlaceSyntaxProjector(kind, paths)) =>
-      "place_syntax_projector(kind="
-      ++ ProjectorKind.name(kind)
-      ++ ", paths=["
-      ++ String.concat(", ", paths)
-      ++ "])"
-    | SyntaxProjectorAction(RemoveSyntaxProjector(paths)) =>
-      "remove_syntax_projector(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | SyntaxProjectorAction(ToggleSyntaxProjector(kind, paths)) =>
-      "toggle_syntax_projector(kind="
-      ++ ProjectorKind.name(kind)
-      ++ ", paths=["
-      ++ String.concat(", ", paths)
-      ++ "])"
-    | LanguageServerAction(ShowUseSites(path)) =>
-      "show_use_sites(\"" ++ path ++ "\")"
-    | LanguageServerAction(ShowReferences(path)) =>
-      "show_references(\"" ++ path ++ "\")"
-    | InsertAtProgramBoundary(After, code) =>
-      "insert_after(\"" ++ code ++ "\")"
-    | InsertAtProgramBoundary(Before, code) =>
-      "insert_before(\"" ++ code ++ "\")"
-    | EditorAction(Update(Definition, path, code)) =>
-      "update_definition(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(Body, path, code)) =>
-      "update_body(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(Pattern, path, code)) =>
-      "update_pattern(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(BindingClause, path, code)) =>
-      "update_binding_clause(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(TypeAnnotation, path, code)) =>
-      "update_type_annotation(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Delete(BindingClause, path)) =>
-      "delete_binding_clause(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Definition | Pattern | TypeAnnotation, path)) =>
-      "delete(\"" ++ path ++ "\")"
-    | ReadAction(GetSyntax(path)) => "get_syntax(\"" ++ path ++ "\")"
-    | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
-    | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
-    | ReadAction(Select(selector)) => "select(\"" ++ selector ++ "\")"
-    | ReadAction(GetCanonical(selector)) =>
-      "get_canonical(\"" ++ selector ++ "\")"
-    | ReadAction(GetCompleteness) => "get_completeness()"
-    | ReadAction(SelectorGetStatics(sel)) =>
-      "selector_get_statics(\"" ++ sel ++ "\")"
-    | ReadAction(SelectorGetContext(sel)) =>
-      "selector_get_context(\"" ++ sel ++ "\")"
-    | EditorAction(Insert(After, path, code)) =>
-      "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Insert(Before, path, code)) =>
-      "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(SelectorUpdate(selector, code)) =>
-      "selector_update(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(SelectorDelete(selector)) =>
-      "selector_delete(\"" ++ selector ++ "\")"
-    | EditorAction(SelectorInsertBefore(selector, code)) =>
-      "selector_insert_before(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(SelectorInsertAfter(selector, code)) =>
-      "selector_insert_after(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
-    | WorkbenchAction(CreateNewTask(task)) =>
-      "create_new_task( "
-      ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)
-      ++ " )"
-    | WorkbenchAction(UnsetActiveTask) => "unset_active_task"
-    | WorkbenchAction(SetActiveTask(task_title)) =>
-      "set_active_task(\"" ++ task_title ++ "\")"
-    | WorkbenchAction(UnsetActiveSubtask) => "unset_active_subtask"
-    | WorkbenchAction(SetActiveSubtask(subtask_title)) =>
-      "set_active_subtask(\"" ++ subtask_title ++ "\")"
-    | WorkbenchAction(MarkActiveTaskComplete(summary)) =>
-      "mark_active_task_complete(\"" ++ summary ++ "\")"
-    | WorkbenchAction(MarkActiveTaskIncomplete) => "mark_active_task_incomplete"
-    | WorkbenchAction(MarkActiveSubtaskComplete(summary)) =>
-      "mark_active_subtask_complete(\"" ++ summary ++ "\")"
-    | WorkbenchAction(MarkActiveSubtaskIncomplete) => "mark_active_subtask_incomplete"
-    | WorkbenchAction(MarkActiveSubtaskFailed(reason)) =>
-      "mark_active_subtask_failed(\"" ++ reason ++ "\")"
-    | WorkbenchAction(MarkActiveTaskFailed(reason)) =>
-      "mark_active_task_failed(\"" ++ reason ++ "\")"
-    | WorkbenchAction(AddNewSubtaskToActiveTask(subtask)) =>
-      "add_new_subtask_to_active_task( "
-      ++ AgentWorkbench.Utils.SubtaskUtils.subtask_to_json_string(subtask)
-      ++ ")"
-    | WorkbenchAction(ReorderSubtasksInActiveTask(subtasks_ordering)) =>
-      "reorder_subtasks_in_active_task( \"["
-      ++ String.concat(", ", subtasks_ordering)
-      ++ "]\" )"
-    | WorkbenchAction(UpdateActiveTask(new_title, new_description)) =>
-      let fields =
-        List.filter_map(
-          ((k, v)) =>
-            switch (v) {
-            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
-            | None => None
-            },
-          [("new_title", new_title), ("new_description", new_description)],
-        );
-      "update_active_task(" ++ String.concat(", ", fields) ++ ")";
-    | WorkbenchAction(UpdateActiveSubtask(new_title, new_description)) =>
-      let fields =
-        List.filter_map(
-          ((k, v)) =>
-            switch (v) {
-            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
-            | None => None
-            },
-          [("new_title", new_title), ("new_description", new_description)],
-        );
-      "update_active_subtask(" ++ String.concat(", ", fields) ++ ")";
-    | WorkbenchAction(DeleteTask(title)) =>
-      "delete_task(\"" ++ title ++ "\")"
-    | WorkbenchAction(DeleteSubtask(title)) =>
-      "delete_subtask(\"" ++ title ++ "\")"
-    };
-  };
 };
 
 module Public = {
   let tools = Local.tools;
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     Local.action_of(~tool_name, ~args);
-  };
-  let string_of = (action: action) => {
-    Local.string_of(action);
   };
 };

@@ -1,9 +1,6 @@
 open Util;
 open Haz3lcore;
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
   impl: 'code,
@@ -39,11 +36,6 @@ type point_distribution = {
   impl_grading: int,
 };
 
-let validate_point_distribution =
-    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-  test_validation + mutation_testing + impl_grading == 100
-    ? () : failwith("Invalid point distribution in exercise.");
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
@@ -60,10 +52,6 @@ type p('code) = {
 
 let id_of = p => {
   p.id;
-};
-
-let find_id_opt = (id, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,70 +121,6 @@ let editor_positions = [YourImpl, HiddenTests];
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
 
-let idx_of_pos = pos =>
-  switch (pos) {
-  | YourImpl => 0
-  | HiddenTests => 1
-  };
-
-let pos_of_idx = (idx: int) =>
-  switch (idx) {
-  | 0 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx == 1) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
-  };
-
-/* Fast-first: FastParse with pin collection; the fallback inside
-   from_backup_text logs itself (SLOW PARSE ...). */
-let zipper_of_code = code =>
-  PersistentZipper.from_backup_text(code, ~root=Exp);
-
-let eds_of_spec =
-    (
-      {
-        id,
-        title,
-        version,
-        module_name,
-        prompt,
-        your_impl,
-        display_hint,
-        hidden_tests,
-        wrapper,
-        show_report,
-      },
-      ~settings as _: Language.CoreSettings.t,
-    ) => {
-  let editor_of_serialization = Editor.Model.mk;
-  let your_impl = editor_of_serialization(your_impl);
-  let hidden_tests = {
-    let {tests, hints} = hidden_tests;
-    let tests = editor_of_serialization(tests);
-    {
-      tests,
-      hints,
-    };
-  };
-  {
-    id,
-    title,
-    version,
-    module_name,
-    prompt,
-    display_hint,
-    your_impl,
-    hidden_tests,
-    wrapper,
-    show_report,
-  };
-};
-
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true
@@ -250,26 +174,6 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
       hidden_tests: x,
     }
   };
-
-let wrap_filter =
-    (act: Language.FilterAction.action, term: Language.Exp.t): Language.Exp.t => {
-  term:
-    Filter(
-      Filter({
-        act: Language.FilterAction.(act, One),
-        pat: {
-          term:
-            Constructor(
-              "$e",
-              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
-            ),
-          annotation: Language.IdTagged.IdTag.fresh(),
-        },
-      }),
-      term,
-    ),
-  annotation: Language.IdTagged.IdTag.fresh(),
-};
 
 let wrap = (term, editor: Editor.t): TermItem.t => {
   term,
@@ -370,9 +274,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   };
 };
 
-let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-  append_exp(append_exp(term_of(ed1), term_of(ed2)), term_of(ed3));
-
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   ();
 
@@ -399,12 +300,7 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   };
 };
 
-let prelude_key = "prelude";
-let test_validation_key = "test_validation";
 let user_impl_key = "user_impl";
-let user_tests_key = "user_tests";
-let instructor_key = "instructor";
-let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
 let hidden_tests_key = "hidden_tests";
 
 let key_for_statics = (pos: pos): string =>
@@ -446,28 +342,6 @@ let export_transitionary_module = (_module_name, {eds, _}: state) => {
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
   data;
-};
-
-let blank_spec = (~title) => {
-  let your_impl = Zipper.next_blank();
-  let hidden_tests_tests = Zipper.next_blank();
-  let wrapper = false;
-  let show_report = true;
-  {
-    id: Id.mk(),
-    title,
-    display_hint: "",
-    version: 1,
-    module_name: "Blank",
-    prompt: "",
-    your_impl,
-    hidden_tests: {
-      tests: hidden_tests_tests,
-      hints: [],
-    },
-    wrapper,
-    show_report,
-  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

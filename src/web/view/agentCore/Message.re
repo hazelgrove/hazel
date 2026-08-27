@@ -1,7 +1,6 @@
 open Util;
 open Haz3lcore;
 open Util.API;
-open OptUtil.Syntax;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
 module Model = {
@@ -90,13 +89,6 @@ module Model = {
 };
 
 module Utils = {
-  let set_current_child = (msg: Model.t, child_id: Id.t): Model.t => {
-    {
-      ...msg,
-      current_child: Some(child_id),
-    };
-  };
-
   let add_child = (msg: Model.t, child_id: Id.t): Model.t => {
     {
       // Adds child_id to the message's children list and sets it as the current child
@@ -563,23 +555,6 @@ module Utils = {
       ),
       ("timestamp", `Float(message.timestamp)),
     ]);
-
-  let append_to_message = (message: Model.t, content: string): Model.t => {
-    let updated_content = message.content ++ content;
-    let sanitized_content = StringUtil.trim_leading(updated_content);
-    let api_message: option(OpenRouter.Message.Model.t) = {
-      let* api_message = message.api_message;
-      Some({
-        ...api_message,
-        content: sanitized_content,
-      });
-    };
-    {
-      ...message,
-      content: sanitized_content,
-      api_message,
-    };
-  };
 };
 
 module Update = {
