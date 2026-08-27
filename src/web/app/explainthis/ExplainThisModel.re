@@ -58,12 +58,6 @@ module Settings = {
   type action =
     | ToggleShowFeedback
     | SetHighlight(highlight_action);
-
-  let init = {
-    show: true,
-    show_feedback: false,
-    highlight: NoHighlight,
-  };
 };
 
 let init: t = {

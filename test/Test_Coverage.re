@@ -1342,6 +1342,7 @@ let tests = (
     rank_fun_inexhaustive,
     //TODO(andrew): why is this failing
     // nested_constructors_inexhaustive,
+    nested_constructors_exhaustive,
     multiple_holes_irredundant,
     unknown_scrutinee_exhaustive,
     unknown_scrutinee_redundant_vars,
@@ -1353,6 +1354,7 @@ let tests = (
     labeled_tuple_redundancy,
     labeled_tuple_additional_error,
     function_scrutinee,
+    type_function_scrutinee,
     fun_labeled_tuple,
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
