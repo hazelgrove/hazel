@@ -266,7 +266,9 @@
 /* headerless entries (statements, the trailing ⇒): a static symbol
    chip where the header editor would be */
 #main .focus-header.focus-header-sym .focus-sym {
-  padding: 1px 16px;
+  /* left inset matches the NAMED headers' text start (their cell
+     carries ~49px of gutter before the 16px cell-item padding) */
+  padding: 1px 16px 1px 65px;
   font-family: var(--code-font, monospace);
   font-weight: bold;
   opacity: 0.55;

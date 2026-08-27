@@ -149,6 +149,11 @@ module Model = {
     /* headerless items (top-level statements / the trailing
        expression): the static symbol shown instead of a header cell */
     e_sym: option(string),
+    /* a RUN cell: one editor spanning a contiguous run of test
+       statements, anchored at the first test's item id */
+    e_run: bool,
+    /* run cells: the item ids the run covers (first = e_id) */
+    e_members: list(Haz3lcore.Id.t),
     /* body: the definition RHS, EXP- (or TYP-)rooted */
     e_body: CellEditor.Model.t,
     e_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
@@ -188,11 +193,21 @@ module Model = {
   };
 
   /* (id, live name) for every stack entry — outline labels track
-     header renames before any splice-back */
+     header renames before any splice-back. Headerless entries (tests,
+     statements, ⇒) report None: their outline labels are the
+     outline's own (a pinned test was showing ';' instead of its
+     number). */
   let focused_names = (model: t): list((Haz3lcore.Id.t, option(string))) =>
     switch (model.focus) {
     | None => []
-    | Some(f) => List.map(e => (e.e_id, header_name(e)), f.f_entries)
+    | Some(f) =>
+      List.concat_map(
+        (e: stack_entry) =>
+          e.e_run
+            ? List.map(id => (id, None), e.e_members)
+            : [(e.e_id, e.e_sym == None ? header_name(e) : None)],
+        f.f_entries,
+      )
     };
 
   /* The monolithic export/import format (per-slide keys are the live
@@ -417,6 +432,63 @@ module Focus = {
       Some((sp_start, sp_stop, {js|⇒|js}))
     | _ => None
     };
+
+  /* --- contiguous TEST RUNS (the outline's "tests" container pins
+     one cell spanning the whole run) --- */
+  let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
+    if (sp.sp_kind != IStmt) {
+      false;
+    } else {
+      let rec first_tile = i =>
+        i >= sp.sp_stop
+          ? None
+          : (
+            switch (arr[i]) {
+            | Tile(t) => Some(t)
+            | _ => first_tile(i + 1)
+            }
+          );
+      switch (first_tile(sp.sp_start)) {
+      | Some(t) =>
+        switch (t.label) {
+        | [hd, ..._] => hd == "test"
+        | [] => false
+        }
+      | None => false
+      };
+    };
+
+  /* the maximal run of adjacent test statements containing [fid]:
+     (content start, content stop — before the LAST `;` + trivia,
+     which stay master-side like any statement's — member item ids) */
+  let test_run =
+      (fid: Id.t, seg: Segment.t): option((int, int, list(Id.t))) => {
+    let arr = Array.of_list(seg);
+    let spans = Array.of_list(item_spans(seg));
+    let n = Array.length(spans);
+    let rec idx = j =>
+      j >= n ? None : spans[j].sp_id == Some(fid) ? Some(j) : idx(j + 1);
+    switch (idx(0)) {
+    | Some(j) when span_is_test(arr, spans[j]) =>
+      let rec lo = j =>
+        j > 0 && span_is_test(arr, spans[j - 1]) ? lo(j - 1) : j;
+      let rec hi = j =>
+        j + 1 < n && span_is_test(arr, spans[j + 1]) ? hi(j + 1) : j;
+      let (a, b) = (lo(j), hi(j));
+      let members =
+        List.filter_map(
+          k => spans[k].sp_id,
+          List.init(b - a + 1, k => a + k),
+        );
+      let start = spans[a].sp_start;
+      let rec back = i =>
+        i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+      let stop = back(spans[b].sp_stop);
+      let stop = stop > start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+      Some((start, stop, members));
+    | _ => None
+    };
+  };
 
   /* The definition RHS for the item tile [fid]:
      - `let … = … in` (3 shards): the def is the tile's LAST CHILD;
@@ -666,6 +738,8 @@ module Focus = {
           e_id: fid,
           e_mod: false,
           e_sym: Some(sym),
+          e_run: false,
+          e_members: [],
           e_header: empty_header_cell(),
           e_body: cell_of_seg(content),
           e_ctx,
@@ -691,6 +765,8 @@ module Focus = {
           e_id: fid,
           e_mod: is_module_item(fid, master_seg),
           e_sym: None,
+          e_run: false,
+          e_members: [],
           e_header:
             (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
               core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
@@ -702,10 +778,50 @@ module Focus = {
       );
     };
 
+  /* ONE cell for a whole contiguous test run (outline "tests"
+     container), anchored at the FIRST test's item id */
+  let mk_run_entry =
+      (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+      : option(Model.stack_entry) =>
+    switch (test_run(fid, master_seg)) {
+    | None => mk_entry(~info_map, fid, master_seg)
+    | Some((start, stop, members)) =>
+      let content = core_ws(slice(start, stop, master_seg));
+      let e_ctx =
+        switch (captured_ctx(~info_map, fid, content)) {
+        | Some(ctx) => ctx
+        | None =>
+          Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+        };
+      Some(
+        Model.{
+          e_id: fid,
+          e_mod: false,
+          e_sym: Some("tests"),
+          e_run: true,
+          e_members: members,
+          e_header: empty_header_cell(),
+          e_body: cell_of_seg(content),
+          e_ctx,
+        },
+      );
+    };
+
   /* splice ONE entry's header+body home into [seg], restoring the
      edge whitespace the master's stale copies still carry */
   let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
     switch (e.e_sym) {
+    | Some(_) when e.e_run =>
+      switch (test_run(e.e_id, seg)) {
+      | Some((start, stop, _)) =>
+        let (pre, _, suf) = trim_ws(slice(start, stop, seg));
+        take(start, seg)
+        @ pre
+        @ zip_of_cell(e.e_body)
+        @ suf
+        @ drop(stop, seg);
+      | None => seg
+      }
     | Some(_) =>
       /* headerless: replace the item's content run in place */
       switch (headless_span(e.e_id, seg)) {
@@ -734,6 +850,9 @@ module Focus = {
   let cell_content =
       (e: Model.stack_entry, seg: Segment.t): option(Segment.t) =>
     switch (e.e_sym) {
+    | Some(_) when e.e_run =>
+      test_run(e.e_id, seg)
+      |> Option.map(((start, stop, _)) => slice(start, stop, seg))
     | Some(_) =>
       headless_span(e.e_id, seg)
       |> Option.map(((start, stop, _)) => slice(start, stop, seg))
@@ -775,7 +894,8 @@ let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
    have pinned on a slide you haven't visited). Transient by design —
    text-backed reload re-mints ids (name-anchored persistence is
    docketed with the outline-generality spec). */
-let slide_pins: Hashtbl.t(string, list(Haz3lcore.Id.t)) = Hashtbl.create(8);
+let slide_pins: Hashtbl.t(string, list((Haz3lcore.Id.t, bool))) =
+  Hashtbl.create(8);
 
 /* The spliced whole-program statics computed while a stack is open
    (Force frames, first open frame, and restructure ops — which seed
@@ -996,10 +1116,45 @@ module Persist = {
     prefix ++ ":" ++ name ++ ":agent";
   let caret_key = (prefix: string, name: string): string =>
     prefix ++ ":" ++ name ++ ":caret";
+  let pins_key = (prefix: string, name: string): string =>
+    prefix ++ ":" ++ name ++ ":pins";
 
   /* set when a loaded slide has a saved caret; the next calculate
      schedules the Move(Point) (measured exists by then) */
   let pending_caret: ref(option(Point.t)) = ref(None);
+
+  /* saved pins are NAME-anchored (text-backed persistence re-mints
+     ids on every load): one line per pin, "0|1 <outline/label/path>";
+     resolved against the loaded slide's outline on RestorePins */
+  let pending_pins: ref(option(list((list(string), bool)))) = ref(None);
+
+  let read_pins = (prefix: string, name: string): unit =>
+    switch (HazelDB.kv_get(pins_key(prefix, name))) {
+    | Some(txt) =>
+      let pins =
+        String.split_on_char('\n', txt)
+        |> List.filter_map(line =>
+             switch (String.split_on_char(' ', String.trim(line))) {
+             | [flag, path] when path != "" =>
+               Some((String.split_on_char('/', path), flag == "1"))
+             | _ => None
+             }
+           );
+      pending_pins := pins == [] ? None : Some(pins);
+    | None => pending_pins := None
+    };
+
+  let write_pins =
+      (prefix: string, name: string, pins: list((list(string), bool)))
+      : unit =>
+    HazelDB.kv_save(
+      pins_key(prefix, name),
+      pins
+      |> List.map(((path, run)) =>
+           (run ? "1 " : "0 ") ++ String.concat("/", path)
+         )
+      |> String.concat("\n"),
+    );
 
   let read_caret = (prefix: string, name: string): unit =>
     switch (HazelDB.kv_get(caret_key(prefix, name))) {
@@ -1145,6 +1300,23 @@ module Persist = {
           )
         };
       };
+      {
+        /* pins ride a side key, name-anchored via the outline */
+
+        let term = editor.editor.statics.term;
+        let pins =
+          switch (model.focus) {
+          | None => []
+          | Some(f) =>
+            List.filter_map(
+              (e: Model.stack_entry) =>
+                OutlineTree.label_path(e.e_id, term)
+                |> Option.map(path => (path, e.e_run)),
+              f.f_entries,
+            )
+          };
+        write_pins(prefix, sp.name, pins);
+      };
       switch (
         switch (model.focus) {
         | Some(f) => persist_spliced(f, editor)
@@ -1198,6 +1370,7 @@ module Persist = {
   let load_scratchpad =
       (~settings, prefix: string, name: string): Scratchpad.t => {
     read_caret(prefix, name);
+    read_pins(prefix, name);
     switch (load_slide_kind(prefix, name)) {
     | Some(CodePersist({editor: e, agent})) =>
       let agent =
@@ -1462,6 +1635,8 @@ module Update = {
     | StackBody(int, CellEditor.Update.t)
     | FocusDef(Haz3lcore.Id.t) /* replace the stack with this one def */
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
+    | FocusToggleRun(Haz3lcore.Id.t) /* one cell for a whole test run */
+    | RestorePins /* deferred per-slide pin restore after slide load */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, float, float)))
@@ -1769,6 +1944,15 @@ module Update = {
               }
               |> Updated.return
             };
+          } else if (List.exists(
+                       (e: Model.stack_entry) =>
+                         e.e_run && List.mem(fid, e.e_members),
+                       f.f_entries,
+                     )) {
+            /* the id lives inside an OPEN run cell: its ⊖ closes the
+               run (the row reads as pinned because the run covers it) */
+            schedule_action(FocusToggleRun(fid));
+            model |> Updated.return_quiet;
           } else {
             /* add to the stack, keeping program order. Pinning a
                PARENT (module/fn) first splices its pinned descendants
@@ -1807,6 +1991,164 @@ module Update = {
         }
       | Drv(_) => model |> Updated.return_quiet
       };
+    | FocusToggleRun(fid) =>
+      let scratchpad = List.nth(model.scratchpads, model.current);
+      switch (scratchpad.kind) {
+      | Drv(_) => model |> Updated.return_quiet
+      | Code({editor, _}) =>
+        let info_map = editor.editor.statics.info_map;
+        let unfocus_with = (master_seg: Haz3lcore.Segment.t) => {
+          let restored =
+            Focus.spliced_master(
+              Model.{
+                f_entries: [],
+                f_master_seg: master_seg,
+              },
+              scratchpad,
+            );
+          {
+            ...model,
+            scratchpads:
+              ListUtil.put_nth(model.current, restored, model.scratchpads),
+            focus: None,
+          }
+          |> Updated.return;
+        };
+        switch (model.focus) {
+        | None =>
+          let master_seg = Focus.zip_of_cell(editor);
+          switch (Focus.mk_run_entry(~info_map, fid, master_seg)) {
+          | None => model |> Updated.return_quiet
+          | Some(entry) =>
+            {
+              ...model,
+              focus:
+                Some(
+                  Model.{
+                    f_entries: [entry],
+                    f_master_seg: master_seg,
+                  },
+                ),
+            }
+            |> Updated.return
+          };
+        | Some(f) =>
+          let covering =
+            List.find_opt(
+              (e: Model.stack_entry) =>
+                e.e_run && (e.e_id == fid || List.mem(fid, e.e_members)),
+              f.f_entries,
+            );
+          switch (covering) {
+          | Some(run) =>
+            /* toggle OFF: splice the run cell home */
+            let master_seg = Focus.splice_entry(run, f.f_master_seg);
+            let rest =
+              List.filter(
+                (e: Model.stack_entry) => !(e === run),
+                f.f_entries,
+              );
+            rest == []
+              ? unfocus_with(master_seg)
+              : {
+                  ...model,
+                  focus:
+                    Some(
+                      Model.{
+                        f_entries: rest,
+                        f_master_seg: master_seg,
+                      },
+                    ),
+                }
+                |> Updated.return;
+          | None =>
+            let members =
+              switch (Focus.test_run(fid, f.f_master_seg)) {
+              | Some((_, _, ms)) => ms
+              | None => [fid]
+              };
+            let (member_entries, keeping) =
+              List.partition(
+                (e: Model.stack_entry) => List.mem(e.e_id, members),
+                f.f_entries,
+              );
+            let master_seg =
+              List.fold_left(
+                (seg, e) => Focus.splice_entry(e, seg),
+                f.f_master_seg,
+                member_entries,
+              );
+            let all_open =
+              members != []
+              && List.length(member_entries) == List.length(members);
+            if (all_open) {
+              /* the container's ⊖ with every test open individually:
+                 close them all */
+              keeping == []
+                ? unfocus_with(master_seg)
+                : {
+                    ...model,
+                    focus:
+                      Some(
+                        Model.{
+                          f_entries: keeping,
+                          f_master_seg: master_seg,
+                        },
+                      ),
+                  }
+                  |> Updated.return;
+            } else {
+              switch (Focus.mk_run_entry(~info_map, fid, master_seg)) {
+              | None => model |> Updated.return_quiet
+              | Some(entry) =>
+                {
+                  ...model,
+                  focus:
+                    Some(
+                      Model.{
+                        f_entries:
+                          insert_entry(
+                            ~term=editor.editor.statics.term,
+                            entry,
+                            keeping,
+                          ),
+                        f_master_seg: master_seg,
+                      },
+                    ),
+                }
+                |> Updated.return
+              };
+            };
+          };
+        };
+      };
+    | RestorePins =>
+      switch (Persist.pending_pins^) {
+      | None => model |> Updated.return_quiet
+      | Some(pins) =>
+        let scratchpad = List.nth(model.scratchpads, model.current);
+        switch (scratchpad.kind) {
+        | Code({editor, _})
+            when
+              List.exists(
+                (n: OutlineTree.node) => n.o_label != "",
+                OutlineTree.of_term(editor.editor.statics.term),
+              ) =>
+          Persist.pending_pins := None;
+          let term = editor.editor.statics.term;
+          List.iter(
+            ((path, run)) =>
+              switch (OutlineTree.resolve_path(path, term)) {
+              | Some(id) =>
+                schedule_action(run ? FocusToggleRun(id) : FocusToggle(id))
+              | None => ()
+              },
+            pins,
+          );
+          model |> Updated.return_quiet;
+        | _ => model |> Updated.return_quiet /* statics not ready: retry */
+        };
+      }
     | FocusEnsure(fid) =>
       /* cross-cell jump support: add [fid] to the stack iff absent
          (never removes; requires an open stack — the master handles
@@ -2216,7 +2558,10 @@ module Update = {
           Hashtbl.replace(
             slide_pins,
             name,
-            List.map((e: Model.stack_entry) => e.e_id, f.f_entries),
+            List.map(
+              (e: Model.stack_entry) => (e.e_id, e.e_run),
+              f.f_entries,
+            ),
           )
         | None => Hashtbl.remove(slide_pins, name)
         };
@@ -2251,7 +2596,11 @@ module Update = {
         let name = List.nth(model.scratchpads, model.current).name;
         switch (Hashtbl.find_opt(slide_pins, name)) {
         | Some(ids) when model.focus == None =>
-          List.iter(id => schedule_action(FocusToggle(id)), ids)
+          List.iter(
+            ((id, run)) =>
+              schedule_action(run ? FocusToggleRun(id) : FocusToggle(id)),
+            ids,
+          )
         | _ => ()
         };
       };
@@ -2473,6 +2822,21 @@ module Update = {
       switch (Persist.pending_caret^) {
       | Some(p) => schedule_action(RestoreCaret(p))
       | None => ()
+      };
+      switch (Persist.pending_pins^) {
+      | Some(_)
+          when
+            model.focus == None
+            && List.exists(
+                 (n: OutlineTree.node) => n.o_label != "",
+                 OutlineTree.of_term(editor.editor.statics.term),
+               ) =>
+        /* only once statics carries a NAMED outline: hydration's
+           first frames run against placeholder/hole programs (whose
+           outline is a lone unnamed ⇒ row), and resolving there
+           would silently drop the pins */
+        schedule_action(RestorePins)
+      | _ => ()
       };
       let worker_request = ref([]);
       let queue_worker =
@@ -3222,8 +3586,9 @@ module View = {
                             "focus-header-sym",
                           ]),
                         ],
-                        qualifier
-                        @ [
+                        /* no qualifier chip: the symbol IS the label
+                           (a run cell was rendering "tests tests") */
+                        [
                           Virtual_dom.Vdom.Node.span(
                             ~attrs=[
                               Virtual_dom.Vdom.Attr.classes(["focus-sym"]),

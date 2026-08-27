@@ -142,6 +142,7 @@ let rec node_view =
           ~jump: Language.Id.t => Effect.t(unit),
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
+          ~toggle_run: Language.Id.t => Effect.t(unit),
           ~top_level: bool,
           ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
@@ -290,11 +291,6 @@ let rec node_view =
                  id => List.mem_assoc(id, focused_entries),
                  kid_ids,
                );
-          let flips =
-            List.filter(
-              id => List.mem_assoc(id, focused_entries) == all_pinned,
-              kid_ids,
-            );
           [
             span(
               ~attrs=[
@@ -303,12 +299,18 @@ let rec node_view =
                   @ (all_pinned ? ["outline-btn-on"] : []),
                 ),
                 Attr.title(
-                  all_pinned ? "close these cells" : "open all in the stack",
+                  all_pinned
+                    ? "close the tests cell" : "open the tests as one cell",
                 ),
                 Attr.on_click(_ =>
                   Effect.Many(
                     [Effect.Prevent_default, Effect.Stop_propagation]
-                    @ List.map(toggle, flips),
+                    @ (
+                      switch (kid_ids) {
+                      | [first, ..._] => [toggle_run(first)]
+                      | [] => []
+                      }
+                    ),
                   )
                 ),
               ],
@@ -362,6 +364,7 @@ let rec node_view =
               ~jump,
               ~focus,
               ~toggle,
+              ~toggle_run,
               ~top_level=false,
               ~menu_open,
               ~error_subtree,
@@ -435,6 +438,7 @@ let view =
       ~jump: Language.Id.t => Effect.t(unit),
       ~focus: Language.Id.t => Effect.t(unit),
       ~toggle: Language.Id.t => Effect.t(unit),
+      ~toggle_run: Language.Id.t => Effect.t(unit),
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
@@ -488,6 +492,7 @@ let view =
                   ~jump,
                   ~focus,
                   ~toggle,
+                  ~toggle_run,
                   ~top_level=true,
                   ~menu_open,
                   ~error_subtree,

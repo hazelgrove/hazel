@@ -1020,6 +1020,7 @@ module View = {
            never replaces the stack (andrew: replacing was a footgun) */
         ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
         ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
+        ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
         ~error_items,
         ~error_subtree,
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),

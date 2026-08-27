@@ -279,6 +279,44 @@ let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   go([], of_term(e)) |> Option.value(~default=[]);
 };
 
+/* durable NAME anchor for a row: outline labels root-to-node.
+   Text-backed persistence re-mints ids on every load, so pins save as
+   label paths and re-resolve against the loaded outline. */
+let label_path = (fid: Id.t, e: Exp.t): option(list(string)) => {
+  let rec go = (trail, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          n.o_id == Some(fid)
+            ? Some(List.rev([n.o_label, ...trail]))
+            : go([n.o_label, ...trail], n.o_children)
+        },
+      None,
+      ns,
+    );
+  go([], of_term(e));
+};
+
+let resolve_path = (path: list(string), e: Exp.t): option(Id.t) => {
+  let rec go = (path, ns: list(node)) =>
+    switch (path) {
+    | [] => None
+    | [last] =>
+      switch (List.find_opt(n => n.o_label == last, ns)) {
+      | Some(n) => n.o_id
+      | None => None
+      }
+    | [hd, ...rest] =>
+      switch (List.find_opt(n => n.o_label == hd, ns)) {
+      | Some(n) => go(rest, n.o_children)
+      | None => None
+      }
+    };
+  go(path, of_term(e));
+};
+
 /* every id in the SUBTREE rooted at [fid] (excluding fid itself) —
    pinning a parent unpins its pinned descendants */
 let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
