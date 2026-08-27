@@ -89,6 +89,13 @@
   content: "​";
 }
 
+/* Bidi effects (RTL text, stray directional controls) stay confined to
+   their own token instead of visually reordering neighbors (UTS #55). */
+.code .token,
+.code .comment {
+  unicode-bidi: isolate;
+}
+
 /* TOKEN COLORS */
 
 .code .token.Any {
@@ -175,6 +182,18 @@
   overflow: hidden;
   vertical-align: baseline;
   white-space: pre;
+}
+
+/* Invisible characters render as a codepoint-labeled box */
+.code .invisible-cell {
+  font-size: 0.38em;
+  font-weight: bold;
+  letter-spacing: -0.03em;
+  color: var(--token-incomplete);
+  border: 1px dotted var(--token-incomplete);
+  border-radius: 2px;
+  box-sizing: border-box;
+  cursor: default;
 }
 
 .code-container.meta-down .token.ref {
@@ -768,6 +787,13 @@ svg:has(.child-line) {
 }
 /* When hovering any item, suppress keyboard-selected highlight */
 .context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
+  background-color: transparent;
+}
+.context-menu .named-menu-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.context-menu .group .contents .named-menu-item.disabled:hover {
   background-color: transparent;
 }
 .context-menu .named-menu-item .menu-shortcut {

@@ -25,14 +25,6 @@ let piece_max_idx = (p: Piece.t): option(int) => {
 let focus_boundary_piece = (z: Zipper.t): option(Piece.t) =>
   Selection.focus_piece(z.selection);
 
-/* Get the anchor-side boundary piece from selection content */
-let anchor_boundary_piece = (z: Zipper.t): option(Piece.t) =>
-  Selection.anchor_piece(z.selection);
-
-/* Get the next piece in siblings in the focus direction */
-let next_sibling_piece = (z: Zipper.t): option(Piece.t) =>
-  Siblings.neighbor(z.selection.focus, z.relatives.siblings);
-
 /* Max inner index of the focus-side boundary piece in the selection */
 let focus_max_idx = (z: Zipper.t): int =>
   switch (focus_boundary_piece(z)) {

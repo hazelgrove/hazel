@@ -204,9 +204,6 @@ module MapPiece = {
     } else {
       go(f, z);
     };
-
-  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
-    fast_local_seg(p => [f(p)], id, z);
 };
 
 /* Like MapPiece but for segment-level transformations.

@@ -56,8 +56,6 @@ module Model = {
 
   let get_statics = (model: t) => model.statics;
 
-  let get_dynamics = (model: t) => model.dynamics;
-
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     indicated_piece:
@@ -90,7 +88,6 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
-  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 type statics_mode =

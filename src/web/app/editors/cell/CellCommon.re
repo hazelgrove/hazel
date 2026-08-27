@@ -3,12 +3,6 @@ open Node;
 
 /* Helpers for creating cell ui components - mostly used by exercise mode */
 
-let narrative_cell = (content: Node.t) =>
-  div(
-    ~attrs=[Attr.class_("cell")],
-    [div(~attrs=[Attr.class_("cell-chapter")], [content])],
-  );
-
 let simple_cell_item = (content: list(Node.t)) =>
   div(~attrs=[Attr.classes(["cell-item"])], content);
 

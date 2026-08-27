@@ -230,6 +230,7 @@ let rec go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    let clipboard = Unicode.nfc_outside_strings(clipboard);
     /* pasted material can complete enclosing tiles (the completion
        trigger) AND carries its source indentation (the region
        trigger re-indents the pasted lines themselves) */

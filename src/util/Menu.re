@@ -44,7 +44,6 @@ type action =
   | BackSubmenu /* pop one level */
   | SetSelected(int);
 
-let closed: t = None;
 let opened: t =
   Some({
     selected_idx: 0,
@@ -131,16 +130,6 @@ let rec items_at =
     | Some(Submenu({children, _})) => items_at(rest, children)
     | _ => items
     };
-  };
-
-/* Selectable = Action(enabled) or Submenu. Dividers don't take an index;
- * an auto-synthesised Back row is selectable separately (handled by
- * `selectable_items_with_back`). */
-let is_selectable = (item: item('a)): bool =>
-  switch (item) {
-  | Action({enabled, _}) => enabled
-  | Submenu(_) => true
-  | Divider => false
   };
 
 /* Visible item shape used internally for rendering + indexing: includes
