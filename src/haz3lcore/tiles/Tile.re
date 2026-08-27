@@ -8,8 +8,6 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let id = (t: t) => t.id;
-
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
 
 let l_shard = t =>
@@ -103,10 +101,6 @@ let disassemble = ({id, label, mold, shards, children}: t): segment => {
   Aba.mk(shards, children)
   |> Aba.join(s => [to_piece(s)], Fun.id)
   |> List.concat;
-};
-
-let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
-  split_shards(id, label, mold, shards);
 };
 
 let reassemble = (match: Aba.t(t, segment)): t => {

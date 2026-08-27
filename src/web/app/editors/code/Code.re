@@ -63,8 +63,11 @@ let of_delim' =
              the retired suggestion buffer used */
           [text(typed), span_c("in-parsed-buffer", [text(ghost)])];
         } else {
-          base_cls == "string-lit"
-            ? GraphemeView.render(~font_metrics, token) : [text(token)];
+          /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
+             occupies the two columns Measured gave it. Pure ASCII -- nearly
+             every token -- skips straight to a text node. */
+          Unicode.is_simple_ascii(token)
+            ? [text(token)] : GraphemeView.render(~font_metrics, token);
         };
       span(
         ~attrs=[
@@ -84,6 +87,13 @@ let secondary_text =
   Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
     span_c(cls, [text(str)])
   );
+
+/* Comments are measured in columns like any other text, so a comment with a
+   wide cluster needs the same explicit cells as a token. */
+let comment_text = (~font_metrics: FontMetrics.t, cls, str) =>
+  Unicode.is_simple_ascii(str)
+    ? secondary_text(cls, str)
+    : span_c(cls, GraphemeView.render(~font_metrics, str));
 
 let whitespace_token =
   Core.Memo.general(~cache_size_bound=10000, (row, col) =>
@@ -203,8 +213,8 @@ let view =
     /* a ghost-marked comment is a witness-remainder ghost (spliced
        by DisplayFork), styled like the retired suggestion buffer */
     | Comment(str) when ghost_mark(secondary.id, Option.none) =>
-      secondary_text("in-unparsed-buffer", str)
-    | Comment(str) => secondary_text("comment", str)
+      comment_text(~font_metrics, "in-unparsed-buffer", str)
+    | Comment(str) => comment_text(~font_metrics, "comment", str)
     };
 
   let of_projector = (pr: Base.projector) => {

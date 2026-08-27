@@ -3,8 +3,6 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = (Segment.t, Segment.t);
 
-let empty = Segment.(empty, empty);
-
 let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);

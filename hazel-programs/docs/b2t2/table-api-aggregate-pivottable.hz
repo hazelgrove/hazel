@@ -1,0 +1,80 @@
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+) in
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+) in
+
+# (benchmark) pivotTable #
+let requires = [
+  (enforced=("no"), "for all c in cs, c is in header(t1)"),
+  (enforced=("no"), "for all c in cs, schema(t1)[c] is a categorical sort"),
+  (enforced=("no"), "ci2 is in header(t1)"),
+  (enforced=("no"), "concat(cs, [c11, ... , cn1]) has no duplicates")
+] in
+let ensures = [
+  (enforced=("no"), "fi consumes Seq<schema(t1)[ci2]>"),
+  (enforced=("live"), "header(t2) is equal to concat(cs, [c11, ... , cn1])"),
+  (enforced=("live"), "for all c in cs, schema(t2)[c] is equal to schema(t1)[c]"),
+  (enforced=("live"), "schema(t2)[ci1] is equal to the sort of outputs of fi for all i")
+] in
+let pivot_table =
+  fun (
+    t1 : [?],
+    cs : [String],
+    aggs : [(String, String, ? -> ?)]
+  ) ->
+    let groups =
+      fold_left(
+        t1,
+        (fun (
+          groups,
+          row
+        ) ->
+          let k =
+            filter(to_lvs(row), fun e -> mem(cs, e.label))
+            |> from_lvs in
+          case find_opt(groups, fun (gk, _) -> k == gk)
+          | None => (k, [row]) :: groups
+          | Some((key, rows)) =>
+            (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+          end),
+        []
+      ) in
+    map(
+      groups,
+      fun (k, g) ->
+        k
+        ... (
+          map(
+            aggs,
+            fun (dest_col, source_col, reduction) ->
+              let vals =
+                filter_map(
+                  g,
+                  fun r ->
+                    find_opt(to_lvs(r), fun e -> e.label == source_col)
+                    |> option_map(_, fun e -> e.value)
+                ) in
+              let reduced = reduction(vals) in
+              (label= dest_col, value= reduced)
+          )
+          |> from_lvs
+        )
+    ) in
+let average =
+  fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+test
+  pivot_table(
+    students,
+    ["favorite_color"],
+    [("age-average", "age", average)]
+  )
+  == [("red", 13), ("green", 17), ("blue", 12)]
+  : [(favorite_color= String, `age-average`= Int)] end

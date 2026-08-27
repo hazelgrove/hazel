@@ -7,7 +7,6 @@ module Map = {
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
-  let filter = Id.Map.filter;
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
@@ -135,31 +134,6 @@ module Map = {
     climb(Info.ancestors_of(ci_binder));
   };
 
-  let let_definition_path = (~statics: t, ~id: Id.t): list(Pat.t) =>
-    switch (lookup(id, statics)) {
-    | Some(info) =>
-      let ancestors = Info.ancestors_of(info);
-      let (_, collected) =
-        List.fold_left(
-          ((seen, acc), current_id) => {
-            let acc' =
-              switch (lookup(current_id, statics)) {
-              | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _}))
-                  when Id.Set.mem(IdTagged.rep_id(def), seen) => [
-                  pat,
-                  ...acc,
-                ]
-              | _ => acc
-              };
-            (Id.Set.add(current_id, seen), acc');
-          },
-          (Id.Set.singleton(id), []),
-          ancestors,
-        );
-      List.rev(collected);
-    | _ => []
-    };
-
   let lookup_exp = (id: Id.t, m: t): option(Info.exp) =>
     switch (lookup(id, m)) {
     | Some(InfoExp(info)) => Some(info)
@@ -189,12 +163,6 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(info) => Some(Info.ctx_of(info))
     | None => None
-    };
-
-  let marks_of = (id: Id.t, m: t): list(Mark.t) =>
-    switch (lookup(id, m)) {
-    | Some(info) => Info.marks_of(info)
-    | None => []
     };
 
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>

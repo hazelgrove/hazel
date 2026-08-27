@@ -11,17 +11,16 @@ type bad_token_cls =
 
 let compare = String.compare;
 let equal = String.equal;
-let sub = String.sub;
 let concat = String.concat;
 let starts_with = String.starts_with;
 let split_on_char = String.split_on_char;
 let sort_uniq = List.sort_uniq(compare);
 let match = StringUtil.match;
 let regexp = StringUtil.regexp;
+let unicode_match = StringUtil.unicode_match;
+let unicode_regexp = StringUtil.unicode_regexp;
 let prefixes = StringUtil.prefixes;
 let abbreviate = StringUtil.abbreviate;
-let num_linebreaks = StringUtil.num_linebreaks;
-let max_line_width = StringUtil.max_line_width;
 
 let length = Unicode.length;
 let append = Unicode.append;
@@ -59,6 +58,9 @@ let is_string = t =>
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
+/* Byte-based, which is exactly right here: every delimiter we quote with is
+   a one-byte ASCII character, so the bytes stripped are the delimiters
+   whatever the quoted content is. */
 let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
@@ -71,26 +73,21 @@ let strip_quotes = (~quote="\"", s) =>
 
 let string_quote = s => "\"" ++ s ++ "\"";
 
-/* Grapheme width: Functions taking into account that some unicode
-   chracters have greater than 1 character grid width */
+/* Grapheme width: functions taking into account that some unicode
+   clusters (emoji, CJK, fullwidth forms) occupy two grid columns.
+   These apply to EVERY token; Unicode.Width short-circuits on ASCII, so
+   the common case costs a byte scan. */
 
 let column_to_grapheme_index = Unicode.Width.column_to_grapheme_index;
 
-/* Number of measured columns occupied by the first `count` graphemes of a
-   string literal (excluding surrounding quotes). Non-strings fall back to
-   the legacy "one column per char" assumption. */
-let string_prefix_columns = (t: t, count: int): int =>
-  is_string(t)
-    ? Unicode.Width.columns_through_prefix(strip_quotes(t), count) : count;
+/* Measured columns occupied by the first `count` graphemes of the token. */
+let prefix_columns = (t: t, count: int): int =>
+  Unicode.Width.columns_through_prefix(t, count);
+
+let columns = Unicode.Width.columns_of_string;
 
 let bounding_box = (t: t): Point.t => {
-  /* Currently only supporting emojis in strings; this is a
-     conservative choice to guard against perf regressions;
-     it can likely be relaxed. See also Code.re */
-  let (row, col) =
-    is_string(t)
-      ? Unicode.Width.bounding_box_for(t)
-      : (num_linebreaks(t), max_line_width(t));
+  let (row, col) = Unicode.Width.bounding_box_for(t);
   Point.mk(~row, ~col);
 };
 
@@ -139,21 +136,51 @@ let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
 
+/* Operators are a closed list; names are everything left over. That keeps
+ * the two disjoint by construction (mold resolution needs it) and makes a
+ * new Unicode character default to being a name.
+ *
+ * The ASCII 18 are a pin: exactly the operator characters from before names
+ * took Unicode. A character earns a place in the Unicode half by appearing
+ * in operator POSITION, not by being printed -- these five are the Drv
+ * judgment symbols ExpToSegment emits as infix tiles. */
+let ascii_operator_chars = {|!%&*+,\-./:;<=>@\\|~|};
+let unicode_operator_chars = {|∈≠≮≯⊆|};
+let operator_chars = ascii_operator_chars ++ unicode_operator_chars;
+
+/* Neither class: delimiters, whitespace, control characters, and the
+ * implicit-hole marker. ¿ is excluded so a decoded slide like `[1, ¿, 3]`
+ * doesn't merge `¿,` into one token; see Haz3lcore.MarkerParse. */
+let excluded_chars = {|"`#¿\s\x00-\x1F\x7F\[\]\(\)\{\}|};
+
+/* Names are the complement, so `é 日 😀 © ✓ λ` all behave alike and a
+ * decomposed `é` stays one name. On ASCII this is exactly `a-zA-Z0-9_'?^$`
+ * as before; the var/ctr regexps below drop all but `_` and `'`. */
+let non_name_chars = operator_chars ++ excluded_chars;
+
+/* UTF-8-aware rather than StringUtil.match: Js_of_ocaml.Regexp is
+ * byte-oriented, so `¿` in a class excludes its two bytes independently --
+ * rejecting `¢ £ ± ¬` and anything ending 0xBF -- and `\s` rejects anything
+ * containing byte 0xA0. */
 let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?\\^$]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
-/* Anything else is considered a potential operator, as long
- *  as it does not contain any whitespace, linebreaks, comment
- *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
- *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
- *  single operator token; see Haz3lcore.MarkerParse. */
+  unicode_match(
+    unicode_regexp(
+      "^([^"
+      ++ non_name_chars
+      ++ "]+)$|^([0-9_]+\\.(?:[^"
+      ++ non_name_chars
+      ++ {|\^\$]|\.)*)$|},
+    ),
+  );
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+$"));
+  unicode_match(unicode_regexp("^[" ++ operator_chars ++ "]+$"));
 
+/* `^` leads the livelit and projector-invocation prefixes, so a token
+ * starting with it wants the same spacing an operator gets. */
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+"));
+  unicode_match(unicode_regexp("^[" ++ operator_chars ++ {|\^]+|}));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -191,30 +218,64 @@ let is_float = str =>
   !match(int_regexp, str)
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
-let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 
-let is_livelit = str => match(regexp("^(\\^)([a-z][A-Za-z0-9_]*)$"), str);
+/* CASE. Hazel tells constructors from variables by capitalization, but most
+ * of Unicode has no case at all. Caseless characters count as NON-uppercase,
+ * so `日本語` and `😀foo` are variables while `Café` and `Foo😀` are
+ * constructors (the rule Swift and Julia use). Titlecase letters (`ǅ`) count
+ * as uppercase. */
+let uppercase_chars = {|\p{Lu}\p{Lt}|};
+
+/* What may continue a name: every name character except the ASCII
+ * modifier-ish ones, which only ever prefix or suffix a token. `'` is
+ * allowed in vars but not constructors, matching the ASCII behaviour. What
+ * may START a name additionally excludes digits, so `1abc` is not a name. */
+let name_start_class = "[^" ++ non_name_chars ++ {|0-9'?\^\$]|};
+let name_rest_class = "[^" ++ non_name_chars ++ {|'?\^\$]|};
+let var_rest_class = "[^" ++ non_name_chars ++ {|?\^\$]|};
+
+let lowercase_start = "(?![" ++ uppercase_chars ++ "])" ++ name_start_class;
+let uppercase_start = "[" ++ uppercase_chars ++ "]";
+
+let is_livelit =
+  unicode_match(
+    unicode_regexp("^\\^" ++ lowercase_start ++ name_rest_class ++ "*$"),
+  );
 
 let parse_livelit = (str): string =>
-  if (length(str) > 1 && sub(str, 0, 1) == "^") {
-    sub(str, 1, length(str) - 1);
+  if (length(str) > 1 && starts_with(~prefix="^", str)) {
+    rm_first(str);
   } else {
     "invalid form";
   };
 
+/* Plain name; `$`-prefixed name (either case); module-qualified name. */
 let var_regexp =
-  regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^\$[A-Za-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+  unicode_regexp(
+    "(^"
+    ++ lowercase_start
+    ++ var_rest_class
+    ++ "*$)|(^\\$"
+    ++ name_start_class
+    ++ var_rest_class
+    ++ "*$)|(^"
+    ++ uppercase_start
+    ++ var_rest_class
+    ++ "*\\."
+    ++ lowercase_start
+    ++ var_rest_class
+    ++ "*$)",
   );
 let is_var = str =>
   !is_bool(str)
   && !is_undefined(str)
   && !is_livelit(str)
   && !is_wild(str)
-  && match(var_regexp, str);
+  && unicode_match(var_regexp, str);
 
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = match(capitalized_name_regexp);
+let capitalized_name_regexp =
+  unicode_regexp("^" ++ uppercase_start ++ name_rest_class ++ "*$");
+let is_ctr = unicode_match(capitalized_name_regexp);
 
 let quote_label_when_necessary = (l: string): string =>
   is_var(l) || is_ctr(l) ? l : label_quote(l);
@@ -238,7 +299,8 @@ let base_typs = [
   "DrvTPat",
 ];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
-let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
+let is_typ_var = str =>
+  is_var(str) || unicode_match(capitalized_name_regexp, str);
 
 /* List literals */
 let list_start = "[";
@@ -301,7 +363,7 @@ let projector_invoke_prefix = "^^";
 let of_projector_invoke = (input: t): option(t) =>
   if (starts_with(~prefix=projector_invoke_prefix, input)
       && length(input) > 2) {
-    Some(sub(input, 2, length(input) - 2));
+    Some(snd(split_nth(input, 2)));
   } else {
     None;
   };
@@ -361,4 +423,3 @@ let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
 /* Unicode probe brackets for CLI text output */
 let probe_start = "⟦";
 let probe_end = "⟧";
-let probe_lbl = [probe_start, probe_end];

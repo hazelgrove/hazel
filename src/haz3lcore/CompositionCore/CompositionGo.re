@@ -189,22 +189,6 @@ module Local = {
       };
     };
 
-    let statics_map_new_ids =
-        (old_statics: StaticsBase.Map.t, new_statics: StaticsBase.Map.t) => {
-      // Returns only the IDs of the new statics map that are not in the old statics map
-      // This is useful to identify which new static information was added
-      Id.Map.fold(
-        (id, _info, acc) =>
-          // Check if the ID exists in the old statics map
-          switch (StaticsBase.Map.lookup(id, old_statics)) {
-          | Some(_) => acc // ID exists in old map, don't include it
-          | None => [id, ...acc] // ID doesn't exist in old map, include it
-          },
-        new_statics,
-        [],
-      );
-    };
-
     /* [[Zipper.insert_segment]] replaces the selection with the segment,
        so a token bordering the selection can end up flush against the
        segment's edge token. If the two would lex as one token the result
@@ -402,7 +386,7 @@ module Local = {
        no token can span a linebreak. */
     let introduce =
         (z: Zipper.t, code: string): result(Zipper.t, Action.Failure.t) => {
-      let code = StringUtil.trim_leading(code);
+      let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
       switch (Parser.to_segment(code, ~root=Exp)) {
       | Some(segment) =>
         Ok(

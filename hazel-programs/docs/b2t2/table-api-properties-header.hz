@@ -1,0 +1,17 @@
+# (benchmark) header #
+let requires = [] in
+let ensures = [
+  (enforced=("no"), "cs is equal to header(t)")
+] in
+# Only works for non-empty tables since we don't keep a schema #
+let header =
+  fun (t : [?]) ->
+    case t
+    | (x::xs) => to_lvs(x) |> map(_, fun x -> x.label)
+    | _ => []
+    end in
+# Examples #
+test
+  header([()]) == [] end;
+test
+  header([(a= 1, b= 2)]) == ["a", "b"] end
