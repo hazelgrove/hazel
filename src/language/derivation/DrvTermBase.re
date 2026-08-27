@@ -1,6 +1,4 @@
 let continue = x => x;
-let stop = (_, x) => x;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type any_t = DrvGrammar.any_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -818,10 +818,6 @@ module Expansion = {
     };
   };
 
-  /* Check if token would expand in ANY sort (sort-agnostic) */
-  let will = (t: Token.t): bool =>
-    List.exists(((tok, _, _, _)) => tok == t, sorted_expansions);
-
   /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>
     switch (List.assoc_opt(t, expansions)) {
