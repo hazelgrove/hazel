@@ -22,7 +22,6 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
-    show_incremental_deco: bool,
   };
 
   let init = {
@@ -89,7 +88,6 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
-    show_incremental_deco: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -147,8 +145,7 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines
-    | ShowIncrementalDeco;
+    | ShowRowLines;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -446,10 +443,6 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
-        }
-      | ShowIncrementalDeco => {
-          ...settings,
-          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )

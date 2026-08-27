@@ -215,12 +215,6 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show horizontal lines between each row of code"),
       },
       {
-        name: "Incremental Reuse",
-        active: globals.settings.show_incremental_deco,
-        setting: ShowIncrementalDeco,
-        tooltip: Some("Show incremental evaluator cache hits"),
-      },
-      {
         name: "Debug Sidebar",
         active: globals.settings.show_debug_panel,
         setting: ShowDebugPanel,

@@ -762,7 +762,6 @@ let colors =
     ),
   );
 
-/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
@@ -770,13 +769,10 @@ let incr_eval =
       ~visible: option(Globals.VisibleRows.t)=?,
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
-      ~show_frozen: bool=true,
-      predicted_reuse: Language.EvaluatorState.incr_eval,
+      (),
     ) => {
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
   let ranged_ids_of = ids =>
     ids
     |> List.sort_uniq(Id.compare)
@@ -793,23 +789,6 @@ let incr_eval =
     | 0 => Point.compare(l1, l2)
     | cmp => cmp
     };
-  let outermost = ranged_ids =>
-    List.fold_left(
-      (acc, (id, r)) =>
-        if (List.exists(
-              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
-              ranged_ids,
-            )
-            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
-          acc;
-        } else {
-          [(id, r), ...acc];
-        },
-      [],
-      ranged_ids,
-    );
-  let frozen_ids =
-    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
     pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
   let active_ids =
@@ -837,7 +816,6 @@ let incr_eval =
         ranges,
       )
     };
-  let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
   div_c(
     "incremental-highlights",
     List.concat_map(
@@ -845,21 +823,11 @@ let incr_eval =
         color_range(
           ~font_metrics,
           ~measured=syntax.measured,
-          ["incremental-frozen"],
+          ["incremental-pending"],
           range,
         ),
-      visible_ranges(frozen_outermost),
+      visible_ranges(pending_inactive_ranges),
     )
-    @ List.concat_map(
-        ((_, range)) =>
-          color_range(
-            ~font_metrics,
-            ~measured=syntax.measured,
-            ["incremental-pending"],
-            range,
-          ),
-        visible_ranges(pending_inactive_ranges),
-      )
     @ List.concat_map(
         ((_, range)) =>
           color_range(

@@ -140,8 +140,7 @@ let copy_descendant_entries =
 
 /* Surface ids covered by cache entries: each entry short-circuits a subtree,
  * so expand via prev_elab rather than using only the map keys. Used by the
- * pending-eval worklist (to drop settled ids) and by the frozen debug tint
- * (to paint a reuse prediction). */
+ * pending-eval worklist to drop settled ids. */
 let visible_id_set = (incr: t('state)): Id.Set.t => {
   let acc = ref(Id.Set.empty);
   let collect_subtree = (root: Exp.t): unit => {
@@ -158,9 +157,6 @@ let visible_id_set = (incr: t('state)): Id.Set.t => {
 
 let visible_ids = (incr: t('state)): list(Id.t) =>
   visible_id_set(incr) |> Id.Set.elements;
-
-/* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
-let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
