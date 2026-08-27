@@ -213,11 +213,9 @@ module M: Projector = {
 
   /* ---- Interaction ---- */
 
-  /* Deferred and non-asserting on purpose. The old version called
-     get_elem_by_id (which asserts) while BUILDING the Effect.Many list, so a
-     missing element aborted construction and the recording state was never
-     cleared — the widget kept its recording styling after losing focus. */
-
+  /* Deferred and non-asserting on purpose: calling get_elem_by_id (which
+     asserts) while BUILDING an Effect.Many list means a missing element
+     aborts construction, and the recording state never gets cleared. */
   let blur = info =>
     Effect.of_sync_fun(
       () =>
@@ -275,11 +273,6 @@ module M: Projector = {
     @ (key.shift == Down ? [S.Shift] : []);
   };
 
-  /* Modal capture: once recording, EVERY key is a candidate binding —
-     including Enter, Tab and Backspace, which is the point (they are all
-     bindable). Escape is the single exception and the only key that exits,
-     besides clicking away. Unbinding is the × button, because no key can
-     mean "no key". */
   /* What the widget currently shows: a capture in progress wins over what
      the syntax holds, since the syntax is not written until capture ends. */
   let shown_binding = (model, info): S.binding =>
@@ -436,7 +429,7 @@ module M: Projector = {
           ]),
           Attr.title(
             recording
-              ? "Press a shortcut. Esc cancels; click away to keep it."
+              ? "Press a shortcut. Esc or click away to finish."
               : "Click to set a shortcut",
           ),
         ],
