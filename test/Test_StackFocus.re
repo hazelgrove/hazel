@@ -111,6 +111,37 @@ let check_focus =
   };
 };
 
+/* headerless items (tests, nested trailing bodies): symbol chip,
+   content, and splice round-trip */
+let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
+  let master = parse(src);
+  let (term, info_map) = statics_of(master);
+  let fid = outline_id(term, label);
+  switch (Focus.mk_entry(~info_map, fid, master)) {
+  | None => failwith("mk_entry failed for " ++ label)
+  | Some(e) =>
+    check(bool, label ++ ": headless", true, e.e_sym != None);
+    check(
+      string,
+      label ++ ": body",
+      body,
+      text_of(Focus.zip_of_cell(e.e_body)),
+    );
+    check(
+      string,
+      label ++ ": splice round-trip",
+      text_of(master),
+      text_of(Focus.splice_entry(e, master)),
+    );
+    check(
+      bool,
+      label ++ ": outline sym",
+      true,
+      Web.ScratchMode.outline_sym(fid, term) == Some(sym),
+    );
+  };
+};
+
 let tests = (
   "StackFocus",
   [
@@ -140,6 +171,24 @@ let tests = (
         ~header="b",
         ~body="a + 1",
         ~bound=["a"],
+        (),
+      )
+    ),
+    test_case("module member test", `Quick, () =>
+      check_headless(
+        ~src="module M = {\n  let a = 1;\n  test a == 1 end;\n} in M.a",
+        ~label="1",
+        ~sym={js|;|js},
+        ~body="test a == 1 end",
+        (),
+      )
+    ),
+    test_case("fn-body trailing expression", `Quick, () =>
+      check_headless(
+        ~src="let f = fun x -> let y = x + 1 in y * 2 in f(1)",
+        ~label="",
+        ~sym="\xe2\x87\x92",
+        ~body="y * 2",
         (),
       )
     ),

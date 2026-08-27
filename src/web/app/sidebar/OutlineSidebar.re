@@ -306,10 +306,22 @@ let rec node_view =
                   Effect.Many(
                     [Effect.Prevent_default, Effect.Stop_propagation]
                     @ (
-                      switch (kid_ids) {
-                      | [first, ..._] => [toggle_run(first)]
-                      | [] => []
-                      }
+                      top_level
+                        /* one cell spanning the whole run */
+                        ? switch (kid_ids) {
+                          | [first, ..._] => [toggle_run(first)]
+                          | [] => []
+                          }
+                        /* nested runs: pin/unpin each test */
+                        : List.map(
+                            toggle,
+                            List.filter(
+                              id =>
+                                List.mem_assoc(id, focused_entries)
+                                == all_pinned,
+                              kid_ids,
+                            ),
+                          )
                     ),
                   )
                 ),

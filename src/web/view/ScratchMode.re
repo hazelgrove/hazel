@@ -346,7 +346,8 @@ module Focus = {
     sp_kind: item_kind,
   };
 
-  let item_spans = (seg: Segment.t): list(item_span) => {
+  let item_spans =
+      (~divided_only_tail=false, seg: Segment.t): list(item_span) => {
     let arr = Array.of_list(seg);
     let len = Array.length(arr);
     let rec ws_end = i => i < len && is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
@@ -355,45 +356,101 @@ module Focus = {
       | Tile(t) => ends_with_in(t)
       | _ => false
       };
+    /* MODULE BODIES have 2-shard member defs terminated by `;`: a
+       `;`-run whose first tile is a def head is a DEF item, not a
+       statement (its cell takes the header/body path) */
+    let run_def_head = (start: int, stop: int): option(Id.t) => {
+      let rec first_tile = i =>
+        i >= stop
+          ? None
+          : (
+            switch (arr[i]) {
+            | Piece.Tile(t) => Some(t)
+            | _ => first_tile(i + 1)
+            }
+          );
+      switch (first_tile(start)) {
+      | Some(t) =>
+        switch (t.label) {
+        | ["let", ..._]
+        | ["type", ..._]
+        | ["module", ..._] => Some(t.id)
+        | _ => None
+        }
+      | None => None
+      };
+    };
     let rec walk = (i, start, acc) =>
       if (i >= len) {
-        /* the remainder (if it has content) is the trailing expr */
+        /* the remainder (if it has content) is the trailing expr —
+           or a trailing 2-shard member def */
         let has_content = {
           let rec go = j => j < len && (!is_edge_ws(arr[j]) || go(j + 1));
           start < len && go(start);
         };
+        let tail_ok =
+          switch (run_def_head(start, len)) {
+          | Some(_) => true
+          /* a boundary-less segment is an EXPRESSION, not a block: its
+             content must not read as a trailing item (deep containment
+             would otherwise swallow arbitrary ids). The program's own
+             top level keeps unconditional tails (the ⇒ row). */
+          | None => !divided_only_tail || acc != []
+          };
         List.rev(
-          has_content
+          has_content && tail_ok
             ? [
-              {
-                sp_id: None,
-                sp_start: start,
-                sp_stop: len,
-                sp_kind: ITail,
+              switch (run_def_head(start, len)) {
+              | Some(id) => {
+                  sp_id: Some(id),
+                  sp_start: start,
+                  sp_stop: len,
+                  sp_kind: IDef,
+                }
+              | None => {
+                  sp_id: None,
+                  sp_start: start,
+                  sp_stop: len,
+                  sp_kind: ITail,
+                }
               },
               ...acc,
             ]
             : acc,
         );
-      } else if (is_in_tile(arr[i]) || is_semi(arr[i])) {
+      } else if (is_in_tile(arr[i])) {
         let stop = ws_end(i + 1);
-        let kind = is_semi(arr[i]) ? IStmt : IDef;
-        /* def spans begin at their tile (leading trivia stays put,
-           as the old tile-anchored spans had it) */
-        let start = kind == IDef ? i : start;
         walk(
           stop,
           stop,
           [
             {
               sp_id: Some(Piece.id(arr[i])),
-              sp_start: start,
+              sp_start: i,
               sp_stop: stop,
-              sp_kind: kind,
+              sp_kind: IDef,
             },
             ...acc,
           ],
         );
+      } else if (is_semi(arr[i])) {
+        let stop = ws_end(i + 1);
+        let sp =
+          switch (run_def_head(start, i)) {
+          | Some(id) => {
+              sp_id: Some(id),
+              sp_start: start,
+              sp_stop: stop,
+              sp_kind: IDef,
+            }
+          | None => {
+              sp_id: Some(Piece.id(arr[i])),
+              sp_start: start,
+              sp_stop: stop,
+              sp_kind: IStmt,
+            }
+          };
+        walk(stop, stop, [sp, ...acc]);
       } else {
         walk(i + 1, start, acc);
       };
@@ -403,8 +460,10 @@ module Focus = {
   /* the span holding [fid]: by boundary id first, then containment
      (outline ids can be tiles INSIDE an item — module binders, the
      trailing expression's root) */
-  let find_item_span = (fid: Id.t, seg: Segment.t): option(item_span) => {
-    let spans = item_spans(seg);
+  let find_item_span =
+      (~divided_only_tail=false, fid: Id.t, seg: Segment.t)
+      : option(item_span) => {
+    let spans = item_spans(~divided_only_tail, seg);
     switch (List.find_opt(sp => sp.sp_id == Some(fid), spans)) {
     | Some(_) as r => r
     | None =>
@@ -419,8 +478,9 @@ module Focus = {
      the run before its `;`; trailing expr: the whole span), plus the
      static header symbol. None for def items. */
   let headless_span =
-      (fid: Id.t, seg: Segment.t): option((int, int, string)) =>
-    switch (find_item_span(fid, seg)) {
+      (~divided_only_tail=false, fid: Id.t, seg: Segment.t)
+      : option((int, int, string)) =>
+    switch (find_item_span(~divided_only_tail, fid, seg)) {
     | Some({sp_kind: IStmt, sp_start, sp_stop, _}) =>
       let arr = Array.of_list(seg);
       let rec back = i =>
@@ -432,6 +492,69 @@ module Focus = {
       Some((sp_start, sp_stop, {js|⇒|js}))
     | _ => None
     };
+
+  /* headless extraction/splice at ANY block depth: try this segment's
+     top level, then recurse into tile children. Nested blocks (module
+     bodies, fn bodies) share the boundary structure (`…in`-tiles and
+     `;`s), so the same span walk applies at each level; a nested id
+     contained in a DEF span yields None there and recursion descends. */
+  let rec headless_deep_go =
+          (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
+    switch (headless_span(~divided_only_tail=true, fid, seg)) {
+    | Some((start, stop, sym)) => Some((slice(start, stop, seg), sym))
+    | None =>
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            List.find_map(ch => headless_deep_go(fid, ch), t.children)
+          | _ => None
+          },
+        seg,
+      )
+    };
+
+  /* the top level keeps unconditional-tail semantics (the ⇒ row of a
+     bare-expression program); nested levels require DIVIDED blocks */
+  let headless_content_deep =
+      (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
+    switch (headless_span(fid, seg)) {
+    | Some((start, stop, sym)) => Some((slice(start, stop, seg), sym))
+    | None =>
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            List.find_map(ch => headless_deep_go(fid, ch), t.children)
+          | _ => None
+          },
+        seg,
+      )
+    };
+
+  let splice_headless_deep =
+      (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
+    let rec go = (~top: bool, seg: Segment.t): Segment.t =>
+      switch (headless_span(~divided_only_tail=!top, fid, seg)) {
+      | Some((start, stop, _)) =>
+        let (pre, _, suf) = trim_ws(slice(start, stop, seg));
+        take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      | None =>
+        List.map(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) =>
+              Piece.Tile({
+                ...t,
+                children: List.map(go(~top=false), t.children),
+              })
+            | _ => p
+            },
+          seg,
+        )
+      };
+    go(~top=true, seg);
+  };
 
   /* --- contiguous TEST RUNS (the outline's "tests" container pins
      one cell spanning the whole run) --- */
@@ -720,13 +843,15 @@ module Focus = {
   let rec mk_entry =
           (
             ~info_map: Language.Statics.Map.t,
+            ~sym: option(string)=?,
             fid: Id.t,
             master_seg: Segment.t,
           )
           : option(Model.stack_entry) =>
-    switch (headless_span(fid, master_seg)) {
-    | Some((start, stop, sym)) =>
-      let content = core_ws(slice(start, stop, master_seg));
+    switch (headless_content_deep(fid, master_seg)) {
+    | Some((raw, span_sym)) =>
+      let sym = Option.value(sym, ~default=span_sym);
+      let content = core_ws(raw);
       let e_ctx =
         switch (captured_ctx(~info_map, fid, content)) {
         | Some(ctx) => ctx
@@ -823,17 +948,9 @@ module Focus = {
       | None => seg
       }
     | Some(_) =>
-      /* headerless: replace the item's content run in place */
-      switch (headless_span(e.e_id, seg)) {
-      | Some((start, stop, _)) =>
-        let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-        take(start, seg)
-        @ pre
-        @ zip_of_cell(e.e_body)
-        @ suf
-        @ drop(stop, seg);
-      | None => seg
-      }
+      /* headerless: replace the item's content run in place (works at
+         any block depth) */
+      splice_headless_deep(e.e_id, zip_of_cell(e.e_body), seg)
     | None =>
       splice_def(
         e.e_id,
@@ -853,9 +970,7 @@ module Focus = {
     | Some(_) when e.e_run =>
       test_run(e.e_id, seg)
       |> Option.map(((start, stop, _)) => slice(start, stop, seg))
-    | Some(_) =>
-      headless_span(e.e_id, seg)
-      |> Option.map(((start, stop, _)) => slice(start, stop, seg))
+    | Some(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
     | None => find_def(e.e_id, seg)
     };
 
@@ -886,6 +1001,18 @@ module Focus = {
 /* outline context-menu state (row id + screen position): transient
    UI, module-level like the other view caches — not model data */
 let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
+
+/* the header symbol a headerless cell for [fid] should show, from
+   the OUTLINE's view of the row (span kinds mis-read member-fn tails:
+   a member terminates with `;`, so its fn-body tail extracts from an
+   IStmt-shaped run — the row is still a ⇒) */
+let outline_sym = (fid: Haz3lcore.Id.t, term: Language.Exp.t): option(string) =>
+  switch (OutlineTree.kind_of(fid, term)) {
+  | Some(OutlineTree.KTrail) => Some({js|⇒|js})
+  | Some(OutlineTree.KTest)
+  | Some(OutlineTree.KStmt) => Some({js|;|js})
+  | _ => None
+  };
 
 /* per-slide pin retention (andrew): switching slides splices the
    stack home; coming back re-opens the same cells. Keyed by slide
@@ -1884,7 +2011,14 @@ module Update = {
           | None => Focus.zip_of_cell(editor)
           };
         let info_map = editor.editor.statics.info_map;
-        switch (Focus.mk_entry(~info_map, fid, master_seg)) {
+        switch (
+          Focus.mk_entry(
+            ~info_map,
+            ~sym=?outline_sym(fid, editor.editor.statics.term),
+            fid,
+            master_seg,
+          )
+        ) {
         | None => model |> Updated.return_quiet
         | Some(entry) =>
           {
@@ -1910,7 +2044,14 @@ module Update = {
           /* no stack yet: same as single focus */
           let master_seg = Focus.zip_of_cell(editor);
           let info_map = editor.editor.statics.info_map;
-          switch (Focus.mk_entry(~info_map, fid, master_seg)) {
+          switch (
+            Focus.mk_entry(
+              ~info_map,
+              ~sym=?outline_sym(fid, editor.editor.statics.term),
+              fid,
+              master_seg,
+            )
+          ) {
           | None => model |> Updated.return_quiet
           | Some(entry) =>
             {
@@ -2004,7 +2145,14 @@ module Update = {
                 f.f_master_seg,
                 closing,
               );
-            switch (Focus.mk_entry(~info_map, fid, master_seg)) {
+            switch (
+              Focus.mk_entry(
+                ~info_map,
+                ~sym=?outline_sym(fid, editor.editor.statics.term),
+                fid,
+                master_seg,
+              )
+            ) {
             | None => model |> Updated.return_quiet
             | Some(entry) =>
               {
@@ -2196,7 +2344,14 @@ module Update = {
           | Drv(_) => model |> Updated.return_quiet
           | Code({editor, _}) =>
             let info_map = editor.editor.statics.info_map;
-            switch (Focus.mk_entry(~info_map, fid, f.f_master_seg)) {
+            switch (
+              Focus.mk_entry(
+                ~info_map,
+                ~sym=?outline_sym(fid, editor.editor.statics.term),
+                fid,
+                f.f_master_seg,
+              )
+            ) {
             | None => model |> Updated.return_quiet
             | Some(entry) =>
               {
