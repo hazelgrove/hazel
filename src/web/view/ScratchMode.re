@@ -3631,6 +3631,15 @@ module View = {
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
 
+  /* IMPORTANT: the view must read the cache through this helper, never
+     bind `stack_cache^` locally. jsoo closures share one context object
+     per scope — with the previous generation bound in the view scope,
+     every handler closure of render N retained render N-1's vdom
+     (whose handlers retained N-2's …): a linked list of generations,
+     measured at ~11MB leaked per edit on mega-1k. */
+  let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
+    List.assoc_opt(id, stack_cache^);
+
   let view =
       (
         ~globals,
@@ -3665,7 +3674,6 @@ module View = {
         /* the STACK: [header band, body cell] per entry, thin rules
            between; rendered INSTEAD of the master cell */
         let stack_views = (f: Model.focus_t) => {
-          let prev = stack_cache^;
           /* the frozen tint was removed upstream; cells no longer take
              master tint/pending, so these cache inputs are constant */
           let deco_reuse = Language.IncrEval.empty;
@@ -3692,7 +3700,7 @@ module View = {
                   k_meta_down: globals.Globals.Model.meta_down,
                   k_visible_rows: globals.Globals.Model.visible_rows,
                 };
-                switch (List.assoc_opt(e.e_id, prev)) {
+                switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
                     when
                       c.c_key == key
