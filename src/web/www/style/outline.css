@@ -138,6 +138,37 @@
   color: var(--token-typ, #9457c9);
 }
 
+/* statement / test / trailing-expression rows (symbolic, no name) */
+#outline-sidebar .ol-trail,
+#outline-sidebar .ol-stmt {
+  opacity: 0.85;
+}
+
+#outline-sidebar .ol-trail .outline-glyph,
+#outline-sidebar .ol-stmt .outline-glyph {
+  opacity: 0.9;
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-tests {
+  font-style: italic;
+}
+
+/* live test status: glyph carries the ✓/✗/? */
+#outline-sidebar .ol-pass .outline-glyph {
+  color: var(--test-pass, #2a9d3a);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-fail .outline-glyph {
+  color: var(--test-fail, #c93030);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-indet .outline-glyph {
+  color: var(--BR3, #6a5a3a);
+}
+
 #outline-sidebar .outline-empty {
   opacity: 0.6;
   padding: 6px;
@@ -226,6 +257,15 @@
    the horizontal share (andrew: no vertical padding) */
 #main .focus-header .cell-item {
   padding: 0 16px;
+}
+
+/* headerless entries (statements, the trailing ⇒): a static symbol
+   chip where the header editor would be */
+#main .focus-header.focus-header-sym .focus-sym {
+  padding: 1px 16px;
+  font-family: var(--code-font, monospace);
+  font-weight: bold;
+  opacity: 0.55;
 }
 
 #outline-sidebar .outline-focus-btn.outline-btn-on {

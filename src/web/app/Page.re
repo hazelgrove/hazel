@@ -110,7 +110,9 @@ module Update = {
                       ~default="cell",
                     ),
                   ),
-                  [e.e_body.editor],
+                  /* header too: binder/signature errors (TPatNotAVar,
+                     shadowed type names, …) live in the header editor */
+                  [e.e_header.editor, e.e_body.editor],
                 ),
               f.f_entries,
             )
@@ -1031,6 +1033,29 @@ module View = {
         ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
         ~def_op=
           (op, id) => inject(Editors(Scratch(OutlineDefOp(op, id)))),
+        /* live ✓/✗ for test rows, from the master's whole-program
+           result (stays live while a stack is open) */
+        ~test_status={
+          let results =
+            switch (model.editors) {
+            | Scratch(m)
+            | Documentation(m) =>
+              switch (
+                List.nth_opt(m.scratchpads, m.current)
+                |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
+              ) {
+              | Some(Code({editor, _})) =>
+                EvalResult.Model.test_results(editor.CellEditor.Model.result)
+              | _ => None
+              }
+            | _ => None
+            };
+          id =>
+            Option.bind(results, (tr: Language.TestResults.t) =>
+              Language.TestMap.lookup(id, tr.test_map)
+              |> Option.map(Language.TestMap.joint_status)
+            );
+        },
         /* the master stays in its scratchpad slot while the stack is
            open (statics warm), so its term is always current */
         current_editor.statics.term,

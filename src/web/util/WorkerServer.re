@@ -388,6 +388,53 @@ let post_batch_result = (model, request_id, completed) =>
     );
   };
 
+/* Stream chunks cross to the MAIN thread, whose consumers read only
+   entry KEYS (pending-eval worklist), [seq] (frontier ordering), and
+   each state's probes/tests/steps (stream collection). The
+   reuse-cache payload — prev_elab (the region's whole elaborated
+   subtree), prev_reuse_map, prev_probe_targets, the region's value,
+   and the state's own nested incr_eval — stays worker-side
+   (store_resident keeps the full response); shipping it decoded to
+   ~90MB live on mega programs, most of the per-edit heap churn. */
+let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+let slim_state = (state: Language.EvaluatorState.t) =>
+  Language.EvaluatorState.{
+    ...state,
+    incr_eval: Language.IncrEval.empty,
+  };
+let slim_stream_update =
+    (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
+    : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
+  Language.IncrEval.{
+    completed: {
+      entries:
+        Id.Map.map(
+          (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
+            Language.IncrEval.{
+              prev_elab: Lazy.force(slim_hole),
+              prev_reuse_map: Language.IncrEval.empty_reuse_map,
+              prev_probe_targets:
+                Language.EvalInfo.ProbeTargets(
+                  Language.SubexpProbeTargets.empty,
+                ),
+              value: Lazy.force(slim_hole),
+              state: slim_state(e.state),
+              seq: e.seq,
+            },
+          u.completed.entries,
+        ),
+    },
+    current:
+      Option.map(
+        (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
+          Language.IncrEval.{
+            ...c,
+            state: slim_state(c.state),
+          },
+        u.current,
+      ),
+  };
+
 let post_stream_update =
     (
       ~allow_empty=false,
@@ -402,7 +449,7 @@ let post_stream_update =
       ServerMessage.Stream({
         request_id,
         key,
-        update,
+        update: slim_stream_update(update),
       }),
     );
   };

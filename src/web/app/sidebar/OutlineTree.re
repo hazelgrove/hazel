@@ -2,19 +2,29 @@ open Language;
 
 /* OutlineTree — the module/definition tree behind the outline sidebar
    (plans/modular-editors.md §1). Walks the program term: top-level
-   definitions, module members (recursively), and let-in / type-in
-   definitions inside function bodies. Every node carries a jump id. */
+   definitions, module members (recursively), let-in / type-in
+   definitions inside function bodies, and — at TOP level only —
+   semicolon statements (tests grouped into a container) plus the
+   trailing expression (the symbolic ⇒ row). Every node carries a
+   jump id in the chain-item id domain (DefStatics/Restructure). */
 
 type kind =
   | KModule
   | KFn
   | KConst
-  | KType;
+  | KType
+  | KTest /* one top-level `test … end;` statement */
+  | KTests /* container for a contiguous run of tests */
+  | KStmt /* any other top-level `…;` statement */
+  | KTrail; /* the program's trailing expression */
 
 type node = {
   o_label: string,
   o_kind: kind,
   o_id: option(Id.t),
+  /* KTest: the Test term's own id — test-result lookup (o_id is the
+     enclosing Seq item, the open/jump/restructure handle) */
+  o_test: option(Id.t),
   o_children: list(node),
 };
 
@@ -40,7 +50,7 @@ let rec pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
-let rec of_exp = (e: Exp.t): list(node) => {
+let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   let e = strip_exp(e);
   switch (e.term) {
   | Let(pat, def, body) =>
@@ -49,7 +59,7 @@ let rec of_exp = (e: Exp.t): list(node) => {
       | Some(name) => [mk_def(~id=Exp.rep_id(e), name, def)]
       | None => []
       };
-    entry @ of_exp(body);
+    entry @ of_exp(~top, body);
   | TyAlias(tpat, _, body) =>
     let entry =
       switch (tpat.term) {
@@ -58,20 +68,55 @@ let rec of_exp = (e: Exp.t): list(node) => {
             o_label: name,
             o_kind: KType,
             o_id: Some(Exp.rep_id(e)),
+            o_test: None,
             o_children: [],
           },
         ]
       | _ => []
       };
-    entry @ of_exp(body);
+    entry @ of_exp(~top, body);
   | ModuleExp(mpat, def, body) =>
     let entry =
       switch (mpat.term) {
       | Var(name) => [mk_def(~id=Exp.rep_id(e), name, def)]
       | _ => []
       };
-    entry @ of_exp(body);
+    entry @ of_exp(~top, body);
+  | Seq(e1, body) when top =>
+    let h = strip_exp(e1);
+    let entry =
+      switch (h.term) {
+      | Test(_)
+      | HintedTest(_) => [
+          {
+            o_label: "",
+            o_kind: KTest,
+            o_id: Some(Exp.rep_id(e)),
+            o_test: Some(Exp.rep_id(h)),
+            o_children: [],
+          },
+        ]
+      | _ => [
+          {
+            o_label: "",
+            o_kind: KStmt,
+            o_id: Some(Exp.rep_id(e)),
+            o_test: None,
+            o_children: [],
+          },
+        ]
+      };
+    entry @ of_exp(~top, body);
   | Seq(_, body) => of_exp(body)
+  | _ when top => [
+      {
+        o_label: "",
+        o_kind: KTrail,
+        o_id: Some(Exp.rep_id(e)),
+        o_test: None,
+        o_children: [],
+      },
+    ]
   | _ => []
   };
 }
@@ -83,6 +128,7 @@ and mk_def = (~id: Id.t, name: string, def: Exp.t): node => {
       o_label: name,
       o_kind: KModule,
       o_id: Some(id),
+      o_test: None,
       o_children: of_mod(items),
     }
   | Fun(_, fbody, _, _)
@@ -90,12 +136,14 @@ and mk_def = (~id: Id.t, name: string, def: Exp.t): node => {
       o_label: name,
       o_kind: KFn,
       o_id: Some(id),
+      o_test: None,
       o_children: of_exp(fbody),
     }
   | _ => {
       o_label: name,
       o_kind: KConst,
       o_id: Some(id),
+      o_test: None,
       o_children: of_exp(def),
     }
   };
@@ -117,6 +165,7 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
               o_label: name,
               o_kind: KType,
               o_id: Some(Language.Mod.rep_id(m)),
+              o_test: None,
               o_children: [],
             },
           ]
@@ -135,6 +184,66 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
     items,
   );
 
+/* group each contiguous run of ≥2 top-level tests under a container
+   row (aggregate ✓/✗ in the view); singleton tests stay flat */
+let rec group_tests = (ns: list(node)): list(node) =>
+  switch (ns) {
+  | [] => []
+  | [{o_kind: KTest, _} as t1, {o_kind: KTest, _} as t2, ...rest] =>
+    let (run, rest) = take_tests([t2, ...rest], [t1]);
+    [
+      {
+        o_label: "tests",
+        o_kind: KTests,
+        o_id: None,
+        o_test: None,
+        o_children: List.rev(run),
+      },
+      ...group_tests(rest),
+    ];
+  | [n, ...rest] => [n, ...group_tests(rest)]
+  }
+and take_tests = (ns, acc) =>
+  switch (ns) {
+  | [{o_kind: KTest, _} as t, ...rest] => take_tests(rest, [t, ...acc])
+  | _ => (acc, ns)
+  };
+
+/* number the tests in program order — labels track the result panel's
+   ordering ("test 3") */
+let number_tests = (ns: list(node)): list(node) => {
+  let k = ref(0);
+  let label = () => {
+    incr(k);
+    string_of_int(k^);
+  };
+  List.map(
+    n =>
+      switch (n.o_kind) {
+      | KTest => {
+          ...n,
+          o_label: label(),
+        }
+      | KTests => {
+          ...n,
+          o_children:
+            List.map(
+              c =>
+                c.o_kind == KTest
+                  ? {
+                    ...c,
+                    o_label: label(),
+                  }
+                  : c,
+              n.o_children,
+            ),
+        }
+      | _ => n
+      },
+    ns,
+  );
+};
+
 /* memoized on the term's PHYSICAL identity: statics rebuilds the term
    only when the program changes, so between edits (and on every
    render while a focus stack is open) this is a pointer compare —
@@ -145,7 +254,7 @@ let of_term = (e: Exp.t): list(node) =>
   switch (cache^) {
   | Some((prev, tree)) when prev === e => tree
   | _ =>
-    let tree = of_exp(e);
+    let tree = of_exp(~top=true, e) |> group_tests |> number_tests;
     cache := Some((e, tree));
     tree;
   };
@@ -168,4 +277,28 @@ let path_of = (fid: Id.t, e: Exp.t): list(string) => {
       ns,
     );
   go([], of_term(e)) |> Option.value(~default=[]);
+};
+
+/* every id in the SUBTREE rooted at [fid] (excluding fid itself) —
+   pinning a parent unpins its pinned descendants */
+let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
+  let rec collect = (ns: list(node)): list(Id.t) =>
+    List.concat_map(
+      n => Option.to_list(n.o_id) @ collect(n.o_children),
+      ns,
+    );
+  let rec find = (ns: list(node)): option(node) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => n.o_id == Some(fid) ? Some(n) : find(n.o_children)
+        },
+      None,
+      ns,
+    );
+  switch (find(of_term(e))) {
+  | Some(n) => collect(n.o_children)
+  | None => []
+  };
 };

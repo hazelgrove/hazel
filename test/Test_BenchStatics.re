@@ -691,6 +691,73 @@ let probe_capture_parity = (): unit => {
   };
 };
 
+/* Structural alignment: outline restructure ops (insert / delete /
+   move / duplicate a top-level item) must cost the changed item plus
+   downstream mentioners of its export names — never a full recompute —
+   and must agree with a cold recompute of the same term. Items are
+   parsed separately and concatenated so piece ids stay stable across
+   recombinations, like real segment surgery. */
+let structural_alignment = (): unit => {
+  let settings = CoreSettings.on;
+  let strip_tail = (seg: Segment.t): Segment.t =>
+    switch (List.rev(seg)) {
+    | [Piece.Tile(_), ...rest] => List.rev(rest)
+    | _ => seg
+    };
+  let item = txt => strip_tail(parse_seg_of(txt ++ "0"));
+  let a = item("let a = 1 in\n");
+  let b = item("let b = a + 1 in\n");
+  let c = item("let c = b + a in\n");
+  let d = item("let d = 7 in\n");
+  let tail = parse_seg_of("c + d");
+  let term_of = segs => MakeTerm.go(List.concat(segs)).term;
+  let base = term_of([a, b, c, d, tail]);
+  let ds0 = DefStatics.calc(~settings, base);
+  let run = (label, ~expect_analyzed, term) => {
+    let ds = DefStatics.calc(~settings, ~prev=ds0, term);
+    let analyzed = DefStatics.last_analyzed^;
+    let cold = DefStatics.calc(~settings, term);
+    let ids = (t: DefStatics.t) =>
+      List.map((it: DefStatics.item) => it.d_id, t.items);
+    let exports = (t: DefStatics.t) =>
+      List.map(
+        (it: DefStatics.item) =>
+          List.map(DefStatics.entry_name, it.d_exports),
+        t.items,
+      );
+    let errs = (t: DefStatics.t) =>
+      List.sort_uniq(compare, DefStatics.all_error_ids(t));
+    let warns = (t: DefStatics.t) =>
+      List.sort_uniq(compare, DefStatics.all_warning_ids(t));
+    check(bool, label ++ ": item ids = cold", true, ids(ds) == ids(cold));
+    check(
+      bool,
+      label ++ ": exports = cold",
+      true,
+      exports(ds) == exports(cold),
+    );
+    check(bool, label ++ ": errors = cold", true, errs(ds) == errs(cold));
+    check(
+      bool,
+      label ++ ": warnings = cold",
+      true,
+      warns(ds) == warns(cold),
+    );
+    check(int, label ++ ": items analyzed", expect_analyzed, analyzed);
+  };
+  run("noop", ~expect_analyzed=0, base);
+  /* insert a fresh unrelated def: just itself */
+  let e = item("let e = 2 in\n");
+  run("insert", ~expect_analyzed=1, term_of([a, b, e, c, d, tail]));
+  /* delete d: only the tail mentions it */
+  run("delete", ~expect_analyzed=1, term_of([a, b, c, tail]));
+  /* move b below c: c mentions b, plus b itself (move-in recompute) */
+  run("move", ~expect_analyzed=2, term_of([a, c, b, d, tail]));
+  /* duplicate a (fresh ids, same name): the copy + mentioners of a */
+  let a2 = item("let a = 1 in\n");
+  run("duplicate", ~expect_analyzed=3, term_of([a, a2, b, c, d, tail]));
+};
+
 /* Incremental StreamCollector parity: drive a real yielding evaluation
    of mega-1k, and at every drained chunk compare the O(program)-walk
    collector against the incremental frontier collector — probes, test
@@ -811,6 +878,7 @@ let tests = (
   [
     test_case("stream collector parity", `Quick, stream_collector_parity),
     test_case("probe capture parity", `Quick, probe_capture_parity),
+    test_case("structural alignment", `Quick, structural_alignment),
     test_case("payload probe (informational)", `Quick, payload_probe),
     test_case(
       "DefStatics compositional (informational)",

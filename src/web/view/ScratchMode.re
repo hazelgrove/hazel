@@ -146,6 +146,9 @@ module Model = {
        misread the capitalized name as a constructor, so their headers
        stay statics-off */
     e_mod: bool,
+    /* headerless items (top-level statements / the trailing
+       expression): the static symbol shown instead of a header cell */
+    e_sym: option(string),
     /* body: the definition RHS, EXP- (or TYP-)rooted */
     e_body: CellEditor.Model.t,
     e_ctx: Language.Ctx.t /* frozen outer ctx at the definition */
@@ -167,7 +170,12 @@ module Model = {
     focus: option(focus_t),
   };
 
-  let header_name = (e: stack_entry): option(string) => {
+  let rec header_name = (e: stack_entry): option(string) =>
+    switch (e.e_sym) {
+    | Some(sym) => Some(sym)
+    | None => header_name_of_cell(e)
+    }
+  and header_name_of_cell = (e: stack_entry): option(string) => {
     let txt =
       Haz3lcore.MarkerParse.to_text(e.e_header.editor.editor.state.zipper);
     let name =
@@ -279,6 +287,20 @@ module Focus = {
       seg,
     );
 
+  let rec take = (n, xs) =>
+    switch (n, xs) {
+    | (0, _)
+    | (_, []) => []
+    | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
+    };
+  let rec drop = (n, xs) =>
+    switch (n, xs) {
+    | (0, _)
+    | (_, []) => xs
+    | (n, [_, ...xs]) => drop(n - 1, xs)
+    };
+  let slice = (a, b, xs) => take(b - a, drop(a, xs));
+
   /* split [ps] at the first `;` piece: (def run, separator + rest) */
   let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
     let rec go = (acc, ps) =>
@@ -289,6 +311,112 @@ module Focus = {
       };
     go([], ps);
   };
+
+  /* --- top-level item spans, BY PIECE STRUCTURE (no parse) ---
+     Boundaries are `…in`-tiles (def items: the tile + trailing ws)
+     and top-level `;`s (statement items: the run since the previous
+     boundary through the `;` + trailing ws); whatever remains is the
+     trailing expression. Spans partition the top-level piece list, so
+     restructure ops and headerless cells slice/splice without ever
+     parsing the program. */
+  type item_kind =
+    | IDef /* let / type / module: header+body cells */
+    | IStmt /* a `…;` statement: headerless cell */
+    | ITail; /* the trailing expression: headerless cell */
+
+  type item_span = {
+    sp_id: option(Id.t), /* the boundary tile's id; None for the tail */
+    sp_start: int,
+    sp_stop: int, /* exclusive */
+    sp_kind: item_kind,
+  };
+
+  let item_spans = (seg: Segment.t): list(item_span) => {
+    let arr = Array.of_list(seg);
+    let len = Array.length(arr);
+    let rec ws_end = i => i < len && is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
+    let is_in_tile = (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => ends_with_in(t)
+      | _ => false
+      };
+    let rec walk = (i, start, acc) =>
+      if (i >= len) {
+        /* the remainder (if it has content) is the trailing expr */
+        let has_content = {
+          let rec go = j => j < len && (!is_edge_ws(arr[j]) || go(j + 1));
+          start < len && go(start);
+        };
+        List.rev(
+          has_content
+            ? [
+              {
+                sp_id: None,
+                sp_start: start,
+                sp_stop: len,
+                sp_kind: ITail,
+              },
+              ...acc,
+            ]
+            : acc,
+        );
+      } else if (is_in_tile(arr[i]) || is_semi(arr[i])) {
+        let stop = ws_end(i + 1);
+        let kind = is_semi(arr[i]) ? IStmt : IDef;
+        /* def spans begin at their tile (leading trivia stays put,
+           as the old tile-anchored spans had it) */
+        let start = kind == IDef ? i : start;
+        walk(
+          stop,
+          stop,
+          [
+            {
+              sp_id: Some(Piece.id(arr[i])),
+              sp_start: start,
+              sp_stop: stop,
+              sp_kind: kind,
+            },
+            ...acc,
+          ],
+        );
+      } else {
+        walk(i + 1, start, acc);
+      };
+    walk(0, 0, []);
+  };
+
+  /* the span holding [fid]: by boundary id first, then containment
+     (outline ids can be tiles INSIDE an item — module binders, the
+     trailing expression's root) */
+  let find_item_span = (fid: Id.t, seg: Segment.t): option(item_span) => {
+    let spans = item_spans(seg);
+    switch (List.find_opt(sp => sp.sp_id == Some(fid), spans)) {
+    | Some(_) as r => r
+    | None =>
+      List.find_opt(
+        sp => seg_contains_id(fid, slice(sp.sp_start, sp.sp_stop, seg)),
+        spans,
+      )
+    };
+  };
+
+  /* the content sub-span a HEADERLESS item's cell holds (statement:
+     the run before its `;`; trailing expr: the whole span), plus the
+     static header symbol. None for def items. */
+  let headless_span =
+      (fid: Id.t, seg: Segment.t): option((int, int, string)) =>
+    switch (find_item_span(fid, seg)) {
+    | Some({sp_kind: IStmt, sp_start, sp_stop, _}) =>
+      let arr = Array.of_list(seg);
+      let rec back = i =>
+        i > sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+      let stop = back(sp_stop);
+      let stop = stop > sp_start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+      Some((sp_start, stop, {js|;|js}));
+    | Some({sp_kind: ITail, sp_start, sp_stop, _}) =>
+      Some((sp_start, sp_stop, {js|⇒|js}))
+    | _ => None
+    };
 
   /* The definition RHS for the item tile [fid]:
      - `let … = … in` (3 shards): the def is the tile's LAST CHILD;
@@ -507,7 +635,45 @@ module Focus = {
     };
   };
 
-  let mk_entry =
+  /* headerless entries carry an empty (grout) header cell — never
+     rendered, never spliced; a bare [] zipper would crash Skel */
+  let empty_header_cell = (): CellEditor.Model.t =>
+    pat_cell_of_seg([
+      Piece.Grout({
+        id: Id.mk(),
+        shape: Convex,
+      }),
+    ]);
+
+  let rec mk_entry =
+          (
+            ~info_map: Language.Statics.Map.t,
+            fid: Id.t,
+            master_seg: Segment.t,
+          )
+          : option(Model.stack_entry) =>
+    switch (headless_span(fid, master_seg)) {
+    | Some((start, stop, sym)) =>
+      let content = core_ws(slice(start, stop, master_seg));
+      let e_ctx =
+        switch (captured_ctx(~info_map, fid, content)) {
+        | Some(ctx) => ctx
+        | None =>
+          Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+        };
+      Some(
+        Model.{
+          e_id: fid,
+          e_mod: false,
+          e_sym: Some(sym),
+          e_header: empty_header_cell(),
+          e_body: cell_of_seg(content),
+          e_ctx,
+        },
+      );
+    | None => mk_def_entry(~info_map, fid, master_seg)
+    }
+  and mk_def_entry =
       (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
       : option(Model.stack_entry) =>
     switch (find_def(fid, master_seg)) {
@@ -524,6 +690,7 @@ module Focus = {
         Model.{
           e_id: fid,
           e_mod: is_module_item(fid, master_seg),
+          e_sym: None,
           e_header:
             (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(
               core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
@@ -538,15 +705,40 @@ module Focus = {
   /* splice ONE entry's header+body home into [seg], restoring the
      edge whitespace the master's stale copies still carry */
   let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
-    splice_def(
-      e.e_id,
-      rewrap_ws(find_def, e.e_id, seg, zip_of_cell(e.e_body)),
-      seg,
-    )
-    |> splice_pat(
-         e.e_id,
-         rewrap_ws(find_pat, e.e_id, seg, zip_of_cell(e.e_header)),
-       );
+    switch (e.e_sym) {
+    | Some(_) =>
+      /* headerless: replace the item's content run in place */
+      switch (headless_span(e.e_id, seg)) {
+      | Some((start, stop, _)) =>
+        let (pre, _, suf) = trim_ws(slice(start, stop, seg));
+        take(start, seg)
+        @ pre
+        @ zip_of_cell(e.e_body)
+        @ suf
+        @ drop(stop, seg);
+      | None => seg
+      }
+    | None =>
+      splice_def(
+        e.e_id,
+        rewrap_ws(find_def, e.e_id, seg, zip_of_cell(e.e_body)),
+        seg,
+      )
+      |> splice_pat(
+           e.e_id,
+           rewrap_ws(find_pat, e.e_id, seg, zip_of_cell(e.e_header)),
+         )
+    };
+
+  /* the cell-content slice for any entry kind (ctx recapture) */
+  let cell_content =
+      (e: Model.stack_entry, seg: Segment.t): option(Segment.t) =>
+    switch (e.e_sym) {
+    | Some(_) =>
+      headless_span(e.e_id, seg)
+      |> Option.map(((start, stop, _)) => slice(start, stop, seg))
+    | None => find_def(e.e_id, seg)
+    };
 
   /* the master segment with every live entry spliced home */
   let splice_all = (focus: Model.focus_t): Segment.t =>
@@ -576,6 +768,44 @@ module Focus = {
    UI, module-level like the other view caches — not model data */
 let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
 
+/* The spliced whole-program statics computed while a stack is open
+   (Force frames, first open frame, and restructure ops — which seed
+   it directly to avoid a second whole-program parse): term + merged
+   map + grafted elaboration. Feeds the master's EvalResult so
+   whole-program DYNAMICS keeps running while stacked. */
+let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
+
+/* pin ↔ collapse sync (andrew): pinning a row expands its outline
+   branch, unpinning collapses it. The <details> open state is DOM-
+   owned (user toggles never touch the model), so poke it directly. */
+let set_outline_open = (fid: Haz3lcore.Id.t, opened: bool): unit => {
+  open Js_of_ocaml;
+  let doit = () =>
+    switch (
+      Js.Opt.to_option(
+        Dom_html.document##getElementById(
+          Js.string("ol-b-" ++ Haz3lcore.Id.to_string(fid)),
+        ),
+      )
+    ) {
+    | Some(el) => Js.Unsafe.set(el, "open", Js.bool(opened))
+    | None => ()
+    };
+  /* now AND after the pending render(s): closing the last cell
+     rebuilds the master view — a long render that recreates the
+     <details> (default-open attr) well after one frame, wiping an
+     immediate-only poke. Retries are idempotent. */
+  doit();
+  List.iter(
+    delay => {
+      let _ =
+        Dom_html.window##setTimeout(Js.wrap_callback(() => doit()), delay);
+      ();
+    },
+    [50., 250., 900.],
+  );
+};
+
 /* Structural operations on TOP-LEVEL definitions (outline context
    menu): insert / duplicate / move / delete. All act on the LIVE
    whole-program segment (spliced when a stack is open) and rebuild
@@ -583,31 +813,6 @@ let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
    cells still find their definitions and probes stay pinned. */
 module Restructure = {
   open Haz3lcore;
-
-  /* (item id, top-level piece index, is_def) per chain item, in
-     program order; spans are contiguous: an item runs from its start
-     to the next item's start (trailing trivia travels with it) */
-  let item_starts = (seg: Segment.t): list((Id.t, int, bool)) => {
-    let term = MakeTerm.go(seg).term;
-    let is_def = (e: Language.Exp.t) =>
-      switch (e.term) {
-      | Let(_)
-      | TyAlias(_)
-      | ModuleExp(_)
-      | Seq(_) => true
-      | _ => false
-      };
-    let chain = DefStatics.chain(term);
-    let info = List.map(e => (Language.Exp.rep_id(e), is_def(e)), chain);
-    List.filteri((_, _) => true, seg)
-    |> List.mapi((i, p: Piece.t) => (i, Piece.id(p)))
-    |> List.filter_map(((i, pid)) =>
-         switch (List.assoc_opt(pid, info)) {
-         | Some(d) => Some((pid, i, d))
-         | None => None
-         }
-       );
-  };
 
   let parse = (txt: string): option(Segment.t) =>
     FastParse.of_text(
@@ -627,120 +832,111 @@ module Restructure = {
       seg,
     );
 
-  let rec take = (n, xs) =>
-    switch (n, xs) {
-    | (0, _)
-    | (_, []) => []
-    | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
-    };
-  let rec drop = (n, xs) =>
-    switch (n, xs) {
-    | (0, _)
-    | (_, []) => xs
-    | (n, [_, ...xs]) => drop(n - 1, xs)
-    };
-  let slice = (a, b, xs) => take(b - a, drop(a, xs));
-
-  /* apply [op] to the def [fid] within [seg]; returns the new segment
-     plus (for insert/duplicate) the created item's id to focus */
+  /* apply [op] to the item holding [fid] within [seg]; returns the new
+     segment plus (for insert/duplicate) the created item's id to
+     focus. Spans come from the piece structure (Focus.item_spans), so
+     tests/statements are addressable items too; the trailing
+     expression is not movable/deletable. */
   let apply =
       (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
       : option((Segment.t, option(Id.t))) => {
-    let starts = Array.of_list(item_starts(seg));
-    let n = Array.length(starts);
-    let len = List.length(seg);
+    let spans = Array.of_list(Focus.item_spans(seg));
+    let n = Array.length(spans);
     let idx = {
-      let rec go = j =>
-        j >= n
-          ? None
-          : {
-            let (id, _, _) = starts[j];
-            id == fid ? Some(j) : go(j + 1);
-          };
-      go(0);
-    };
-    let start_of = j => {
-      let (_, i, _) = starts[j];
-      i;
-    };
-    let end_of = j => j + 1 < n ? start_of(j + 1) : len;
-    let is_def = j => {
-      let (_, _, d) = starts[j];
-      d;
-    };
-    /* outline row ids can be tiles INSIDE the item (module binders
-       etc): fall back to the span that CONTAINS the id */
-    let idx =
-      switch (idx) {
+      let by_id = {
+        let rec go = j =>
+          j >= n ? None : spans[j].sp_id == Some(fid) ? Some(j) : go(j + 1);
+        go(0);
+      };
+      switch (by_id) {
       | Some(_) as r => r
       | None =>
+        /* outline row ids can be tiles INSIDE the item (module
+           binders, the trailing expression's root): the containing
+           span */
         let rec scan = j =>
           j >= n
             ? None
             : Focus.seg_contains_id(
                 fid,
-                slice(start_of(j), end_of(j), seg),
+                Focus.slice(spans[j].sp_start, spans[j].sp_stop, seg),
               )
                 ? Some(j) : scan(j + 1);
         scan(0);
       };
-    switch (idx) {
-    | None => None
-    | Some(j) =>
-      switch (op) {
-      | Delete =>
-        Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
-      | MoveUp when j > 0 =>
-        let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
-        Some((
-          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
-          None,
-        ));
-      | MoveDown when j + 1 < n && is_def(j + 1) =>
-        let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
-        Some((
-          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
-          None,
-        ));
-      | MoveUp
-      | MoveDown => None
-      | NewBelow
-      | NewTypeBelow
-      | NewModuleBelow =>
-        /* a bare `let _ = _ in` is not a complete program: parse with
-           a dummy tail, then drop the trailing tail tile */
-        let strip_tail = (sk: Segment.t): Segment.t =>
-          switch (List.rev(sk)) {
-          | [Piece.Tile(_), ...rest] => List.rev(rest)
-          | _ => sk
-          };
-        let skel_txt =
-          switch (op) {
-          | NewTypeBelow => "type NewType = ? in\n0"
-          | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
-          | _ => "let new_def = ? in\n0"
-          };
-        switch (parse(skel_txt)) {
-        | None => None
-        | Some(sk) =>
-          let sk = strip_tail(sk);
-          let at = end_of(j);
-          Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
-        };
-      | Duplicate =>
-        let span = slice(start_of(j), end_of(j), seg);
-        let txt = MarkerParse.to_text(Zipper.unzip(span));
-        switch (parse(txt)) {
-        | None => None
-        | Some(copy) =>
-          let at = end_of(j);
-          Some((
-            take(at, seg) @ copy @ drop(at, seg),
-            first_tile_id(copy),
-          ));
-        };
-      }
     };
+    let start_of = j => spans[j].sp_start;
+    let end_of = j => spans[j].sp_stop;
+    let movable = j => spans[j].sp_kind != Focus.ITail;
+    Focus.(
+      switch (idx) {
+      | None => None
+      | Some(j) =>
+        switch (op) {
+        | Delete when movable(j) =>
+          Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
+        | Delete => None
+        | MoveUp when j > 0 && movable(j) && movable(j - 1) =>
+          let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
+          Some((
+            take(a, seg)
+            @ slice(b, c, seg)
+            @ slice(a, b, seg)
+            @ drop(c, seg),
+            None,
+          ));
+        | MoveDown when j + 1 < n && movable(j) && movable(j + 1) =>
+          let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
+          Some((
+            take(a, seg)
+            @ slice(b, c, seg)
+            @ slice(a, b, seg)
+            @ drop(c, seg),
+            None,
+          ));
+        | MoveUp
+        | MoveDown => None
+        | NewBelow
+        | NewTypeBelow
+        | NewModuleBelow =>
+          /* a bare `let _ = _ in` is not a complete program: parse with
+             a dummy tail, then drop the trailing tail tile */
+          let strip_tail = (sk: Segment.t): Segment.t =>
+            switch (List.rev(sk)) {
+            | [Piece.Tile(_), ...rest] => List.rev(rest)
+            | _ => sk
+            };
+          let skel_txt =
+            switch (op) {
+            | NewTypeBelow => "type NewType = ? in\n0"
+            | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
+            | _ => "let new_def = ? in\n0"
+            };
+          switch (parse(skel_txt)) {
+          | None => None
+          | Some(sk) =>
+            let sk = strip_tail(sk);
+            /* inserting below the trailing expression would strand it
+               above the new def: insert ABOVE the tail instead */
+            let at = movable(j) ? end_of(j) : start_of(j);
+            Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
+          };
+        | Duplicate when movable(j) =>
+          let span = slice(start_of(j), end_of(j), seg);
+          let txt = MarkerParse.to_text(Zipper.unzip(span));
+          switch (parse(txt)) {
+          | None => None
+          | Some(copy) =>
+            let at = end_of(j);
+            Some((
+              take(at, seg) @ copy @ drop(at, seg),
+              first_tile_id(copy),
+            ));
+          };
+        | Duplicate => None
+        }
+      }
+    );
   };
 };
 
@@ -1532,6 +1728,7 @@ module Update = {
           switch (Focus.mk_entry(~info_map, fid, master_seg)) {
           | None => model |> Updated.return_quiet
           | Some(entry) =>
+            set_outline_open(fid, true);
             {
               ...model,
               focus:
@@ -1542,7 +1739,7 @@ module Update = {
                   },
                 ),
             }
-            |> Updated.return
+            |> Updated.return;
           };
         | Some(f) =>
           if (List.exists(
@@ -1555,6 +1752,7 @@ module Update = {
                 (e: Model.stack_entry) => e.e_id == fid,
                 f.f_entries,
               );
+            set_outline_open(fid, false);
             let master_seg = Focus.splice_entry(closing, f.f_master_seg);
             let rest =
               List.filter(
@@ -1596,27 +1794,39 @@ module Update = {
               |> Updated.return
             };
           } else {
-            /* add to the stack, keeping program order */
+            /* add to the stack, keeping program order. Pinning a
+               PARENT (module/fn) first splices its pinned descendants
+               home and unpins them — the parent's cell holds their
+               content (andrew: parent-pin unpins children). */
             let info_map = editor.editor.statics.info_map;
-            switch (Focus.mk_entry(~info_map, fid, f.f_master_seg)) {
+            let term = editor.editor.statics.term;
+            let desc = OutlineTree.descendant_ids(fid, term);
+            let (closing, keeping) =
+              List.partition(
+                (e: Model.stack_entry) => List.mem(e.e_id, desc),
+                f.f_entries,
+              );
+            let master_seg =
+              List.fold_left(
+                (seg, e) => Focus.splice_entry(e, seg),
+                f.f_master_seg,
+                closing,
+              );
+            switch (Focus.mk_entry(~info_map, fid, master_seg)) {
             | None => model |> Updated.return_quiet
             | Some(entry) =>
+              set_outline_open(fid, true);
               {
                 ...model,
                 focus:
                   Some(
                     Model.{
-                      ...f,
-                      f_entries:
-                        insert_entry(
-                          ~term=editor.editor.statics.term,
-                          entry,
-                          f.f_entries,
-                        ),
+                      f_entries: insert_entry(~term, entry, keeping),
+                      f_master_seg: master_seg,
                     },
                   ),
               }
-              |> Updated.return
+              |> Updated.return;
             };
           }
         }
@@ -1712,30 +1922,76 @@ module Update = {
           /* Statics are seeded SYNCHRONOUSLY: the outline reads the
              master's statics.term, and while a stack is open the
              master's own calculate is skipped — a fresh empty statics
-             would blank the outline. */
-          let statics =
-            Haz3lcore.CachedStatics.init_compositional(
-              ~settings=settings.core,
-              ~stitch=x => x,
-              ~root=Haz3lcore.Sort.Exp,
-              Zipper.unzip(~direction=Left, new_seg),
-            );
-          let new_editor: CellEditor.Model.t =
+             would blank the outline. Probe-aware (union of master +
+             open-cell zippers), so this single whole-program parse
+             also serves as the stacked-statics frame: restructures
+             used to Force a second parse the next frame. */
+          let probe_union = (a, b) =>
+            Haz3lcore.Id.Map.union((_, x, _) => Some(x), a, b);
+          let entry_probes =
             switch (model.focus) {
-            | Some(_) =>
-              /* master hidden while stacked: SKIP the whole-program
-                 editor rebuild (cell_of_seg re-measures everything,
-                 seconds on mega) — the zipper goes stale but every
-                 consumer while stacked reads f_master_seg, and
-                 unfocus rebuilds from it */
+            | None => Haz3lcore.Id.Map.empty
+            | Some(f) =>
+              List.fold_left(
+                (acc, e: Model.stack_entry) =>
+                  probe_union(
+                    acc,
+                    Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                      e.e_body.editor.editor.state.zipper,
+                    ),
+                  ),
+                Haz3lcore.Id.Map.empty,
+                f.f_entries,
+              )
+            };
+          let probe_ids =
+            probe_union(
+              entry_probes,
+              Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                editor.editor.editor.state.zipper,
+              ),
+            );
+          let statics =
+            settings.core.statics
+              ? Haz3lcore.CachedStatics.init_compositional_term(
+                  ~settings=settings.core,
+                  ~probe_ids,
+                  MakeTerm.go(new_seg).term,
+                )
+              : Haz3lcore.CachedStatics.empty;
+          let stays_stacked =
+            switch (model.focus) {
+            | None => false
+            | Some(f) =>
+              (
+                op == OutlineSidebar.Delete
+                  ? List.filter(
+                      (e: Model.stack_entry) => e.e_id != fid,
+                      f.f_entries,
+                    )
+                  : f.f_entries
+              )
+              != []
+            };
+          let new_editor: CellEditor.Model.t =
+            if (stays_stacked) {
               {
+                /* master hidden while stacked: SKIP the whole-program
+                   editor rebuild (cell_of_seg re-measures everything,
+                   seconds on mega) — the zipper goes stale but every
+                   consumer while stacked reads f_master_seg, and
+                   unfocus rebuilds from it */
+
                 editor: {
                   ...editor.editor,
                   statics,
                 },
                 result: editor.result,
-              }
-            | None =>
+              };
+            } else {
+              /* master (re)becomes visible — including when this op
+                 deletes the LAST open cell: a stale zipper here would
+                 resurrect the deleted def on the next calculate */
               let fresh = Focus.cell_of_seg(new_seg);
               {
                 editor: {
@@ -1775,9 +2031,62 @@ module Update = {
                     },
                   );
             };
-          /* statics realign on the next Force frame; open the new
-             definition as a cell */
-          CodeWithStatics.StaticsDebounce.force_on_next := true;
+          /* single-parse restructure: [statics] IS the stacked frame.
+             Seed the slot and recapture the open cells' frozen ctxs
+             from the fresh DefStatics items (a deleted/moved upstream
+             def changes what downstream cells see) — no Force pass. */
+          let focus =
+            switch (focus) {
+            | None =>
+              stacked_statics := None;
+              None;
+            | Some(f) =>
+              stacked_statics := Some(statics);
+              let ds_items =
+                switch (Haz3lcore.DefStatics.current()) {
+                | Some(ds) => ds.items
+                | None => []
+                };
+              let f_entries =
+                List.map(
+                  (e: Model.stack_entry) =>
+                    switch (
+                      List.find_opt(
+                        (it: Haz3lcore.DefStatics.item) =>
+                          it.d_id == e.e_id
+                          || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                        ds_items,
+                      )
+                    ) {
+                    | Some(it) =>
+                      switch (Focus.cell_content(e, new_seg)) {
+                      | Some(content) =>
+                        switch (
+                          Focus.captured_ctx(
+                            ~info_map=it.d_map,
+                            e.e_id,
+                            content,
+                          )
+                        ) {
+                        | Some(ctx) => {
+                            ...e,
+                            e_ctx: ctx,
+                          }
+                        | None => e
+                        }
+                      | None => e
+                      }
+                    | None => e
+                    },
+                  f.f_entries,
+                );
+              Some(
+                Model.{
+                  ...f,
+                  f_entries,
+                },
+              );
+            };
           switch (focus_target) {
           | Some(id) =>
             schedule_action(
@@ -2130,13 +2439,6 @@ module Update = {
     };
   };
 
-  /* The spliced whole-program statics computed while a stack is open
-     (Force frames + first open frame): term + merged map + grafted
-     elaboration. Feeds the master's EvalResult so whole-program
-     DYNAMICS keeps running while stacked — probes with out-of-cell
-     call sites sample, the result strip stays live. */
-  let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
-
   /* per-entry calculate memo (see calc_entry): FIXPOINT check. An
      entry that comes in physically identical to the last calculate's
      OUTPUT is already calculated — update only replaces an entry's
@@ -2275,7 +2577,7 @@ module Update = {
                   )
                 ) {
                 | Some(it) when fresh(it) =>
-                  switch (Focus.find_def(e.e_id, spliced)) {
+                  switch (Focus.cell_content(e, spliced)) {
                   | Some(def_seg) =>
                     switch (
                       Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)
@@ -2859,11 +3161,18 @@ module View = {
                     };
                   /* arrow keys at a pane's edge walk the stack:
                      ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
+                  let headerless = idx =>
+                    switch (List.nth_opt(f.f_entries, idx)) {
+                    | Some(e) => e.Model.e_sym != None
+                    | None => false
+                    };
                   let pane_focus =
                       (idx, to_header, move: Haz3lcore.Action.move) =>
                     if (idx < 0 || idx >= List.length(f.f_entries)) {
                       Virtual_dom.Vdom.Effect.Ignore;
                     } else {
+                      /* headerless entries have no header pane */
+                      let to_header = to_header && !headerless(idx);
                       /* DOM focus must follow the selection to the new
                          pane (after render — the active-cell id moves
                          with the re-render) or the caret vanishes and
@@ -2897,32 +3206,60 @@ module View = {
                     };
                   let body_escape = (d: Util.Direction.t) =>
                     switch (d) {
-                    | Left => pane_focus(i, true, End)
+                    | Left =>
+                      headerless(i)
+                        ? pane_focus(i - 1, false, End)
+                        : pane_focus(i, true, End)
                     | Right => pane_focus(i + 1, true, Start)
                     };
+                  let header_pane =
+                    switch (e.e_sym) {
+                    | Some(sym) =>
+                      /* headerless items (statements, trailing expr):
+                         a static symbol chip instead of a header cell */
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes([
+                            "focus-header",
+                            "focus-header-sym",
+                          ]),
+                        ],
+                        qualifier
+                        @ [
+                          Virtual_dom.Vdom.Node.span(
+                            ~attrs=[
+                              Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
+                            ],
+                            [Virtual_dom.Vdom.Node.text(sym)],
+                          ),
+                        ],
+                      )
+                    | None =>
+                      Virtual_dom.Vdom.Node.div(
+                        ~attrs=[
+                          Virtual_dom.Vdom.Attr.classes(["focus-header"]),
+                        ],
+                        qualifier
+                        @ [
+                          CellEditor.View.view(
+                            ~globals,
+                            ~signal=
+                              fun
+                              | MakeActive(sel) =>
+                                signal(MakeActive(StackH(i, sel))),
+                            ~inject=a => inject(StackHeader(i, a)),
+                            ~selected=header_sel,
+                            ~result_kind=`NoResults,
+                            ~locked=false,
+                            ~lines=false,
+                            ~escape=header_escape,
+                            e.e_header,
+                          ),
+                        ],
+                      )
+                    };
                   let nodes = [
-                    Virtual_dom.Vdom.Node.div(
-                      ~attrs=[
-                        Virtual_dom.Vdom.Attr.classes(["focus-header"]),
-                      ],
-                      qualifier
-                      @ [
-                        CellEditor.View.view(
-                          ~globals,
-                          ~signal=
-                            fun
-                            | MakeActive(sel) =>
-                              signal(MakeActive(StackH(i, sel))),
-                          ~inject=a => inject(StackHeader(i, a)),
-                          ~selected=header_sel,
-                          ~result_kind=`NoResults,
-                          ~locked=false,
-                          ~lines=false,
-                          ~escape=header_escape,
-                          e.e_header,
-                        ),
-                      ],
-                    ),
+                    header_pane,
                     Virtual_dom.Vdom.Node.div(
                       ~attrs=[Virtual_dom.Vdom.Attr.classes(["focus-body"])],
                       [

@@ -273,8 +273,36 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
    if a graft boundary has an unexpected shape we degrade to a
    no-eval error term instead of crashing. Falls back to the
    monolithic path for non-Exp roots or custom ctx/ana. */
+/* compositional statics from an already-made TERM: callers that hold
+   a plain segment (restructure ops) skip the zipper round-trip —
+   from_zip_for_sem's Dump.to_segment walk alone was ~300ms on mega-2k */
+let init_compositional_term =
+    (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
+  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+  let info_map = ds.merged;
+  let elaborated =
+    switch () {
+    | _ when !settings.dynamics && !settings.elaborate =>
+      dh_err("Dynamics & Elaboration disabled")
+    | _ =>
+      switch (DefStatics.whole_elab(ds)) {
+      | Some(elab) => elab
+      | None => dh_err("Compositional elaboration gap")
+      }
+    };
+  {
+    term,
+    elaborated,
+    info_map,
+    error_ids: DefStatics.all_error_ids(ds),
+    warning_ids: DefStatics.all_warning_ids(ds),
+    targets: compute_targets(~settings, ~info_map, ~probe_ids),
+    probe_ids,
+  };
+};
+
 let init_compositional =
-    (~settings: CoreSettings.t, ~stitch, ~root, z: Zipper.t): t =>
+    (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
   if (!settings.statics) {
     empty;
   } else if (root != Sort.Exp) {
@@ -282,26 +310,12 @@ let init_compositional =
   } else {
     let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
     let term = make_term_result.term |> stitch;
-    let probe_ids = probe_ids_of_zipper(z);
-    let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
-    let info_map = ds.merged;
-    let elaborated =
-      switch () {
-      | _ when !settings.dynamics && !settings.elaborate =>
-        dh_err("Dynamics & Elaboration disabled")
-      | _ =>
-        switch (DefStatics.whole_elab(ds)) {
-        | Some(elab) => elab
-        | None => dh_err("Compositional elaboration gap")
-        }
+    /* callers with probes living in OTHER zippers (stacked cells)
+       pass the union; default = this zipper's own */
+    let probe_ids =
+      switch (probe_ids) {
+      | Some(p) => p
+      | None => probe_ids_of_zipper(z)
       };
-    {
-      term,
-      elaborated,
-      info_map,
-      error_ids: DefStatics.all_error_ids(ds),
-      warning_ids: DefStatics.all_warning_ids(ds),
-      targets: compute_targets(~settings, ~info_map, ~probe_ids),
-      probe_ids,
-    };
+    init_compositional_term(~settings, ~probe_ids, term);
   };

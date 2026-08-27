@@ -1644,6 +1644,9 @@ let from_zip_for_sem = (z: Zipper.t, ~root) =>
    standalone pat statics entry is needed — just the term. */
 let from_zip_for_pat = (z: Zipper.t): Pat.t => {
   let seg = Dump.to_segment(z, ~root=Sort.Pat);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
   switch (Segment.skel(seg)) {
   | exception _ => Pat.fresh(EmptyHole)
   | skel => pat(unsorted(Sort.Pat, skel, seg))
@@ -1655,6 +1658,9 @@ let from_zip_for_pat = (z: Zipper.t): Pat.t => {
    cursor inspector has real type info. */
 let from_zip_for_typ = (z: Zipper.t): Typ.t => {
   let seg = Dump.to_segment(z, ~root=Sort.Typ);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
   switch (Segment.skel(seg)) {
   | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
   | skel => typ(unsorted(Sort.Typ, skel, seg))
@@ -1664,36 +1670,49 @@ let from_zip_for_typ = (z: Zipper.t): Typ.t => {
 /* Semantic TPAT for a TPat-rooted editor (type-alias header cells). */
 let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
   let seg = Dump.to_segment(z, ~root=Sort.TPat);
+  /* the recorders are global refs: without this, term annotations
+     pick up whichever segment's secondaries were collected last */
+  secondary_map := Segment.SecondaryCollection.collect(seg);
   switch (Segment.skel(seg)) {
   | exception _ => TPat.fresh(EmptyHole)
   | skel => tpat(unsorted(Sort.TPat, skel, seg))
   };
 };
 
-/* terms + term_data for a NON-Exp-rooted editor: the sorted parse
-   populates the same recorders the Exp path uses, so sort-consistency
-   highlighting and term selection (triple-click) work in Pat/TPat/Typ
-   cells. (The Exp-rooted [go] misparses those segments — its term
-   sorts flagged every token as sort-inconsistent.) */
-let sorted_syntax_data =
-    (~root: Sort.t, seg: Segment.t): (TermMap.t, TermData.t) => {
-  map := TermMap.empty;
-  term_data := Id.Map.empty;
-  projectors := Id.Map.empty;
-  projector_list := [];
-  switch (Segment.skel(seg)) {
-  | exception _ => (TermMap.empty, Id.Map.empty)
-  | skel =>
-    let u = unsorted(root, skel, seg);
-    switch (root) {
-    | Pat => ignore(pat(u))
-    | Typ => ignore(typ(u))
-    | TPat => ignore(tpat(u))
-    | _ => ()
-    };
-    (map^, term_data^);
-  };
-};
+/* terms + term_data + projectors for a NON-Exp-rooted editor: the
+   sorted parse populates the same recorders the Exp path uses, so
+   sort-consistency highlighting and term selection (triple-click)
+   work in Pat/TPat/Typ (and Drv/Mod/Sig/MPat) cells. (The Exp-rooted
+   [go] misparses those segments — its term sorts flagged every token
+   as sort-inconsistent.) Mirrors [go]'s full prologue/epilogue: the
+   recorders are GLOBAL refs, so a partial reset (or skipping
+   consolidate_adopted / the secondary collection) leaks another
+   segment's data into this cell's annotations. go_s dispatches every
+   sort, so the top-level term's own ids always land in [map] —
+   the earlier Pat/Typ/TPat-only dispatch left them out for other
+   roots, crashing unguarded consumers (Arms) in derivation cells. */
+let sorted_syntax_data_memo =
+  Core.Memo.general(
+    ~cache_size_bound=8,
+    ((root: Sort.t, seg: Segment.t)) => {
+      map := TermMap.empty;
+      term_data := Id.Map.empty;
+      projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
+      switch (Segment.skel(seg)) {
+      | exception _ => (TermMap.empty, Id.Map.empty, Id.Map.empty, [])
+      | skel =>
+        ignore(go_s(root, skel, seg));
+        consolidate_adopted();
+        (map^, term_data^, projectors^, projector_list^);
+      };
+    },
+  );
+
+let sorted_syntax_data = (~root: Sort.t, seg: Segment.t) =>
+  sorted_syntax_data_memo((root, seg));
 
 let from_zip_for_sem =
   /* small for the same reason as [go]: keys pin zippers */

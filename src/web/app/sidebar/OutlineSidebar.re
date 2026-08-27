@@ -10,6 +10,8 @@ open Node;
 
 let clss = cs => Attr.classes(cs);
 
+module TestStatus = Language.TestStatus;
+
 /* structural operations on a TOP-LEVEL definition, offered from the
    row's context menu; handled by ScratchMode (segment surgery on the
    master program) */
@@ -29,6 +31,10 @@ let kind_glyph = (k: OutlineTree.kind): string =>
   | KFn => {js|ƒ|js}
   | KConst => {js|·|js}
   | KType => {js|τ|js}
+  | KTest
+  | KTests => {js|◦|js} /* overridden by the test's live status */
+  | KStmt => {js|;|js}
+  | KTrail => {js|⇒|js}
   };
 
 let kind_cls = (k: OutlineTree.kind): string =>
@@ -37,7 +43,38 @@ let kind_cls = (k: OutlineTree.kind): string =>
   | KFn => "ol-fn"
   | KConst => "ol-const"
   | KType => "ol-type"
+  | KTest => "ol-test"
+  | KTests => "ol-tests"
+  | KStmt => "ol-stmt"
+  | KTrail => "ol-trail"
   };
+
+/* live glyph + status class for test rows; the container joins its
+   children's statuses (any fail => ✗) */
+let test_glyph =
+    (
+      ~test_status: Language.Id.t => option(TestStatus.t),
+      n: OutlineTree.node,
+    )
+    : option((string, string)) => {
+  let of_status = (s: TestStatus.t) =>
+    switch (s) {
+    | Pass => ({js|✓|js}, "ol-pass")
+    | Fail => ({js|✗|js}, "ol-fail")
+    | Indet => ({js|?|js}, "ol-indet")
+    };
+  switch (n.o_kind) {
+  | KTest => Option.map(of_status, Option.bind(n.o_test, test_status))
+  | KTests =>
+    let sts =
+      List.filter_map(
+        (c: OutlineTree.node) => Option.bind(c.o_test, test_status),
+        n.o_children,
+      );
+    sts == [] ? None : Some(of_status(TestStatus.join_all(sts)));
+  | _ => None
+  };
+};
 
 /* drag-to-resize: pointerdown attaches DOCUMENT-level move/up
    listeners (pointer events — canceled pointerdown suppresses compat
@@ -110,9 +147,11 @@ let rec node_view =
           ~error_subtree: list(Language.Id.t),
           ~focused_entries: list((Language.Id.t, option(string))),
           ~error_items: list(Language.Id.t),
+          ~test_status: Language.Id.t => option(TestStatus.t),
           n: OutlineTree.node,
         )
         : Node.t => {
+  let status = test_glyph(~test_status, n);
   let has_err =
     switch (n.o_id) {
     | Some(id) => List.mem(id, error_items)
@@ -155,7 +194,13 @@ let rec node_view =
           clss(
             ["outline-label", kind_cls(n.o_kind)]
             @ (stacked ? ["outline-focused"] : [])
-            @ (has_err ? ["outline-has-err"] : []),
+            @ (has_err ? ["outline-has-err"] : [])
+            @ (
+              switch (status) {
+              | Some((_, cls)) => [cls]
+              | None => []
+              }
+            ),
           ),
         ]
         @ (
@@ -172,7 +217,7 @@ let rec node_view =
           /* structural ops are TOP-LEVEL only for now (member
              granularity is docketed) */
           switch (n.o_id) {
-          | Some(id) when top_level => [
+          | Some(id) when top_level && n.o_kind != OutlineTree.KTrail => [
               Attr.on_contextmenu(evt => {
                 let x =
                   float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX);
@@ -187,7 +232,14 @@ let rec node_view =
       [
         span(
           ~attrs=[clss(["outline-glyph"])],
-          [text(kind_glyph(n.o_kind))],
+          [
+            text(
+              switch (status) {
+              | Some((g, _)) => g
+              | None => kind_glyph(n.o_kind)
+              },
+            ),
+          ],
         ),
         text(n.o_label),
       ]
@@ -244,7 +296,15 @@ let rec node_view =
   | kids =>
     create(
       "details",
-      ~attrs=[clss(["outline-branch"]), Attr.create("open", "")],
+      ~attrs=
+        [clss(["outline-branch"]), Attr.create("open", "")]
+        @ (
+          /* pin↔collapse sync (ScratchMode pokes details.open) */
+          switch (n.o_id) {
+          | Some(id) => [Attr.id("ol-b-" ++ Language.Id.to_string(id))]
+          | None => []
+          }
+        ),
       [
         create("summary", ~attrs=[clss(["outline-summary"])], [label]),
         div(
@@ -259,6 +319,7 @@ let rec node_view =
               ~error_subtree,
               ~focused_entries,
               ~error_items,
+              ~test_status,
             ),
             kids,
           ),
@@ -334,6 +395,7 @@ let view =
       ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
       ~menu_close: Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~test_status: Language.Id.t => option(TestStatus.t),
       term: Language.Exp.t,
     )
     : Node.t => {
@@ -379,6 +441,7 @@ let view =
                   ~error_subtree,
                   ~focused_entries,
                   ~error_items,
+                  ~test_status,
                 ),
                 roots,
               )

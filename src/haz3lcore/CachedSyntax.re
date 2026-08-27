@@ -47,15 +47,17 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
-  /* the EXP-rooted parse above misparses Pat/TPat/Typ-rooted cells
-     (every token read as sort-inconsistent): re-derive terms and
-     term_data from a parse at the cell's own root sort, so coloring
-     and term selection (triple-click) work in headers and type cells */
-  let (terms, term_data) =
-    root == Sort.Exp
-      ? (terms, term_data) : MakeTerm.sorted_syntax_data(~root, segment);
+  /* non-Exp-rooted cells parse ONCE at their own root sort — the
+     Exp-rooted [go] misparses them (every token sort-inconsistent),
+     and running it just for projectors paid a full wrong parse */
+  let (terms, term_data, projectors, projector_list) =
+    if (root == Sort.Exp) {
+      let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+        MakeTerm.go(segment);
+      (terms, term_data, projectors, projector_list);
+    } else {
+      MakeTerm.sorted_syntax_data(~root, segment);
+    };
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,

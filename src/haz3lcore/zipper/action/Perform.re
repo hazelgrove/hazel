@@ -93,7 +93,12 @@ let go =
       };
     Some(z) |> return(CantReparse);
   | Buffer(a) =>
-    Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+    Buffer.go(
+      ~root,
+      ~ci=Indicated.ci_for_completion(z, statics.info_map),
+      a,
+      z,
+    )
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
