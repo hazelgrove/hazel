@@ -40,12 +40,6 @@ module Model = {
     open_box: NoneOpen,
     cached_env: Calc.Pending,
   };
-  let get_selected_exp = (m: t): Exp.t =>
-    m.selected_exp
-    |> Calc.saved_to_option
-    |> Option.join
-    |> OptUtil.get(() => EmptyHole |> Exp.fresh);
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = unit;
 

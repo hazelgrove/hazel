@@ -155,7 +155,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     };
   let* tok_to_left = token_to_left(z);
   /* Only show completions after typing enough characters */
-  let* _ = String.length(tok_to_left) >= min_prefix_len ? Some() : None;
+  /* Graphemes, not bytes: a single `é` or `日` must not clear a 2-char gate. */
+  let* _ = Util.Unicode.length(tok_to_left) >= min_prefix_len ? Some() : None;
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions

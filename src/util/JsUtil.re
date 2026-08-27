@@ -98,10 +98,6 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
-let log = data => {
-  Firebug.console##log(data);
-};
-
 let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
@@ -189,10 +185,16 @@ let show_copy_toast = (): unit => {
     },
   );
 };
-/* Direct clipboard writes via the async Clipboard API. Used from editor
-   key handlers where the focused element is a non-editable div and
-   Firefox therefore refuses to dispatch a native `copy` event to the
-   page-level handler. Safe under a user gesture (keydown). */
+/* Clipboard access as Effects. Both directions go through the async
+   Clipboard API, because the editor's key handlers run with focus on a
+   non-editable div and Firefox refuses to dispatch native copy/paste
+   events there.
+
+   Defined with Ui_effect.Define1 — the same mechanism Bonsai builds
+   Effect.of_deferred_fun from — so callers compose these like any other
+   Effect rather than side-effecting on their own and scheduling the
+   result by hand. Both must be dispatched from an event handler: the
+   Clipboard API only grants access under a user gesture. */
 let has_clipboard_api = (): bool =>
   Js.to_bool(
     Js.Unsafe.fun_call(
@@ -203,32 +205,47 @@ let has_clipboard_api = (): bool =>
     ),
   );
 
-let write_clipboard = (str: string): unit =>
-  if (has_clipboard_api()) {
-    Js.Unsafe.fun_call(
-      Js.Unsafe.pure_js_expr(
-        "(function(s){navigator.clipboard.writeText(s);})",
-      ),
-      [|Js.Unsafe.inject(Js.string(str))|],
-    );
-  } else {
-    /* Older browsers: fall through to the shim/execCommand path. */
-    copy(str);
+module ClipboardHandler = {
+  module Action = {
+    type t(_) =
+      | Read_text: t(string)
+      | Write_text(string): t(unit);
   };
+  let handle = (type a, action: Action.t(a), ~on_response: a => unit) =>
+    switch (action) {
+    | Read_text =>
+      let cb = Js.wrap_callback(text => on_response(Js.to_string(text)));
+      Js.Unsafe.fun_call(
+        Js.Unsafe.pure_js_expr(
+          "(function(cb){navigator.clipboard.readText().then(cb);})",
+        ),
+        [|Js.Unsafe.inject(cb)|],
+      );
+    | Write_text(str) =>
+      /* Older browsers with no Clipboard API fall through to the
+         execCommand shim. */
+      if (has_clipboard_api()) {
+        Js.Unsafe.fun_call(
+          Js.Unsafe.pure_js_expr(
+            "(function(s){navigator.clipboard.writeText(s);})",
+          ),
+          [|Js.Unsafe.inject(Js.string(str))|],
+        );
+      } else {
+        copy(str);
+      };
+      on_response();
+    };
+};
+module Clipboard = Ui_effect.Define1(ClipboardHandler);
 
-/* Async clipboard read, used for editor-level Cmd+V. The Promise's
-   text result is delivered to `on_text`, which is expected to schedule
-   the resulting Effect via Bonsai.Effect.Expert.handle. */
-let read_clipboard = (on_text: string => unit): unit =>
-  if (has_clipboard_api()) {
-    let cb = Js.wrap_callback(text => on_text(Js.to_string(text)));
-    Js.Unsafe.fun_call(
-      Js.Unsafe.pure_js_expr(
-        "(function(cb){navigator.clipboard.readText().then(cb);})",
-      ),
-      [|Js.Unsafe.inject(cb)|],
-    );
-  };
+let write_clipboard = (str: string): Effect.t(unit) =>
+  Clipboard.inject(Write_text(str));
+
+/* Never completes when the browser has no Clipboard API — there is no
+   text to deliver, so there is no Paste to dispatch. */
+let read_clipboard = (): Effect.t(string) =>
+  has_clipboard_api() ? Clipboard.inject(Read_text) : Effect.never;
 
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
@@ -323,16 +340,6 @@ let scroll_cursor_into_view_if_needed = () =>
   };
 
 module Fragment = {
-  let set_current = frag => {
-    let frag =
-      switch (frag) {
-      | "" => ""
-      | frag => "#" ++ frag
-      };
-    let history = Js_of_ocaml.Dom_html.window##.history;
-    history##pushState(Js.null, Js.string(""), Js.some(Js.string(frag)));
-  };
-
   let get_current = () => {
     let fragment_of_url = (url: Url.url): string =>
       switch (url) {
@@ -434,14 +441,6 @@ let setup_focus_bar_scroll_compensation = () =>
     | _ => ()
     };
   };
-
-let set_select_value = (select_id, value) => {
-  Js_of_ocaml.Js.Unsafe.set(
-    get_elem_by_id(select_id),
-    "value",
-    Js_of_ocaml.Js.string(value),
-  );
-};
 
 let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(
@@ -554,22 +553,6 @@ module QueryParams = {
          );
        });
   };
-
-  let remove_param = (name: string) =>
-    Url.Current.get()
-    |> Option.iter(url => {
-         let args =
-           get_arguments(url) |> List.filter(((k, _)) => k != name);
-
-         let new_url = set_arguments(url, args);
-         let href = Url.string_of_url(new_url);
-
-         Dom_html.window##.history##pushState(
-           Js.null,
-           Js.string(""),
-           Js.some(Js.string(href)),
-         );
-       });
 };
 
 let add_message_listener = (handler: _ => _): unit =>
