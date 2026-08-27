@@ -1000,7 +1000,8 @@ module Focus = {
 
 /* outline context-menu state (row id + screen position): transient
    UI, module-level like the other view caches — not model data */
-let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
+let outline_menu: ref(option((Haz3lcore.Id.t, bool, float, float))) =
+  ref(None);
 
 /* the header symbol a headerless cell for [fid] should show, from
    the OUTLINE's view of the row (span kinds mis-read member-fn tails:
@@ -1116,7 +1117,9 @@ module Restructure = {
     /* the Mod-root wrap parses plain braces whose child is EXP-sorted
        (members came out as let-ins): parse a real module instead and
        extract its body child, then cut after the member's own `;` */
-    switch (parse("module Zz = {" ++ txt ++ ";\nlet zz = ?} in\n0")) {
+    switch (parse("module Zz = {" ++ txt ++ {js|;
+let zz = ¿} in
+0|js})) {
     | None => None
     | Some(seg) =>
       let body = {
@@ -1214,7 +1217,10 @@ module Restructure = {
       };
     };
     let member_form = j => in_module && !span_in_tile(j);
-    let same_family = (j, k) => span_in_tile(j) == span_in_tile(k);
+    /* only module-body levels interleave two block levels (member-fn
+       flattening); at top level mixing defs/tests in moves is fine */
+    let same_family = (j, k) =>
+      !in_module || span_in_tile(j) == span_in_tile(k);
     Focus.(
       switch (op) {
       | Delete when movable(j) =>
@@ -1249,9 +1255,9 @@ module Restructure = {
           if (member_form(j)) {
             let txt =
               switch (op) {
-              | NewTypeBelow => "type NewType = ?"
-              | NewModuleBelow => "module NewModule = {let member = ?}"
-              | _ => "let new_def = ?"
+              | NewTypeBelow => {js|type NewType = ¿|js}
+              | NewModuleBelow => {js|module NewModule = {}|js}
+              | _ => {js|let new_def = ¿|js}
               };
             member_chunk(txt);
           } else {
@@ -1264,9 +1270,12 @@ module Restructure = {
               };
             let txt =
               switch (op) {
-              | NewTypeBelow => "type NewType = ? in\n0"
-              | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
-              | _ => "let new_def = ? in\n0"
+              | NewTypeBelow => {js|type NewType = ¿ in
+0|js}
+              | NewModuleBelow => {js|module NewModule = {} in
+0|js}
+              | _ => {js|let new_def = ¿ in
+0|js}
               };
             Option.map(strip_tail, parse(txt));
           };
@@ -1291,6 +1300,7 @@ module Restructure = {
           ));
         };
       | Duplicate => None
+      | NewInside => None /* handled in [apply] via find_def */
       }
     );
   };
@@ -1408,10 +1418,136 @@ module Restructure = {
     };
   };
 
+  /* append a fresh member INSIDE a module row's body (works at any
+     depth: find_def/splice_def handle both 3-shard `module … in` and
+     2-shard member modules) */
+  let new_inside =
+      (fid: Id.t, seg: Segment.t): option((Segment.t, option(Id.t))) => {
+    switch (Focus.find_def(fid, seg)) {
+    | None => None
+    | Some(def_seg) =>
+      let rec upd_brace =
+              (ps: Segment.t): option((Segment.t, option(Id.t))) =>
+        switch (ps) {
+        | [] => None
+        | [Piece.Tile(bt), ...rest] when bt.label == ["{}"] =>
+          /* an EMPTY module body parses as a nullary fused `{}` tile
+             (no child slot): swap in a populated 2-shard brace from a
+             scaffold parse */
+          switch (parse({js|module Zz = {let new_def = ¿} in
+0|js})) {
+          | None => None
+          | Some(scaffold) =>
+            let rec find_brace = (qs: Segment.t): option(Piece.t) =>
+              switch (qs) {
+              | [] => None
+              | [Piece.Tile(t), ...more] =>
+                t.label == ["{", "}"]
+                  ? Some(Piece.Tile(t))
+                  : (
+                    switch (List.find_map(find_brace, t.children)) {
+                    | Some(_) as r => r
+                    | None => find_brace(more)
+                    }
+                  )
+              | [_, ...more] => find_brace(more)
+              };
+            switch (find_brace(scaffold)) {
+            | Some(Piece.Tile(brace) as p) =>
+              let target =
+                switch (brace.children) {
+                | [inner] => first_tile_id(inner)
+                | _ => None
+                };
+              Some(([p, ...rest], target));
+            | _ => None
+            };
+          }
+        | [Piece.Tile(bt), ...rest]
+            when bt.label == ["{", "}"] && List.length(bt.children) == 1 =>
+          switch (member_chunk({js|let new_def = ¿|js})) {
+          | None => None
+          | Some(chunk) =>
+            let inner = List.hd(bt.children);
+            let has_tile =
+              List.exists(
+                (p: Piece.t) =>
+                  switch (p) {
+                  | Tile(_) => true
+                  | _ => false
+                  },
+                inner,
+              );
+            let inner' =
+              if (has_tile) {
+                let arr = Array.of_list(inner);
+                let n = Array.length(arr);
+                let rec back = i =>
+                  i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+                let at = back(n);
+                /* the LAST member may be unterminated (mega style:
+                   `…= fun _ -> true\n}`): appending needs a separator
+                   FIRST or the members run together. The chunk is
+                   [member, ;, ws] — reorder it to [;, ws, member] in
+                   that case (the new member becomes the unterminated
+                   last one). */
+                let terminated =
+                  at > 0
+                  && (
+                    switch (arr[at - 1]) {
+                    | Piece.Tile(t) => t.label == [";"]
+                    | _ => false
+                    }
+                  );
+                let insertion =
+                  if (terminated) {
+                    chunk;
+                  } else {
+                    let carr = Array.of_list(chunk);
+                    let cn = Array.length(carr);
+                    let rec semi_at = i =>
+                      i >= cn
+                        ? None
+                        : Focus.is_semi(carr[i]) ? Some(i) : semi_at(i + 1);
+                    switch (semi_at(0)) {
+                    | Some(k) => Focus.drop(k, chunk) @ Focus.take(k, chunk)
+                    | None => chunk
+                    };
+                  };
+                Focus.take(at, inner) @ insertion @ Focus.drop(at, inner);
+              } else {
+                /* empty body: the chunk replaces the grout filler */
+                chunk;
+              };
+            Some((
+              [
+                Piece.Tile({
+                  ...bt,
+                  children: [inner'],
+                }),
+                ...rest,
+              ],
+              first_tile_id(chunk),
+            ));
+          }
+        | [p, ...rest] =>
+          upd_brace(rest)
+          |> Option.map(((rest', t)) => ([p, ...rest'], t))
+        };
+      upd_brace(def_seg)
+      |> Option.map(((def_seg', target)) =>
+           (Focus.splice_def(fid, def_seg', seg), target)
+         );
+    };
+  };
+
   let apply =
       (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
       : option((Segment.t, option(Id.t))) =>
-    apply_deep(op, fid, ~bctx=BPlain, ~top=true, seg);
+    switch (op) {
+    | NewInside => new_inside(fid, seg)
+    | _ => apply_deep(op, fid, ~bctx=BPlain, ~top=true, seg)
+    };
 };
 
 /* the outline's ids in document order — the stack mirrors this order */
@@ -2074,7 +2210,7 @@ module Update = {
     | OutlineCollapse(list(string)) /* toggle a branch's collapse */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
-    | OutlineMenu(option((Haz3lcore.Id.t, float, float)))
+    | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
     | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
     | UnfocusDef
     | RefreshStatics

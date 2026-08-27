@@ -969,18 +969,23 @@ module View = {
          DEEPEST row containing it; ancestor rows get a roll-up badge
          that CSS shows only while collapsed (andrew: error goes on the
          deepest thing not hidden by a collapse) */
-      /* the master's statics can be EMPTY while its view is hidden
-         (undo restores compacted snapshots; the hidden master never
-         recomputes): fall back to the DefStatics slot's term so the
-         outline survives until the next Force frame re-derives it */
+      /* While a stack is open the master's statics are FROZEN (its
+         calculate is skipped) — only the DefStatics slot tracks the
+         live spliced program (every Force frame). Rows inside open
+         cells (nested defs, renames typed into a cell) update through
+         it; without this the outline only refreshed on restructure
+         ops. Unstacked, the master's own statics are live — but they
+         can be EMPTY right after an undo restores a compacted
+         snapshot, so fall back to the slot then too. */
       let outline_term = {
         let term = current_editor.statics.term;
-        let named =
+        let stacked = focused_entries != [];
+        let named = () =>
           List.exists(
             (n: OutlineTree.node) => n.o_label != "",
             OutlineTree.of_term(term),
           );
-        if (named) {
+        if (!stacked && named()) {
           term;
         } else {
           switch (Haz3lcore.DefStatics.current()) {
@@ -1063,9 +1068,13 @@ module View = {
         ~focused_entries,
         ~menu=is_scratch ? ScratchMode.outline_menu^ : None,
         ~menu_open=
-          (id, x, y) =>
+          (id, is_module, x, y) =>
             is_scratch
-              ? inject(Editors(Scratch(OutlineMenu(Some((id, x, y))))))
+              ? inject(
+                  Editors(
+                    Scratch(OutlineMenu(Some((id, is_module, x, y)))),
+                  ),
+                )
               : Virtual_dom.Vdom.Effect.Ignore,
         ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
         ~def_op=

@@ -215,7 +215,11 @@ let member_restructure = (): unit => {
     ~src="let f = fun x -> let y = 1 in y in f(1)",
     ~label="y",
     ~op=Web.OutlineSidebar.NewBelow,
-    ~expect=t => contains("new_def = ? in", t) && contains("in f(1)", t),
+    ~expect=
+      t =>
+        contains("new_def", t)
+        && !contains("new_def = ?", t)  /* implicit hole */
+        && contains("in f(1)", t),
     ~desc="fn-body new-below is a let-in",
     (),
   );

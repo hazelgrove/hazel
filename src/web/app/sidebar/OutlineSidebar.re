@@ -20,6 +20,7 @@ type def_op =
   | NewBelow
   | NewTypeBelow
   | NewModuleBelow
+  | NewInside /* module rows: append a member inside the body */
   | Duplicate
   | MoveUp
   | MoveDown
@@ -147,7 +148,7 @@ let rec node_view =
           ~toggle_collapse: list(string) => Effect.t(unit),
           ~path: list(string),
           ~top_level: bool,
-          ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
+          ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
           ~focused_entries: list((Language.Id.t, option(string))),
           ~error_items: list(Language.Id.t),
@@ -245,7 +246,10 @@ let rec node_view =
                   float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX);
                 let y =
                   float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientY);
-                Effect.Many([Effect.Prevent_default, menu_open(id, x, y)]);
+                Effect.Many([
+                  Effect.Prevent_default,
+                  menu_open(id, n.o_kind == OutlineTree.KModule, x, y),
+                ]);
               }),
             ]
           | _ => []
@@ -424,6 +428,7 @@ let menu_view =
     (
       ~menu_close: Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~is_module: bool,
       (id: Language.Id.t, x: float, y: float),
     )
     : list(Node.t) => {
@@ -485,7 +490,8 @@ let menu_view =
           clss(["outline-def-menu"]),
           Attr.style(Css_gen.combine(h, v)),
         ],
-        [
+        (is_module ? [item(NewInside, "new definition inside")] : [])
+        @ [
           item(NewBelow, "new definition below"),
           item(NewTypeBelow, "new type below"),
           item(NewModuleBelow, "new module below"),
@@ -511,8 +517,8 @@ let view =
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
       ~error_subtree: list(Language.Id.t),
-      ~menu: option((Language.Id.t, float, float)),
-      ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
+      ~menu: option((Language.Id.t, bool, float, float)),
+      ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
       ~menu_close: Effect.t(unit),
       ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
       ~test_status: Language.Id.t => option(TestStatus.t),
@@ -578,7 +584,8 @@ let view =
     ]
     @ (
       switch (menu) {
-      | Some(m) => menu_view(~menu_close, ~def_op, m)
+      | Some((id, is_module, x, y)) =>
+        menu_view(~menu_close, ~def_op, ~is_module, (id, x, y))
       | None => []
       }
     ),
