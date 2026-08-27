@@ -3202,7 +3202,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(typ)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(typ) |> List.hd, List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
