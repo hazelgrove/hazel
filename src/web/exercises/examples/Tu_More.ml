@@ -31,19 +31,34 @@ let bools_ex : Tutorial.spec =
     version = 8;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -299,6 +314,7 @@ let bools_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints =
           [
@@ -327,19 +343,34 @@ let cond_ex : Tutorial.spec =
     version = 9;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -437,6 +468,7 @@ let cond_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints =
           [
@@ -467,19 +499,34 @@ let func_ex : Tutorial.spec =
     version = 10;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -577,6 +624,7 @@ let func_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [ "Did you copy in the given expression correctly?" ];
       };

@@ -1,0 +1,220 @@
+open Util;
+open Language;
+
+/* Text-only probe display for LLM/agent consumption.
+ * Outputs program text with probed expressions wrapped in Unicode
+ * brackets and sample values appended at line ends. */
+
+/* Divider between expression and values */
+let value_divider = " ≡ ";
+
+/* Separator between multiple values in many mode */
+let value_separator = " ⫽ ";
+
+/* Empty status indicators (matching GUI) */
+let no_samples_indicator = "∅";
+let hidden_by_pin_indicator = "⍟";
+let not_aligned_indicator = "⊖";
+
+/* Spacing before value section */
+let value_spacing = "    ";
+
+/* Compute which line each refractor (probe) is on using Measured.
+ * Returns a map from line number to list of probe IDs on that line. */
+let get_probes_by_line =
+    (refractors: Zipper.Refractor.RefractorList.t, measured: Measured.t)
+    : IntMap.t(list(Id.t)) =>
+  List.fold_right(
+    ((tile_id, entry: Zipper.Refractor.entry), acc) =>
+      if (entry.kind != Probe) {
+        acc;
+      } else {
+        switch (Measured.find_by_id(tile_id, measured)) {
+        | Some(m) =>
+          /* Use last.row to place probe value at END of expression,
+           * not origin.row which is the START. This matters for
+           * multi-line expressions like test...end blocks. */
+          let row = m.last.row;
+          let existing =
+            IntMap.find_opt(row, acc) |> Option.value(~default=[]);
+          IntMap.add(row, existing @ [tile_id], acc);
+        | None => acc
+        };
+      },
+    refractors,
+    IntMap.empty,
+  );
+
+/* Longest grapheme prefix of `s` fitting within `cols` display columns. */
+let prefix_within_columns = (cols: int, s: string): string => {
+  let idx = Unicode.Width.column_to_grapheme_index(s, cols);
+  /* That rounds up through the cluster straddling `cols`; back off so the
+   * prefix never exceeds the budget. */
+  let idx =
+    Unicode.Width.columns_through_prefix(s, idx) > cols ? idx - 1 : idx;
+  fst(Unicode.split_nth(s, max(0, idx)));
+};
+
+/* Format a single sample value as text */
+let format_value = (~max_length: int=50, value: Exp.t): string => {
+  let seg =
+    ExpToSegment.exp_to_segment(
+      ~settings={
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+        show_unknown_as_hole: false,
+        hole_tiles: false,
+      },
+      value |> DHExp.strip_ascriptions,
+    );
+  let str =
+    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  /* Remove any remaining newlines */
+  let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
+  /* Truncate if too long. `max_length` bounds how much of a line the value
+   * takes up, so it is measured in display columns, and the cut lands on a
+   * grapheme boundary rather than mid-codepoint. */
+  if (Unicode.Width.columns_of_string(str) > max_length) {
+    prefix_within_columns(max_length - 3, str) ++ "...";
+  } else {
+    str;
+  };
+};
+
+/* Determine empty status for a probe.
+ * Returns None if samples exist, Some(status) if empty. */
+let get_empty_status =
+    (~window: Sample.Window.mode, samples: list(Sample.t))
+    : option(Sample.Selection.empty_status) =>
+  switch (samples) {
+  | [] => Some(NoSamplesExist)
+  | _ when window == Single =>
+    /* TODO: implement cursor alignment check */
+    None
+  | _ => None
+  };
+
+/* Format probe values for a line */
+let format_probe_values =
+    (
+      ~window: Sample.Window.mode,
+      ~probe_map: Sample.Map.t,
+      probe_ids: list(Id.t),
+    )
+    : string => {
+  let format_one = (probe_id: Id.t): option(string) => {
+    let samples =
+      Sample.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
+
+    switch (get_empty_status(~window, samples)) {
+    | Some(NoSamplesExist) => Some(no_samples_indicator)
+    | Some(HiddenByPin) => Some(hidden_by_pin_indicator)
+    | Some(NotAligned) => Some(not_aligned_indicator)
+    | Some(Evaluating) => Some("...")
+    | None =>
+      let max_samples =
+        switch (window) {
+        | Single => 1
+        | Many => 5
+        };
+      let selected = ListUtil.take(max_samples, samples);
+      let formatted =
+        List.map(
+          (s: Sample.t) => format_value(~max_length=40, s.value),
+          selected,
+        );
+      switch (formatted) {
+      | [] => None
+      | [single] => Some(single)
+      | multiple => Some(String.concat(value_separator, multiple))
+      };
+    };
+  };
+
+  let formatted_probes = List.filter_map(format_one, probe_ids);
+  switch (formatted_probes) {
+  | [] => ""
+  | values =>
+    value_spacing ++ value_divider ++ String.concat(value_separator, values)
+  };
+};
+
+/* Main entry point: generate text representation of program with probes */
+let of_segment =
+    (
+      ~projector_to_segment: Base.projector => Segment.t=Triggers.projector_to_invoke,
+      ~window: Sample.Window.mode=Single,
+      ~probe_map: Sample.Map.t,
+      ~refractors: Zipper.Refractor.RefractorList.t,
+      segment: Segment.t,
+    )
+    : string => {
+  /* Convert segment to string using Printer with text-specific refractor
+   * rendering that uses Unicode brackets instead of ^^probe(...) */
+  let base_text =
+    Printer.of_segment(
+      ~holes=" ",
+      ~indent="  ",
+      ~projector_to_segment,
+      ~refractors,
+      ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg_text,
+      segment,
+    );
+
+  /* If no refractors, just return the base text */
+  if (List.is_empty(refractors)) {
+    base_text;
+  } else {
+    /* Compute measured to get probe line positions */
+    let measured =
+      Measured.of_segment(
+        segment,
+        ProjectorCore.Shape.Map.empty,
+        Id.Map.empty,
+      );
+
+    /* Build map of probes by line */
+    let probes_by_line = get_probes_by_line(refractors, measured);
+
+    /* If no probes found, just return base text */
+    if (IntMap.is_empty(probes_by_line)) {
+      base_text;
+    } else {
+      /* Split into lines and append probe values */
+      let lines = String.split_on_char('\n', base_text);
+      let augmented_lines =
+        List.mapi(
+          (line_num: int, line: string): string => {
+            switch (IntMap.find_opt(line_num, probes_by_line)) {
+            | None => line
+            | Some(probe_ids) =>
+              let values =
+                format_probe_values(~window, ~probe_map, probe_ids);
+              line ++ values;
+            }
+          },
+          lines,
+        );
+      String.concat("\n", augmented_lines);
+    };
+  };
+};
+
+/* Convenience function for use from zipper */
+let of_zipper =
+    (
+      ~projector_to_segment: Base.projector => Segment.t=Triggers.projector_to_invoke,
+      ~window: Sample.Window.mode=Single,
+      ~probe_map: Sample.Map.t,
+      zipper: Zipper.t,
+    )
+    : string => {
+  let segment = Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+  let refractors = zipper.refractors.manuals;
+  of_segment(
+    ~projector_to_segment,
+    ~window,
+    ~probe_map,
+    ~refractors,
+    segment,
+  );
+};

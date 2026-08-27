@@ -837,7 +837,7 @@ let color_theme = (vars: list(color)): Language.Exp.t => {
   list_lit(lits);
 };
 
-let segment = {
+let source = {
   open Language;
   open Haz3lcore;
   let light = color_theme(LightMode.vars);
@@ -859,11 +859,13 @@ let segment = {
 
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.editable(
-        ~inline=false,
-        ~multiline_list_tuples=true,
-      ),
+      ExpToSegment.Settings.{
+        ...ExpToSegment.Settings.editable(~inline=false),
+        /* one entry per line, so the generated config buffer is readable */
+        multiline_list_tuples: true,
+      },
     exp,
   )
-  |> PersistentSegment.persist;
+  |> Zipper.unzip(~direction=Left)
+  |> PersistentZipper.persist;
 };

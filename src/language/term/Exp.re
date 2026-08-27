@@ -7,6 +7,7 @@ type cls =
   | Deferral
   | Undefined
   | Atom(Atom.cls)
+  | DrvQuote
   | ListLit
   | Constructor
   | Fun
@@ -19,6 +20,9 @@ type cls =
   | Dot
   | Var
   | Let
+  | Theorem
+  | ProofObject
+  | Forall
   | FixF
   | TyAlias
   | Use
@@ -32,7 +36,7 @@ type cls =
   | Filter
   | Closure
   | Parens
-  | Probe
+  | Projector
   | Cons
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
@@ -41,7 +45,9 @@ type cls =
   | Asc
   | LivelitName
   | LivelitAp
-  | ListConcat;
+  | ListConcat
+  | Module
+  | ModuleExp;
 
 include TermBase.Exp;
 
@@ -50,6 +56,7 @@ let fast_equal =
     equality({
       ...syntactic_settings,
       ignore_parens: true,
+      ignore_projectors: true,
     })
   ).
     exp;
@@ -58,9 +65,7 @@ let equal = fast_equal;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 let fresh: term => t = IdTagged.fresh;
 
@@ -74,7 +79,18 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-let cls_of_term: type a. Grammar.exp_term(a) => cls =
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
+let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
@@ -83,6 +99,7 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Deferral(_) => Deferral
   | Undefined => Undefined
   | Atom(c) => Atom(Atom.cls_of_t(c))
+  | DrvQuote(_) => DrvQuote
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
@@ -95,6 +112,9 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Dot(_) => Dot
   | Var(_) => Var
   | Let(_) => Let
+  | Theorem(_) => Theorem
+  | ProofObject(_) => ProofObject
+  | Forall(_) => Forall
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
   | Use(_) => Use
@@ -111,8 +131,10 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | HintedTest(_) => HintedTest
   | Filter(_) => Filter
   | Closure(_) => Closure
-  | Parens(_) => Parens
-  | Probe(_) => Probe
+  | Parens(e) => cls_of_term(e.term)
+  // We're bypassing projectors from cls because they're breaking cursor inspector messages.
+  // Future work could be to specialize projectors in the cursor inspector.
+  | Projector(_, e) => cls_of_term(e.term)
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
@@ -120,7 +142,9 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | BuiltinFun(_) => BuiltinFun
   | Match(_) => Match
   | LivelitName(_) => LivelitName
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Module(_) => Module
+  | ModuleExp(_) => ModuleExp;
 
 let show_cls: cls => string =
   fun
@@ -136,6 +160,7 @@ let show_cls: cls => string =
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"
   | Atom(SInt) => "System integer literal"
+  | DrvQuote => "Derivation-Mode Quotation"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
@@ -148,6 +173,9 @@ let show_cls: cls => string =
   | Dot => "Dot operator"
   | Var => "Variable reference"
   | Let => "Let expression"
+  | Theorem => "Theorem expression"
+  | ProofObject => "Proof placeholder"
+  | Forall => "Forall expression"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
   | Use => "Specify number format to use"
@@ -161,7 +189,6 @@ let show_cls: cls => string =
   | Filter => "Filter"
   | Closure => "Closure"
   | Parens => "Parenthesized expression"
-  | Probe => "Probe"
   | Cons => "Cons"
   | ListConcat => "List Concatenation"
   | BinOp(op) => Operators.show_binop(op)
@@ -170,7 +197,10 @@ let show_cls: cls => string =
   | Match => "Case expression"
   | LivelitName => "Livelit name"
   | LivelitAp => "Livelit application"
-  | Asc => "Type ascription expression";
+  | Projector => "Projector"
+  | Asc => "Type ascription expression"
+  | Module => "Module expression"
+  | ModuleExp => "Module definition";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
@@ -196,7 +226,7 @@ let get_label: t => option(LabeledTuple.label) = {
 let rec is_fun = (e: t) => {
   switch (e.term) {
   | Parens(e)
-  | Probe(e, _) => is_fun(e)
+  | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
@@ -225,6 +255,7 @@ let rec is_fun = (e: t) => {
   | Deferral(_)
   | Undefined
   | Atom(_)
+  | DrvQuote(_)
   | Label(_)
   | ExplicitNonlabel
   | ListLit(_)
@@ -232,6 +263,9 @@ let rec is_fun = (e: t) => {
   | TupleExtension(_)
   | Var(_)
   | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
   | FixF(_)
   | TyAlias(_)
   | Use(_)
@@ -250,7 +284,9 @@ let rec is_fun = (e: t) => {
   | BinOp(_)
   | Match(_)
   | LivelitName(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | Module(_)
+  | ModuleExp(_) => false
   };
 };
 
@@ -260,7 +296,7 @@ let rec is_tuple_of_functions = (e: t) =>
     switch (e.term) {
     | Asc(e, _)
     | Parens(e)
-    | Probe(e, _)
+    | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -286,6 +322,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Deferral(_)
     | Undefined
     | Atom(_)
+    | DrvQuote(_)
     | Label(_)
     | ExplicitNonlabel
     | ListLit(_)
@@ -296,6 +333,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | BuiltinFun(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -313,7 +353,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => false
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_) => false
     }
   );
 
@@ -336,7 +378,7 @@ let rec get_num_of_functions = (e: t) =>
   } else {
     switch (e.term) {
     | Parens(e)
-    | Probe(e, _)
+    | Projector(_, e)
     | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
@@ -359,6 +401,9 @@ let rec get_num_of_functions = (e: t) =>
     | TypFun(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
     | Filter(_)
     | TyAlias(_)
     | Use(_)
@@ -375,7 +420,10 @@ let rec get_num_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => None
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_)
+    | DrvQuote(_) => None
     };
   };
 
@@ -387,9 +435,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: {
-          ids: [Id.mk()],
-        },
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
       }
       |> continue;
   (
@@ -397,147 +443,6 @@ let (replace_all_ids, replace_all_ids_typ) = {
     Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
   );
 };
-
-let rec substitute_closures =
-        (
-          env: Environment.t(t),
-          old_bound_vars: list(string),
-          new_bound_vars: list(string),
-        ) =>
-  map_term(
-    ~f_exp=
-      (cont, e) => {
-        let (term, rewrap) = unwrap(e);
-        switch (term) {
-        // Variables: lookup if bound
-        | Var(x) =>
-          switch (Environment.lookup(env, x)) {
-          | Some(e) =>
-            e
-            |> replace_all_ids
-            |> substitute_closures(env, old_bound_vars, new_bound_vars)
-          | None =>
-            Var(
-              List.mem(x, old_bound_vars)
-                ? x : Var.free_name(x, new_bound_vars),
-            )
-            |> rewrap
-          }
-        // Forms with environments: look up in new environment
-        | Closure(env, e) => substitute_closures(env, [], new_bound_vars, e)
-        | Fun(p, e, t, n) =>
-          let pat_bound_vars = Pat.bound_vars(p);
-          Fun(
-            p,
-            substitute_closures(
-              env |> Environment.without_keys(pat_bound_vars),
-              pat_bound_vars @ old_bound_vars,
-              pat_bound_vars @ new_bound_vars,
-              e,
-            ),
-            t,
-            n,
-          )
-          |> rewrap;
-        | FixF(p, e, Some(env)) =>
-          let pat_bound_vars = Pat.bound_vars(p);
-          FixF(
-            p,
-            substitute_closures(
-              env |> Environment.without_keys(pat_bound_vars),
-              pat_bound_vars @ old_bound_vars,
-              pat_bound_vars @ new_bound_vars,
-              e,
-            ),
-            None,
-          )
-          |> rewrap;
-        // Cases with binders: remove binder from env
-        | Let(p, e1, e2) =>
-          let pat_bound_vars = Pat.bound_vars(p);
-          Let(
-            p,
-            substitute_closures(env, old_bound_vars, new_bound_vars, e1),
-            substitute_closures(
-              env |> Environment.without_keys(pat_bound_vars),
-              pat_bound_vars @ old_bound_vars,
-              pat_bound_vars @ new_bound_vars,
-              e2,
-            ),
-          )
-          |> rewrap;
-        | Match(e, cases) =>
-          Match(
-            substitute_closures(env, old_bound_vars, new_bound_vars, e),
-            cases
-            |> List.map(((p, e)) => {
-                 let pat_bound_vars = Pat.bound_vars(p);
-                 (
-                   p,
-                   substitute_closures(
-                     env |> Environment.without_keys(pat_bound_vars),
-                     pat_bound_vars @ old_bound_vars,
-                     pat_bound_vars @ new_bound_vars,
-                     e,
-                   ),
-                 );
-               }),
-          )
-          |> rewrap
-        | FixF(p, e, None) =>
-          let pat_bound_vars = Pat.bound_vars(p);
-          FixF(
-            p,
-            substitute_closures(
-              env |> Environment.without_keys(pat_bound_vars),
-              pat_bound_vars @ old_bound_vars,
-              pat_bound_vars @ new_bound_vars,
-              e,
-            ),
-            None,
-          )
-          |> rewrap;
-        // Other cases: recurse
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_)
-        | DynamicErrorHole(_)
-        | Deferral(_)
-        | Atom(_)
-        | ListLit(_)
-        | Constructor(_)
-        | TypFun(_)
-        | Tuple(_)
-        | TupLabel(_)
-        | TupleExtension(_)
-        | Label(_)
-        | ExplicitNonlabel
-        | Dot(_)
-        | TyAlias(_)
-        | Use(_)
-        | Ap(_)
-        | TypAp(_)
-        | DeferredAp(_)
-        | If(_)
-        | Seq(_)
-        | Test(_)
-        | HintedTest(_)
-        | Filter(_)
-        | Parens(_)
-        | Probe(_)
-        | Cons(_)
-        | ListConcat(_)
-        | UnOp(_)
-        | BinOp(_)
-        | BuiltinFun(_)
-        | Asc(_)
-        | LivelitName(_)
-        | Undefined => cont(e)
-        };
-      },
-    _,
-  );
-let substitute_closures = substitute_closures(_, [], []);
 
 let unfix = (e: t, p: Pat.t) => {
   switch (e.term) {
@@ -555,11 +460,53 @@ let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
   | FixF(_, e, _) => get_fn_name(e)
-  | Parens(e)
-  | Probe(e, _) => get_fn_name(e)
+  | Parens(e) => get_fn_name(e)
   | TypFun(_, _, n) => n
   | _ => None
   };
 };
 
+/* Get the definition-site ID of a function expression.
+ * Used to enable jump-to-definition from the closure cursor bar
+ * even when the app_id comes from built-in internal code. */
+let rec get_fn_def_id = (e: t) =>
+  switch (e.term) {
+  | Fun(_)
+  | TypFun(_) => Some(rep_id(e))
+  | FixF(_, e, _)
+  | Parens(e) => get_fn_def_id(e)
+  | _ => None
+  };
+
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
+
+/* Inject a function name into a Fun or TypFun expression. */
+let add_name = (name: option(string), exp: t): t => {
+  let (term, rewrap) = unwrap(exp);
+  switch (term) {
+  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
+  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+  | _ => exp
+  };
+};

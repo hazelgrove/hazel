@@ -13,10 +13,11 @@ type status =
   | AutoStep(step)
   | AvailableSteps(list(step)); // No automatic steps
 
-let get_status: (~settings: CoreSettings.t, Exp.t) => status; //[Matt] This should probably take an env argument eventually
+let get_status:
+  (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t)) => status;
 
 let refresh_step:
-  (~settings: CoreSettings.t, Exp.t, persistent) =>
+  (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t), persistent) =>
   option((FilterAction.action, step));
 
 let persist: step => persistent;

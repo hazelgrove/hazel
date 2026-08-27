@@ -120,7 +120,7 @@ let tests = (
         parse_and_evaluate_test(
           {|(1,1)|},
           {|let dub = typfun T -> fun x : T -> (x, x) : (T, T) in
-          let ascribed = dub : forall a -> a -> (a, a) in
+          let ascribed = dub : poly a -> a -> (a, a) in
           ascribed@<Int>(1)|},
         );
       },
@@ -136,9 +136,9 @@ let tests = (
 let exp_equal: (Exp, Exp) -> Bool =
   fun es ->
     case es
-      | Var(x), Var(y) => x$== y
+      | Var(x), Var(y) => x== y
       | Lam(x1, e1), Lam(x2, e2) =>
-        x1$== x2 && exp_equal(e1, e2)
+        x1== x2 && exp_equal(e1, e2)
       | Ap(e1, e2), Ap(e3, e4) =>
         exp_equal(e1, e3) && exp_equal(e2, e4)
 | _ => false end in
@@ -152,12 +152,27 @@ let result_equal: (Result, Result) -> Bool =
   fun rs ->
     case rs
       | Ok(e1), Ok(e2) => exp_equal(e1, e2)
-      | Error(e1), Error(e2) => e1$== e2
+      | Error(e1), Error(e2) => e1== e2
 | _ => false end in
 
 result_equal(
   Ok(Lam("yo", Var("yo"))),
 Ok(Lam("yo", Var("yo"))))|},
+      )
+    ),
+    test_case(
+      "Single deferral produces single value not singleton tuple", `Quick, () =>
+      evaluation_test(
+        "let f = fun x -> x in f(_)(42)",
+        int(42),
+        ap(
+          Forward,
+          deferred_ap(
+            fn(Pat.(var("f")), var("f"), None, None),
+            [deferral(InAp)],
+          ),
+          int(42),
+        ),
       )
     ),
   ],

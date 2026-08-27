@@ -29,131 +29,155 @@ let tuple_example_labeled_3 = {
   message: "A tuple with first element 1 labeled with x, second element 4 unlabelled, and third element 2 with label y.",
 };
 
-let tuple_exp: form = {
-  let explanation = "The tuple has %s elements.";
-  let comma = comma_exp();
-  {
-    id: TupleExp,
-    syntactic_form: [exp("e1"), comma, space(), exp("...")],
-    expandable_id:
-      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("...")])),
-    explanation,
-    examples: [
-      tuple_example_1,
-      tuple_example_2,
-      tuple_example_labeled_1,
-      tuple_example_labeled_2,
-    ],
-  };
+let tuple_exp_id: form_id = TupleExp;
+let tuple_exp_comma = comma_exp();
+let tuple_exp_form = [exp("e1"), tuple_exp_comma, space(), exp("...")];
+let tuple_exp_explanation = (~n: int): string =>
+  Printf.sprintf("The tuple has %d elements.", n);
+let tuple_exp = (~n: int): form => {
+  id: tuple_exp_id,
+  syntactic_form: tuple_exp_form,
+  colorings: [],
+  expandable_id:
+    Some((
+      Piece.id(tuple_exp_comma),
+      [exp("e1"), comma_exp(), exp("...")],
+    )),
+  explanation: tuple_exp_explanation(~n),
+  examples: [
+    tuple_example_1,
+    tuple_example_2,
+    tuple_example_labeled_1,
+    tuple_example_labeled_2,
+  ],
 };
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
+let exp1 = exp("e1");
+let exp2 = exp("e2");
 let tuple_exp_size2_coloring_ids =
     (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
-  [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
+  [(Piece.id(exp1), exp1_id), (Piece.id(exp2), exp2_id)];
 };
-let tuple_exp_size2: form = {
-  let explanation = "The 2-tuple has a [first](%s) and [second](%s) element.";
-  let comma = comma_exp();
-  {
-    id: Tuple2Exp,
-    syntactic_form: [_exp1, comma, space(), _exp2],
-    expandable_id:
-      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("e2")])),
-    explanation,
-    examples: [tuple_example_1, tuple_example_labeled_2],
-  };
+let tuple_exp_size2_id: form_id = Tuple2Exp;
+let tuple_exp_size2_comma = comma_exp();
+let tuple_exp_size2_form = [exp1, tuple_exp_size2_comma, space(), exp2];
+let tuple_exp_size2 = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
+  id: tuple_exp_size2_id,
+  syntactic_form: tuple_exp_size2_form,
+  colorings: tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
+  expandable_id:
+    Some((
+      Piece.id(tuple_exp_size2_comma),
+      [exp("e1"), comma_exp(), exp("e2")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The 2-tuple has a [first](%s) and [second](%s) element.",
+      Id.to_string(exp1_id),
+      Id.to_string(exp2_id),
+    ),
+  examples: [tuple_example_1, tuple_example_labeled_2],
 };
-let _exp1 = exp("e1");
-let _exp2 = exp("e2");
-let _exp3 = exp("e3");
+let exp1 = exp("e1");
+let exp2 = exp("e2");
+let exp3 = exp("e3");
 let tuple_exp_size3_coloring_ids =
     (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): list((Id.t, Id.t)) => {
   [
-    (Piece.id(_exp1), exp1_id),
-    (Piece.id(_exp2), exp2_id),
-    (Piece.id(_exp3), exp3_id),
+    (Piece.id(exp1), exp1_id),
+    (Piece.id(exp2), exp2_id),
+    (Piece.id(exp3), exp3_id),
   ];
 };
-let tuple_exp_size3: form = {
-  let explanation = "The 3-tuple has a [first](%s), [second](%s), and [third](%s) element.";
-  let comma = comma_exp();
-  {
-    id: Tuple3Exp,
-    syntactic_form: [
-      _exp1,
-      comma_exp(),
-      space(),
-      _exp2,
-      comma,
-      space(),
-      _exp3,
-    ],
-    expandable_id:
-      Some((
-        Piece.id(comma),
-        [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
-      )),
-    explanation,
-    examples: [tuple_example_2, tuple_example_labeled_3],
-  };
+let tuple_exp_size3_id: form_id = Tuple3Exp;
+let tuple_exp_size3_comma = comma_exp();
+let tuple_exp_size3_form = [
+  exp1,
+  comma_exp(),
+  space(),
+  exp2,
+  tuple_exp_size3_comma,
+  space(),
+  exp3,
+];
+let tuple_exp_size3 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): form => {
+  id: tuple_exp_size3_id,
+  syntactic_form: tuple_exp_size3_form,
+  colorings: tuple_exp_size3_coloring_ids(~exp1_id, ~exp2_id, ~exp3_id),
+  expandable_id:
+    Some((
+      Piece.id(tuple_exp_size3_comma),
+      [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The 3-tuple has a [first](%s), [second](%s), and [third](%s) element.",
+      Id.to_string(exp1_id),
+      Id.to_string(exp2_id),
+      Id.to_string(exp3_id),
+    ),
+  examples: [tuple_example_2, tuple_example_labeled_3],
 };
 
-let _exp_x = exp("x");
-let _exp_y = exp("y");
+let exp_x = exp("x");
+let exp_y = exp("y");
 let tuple_extension_exp_coloring_ids =
     (~x_id: Id.t, ~y_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_x), x_id),
-  (Piece.id(_exp_y), y_id),
+  (Piece.id(exp_x), x_id),
+  (Piece.id(exp_y), y_id),
 ];
-let tuple_extension_exp: form = {
-  let explanation = "Creates a tuple by combining the [*first operand*](%s) and the [*second operand*](%s), updating elements with the same labels.";
-  {
-    id: TupleExtensionExp,
-    syntactic_form: [_exp_x, space(), tuple_extension_exp(), space(), _exp_y],
-    expandable_id: None,
-    explanation,
-    examples: [
-      {
-        sub_id: TupleExtension1,
-        term: mk_example("(1, 2) ... (3, 4)"),
-        message: "Combines the tuples (1, 2) and (3, 4) into a new tuple.",
-      },
-      {
-        sub_id: TupleExtension2,
-        term: mk_example("(x=1, y=2) ... (x=3, z=4)"),
-        message: "Combines the labeled tuples (x=1, y=2) and (x=3, z=4), updating the x label to 3 and adding a new label z with value 4.",
-      },
-      {
-        sub_id: TupleExtension3,
-        term:
-          mk_example(
-            {|("Alice", active=true, age=30, location="Paris") ... ("Engineer", age=31, department="R&D", active=false)|},
-          ),
-        message: {|Combines a partially labeled tuple representing a user with another tuple containing new and overlapping fields.
+let tuple_extension_exp_form = [
+  exp_x,
+  space(),
+  tuple_extension_exp(),
+  space(),
+  exp_y,
+];
+let tuple_extension_exp = (~x_id: Id.t, ~y_id: Id.t): form => {
+  id: TupleExtensionExp,
+  syntactic_form: tuple_extension_exp_form,
+  colorings: tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Creates a tuple by combining the [*first operand*](%s) and the [*second operand*](%s), updating elements with the same labels.",
+      Id.to_string(x_id),
+      Id.to_string(y_id),
+    ),
+  examples: [
+    {
+      sub_id: TupleExtension1,
+      term: mk_example("(1, 2) ... (3, 4)"),
+      message: "Combines the tuples (1, 2) and (3, 4) into a new tuple.",
+    },
+    {
+      sub_id: TupleExtension2,
+      term: mk_example("(x=1, y=2) ... (x=3, z=4)"),
+      message: "Combines the labeled tuples (x=1, y=2) and (x=3, z=4), updating the x label to 3 and adding a new label z with value 4.",
+    },
+    {
+      sub_id: TupleExtension3,
+      term:
+        mk_example(
+          {|("Alice", active=true, age=30, location="Paris") ... ("Engineer", age=31, department="R&D", active=false)|},
+        ),
+      message: {|Combines a partially labeled tuple representing a user with another tuple containing new and overlapping fields.
         The `age` and `active` labels are updated, and a new label `department` is added. The unlabeled string "Engineer" is
         added in order after the original unlabeled "Alice".|},
-      },
-    ],
-  };
+    },
+  ],
 };
 
-let tuple_extensions: group = {
-  id: TupleExtensionExp,
-  forms: [tuple_extension_exp],
-};
+let tuple_extensions = (~x_id: Id.t, ~y_id: Id.t): group =>
+  singleton(tuple_extension_exp(~x_id, ~y_id));
 
-let tuples: group = {
-  id: TupleExp,
-  forms: [tuple_exp],
-};
+let tuples = (~n: int): group => singleton(tuple_exp(~n));
 
-let tuples2: group = {
+let tuples2 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~n: int): group => {
   id: Tuple2Exp,
-  forms: [tuple_exp_size2, tuple_exp],
+  forms: [tuple_exp_size2(~exp1_id, ~exp2_id), tuple_exp(~n)],
 };
 
-let tuples3: group = {
+let tuples3 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t, ~n: int): group => {
   id: Tuple3Exp,
-  forms: [tuple_exp_size3, tuple_exp],
+  forms: [tuple_exp_size3(~exp1_id, ~exp2_id, ~exp3_id), tuple_exp(~n)],
 };

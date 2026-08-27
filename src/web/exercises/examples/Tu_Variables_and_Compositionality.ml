@@ -21,19 +21,34 @@ let exercise : Tutorial.spec =
     version = 4;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -219,6 +234,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints =
           [
@@ -250,19 +266,34 @@ let comp_exercise : Tutorial.spec =
     version = 5;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -360,6 +391,7 @@ let comp_exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints =
           [ "Make sure to embed a let expression as shown in the description!" ];

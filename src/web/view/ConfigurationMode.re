@@ -48,10 +48,12 @@ module Model = {
     );
   };
 
-  let default_persisted_segment = config_type => {
+  /* The built-in source for each config slide, used as both the initial
+     buffer and the baseline for "has the user changed this?". */
+  let default_source = config_type => {
     switch (config_type) {
-    | ColorScheme => ("Colors", ColorConfiguration.segment)
-    | Shortcuts => ("Shortcuts", ShortcutConfiguration.segment)
+    | ColorScheme => ("Colors", ColorConfiguration.source)
+    | Shortcuts => ("Shortcuts", ShortcutConfiguration.source)
     };
   };
 
@@ -91,26 +93,26 @@ module Model = {
   let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s: config_type, m: CellEditor.Model.t)) => {
-        let s = config_name_of_type(s);
-        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
-        let original = Init.find_documentation_slide(s);
-        let original_segment =
-          original
-          |> Option.map((pce: CellEditor.Model.persistent) =>
-               PersistentZipper.unpersist(pce.editor)
-             )
-          |> Option.map(Zipper.zip);
-
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
-          (s, None);
-        } else {
-          (s, Some(CellEditor.Model.persist(m)));
-        };
+      ((config_type: config_type, m: CellEditor.Model.t)) => {
+        let name = config_name_of_type(config_type);
+        let current_zipper = m.editor.editor.state.zipper;
+        /* Built-in sources are text-backed and mint fresh ids on every
+           parse, so id-sensitive segment equality can never match (same
+           reasoning as ScratchMode.Scratchpad.persist). Compare the text
+           projection instead, and store nothing for an untouched slide
+           so a later change to the default is picked up. */
+        let default_text =
+          default_source(config_type)
+          |> snd
+          |> ((z: PersistentZipper.t) => z.backup_text)
+          |> StringUtil.strip_final_newline;
+        let unchanged =
+          MarkerParse.seg_to_text(
+            ~refractors=current_zipper.refractors.manuals,
+            Zipper.zip(current_zipper),
+          )
+          == default_text;
+        (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
       },
       model.configs,
     ),
@@ -130,9 +132,9 @@ module Model = {
         config_type,
         OptUtil.get(
           () =>
-            default_persisted_segment(config_type)
+            default_source(config_type)
             |> snd
-            |> CellEditor.Model.from_persistent_segment,
+            |> CellEditor.Model.from_persistent_zipper(~root=Exp),
           m,
         )
         |> CellEditor.Model.unpersist(~settings),
@@ -156,21 +158,15 @@ module Model = {
                   ? Some(get_persistent(s)) : None,
               slides,
             )
-            |> OptUtil.get(() => {
-                 let (_, seg) = default_persisted_segment(config_type);
-
+            |> OptUtil.get(() =>
                  (
                    config_type,
-                   CellEditor.Model.mk(
-                     Editor.Model.mk(
-                       Zipper.unzip(
-                         ~direction=Left,
-                         PersistentSegment.unpersist(seg),
-                       ),
-                     ),
-                   ),
-                 );
-               }),
+                   default_source(config_type)
+                   |> snd
+                   |> CellEditor.Model.from_persistent_zipper(~root=Exp)
+                   |> CellEditor.Model.unpersist(~settings),
+                 )
+               ),
           all_of_config_type,
         ),
     };
@@ -186,8 +182,10 @@ module StoreConfig =
       0,
       List.map(
         x =>
-          Model.default_persisted_segment(x)
-          |> PairUtil.map_snd(CellEditor.Model.from_persistent_segment)
+          Model.default_source(x)
+          |> PairUtil.map_snd(
+               CellEditor.Model.from_persistent_zipper(~root=Exp),
+             )
           |> PairUtil.map_snd(Option.some),
         Model.all_of_config_type,
       ),
@@ -201,12 +199,12 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | SwitchConfig(int)
-    | ResetCurrent;
+    | ResetCurrent
+    | RefreshStatics;
 
   let update =
       (
         ~schedule_action as _,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         ~settings: Settings.t,
         action: t,
         model: Model.t,
@@ -224,23 +222,15 @@ module Update = {
 
       let (_, ed) = Model.get_current_config(model);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
-      let new_configs =
-        ListUtil.put_nth(
-          model.current,
-          (Model.get_current_config_type(model), new_ed),
-          model.configs,
-        );
-      let new_model = {
+      {
         ...model,
-        configs: new_configs,
+        configs:
+          ListUtil.put_nth(
+            model.current,
+            (Model.get_current_config_type(model), new_ed),
+            model.configs,
+          ),
       };
-      switch (a) {
-      // Check for assistant hole completion triggers
-      | MainEditor(Perform(Insert(_))) =>
-        send_assistant_insertion_info(new_ed.editor)
-      | _ => ()
-      };
-      new_model;
     | SwitchConfig(i) =>
       Updated.return({
         ...model,
@@ -248,7 +238,7 @@ module Update = {
       })
     | ResetCurrent =>
       let (config_type, _) = Model.get_current_config(model);
-      let (_, source) = Model.default_persisted_segment(config_type);
+      let (_, source) = Model.default_source(config_type);
       Updated.return({
         ...model,
         configs:
@@ -257,70 +247,67 @@ module Update = {
             (
               config_type,
               source
-              |> CellEditor.Model.from_persistent_segment
+              |> CellEditor.Model.from_persistent_zipper(~root=Exp)
               |> CellEditor.Model.unpersist(~settings),
             ),
             model.configs,
           ),
       });
-    };
-  };
-  let can_undo = (action: t) => {
-    switch (action) {
-    | CellAction(action) => CellEditor.Update.can_undo(action)
-    | SwitchConfig(_) => false
-    | ResetCurrent => true
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     };
   };
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    let (key, ed) = List.nth(model.configs, model.current);
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+    let (config_type, ed) = List.nth(model.configs, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+      Some(
+        (req_value: WorkerServer.Request.value) => {
+          worker_request := worker_request^ @ [("", req_value)]
+        },
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
+        ~autoprobe_mode,
         ~is_edited,
+        ~statics_mode,
         ~queue_worker,
         ~stitch=x => x,
         ed,
       );
-    switch (worker_request^) {
-    | [] => ()
-    | _ =>
-      WorkerClient.request(
-        worker_request^,
-        ~handler=
-          r =>
-            schedule_action(
-              CellAction(
-                ResultAction(
-                  UpdateResult(
-                    switch (r |> List.hd |> snd) {
-                    | Ok((r, s)) =>
-                      Language.ProgramResult.ResultOk({
-                        result: r,
-                        state: s,
-                      })
-                    | Error(e) => Language.ProgramResult.ResultFail(e)
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ~timeout=
-          _ =>
-            schedule_action(
-              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            ),
-      )
-    };
-    let new_sp =
-      ListUtil.put_nth(model.current, (key, new_ed), model.configs);
+    let dispatch = (_key, action) =>
+      schedule_action(CellAction(ResultAction(action)));
+    EvalRequest.request(
+      worker_request^,
+      ~pos_of_key=key => key,
+      ~dispatch,
+      ~on_timeout=
+        List.iter(((key, _)) =>
+          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        ),
+    );
     {
       ...model,
-      configs: new_sp,
+      configs:
+        ListUtil.put_nth(
+          model.current,
+          (config_type, new_ed),
+          model.configs,
+        ),
     };
   };
 };
@@ -332,11 +319,14 @@ module Selection = {
     | Cell(CellEditor.Selection.t)
     | TextBox;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | Cell(selection) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(CellAction(a)),
           ~selection,
           List.nth(model.configs, model.current) |> snd,
         );
@@ -344,22 +334,6 @@ module Selection = {
     | TextBox => empty
     };
   };
-
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    switch (selection) {
-    | Cell(selection) =>
-      switch (event) {
-      | _ =>
-        CellEditor.Selection.handle_key_event(
-          ~selection,
-          ~event,
-          List.nth(model.configs, model.current) |> snd,
-        )
-        |> Option.map(x => Update.CellAction(x))
-      }
-    | TextBox => None
-    };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
     CellEditor.Selection.jump_to_tile(
@@ -426,6 +400,7 @@ module View = {
             model.configs,
           ),
         ),
+      (),
     );
   };
 
@@ -473,7 +448,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            JsUtil.clear_localstore();
+            HazelDB.clear_all();
             Js_of_ocaml.Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;

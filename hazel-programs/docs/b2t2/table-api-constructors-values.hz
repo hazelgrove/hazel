@@ -1,0 +1,15 @@
+# (benchmark) values #
+let requires = [
+  (enforced=("no"), "length(rs) is positive"),
+  (enforced=("static"), "for all r in rs, schema(r) is equal to schema(rs[0])")
+] in
+let ensures = [
+  (enforced=("static"), "schema(t) is equal to schema(rs[0])"),
+  (enforced=("no"), "nrows(t) is equal to length(rs)")
+] in
+# Hazel's tables are lists so this is just the identity function #
+let values = typfun row -> fun (rs : [row]) -> rs in
+
+# Examples #
+test
+  values@<(name= String)>([("Alexander")]) == [(name= "Alexander")] end

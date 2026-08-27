@@ -192,7 +192,7 @@ let shortcut_theme = (shortcuts: list(shortcut)): Language.Exp.t => {
   tuple(labeled_elements);
 };
 
-let segment = {
+let source = {
   open Language;
   open Haz3lcore;
   let exp =
@@ -208,13 +208,15 @@ let segment = {
 
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.editable(
-        ~inline=false,
-        ~multiline_list_tuples=true,
-      ),
+      ExpToSegment.Settings.{
+        ...ExpToSegment.Settings.editable(~inline=false),
+        /* one entry per line, so the generated config buffer is readable */
+        multiline_list_tuples: true,
+      },
     exp,
   )
-  |> PersistentSegment.persist;
+  |> Zipper.unzip(~direction=Left)
+  |> PersistentZipper.persist;
 };
 
 let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {

@@ -12,13 +12,10 @@ let exp = v => mk_monotile(Form.mk_atom_op(Exp, v));
 let pat = v => mk_monotile(Form.mk_atom_op(Pat, v));
 let typ = t => mk_monotile(Form.mk_atom_op(Typ, t));
 let tpat = v => mk_monotile(Form.mk_atom_op(TPat, v));
-let mk_parens_exp = mk_tile(Form.get(ParensExp));
-let mk_parens_pat = mk_tile(Form.get(ParensPat));
-let mk_parens_typ = mk_tile(Form.get(ParensTyp));
 let mk_list_exp = mk_tile(Form.get(ListLitExp));
 let mk_list_pat = mk_tile(Form.get(ListLitPat));
 let mk_list_typ = mk_tile(Form.get(ListTyp));
-let mk_forall = mk_tile(Form.get(Forall));
+let mk_poly = mk_tile(Form.get(Poly));
 let mk_rec = mk_tile(Form.get(Rec));
 let arrow = () => mk_monotile(Form.get(TypeArrow));
 let unary_minus = () => mk_monotile(Form.get(UnaryMinus));
@@ -45,7 +42,6 @@ let flt = () => mk_monotile(Form.get(FLt));
 let flte = () => mk_monotile(Form.get(FLte));
 let fgt = () => mk_monotile(Form.get(FGt));
 let fgte = () => mk_monotile(Form.get(FGte));
-let sequals = () => mk_monotile(Form.get(StringEquals));
 let sconcat = () => mk_monotile(Form.get(StringConcat));
 let logical_and = () => mk_monotile(Form.get(LogicalAnd));
 let logical_or = () => mk_monotile(Form.get(LogicalOr));
@@ -56,10 +52,8 @@ let pipeline = () => mk_monotile(Form.get(Pipeline));
 let labeled_exp = () => mk_monotile(Form.get(TupleLabeledExp));
 let labeled_pat = () => mk_monotile(Form.get(TupleLabeledPat));
 let labeled_typ = () => mk_monotile(Form.get(TupleLabeledTyp));
-let dot_exp = () => mk_monotile(Form.get(DotExp));
 let dot_typ = () => mk_monotile(Form.get(DotTyp));
 let ascription_exp = () => mk_monotile(Form.get(TypeAsc));
-let nil = () => exp("[]");
 let deferral = () => exp("_");
 let typeann = () => mk_monotile(Form.get(Typeann));
 let mk_typfun = mk_tile(Form.get(TypFun));
@@ -80,12 +74,14 @@ let mk_hide = mk_tile(Form.get(FilterHide));
 let mk_eval = mk_tile(Form.get(FilterEval));
 let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
-let mk_unquote = mk_tile(Form.get(Unquote));
+let mk_theorem = mk_tile(Form.get(Theorem));
+let mk_forall = mk_tile(Form.get(Forall));
+let mk_proof_of = mk_tile(Form.get(ProofOf));
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 
 let mk_example = str => {
-  switch (Parser.to_segment(str)) {
+  switch (Parser.to_segment(str, ~root=Exp)) {
   | None => []
   | Some(seg) => seg
   };

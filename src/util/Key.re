@@ -24,6 +24,7 @@ type held =
 [@deriving (show({with_path: false}), yojson)]
 type t = {
   key,
+  code: string,
   sys,
   shift: held,
   meta: held,
@@ -49,8 +50,12 @@ let key_of = (dir: dir, evt): key => {
 
 let to_held: bool => held = b => b ? Down : Up;
 
+let get_code = evt =>
+  Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
+
 let mk = (dir, evt): t => {
   key: key_of(dir, evt),
+  code: get_code(evt),
   sys: Os.is_mac^ ? Mac : PC,
   shift: to_held(shift_held(evt)),
   meta: to_held(meta_held(evt)),
@@ -58,19 +63,24 @@ let mk = (dir, evt): t => {
   alt: to_held(alt_held(evt)),
 };
 
-let modifier_string = (h: held, m): string => h == Down ? " + " ++ m : "";
+/* Keyboard event handler for focusable components.
+ * Adds tabindex(0) so the element can receive focus and key events. */
+let handler = (~f: t => Virtual_dom.Vdom.Effect.t(unit)) =>
+  Virtual_dom.Vdom.(
+    Attr.many([
+      Attr.on_keydown(evt => f(mk(KeyDown, evt))),
+      Attr.on_keyup(evt => f(mk(KeyUp, evt))),
+      Attr.tabindex(0),
+    ])
+  );
 
-let modifiers_string = (key: t): string =>
-  modifier_string(key.shift, "SHIFT")
-  ++ modifier_string(key.meta, "META")
-  ++ modifier_string(key.ctrl, "CTRL")
-  ++ modifier_string(key.alt, "ALT");
-
-let key_dir_string = (key: t): string =>
-  switch (key.key) {
-  | U(key) => "(UP): " ++ key
-  | D(key) => "(DN): " ++ key
-  };
-
-let to_string = (key: t): string =>
-  "KEY" ++ key_dir_string(key) ++ modifiers_string(key);
+/* Keyboard event listener without tabindex.
+ * For elements that catch bubbled key events (e.g. a page-level
+ * container) but shouldn't themselves become focusable. */
+let listener = (~f: t => Virtual_dom.Vdom.Effect.t(unit)) =>
+  Virtual_dom.Vdom.(
+    Attr.many([
+      Attr.on_keydown(evt => f(mk(KeyDown, evt))),
+      Attr.on_keyup(evt => f(mk(KeyUp, evt))),
+    ])
+  );

@@ -6,11 +6,6 @@ type t = {
   ancestors: Ancestors.t,
 };
 
-let empty = {
-  siblings: Siblings.empty,
-  ancestors: Ancestors.empty,
-};
-
 let push = (d: Direction.t, p: Piece.t, rs: t): t => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
@@ -67,22 +62,88 @@ let parent =
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
-let delete_parent = ({siblings, ancestors}: t): t => {
-  switch (ancestors) {
-  | [] => {
-      siblings,
-      ancestors,
-    }
-  | [(_, p_sibs), ...ancestors] => {
-      siblings: Siblings.concat([siblings, p_sibs]),
-      ancestors,
-    }
+/* The sort at the current insertion point, accounting for
+ * infix operators with heterogeneous child sorts (e.g. type
+ * annotation ':' in patterns). This looks at the right nib
+ * of the last tile to the left, which determines what sort
+ * should come next - the same logic used by Segment.remold. */
+let sort = (~root, {siblings: (pre, _), ancestors}: t): Sort.t => {
+  let outer_sort = Ancestors.sort(root, ancestors);
+  let rec find_last_tile =
+    fun
+    | [] => None
+    | [p, ...rest] =>
+      switch (Piece.is_tile(p)) {
+      | Some(t) => Some(t)
+      | None => find_last_tile(rest)
+      };
+  switch (find_last_tile(List.rev(pre))) {
+  | None => outer_sort
+  | Some(t) =>
+    let (_, r) = Tile.nibs(t);
+    r.sort;
   };
 };
 
-let remold = ({siblings, ancestors}: t): t => {
-  let s = Ancestors.sort(ancestors);
+/* Remold the immediate parent ancestor tile based on its
+ * sibling context. This handles cases where completing a
+ * bidelimited form (e.g. putting down `(` from backpack to
+ * complete `(...)`) leaves the caret inside, and the parent
+ * tile needs a different mold (e.g. `ap(...)` instead of
+ * plain parens) to fit its neighbors. */
+let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
+  switch (ancestors) {
+  | [] => []
+  | [(a, sibs), ...rest] =>
+    let outer_sort = Ancestors.sort(root, rest);
+    let (pre, _) = sibs;
+    let sort = {
+      let rec find_last_tile = (
+        fun
+        | [] => None
+        | [p, ...rest] =>
+          switch (Piece.is_tile(p)) {
+          | Some(t) => Some(t)
+          | None => find_last_tile(rest)
+          }
+      );
+      switch (find_last_tile(List.rev(pre))) {
+      | None => outer_sort
+      | Some(t) =>
+        let (_, r) = Tile.nibs(t);
+        r.sort;
+      };
+    };
+    switch (Form.Molds.try_get(sort, a.label)) {
+    | None
+    | Some([_]) => [(a, sibs), ...rest]
+    | Some(molds) =>
+      let (pre, _) = sibs;
+      let (_, left_shape, _) =
+        Segment.shape_affix(Left, pre, Nib.Shape.concave());
+      let l_idx = Ancestor.l_shard(a);
+      let a =
+        switch (
+          molds
+          |> List.filter(mold => {
+               let (l_nib, _) = Mold.nibs(~index=l_idx, mold);
+               Nib.Shape.fits(left_shape, Nib.shape(l_nib));
+             })
+        ) {
+        | [mold, ..._] => {
+            ...a,
+            mold,
+          }
+        | [] => a
+        };
+      [(a, sibs), ...rest];
+    };
+  };
+
+let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
+  let s = Ancestors.sort(root, ancestors);
   let siblings = Siblings.remold(siblings, s);
+  let ancestors = remold_parent(~root, ancestors);
   {
     ancestors,
     siblings,

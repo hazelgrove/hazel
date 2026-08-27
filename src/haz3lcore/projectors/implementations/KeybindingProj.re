@@ -104,6 +104,7 @@ module M: Projector = {
         parent(
           SetSyntax(
             info.utility.term_to_seg(
+              ~inline=true,
               Exp({
                 term: Atom(String(model.committed_keybinding)),
                 annotation: Language.IdTagged.IdTag.fresh(),
@@ -122,6 +123,7 @@ module M: Projector = {
         parent(
           SetSyntax(
             info.utility.term_to_seg(
+              ~inline=true,
               Exp({
                 term: Atom(String("")),
                 annotation: Language.IdTagged.IdTag.fresh(),
@@ -141,6 +143,7 @@ module M: Projector = {
         parent(
           SetSyntax(
             info.utility.term_to_seg(
+              ~inline=true,
               Exp({
                 term: Atom(String(key_str)),
                 annotation: Language.IdTagged.IdTag.fresh(),
@@ -154,9 +157,11 @@ module M: Projector = {
     | _ => Stop_propagation
     };
   };
-
   let focusable = Focusable.non;
   let dynamics = false;
+  /* Projects a plain string literal, so the raw syntax is all it needs. */
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let placeholder = (model, info) => {
     /* Show what's currently displayed in the view */
@@ -195,7 +200,7 @@ module M: Projector = {
     };
   };
 
-  let view = (model, info, ~local, ~parent, ~view_seg as _) => {
+  let view = ({model, info, local, parent, _}: View.args(model, action)) => {
     let base_class = "keybinding";
     let recording_class = model.isRecording ? "keybinding-recording" : "";
     let all_classes =

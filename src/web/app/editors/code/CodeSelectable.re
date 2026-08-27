@@ -15,15 +15,6 @@ module Update = {
     | Unselect(option(Util.Direction.t))
     | Copy;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Move(move) => Action.is_historic(Move(move))
-    | Select(select) => Action.is_historic(Select(select))
-    | Unselect(dir) => Action.is_historic(Unselect(dir))
-    | Copy => false
-    };
-  };
-
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
     let action': CodeEditable.Update.t =
       switch (action) {
@@ -48,10 +39,15 @@ module Update = {
         Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
+        Structural(_) |
+        Probe(_) |
+        PrettyPrint |
+        Dump |
         Introduce |
-        Dump,
+        ToggleLineComment,
       )
     | DebugConsole(_)
+    | ContextMenu(_)
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;
@@ -60,8 +56,17 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeEditable.Selection.t;
-  let get_cursor_info = (~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(~selection, model)
+  let get_cursor_info = (~inject, ~selection, model) =>
+    CodeEditable.Selection.get_cursor_info(
+      ~inject=
+        a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+      ~selection,
+      model,
+    )
     |> (
       ci =>
         Cursor.{
@@ -70,20 +75,29 @@ module Selection = {
         }
     )
     |> Cursor.map_opt(Update.convert_action);
-  let handle_key_event =
-      (~selection, model: Model.t, key: Key.t): option(Update.t) =>
-    CodeEditable.Selection.handle_key_event(~selection, model, key)
-    |> Option.bind(_, Update.convert_action);
 };
 
 module View = {
   type event = CodeEditable.View.event;
 
-  let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
-      switch (Update.convert_action(a)) {
-      | Some(action) => inject(action)
-      | None => Ui_effect.Ignore
-      }
-    );
+  let wrap_edit_mode =
+      (edit_mode: EditMode.t(Update.t, unit))
+      : EditMode.t(CodeEditable.Update.t, unit) =>
+    switch (edit_mode) {
+    | ReadOnly => ReadOnly
+    | Editable({inject, escape, take_focus, focus}) =>
+      Editable({
+        inject: a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+        escape,
+        take_focus,
+        focus,
+      })
+    };
+
+  let view = (~edit_mode) =>
+    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
 };

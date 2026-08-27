@@ -34,13 +34,15 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
 
   let placeholder = (m, _) =>
-    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorCore.Shape.inline(Unicode.Width.columns_of_string(m.text));
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,
   };
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);
@@ -89,7 +91,7 @@ module M: Projector = {
       } else {
         div(
           ~attrs=[
-            Attr.on_pointerdown(_ =>
+            Attr.on_double_click(_ =>
               status.indication != None ? local(Toggle) : Ui_effect.Ignore
             ),
           ],

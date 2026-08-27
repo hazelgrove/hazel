@@ -7,7 +7,7 @@ type t('a) = {
   recalculate: bool, // Should the editor recalculate after this action?
   scroll_active: bool, // Should the editor scroll to the cursor after this action?
   logged: bool, // Should this action be logged?
-  historic: bool // Should this action be undoable?
+  historic: bool // Should this action be undoable? (consumed by History.re to gate undo-stack pushes)
 };
 
 let ( let* ) = (updated: t('a), f) => {
@@ -53,4 +53,10 @@ let return_quiet =
     logged,
     historic,
   };
+};
+
+exception InvalidAction;
+
+let raise_invalid_action = _ => {
+  raise(InvalidAction);
 };

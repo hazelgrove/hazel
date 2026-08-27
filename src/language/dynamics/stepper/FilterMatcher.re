@@ -3,6 +3,7 @@ let matches_exp = (~denv, d, ~fenv, f) => {
     equality({
       ...semantic_settings,
       ignore_fixpoints: true,
+      ignore_ascriptions: true,
       use_expr_wildcards:
         Some((env, exp) => ValueChecker.check_value(env, exp) != Expr),
       env1: Some(fenv),

@@ -18,9 +18,13 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
+  | SampleFocus(Action.sample_focus)
+  | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment); /* Set underlying syntax */
+  | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
+  | SetSyntax(Base.segment) /* Set underlying syntax */
+  | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
@@ -29,13 +33,14 @@ type utility = {
   /* Convert a segment to a term */
   seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
-  term_to_seg: Any.t => Base.segment,
+  term_to_seg: (~inline: bool, Any.t) => Base.segment,
   seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (~inline: bool, Any.t => Any.t, Base.segment) => option(Base.segment),
 };
 
 module Focusable = {
@@ -86,10 +91,17 @@ type info = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Language.Dynamics.Info.t),
+  /* The elaborated sub-expression at this projector's ID.
+   * Available when statics/elaboration is enabled. The elaborated
+   * form has labels inserted/rearranged by the elaborator. */
+  elaborated: option(Language.Exp.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,
 };
+
+/* A projector-reported error, e.g. "can't render as table" */
+type error = {message: string};
 
 module View = {
   /* A projector has an inline view, which replaces the underlying
@@ -102,6 +114,9 @@ module View = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    /* If true, the projector div gets the "error" class,
+     * triggering the dashed red SVG border from proj-base.css */
+    error: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -110,11 +125,20 @@ module View = {
     sort: Sort.t, /* What sort does the parent editor attribute to the projector? */
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
-    error: bool /* Is there an error mark on the projector? */
+    error: bool, /* Is there an error mark on the projector? */
+    warning: bool /* Is there a warning mark on the projector? */
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg =
+    (
+      ~single_line: bool=?,
+      ~background: bool=?,
+      ~text_only: bool=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {
@@ -129,12 +153,15 @@ module View = {
     view_seg: seg,
     /* Parent editor context on the projector */
     status,
+    /* Core settings for feature flags */
+    core_settings: Language.CoreSettings.t,
   };
 
-  let mk = (~overlay=None, ~offside=None, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    error,
   };
 };
 
@@ -175,12 +202,47 @@ module type Projector = {
    * instrumented with a probe to collect dynamic
    * information during evaluation */
   let dynamics: bool;
+  /* Whether this projector needs type-elaborated syntax.
+   *
+   * Some projectors (e.g. TableProj) require syntactic features
+   * that only exist after elaboration — for example, auto-labels
+   * inserted by `LabeledTuple.rearrange` during type-directed
+   * elaboration. Without elaboration, a list of unlabeled tuples
+   * like `[("Alice", 12)]` has no `TupLabel` nodes, so the
+   * projector can't determine column headers.
+   *
+   * When this flag is true:
+   *
+   * 1. At init time (`ProjectorPerform.init`), the elaborated
+   *    sub-expression is validated via `init` but the original
+   *    syntax is stored unchanged. The projector's syntax is
+   *    never replaced with the elaborated form.
+   *
+   * 2. At render time, `info.elaborated` is populated with the
+   *    elaborated sub-expression (looked up by the inner
+   *    expression's ID). The projector uses this for rendering.
+   *    If the elaborated form becomes incompatible (e.g. the
+   *    surrounding type changes), the projector shows an error.
+   *
+   * 3. When the projector is removed, `pr.syntax` (the original
+   *    user syntax) is restored directly.
+   *
+   * 4. The context menu also checks the elaborated form when
+   *    deciding applicability, so the menu item appears even
+   *    when the raw syntax wouldn't pass `init`.
+   *
+   * If elaboration is unavailable (e.g. during trigger-based
+   * invocation before statics have run), the elaborated path
+   * is skipped and the projector falls back to the raw syntax. */
+  let elaborate_syntax: bool;
   /* Renders the DOM views for the projector */
   let view: View.args(model, action) => View.t;
   /* The space left for the projector in the base editor */
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
+  /* Report an error if the projector can't render properly */
+  let error: (model, info) => option(error);
 };
 
 /* A cooked projector is the same as the base module
@@ -202,6 +264,7 @@ module Cook = (C: Projector) : Cooked => {
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
+  let elaborate_syntax = C.elaborate_syntax;
   let view = (args: View.args(model, action)) =>
     C.view({
       model: deserialize_m(args.model),
@@ -210,9 +273,11 @@ module Cook = (C: Projector) : Cooked => {
       parent: args.parent,
       view_seg: args.view_seg,
       status: args.status,
+      core_settings: args.core_settings,
     });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
+  let error = (m, i) => C.error(m |> deserialize_m, i);
 };

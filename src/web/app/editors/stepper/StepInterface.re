@@ -17,23 +17,29 @@ module type STEP = {
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
-  let can_undo: action => bool;
-
   let calculate:
     (
       ~settings: Calc.t(CoreSettings.t),
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
-      ~ctx: Calc.t(Ctx.t),
+      ~ctx: Calc.t(SemanticCtx.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
+      ~info_map: Calc.t(Statics.Map.t),
+      ~ana: Calc.t(Typ.t),
       model
     ) =>
-    option((model, Calc.t(bool), option(Calc.t(Exp.t))));
+    option(
+      (
+        model,
+        Calc.t(bool), // Hidden
+        option(Calc.t(Exp.t)), // Next
+        Calc.t(option(bool)) // Truth
+      ),
+    );
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
-
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
+  let get_cursor_info:
+    (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
+    Cursor.cursor(action);
 
   let view_justification:
     (
@@ -80,21 +86,19 @@ module type STEPPER = {
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
-  let can_undo: action => bool;
-
   let calculate:
     (
       ~settings: Calc.t(CoreSettings.t),
-      ~ctx: Calc.t(Ctx.t),
       ~exp: Calc.t(Exp.t),
+      ~ctx: Calc.t(SemanticCtx.t),
+      ~ana: Calc.t(Typ.t),
       model
     ) =>
-    (model, Calc.t(Exp.t));
+    (model, Calc.t(Exp.t), Calc.t(option(bool)) /* Truth */);
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
-
-  let handle_key_event:
-    (~focus: focus, ~event: Key.t, model) => option(action);
+  let get_cursor_info:
+    (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
+    Cursor.cursor(action);
 
   let view:
     (

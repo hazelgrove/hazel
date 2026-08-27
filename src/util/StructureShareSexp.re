@@ -36,9 +36,7 @@ let structure_share_t_of_sexp = (t_of_sexp, sexp: Sexplib.Sexp.t): 'a => {
         pre_deserialized_map^ |> Option.value(~default=Id.Map.empty),
       )
     ) {
-    | Some(x) =>
-      print_endline("REUSED");
-      Obj.obj(x);
+    | Some(x) => Obj.obj(x)
     | None =>
       switch (Id.Map.find_opt(id, m)) {
       | Some(t) =>

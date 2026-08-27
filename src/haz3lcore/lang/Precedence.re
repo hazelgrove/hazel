@@ -35,13 +35,12 @@ let type_arrow = 13 |> right_associative;
 // String , _____ , String
 let type_prod = 14;
 let type_binder = 15;
-// forall t -> _____
+// poly t -> _____
 // rec t -> _____
 
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 
-let unquote = 21;
 // $_____
 let dot = 22 |> left_associative;
 let ap = 23;
@@ -75,28 +74,50 @@ let and_ = 32 |> right_associative;
 // true && _____
 // _____ || false
 let or_ = 33 |> right_associative;
+
+// Derivation Mode Only
+// A /\ B \/ C ==> D
+// ((A /\ B) \/ C) ==> D
+let impl = 34;
 // false || _____
-let if_ = 35;
-let fun_ = 36;
-// fun x -> _____
-let prod = 37;
-// a , _____ , x
+let concave_grout = 34;
+
+// ===== SEMICOLON (tightest structural form) =====
+// Sequences naturally extend into bodies of let/fun/if/case
 // _____ ; ()
-let semi = 38 |> right_associative;
+let semi = 35 |> right_associative;
 // () ; _____
+
+// ===== STRUCTURAL FORMS =====
+let if_ = 36;
+let fun_ = 37;
+// fun x -> _____
 
 let lab = 39;
 
-let let_ = 40;
+let case_ = 42;
+
+let comma = 44;
+
+/* Let looser than commas so can do `let x = 1 in x, x */
+let let_ = 45;
 // let x = 3 in _____
-let rule_arr = 41;
-let rule_pre = 42;
-let rule_sep = 43;
-let case_ = 44;
 
-let comma = 47;
+/* Rules looser than commas so can do `case a,b | _ => ... */
+let rule_sep = 46;
 
-let min = 48;
+/* Module-level semicolon: looser than let/type so that
+   `let x = 1; let y = 2` parses as two separate module items,
+   not as `let x = (1; let y = 2)` */
+let mod_seq = 47;
+
+// Derivation Mode Only
+// Exp : Typ (HasType)
+// Exp => Typ (Synthesis)
+// Exp <= Typ (Analysis)
+let ann = 48;
+
+let min = 49;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
@@ -146,7 +167,6 @@ let of_bin_op: Language.Operators.op_bin => t =
   | String(op) =>
     switch (op) {
     | Concat => concat
-    | Equals => eqs
     }
   | Poly(op) =>
     switch (op) {

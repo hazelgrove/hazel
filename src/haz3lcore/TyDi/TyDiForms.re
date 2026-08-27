@@ -26,9 +26,16 @@ module Typ = {
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
-      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
     ),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
+    ("of_jdmt" ++ leading_expander, unk),
+    ("of_ctx" ++ leading_expander, unk),
+    ("of_prop" ++ leading_expander, unk),
+    ("of_alfa_exp" ++ leading_expander, unk),
+    ("of_alfa_typ" ++ leading_expander, unk),
+    ("of_alfa_pat" ++ leading_expander, unk),
+    ("of_alfa_tpat" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
@@ -40,7 +47,6 @@ module Typ = {
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
     ("||", Atom(Bool)),
-    ("$==", Atom(Bool)),
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
     ("!", Atom(Bool)),
@@ -100,13 +106,16 @@ module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Form.Expansion.get(token);
-         List.filter_map(
-           (m: Mold.t) =>
-             List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
-               ? Some(token ++ leading_expander) : None,
-           Form.Molds.get(lbl),
-         );
+         let (lbl, _) = Form.Expansion.get(sort, token);
+         switch (Form.Molds.try_get(sort, lbl)) {
+         | None => []
+         | Some(molds) =>
+           molds
+           |> List.filter_map((_: Mold.t) =>
+                List.length(lbl) > 1 && token == List.hd(lbl)
+                  ? Some(token ++ leading_expander) : None
+              )
+         };
        })
     |> List.flatten
     |> List.sort_uniq(compare);
@@ -114,12 +123,23 @@ module Delims = {
   let leading_exp = leading(Exp);
   let leading_pat = leading(Pat);
   let leading_typ = leading(Typ);
+  /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
+     to Drv(Exp) (see DrvSort.re on the "remolding issue"), so we reuse the
+     Drv(Exp) delim list for all of them. */
+  let leading_drv_exp = leading(Drv(Exp));
+  let leading_drv_typ = leading(Drv(Typ));
+  let leading_drv_pat = leading(Drv(Pat));
+  let leading_drv_tpat = leading(Drv(TPat));
 
   let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => leading_exp
     | Pat => leading_pat
     | Typ => leading_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
+    | Drv(Typ) => leading_drv_typ
+    | Drv(Pat) => leading_drv_pat
+    | Drv(TPat) => leading_drv_tpat
     | _ => []
     };
 
@@ -140,36 +160,62 @@ module Delims = {
   let infix_exp = infix(Exp);
   let infix_pat = infix(Pat);
   let infix_typ = infix(Typ);
+  let infix_drv_exp = infix(Drv(Exp));
+  let infix_drv_typ = infix(Drv(Typ));
+  let infix_drv_pat = infix(Drv(Pat));
+  let infix_drv_tpat = infix(Drv(TPat));
   let infix = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => infix_exp
     | Pat => infix_pat
     | Typ => infix_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
+    | Drv(Typ) => infix_drv_typ
+    | Drv(Pat) => infix_drv_pat
+    | Drv(TPat) => infix_drv_tpat
     | _ => []
     };
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
     |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && List.mem(token, Token.const_mono_delims)
-               ? Some(token) : None,
-           Form.Molds.get([token]),
-         )
+         switch (Form.Molds.try_get(sort, [token])) {
+         | None => []
+         | Some(molds) =>
+           molds
+           |> List.filter_map((_: Mold.t) =>
+                List.mem(token, Token.const_mono_delims) ? Some(token) : None
+              )
+         }
        })
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let const_mono_exp = const_mono(Exp);
-  let const_mono_pat = const_mono(Pat);
+  /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
+   * molds (as constructors) but no type entry in Typ.of_const_mono_delim.
+   * Without an entry, filter_by assigns Unknown type, making them match
+   * any expected type. Exclude them from Exp and Pat suggestions;
+   * constructor suggestions come from TyDiCtx.bound_constructors instead.
+   * They remain in Typ sort for type-position completion. */
+  let const_mono_exp =
+    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
+  let const_mono_pat =
+    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
   let const_mono_typ = const_mono(Typ);
+  let const_mono_drv_exp = const_mono(Drv(Exp));
+  let const_mono_drv_typ = const_mono(Drv(Typ));
+  let const_mono_drv_pat = const_mono(Drv(Pat));
+  let const_mono_drv_tpat = const_mono(Drv(TPat));
 
   let const_mono = (sort: Sort.t): list(string) =>
     switch (sort) {
     | Exp => const_mono_exp
     | Pat => const_mono_pat
     | Typ => const_mono_typ
+    | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
+    | Drv(Typ) => const_mono_drv_typ
+    | Drv(Pat) => const_mono_drv_pat
+    | Drv(TPat) => const_mono_drv_tpat
     | _ => []
     };
 };

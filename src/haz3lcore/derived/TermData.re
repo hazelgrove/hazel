@@ -21,9 +21,15 @@ let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => 
   root_piece: p,
 };
 
+/* Root piece of a term by id — works for tiles, grouts, secondaries, and
+   projectors. Useful for editor-membership checks where any piece type is
+   acceptable (e.g. jumping to a hole by its grout id). */
+let root_piece = (id: Id.t, data: t): option(Piece.t) =>
+  Option.map(d => d.root_piece, Id.Map.find_opt(id, data));
+
 let root_tile = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find_opt(id, data)) {
-  | Some({root_piece: Tile(t), _}) => Some(t)
+  switch (root_piece(id, data)) {
+  | Some(Tile(t)) => Some(t)
   | _ => None
   };
 
@@ -53,13 +59,6 @@ let extremes_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
   | None => None
   };
 
-let root_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
-  switch (Id.Map.find_opt(id, data)) {
-  | Some({root_piece, _}) =>
-    Some((Piece.l_shard_of(root_piece), Piece.r_shard_of(root_piece)))
-  | _ => None
-  };
-
 let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
   switch (extremes_opt(id, data)) {
   | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))
@@ -84,4 +83,42 @@ let segment = (id: Id.t, data: t): option(Segment.t) => {
   let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
   let (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
+};
+
+let get_term_rows =
+    (id: Id.t, data: t, measured: Measured.t)
+    : option((int, list(Segment.t))) => {
+  let+ (start, final) = extreme_measures(id, data, measured);
+  let term_rows =
+    measured.piece_rows
+    |> List.rev
+    |> Util.ListUtil.sublist((start.row, final.row + 1))
+    |> List.map(List.rev);
+  (start.row, term_rows);
+};
+
+let get_root_id_using_ranges =
+    (s: Base.segment, data: t, measured: Measured.t): option(Id.t) => {
+  let id_and_ranges =
+    s
+    |> List.filter_map((p: Piece.t) => {
+         let id = Piece.id(p);
+         let range_opt = extreme_measures(id, data, measured);
+         Option.map(r => (id, r), range_opt);
+       });
+  ListUtil.max(
+    ((_, (start1, end1)), (_, (start2, end2))) =>
+      switch (Point.comp(start1, start2)) {
+      | Under => Direction.Left
+      | Over => Direction.Right
+      | Exact =>
+        switch (Point.comp(end1, end2)) {
+        | Under => Direction.Right
+        | Over => Direction.Left
+        | Exact => Direction.Right
+        }
+      },
+    id_and_ranges,
+  )
+  |> Option.map(fst);
 };

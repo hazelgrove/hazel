@@ -19,19 +19,34 @@ let exercise : Tutorial.spec =
     version = 3;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -129,6 +144,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [ "Did you type out the given expression correctly?" ];
       };
@@ -150,7 +166,7 @@ let shadow_exercise : Tutorial.spec =
        the name of a previously bound variable. However, this makes it \
        impossible to refer to the previous binding within the scope of the new \
        binding; we say that variable has been `shadowed`. For example, the \
-       expression `let y = 8 in let y = 0 in x` would evaluate to 0. \n\n\
+       expression `let y = 8 in let y = 0 in y` would evaluate to 0. \n\n\
        Now, let's try it. First, define a variable x to any number you want. \
        Then, shadow x to the value 7. Make sure you that in both let \
        expression the variable has the same name. ";
@@ -159,19 +175,34 @@ let shadow_exercise : Tutorial.spec =
     version = 7;
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
@@ -269,6 +300,7 @@ let shadow_exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [ "Have you shadowed x to 7?" ];
       };

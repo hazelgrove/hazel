@@ -82,13 +82,18 @@ let let_ctr_ex = {
   term: mk_example("type T = None + Some(Int)\n in let None = None\nin 2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
 };
-let let_ap_ex = {
+let let_conap_ex = {
   sub_id: Let(Ap),
   term:
     mk_example("type T = None + Some(Int)\n in let Some(a) = Some(2)\nin a"),
   message: "The a is bound to 2, so the expression evaluates to 2.",
 };
-let _pat_def_body_let_exp_coloring_ids =
+let let_funap_ex = {
+  sub_id: Let(Ap),
+  term: mk_example("let f(x) = x*2\nin f(3)"),
+  message: "The variable f is bound to a function transforming x to x * 2, so the expression evaluates to 3 * 2 = 6.",
+};
+let pat_def_body_let_exp_coloring_ids =
     (
       sf_pat_id: Id.t,
       sf_def_id: Id.t,
@@ -100,585 +105,828 @@ let _pat_def_body_let_exp_coloring_ids =
     : list((Id.t, Id.t)) => {
   [(sf_pat_id, pat_id), (sf_def_id, def_id), (sf_body_id, body_id)];
 };
-let _pat_def_let_exp_coloring_ids =
+let pat_def_let_exp_coloring_ids =
     (sf_pat_id: Id.t, sf_def_id: Id.t, ~pat_id: Id.t, ~def_id: Id.t)
     : list((Id.t, Id.t)) => {
   [(sf_pat_id, pat_id), (sf_def_id, def_id)];
 };
-let _pat = pat("p");
-let _exp_def = exp("e_def");
+let p = pat("p");
+let exp_def = exp("e_def");
 let let_base_exp_coloring_ids =
-  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
-let let_base_exp: form = {
-  let explanation = "The [*definition*](%s) is matched against the [*pattern*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(Base),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("p")])),
-    explanation,
-    examples: [let_base_ex],
-  };
+  pat_def_let_exp_coloring_ids(Piece.id(p), Piece.id(exp_def));
+let let_base_exp_id: form_id = LetExp(Base);
+let let_base_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_base_exp_explanation = (~def_id: Id.t, ~pat_id: Id.t): string =>
+  Printf.sprintf(
+    "The [*definition*](%s) is matched against the [*pattern*](%s).",
+    Id.to_string(def_id),
+    Id.to_string(pat_id),
+  );
+let let_base_exp = (~def_id: Id.t, ~pat_id: Id.t): form => {
+  id: let_base_exp_id,
+  syntactic_form: let_base_exp_form,
+  colorings: let_base_exp_coloring_ids(~pat_id, ~def_id),
+  expandable_id: Some((Piece.id(p), [pat("p")])),
+  explanation: let_base_exp_explanation(~def_id, ~pat_id),
+  examples: [let_base_ex],
 };
-let _pat =
+let p =
   Piece.Grout({
     id: Id.mk(),
     shape: Convex,
   });
-let _exp_def = exp("e_def");
+let exp_def = exp("e_def");
 let let_empty_hole_exp_coloring_ids =
-  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
-let let_empty_hole_exp: form = {
-  let explanation = "After the [*empty hole pattern*](%s) is filled, the [*definition*](%s) is matched against the [*pattern*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(EmptyHole),
-    syntactic_form: form,
-    expandable_id:
-      Some((
-        Piece.id(_pat),
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      )),
-    explanation,
-    examples: [let_base_ex],
-  };
+  pat_def_let_exp_coloring_ids(Piece.id(p), Piece.id(exp_def));
+let let_empty_hole_exp_id: form_id = LetExp(EmptyHole);
+let let_empty_hole_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_empty_hole_exp_expandable =
+  Piece.Grout({
+    id: Id.mk(),
+    shape: Convex,
+  });
+let let_empty_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
+  id: let_empty_hole_exp_id,
+  syntactic_form: let_empty_hole_exp_form,
+  colorings: let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
+  expandable_id: Some((Piece.id(p), [let_empty_hole_exp_expandable])),
+  explanation:
+    Printf.sprintf(
+      "After the [*empty hole pattern*](%s) is filled, the [*definition*](%s) is matched against the [*pattern*](%s).",
+      Id.to_string(pat_id),
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+    ),
+  examples: [let_base_ex],
 };
-let _pat = pat("INVALID");
-let _exp_def = exp("e_def");
+let p = pat("INVALID");
+let exp_def = exp("e_def");
 let let_multi_hole_exp_coloring_ids =
-  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
-let let_multi_hole_exp: form = {
-  let explanation = "After the [invalid pattern](%s) is corrected, the [*definition*](%s) is matched against the [*pattern*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(MultiHole),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("INVALID")])),
-    explanation,
-    examples: [let_base_ex],
-  };
+  pat_def_let_exp_coloring_ids(Piece.id(p), Piece.id(exp_def));
+let let_multi_hole_exp_id: form_id = LetExp(MultiHole);
+let let_multi_hole_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_multi_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
+  id: let_multi_hole_exp_id,
+  syntactic_form: let_multi_hole_exp_form,
+  colorings: let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
+  expandable_id: Some((Piece.id(p), [pat("INVALID")])),
+  explanation:
+    Printf.sprintf(
+      "After the [invalid pattern](%s) is corrected, the [*definition*](%s) is matched against the [*pattern*](%s).",
+      Id.to_string(pat_id),
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+    ),
+  examples: [let_base_ex],
 };
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_wild_exp_coloring_ids =
     (~def_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_exp_def), def_id),
-  (Piece.id(_exp_body), body_id),
+  (Piece.id(exp_def), def_id),
+  (Piece.id(exp_body), body_id),
 ];
-let let_wild_exp: form = {
-  let explanation = "The [*definition*](%s) is evaluated and ignored. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let pat_ = pat("_");
-  let form = [
-    mk_let([[space(), pat_, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Wild),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(pat_), [pat("_")])),
-    explanation,
-    examples: [let_wild_ex],
-  };
+let let_wild_exp_id: form_id = LetExp(Wild);
+let let_wild_exp_pat = pat("_");
+let let_wild_exp_form = [
+  mk_let([
+    [space(), let_wild_exp_pat, space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp_body,
+];
+let let_wild_exp = (~def_id: Id.t, ~body_id: Id.t): form => {
+  id: let_wild_exp_id,
+  syntactic_form: let_wild_exp_form,
+  colorings: let_wild_exp_coloring_ids(~def_id, ~body_id),
+  expandable_id: Some((Piece.id(let_wild_exp_pat), [pat("_")])),
+  explanation:
+    Printf.sprintf(
+      "The [*definition*](%s) is evaluated and ignored. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_wild_ex],
 };
-let _pat = pat("IntLit");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("IntLit");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_int_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_int_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Int),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
-    explanation,
-    examples: [let_int_ex],
-  };
+let let_int_exp_id: form_id = LetExp(Int);
+let let_int_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_int_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~i: Bigint.t, ~body_id: Id.t): form => {
+  id: let_int_exp_id,
+  syntactic_form: let_int_exp_form,
+  colorings: let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("IntLit")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      Bigint.to_string(i),
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_int_ex],
 };
 
-let _pat = pat("SIntLit");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("SIntLit");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_sint_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_sint_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(SInt),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
-    explanation,
-    examples: [let_sint_ex],
-  };
+let let_sint_exp_id: form_id = LetExp(SInt);
+let let_sint_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_sint_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~i: int, ~body_id: Id.t): form => {
+  id: let_sint_exp_id,
+  syntactic_form: let_sint_exp_form,
+  colorings: let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("IntLit")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%d`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      i,
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_sint_ex],
 };
 
-let _pat = pat("FloatLit");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("FloatLit");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_float_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_float_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%f`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Float),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("FloatLit")])),
-    explanation,
-    examples: [let_float_ex],
-  };
+let let_float_exp_id: form_id = LetExp(Float);
+let let_float_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_float_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~f: float, ~body_id: Id.t): form => {
+  id: let_float_exp_id,
+  syntactic_form: let_float_exp_form,
+  colorings: let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("FloatLit")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%f`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      f,
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_float_ex],
 };
-let _pat = pat("BoolLit");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("BoolLit");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_bool_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_bool_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%b`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Bool),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("BoolLit")])),
-    explanation,
-    examples: [let_bool_ex],
-  };
+let let_bool_exp_id: form_id = LetExp(Bool);
+let let_bool_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_bool_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~b: bool, ~body_id: Id.t): form => {
+  id: let_bool_exp_id,
+  syntactic_form: let_bool_exp_form,
+  colorings: let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("BoolLit")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%b`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      b,
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_bool_ex],
 };
-let _pat = pat("StringLit");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("StringLit");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_str_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_str_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(String),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("StringLit")])),
-    explanation,
-    examples: [let_str_ex],
-  };
+let let_str_exp_id: form_id = LetExp(String);
+let let_str_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_str_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~s: string, ~body_id: Id.t): form => {
+  id: let_str_exp_id,
+  syntactic_form: let_str_exp_form,
+  colorings: let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("StringLit")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      s,
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_str_ex],
 };
-let _pat = pat("()");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("()");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_triv_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_triv_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the trivial value `()`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Triv),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("()")])),
-    explanation,
-    examples: [let_triv_ex],
-  };
+let let_triv_exp_id: form_id = LetExp(Triv);
+let let_triv_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_triv_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
+  id: let_triv_exp_id,
+  syntactic_form: let_triv_exp_form,
+  colorings: let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("()")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the trivial value `()`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_triv_ex],
 };
-let _pat = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
-let _exp_def = exp("e_def");
+let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
+let exp_def = exp("e_def");
 let let_listlit_exp_coloring_ids =
-  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
-let let_listlit_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the [*pattern*](%s) are lists with %s-elements, where each element matches the corresponding element pattern.";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(ListLit),
-    syntactic_form: form,
-    expandable_id:
-      Some((Piece.id(_pat), [pat("p1"), comma_pat(), pat("...")])),
-    explanation,
-    examples: [let_listlit_ex],
-  };
+  pat_def_let_exp_coloring_ids(Piece.id(p), Piece.id(exp_def));
+let let_listlit_exp_id: form_id = LetExp(ListLit);
+let let_listlit_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_listlit_exp = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): form => {
+  id: let_listlit_exp_id,
+  syntactic_form: let_listlit_exp_form,
+  colorings: let_listlit_exp_coloring_ids(~pat_id, ~def_id),
+  expandable_id:
+    Some((Piece.id(p), [pat("p1"), comma_pat(), pat("...")])),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the [*pattern*](%s) are lists with %d-elements, where each element matches the corresponding element pattern.",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      n,
+    ),
+  examples: [let_listlit_ex],
 };
-let _pat = pat("[]");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("[]");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_listnil_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_listnil_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the empty list `[]`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(ListNil),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("[]")])),
-    explanation,
-    examples: [let_listnil_ex],
-  };
+let let_listnil_exp_id: form_id = LetExp(ListNil);
+let let_listnil_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_listnil_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
+  id: let_listnil_exp_id,
+  syntactic_form: let_listnil_exp_form,
+  colorings: let_listnil_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("[]")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the empty list `[]`. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_listnil_ex],
 };
-let _pat_hd = pat("p_hd");
-let _pat_tl = pat("p_tl");
-let _exp_def = exp("e_def");
+let pat_hd = pat("p_hd");
+let pat_tl = pat("p_tl");
+let exp_def = exp("e_def");
 let let_cons_exp_coloring_ids =
     (~hd_id: Id.t, ~tl_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_hd), hd_id),
-  (Piece.id(_pat_tl), tl_id),
-  (Piece.id(_exp_def), def_id),
+  (Piece.id(pat_hd), hd_id),
+  (Piece.id(pat_tl), tl_id),
+  (Piece.id(exp_def), def_id),
 ];
-let let_cons_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the *pattern* are non-empty lists that match the [*head*](%s) and [*tail*](%s) patterns.";
-  let cons = cons_pat();
-  let form = [
-    mk_let([
-      [space(), _pat_hd, cons, _pat_tl, space()],
-      [space(), _exp_def, space()],
-    ]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(ListCons),
-    syntactic_form: form,
-    expandable_id:
-      Some((Piece.id(cons), [pat("p_hd"), cons_pat(), pat("p_tl")])),
-    explanation,
-    examples: [let_cons_hd_ex, let_cons_snd_ex],
-  };
+let let_cons_exp_id: form_id = LetExp(ListCons);
+let let_cons_exp_cons = cons_pat();
+let let_cons_exp_form = [
+  mk_let([
+    [space(), pat_hd, let_cons_exp_cons, pat_tl, space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_cons_exp = (~def_id: Id.t, ~hd_id: Id.t, ~tl_id: Id.t): form => {
+  id: let_cons_exp_id,
+  syntactic_form: let_cons_exp_form,
+  colorings: let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
+  expandable_id:
+    Some((
+      Piece.id(let_cons_exp_cons),
+      [pat("p_hd"), cons_pat(), pat("p_tl")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are non-empty lists that match the [*head*](%s) and [*tail*](%s) patterns.",
+      Id.to_string(def_id),
+      Id.to_string(hd_id),
+      Id.to_string(tl_id),
+    ),
+  examples: [let_cons_hd_ex, let_cons_snd_ex],
 };
-let _pat = pat("x");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("x");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_var_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_var_exp: form = {
-  let explanation = "The [*definition*](%s) is bound to the [*variable*](%s) `%s` in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Var),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("x")])),
-    explanation,
-    examples: [let_var_ex],
-    // TODO Does this example being slightly different actually add anything?
-  };
+let let_var_exp_id: form_id = LetExp(Var);
+let let_var_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
+];
+let let_var_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): form => {
+  id: let_var_exp_id,
+  syntactic_form: let_var_exp_form,
+  colorings: let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("x")])),
+  explanation:
+    Printf.sprintf(
+      "The [*definition*](%s) is bound to the [*variable*](%s) `%s` in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      name,
+      Id.to_string(body_id),
+    ),
+  examples: [let_var_ex],
+  // TODO Does this example being slightly different actually add anything?
 };
-let _comma = comma_pat();
-let _exp_def = exp("e_def");
+let comma = comma_pat();
+let exp_def = exp("e_def");
 let let_tuple_exp_coloring_ids =
-  _pat_def_let_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp_def));
-let let_tuple_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the [*pattern*](%s) are %s-tuples where each element matches the corresponding element pattern.";
-  let form = [
-    mk_let([
-      [space(), pat("p1"), _comma, space(), pat("..."), space()],
-      [space(), _exp_def, space()],
-    ]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(Tuple),
-    syntactic_form: form,
-    expandable_id:
-      Some((Piece.id(_comma), [pat("p1"), comma_pat(), pat("...")])),
-    explanation,
-    examples: [let_tuple2_ex, let_tuple3_ex],
-  };
+  pat_def_let_exp_coloring_ids(Piece.id(comma), Piece.id(exp_def));
+let let_tuple_exp_id: form_id = LetExp(Tuple);
+let let_tuple_exp_form = [
+  mk_let([
+    [space(), pat("p1"), comma, space(), pat("..."), space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_tuple_exp_explanation =
+    (~def_id: Id.t, ~pat_id: Id.t, ~n: int): string =>
+  Printf.sprintf(
+    "The only values for the [*definition*](%s) that match the [*pattern*](%s) are %d-tuples where each element matches the corresponding element pattern.",
+    Id.to_string(def_id),
+    Id.to_string(pat_id),
+    n,
+  );
+let let_tuple_exp = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): form => {
+  id: let_tuple_exp_id,
+  syntactic_form: let_tuple_exp_form,
+  colorings: let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+  expandable_id:
+    Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
+  explanation: let_tuple_exp_explanation(~def_id, ~pat_id, ~n),
+  examples: [let_tuple2_ex, let_tuple3_ex],
 };
-let _pat1 = pat("p1");
-let _pat2 = pat("p2");
-let _exp_def = exp("e_def");
+let pat1 = pat("p1");
+let pat2 = pat("p2");
+let exp_def = exp("e_def");
 let let_tuple2_exp_coloring_ids =
     (~pat1_id: Id.t, ~pat2_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat1), pat1_id),
-  (Piece.id(_pat2), pat2_id),
-  (Piece.id(_exp_def), def_id),
+  (Piece.id(pat1), pat1_id),
+  (Piece.id(pat2), pat2_id),
+  (Piece.id(exp_def), def_id),
 ];
-let let_tuple2_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s).";
-  let comma = comma_pat();
-  let form = [
-    mk_let([
-      [space(), _pat1, comma, space(), _pat2, space()],
-      [space(), _exp_def, space()],
-    ]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(Tuple2),
-    syntactic_form: form,
-    expandable_id:
-      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("p2")])),
-    explanation,
-    examples: [let_tuple2_ex],
-  };
+let let_tuple2_exp_id: form_id = LetExp(Tuple2);
+let let_tuple2_exp_comma = comma_pat();
+let let_tuple2_exp_form = [
+  mk_let([
+    [space(), pat1, let_tuple2_exp_comma, space(), pat2, space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_tuple2_exp = (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t): form => {
+  id: let_tuple2_exp_id,
+  syntactic_form: let_tuple2_exp_form,
+  colorings: let_tuple2_exp_coloring_ids(~pat1_id, ~pat2_id, ~def_id),
+  expandable_id:
+    Some((
+      Piece.id(let_tuple2_exp_comma),
+      [pat("p1"), comma_pat(), pat("p2")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat1_id),
+      Id.to_string(pat2_id),
+    ),
+  examples: [let_tuple2_ex],
 };
-let _pat1 = pat("p1");
-let _pat2 = pat("p2");
-let _pat3 = pat("p3");
-let _exp_def = exp("e_def");
+let pat1 = pat("p1");
+let pat2 = pat("p2");
+let pat3 = pat("p3");
+let exp_def = exp("e_def");
 let let_tuple3_exp_coloring_ids =
     (~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t, ~def_id: Id.t)
     : list((Id.t, Id.t)) => [
-  (Piece.id(_pat1), pat1_id),
-  (Piece.id(_pat2), pat2_id),
-  (Piece.id(_pat3), pat3_id),
-  (Piece.id(_exp_def), def_id),
+  (Piece.id(pat1), pat1_id),
+  (Piece.id(pat2), pat2_id),
+  (Piece.id(pat3), pat3_id),
+  (Piece.id(exp_def), def_id),
 ];
-let let_tuple3_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s).";
-  let comma = comma_pat();
-  let form = [
-    mk_let([
-      [
-        space(),
-        _pat1,
-        comma_pat(),
-        space(),
-        _pat2,
-        comma,
-        space(),
-        _pat3,
-        space(),
-      ],
-      [space(), _exp_def, space()],
-    ]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(Tuple3),
-    syntactic_form: form,
-    expandable_id:
-      Some((
-        Piece.id(comma),
-        [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
-      )),
-    explanation,
-    examples: [let_tuple3_ex],
-  };
+let let_tuple3_exp_id: form_id = LetExp(Tuple3);
+let let_tuple3_exp_comma = comma_pat();
+let let_tuple3_exp_form = [
+  mk_let([
+    [
+      space(),
+      pat1,
+      comma_pat(),
+      space(),
+      pat2,
+      let_tuple3_exp_comma,
+      space(),
+      pat3,
+      space(),
+    ],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_tuple3_exp =
+    (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t): form => {
+  id: let_tuple3_exp_id,
+  syntactic_form: let_tuple3_exp_form,
+  colorings:
+    let_tuple3_exp_coloring_ids(~pat1_id, ~pat2_id, ~pat3_id, ~def_id),
+  expandable_id:
+    Some((
+      Piece.id(let_tuple3_exp_comma),
+      [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat1_id),
+      Id.to_string(pat2_id),
+      Id.to_string(pat3_id),
+    ),
+  examples: [let_tuple3_ex],
 };
-let _pat = pat("C");
-let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
+let p = pat("C");
+let exp_def = exp("e_def");
+let exp_body = exp("e_body");
 let let_ctr_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
+  pat_def_body_let_exp_coloring_ids(
+    Piece.id(p),
+    Piece.id(exp_def),
+    Piece.id(exp_body),
   );
-let let_ctr_exp: form = {
-  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the *`%s` constructor*. The [*definition*](%s) can't be referenced in the [*body*](%s).";
-  let form = [
-    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
-    linebreak(),
-    _exp_body,
-  ];
-  {
-    id: LetExp(Ctr),
-    syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("C")])),
-    explanation,
-    examples: [let_ctr_ex],
-  };
-};
-let _pat_con = pat("p_con");
-let _pat_arg = pat("p_arg");
-let _exp_def = exp("e_def");
-let let_ap_exp_coloring_ids =
-    (~con_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_con), con_id),
-  (Piece.id(_pat_arg), arg_id),
-  (Piece.id(_exp_def), def_id),
+let let_ctr_exp_id: form_id = LetExp(Ctr);
+let let_ctr_exp_form = [
+  mk_let([[space(), p, space()], [space(), exp_def, space()]]),
+  linebreak(),
+  exp_body,
 ];
-let let_ap_exp: form = {
-  let explanation = "The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).";
-  let ap = mk_ap_pat([[_pat_arg]]);
-  let form = [
-    mk_let([
-      [space(), _pat_con, ap, space()],
-      [space(), _exp_def, space()],
-    ]),
-    linebreak(),
-    exp("e_body"),
-  ];
-  {
-    id: LetExp(Ap),
-    syntactic_form: form,
-    expandable_id:
-      Some((Piece.id(ap), [pat("p_con"), mk_ap_pat([[pat("p_arg")]])])),
-    explanation,
-    examples: [let_ap_ex],
-  };
+let let_ctr_exp =
+    (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): form => {
+  id: let_ctr_exp_id,
+  syntactic_form: let_ctr_exp_form,
+  colorings: let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+  expandable_id: Some((Piece.id(p), [pat("C")])),
+  explanation:
+    Printf.sprintf(
+      "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is the *`%s` constructor*. The [*definition*](%s) can't be referenced in the [*body*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(pat_id),
+      name,
+      Id.to_string(def_id),
+      Id.to_string(body_id),
+    ),
+  examples: [let_ctr_ex],
+};
+let pat_con = pat("p_con");
+let pat_arg = pat("p_arg");
+let exp_def = exp("e_def");
+let let_conap_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(pat_con), x_id),
+  (Piece.id(pat_arg), arg_id),
+  (Piece.id(exp_def), def_id),
+];
+let let_conap_exp_id: form_id = LetExp(ApCons);
+let let_conap_exp_ap = mk_ap_pat([[pat_arg]]);
+let let_conap_exp_form = [
+  mk_let([
+    [space(), pat_con, let_conap_exp_ap, space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_conap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
+  id: let_conap_exp_id,
+  syntactic_form: let_conap_exp_form,
+  colorings: let_conap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
+  expandable_id:
+    Some((Piece.id(let_conap_exp_ap), [pat_con, mk_ap_pat([[pat_arg]])])),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(x_id),
+      Id.to_string(arg_id),
+    ),
+  examples: [let_conap_ex],
 };
 
-let lets_emptyhole: group = {
+let pat_fun = pat("p_fun");
+let pat_arg = pat("p_arg");
+let exp_def = exp("e_def");
+let let_funap_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(pat_fun), x_id),
+  (Piece.id(pat_arg), arg_id),
+  (Piece.id(exp_def), def_id),
+];
+let let_funap_exp_id: form_id = LetExp(ApFunc);
+let let_funap_exp_ap = mk_ap_pat([[pat_arg]]);
+let let_funap_exp_form = [
+  mk_let([
+    [space(), pat_fun, let_funap_exp_ap, space()],
+    [space(), exp_def, space()],
+  ]),
+  linebreak(),
+  exp("e_body"),
+];
+let let_funap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
+  id: let_funap_exp_id,
+  syntactic_form: let_funap_exp_form,
+  colorings: let_funap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
+  expandable_id:
+    Some((Piece.id(let_funap_exp_ap), [pat_fun, mk_ap_pat([[pat_arg]])])),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are the [*function*](%s) where the *argument* matches the [*argument pattern*](%s).",
+      Id.to_string(def_id),
+      Id.to_string(x_id),
+      Id.to_string(arg_id),
+    ),
+  examples: [let_funap_ex],
+};
+
+let lets_emptyhole = (~def_id: Id.t, ~pat_id: Id.t): group => {
   id: LetExp(EmptyHole),
-  forms: [let_empty_hole_exp, let_base_exp],
+  forms: [
+    let_empty_hole_exp(~pat_id, ~def_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_mutlihole: group = {
+let lets_multihole = (~def_id: Id.t, ~pat_id: Id.t): group => {
   id: LetExp(MultiHole),
-  forms: [let_multi_hole_exp, let_base_exp],
+  forms: [
+    let_multi_hole_exp(~pat_id, ~def_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_wild: group = {
+let lets_wild = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): group => {
   id: LetExp(Wild),
-  forms: [let_wild_exp, let_base_exp],
+  forms: [let_wild_exp(~def_id, ~body_id), let_base_exp(~def_id, ~pat_id)],
 };
 
-let lets_int: group = {
+let lets_int =
+    (~def_id: Id.t, ~pat_id: Id.t, ~i: Bigint.t, ~body_id: Id.t): group => {
   id: LetExp(Int),
-  forms: [let_int_exp, let_base_exp],
+  forms: [
+    let_int_exp(~def_id, ~pat_id, ~i, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_sint: group = {
+let lets_sint = (~def_id: Id.t, ~pat_id: Id.t, ~i: int, ~body_id: Id.t): group => {
   id: LetExp(SInt),
-  forms: [let_sint_exp, let_base_exp],
+  forms: [
+    let_sint_exp(~def_id, ~pat_id, ~i, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_float: group = {
+let lets_float =
+    (~def_id: Id.t, ~pat_id: Id.t, ~f: float, ~body_id: Id.t): group => {
   id: LetExp(Float),
-  forms: [let_float_exp, let_base_exp],
+  forms: [
+    let_float_exp(~def_id, ~pat_id, ~f, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_bool: group = {
+let lets_bool =
+    (~def_id: Id.t, ~pat_id: Id.t, ~b: bool, ~body_id: Id.t): group => {
   id: LetExp(Bool),
-  forms: [let_bool_exp, let_base_exp],
+  forms: [
+    let_bool_exp(~def_id, ~pat_id, ~b, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_str: group = {
+let lets_str =
+    (~def_id: Id.t, ~pat_id: Id.t, ~s: string, ~body_id: Id.t): group => {
   id: LetExp(String),
-  forms: [let_str_exp, let_base_exp],
+  forms: [
+    let_str_exp(~def_id, ~pat_id, ~s, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_triv: group = {
+let lets_triv = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): group => {
   id: LetExp(Triv),
-  forms: [let_triv_exp, let_base_exp],
+  forms: [
+    let_triv_exp(~def_id, ~pat_id, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_listlit: group = {
+let lets_listlit = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): group => {
   id: LetExp(ListLit),
-  forms: [let_listlit_exp, let_base_exp],
+  forms: [
+    let_listlit_exp(~def_id, ~pat_id, ~n),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_listnil: group = {
+let lets_listnil = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): group => {
   id: LetExp(ListNil),
-  forms: [let_listnil_exp, let_base_exp],
+  forms: [
+    let_listnil_exp(~def_id, ~pat_id, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_cons: group = {
+let lets_cons =
+    (~def_id: Id.t, ~hd_id: Id.t, ~tl_id: Id.t, ~pat_id: Id.t): group => {
   id: LetExp(ListCons),
-  forms: [let_cons_exp, let_base_exp],
+  forms: [
+    let_cons_exp(~def_id, ~hd_id, ~tl_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_var: group = {
+let lets_var =
+    (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): group => {
   id: LetExp(Var),
-  forms: [let_var_exp, let_base_exp],
+  forms: [
+    let_var_exp(~def_id, ~pat_id, ~name, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_tuple: group = {
+let lets_tuple = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): group => {
   id: LetExp(Tuple),
-  forms: [let_tuple_exp, let_base_exp],
+  forms: [
+    let_tuple_exp(~def_id, ~pat_id, ~n),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_tuple2: group = {
+let lets_tuple2 =
+    (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t, ~pat_id: Id.t, ~n: int)
+    : group => {
   id: LetExp(Tuple2),
-  forms: [let_tuple2_exp, let_tuple_exp, let_base_exp],
+  forms: [
+    let_tuple2_exp(~def_id, ~pat1_id, ~pat2_id),
+    let_tuple_exp(~def_id, ~pat_id, ~n),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_tuple3: group = {
+let lets_tuple3 =
+    (
+      ~def_id: Id.t,
+      ~pat1_id: Id.t,
+      ~pat2_id: Id.t,
+      ~pat3_id: Id.t,
+      ~pat_id: Id.t,
+      ~n: int,
+    )
+    : group => {
   id: LetExp(Tuple3),
-  forms: [let_tuple3_exp, let_tuple_exp, let_base_exp],
+  forms: [
+    let_tuple3_exp(~def_id, ~pat1_id, ~pat2_id, ~pat3_id),
+    let_tuple_exp(~def_id, ~pat_id, ~n),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_ctr: group = {
+let lets_ctr =
+    (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): group => {
   id: LetExp(Ctr),
-  forms: [let_ctr_exp, let_base_exp],
+  forms: [
+    let_ctr_exp(~def_id, ~pat_id, ~name, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };
 
-let lets_ap: group = {
-  id: LetExp(Ap),
-  forms: [let_ap_exp, let_base_exp],
+let lets_conap =
+    (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t, ~pat_id: Id.t): group => {
+  id: LetExp(ApCons),
+  forms: [
+    let_conap_exp(~def_id, ~x_id, ~arg_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
+};
+
+let lets_funap =
+    (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t, ~pat_id: Id.t): group => {
+  id: LetExp(ApFunc),
+  forms: [
+    let_funap_exp(~def_id, ~x_id, ~arg_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
 };

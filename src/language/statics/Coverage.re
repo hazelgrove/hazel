@@ -25,6 +25,14 @@ module Constraint = {
 
   let true_ = Ap("true", None);
   let false_ = Ap("false", None);
+
+  /* A constraint that matches any value of its type: coverage checking
+     (and the type normalization it requires) is skippable. */
+  let rec is_irrefutable =
+    fun
+    | Truth => true
+    | Tuple(cs) => List.for_all(is_irrefutable, cs)
+    | _ => false;
 };
 
 module Ctr = {
@@ -113,10 +121,14 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
-    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
+    | Rec(_) =>
+      switch (Typ.unroll_to_non_rec(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+    | ProofOf(_) => Infinite
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
@@ -132,14 +144,17 @@ module Ctr = {
     | Atom(Float)
     | Atom(Nat)
     | Atom(String)
+    | DrvQuoteTy(_)
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Var(_) => Infinite
     | Parens(_)
+    | Projector(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
@@ -187,14 +202,6 @@ module Matrix = {
 
   let contains_row = (idx: int, m: t): bool =>
     List.exists((row: row) => row.idx == idx, m);
-
-  let has_multiple_columns = (m: t): bool =>
-    switch (m) {
-    | [] => false
-    | [{idx: _, cols: []}, ..._] => false
-    | [{idx: _, cols: [_]}, ..._] => false
-    | [{idx: _, cols: _}, ..._] => true
-    };
 
   let rev = (m: t): t => List.rev(m);
 };
@@ -328,9 +335,9 @@ module UnseenPatternList: UnseenPatternList = {
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
 
       cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
-    | TupLabel(body, _) =>
+    | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(body)) {
+      switch (IdTagged.term_of(label_pos)) {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
@@ -338,7 +345,8 @@ module UnseenPatternList: UnseenPatternList = {
         | [hd, ...tl] =>
           cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
         }
-      | _ => failwith("TupLabel without a label in unseen pattern list")
+      // No label (e.g. label_pos is EmptyHole) — skip this column.
+      | _ => unseen_pattern
       }
     | List(_) =>
       switch (ctr.ctr) {
@@ -414,13 +422,17 @@ module UnseenPatternList: UnseenPatternList = {
         unseen_pattern,
       )
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
+    | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_ctr called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -549,13 +561,17 @@ module UnseenPatternList: UnseenPatternList = {
 
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
+    | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "cons_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -610,13 +626,17 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Float) => cons_wild(unseen_pattern)
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
+    | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
-    | Label(_) =>
+    | Label(_)
+    | Sig(_) =>
       failwith(
         "prepend_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
@@ -1065,14 +1085,16 @@ module CheckMatrix: CheckMatrix = {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
-      if (Typ.is_void(first_col_ty)) {
+      switch (Ctr.all_ctrs_of_typ(first_col_ty)) {
+      | Finite(map) when Ctr.Map.is_empty(map) =>
+        /* No constructors (e.g. Void): no value of this type can exist, so
+           every row is unreachable and the match is vacuously exhaustive. */
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
           redundant_rows: List.init(List.length(m), i => i),
-        };
-      } else {
-        let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
+        }
+      | all_ctrs =>
         let Submatrices.{
           ctrs,
           first_col_exhaustive,

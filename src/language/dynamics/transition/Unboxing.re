@@ -63,18 +63,6 @@ let ( let* ) = (x: unboxed('a), f: 'a => unboxed('b)): unboxed('b) =>
   | Matches(x) => f(x)
   };
 
-let sequence = (l: list(unboxed('a))): unboxed(list('a)) =>
-  List.fold_left(
-    (acc, x) => {
-      let* acc = acc;
-      let* x = x;
-      Matches([x, ...acc]);
-    },
-    Matches([]),
-    l,
-  );
-let fixup_ascriptions = Ascriptions.transition_multiple;
-
 /* This function has a different return type depending on what kind of request
    it is given. This unfortunately uses a crazy OCaml feature called GADTS, but
    it avoids having to write a separate unbox function for each kind of request.
@@ -84,9 +72,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* $e and $v could have any type, but are indet */
-    | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
+
+    /* proofs can also have any type, but are indet */
+    | (_, ProofObject(_)) => IndetMatch
 
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
@@ -194,7 +184,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
-        Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
+        Atom(_) | DrvQuote(_) | Label(_) | Constructor(_) | BuiltinFun(_) |
+        Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |
         Cons(_) |
@@ -233,6 +224,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ExplicitNonlabel |
         Var(_) |
         Let(_) |
+        Theorem(_) |
+        Forall(_) |
         Fun(_, _, _, _) |
         TypAp(_) |
         FixF(_) |
@@ -246,14 +239,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Filter(_) |
         Closure(_) |
         Parens(_) |
-        Probe(_) |
+        Projector(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |
         UnOp(_) |
         BinOp(_) |
         LivelitName(_) |
-        Match(_),
+        Match(_) |
+        Module(_) |
+        ModuleExp(_),
       ) =>
       IndetMatch
     };

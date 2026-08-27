@@ -7,13 +7,11 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_elab_subst: Calc.saved(Exp.t),
-    ctx: Calc.saved(Ctx.t),
     root: StepperBase.step_model,
   };
 
   let init = {
     cached_elab_subst: Calc.Pending,
-    ctx: Calc.Pending,
     root: StepperBase.init_step,
   };
 
@@ -27,10 +25,11 @@ module Model = {
   let unpersist = (p: persistent): t => {
     {
       cached_elab_subst: Calc.Pending,
-      ctx: Calc.Pending,
       root: StepperBase.Stepper.unpersist(p.root),
     };
   };
+
+  let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
 
 module Update = {
@@ -49,31 +48,32 @@ module Update = {
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
-        {ctx, cached_elab_subst, root}: Model.t,
+        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
+        {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
-    let ctx = ctx |> Calc.const(() => Builtins.ctx_init(None));
     let elab_subst =
       cached_elab_subst
       |> {
         open Calc.Syntax;
         let.calc elab = elab;
-        elab
-        |> Exp.substitute_closures(Builtins.env_init)
-        |> Exp.replace_all_ids;
+        elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
-    let root =
-      StepperBase.Stepper.calculate(~settings, ~ctx, ~exp=elab_subst, root)
-      |> fst;
+    let (root, _, _) =
+      StepperBase.Stepper.calculate(
+        ~settings,
+        ~ctx,
+        ~exp=elab_subst,
+        ~ana,
+        root,
+      );
     {
       cached_elab_subst: elab_subst |> Calc.save,
-      ctx: ctx |> Calc.save,
       root,
     };
   };
-
-  let can_undo = StepperBase.Stepper.can_undo;
 };
 
 module Focus = {
@@ -82,13 +82,12 @@ module Focus = {
 
   open Cursor;
 
-  let get_cursor_info = (~focus: t, model: Model.t): cursor(Update.t) => {
-    let+ ci = StepperBase.Stepper.get_cursor_info(~focus, model.root);
+  let get_cursor_info =
+      (~inject, ~focus: t, model: Model.t): cursor(Update.t) => {
+    let+ ci =
+      StepperBase.Stepper.get_cursor_info(~inject, ~focus, model.root);
     ci;
   };
-
-  let handle_key_event = (~focus: t, ~event, model: Model.t) =>
-    StepperBase.Stepper.handle_key_event(~focus, ~event, model.root);
 };
 
 module View = {
@@ -103,24 +102,25 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        ~is_toplevel=true,
         model: Model.t,
       ) => {
     let settings_modal =
-      globals.settings.core.evaluation.show_settings
+      is_toplevel && globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
             ~inject=u => globals.inject_global(Set(u)),
             globals.settings.core.evaluation,
           )
         : [];
-    StepperBase.Stepper.view(
-      ~globals,
-      ~take_focus=f => signal(MakeActive(f)),
-      ~hide_stepper=signal(HideStepper),
-      ~inject=u => inject(u),
-      ~is_toplevel=true,
-      ~focus=selected,
-      model.root,
-    )
-    @ settings_modal;
+    settings_modal
+    @ StepperBase.Stepper.view(
+        ~globals,
+        ~take_focus=f => signal(MakeActive(f)),
+        ~hide_stepper=signal(HideStepper),
+        ~inject=u => inject(u),
+        ~is_toplevel,
+        ~focus=selected,
+        model.root,
+      );
   };
 };

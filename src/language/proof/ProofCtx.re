@@ -1,53 +1,62 @@
+open Util;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   name: string,
-  exp: Exp.t,
   rule: ProofRule.t,
+  typ: Typ.t,
+  exp: Exp.t,
+  is_captured: bool,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
 
-let empty = [];
-
-let add_entry = (name: string, exp: Exp.t, ctx: t) => {
+let add_exp = (name: string, exp: Exp.t, ctx: t) => {
   let rule = ProofRule.exp_to_rule(exp);
+  let typ = ProofRule.rule_to_typ(rule);
   [
     {
       name,
-      exp,
       rule,
+      typ,
+      exp,
+      is_captured: false,
     },
     ...ctx,
   ];
 };
 
-let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
-  switch (ctx) {
-  | [] => []
-  | [VarEntry(var_entry), ...rs] => [
-      (var_entry.name, None),
-      ...get_empty_bindings(rs),
-    ]
-  | [_, ...rs] => get_empty_bindings(rs)
-  };
+let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
+  let (_, rules) =
+    Environment.to_list(env)
+    |> List.rev
+    |> List.fold_left(
+         ((seen_vars, rules), (name, exp)) =>
+           switch (Exp.term_of(exp)) {
+           | Grammar.ProofObject(e) =>
+             let rule = ProofRule.exp_to_rule(e);
+             let typ = ProofRule.rule_to_typ(rule);
+             let coctx =
+               ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
+             let is_captured = CoCtx.has_any(coctx, seen_vars);
+             print_endline("is captured: " ++ string_of_bool(is_captured));
+             let entry = {
+               name,
+               rule,
+               typ,
+               exp: e,
+               is_captured,
+             };
+             ([name, ...seen_vars], [entry, ...rules]);
+           | _ => ([name, ...seen_vars], rules)
+           },
+         ([], builtins),
+       );
+  rules;
+};
 
-let rec get_rewrites = (ctx: t, exp: Exp.t) =>
-  switch (ctx) {
-  | [] => []
-  | [
-      {rule: {bindings, assumptions: _, conclusion: Equality(a, b)}, _},
-      ...rs,
-    ] =>
-    let bindings = get_empty_bindings(bindings);
-    switch (MatchExp.match_exp([], bindings, a, exp)) {
-    | Some(m) => [b |> MatchExp.substitute_exp(m), ...get_rewrites(rs, exp)]
-    | None =>
-      switch (MatchExp.match_exp([], bindings, b, exp)) {
-      | Some(m) => [
-          a |> MatchExp.substitute_exp(m),
-          ...get_rewrites(rs, exp),
-        ]
-      | None => get_rewrites(rs, exp)
-      }
-    };
-  | [_, ...rs] => get_rewrites(rs, exp)
-  };
+let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
+  ctx
+  |> List.find_opt(e => e.name == name && e.is_captured == false)
+  |> Option.map(e => e.rule);

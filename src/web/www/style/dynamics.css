@@ -11,6 +11,14 @@
   color: var(--cell-result-text);
   padding: 0.5em;
   padding-left: 1.2em;
+  isolation: isolate;
+}
+
+.cell-result:has(+ .theorems),
+.theorems + .cell-result {
+  flex-grow: 0;
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
 }
 
 .cell > .cell-result {
@@ -40,7 +48,12 @@
 
 .cell-result .status.pending .spinner {
   opacity: 0.5;
-  transition: all 0.2s linear;
+  transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
+}
+
+.cell-result .status.pending-ack .spinner {
+  animation: eval-spinner-spin 1.6s linear var(--eval-recalc-visual-delay)
+    infinite reverse;
 }
 
 .cell-result .status .eq {
@@ -51,7 +64,14 @@
 
 .cell-result .status.pending .eq {
   opacity: 0;
-  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
+    var(--eval-recalc-visual-delay);
+}
+
+@keyframes eval-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .cell-result .result {
@@ -63,7 +83,8 @@
 
 .cell-result .result.pending {
   opacity: 0.3;
-  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
+    var(--eval-recalc-visual-delay);
 }
 
 .cell-result .result .exception {
@@ -127,4 +148,79 @@
 .cell-result .icon.disabled:hover svg {
   transform: scale(100%);
   cursor: not-allowed;
+}
+
+/* INCREMENTAL EVALUATION DECORATIONS
+ *
+ * Tint behind "frozen" code — ids the incremental evaluator reused from
+ * the previous run rather than re-running. Untinted code is therefore
+ * either (a) actively being recalculated by the worker, or (b) outside
+ * the evaluated region entirely (function bodies etc).
+ *
+ * Ice motif:
+ *  - Cool pale-blue fill at low alpha so the text below stays readable.
+ *  - Thin cyan-blue stroke along each shard outline to suggest crystal
+ *    edges.
+ *  - Soft cyan drop-shadow around each shape as a frost glow.
+ *  - `isolation: isolate` on the wrapper so the drop-shadow only halos
+ *    against our own content, not the code beneath. */
+.incremental-deco {
+  pointer-events: none;
+  isolation: isolate;
+}
+
+svg.shard.incremental-frozen > path {
+  fill: var(--incremental-frozen, rgba(200, 230, 255, 0.55));
+  stroke: var(--incremental-frozen-edge, rgba(140, 190, 240, 0.55));
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.incremental-frozen {
+  filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
+}
+
+/* Active shards also carry the incremental-pending class (Highlight.re). */
+svg.shard.incremental-pending {
+  animation: incremental-pending-reveal 80ms linear
+    var(--eval-recalc-visual-delay) forwards;
+  opacity: 0;
+}
+
+svg.shard.incremental-pending > path {
+  fill: var(--incremental-pending);
+  stroke: var(--incremental-pending-edge);
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.incremental-active .incremental-sweep {
+  fill: var(--incremental-active-sweep);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: incremental-active-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1)
+    var(--eval-recalc-visual-delay) infinite;
+}
+
+@keyframes incremental-pending-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes incremental-active-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(240%);
+    opacity: 0;
+  }
 }

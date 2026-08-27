@@ -16,10 +16,6 @@ type op_un_bool =
   | Not;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type op_un_meta =
-  | Unquote;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un_num =
   | Minus;
 
@@ -40,7 +36,11 @@ type op_bin_num =
   | GreaterThan
   | GreaterThanOrEqual;
 
-// TODO(zhiyao): We define `Equals` and `NotEquals` for float.
+/* Float gets its own Equals/NotEquals (surfaced as `==.`/`!=.`) rather
+   than reusing op_bin_poly, because IEEE float equality isn't structural
+   (e.g. NaN != NaN) and we want the type checker/evaluator to distinguish
+   it from polymorphic equality. Int/Nat/SInt equality goes through
+   op_bin_poly below. */
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_float =
   | Plus
@@ -69,8 +69,7 @@ let op_bin_float_of_num: op_bin_num => op_bin_float =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_string =
-  | Concat
-  | Equals;
+  | Concat;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_poly =
@@ -79,7 +78,6 @@ type op_bin_poly =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_un =
-  | Meta(op_un_meta)
   | Int(op_un_num)
   | Nat(op_un_num)
   | SInt(op_un_num)
@@ -95,6 +93,18 @@ type op_bin =
   | Bool(op_bin_bool)
   | String(op_bin_string)
   | Poly(op_bin_poly);
+
+/* Lift a numeric op to the cls-correct BinOp, or None for non-numeric
+ * classes. */
+let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
+  switch (cls) {
+  | Int => Some(Int(op))
+  | SInt => Some(SInt(op))
+  | Nat => Some(Nat(op))
+  | Float => Some(Float(op_bin_float_of_num(op)))
+  | Bool
+  | String => None
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type ap_direction =
@@ -144,9 +154,37 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Nat)) => Nat(op)
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Float)) => Float(op)
   | (Bool(op), _) => Bool(op)
-  | (Meta(op), _) => Meta(op)
   };
 };
+
+/* Re-kind a numeric unary op the way replace_literal re-kinds literals:
+   the analyzed class wins (so `let x: Float = -5` is float negation and
+   the literal beneath retypes); with no atom analysis, an operand of
+   definite class decides (bare `-1.5`, `-x`; the Int arm matters under
+   a `use` mode, where `use Float in -(3 : Int)` is Int negation rather
+   than a float op stuck on an Int operand). Nat operands do NOT
+   re-kind — negation keeps the ambient op so today's nat-mode behavior
+   is unchanged; an explicit Nat analysis does re-kind, surfacing the
+   "cannot negate a natural number" operator error. */
+let replace_un_op_cls =
+    (op: op_un, ana: option(Atom.cls), operand: option(Atom.cls)): op_un =>
+  switch (op) {
+  | Bool(_) => op
+  | Int(o)
+  | Nat(o)
+  | Float(o)
+  | SInt(o) =>
+    switch (ana, operand) {
+    | (Some(Int), _) => Int(o)
+    | (Some(Nat), _) => Nat(o)
+    | (Some(Float), _) => Float(o)
+    | (Some(SInt), _) => SInt(o)
+    | (_, Some(Float)) => Float(o)
+    | (_, Some(SInt)) => SInt(o)
+    | (_, Some(Int)) => Int(o)
+    | _ => op
+    }
+  };
 
 let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   switch (op, use_mode) {
@@ -166,10 +204,6 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
 
 /* ========== PRINTING ========== */
 
-let show_op_un_meta: op_un_meta => string =
-  fun
-  | Unquote => "Un-quotation";
-
 let show_op_un_bool: op_un_bool => string =
   fun
   | Not => "Boolean Negation";
@@ -180,9 +214,8 @@ let show_op_un_num: op_un_num => string =
 
 let show_unop: op_un => string =
   fun
-  | Meta(op) => show_op_un_meta(op)
   | Bool(op) => show_op_un_bool(op)
-  | Float(op)
+  | Float(Minus) => "Float Negation"
   | Nat(op)
   | SInt(op)
   | Int(op) => show_op_un_num(op);
@@ -220,8 +253,7 @@ let show_op_bin_float: op_bin_float => string =
 
 let show_op_bin_string: op_bin_string => string =
   fun
-  | Concat => "String Concatenation"
-  | Equals => "String Equality";
+  | Concat => "String Concatenation";
 
 let show_op_bin_poly: op_bin_poly => string =
   fun
@@ -278,7 +310,6 @@ let float_op_to_string = (op: op_bin_float): string => {
 let string_op_to_string = (op: op_bin_string): string => {
   switch (op) {
   | Concat => "++"
-  | Equals => "$=="
   };
 };
 
@@ -321,7 +352,6 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
-  | Meta(Unquote) => failwith("semantics of Meta Unquote") // should be unreachable
   };
 
 type bin_semantics =
@@ -409,7 +439,6 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Float(NotEquals) => Defined(Float, Float, Bool, just((!=)))
 
   | String(Concat) => Defined(String, String, String, just((++)))
-  | String(Equals) => Defined(String, String, Bool, just((==)))
 
   | Bool(And) => Defined(Bool, Bool, Bool, just((&&))) // Note: booleans have extra short-cutting rules in transition
   | Bool(Or) => Defined(Bool, Bool, Bool, just((||)))
@@ -461,7 +490,6 @@ let op_name = (op: op_bin): string =>
   | Float(Equals) => "float_eq"
   | Float(NotEquals) => "float_neq"
   | String(Concat) => "string_concat"
-  | String(Equals) => "string_eq"
   | Bool(And) => "bool_and"
   | Bool(Or) => "bool_or"
   | Poly(Equals) => "poly_eq"

@@ -1,6 +1,7 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open Util;
 
 let tests = (
   "Statics.Sums",
@@ -330,6 +331,107 @@ end
     let _ : +Yo = Yo("lol") in ?
     |} |> parse_exp,
     ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns",
+      // #err: type incons#
+      {|
+    case (1,2,3) | (x, y, x) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with nested tuples",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with labels",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with let expressions",
+      // #err: type incons#
+      {|
+    let (x,x) = 1,2 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in functions",
+      // #err: type incons#
+      {|
+    fun x,x -> = 1 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples",
+      // #err: type incons#
+      {|
+    let (x=a, x=(b, c)) = ? in
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples #2",
+      // #err: type incons#
+      {|
+    let (x, x=(x, y)) = ? in
+    |} |> parse_exp,
+    ),
+    fully_consistent_typecheck(
+      "duplicate variable tests: happy",
+      {|
+      let (x=(x, y)) = ? in
+      let (x, x=?) = ? in
+      let (x, x=(z, y=(x=a))) = ? in
+    |},
+      Some(unknown(Internal)),
+    ),
+    Alcotest.test_case(
+      "Sum type duplicate constructor",
+      `Quick,
+      () => {
+        let id1 = Id.mk();
+        let id2 = Id.mk();
+        open Language;
+        let exp =
+          IdTagged.FreshGrammar.(
+            Exp.(
+              ty_alias(
+                TPat.var("A2"),
+                Typ.(
+                  sum([
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id1], ()),
+                      None,
+                    ),
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id2], ()),
+                      None,
+                    ),
+                  ])
+                ),
+                Exp.empty_hole(),
+              )
+            )
+          );
+
+        let error =
+          errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
+        Alcotest.(
+          check(
+            testable_issue,
+            "duplicate constructor present",
+            Marks([Mark.TypDuplicateConstructor("A")]),
+            error,
+          )
+        );
+      },
+    ),
     // ======================== KNOWN BUGS ==============================
     skip_known_bug(
       // inconsistent_typecheck(
@@ -337,20 +439,6 @@ end
       // #err: invalid type name#
       {|
     type badTypeName = ? in ?
-    |},
-      // |> parse_exp,
-    ),
-    // Issue #1458
-    skip_known_bug(
-      // inconsistent_typecheck(
-      "duplicate constructors",
-      // #err: already used#
-      {|
-    type Dupes =
-      + Guy(Bool)
-      + Guy(Int)
-      + Guy
-    in ?
     |},
       // |> parse_exp,
     ),

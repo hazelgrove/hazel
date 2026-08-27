@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Haz3lcore;
 open StepInterface;
+open Calc.Syntax;
 
 /* Types are defined outside the functor to make it
    easier to use them in other files. */
@@ -12,11 +13,14 @@ type model'('stepper) = {
   scrut: CodeEditable.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
-  elab_scrut: Calc.saved(Exp.t),
+  elab_scrut_raw: Calc.saved(Exp.t),
+  elab_scrut_sub: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
   join_exp: Calc.saved(Exp.t),
+  is_exhaustive: Calc.saved(bool),
+  validity: Calc.saved(option(bool)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -45,26 +49,27 @@ let init = (~exp: option(Exp.t)=?, ()) => {
         Editor.Model.mk(
           Zipper.unzip(
             ExpToSegment.exp_to_segment(
-              ~settings=
-                ExpToSegment.Settings.editable(
-                  ~inline=true,
-                  ~multiline_list_tuples=false,
-                ),
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
               e,
             ),
           ),
+          ~root=Exp,
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+    | None =>
+      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
     };
   {
     scrut,
     cases: [],
-    elab_scrut: Calc.Pending,
+    elab_scrut_raw: Calc.Pending,
+    elab_scrut_sub: Calc.Pending,
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
     join_exp: Calc.Pending,
+    is_exhaustive: Calc.Pending,
+    validity: Calc.Pending,
   };
 };
 
@@ -105,11 +110,14 @@ module F =
     {
       scrut: CodeEditable.Model.unpersist(p.scrut),
       cases: List.map(InductionCase.unpersist, p.cases),
-      elab_scrut: Calc.Pending,
+      elab_scrut_raw: Calc.Pending,
+      elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
       join_exp: Calc.Pending,
+      is_exhaustive: Calc.Pending,
+      validity: Calc.Pending,
     };
   };
 
@@ -131,7 +139,7 @@ module F =
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
           };
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       | AddCase =>
         let new_case = InductionCase.init;
@@ -148,92 +156,93 @@ module F =
             cases: new_cases,
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       }
     );
   };
-
-  let can_undo = a =>
-    switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
-    | CaseUpdate(_, action) => InductionCase.can_undo(action)
-    | AddCase => true
-    | RemoveCase(_) => true
-    };
 
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _,
+        ~info_map,
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
       scrut,
       cases,
-      elab_scrut,
+      elab_scrut_raw,
+      elab_scrut_sub,
       scrut_ty,
       scrut_co_ctx,
       result: _,
       join_exp,
+      is_exhaustive,
+      validity,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
-        ~ctx=Calc.get_value(ctx),
+        ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,
       );
-    let elab_scrut =
+    let elab_scrut_raw =
       Calc.set(
         ~eq=Exp.fast_equal,
         CodeEditable.Model.get_statics(scrut).elaborated,
-        elab_scrut,
+        elab_scrut_raw,
       );
+    let elab_scrut_sub =
+      elab_scrut_sub
+      |> {
+        let.calc raw = elab_scrut_raw
+        and.calc sem_ctx = ctx;
+        let env = SemanticCtx.get_env(sem_ctx);
+        Substitution.in_exp(env, raw);
+      };
+    let scrut_statics = CodeEditable.Model.get_statics(scrut);
+    let scrut_rep_id = Exp.rep_id(scrut_statics.elaborated);
     let scrut_ty = {
       let self_ty =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({ty, _})) => ty
-        | _ => raise(Elaborator.MissingTypeInfo)
+        switch (Statics.Map.ty_of(scrut_rep_id, scrut_statics.info_map)) {
+        | Some(ty) => ty
+        | None =>
+          raise(Failure("Missing type info for induction step scrutinee"))
         };
       Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
     };
     let scrut_co_ctx = {
       let self_co_ctx =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({co_ctx, _})) => co_ctx
-        | _ => CoCtx.empty
+        switch (Statics.Map.lookup_exp(scrut_rep_id, scrut_statics.info_map)) {
+        | Some({co_ctx, _}) => co_ctx
+        | None => CoCtx.empty
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let cases =
+    let (cases, constraints, validities) =
       List.map(
         InductionCase.calculate(
           ~settings,
           ~scrut_ty,
-          ~elab_scrut,
           ~scrut_co_ctx,
+          ~elab_scrut=elab_scrut_sub,
           ~ctx,
+          ~info_map,
           ~exp,
+          ~ana,
         ),
         cases,
-      );
+      )
+      |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -257,54 +266,84 @@ module F =
         join_exp,
       );
 
+    let is_exhaustive =
+      is_exhaustive
+      |> {
+        let.calc constraints = Calc.combine_list(constraints)
+        and.calc ctx = ctx
+        and.calc scrut_ty = scrut_ty;
+        let constraints = List.filter_map(Fun.id, constraints);
+        Coverage.check(
+          constraints,
+          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+        ).
+          exhaustiveness
+        == Exhaustive;
+      };
+
+    let validity =
+      validity
+      |> {
+        let.calc validities = Calc.combine_list(validities)
+        and.calc is_exhaustive = is_exhaustive;
+        List.fold_left(
+          (v1, v2) =>
+            switch (v1, v2) {
+            | (Some(true), Some(true)) => Some(true)
+            | (Some(false), Some(false)) => Some(false)
+            | (_, _) => None
+            },
+          is_exhaustive ? Some(true) : None,
+          validities,
+        );
+      };
+
     let result = exp |> Calc.save;
 
     Some((
       {
         scrut,
         cases,
-        elab_scrut: elab_scrut |> Calc.save,
+        elab_scrut_raw: elab_scrut_raw |> Calc.save,
+        elab_scrut_sub: elab_scrut_sub |> Calc.save,
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
         join_exp: join_exp |> Calc.save,
+        is_exhaustive: is_exhaustive |> Calc.save,
+        validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some(join_exp),
+      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
+      validity,
     ));
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | Scrut(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(ScrutUpdate(a)),
+            ~selection=a,
+            model.scrut,
+          );
         ScrutUpdate(ci);
       | Case(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
         | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
+          let+ ci =
+            InductionCase.get_cursor_info(
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~focus=a,
+              case,
+            );
           CaseUpdate(i, ci);
         | None => Cursor.empty
         }
       }
     );
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
-    switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
-    | Case(i, a) =>
-      switch (List.nth_opt(model.cases, i)) {
-      | Some(case) =>
-        InductionCase.handle_key_event(~focus=a, ~event, case)
-        |> Option.map(x => CaseUpdate(i, x))
-      | None => None
-      }
-    };
 
   let view_justification =
       (
@@ -317,7 +356,7 @@ module F =
         ~is_toplevel as _: bool,
         _: model,
       ) =>
-    WebUtil.Node.text("Case Analysis");
+    WebUtil.Node.text("Induction");
 
   let view_content =
       (
@@ -336,13 +375,19 @@ module F =
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
-        ~inject=x => inject(ScrutUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Scrut(_)) => true
-          | Some(_)
-          | None => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(ScrutUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Scrut(_)) => Some()
+              | Some(_)
+              | None => None
+              },
+          }),
+        ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
 
@@ -379,12 +424,16 @@ module F =
       WebUtil.div_c(
         "induction-scrut",
         [
-          WebUtil.Node.text("Cases on: "),
+          WebUtil.Node.text("Induction on: "),
           WebUtil.div_c("inline-editor-wrapper", [scrut_editor]),
         ],
       ),
     ]
     @ cases
-    @ [add_case_button];
+    @ [add_case_button]
+    @ [
+      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
+        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
+    ];
   };
 };

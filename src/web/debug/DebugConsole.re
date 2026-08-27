@@ -18,11 +18,9 @@ let print =
   | "F4" => map |> Language.Statics.Map.show |> print
   | "F5" when settings.core.dynamics =>
     let env_init = Language.Builtins.env_init;
-    statics.elaborated
-    |> Language.Evaluator.evaluate(~env=env_init)
-    |> fst
-    |> Language.DHExp.show
-    |> print;
+    let (result, _) =
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
+    result |> Language.DHExp.show |> print;
   | "F5" => print("Dynamics disabled, cannot show evaluation.")
   | "F6" =>
     let index = Indicated.index(zipper);
@@ -35,6 +33,70 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
+  | "F7" => print(Haz3lcore.BuiltinsPrinter.builtin_value_signatures())
+  | "F8" =>
+    let collect_print_samples =
+        ({probes, _}: Language.EvaluatorState.t): list(Language.Sample.t) =>
+      Id.Map.fold(
+        (_, samples, acc) =>
+          List.fold_left(
+            (acc, sample) =>
+              sample.Language.Sample.origin == Language.Sample.Print
+                ? [sample, ...acc] : acc,
+            acc,
+            samples,
+          ),
+        probes,
+        [],
+      );
+
+    let collect_print_outputs =
+        (state: Language.EvaluatorState.t): list(string) =>
+      collect_print_samples(state)
+      |> List.sort((a, b) =>
+           Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
+         )
+      |> List.map(sample =>
+           sample.Language.Sample.value
+           |> ExpToSegment.exp_to_segment(
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=true,
+                    Language.CoreSettings.off,
+                  ),
+              )
+           |> Printer.of_segment(~holes="")
+         );
+
+    let print_summary = (state: Language.EvaluatorState.t): option(string) =>
+      switch (collect_print_outputs(state)) {
+      | [] => None
+      | outputs => Some(String.concat("\n", outputs))
+      };
+
+    let env_init = Language.Builtins.env_init;
+    let (_, state) =
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
+    let res = print_summary(state);
+    switch (res) {
+    | Some(summary) => print(summary)
+    | None => print("No print outputs")
+    };
+  | "F9" =>
+    /* Print program with probes in text-only format */
+    let env_init = Language.Builtins.env_init;
+    let (_, state) =
+      Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
+    let probe_map = state.probes;
+    let text =
+      ProbeText.of_zipper(
+        ~window=ProbeProj.Settings.s^.window,
+        ~probe_map,
+        zipper,
+      );
+    print("=== Program with Probes ===");
+    print(text);
+    print("===========================");
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

@@ -33,7 +33,7 @@
    (>= 3.12.0))
   ppx_yojson_conv_lib
   ppx_yojson_conv
-  incr_dom
+  ppx_blob
   bisect_ppx
   (omd
    (>= 2.0.0~alpha4))
@@ -54,7 +54,8 @@
   qcheck
   qcheck-alcotest
   ppx_deriving_qcheck
-  bignum))
+  bignum
+  csv))
 
 ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
 

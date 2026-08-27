@@ -1,25 +1,8 @@
 open Util;
-
-[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type cls = Language.Secondary.cls;
+open Language.Secondary;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type secondary_content =
-  | Whitespace(string)
-  | Comment(string);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  id: Id.t,
-  content: secondary_content,
-};
-
-let equal = (a: t, b: t) => a.content == b.content;
-let cls_of = (s: t): cls =>
-  switch (s.content) {
-  | Whitespace(_) => Whitespace
-  | Comment(_) => Comment
-  };
+type t = Language.Secondary.t;
 
 let mk_space = id => {
   content: Whitespace(Token.space),
@@ -59,13 +42,6 @@ let is_linebreak: t => bool =
     | _ => false
     };
 
-let content_is_comment: secondary_content => bool =
-  content =>
-    switch (content) {
-    | Comment(_) => true
-    | _ => false
-    };
-
 let is_comment: t => bool =
   w =>
     switch (w.content) {
@@ -81,6 +57,10 @@ let get_string: secondary_content => string =
     | Whitespace(s) => s
     };
 
+/* Grapheme clusters. For layout use `columns`: a comment can contain wide
+   characters, which occupy two columns each. */
 let length = (s: t): int => Token.length(get_string(s.content));
+
+let columns = (s: t): int => Token.columns(get_string(s.content));
 
 let id = w => w.id;

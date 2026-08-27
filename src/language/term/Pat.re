@@ -14,8 +14,9 @@ type cls =
   | TupLabel
   | Tuple
   | Parens
-  | Probe
-  | Ap
+  | Projector
+  | ApFunc
+  | ApCons
   | Asc;
 
 include TermBase.Pat;
@@ -56,8 +57,9 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | TupLabel(_) => TupLabel
   | Tuple(_) => Tuple
   | Parens(_) => Parens
-  | Probe(_) => Probe
-  | Ap(_) => Ap
+  | Projector(_) => Projector
+  | Ap({term: Constructor(_), _}, _) => ApCons
+  | Ap(_) => ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -81,14 +83,15 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | Tuple => "Tuple"
   | Parens => "Parenthesized pattern"
-  | Probe => "Probe"
-  | Ap => "Constructor application"
+  | Projector => "Projector"
+  | ApCons => "Constructor application"
+  | ApFunc => "Function definition"
   | Asc => "Annotation";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
-  | Probe(pat, _)
+  | Projector(_, pat)
   | TupLabel(_, pat)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
@@ -112,7 +115,7 @@ let rec is_tuple_of_vars = (pat: t) =>
   || (
     switch (pat.term) {
     | Parens(pat)
-    | Probe(pat, _)
+    | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
@@ -134,7 +137,7 @@ let rec is_tuple_of_vars = (pat: t) =>
 let rec get_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat)
-  | Probe(pat, _)
+  | Projector(_, pat)
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
   | Asc(x, _) => get_var(x)
@@ -153,71 +156,13 @@ let rec get_var = (pat: t) => {
   };
 };
 
-let rec get_fun_var = (pat: t) => {
-  switch (pat.term) {
-  | Parens(pat)
-  | Probe(pat, _)
-  | TupLabel(_, pat) => get_fun_var(pat)
-  | Asc(pat, t1) =>
-    if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
-      get_var(pat) |> Option.map(var => var);
-    } else {
-      None;
-    }
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Atom(_)
-  | ListLit(_)
-  | Cons(_, _)
-  | Var(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Tuple(_)
-  | Constructor(_)
-  | Ap(_) => None
-  };
-};
-
-let rec get_bindings = (pat: t) =>
-  switch (get_var(pat)) {
-  | Some(x) => Some([x])
-  | None =>
-    switch (pat.term) {
-    | Parens(pat)
-    | Probe(pat, _)
-    | Asc(pat, _)
-    | TupLabel(_, pat) => get_bindings(pat)
-    | Tuple(pats) =>
-      let vars = pats |> List.map(get_var);
-      if (List.exists(Option.is_none, vars)) {
-        None;
-      } else {
-        Some(List.map(Option.get, vars));
-      };
-    | Label(_)
-    | ExplicitNonlabel
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Constructor(_)
-    | Ap(_) => None
-    }
-  };
-
 let rec get_num_of_vars = (pat: t) =>
   switch (is_var(pat)) {
   | Some(_) => Some(1)
   | None =>
     switch (pat.term) {
     | Parens(pat)
-    | Probe(pat, _)
+    | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
@@ -238,7 +183,8 @@ let rec get_num_of_vars = (pat: t) =>
 
 let ctr_name = (p: t): option(Constructor.t) =>
   switch (p.term) {
-  | Constructor(name, _) => Some(name)
+  | Constructor(name, _)
+  | Parens({term: Constructor(name, _), _}) => Some(name)
   | _ => None
   };
 
@@ -269,8 +215,8 @@ let rec bindings = (dp: t): Binding.s =>
   | Constructor(_) => []
   | Asc(y, _)
   | Parens(y)
-  | TupLabel(_, y)
-  | Probe(y, _) => bindings(y)
+  | Projector(_, y)
+  | TupLabel(_, y) => bindings(y)
   | Var(name) => [
       {
         name,
@@ -286,18 +232,10 @@ let rec bindings = (dp: t): Binding.s =>
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
 
-let bound_var_ids = (ctx, pat): list(Binding.t) =>
-  bound_vars(pat)
-  |> List.map(name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some({id, _}) =>
-         Binding.{
-           id,
-           name,
-         }
-       | None => {
-           id: Id.invalid,
-           name,
-         }
-       }
-     );
+let get_duplicate_bindings = (pat: t) => {
+  let bindings = bound_vars(pat);
+  List.filter(
+    binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+    bindings,
+  );
+};

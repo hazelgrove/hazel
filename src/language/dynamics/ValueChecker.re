@@ -6,10 +6,10 @@ type t =
   | Expr;
 
 module ValueCheckerEVMode: {
-  include EV_MODE with type result = t and type state = unit;
+  include EV_MODE with type inner_result = t and type result = t;
 } = {
-  type state = unit;
   type result = t;
+  type inner_result = result;
 
   type requirement('a) = ('a, result);
   type requirements('a, 'b) = ('a, result);
@@ -52,26 +52,6 @@ module CV = Transition(ValueCheckerEVMode);
 let rec check_value = (~in_closure=?, env, d) =>
   CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
 
-let rec check_value_mod_ctx = (~in_closure=?, env, d) =>
-  switch (DHExp.term_of(d)) {
-  | Var(x) =>
-    switch (Environment.lookup(env, x)) {
-    | Some(v) => check_value_mod_ctx(~in_closure?, env, v)
-    | None =>
-      CV.transition(
-        check_value_mod_ctx,
-        ~mode=`Environment,
-        ~in_closure?,
-        env,
-        d,
-      )
-    }
-  | _ =>
-    CV.transition(
-      check_value_mod_ctx,
-      ~mode=`Environment,
-      ~in_closure?,
-      env,
-      d,
-    )
-  };
+/* Check if an expression is a fully-evaluated value */
+let is_value = (exp: Exp.t): bool =>
+  check_value(Environment.empty, exp) == Value;

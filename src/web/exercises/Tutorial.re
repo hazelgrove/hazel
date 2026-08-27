@@ -1,9 +1,6 @@
 open Util;
 open Haz3lcore;
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
   impl: 'code,
@@ -39,11 +36,6 @@ type point_distribution = {
   impl_grading: int,
 };
 
-let validate_point_distribution =
-    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-  test_validation + mutation_testing + impl_grading == 100
-    ? () : failwith("Invalid point distribution in exercise.");
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
@@ -60,10 +52,6 @@ type p('code) = {
 
 let id_of = p => {
   p.id;
-};
-
-let find_id_opt = (id, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,73 +121,7 @@ let editor_positions = [YourImpl, HiddenTests];
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
 
-let idx_of_pos = pos =>
-  switch (pos) {
-  | YourImpl => 0
-  | HiddenTests => 1
-  };
-
-let pos_of_idx = (idx: int) =>
-  switch (idx) {
-  | 0 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx == 1) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
-  };
-
-let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
-  | None => failwith("Transition failed.")
-  | Some(zipper) => zipper
-  };
-};
-
-let eds_of_spec =
-    (
-      {
-        id,
-        title,
-        version,
-        module_name,
-        prompt,
-        your_impl,
-        display_hint,
-        hidden_tests,
-        wrapper,
-        show_report,
-      },
-      ~settings as _: Language.CoreSettings.t,
-    ) => {
-  let editor_of_serialization = Editor.Model.mk;
-  let your_impl = editor_of_serialization(your_impl);
-  let hidden_tests = {
-    let {tests, hints} = hidden_tests;
-    let tests = editor_of_serialization(tests);
-    {
-      tests,
-      hints,
-    };
-  };
-  {
-    id,
-    title,
-    version,
-    module_name,
-    prompt,
-    display_hint,
-    your_impl,
-    hidden_tests,
-    wrapper,
-    show_report,
-  };
-};
-
-let visible_in = (pos, ~instructor_mode) => {
+let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true
   | HiddenTests => instructor_mode
@@ -253,37 +175,13 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     }
   };
 
-let wrap_filter =
-    (act: Language.FilterAction.action, term: Language.Exp.t): Language.Exp.t => {
-  term:
-    Filter(
-      Filter({
-        act: Language.FilterAction.(act, One),
-        pat: {
-          term:
-            Constructor(
-              "$e",
-              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
-            ),
-          annotation: {
-            ids: [Id.mk()],
-          },
-        },
-      }),
-      term,
-    ),
-  annotation: {
-    ids: [Id.mk()],
-  },
-};
-
 let wrap = (term, editor: Editor.t): TermItem.t => {
   term,
   editor,
 };
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
 let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
   switch (e1.term) {
@@ -294,6 +192,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvQuote(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -314,65 +213,66 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
+  | Projector(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
+  | Module(_)
+  | ModuleExp(_)
   | Asc(_)
+  | ProofObject(_)
+  | Forall(_)
   | Match(_) => {
       term: Seq(e1, e2),
-      annotation: {
-        ids: [Id.mk()],
-      },
+      annotation: Language.IdTagged.IdTag.fresh(),
     }
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     {
       term: Seq(e11, e12'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Filter(kind, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
+  | Theorem(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, edef, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-      },
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   };
 };
-
-let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-  append_exp(append_exp(term_of(ed1), term_of(ed2)), term_of(ed3));
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   ();
@@ -399,14 +299,8 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
 
-let prelude_key = "prelude";
-let test_validation_key = "test_validation";
 let user_impl_key = "user_impl";
-let user_tests_key = "user_tests";
-let instructor_key = "instructor";
-let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
 let hidden_tests_key = "hidden_tests";
 
 let key_for_statics = (pos: pos): string =>
@@ -430,12 +324,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -447,45 +337,11 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+let export_transitionary_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = Tutorial.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
   data;
-};
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
-  data;
-};
-
-let blank_spec = (~title) => {
-  let your_impl = Zipper.next_blank();
-  let hidden_tests_tests = Zipper.next_blank();
-  let wrapper = false;
-  let show_report = true;
-  {
-    id: Id.mk(),
-    title,
-    display_hint: "",
-    version: 1,
-    module_name: "Blank",
-    prompt: "",
-    your_impl,
-    hidden_tests: {
-      tests: hidden_tests_tests,
-      hints: [],
-    },
-    wrapper,
-    show_report,
-  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -493,10 +349,10 @@ type persistent_tutorial_mode = list((pos, PersistentZipper.t));
 
 let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
+    if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
       |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
+      |> Option.map(PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;

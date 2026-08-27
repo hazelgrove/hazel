@@ -5,7 +5,8 @@ let int_typ: form = {
   let explanation = "The `Int` type classifies (unbounded) integer values.";
   {
     id: IntTyp,
-    syntactic_form: [typ("SInt")],
+    syntactic_form: [typ("Int")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -17,6 +18,7 @@ let sint_typ: form = {
   {
     id: SIntTyp,
     syntactic_form: [typ("SInt")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -28,6 +30,7 @@ let nat_typ: form = {
   {
     id: NatTyp,
     syntactic_form: [typ("Nat")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -39,6 +42,7 @@ let float_typ: form = {
   {
     id: FloatTyp,
     syntactic_form: [typ("Float")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -50,6 +54,7 @@ let bool_typ: form = {
   {
     id: BoolTyp,
     syntactic_form: [typ("Bool")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -61,21 +66,41 @@ let str_typ: form = {
   {
     id: StrTyp,
     syntactic_form: [typ("String")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
 
-let var_typ = (name: string): form => {
-  let explanation = "`%s` is a type variable.";
+let void_absurd_ex = {
+  sub_id: VoidAbsurd,
+  term:
+    mk_example(
+      "let absurd : Void -> Int =\nfun (v : Void) -> case v end\nin absurd",
+    ),
+  message: "An absurd eliminator: a function that takes a `Void` argument and case-analyzes on it with zero rules. The case is vacuously exhaustive because `Void` has no constructors, so the function is well-typed at every return type. It can never actually be called, since no value of type `Void` exists.",
+};
+
+let void_typ: form = {
+  let explanation = "The `Void` type is the empty type: it has no values. It is a nullary sum (a sum type with zero constructors), so any case analysis on a value of type `Void` is vacuously exhaustive. `Void` is useful as the return type of functions that never return, and as the argument type of absurd eliminators.";
   {
-    id: VarTyp,
-    syntactic_form: [name |> abbreviate |> typ],
+    id: VoidTyp,
+    syntactic_form: [typ("Void")],
+    colorings: [],
     expandable_id: None,
     explanation,
-    examples: [],
+    examples: [void_absurd_ex],
   };
+};
+
+let var_typ = (name: string): form => {
+  id: VarTyp,
+  syntactic_form: [name |> abbreviate |> typ],
+  colorings: [],
+  expandable_id: None,
+  explanation: Printf.sprintf("`%s` is a type variable.", name),
+  examples: [],
 };
 
 let int: group = {
@@ -83,8 +108,8 @@ let int: group = {
   forms: [int_typ],
 };
 let sint: group = {
-  id: IntTyp,
-  forms: [int_typ],
+  id: SIntTyp,
+  forms: [sint_typ],
 };
 let nat: group = {
   id: NatTyp,
@@ -106,7 +131,9 @@ let str: group = {
   forms: [str_typ],
 };
 
-let var = (name: string): group => {
-  id: VarTyp,
-  forms: [var_typ(name)],
+let void: group = {
+  id: VoidTyp,
+  forms: [void_typ],
 };
+
+let var = (name: string): group => singleton(var_typ(name));

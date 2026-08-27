@@ -1,5 +1,25 @@
 open Language;
 
+/* Predicates for checking if a type can be introduced.
+   Used by ContextMenu to show/hide the Introduce action. */
+let can_introduce_exp_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Arrow(_, _)
+  | Prod(_)
+  | List(_)
+  | Poly(_, _)
+  | Atom(String) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
+let can_introduce_pat_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Prod(_) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
 module type Introducable = {
   type t;
   let parse: Segment.t => t;
@@ -141,7 +161,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
               )
             ),
           )
-        | Forall(_, _) =>
+        | Poly(_, _) =>
           Some(
             TPat.empty_hole()
             |> (
@@ -220,13 +240,19 @@ module Make =
     let seg =
       I.to_segment(
         ~settings={
+          secondary: AutoFormat,
+          parenthesization: Defensive,
+          label_format: QuoteWhenNecessary,
           inline: true,
           fold_case_clauses: false,
-          fold_fn_bodies: false,
+          project_tables: false,
+          show_ascriptions: true,
+          fold_fn_bodies: `NoFold,
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
           multiline_list_tuples: false,
+          hole_tiles: false,
         },
         term,
         already_parenthesized(z),
@@ -242,18 +268,18 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
   | Some(
       InfoExp({
         cls: Exp(EmptyHole),
-        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        message: Exp(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
     ) =>
-    module IP = Make(IntroduceExp);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    module IE = Make(IntroduceExp);
+    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
 
   | Some(
       InfoPat({
         cls: Pat(EmptyHole),
-        status: NotInHole(Ana(Consistent({ana, _}))),
+        message: Pat(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),

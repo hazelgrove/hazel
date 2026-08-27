@@ -13,7 +13,8 @@ module M: Projector = {
     switch (info.statics) {
     | Some(
         InfoExp({
-          term: {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
+          user_term:
+            {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
           _,
         }),
       ) =>
@@ -77,6 +78,8 @@ module M: Projector = {
     };
 
   let dynamics = false;
+  let elaborate_syntax = false;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, parent, _}: View.args(model, action)) => {
     let ctx =
@@ -97,6 +100,7 @@ module M: Projector = {
 
             let updated_segment =
               info.utility.lift_syntax(
+                ~inline=true,
                 replace_model_term(new_model),
                 info.syntax,
               );

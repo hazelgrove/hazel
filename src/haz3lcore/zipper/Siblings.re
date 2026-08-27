@@ -3,10 +3,6 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = (Segment.t, Segment.t);
 
-let empty = Segment.(empty, empty);
-
-let no_siblings: t => bool = s => s == empty;
-
 let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
@@ -67,7 +63,20 @@ let local_missing_shards = (sibs: t): list(Tile.t) => {
 
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
+/* Reassemble each side independently (standard behavior) */
 let reassemble = TupleUtil.map2(Segment.reassemble);
+
+/* Rescan: run label-based conversion across the combined siblings
+ * (so incomplete tiles on one side can match monotiles on the other),
+ * then split back. Pre-split multi-shard orphans into singletons
+ * first so each shard can be matched independently. */
+let rescan = ((pre, suf): t): t => {
+  let pre = Segment.presplit_orphans(pre);
+  let suf = Segment.presplit_orphans(suf);
+  let n = List.length(pre);
+  let combined = Segment.rescan(pre @ suf);
+  ListUtil.split_n(n, combined);
+};
 
 let regrout = ((pre, suf): t) => {
   let s = Nib.Shape.concave();
@@ -95,10 +104,4 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   switch (Segment.edge_direction_of(Left, r)) {
   | None => Segment.edge_direction_of(Right, l)
   | d => d
-  };
-
-let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
-  switch (direction_between(sibs)) {
-  | Some(d) => Mold.chevron(sort, p, d)
-  | None => Mold.mk_op(sort, [])
   };

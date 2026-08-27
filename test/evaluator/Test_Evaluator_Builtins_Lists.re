@@ -73,11 +73,11 @@ let tests = (
     test_case("cons element to list", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|cons(1, [2, 3])|})
     ),
-    test_case("hd of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|1|}, {|hd([1, 2, 3])|})
+    test_case("head of non-empty list", `Quick, () =>
+      parse_and_evaluate_test({|1|}, {|head([1, 2, 3])|})
     ),
     test_case("tl of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3]|}, {|tl([1, 2, 3])|})
+      parse_and_evaluate_test({|[2, 3]|}, {|tail([1, 2, 3])|})
     ),
     test_case("is_empty of empty list", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|is_empty([])|})
@@ -389,62 +389,65 @@ let tests = (
         {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1])|},
       )
     ),
-    // These fail due to an eval bug
-    // Should work after https://github.com/hazelgrove/hazel/pull/1729
-    test_case(
-      "sort sorted list of 2 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 2])|},
-        );
-      },
+    test_case("sort sorted list of 2 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 2])|},
+      )
+    }),
+    test_case("sort unsorted list of 2 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [2, 1])|},
+      )
+    }),
+    test_case("sort unsorted list of 3 numbers", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 2, 3]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 3, 2])|},
+      )
+    }),
+    test_case("sort ascending", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[1, 1, 3, 4, 5]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [3, 1, 4, 1, 5])|},
+      )
+    }),
+    test_case("sort descending", `Quick, () => {
+      parse_and_evaluate_test(
+        {|[5, 4, 3, 1, 1]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
+      )
+    }),
+    test_case("unique", `Quick, () =>
+      parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
     ),
-    test_case(
-      "sort unsorted list of 2 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [2, 1])|},
-        );
-      },
+    test_case("group_on_key by parity", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, [1, 3]), (0, [2, 4])]|},
+        {|group_on_key([1, 2, 3, 4], fun x -> int_mod(x, 2))|},
+      )
     ),
-    test_case(
-      "sort unsorted list of 3 numbers",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 2, 3]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 3, 2])|},
-        );
-      },
-    ),
-    test_case(
-      "sort ascending",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[1, 1, 3, 4, 5]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [3, 1, 4, 1, 5])|},
-        );
-      },
-    ),
-    test_case(
-      "sort descending",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip();
-        parse_and_evaluate_test(
-          {|[5, 4, 3, 1, 1]|},
-          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
-        );
-      },
+    test_case("pivot_table", `Quick, () =>
+      parse_and_evaluate_test(
+        {|
+      [(index=true, `A`=60, `B`=30, `C`=0), (index=false, `A`=20, `B`=40, `C`=60)]
+      |},
+        {|pivot_table(
+  [
+    ("A", true, 10),
+    ("A", false, 20),
+    ("B", true, 30),
+    ("B", false, 40),
+    ("A", true, 50),
+    ("C", false, 60)
+  ],
+  fun (r, _, _) -> r,
+  fun (_, c, _) -> c,
+  fold_left(_, fun (acc, (_, _, v)) -> acc + v, 0)
+)
+|},
+      )
     ),
   ],
 );
