@@ -57,6 +57,14 @@ module Model = {
     };
   };
 
+  /* The type a config slide's editor is analyzed against, if any. Colors is
+     a free-form list, so it stays synthetic. */
+  let expected_type = config_type =>
+    switch (config_type) {
+    | ColorScheme => None
+    | Shortcuts => Some(ShortcutConfiguration.expected_type)
+    };
+
   let perform_side_effect =
       (config_type: config_type, value: Language.Exp.t): unit => {
     switch (config_type) {
@@ -285,6 +293,8 @@ module Update = {
         ~autoprobe_mode,
         ~is_edited,
         ~statics_mode,
+        /* the Shortcuts slide is checked against the known action set */
+        ~ana=?Model.expected_type(config_type),
         ~queue_worker,
         ~stitch=x => x,
         ed,

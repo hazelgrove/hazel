@@ -76,6 +76,7 @@ let (suite, _) =
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ Test_PromptFactory.tests
+    @ Test_ShortcutConfiguration.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

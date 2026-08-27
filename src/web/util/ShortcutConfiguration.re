@@ -219,6 +219,24 @@ let source = {
   |> PersistentZipper.persist;
 };
 
+/* The type the Shortcuts slide is analyzed against: a labeled tuple with one
+   String field per known action. Analyzing the editor against this is what
+   makes a misspelled action name or a non-String hotkey a type error in the
+   config buffer itself, rather than something silently dropped by
+   perform_shortcut_side_effect below. */
+let expected_type = {
+  Language.(
+    IdTagged.FreshGrammar.Typ.(
+      prod(
+        List.map(
+          ({action_name, _}) => tup_label(label(action_name), string()),
+          DefaultConfiguration.shortcuts,
+        ),
+      )
+    )
+  );
+};
+
 let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {
   switch (value.term) {
   | Tuple(tup_labels) =>
