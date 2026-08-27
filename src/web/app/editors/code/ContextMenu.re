@@ -173,7 +173,7 @@ let player_data =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
-    : list(Menu.item(Action.t)) =>
+    : list(Menu.item(command)) =>
   switch (ci) {
   | Some(InfoExp(_)) when can_player => [
       action_item(
