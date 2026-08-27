@@ -207,9 +207,18 @@ let rec node_view =
           switch (n.o_id) {
           /* while a stack is open, a plain click ADDS/moves-to that
              cell (jumping at master ids would target the hidden
-             editor) */
-          | Some(id) when any_focus => [Attr.on_click(_ => focus(id))]
-          | Some(id) => [Attr.on_click(_ => jump(id))]
+             editor). Prevent_default: label clicks must not toggle
+             the row's <details> (collapse is the chevron's job). */
+          | Some(id) when any_focus => [
+              Attr.on_click(_ =>
+                Effect.Many([Effect.Prevent_default, focus(id)])
+              ),
+            ]
+          | Some(id) => [
+              Attr.on_click(_ =>
+                Effect.Many([Effect.Prevent_default, jump(id)])
+              ),
+            ]
           | None => []
           }
         )
@@ -271,6 +280,41 @@ let rec node_view =
       )
       @ (
         switch (n.o_id) {
+        | None when n.o_kind == OutlineTree.KTests =>
+          /* the tests container pins/unpins its whole run */
+          let kid_ids =
+            List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children);
+          let all_pinned =
+            kid_ids != []
+            && List.for_all(
+                 id => List.mem_assoc(id, focused_entries),
+                 kid_ids,
+               );
+          let flips =
+            List.filter(
+              id => List.mem_assoc(id, focused_entries) == all_pinned,
+              kid_ids,
+            );
+          [
+            span(
+              ~attrs=[
+                clss(
+                  ["outline-focus-btn"]
+                  @ (all_pinned ? ["outline-btn-on"] : []),
+                ),
+                Attr.title(
+                  all_pinned ? "close these cells" : "open all in the stack",
+                ),
+                Attr.on_click(_ =>
+                  Effect.Many(
+                    [Effect.Prevent_default, Effect.Stop_propagation]
+                    @ List.map(toggle, flips),
+                  )
+                ),
+              ],
+              [text(all_pinned ? {js|⊖|js} : {js|⊙|js})],
+            ),
+          ];
         | Some(id) => [
             span(
               ~attrs=[
@@ -281,7 +325,11 @@ let rec node_view =
                   stacked ? "close this cell" : "open in the editor stack",
                 ),
                 Attr.on_click(_ =>
-                  Effect.Many([Effect.Stop_propagation, toggle(id)])
+                  Effect.Many([
+                    Effect.Prevent_default,
+                    Effect.Stop_propagation,
+                    toggle(id),
+                  ])
                 ),
               ],
               [text(stacked ? {js|⊖|js} : {js|⊙|js})],
@@ -400,16 +448,20 @@ let view =
     )
     : Node.t => {
   let roots = OutlineTree.of_term(term);
-  let banner =
+  /* the banner slot is ALWAYS present: prepending it only while a
+     stack is open shifted every sibling, and the positional vdom diff
+     then recreated each <details> with its default-open attribute —
+     pinning was expanding collapsed branches (andrew's bug report) */
+  let banner = [
     switch (focused_entries) {
-    | [] => []
-    | [_, ..._] => [
-        div(
-          ~attrs=[clss(["outline-unfocus"]), Attr.on_click(_ => unfocus)],
-          [text({js|✕ close all — whole program|js})],
-        ),
-      ]
-    };
+    | [] => div(~attrs=[clss(["outline-unfocus", "outline-hidden"])], [])
+    | [_, ..._] =>
+      div(
+        ~attrs=[clss(["outline-unfocus"]), Attr.on_click(_ => unfocus)],
+        [text({js|✕ close all — whole program|js})],
+      )
+    },
+  ];
   create(
     "details",
     ~attrs=[Attr.id("outline-sidebar"), Attr.create("open", "")],

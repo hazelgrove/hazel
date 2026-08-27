@@ -169,6 +169,10 @@
   color: var(--BR3, #6a5a3a);
 }
 
+#outline-sidebar .outline-unfocus.outline-hidden {
+  display: none;
+}
+
 #outline-sidebar .outline-empty {
   opacity: 0.6;
   padding: 6px;

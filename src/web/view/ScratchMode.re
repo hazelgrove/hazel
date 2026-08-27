@@ -768,43 +768,21 @@ module Focus = {
    UI, module-level like the other view caches — not model data */
 let outline_menu: ref(option((Haz3lcore.Id.t, float, float))) = ref(None);
 
+/* per-slide pin retention (andrew): switching slides splices the
+   stack home; coming back re-opens the same cells. Keyed by slide
+   NAME; ids stay valid in-session because hydrated slides keep their
+   models (a dormant slide re-parses with fresh ids, but you can't
+   have pinned on a slide you haven't visited). Transient by design —
+   text-backed reload re-mints ids (name-anchored persistence is
+   docketed with the outline-generality spec). */
+let slide_pins: Hashtbl.t(string, list(Haz3lcore.Id.t)) = Hashtbl.create(8);
+
 /* The spliced whole-program statics computed while a stack is open
    (Force frames, first open frame, and restructure ops — which seed
    it directly to avoid a second whole-program parse): term + merged
    map + grafted elaboration. Feeds the master's EvalResult so
    whole-program DYNAMICS keeps running while stacked. */
 let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
-
-/* pin ↔ collapse sync (andrew): pinning a row expands its outline
-   branch, unpinning collapses it. The <details> open state is DOM-
-   owned (user toggles never touch the model), so poke it directly. */
-let set_outline_open = (fid: Haz3lcore.Id.t, opened: bool): unit => {
-  open Js_of_ocaml;
-  let doit = () =>
-    switch (
-      Js.Opt.to_option(
-        Dom_html.document##getElementById(
-          Js.string("ol-b-" ++ Haz3lcore.Id.to_string(fid)),
-        ),
-      )
-    ) {
-    | Some(el) => Js.Unsafe.set(el, "open", Js.bool(opened))
-    | None => ()
-    };
-  /* now AND after the pending render(s): closing the last cell
-     rebuilds the master view — a long render that recreates the
-     <details> (default-open attr) well after one frame, wiping an
-     immediate-only poke. Retries are idempotent. */
-  doit();
-  List.iter(
-    delay => {
-      let _ =
-        Dom_html.window##setTimeout(Js.wrap_callback(() => doit()), delay);
-      ();
-    },
-    [50., 250., 900.],
-  );
-};
 
 /* Structural operations on TOP-LEVEL definitions (outline context
    menu): insert / duplicate / move / delete. All act on the LIVE
@@ -1728,7 +1706,6 @@ module Update = {
           switch (Focus.mk_entry(~info_map, fid, master_seg)) {
           | None => model |> Updated.return_quiet
           | Some(entry) =>
-            set_outline_open(fid, true);
             {
               ...model,
               focus:
@@ -1739,7 +1716,7 @@ module Update = {
                   },
                 ),
             }
-            |> Updated.return;
+            |> Updated.return
           };
         | Some(f) =>
           if (List.exists(
@@ -1752,7 +1729,6 @@ module Update = {
                 (e: Model.stack_entry) => e.e_id == fid,
                 f.f_entries,
               );
-            set_outline_open(fid, false);
             let master_seg = Focus.splice_entry(closing, f.f_master_seg);
             let rest =
               List.filter(
@@ -1815,7 +1791,6 @@ module Update = {
             switch (Focus.mk_entry(~info_map, fid, master_seg)) {
             | None => model |> Updated.return_quiet
             | Some(entry) =>
-              set_outline_open(fid, true);
               {
                 ...model,
                 focus:
@@ -1826,7 +1801,7 @@ module Update = {
                     },
                   ),
               }
-              |> Updated.return;
+              |> Updated.return
             };
           }
         }
@@ -2234,6 +2209,18 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
+      {
+        let name = List.nth(model.scratchpads, model.current).name;
+        switch (model.focus) {
+        | Some(f) =>
+          Hashtbl.replace(
+            slide_pins,
+            name,
+            List.map((e: Model.stack_entry) => e.e_id, f.f_entries),
+          )
+        | None => Hashtbl.remove(slide_pins, name)
+        };
+      };
       let model = commit_focus(model);
       WorkerClient.cancel();
       /* hydration (parse + first statics) can take seconds on large
@@ -2252,12 +2239,23 @@ module Update = {
       }
       |> Updated.return(~historic=false);
     | HydrateCurrent =>
-      Persist.hydrate_current(
-        ~settings=settings.core,
-        is_documentation ? "doc" : "scratch",
-        model,
-      )
-      |> Updated.return(~historic=false)
+      let model =
+        Persist.hydrate_current(
+          ~settings=settings.core,
+          is_documentation ? "doc" : "scratch",
+          model,
+        );
+      {
+        /* restore this slide's pins (stale ids no-op in FocusToggle) */
+
+        let name = List.nth(model.scratchpads, model.current).name;
+        switch (Hashtbl.find_opt(slide_pins, name)) {
+        | Some(ids) when model.focus == None =>
+          List.iter(id => schedule_action(FocusToggle(id)), ids)
+        | _ => ()
+        };
+      };
+      model |> Updated.return(~historic=false);
     | AddSlide =>
       let model = commit_focus(model);
       WorkerClient.cancel();
