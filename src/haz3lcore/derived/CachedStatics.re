@@ -308,8 +308,14 @@ let init_compositional =
   } else if (root != Sort.Exp) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
-    let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
-    let term = make_term_result.term |> stitch;
+    /* from_zip_for_sem exists to EMPTY THE BACKPACK for semantics —
+       with an empty backpack its Dump.to_segment walk is pure
+       overhead (~660ms at 4k lines), and the per-item incremental
+       parse replaces the monolithic one */
+    let term =
+      Zipper.local_backpack(z) == []
+        ? MakeTerm.Incr.term_of(Zipper.unselect_and_zip(z)) |> stitch
+        : MakeTerm.from_zip_for_sem(z, ~root).term |> stitch;
     /* callers with probes living in OTHER zippers (stacked cells)
        pass the union; default = this zipper's own */
     let probe_ids =
