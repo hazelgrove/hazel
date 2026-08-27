@@ -1,0 +1,30 @@
+# Checks for everything that lands in this repository: every branch push, and
+# every merge group once a queue is enabled. Fork pull requests go through
+# fork-ci.yml instead, since a fork's push happens in the fork, not here.
+#
+# Both triggers are load-bearing and neither substitutes for the other. A merge
+# queue does push its gh-readonly-queue/** branch, but Actions status checks are
+# only reported into the queue from a `merge_group` run -- so the trigger is
+# what makes the queue's checks exist, and the branches-ignore below is what
+# stops the same commit being checked twice.
+#
+# There is no `pull_request` trigger on purpose. A same-repo pull request would
+# fire it *and* `push` for the same commit, running the full suite twice.
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - "gh-readonly-queue/**"
+  merge_group:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Required-check names for branch protection are reported as
+  # "CI / checks / Fast checks" and "CI / checks / Full tests".
+  checks:
+    uses: ./.github/workflows/checks.yml
+    secrets: inherit
