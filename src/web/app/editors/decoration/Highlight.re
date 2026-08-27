@@ -693,7 +693,7 @@ let bbox_of_range =
     List.init(final.row - origin.row + 1, i => origin.row + i)
     |> List.fold_left(
          (acc, row) =>
-           switch (acc, Measured.Rows.find_opt(row, measured.rows)) {
+           switch (acc, Measured.row_shape(row, measured)) {
            | (None, _)
            | (_, None) => None
            | (Some(bb), Some(shape: Measured.Rows.shape)) =>

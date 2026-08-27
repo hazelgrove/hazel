@@ -47,7 +47,8 @@ module Shards = {
       };
 };
 
-type t = {
+/* the measurement of ONE CHUNK, rows counted from its own top */
+type flat = {
   tiles: Id.Map.t(Shards.t),
   grout: Id.Map.t(measurement),
   secondary: Id.Map.t(measurement),
@@ -56,7 +57,7 @@ type t = {
   piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
 };
 
-let empty = {
+let empty_flat = {
   tiles: Id.Map.empty,
   grout: Id.Map.empty,
   secondary: Id.Map.empty,
@@ -99,7 +100,7 @@ let add_row = (row: int, shape: Rows.shape, map) => {
   rows: Rows.add(row, shape, map.rows),
 };
 
-let rec add_n_rows = (origin: Point.t, row_indent, n, map: t): t =>
+let rec add_n_rows = (origin: Point.t, row_indent, n, map: flat): flat =>
   switch (n) {
   | 0 => map
   | _ =>
@@ -127,27 +128,27 @@ let add_empty_piece_rows = map => {
 let rec add_n_empty_piece_rows = (n: int, map) =>
   n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
-let find_shards = (~msg="", t: Tile.t, map) =>
+let find_shards_flat = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
-let find_w = (~msg="", w: Secondary.t, map): measurement =>
+let find_w_flat = (~msg="", w: Secondary.t, map: flat): measurement =>
   try(Id.Map.find(w.id, map.secondary)) {
   | _ => failwith("find_w: " ++ msg)
   };
-let find_g = (~msg="", g: Grout.t, map): measurement =>
+let find_g_flat = (~msg="", g: Grout.t, map: flat): measurement =>
   try(Id.Map.find(g.id, map.grout)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr = (~msg="", p: Base.projector, map): measurement =>
+let find_pr_flat = (~msg="", p: Base.projector, map: flat): measurement =>
   try(Id.Map.find(p.id, map.projectors)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr_opt = (p: Base.projector, map): option(measurement) =>
+let find_pr_opt_flat = (p: Base.projector, map: flat): option(measurement) =>
   Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
-let find_t = (t: Tile.t, map): measurement => {
-  let shards = find_shards(t, map);
+let find_t_flat = (t: Tile.t, map: flat): measurement => {
+  let shards = find_shards_flat(t, map);
   let (first, last) =
     try({
       let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
@@ -161,20 +162,20 @@ let find_t = (t: Tile.t, map): measurement => {
     last: last.last,
   };
 };
-let find_p = (~msg="", p: Piece.t, map): measurement =>
+let find_p_flat = (~msg="", p: Piece.t, map: flat): measurement =>
   try(
     p
     |> Piece.get(
-         w => find_w(w, map),
-         g => find_g(g, map),
-         t => find_t(t, map),
-         p => find_pr(p, map),
+         w => find_w_flat(w, map),
+         g => find_g_flat(g, map),
+         t => find_t_flat(t, map),
+         p => find_pr_flat(p, map),
        )
   ) {
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 
-let find_by_id = (id: Id.t, map: t): option(measurement) => {
+let find_by_id_flat = (id: Id.t, map: flat): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
@@ -210,7 +211,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-type acc = (Segment.t, int, Point.t, t);
+type acc = (Segment.t, int, Point.t, flat);
 
 module MkDeferredLinebreaks = () => {
   /* Tab projectors add linebreaks after the end of the line
@@ -250,13 +251,14 @@ module MkDeferredLinebreaks = () => {
 
 let of_segment_inner =
     (
+      ~final: bool,
       indent_level: Id.Map.t(int),
       is_single_line: bool,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
     )
-    : t => {
+    : flat => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
   let indent_level =
@@ -266,7 +268,7 @@ let of_segment_inner =
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
     Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
 
-  let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
+  let calc = (indent: int, origin: Point.t, map: flat, size: Point.t) => {
     let last = Point.add(origin, size);
     let map = add_n_rows(origin, indent, size.row, map);
     (mk_measurement(origin, last), map);
@@ -389,10 +391,211 @@ let of_segment_inner =
         Aba.mk(t.shards, t.children),
       );
     };
-  let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
+  let (_, _, _, map) =
+    go(~top_level=final, ([], 0, Point.zero, empty_flat), seg);
   map;
 };
 
+/* ===== CHUNKED MEASUREMENT (plans/subeditor-dataflow.md §5a) =====
+   The program is measured PER TOP-LEVEL CHUNK (item runs cut only
+   where a boundary is followed by a linebreak, so every chunk is a
+   whole-lines block starting at column 0) and composed by row
+   offsets. An edit re-measures one chunk; unchanged chunks are
+   pointer-identical and reuse their measurements. Queries translate
+   at lookup time; parity with the monolithic measurement is
+   test-gated ([flatten] below exists for that). */
+
+type chunk = {
+  c_anchor: Id.t, /* first piece's id: the chunk's stable identity */
+  c_start: int, /* absolute starting row */
+  c_flat: flat,
+};
+
+type t = {
+  chunks: array(chunk),
+  /* piece id -> owning chunk ANCHOR (anchors are stable across
+     partition changes; indices are not). Persistent snapshot per
+     value: retained old generations keep answering correctly. */
+  chunk_of_id: Id.Map.t(Id.t),
+  /* anchor -> index in [chunks] (rebuilt O(#chunks) per generation) */
+  anchor_index: Hashtbl.t(Id.t, int),
+  total_rows: int,
+  /* EAGER: a lazy thunk here is a functional value and breaks
+     structural compares of anything containing a measurement */
+  all_piece_rows: list(list(Piece.t)),
+};
+
+let flat_height = (f: flat): int =>
+  switch (Rows.max_binding_opt(f.rows)) {
+  | Some((r, _)) => r + 1
+  | None => 0
+  };
+
+let ids_of_flat = (f: flat): list(Id.t) =>
+  List.map(fst, Id.Map.bindings(f.tiles))
+  @ List.map(fst, Id.Map.bindings(f.grout))
+  @ List.map(fst, Id.Map.bindings(f.secondary))
+  @ List.map(fst, Id.Map.bindings(f.projectors));
+
+let shift_point = (s: int, p: Point.t): Point.t => {
+  ...p,
+  row: p.row + s,
+};
+let shift_m = (s: int, m: measurement): measurement => {
+  origin: shift_point(s, m.origin),
+  last: shift_point(s, m.last),
+};
+
+let mk_chunked = (~chunk_of_id, flats: list((Id.t, flat))): t => {
+  let n = List.length(flats);
+  let anchor_index = Hashtbl.create(n > 0 ? n : 1);
+  let (chunks_rev, total) =
+    List.fold_left(
+      ((acc, row), (anchor, f)) => {
+        Hashtbl.replace(anchor_index, anchor, List.length(acc));
+        (
+          [
+            {
+              c_anchor: anchor,
+              c_start: row,
+              c_flat: f,
+            },
+            ...acc,
+          ],
+          row + flat_height(f),
+        );
+      },
+      ([], 0),
+      flats,
+    );
+  let chunks = Array.of_list(List.rev(chunks_rev));
+  {
+    chunks,
+    chunk_of_id,
+    anchor_index,
+    total_rows: total,
+    all_piece_rows:
+      Array.fold_left((acc, ch) => ch.c_flat.piece_rows @ acc, [], chunks),
+  };
+};
+
+let chunk_for_id = (id: Id.t, m: t): option(chunk) =>
+  switch (Id.Map.find_opt(id, m.chunk_of_id)) {
+  | None => None
+  | Some(anchor) =>
+    switch (Hashtbl.find_opt(m.anchor_index, anchor)) {
+    | Some(i) => Some(m.chunks[i])
+    | None => None
+    }
+  };
+
+let chunk_for_row = (row: int, m: t): option(chunk) => {
+  let n = Array.length(m.chunks);
+  let rec bs = (lo, hi) =>
+    if (lo > hi) {
+      None;
+    } else {
+      let mid = (lo + hi) / 2;
+      let ch = m.chunks[mid];
+      let h = flat_height(ch.c_flat);
+      if (row < ch.c_start) {
+        bs(lo, mid - 1);
+      } else if (row >= ch.c_start + h && mid < n - 1) {
+        bs(mid + 1, hi);
+      } else {
+        Some(ch);
+      };
+    };
+  n == 0 ? None : bs(0, n - 1);
+};
+
+/* ---- public accessors (chunk-translated) ---- */
+
+let find_shards = (~msg="", t: Tile.t, m: t) =>
+  switch (chunk_for_id(t.id, m)) {
+  | Some(ch) =>
+    find_shards_flat(~msg, t, ch.c_flat)
+    |> List.map(((i, meas)) => (i, shift_m(ch.c_start, meas)))
+  | None => failwith("find_shards: " ++ msg)
+  };
+
+let find_w = (~msg="", w: Secondary.t, m: t): measurement =>
+  switch (chunk_for_id(w.id, m)) {
+  | Some(ch) => shift_m(ch.c_start, find_w_flat(~msg, w, ch.c_flat))
+  | None => failwith("find_w: " ++ msg)
+  };
+let find_g = (~msg="", g: Grout.t, m: t): measurement =>
+  switch (chunk_for_id(g.id, m)) {
+  | Some(ch) => shift_m(ch.c_start, find_g_flat(~msg, g, ch.c_flat))
+  | None => failwith("find_g: " ++ msg)
+  };
+let find_pr = (~msg="", p: Base.projector, m: t): measurement =>
+  switch (chunk_for_id(p.id, m)) {
+  | Some(ch) => shift_m(ch.c_start, find_pr_flat(~msg, p, ch.c_flat))
+  | None => failwith("find_pr: " ++ msg)
+  };
+let find_pr_opt = (p: Base.projector, m: t): option(measurement) =>
+  switch (chunk_for_id(p.id, m)) {
+  | Some(ch) =>
+    find_pr_opt_flat(p, ch.c_flat) |> Option.map(shift_m(ch.c_start))
+  | None => None
+  };
+let find_t = (t: Tile.t, m: t): measurement =>
+  switch (chunk_for_id(t.id, m)) {
+  | Some(ch) => shift_m(ch.c_start, find_t_flat(t, ch.c_flat))
+  | None => failwith("find_t")
+  };
+let find_p = (~msg="", p: Piece.t, m: t): measurement =>
+  switch (chunk_for_id(Piece.id(p), m)) {
+  | Some(ch) => shift_m(ch.c_start, find_p_flat(~msg, p, ch.c_flat))
+  | None =>
+    failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
+  };
+let find_by_id = (id: Id.t, m: t): option(measurement) =>
+  switch (chunk_for_id(id, m)) {
+  | Some(ch) =>
+    find_by_id_flat(id, ch.c_flat) |> Option.map(shift_m(ch.c_start))
+  | None =>
+    Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
+    None;
+  };
+
+let find_shards_by_id = (id: Id.t, m: t): option(Shards.t) =>
+  switch (chunk_for_id(id, m)) {
+  | Some(ch) =>
+    Id.Map.find_opt(id, ch.c_flat.tiles)
+    |> Option.map(List.map(((i, meas)) => (i, shift_m(ch.c_start, meas))))
+  | None => None
+  };
+
+let row_shape = (row: int, m: t): option(Rows.shape) =>
+  switch (chunk_for_row(row, m)) {
+  | Some(ch) => Rows.find_opt(row - ch.c_start, ch.c_flat.rows)
+  | None => None
+  };
+
+let row_indent = (row: int, m: t): int =>
+  switch (row_shape(row, m)) {
+  | Some(sh) => sh.indent
+  | None => 0
+  };
+
+let min_col_of_rows = (rs: list(row), m: t): col =>
+  rs
+  |> List.map(r =>
+       switch (row_shape(r, m)) {
+       | Some(sh) => sh.indent
+       | None => Int.max_int
+       }
+     )
+  |> List.fold_left(min, Int.max_int);
+
+let piece_rows = (m: t): list(list(Piece.t)) => m.all_piece_rows;
+
+let num_rows = (m: t): int => m.total_rows;
+
+/* single-chunk construction: the compatibility path every existing
+   of_segment caller keeps using */
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
@@ -401,18 +604,87 @@ let of_segment =
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
     )
-    : t =>
-  of_segment_inner(
-    indent_level,
-    is_single_line,
-    seg,
-    shape_map,
-    refractor_shape_map,
+    : t => {
+  let f =
+    of_segment_inner(
+      ~final=true,
+      indent_level,
+      is_single_line,
+      seg,
+      shape_map,
+      refractor_shape_map,
+    );
+  let anchor =
+    switch (seg) {
+    | [p, ..._] => Piece.id(p)
+    | [] => Id.invalid
+    };
+  let chunk_of_id =
+    List.fold_left(
+      (acc, id) => Id.Map.add(id, anchor, acc),
+      Id.Map.empty,
+      ids_of_flat(f),
+    );
+  mk_chunked(~chunk_of_id, [(anchor, f)]);
+};
+
+let empty: t = mk_chunked(~chunk_of_id=Id.Map.empty, []);
+
+/* translate-and-union: TEST-ONLY parity target vs a monolithic
+   measurement */
+let flatten = (m: t): flat =>
+  Array.fold_left(
+    (acc, ch) => {
+      let s = ch.c_start;
+      let f = ch.c_flat;
+      {
+        tiles:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.tiles,
+            Id.Map.map(
+              List.map(((i, ms)) => (i, shift_m(s, ms))),
+              f.tiles,
+            ),
+          ),
+        grout:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.grout,
+            Id.Map.map(shift_m(s), f.grout),
+          ),
+        secondary:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.secondary,
+            Id.Map.map(shift_m(s), f.secondary),
+          ),
+        projectors:
+          Id.Map.union(
+            (_, _, y) => Some(y),
+            acc.projectors,
+            Id.Map.map(shift_m(s), f.projectors),
+          ),
+        rows:
+          Rows.union(
+            (_, _, y) => Some(y),
+            acc.rows,
+            f.rows
+            |> Rows.bindings
+            |> List.map(((r, sh)) => (r + s, sh))
+            |> List.to_seq
+            |> Rows.of_seq,
+          ),
+        piece_rows: f.piece_rows @ acc.piece_rows,
+      };
+    },
+    empty_flat,
+    m.chunks,
   );
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>
-  switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {
+  switch (row_shape(measurement.origin.row, measured)) {
   | None => 0
   | Some(row) => row.max_col
   };

@@ -691,7 +691,7 @@ module View = {
       "test-decos",
       List.filter_map(
         ((id, insts)) =>
-          switch (Id.Map.find_opt(id, measured.tiles)) {
+          switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
           | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
           | None => None
           },

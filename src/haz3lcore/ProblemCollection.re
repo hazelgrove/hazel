@@ -63,7 +63,7 @@ let make_problem_context =
   let measured = syntax.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
-    let reversed = List.rev(measured.piece_rows);
+    let reversed = List.rev(Measured.piece_rows(measured));
     let (line_numbers_rev, _) =
       List.fold_left(
         ((acc, line_count), row) =>

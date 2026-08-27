@@ -5178,7 +5178,10 @@ let grapheme_tests = [
         let m = Printer.measured_no_projectors(seg);
         (
           Zipper.Caret.point(m, z).col,
-          Measured.Rows.find(0, m.rows).max_col,
+          switch (Measured.row_shape(0, m)) {
+          | Some(sh) => sh.max_col
+          | None => 0
+          },
         );
       };
       /* `#a😀b#` is five clusters but six columns */
