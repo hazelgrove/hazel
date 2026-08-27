@@ -49,12 +49,13 @@ let mk = (~root=Sort.Exp, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
-  /* term_data comes from the EXP-rooted parse above: in a Pat/TPat/Typ-
-     rooted cell those term sorts are a misparse, and the sort-
-     consistency highlight then flags every token. Drop it so tokens
-     color by their MOLD sort (correct — molds came from the master
-     splice), matching the whole-program view. */
-  let term_data = root == Sort.Exp ? term_data : Id.Map.empty;
+  /* the EXP-rooted parse above misparses Pat/TPat/Typ-rooted cells
+     (every token read as sort-inconsistent): re-derive terms and
+     term_data from a parse at the cell's own root sort, so coloring
+     and term selection (triple-click) work in headers and type cells */
+  let (terms, term_data) =
+    root == Sort.Exp
+      ? (terms, term_data) : MakeTerm.sorted_syntax_data(~root, segment);
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,

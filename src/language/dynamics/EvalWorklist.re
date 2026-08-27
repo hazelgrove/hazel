@@ -25,29 +25,49 @@ let is_function = (info: Info.t): bool =>
 
 let ids_inside_functions = (info_map: StaticsBase.Map.t): Id.Set.t => {
   let memo = ref(Id.Map.empty);
-  let rec is_inside = (id: Id.t): bool =>
-    switch (Id.Map.find_opt(id, memo^)) {
-    | Some(result) => result
-    | None =>
-      let result =
-        switch (Id.Map.find_opt(id, info_map)) {
-        | None => false
-        | Some(info) =>
-          switch (Info.parent_id_of(info)) {
-          | None => false
-          | Some(parent_id) =>
-            switch (Id.Map.find_opt(parent_id, info_map)) {
-            | Some(parent_info) when is_function(parent_info) => true
-            | Some(_) => is_inside(parent_id)
-            | None => false
+  /* ITERATIVE parent-chain walk. The recursive version overflowed the
+     stack (it memoized only after the full recursion, and some info
+     maps have parent chains that revisit an id — a cycle recursed
+     forever; crashed the Documentation mode switch). Walk up
+     collecting the chain, stop at memo/function/root/cycle, then
+     memoize the whole chain. */
+  let resolve = (id0: Id.t): bool => {
+    let rec walk = (chain: list(Id.t), seen: Id.Set.t, id: Id.t): bool =>
+      switch (Id.Map.find_opt(id, memo^)) {
+      | Some(result) => result
+      | None =>
+        if (Id.Set.mem(id, seen)) {
+          false; /* cycle: treat as not inside a function */
+        } else {
+          let chain = [id, ...chain];
+          let seen = Id.Set.add(id, seen);
+          switch (Id.Map.find_opt(id, info_map)) {
+          | None => finish(chain, false)
+          | Some(info) =>
+            switch (Info.parent_id_of(info)) {
+            | None => finish(chain, false)
+            | Some(parent_id) =>
+              switch (Id.Map.find_opt(parent_id, info_map)) {
+              | Some(parent_info) when is_function(parent_info) =>
+                finish(chain, true)
+              | Some(_) => walk(chain, seen, parent_id)
+              | None => finish(chain, false)
+              }
             }
-          }
-        };
-      memo := Id.Map.add(id, result, memo^);
+          };
+        }
+      }
+    and finish = (chain: list(Id.t), result: bool): bool => {
+      List.iter(id => memo := Id.Map.add(id, result, memo^), chain);
       result;
     };
+    let result = walk([], Id.Set.empty, id0);
+    /* cycle exits skip finish for the visited prefix: memoize id0 too */
+    memo := Id.Map.add(id0, result, memo^);
+    result;
+  };
   Id.Map.fold(
-    (id, _, acc) => is_inside(id) ? Id.Set.add(id, acc) : acc,
+    (id, _, acc) => resolve(id) ? Id.Set.add(id, acc) : acc,
     info_map,
     Id.Set.empty,
   );

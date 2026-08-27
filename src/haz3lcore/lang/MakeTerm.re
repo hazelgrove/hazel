@@ -1670,6 +1670,31 @@ let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
   };
 };
 
+/* terms + term_data for a NON-Exp-rooted editor: the sorted parse
+   populates the same recorders the Exp path uses, so sort-consistency
+   highlighting and term selection (triple-click) work in Pat/TPat/Typ
+   cells. (The Exp-rooted [go] misparses those segments — its term
+   sorts flagged every token as sort-inconsistent.) */
+let sorted_syntax_data =
+    (~root: Sort.t, seg: Segment.t): (TermMap.t, TermData.t) => {
+  map := TermMap.empty;
+  term_data := Id.Map.empty;
+  projectors := Id.Map.empty;
+  projector_list := [];
+  switch (Segment.skel(seg)) {
+  | exception _ => (TermMap.empty, Id.Map.empty)
+  | skel =>
+    let u = unsorted(root, skel, seg);
+    switch (root) {
+    | Pat => ignore(pat(u))
+    | Typ => ignore(typ(u))
+    | TPat => ignore(tpat(u))
+    | _ => ()
+    };
+    (map^, term_data^);
+  };
+};
+
 let from_zip_for_sem =
   /* small for the same reason as [go]: keys pin zippers */
   Core.Memo.general(~cache_size_bound=8, from_zip_for_sem);
