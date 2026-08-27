@@ -21,13 +21,6 @@ let init: unit => t =
     refractors: Refractor.init,
   };
 
-let next_blank = _ => Id.mk();
-
-let delete_parent = (z: t): t => {
-  ...z,
-  relatives: Relatives.delete_parent(z.relatives),
-};
-
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
@@ -312,51 +305,121 @@ let destroy_selection: t => t =
       selection: Selection.empty,
     });
 
+/* Inner offsets of a char selection's boundaries, in the frame of the first
+ * and last selected pieces; `None` means that side reaches the piece's outer
+ * boundary. smart_rounded reads as Outer: the anchor is displayed at its
+ * piece's edge, so the intent is "whole starting token". */
+let char_selection_offsets = (z: t): (option(int), option(int)) => {
+  let inner = (c: CaretBase.t): option(int) =>
+    switch (c) {
+    | CaretBase.Inner(n) => Some(n)
+    | CaretBase.Outer => None
+    };
+  let anchor: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
+  switch (z.selection.focus) {
+  | Right => (inner(anchor), inner(z.caret))
+  | Left => (inner(z.caret), inner(anchor))
+  };
+};
+
+/* Whether the selection has at least one boundary strictly inside a piece,
+ * i.e. `selection.content` holds more than what is actually selected. */
+let has_char_selection = (z: t): bool =>
+  !Selection.is_empty(z.selection)
+  && (
+    switch (char_selection_offsets(z)) {
+    | (None, None) => false
+    | _ => true
+    }
+  );
+
+/* Splitting a string/comment literal would strand its delimiters, so those
+ * boundary tokens are kept whole; everything else splits on the offset. */
+let splittable_token = (p: Piece.t): option(Token.t) =>
+  switch (Piece.token_of(p)) {
+  | Some(tok) when !Token.is_string_or_comment(tok) => Some(tok)
+  | _ => None
+  };
+
+/* Fragments inherit the source tile's mold, because they can land outside
+ * the following remold pass (wrap_balanced moves them into the ancestor
+ * frame) where an Any-sorted placeholder attracts spurious grout. Shards
+ * have no mold to reuse and fall back to the generic monotile. */
+let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
+  switch (p) {
+  | Tile({label: [_], shards: [0], _} as t) =>
+    Tile({
+      ...t,
+      id: Id.mk(),
+      label: [tok],
+    })
+  | _ => mk_remainder_piece(tok)
+  };
+
+/* (unselected head, selected pieces, unselected tail). Nothing is deleted or
+ * placed — callers decide where the remainders go, unlike
+ * normalize_char_selection, which drops the selection and rejoins them.
+ * Returns `([], content, [])` when nothing is partially selected. */
+let split_char_selection = (z: t): (Segment.t, Segment.t, Segment.t) =>
+  if (!has_char_selection(z)) {
+    ([], z.selection.content, []);
+  } else {
+    let content = z.selection.content;
+    let (left_offset, right_offset) = char_selection_offsets(z);
+    let seg = (p: Piece.t, tok: Token.t): Segment.t =>
+      tok == "" ? [] : [split_piece(p, tok)];
+    /* Offsets are token positions of the caret, one past the char they name */
+    let cut = (tok: Token.t, n: int) =>
+      Token.split_nth(tok, max(0, min(n, Token.length(tok))));
+    switch (content) {
+    | [] => ([], content, [])
+    | [p] =>
+      /* Both boundaries in one token: head and tail are separated by the
+       * selection, so unlike deletion they never need rejoining. */
+      switch (splittable_token(p)) {
+      | None => ([], content, [])
+      | Some(tok) =>
+        let len = Token.length(tok);
+        let lo = Option.fold(~none=0, ~some=n => n + 1, left_offset);
+        let lo = max(0, min(lo, len));
+        let hi = Option.fold(~none=len, ~some=n => n + 1, right_offset);
+        let hi = max(lo, min(hi, len));
+        let (head, rest) = cut(tok, lo);
+        let (mid, tail) = cut(rest, hi - lo);
+        (seg(p, head), seg(p, mid), seg(p, tail));
+      }
+    | [first, ...rest] =>
+      let (middle, last) = ListUtil.split_last(rest);
+      let (left_rem, first_sel) =
+        switch (left_offset, splittable_token(first)) {
+        | (Some(n), Some(tok)) =>
+          let (head, sel) = cut(tok, n + 1);
+          (seg(first, head), seg(first, sel));
+        | _ => ([], [first])
+        };
+      let (last_sel, right_rem) =
+        switch (right_offset, splittable_token(last)) {
+        | (Some(n), Some(tok)) =>
+          let (sel, tail) = cut(tok, n + 1);
+          (seg(last, sel), seg(last, tail));
+        | _ => ([last], [])
+        };
+      (left_rem, first_sel @ middle @ last_sel, right_rem);
+    };
+  };
+
 /* Normalize a char-level selection before destruction.
  * Splits partial boundary tokens and keeps the exterior (unselected)
  * portions, setting caret appropriately. Must be called explicitly
  * by top-level actions (Destruct, Insert) — NOT from internal helpers
  * like replace_shard which set Inner caret for other purposes. */
-let normalize_char_selection = (z: t): t => {
-  /* When smart_rounded is set, the anchor end is displayed at its
-   * piece's outer boundary — user intent is "whole starting token
-   * selected", not partial-from-anchor_caret. Treat as Outer. */
-  let effective_anchor_caret: CaretBase.t =
-    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
-  let has_char_boundary =
-    effective_anchor_caret != CaretBase.Outer
-    || z.caret != Outer
-    && !Selection.is_empty(z.selection);
-  if (!has_char_boundary || Selection.is_empty(z.selection)) {
+let normalize_char_selection = (z: t): t =>
+  if (!has_char_selection(z)) {
     z;
   } else {
-    let focus_dir = z.selection.focus;
     let content = z.selection.content;
-
-    /* Determine inner offsets for left and right boundaries */
-    let (left_offset, right_offset) =
-      switch (focus_dir) {
-      | Right => (
-          switch (effective_anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-        )
-      | Left => (
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-          switch (effective_anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-        )
-      };
+    let (left_offset, right_offset) = char_selection_offsets(z);
 
     /* Compute left remainder (exterior chars before left boundary) */
     let left_remainder =
@@ -528,7 +591,6 @@ let normalize_char_selection = (z: t): t => {
       };
     };
   };
-};
 
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
@@ -931,22 +993,24 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  /* String shards can span multiple columns because emoji render wider than
-     ASCII.  Translate an inner caret index into measured columns by consulting
-     the token width table. */
-  let string_offset = (token: Token.t, idx: int): int =>
-    1 + Token.string_prefix_columns(token, idx);
+  /* Any shard can span more columns than it has graphemes, because emoji and
+     CJK render two columns wide. Translate an inner caret index into measured
+     columns by consulting the token width table. */
+  let token_offset = (token: Token.t, idx: int): int =>
+    Token.prefix_columns(token, idx + 1);
 
-  /* Determine how many columns to advance for an Inner caret.  Prefer the
-     token on the left; if none exists fall back to the token on the right.
-     Non-strings retain the classic one-column-per-character behaviour. */
+  /* Columns to advance for an Inner caret. `Inner(n)` is
+     right-neighbor-relative (see Move: the right generalized neighbor is the
+     piece it indexes into), so the RIGHT token decides the offset; the left
+     token is only consulted at the very end of the program, where there is
+     no right neighbor. */
   let inner_offset = (idx: int, z: t): int =>
-    switch (neighbor_token(Left, z)) {
-    | Some(token) when Token.is_string(token) => string_offset(token, idx)
-    | _ =>
-      switch (neighbor_token(Right, z)) {
-      | Some(token) when Token.is_string(token) => string_offset(token, idx)
-      | _ => idx + 1
+    switch (neighbor_token(Right, z)) {
+    | Some(token) => token_offset(token, idx)
+    | None =>
+      switch (neighbor_token(Left, z)) {
+      | Some(token) => token_offset(token, idx)
+      | None => idx + 1
       }
     };
 
@@ -973,14 +1037,6 @@ module Caret = {
     max_idx < 0 ? None : Some(max_idx);
   };
 
-  /* Returns the delimiter index that the caret is adjacent to.
-   * For non-tiles and monotiles this is always zero */
-  let delim_idx = (z: t) =>
-    switch (snd(z.relatives.siblings), z.relatives.ancestors) {
-    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
-    | _ => 0
-    };
-
   /* Direction the caret is facing in */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {
@@ -1000,12 +1056,11 @@ module Caret = {
   /* Compute inner offset using a known token (avoids generalized_neighbor
    * which unselects and gives wrong results during char-level selection). */
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
-    Token.is_string(token) ? string_offset(token, idx) : idx + 1;
+    token_offset(token, idx);
 
   /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
-     wide char (e.g. an emoji) in a string literal is one grapheme but two
-     columns. Used for clipboard text slicing, where the column count would
-     over-trim and leave a trailing quote. */
+     wide char (e.g. an emoji) is one grapheme but two columns. Used for
+     clipboard text slicing, where the column count would over-trim. */
   let inner_grapheme_offset = (idx: int): int => idx + 1;
 
   /* Grid position of the caret */
@@ -1292,14 +1347,6 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
       };
     };
   };
-};
-
-let serialize = (z: t): string => {
-  sexp_of_t(z) |> Sexplib.Sexp.to_string;
-};
-
-let deserialize = (data: string): t => {
-  Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
 
 let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {

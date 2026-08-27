@@ -199,8 +199,6 @@ module Failure = {
     | CantPaste
     | CantReparse
     | CantAccept
-    | Cant_undo
-    | Cant_redo
     | CantIntroduce
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
@@ -277,39 +275,6 @@ let is_historic: t => bool =
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
-
-let prevent_in_read_only_editor = (a: t) =>
-  switch (a) {
-  | Copy
-  | Move(_)
-  | Unselect(_)
-  | Select(_) => false
-  | Buffer(Set(_) | Accept | Clear)
-  | Cut
-  | Paste(_)
-  | Reparse
-  | Destruct(_)
-  | Insert(_)
-  | Put_down
-  | ApplyCompletion(_)
-  | Introduce
-  | Format(_)
-  | AdjustIndent(_, _)
-  | Structural(_)
-  | ToggleLineComment => true
-  | Project(p) =>
-    switch (p) {
-    | SetSyntax(_) => true
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated
-    | Focus(_)
-    | SampleFocus(_)
-    | Escape(_)
-    | EscapeToLineEnd(_) => false
-    }
-  | Probe(_) => false
-  };
 
 let should_animate: t => bool =
   fun

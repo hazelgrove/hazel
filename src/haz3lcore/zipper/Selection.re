@@ -70,11 +70,6 @@ let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
-let map = (f, sel) => {
-  ...sel,
-  content: f(sel.content),
-};
-
 let toggle_focus = selection => {
   ...selection,
   focus: Util.Direction.toggle(selection.focus),
