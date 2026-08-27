@@ -253,7 +253,13 @@ module View = {
     m_nodes: list(Node.t),
   };
   let view_memo: ref(list(memo_entry)) = ref([]);
-  let view_memo_max = 16;
+  /* SMALL cap, and same-length entries evict each other: every key
+     pins a whole GENERATION of segment/measured/info_map — on mega
+     programs a deep LRU pinned hundreds of MB of superseded
+     generations (heap death after a few edits). Same piece-count is
+     a cheap same-editor-previous-generation proxy; a false hit just
+     costs a recompute. */
+  let view_memo_max = 4;
   let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
     let n = Array.length(a);
     Array.length(b) == n
@@ -334,13 +340,22 @@ module View = {
           | (_, []) => []
           | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
           };
+        let seg_len = List.length(segment);
+        let same_len = (e: memo_entry) =>
+          switch ((Obj.magic(e.m_key[3]): Segment.t)) {
+          | s => List.length(s) == seg_len
+          | exception _ => false
+          };
         view_memo :=
           [
             {
               m_key: key,
               m_nodes: nodes,
             },
-            ...take(view_memo_max - 1, view_memo^),
+            ...take(
+                 view_memo_max - 1,
+                 List.filter(e => !same_len(e), view_memo^),
+               ),
           ];
         nodes;
       };

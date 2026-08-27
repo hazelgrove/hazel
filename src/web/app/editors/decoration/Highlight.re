@@ -699,7 +699,9 @@ let colors =
    across chunks except pending_eval_ids (which IS in the key, so
    chunk-boundary changes still re-render). */
 let incr_eval_memo: ref(list((array(Obj.t), Node.t))) = ref([]);
-let incr_eval_memo_max = 8;
+/* tiny: each key pins a predicted_reuse generation (cache entries
+   with state slices — the largest objects in the app) */
+let incr_eval_memo_max = 2;
 
 /* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval_uncached =

@@ -1562,8 +1562,13 @@ let consolidate_adopted = (): unit => {
 };
 
 let go =
+  /* SMALL bound: each key pins a whole SEGMENT plus its full term/
+     term_data output. On mega-scale programs a deep cache retained
+     hundreds of superseded generations (every splice/edit mints a new
+     segment) — the browser heap died within a few edits. The working
+     set per frame is a handful of segments. */
   Core.Memo.general(
-    ~cache_size_bound=1000,
+    ~cache_size_bound=8,
     seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
@@ -1590,7 +1595,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=8, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -1682,4 +1687,5 @@ let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
 };
 
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+  /* small for the same reason as [go]: keys pin zippers */
+  Core.Memo.general(~cache_size_bound=8, from_zip_for_sem);

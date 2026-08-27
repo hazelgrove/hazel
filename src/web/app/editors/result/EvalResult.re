@@ -379,7 +379,11 @@ module Update = {
             );
           stream_inc := inc;
           Some(state);
-        | None => None
+        | None =>
+          /* run over: drop the collector state (its frontier pins the
+             finished run's entry slices) */
+          stream_inc := None;
+          None;
         };
       };
 
