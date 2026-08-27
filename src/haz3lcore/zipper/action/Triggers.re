@@ -196,9 +196,6 @@ let projector_to_invoke = (pr: Base.projector): Segment.t =>
     Piece.unparenthesize(pr.syntax),
   );
 
-let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
-
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
