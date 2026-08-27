@@ -1,7 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-let img = create("img");
-
 let slide = (header, content) =>
   div(
     ~key="slide",
@@ -15,10 +13,6 @@ let slide = (header, content) =>
       div(~key="content", ~attrs=[Attr.class_("slide-content")], content),
     ],
   );
-
-let code = content => span(~attrs=[Attr.class_("code")], [text(content)]);
-
-let em = content => span(~attrs=[Attr.class_("em")], [text(content)]);
 
 let get_content =
   fun

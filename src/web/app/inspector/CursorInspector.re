@@ -1042,8 +1042,6 @@ let tpat_view =
   };
 };
 
-let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
-
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
