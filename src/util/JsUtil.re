@@ -102,36 +102,13 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
-/* Whether an element sits inside a projector. The page pulls focus back to
-   the clipboard shim whenever anything is blurred, which otherwise makes it
-   impossible for a projector to hold focus at all: an interactive one (the
-   keybinding recorder) receives focus and has it taken away in the same
-   frame. */
-let is_in_projector = (el: Js.t(Dom_html.element)): bool =>
-  Js.Opt.test(
-    Js.Unsafe.meth_call(
-      el,
-      "closest",
-      [|Js.Unsafe.inject(Js.string(".projector"))|],
-    ),
-  );
-
-/* Whether DOM focus currently sits inside a projector. Read from
-   document.activeElement rather than the event: virtual_dom's focus events
-   do not reliably carry the focused element as their target. */
-let active_element_in_projector = (): bool =>
-  switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
-  | Some(el) => is_in_projector(el)
-  | None => false
-  };
-
-/* The element a focus event concerns (its target). */
-let focus_event_target = (evt): option(Js.t(Dom_html.element)) =>
-  Js.Opt.to_option(Js.Unsafe.get(evt, "target"));
-
-/* The element focus is moving TO during a blur, if any. */
-let blur_related_target = (evt): option(Js.t(Dom_html.element)) =>
-  Js.Opt.to_option(Js.Unsafe.get(evt, "relatedTarget"));
+/* Set while an interactive projector owns DOM focus (the keybinding
+   recorder). The page pulls focus back to the clipboard shim on any bubbled
+   focus/blur, and the shim's focusout fires BEFORE the projector's focusin —
+   so a guard that inspects the event is always too late. The projector
+   raises this on pointerdown, before focus moves at all, and lowers it on
+   blur. */
+let projector_holds_focus = ref(false);
 
 /* The id carried by whichever code-editor cell is currently the active
    (model-selected) one. Used to move DOM focus to a cell after a sidebar

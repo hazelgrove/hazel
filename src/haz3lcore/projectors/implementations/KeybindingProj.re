@@ -19,7 +19,10 @@ module S = Language.BuiltinsADT.Shortcut;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    /* what the syntax holds */
     committed: S.binding,
+    /* what has been pressed during this capture, not yet written to syntax */
+    pending: option(S.binding),
     isRecording: bool,
   };
 };
@@ -27,6 +30,7 @@ module Model = {
 let model_string = (b: S.binding): string =>
   Model.{
     committed: b,
+    pending: None,
     isRecording: false,
   }
   |> Model.sexp_of_t
@@ -39,14 +43,19 @@ module M: Projector = {
   type model =
     Model.t = {
       committed: S.binding,
+      pending: option(S.binding),
       isRecording: bool,
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | StartRecording
-    | CommitRecording
-    | CancelRecording;
+    /* A key was pressed during capture. Held in the MODEL rather than
+       written straight to syntax: a SetSyntax per keystroke re-creates the
+       projector with a fresh id, which drops DOM focus and ends capture
+       after a single key. Syntax is written once, when capture finishes. */
+    | Captured(S.binding)
+    | Finish;
 
   let binding_of = (any: Language.Any.t): option(S.binding) =>
     switch (any) {
@@ -59,6 +68,7 @@ module M: Projector = {
     | Some(b) =>
       Some({
         committed: b,
+        pending: None,
         isRecording: false,
       })
     | None => None
@@ -160,7 +170,16 @@ module M: Projector = {
   let placeholder = (model, info) => {
     let cols =
       model.isRecording
-        ? 9
+        ? switch (model.pending) {
+          | None => 9
+          | Some(b) =>
+            List.fold_left(
+              (acc, (text, _, _)) => acc + display_len(text) + 1,
+              /* the trailing "finish" hint cap */
+              3,
+              cap_specs(b),
+            )
+          }
         : List.fold_left(
             (acc, (text, _, _)) => acc + display_len(text) + 1,
             /* the clear button, always present on a bound shortcut */
@@ -175,7 +194,9 @@ module M: Projector = {
      the blur that ends it — recording would start on click and never clear. */
   let focus_element = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
-    | Some(el) => el##focus
+    | Some(el) =>
+      JsUtil.projector_holds_focus := true;
+      el##focus;
     | None => ()
     };
 
@@ -196,12 +217,6 @@ module M: Projector = {
      get_elem_by_id (which asserts) while BUILDING the Effect.Many list, so a
      missing element aborted construction and the recording state was never
      cleared — the widget kept its recording styling after losing focus. */
-  /* DOM focus has to be (re)asserted AFTER the render, not during the event:
-     a capture dispatches SetSyntax, the editor re-renders and pulls focus
-     back to its cell, and anything done inline is undone. This is the
-     framework's own hook for that — Main.re runs it in after_display. */
-  let keep_focus = info =>
-    Effect.of_sync_fun(() => FocusEffect.schedule(info.id), ());
 
   let blur = info =>
     Effect.of_sync_fun(
@@ -265,14 +280,32 @@ module M: Projector = {
      bindable). Escape is the single exception and the only key that exits,
      besides clicking away. Unbinding is the × button, because no key can
      mean "no key". */
+  /* What the widget currently shows: a capture in progress wins over what
+     the syntax holds, since the syntax is not written until capture ends. */
+  let shown_binding = (model, info): S.binding =>
+    switch (model.pending) {
+    | Some(b) => b
+    | None => get(info)
+    };
+
+  /* Write the captured binding to syntax and leave capture. The ONLY place
+     syntax is written, which is what keeps focus alive across keystrokes. */
+  let finish = (model, info, ~local, ~parent) =>
+    Effect.Many([
+      set_binding(info, ~parent, shown_binding(model, info)),
+      local(Finish),
+    ]);
+
+  /* Modal capture: once recording, EVERY key is a candidate binding —
+     Enter, Tab and Backspace included, since all of them are bindable.
+     Escape is the single exception and the way you finish. */
   let key_handler = (model, info, ~local, ~parent, evt) => {
     open Effect;
     let key = Key.mk(KeyDown, evt);
     switch (key.key) {
     | D("Escape") =>
       Many([
-        local(CancelRecording),
-        set_binding(info, ~parent, model.committed),
+        finish(model, info, ~local, ~parent),
         blur(info),
         Stop_propagation,
         Prevent_default,
@@ -281,8 +314,7 @@ module M: Projector = {
       switch (key_name_of(key)) {
       | Some(name) =>
         Many([
-          set_binding(info, ~parent, S.Bound(mods_of(key), name)),
-          keep_focus(info),
+          local(Captured(S.Bound(mods_of(key), name))),
           Stop_propagation,
           Prevent_default,
         ])
@@ -297,30 +329,38 @@ module M: Projector = {
     switch (action) {
     | StartRecording =>
       /* Idempotent: focus can fire again after a re-render, and restarting
-         would overwrite `committed` and break Escape's revert. */
+         would discard a capture already in progress. */
       model.isRecording
         ? model
         : {
           committed: info |> get,
+          pending: None,
           isRecording: true,
         }
-    | CommitRecording => {
-        committed: info |> get,
-        isRecording: false,
-      }
-    | CancelRecording => {
+    | Captured(b) => {
         ...model,
+        pending: Some(b),
+      }
+    | Finish => {
+        committed: info |> get,
+        pending: None,
         isRecording: false,
       }
     };
 
   let view = ({model, info, local, parent, _}: View.args(model, action)) => {
-    let binding = get(info);
+    let binding = shown_binding(model, info);
     let recording = model.isRecording;
+    /* Show the chord as it is captured, so you can see what you pressed
+       before committing it; "press…" only until the first key lands. */
     let caps =
-      recording
-        ? [cap(({js|press…|js}, "kbd-rec", ""))]
-        : caps_of_binding(binding);
+      switch (recording, model.pending) {
+      | (true, None) => [cap(({js|press…|js}, "kbd-rec", ""))]
+      | (true, Some(b)) =>
+        caps_of_binding(b)
+        @ [cap(({js|↩|js}, "kbd-rec", "Esc to finish"))]
+      | (false, _) => caps_of_binding(binding)
+      };
     /* Always rendered for a bound shortcut rather than revealed on hover, so
        the widget does not change width under the cursor. */
     let clear =
@@ -360,17 +400,29 @@ module M: Projector = {
              handle pointerdown too — moving the caret and pulling focus onto
              the cell. No Prevent_default: that would suppress the native
              focus we are relying on. */
-          Attr.on_pointerdown(_ => Effect.Stop_propagation),
+          Attr.on_pointerdown(_ => {
+            /* Raised HERE, before focus moves: the clipboard shim's focusout
+               fires before this input's focusin, so anything set later is
+               too late to stop the page taking focus back. */
+            JsUtil.projector_holds_focus := true;
+            Effect.Stop_propagation;
+          }),
           /* Stop_propagation is load-bearing: Page.re attaches a page-level
              on_focus that calls JsUtil.focus_clipboard_shim(), and focus
              events bubble — so without this, focusing here is immediately
              redirected to the clipboard shim and recording never starts. */
-          Attr.on_focus(_ =>
-            Effect.Many([local(StartRecording), Effect.Stop_propagation])
-          ),
-          Attr.on_blur(_ =>
-            Effect.Many([local(CommitRecording), Effect.Stop_propagation])
-          ),
+          Attr.on_focus(_ => {
+            JsUtil.projector_holds_focus := true;
+            Effect.Many([local(StartRecording), Effect.Stop_propagation]);
+          }),
+          /* Clicking away finishes too, writing whatever was captured. */
+          Attr.on_blur(_ => {
+            JsUtil.projector_holds_focus := false;
+            Effect.Many([
+              finish(model, info, ~local, ~parent),
+              Effect.Stop_propagation,
+            ]);
+          }),
           Attr.on_keydown(key_handler(model, info, ~local, ~parent)),
         ],
         (),
@@ -388,7 +440,13 @@ module M: Projector = {
               : "Click to set a shortcut",
           ),
         ],
-        caps @ clear @ [capture],
+        /* The capture input goes FIRST and stays first. If it moves among
+           its siblings — which it would if it trailed the caps, since the
+           cap count and the clear button both change when recording starts —
+           virtual_dom recreates the node instead of patching it, and the
+           browser drops focus the moment capture begins. It is absolutely
+           positioned, so DOM order does not affect layout. */
+        [capture] @ caps @ clear,
       ),
     );
   };

@@ -679,17 +679,12 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(evt => {
+      Attr.on_blur(_ => {
         /* Leave focus alone when it is moving INTO a projector. An
            interactive projector (the keybinding recorder) needs to hold
            focus; without this guard it receives focus and has it taken back
            in the same frame, so it can never capture a key. */
-        let into_projector =
-          switch (JsUtil.blur_related_target(evt)) {
-          | Some(el) => JsUtil.is_in_projector(el)
-          | None => false
-          };
-        if (!into_projector) {
+        if (! JsUtil.projector_holds_focus^) {
           JsUtil.focus_clipboard_shim();
         };
         model.globals.meta_down
@@ -700,7 +695,7 @@ module View = {
         /* Focus events bubble here, so without this guard focusing a
            projector is undone immediately: an interactive projector (the
            keybinding recorder) could never hold focus or capture a key. */
-        if (!JsUtil.active_element_in_projector()) {
+        if (! JsUtil.projector_holds_focus^) {
           JsUtil.focus_clipboard_shim();
         };
         Effect.Ignore;
