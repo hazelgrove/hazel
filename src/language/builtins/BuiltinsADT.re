@@ -450,15 +450,36 @@ module Color = {
 
   /* ---- Rendering to CSS ---- */
 
-  /* %g rather than string_of_float: OCaml renders 90. as "90." and 0.5 as
-     "0.5", and a trailing dot is not valid inside oklch(). */
-  let num = (f: float): string => Printf.sprintf("%g", f);
+  /* Fixed-point with the tail trimmed, NOT %g and never string_of_float.
+     %g emits scientific notation for small or large magnitudes (0.00001
+     becomes "1e-05", 1234567. becomes "1.23457e+06") and string_of_float
+     leaves a trailing dot ("90."). All three are invalid inside oklch(), and
+     an invalid value makes setProperty a SILENT no-op — the variable simply
+     keeps its old value with nothing logged. Non-finite components come from
+     a hole or a divide-by-zero in the config and are pinned to 0 for the
+     same reason. */
+  let num = (f: float): string =>
+    if (!Float.is_finite(f)) {
+      "0";
+    } else {
+      let s = Printf.sprintf("%.5f", f);
+      let last = ref(String.length(s));
+      while (last^ > 1 && s.[last^ - 1] == '0') {
+        decr(last);
+      };
+      let s = String.sub(s, 0, last^);
+      let n = String.length(s);
+      n > 0 && s.[n - 1] == '.' ? String.sub(s, 0, n - 1) : s;
+    };
 
   /* Alpha goes through color-mix so it composes with any inner colour,
      including Hex, rather than only with the oklch() slash form. */
   let rec to_css: t => string =
     fun
-    | Transparent => "transparent"
+    /* Not the `transparent` keyword: a keyword behaves differently as the
+       origin of a relative colour, and variables.css uses `oklch(from …)`
+       against palette entries. */
+    | Transparent => "oklch(0 0 0 / 0)"
     | Hex(s) => s
     | Oklch(l, c, h) =>
       "oklch(" ++ num(l) ++ "% " ++ num(c) ++ " " ++ num(h) ++ ")"
