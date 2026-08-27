@@ -16,8 +16,6 @@ let fold_right = (f, xs, acc) =>
   List.fold_left((acc, x) => f(x, acc), acc, List.rev(xs));
 let rev = List.rev;
 
-let of_tile = t => [Tile.to_piece(t)];
-
 let incomplete_tiles =
   List.filter_map(
     fun
@@ -66,20 +64,6 @@ let convex_grout =
     fun
     | Piece.Grout(g) when g.shape == Convex => Some(g)
     | _ => None,
-  );
-
-let contains_matching = (t: Tile.t) =>
-  List.exists(
-    fun
-    | Piece.Tile(t') => t'.id == t.id
-    | _ => false,
-  );
-
-let remove_matching = (t: Tile.t) =>
-  List.filter_map(
-    fun
-    | Piece.Tile(t') when t'.id == t.id => None
-    | p => Some(p),
   );
 
 let snoc = (tiles, tile) => tiles @ [tile];
@@ -681,55 +665,6 @@ and remold_mod = (shape, seg: t): t =>
       }
     }
   }
-and remold_sig_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
-  switch (seg) {
-  | [] => ([], shape, [])
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Secondary(_)
-    | Grout(_) =>
-      let (remolded, shape, rest) = remold_sig_uni(shape, tl, parent_sorts);
-      ([hd, ...remolded], shape, rest);
-    | Projector(p) =>
-      let (remolded, shape, rest) =
-        remold_sig_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
-      ([hd, ...remolded], shape, rest);
-    | Tile(t) =>
-      switch (remold_tile(Sig, shape, t)) {
-      | None => ([], shape, seg)
-      | Some(t) when !Tile.has_end(Right, t) =>
-        let (_, r) = Tile.nibs(t);
-        let remolded = remold(~shape=r.shape, tl, r.sort);
-        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
-        ([Tile(t), ...remolded], shape, []);
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Pat}) =>
-          let (remolded_pat, shape, rest) =
-            remold_pat_uni(shape, tl, [Sort.Sig, ...parent_sorts]);
-          let (remolded_sig, shape, rest) =
-            remold_sig_uni(shape, rest, parent_sorts);
-          ([Piece.Tile(t), ...remolded_pat] @ remolded_sig, shape, rest);
-        | (_, {shape, sort: TPat}) =>
-          let (remolded_tpat, shape, rest) =
-            remold_tpat_uni(shape, tl, [Sort.Sig, ...parent_sorts]);
-          let (remolded_sig, shape, rest) =
-            remold_sig_uni(shape, rest, parent_sorts);
-          ([Piece.Tile(t), ...remolded_tpat] @ remolded_sig, shape, rest);
-        | (_, {shape, sort: Typ}) =>
-          let (remolded_typ, shape, rest) =
-            remold_typ_uni(shape, tl, [Sort.Sig, ...parent_sorts]);
-          let (remolded_sig, shape, rest) =
-            remold_sig_uni(shape, rest, parent_sorts);
-          ([Piece.Tile(t), ...remolded_typ] @ remolded_sig, shape, rest);
-        | _ =>
-          let (remolded, shape, rest) =
-            remold_sig_uni(snd(Tile.shapes(t)), tl, parent_sorts);
-          ([Tile(t), ...remolded], shape, rest);
-        }
-      }
-    }
-  }
 and remold_sig = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
@@ -757,43 +692,6 @@ and remold_sig = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | _ => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
-        }
-      }
-    }
-  }
-and remold_mpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
-  switch (seg) {
-  | [] => ([], shape, [])
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Secondary(_)
-    | Grout(_) =>
-      let (remolded, shape, rest) = remold_mpat_uni(shape, tl, parent_sorts);
-      ([hd, ...remolded], shape, rest);
-    | Projector(p) =>
-      let (remolded, shape, rest) =
-        remold_mpat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
-      ([hd, ...remolded], shape, rest);
-    | Tile(t) =>
-      switch (remold_tile(MPat, shape, t)) {
-      | None => ([], shape, seg)
-      | Some(t) when !Tile.has_end(Right, t) =>
-        let (_, r) = Tile.nibs(t);
-        let remolded = remold(~shape=r.shape, tl, r.sort);
-        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
-        ([Tile(t), ...remolded], shape, []);
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Typ}) =>
-          let (remolded_typ, shape, rest) =
-            remold_typ_uni(shape, tl, [Sort.MPat, ...parent_sorts]);
-          let (remolded_mpat, shape, rest) =
-            remold_mpat_uni(shape, rest, parent_sorts);
-          ([Piece.Tile(t), ...remolded_typ] @ remolded_mpat, shape, rest);
-        | _ =>
-          let (remolded, shape, rest) =
-            remold_mpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
-          ([Tile(t), ...remolded], shape, rest);
         }
       }
     }
@@ -839,9 +737,6 @@ let skel = (~sort=Sort.Exp, seg) => {
   |> List.filter(((_, p)) => !Piece.is_secondary(p))
   |> Skel.mk(~sort);
 };
-
-let sorted_children = List.concat_map(Piece.sorted_children);
-let children = seg => List.map(snd, sorted_children(seg));
 
 module Trim = {
   type seg = t;
@@ -1133,8 +1028,6 @@ let rescan = (seg: t): t => {
   };
 };
 
-let rescan_and_reassemble = (seg: t): t => seg |> rescan |> reassemble;
-
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
     switch (d) {
@@ -1155,21 +1048,6 @@ let trim_secondary: (Direction.t, t) => t =
     trim_f(trim_l, d, ps);
   };
 
-let trim_grout_around_secondary: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout, skipping over secondary,
-       but not skipping over other pieces. */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Secondary(w), ...xs] => [Secondary(w), ...trim_l(xs)]
-        | [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
   switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
@@ -1182,13 +1060,6 @@ let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
   Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
 
-let sameline_secondary =
-  List.for_all(
-    fun
-    | Piece.Secondary(w) => !Secondary.is_linebreak(w)
-    | _ => false,
-  );
-
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun
@@ -1198,27 +1069,6 @@ let rec holes = (segment: t): list(Grout.t) =>
     | Grout(g) => [g],
     segment,
   );
-
-let get_childrens: t => list(t) =
-  List.concat_map(
-    fun
-    | Piece.Tile(t) => t.children
-    | _ => [],
-  );
-
-let rec get_incomplete_ids = (seg: t): list(Id.t) =>
-  List.concat_map(
-    fun
-    | Piece.Tile(t) => {
-        let ids = List.concat_map(get_incomplete_ids, t.children);
-        Tile.is_complete(t) ? ids : [t.id, ...ids];
-      }
-    | _ => [],
-    seg,
-  );
-
-let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
-  get_childrens(seg) |> List.concat |> get_incomplete_ids;
 
 let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
 and ids_of_piece = (p: Piece.t): list(Id.t) =>
