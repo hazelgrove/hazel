@@ -2528,6 +2528,40 @@ let extract_target_tests = [
       offers(ExtractLet, "let y = ¦q + 1 in y"),
     )
   ),
+  /* fuzz find: a use-var in the label slot reparses as the label, and
+     lifting the whole entry leaves a singleton Tuple printing as `_=v` */
+  test_case("tuple label is not extractable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(ExtractLet, "let y = (¦a=1, b=2) in y"),
+    )
+  ),
+  test_case("labeled tuple entry is not extractable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(ExtractLet, "let y = (a¦=1, b=2) in y"),
+    )
+  ),
+  test_case("labeled entry's value stays extractable", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      true,
+      offers(ExtractLet, "let y = (a=¦1 + 2, b=2) in y"),
+    )
+  ),
+  test_case("deferral is not extractable", `Quick, () =>
+    check(
+      bool,
+      "not offered",
+      false,
+      offers(ExtractLet, "let y = f(¦_) in y"),
+    )
+  ),
 ];
 
 let binding_tests = [

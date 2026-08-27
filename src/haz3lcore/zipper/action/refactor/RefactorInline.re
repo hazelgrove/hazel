@@ -882,6 +882,16 @@ let extractable = (e: Exp.t): bool =>
   | TyAlias(_)
   | Seq(_)
   | Filter(_) => false
+  /* label syntax, not an expression to name: a use-var in a label slot
+     reparses as the label itself (`baz=B`), and lifting a whole `l=e`
+     entry out of its tuple both loses the label at the use site and
+     leaves a singleton Tuple that prints as the different term `_=baz` */
+  | Label(_)
+  | TupLabel(_)
+  /* likewise the `_`s: a deferral only means anything in the argument
+     position it marks, and an explicit nonlabel is the label slot */
+  | Deferral(_)
+  | ExplicitNonlabel => false
   /* extracting a parens node is redundant with extracting its child,
      and the bare use-var can be load-bearing where the parens were
      (e.g. a Dot's lhs) */
