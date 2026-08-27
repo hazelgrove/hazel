@@ -142,14 +142,6 @@ module Model = {
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -219,11 +211,6 @@ module Persist = {
         }
       };
     };
-
-  let delete_slide = (prefix: string, name: string): unit => {
-    HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.kv_delete(agent_key(prefix, name));
-  };
 
   let save_agent =
       (prefix: string, name: string, agent: Agent.Persistent.t): unit => {

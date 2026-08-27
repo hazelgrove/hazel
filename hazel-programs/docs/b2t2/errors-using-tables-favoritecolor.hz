@@ -1,0 +1,22 @@
+let tfilter = (
+  typfun row ->
+    fun (t1 : [row], pred : row -> Bool) -> filter(t1, pred)
+) in
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+) in
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+) in
+let incorrect =
+  tfilter@<Student>(students, fun r -> r.favorite_color) in
+let correct =
+  tfilter@<Student>(students, fun r -> r.favorite_color == "green") in
+test
+  correct == [("Alice", 17, "green") : Student] end
