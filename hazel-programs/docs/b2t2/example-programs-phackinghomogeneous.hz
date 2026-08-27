@@ -17,46 +17,77 @@ let fisherTest = (
           end,
         ((0,0), (0, 0))
       ) in
-    let factorial = fun (n : Int) -> if n == 0 then 1 else n * factorial(n - 1) in
+    let factorial =
+      fun (n : Int) ->
+        if n == 0 then 1 else n * factorial(n - 1) in
     let ((a,b), (c, d)) = contigencyTable in
-    let numerator = factorial(a + b) * factorial(c + d) * factorial(a + c) * factorial(b + d) in
-    let denominator = factorial(a) * factorial(b) * factorial(c) * factorial(d) * factorial(a + b + c + d) in
+    let numerator =
+      factorial(a + b)
+      * factorial(c + d)
+      * factorial(a + c)
+      * factorial(b + d) in
+    let denominator =
+      factorial(a)
+      * factorial(b)
+      * factorial(c)
+      * factorial(d)
+      * factorial(a + b + c + d) in
     float_of_int(numerator) /. float_of_int(denominator)
 ) in
 type JellyAnon = (
-  get_acne = Bool,
-  red = Bool,
-  black = Bool,
-  white = Bool,
-  green = Bool,
-  yellow = Bool,
-  brown = Bool,
-  orange = Bool,
-  pink = Bool,
-  purple = Bool
+  get_acne= Bool,
+  red= Bool,
+  black= Bool,
+  white= Bool,
+  green= Bool,
+  yellow= Bool,
+  brown= Bool,
+  orange= Bool,
+  pink= Bool,
+  purple= Bool
 ) in
 let jellyAnon : [JellyAnon] = (
   [
-    ((true), (false), (false), (false), (true), (false), (false), (true), (false), (false)),
-    ((true), (false), (true), (false), (true), (true), (false), (false), (false), (false)),
-    ((false), (false), (false), (false), (true), (false), (false), (false), (true), (false)),
-    ((false), (false), (false), (false), (false), (true), (false), (false), (false), (false)),
-    ((false), (false), (false), (false), (false), (true), (false), (false), (true), (false)),
-    ((true), (false), (true), (false), (false), (false), (false), (true), (true), (false)),
-    ((false), (false), (true), (false), (false), (false), (false), (false), (true), (false)),
-    ((true), (false), (false), (false), (false), (false), (true), (true), (false), (false)),
-    ((true), (false), (false), (false), (false), (false), (false), (true), (false), (false)),
-    ((false), (true), (false), (false), (false), (true), (true), (false), (true), (false))
+    (true, false, false, false, true, false, false, true, false, false),
+    (true, false, true, false, true, true, false, false, false, false),
+    (false, false, false, false, true, false, false, false, true, false),
+    (false, false, false, false, false, true, false, false, false, false),
+    (false, false, false, false, false, true, false, false, true, false),
+    (true, false, true, false, false, false, false, true, true, false),
+    (false, false, true, false, false, false, false, false, true, false),
+    (true, false, false, false, false, false, true, true, false, false),
+    (true, false, false, false, false, false, false, true, false, false),
+    (false, true, false, false, false, true, true, false, true, false)
   ]
 ) in
 
 let pHacking =
   fun t ->
-    let jelly_anon = map(t, fun r -> omit_labels(r, `get_acne`)) in
+    let jelly_anon =
+      map(t, fun r -> omit_labels(r, `get_acne`)) in
     let get_acne = t.get_acne in
-    let header = to_lvs(head(jelly_anon)) |> map(_, fun e -> e.label) in
-    map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value))))
-    |> filter(_, fun (_c, p) -> p <. 0.05)
-    |> map(_, fun (c, _p) -> "We found a link between " ++ c ++ " jelly beans and acne (p < 0.05).") in
+    let header =
+      to_lvs(head(jelly_anon)) |> map(_, fun e -> e.label) in
+    map(
+      header,
+      fun c -> (
+        c,
+        fisherTest(
+          get_acne,
+          map(
+            t,
+            fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value
+          )
+        )
+      )
+    )
+    |> filter(_, fun (c, p) -> p <. 0.05)
+    |> map(
+      _,
+      fun (c, p) ->
+        "We found a link between "
+        ++ c
+        ++ " jelly beans and acne (p < 0.05)."
+    ) in
 
 pHacking(jellyAnon)

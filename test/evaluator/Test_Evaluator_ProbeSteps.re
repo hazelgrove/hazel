@@ -36,19 +36,6 @@ type relationship =
   | Contains
   | Equal;
 
-let classify = (a: Sample.t, b: Sample.t): relationship =>
-  if (disjoint_before(a, b)) {
-    DisjointBefore;
-  } else if (disjoint_after(a, b)) {
-    DisjointAfter;
-  } else if (a.step_start == b.step_start && a.step_end == b.step_end) {
-    Equal;
-  } else if (contained_within(a, b)) {
-    ContainedWithin;
-  } else {
-    Contains;
-  };
-
 let show_relationship =
   fun
   | DisjointBefore => "DisjointBefore"
@@ -56,9 +43,6 @@ let show_relationship =
   | ContainedWithin => "ContainedWithin"
   | Contains => "Contains"
   | Equal => "Equal";
-
-let relationship_testable =
-  testable(Fmt.using(show_relationship, Fmt.string), (==));
 
 /* Helper to get all samples from evaluated code with probes */
 let get_all_samples = (code: string): list(Sample.t) => {

@@ -34,7 +34,6 @@
   ezjs_min
   ezjs_idb
   workerServer
-  str
   bonsai
   bonsai.web
   virtual_dom.input_widgets
@@ -45,7 +44,6 @@
   mvu
   charts
   docslides
-  pretty
   omd)
  (js_of_ocaml)
  (preprocess
