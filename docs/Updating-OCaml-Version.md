@@ -40,10 +40,12 @@ To update do the following:
 
 - Test in Firefox and Chrome.
 
-- Update the version number in `.github/workflows/deploy_branches.yml`
+- Update the `ocaml-compiler` version in all three places that pin it:
+  `.github/actions/setup-hazel-toolchain/action.yml` (used by `ci.yml` and
+  `deploy.yml`), `.github/workflows/perf.yml`, and
+  `.github/workflows/update_deps.yml`.
 
-  - Update the version number in step 3: Install dependencies and build hazel.
-  - Push to github and check deploy status
+  - Push to github and check the `CI` and `Deploy` workflow status
 
 - Update the version numbers in `README.md`.
 
