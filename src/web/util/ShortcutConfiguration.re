@@ -207,14 +207,10 @@ let source = {
     );
 
   ExpToSegment.exp_to_segment(
-    ~settings=
-      ExpToSegment.Settings.{
-        ...ExpToSegment.Settings.editable(~inline=false),
-        /* one entry per line, so the generated config buffer is readable */
-        multiline_list_tuples: true,
-      },
+    ~settings=ExpToSegment.Settings.editable(~inline=false),
     exp,
   )
+  |> PrettySegment.prettify
   |> Zipper.unzip(~direction=Left)
   |> PersistentZipper.persist;
 };

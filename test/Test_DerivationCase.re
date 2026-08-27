@@ -255,7 +255,6 @@ let prettyprint_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   hole_tiles: false,
   project_tables: false,
-  multiline_list_tuples: false,
 };
 
 let prettyprint_exp = (exp: Language.Exp.t): unit => {

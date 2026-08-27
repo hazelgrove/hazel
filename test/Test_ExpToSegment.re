@@ -15,7 +15,6 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
-  multiline_list_tuples: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -528,7 +527,6 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   hole_tiles: false,
   project_tables: false,
-  multiline_list_tuples: false,
 };
 
 let exp_to_segment_roundtrip =

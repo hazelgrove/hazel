@@ -23,7 +23,6 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   hole_tiles: false,
   project_tables: false,
-  multiline_list_tuples: false,
 };
 
 /* Same as code_settings but lets the pretty-printer break across lines for

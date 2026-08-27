@@ -22,7 +22,6 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         show_ascriptions: true,
         show_filters: false,
         show_unknown_as_hole: true,
-        multiline_list_tuples: false,
         hole_tiles: false,
         project_tables: false,
       },

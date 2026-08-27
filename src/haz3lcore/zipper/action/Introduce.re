@@ -251,7 +251,6 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
-          multiline_list_tuples: false,
           hole_tiles: false,
         },
         term,

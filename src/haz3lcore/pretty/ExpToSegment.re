@@ -50,10 +50,6 @@ module Settings = {
        would make, keeping explicit `?` holes distinct from Grout
        (whose text serialization is the `¿` marker). */
     hole_tiles: bool,
-    /* Emit a newline around every list/tuple element, so a generated
-       config buffer reads one entry per line rather than one long row.
-       See ColorConfiguration/ShortcutConfiguration. */
-    multiline_list_tuples: bool,
   };
 
   let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
@@ -73,7 +69,6 @@ module Settings = {
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
     hole_tiles: false,
-    multiline_list_tuples: false,
   };
 
   let editable = (~inline) => {
@@ -90,7 +85,6 @@ module Settings = {
       show_filters: true,
       show_unknown_as_hole: true,
       hole_tiles: false,
-      multiline_list_tuples: false,
     };
   };
 };
@@ -1717,10 +1711,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       },
     );
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
-  /* A newline emitted between list/tuple elements when the caller asked for
-     one entry per line (see Settings.multiline_list_tuples). */
-  let optional_newline = () =>
-    settings.multiline_list_tuples ? [Secondary(mk_newline(Id.mk()))] : [];
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = mk_form(~secondary=settings.secondary);
@@ -1815,17 +1805,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ListLitExp,
         id,
         [
-          optional_newline()
-          @ x
+          x
           @ List.flatten(
               List.map2(
-                (id, x) =>
-                  [mk_form(CommaExp, id, [])] @ optional_newline() @ x,
+                (id, x) => [mk_form(CommaExp, id, [])] @ x,
                 ids,
                 xs,
               ),
-            )
-          @ optional_newline(),
+            ),
         ],
       );
     wrap(
@@ -1993,16 +1980,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
     wrap(
       exp,
-      optional_newline()
-      @ x
+      x
       @ List.flatten(
-          List.map2(
-            (id, x) => [mk_form(CommaExp, id, [])] @ optional_newline() @ x,
-            ids,
-            xs,
-          ),
-        )
-      @ optional_newline(),
+          List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+        ),
     );
   | Label(l) =>
     wrap(
