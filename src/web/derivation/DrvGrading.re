@@ -178,36 +178,6 @@ module VerifiedTree = {
       List.map(fst, folded);
     };
 
-  /* Resolve abbreviation references in a tree, inlining each [Abbr(Some(i))]
-     leaf with the [i]th abbreviation tree. Assumes abbreviations are:
-     - all resolvable (no dangling references),
-     - acyclic (an abbreviation only references earlier ones),
-     - leaf-only (otherwise children would be silently dropped). */
-  let strip_abbr: list(Tree.p(abbr('a))) => list(Tree.p('a)) =
-    List.fold_left(
-      (acc: list(Tree.p('a)), tree: Tree.p(abbr('a))) =>
-        acc
-        @ [
-          Tree.fold_deep(
-            (value: abbr('a), children: list(Tree.p('a))) =>
-              switch (value) {
-              | Just(v) => Tree.Node(v, children)
-              | Abbr(None) =>
-                Tree.Node(
-                  {
-                    res: Pending(NoAbbr),
-                    rule: None,
-                  },
-                  [],
-                )
-              | Abbr(Some(i)) => List.nth(acc, i)
-              },
-            tree,
-          ),
-        ],
-      [],
-    );
-
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
     verify(eds.rule_set, ProofTree.mk(eds, ~stitched_results));
