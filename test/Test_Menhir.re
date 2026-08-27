@@ -277,6 +277,16 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
+         funPat level, which had no ascription production). */
+      menhir_maketerm_equivalent_test(
+        "ascribed unit fun param",
+        "fun () : () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "ascribed unit fun param, parenthesized type",
+        "fun () : (()) -> 2",
+      ),
       menhir_maketerm_equivalent_test(
         "multi-param fun three",
         "fun nodes, x, y -> nodes + x + y",
@@ -314,6 +324,49 @@ let tests =
         "Fun",
         fn(Pat.var("x"), var("x"), None, None),
         "fun x -> x",
+      ),
+      /* () is an atomic pattern (editor parity); these pin positions the
+         old hand-split grammar missed (MenhirFuzz seed-42 found the
+         cons-chain one; the comma-element one fell out of the general fix) */
+      menhir_maketerm_equivalent_test(
+        "Unit as fun comma-element (first)",
+        "fun (), x -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit as fun comma-element (last)",
+        "fun x, () -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit constructor argument pattern",
+        "case A(()) | A(()) => 1 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit as fun cons-pattern tail",
+        "fun x :: () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit as fun cons-pattern head",
+        "fun () :: y -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit cons unit fun parameter",
+        "fun () :: () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Hole cons unit fun parameter (fuzz counterexample)",
+        "fun ?:: () -> case 6.904152 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unit mid cons chain",
+        "fun x :: () :: y -> 1",
+      ),
+      /* PRE-EXISTING divergence (not the UNIT gap): on an ascribed cons
+         chain MakeTerm binds : to the last ELEMENT (Cons(x, Asc(y, T)))
+         while funAscElem ascribes the whole chain. Surfaced while
+         pinning the UNIT fix; needs its own decision. */
+      skip_menhir_maketerm_equivalent_test(
+        "Ascribed cons-chain parameter (element vs chain binding)",
+        "fun x :: y : [T] -> 1",
       ),
       full_parser_test(
         "String Literal",
