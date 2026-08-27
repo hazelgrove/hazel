@@ -160,17 +160,31 @@ let align_active_cell_top = (): unit =>
     switch (target) {
     | None => ()
     | Some(t) =>
-      let _: unit =
-        Js.Unsafe.meth_call(
-          t,
-          "scrollIntoView",
-          [|
-            Js.Unsafe.obj([|
-              ("block", Js.Unsafe.inject(Js.string("start"))),
-            |]),
-          |],
-        );
-      ();
+      /* Scrolling a just-opened cell to the viewport top is jarring
+         when the cell landed in view anyway (andrew). Skip when the
+         header is visible WITH some room below it for body context —
+         a header peeking at the bottom edge still scrolls. Off-screen
+         targets keep the align-to-top (jump-to-definition lands the
+         target under the reader's eyes). */
+      let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
+      let top: float = Js.Unsafe.get(rect, "top");
+      let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
+      let top_chrome = 48.; /* fixed top bar */
+      let body_context = 140.; /* ~4 rows of body visible below */
+      let visible_enough = top >= top_chrome && top <= vh -. body_context;
+      if (!visible_enough) {
+        let _: unit =
+          Js.Unsafe.meth_call(
+            t,
+            "scrollIntoView",
+            [|
+              Js.Unsafe.obj([|
+                ("block", Js.Unsafe.inject(Js.string("start"))),
+              |]),
+            |],
+          );
+        ();
+      };
     };
   };
 

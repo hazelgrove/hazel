@@ -29,7 +29,13 @@ module FocusEffect = {
      sidebar jump, which moves the model selection to a different cell
      without moving DOM focus). */
   let schedule_cell = (): unit => {
-    scheduled := Some(Cell);
+    /* don't downgrade a pending CellTop (align-to-top): several
+       actions in one frame can each request focus, and a plain
+       cell-focus request must not eat the alignment */
+    switch (scheduled^) {
+    | Some(CellTop) => ()
+    | _ => scheduled := Some(Cell)
+    };
   };
 
   /* As schedule_cell, but also aligns the target's stack entry to the
