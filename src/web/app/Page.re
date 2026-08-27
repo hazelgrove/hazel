@@ -1021,6 +1021,22 @@ module View = {
         ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
         ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
         ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
+        ~is_collapsed={
+          let name =
+            switch (model.editors) {
+            | Scratch(m)
+            | Documentation(m) =>
+              switch (List.nth_opt(m.scratchpads, m.current)) {
+              | Some(sp) => sp.name
+              | None => ""
+              }
+            | _ => ""
+            };
+          let collapsed = ScratchMode.collapse_paths(name);
+          path => List.mem(path, collapsed);
+        },
+        ~toggle_collapse=
+          path => inject(Editors(Scratch(OutlineCollapse(path)))),
         ~error_items,
         ~error_subtree,
         ~unfocus=inject(Editors(Scratch(UnfocusDef))),

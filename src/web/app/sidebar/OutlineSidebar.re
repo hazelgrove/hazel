@@ -143,6 +143,9 @@ let rec node_view =
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
           ~toggle_run: Language.Id.t => Effect.t(unit),
+          ~is_collapsed: list(string) => bool,
+          ~toggle_collapse: list(string) => Effect.t(unit),
+          ~path: list(string),
           ~top_level: bool,
           ~menu_open: (Language.Id.t, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
@@ -212,22 +215,31 @@ let rec node_view =
              the row's <details> (collapse is the chevron's job). */
           | Some(id) when any_focus => [
               Attr.on_click(_ =>
-                Effect.Many([Effect.Prevent_default, focus(id)])
+                Effect.Many([
+                  Effect.Prevent_default,
+                  Effect.Stop_propagation,
+                  focus(id),
+                ])
               ),
             ]
           | Some(id) => [
               Attr.on_click(_ =>
-                Effect.Many([Effect.Prevent_default, jump(id)])
+                Effect.Many([
+                  Effect.Prevent_default,
+                  Effect.Stop_propagation,
+                  jump(id),
+                ])
               ),
             ]
           | None => []
           }
         )
         @ (
-          /* structural ops are TOP-LEVEL only for now (member
-             granularity is docketed) */
+          /* structural ops work at every block level (Restructure
+             recurses to the owning block); trailing-expression rows
+             stay menu-less at any depth */
           switch (n.o_id) {
-          | Some(id) when top_level && n.o_kind != OutlineTree.KTrail => [
+          | Some(id) when n.o_kind != OutlineTree.KTrail => [
               Attr.on_contextmenu(evt => {
                 let x =
                   float_of_int(Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX);
@@ -356,19 +368,32 @@ let rec node_view =
   switch (n.o_children) {
   | [] => div(~attrs=[clss(["outline-leaf"])], [label])
   | kids =>
+    let my_path = path @ [n.o_label];
     create(
       "details",
       ~attrs=
-        [clss(["outline-branch"]), Attr.create("open", "")]
+        [clss(["outline-branch"])]
+        @ (is_collapsed(my_path) ? [] : [Attr.create("open", "")])
         @ (
-          /* pin↔collapse sync (ScratchMode pokes details.open) */
           switch (n.o_id) {
           | Some(id) => [Attr.id("ol-b-" ++ Language.Id.to_string(id))]
           | None => []
           }
         ),
       [
-        create("summary", ~attrs=[clss(["outline-summary"])], [label]),
+        create(
+          "summary",
+          ~attrs=[
+            clss(["outline-summary"]),
+            /* collapse is MODEL state (per slide, persisted): the
+               native details toggle is suppressed everywhere and the
+               summary click dispatches the toggle action instead */
+            Attr.on_click(_ =>
+              Effect.Many([Effect.Prevent_default, toggle_collapse(my_path)])
+            ),
+          ],
+          [label],
+        ),
         div(
           ~attrs=[clss(["outline-kids"])],
           List.map(
@@ -377,6 +402,9 @@ let rec node_view =
               ~focus,
               ~toggle,
               ~toggle_run,
+              ~is_collapsed,
+              ~toggle_collapse,
+              ~path=my_path,
               ~top_level=false,
               ~menu_open,
               ~error_subtree,
@@ -388,7 +416,7 @@ let rec node_view =
           ),
         ),
       ],
-    )
+    );
   };
 };
 
@@ -477,6 +505,8 @@ let view =
       ~focus: Language.Id.t => Effect.t(unit),
       ~toggle: Language.Id.t => Effect.t(unit),
       ~toggle_run: Language.Id.t => Effect.t(unit),
+      ~is_collapsed: list(string) => bool,
+      ~toggle_collapse: list(string) => Effect.t(unit),
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
@@ -531,6 +561,9 @@ let view =
                   ~focus,
                   ~toggle,
                   ~toggle_run,
+                  ~is_collapsed,
+                  ~toggle_collapse,
+                  ~path=[],
                   ~top_level=true,
                   ~menu_open,
                   ~error_subtree,

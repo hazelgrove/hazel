@@ -142,6 +142,85 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   };
 };
 
+/* member-granularity restructure: ops apply at the row's OWNING block */
+let check_restructure =
+    (~src, ~label, ~op, ~expect: string => bool, ~desc, ()): unit => {
+  let master = parse(src);
+  let (term, _) = statics_of(master);
+  let fid = outline_id(term, label);
+  switch (Web.ScratchMode.Restructure.apply(op, fid, master)) {
+  | None => failwith("apply failed: " ++ desc)
+  | Some((seg', _)) =>
+    let txt = text_of(seg');
+    if (!expect(txt)) {
+      Printf.printf("RESTRUCTURE %s =>\n%s\n<<<END\n", desc, txt);
+    };
+    check(bool, desc, true, expect(txt));
+  };
+};
+
+let contains = (needle, hay) => {
+  let nl = String.length(needle)
+  and hl = String.length(hay);
+  let rec go = i =>
+    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
+  go(0);
+};
+
+let member_restructure = (): unit => {
+  let m_src = "module M = {\n  let a = 1;\n  let b = 2;\n} in M.a";
+  check_restructure(
+    ~src=m_src,
+    ~label="b",
+    ~op=Web.OutlineSidebar.Delete,
+    ~expect=t => !contains("let b", t) && contains("let a", t),
+    ~desc="member delete",
+    (),
+  );
+  check_restructure(
+    ~src=m_src,
+    ~label="b",
+    ~op=Web.OutlineSidebar.MoveUp,
+    ~expect=
+      t => {
+        let ia = String.index(t, 'a');
+        let ib = String.index(t, 'b');
+        ib < ia && contains("in M.a", t);
+      },
+    ~desc="member move up",
+    (),
+  );
+  check_restructure(
+    ~src=m_src,
+    ~label="a",
+    ~op=Web.OutlineSidebar.NewBelow,
+    ~expect=
+      t =>
+        contains("new_def", t)
+        && !contains("new_def = ? in", t)  /* MEMBER form, not let-in */
+        && contains("let b = 2", t),
+    ~desc="member new-below is a 2-shard member",
+    (),
+  );
+  check_restructure(
+    ~src=m_src,
+    ~label="a",
+    ~op=Web.OutlineSidebar.Duplicate,
+    ~expect=t => contains("let b", t),
+    ~desc="member duplicate keeps the block intact",
+    (),
+  );
+  /* fn-body block: new def below a nested let stays inside the fn */
+  check_restructure(
+    ~src="let f = fun x -> let y = 1 in y in f(1)",
+    ~label="y",
+    ~op=Web.OutlineSidebar.NewBelow,
+    ~expect=t => contains("new_def = ? in", t) && contains("in f(1)", t),
+    ~desc="fn-body new-below is a let-in",
+    (),
+  );
+};
+
 let tests = (
   "StackFocus",
   [
@@ -192,6 +271,7 @@ let tests = (
         (),
       )
     ),
+    test_case("member restructure", `Quick, member_restructure),
     test_case("type alias", `Quick, () =>
       check_focus(
         ~src="type T = Int in let x: T = 1 in x",

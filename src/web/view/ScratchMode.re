@@ -1024,6 +1024,20 @@ let outline_sym = (fid: Haz3lcore.Id.t, term: Language.Exp.t): option(string) =>
 let slide_pins: Hashtbl.t(string, list((Haz3lcore.Id.t, bool))) =
   Hashtbl.create(8);
 
+/* modeled outline collapse (andrew: DOM-owned <details> state bled
+   across slides positionally and reset whenever a structural edit
+   made the vdom recreate elements). Per-slide sets of label paths;
+   the summary click dispatches OutlineCollapse; the open attr renders
+   from this. Persisted per slide (a ":collapse" side key). */
+let slide_collapse: Hashtbl.t(string, list(list(string))) =
+  Hashtbl.create(8);
+
+let collapse_paths = (name: string): list(list(string)) =>
+  switch (Hashtbl.find_opt(slide_collapse, name)) {
+  | Some(ps) => ps
+  | None => []
+  };
+
 /* The spliced whole-program statics computed while a stack is open
    (Force frames, first open frame, and restructure ops — which seed
    it directly to avoid a second whole-program parse): term + merged
@@ -1039,11 +1053,11 @@ let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
 module Restructure = {
   open Haz3lcore;
 
-  let parse = (txt: string): option(Segment.t) =>
+  let parse = (~root=Sort.Exp, txt: string): option(Segment.t) =>
     FastParse.of_text(
       ~materialize=Triggers.invoked_projector,
       ~collect_refractors=true,
-      ~root=Exp,
+      ~root,
       txt,
     );
 
@@ -1057,112 +1071,281 @@ module Restructure = {
       seg,
     );
 
-  /* apply [op] to the item holding [fid] within [seg]; returns the new
-     segment plus (for insert/duplicate) the created item's id to
-     focus. Spans come from the piece structure (Focus.item_spans), so
-     tests/statements are addressable items too; the trailing
-     expression is not movable/deletable. */
-  let apply =
-      (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
-      : option((Segment.t, option(Id.t))) => {
-    let spans = Array.of_list(Focus.item_spans(seg));
-    let n = Array.length(spans);
-    let idx = {
-      let by_id = {
-        let rec go = j =>
-          j >= n ? None : spans[j].sp_id == Some(fid) ? Some(j) : go(j + 1);
-        go(0);
+  /* fresh-id MEMBER pieces for [txt] (a single member, `;` optional):
+     the Mod-root fast parse rejects chunks with a trailing separator,
+     so parse two members and cut after the last top-level `;` (the
+     member's own terminator + trailing trivia) */
+  let member_chunk = (txt: string): option(Segment.t) => {
+    let txt = String.trim(txt);
+    let txt =
+      String.length(txt) > 0 && txt.[String.length(txt) - 1] == ';'
+        ? String.sub(txt, 0, String.length(txt) - 1) : txt;
+    /* the Mod-root wrap parses plain braces whose child is EXP-sorted
+       (members came out as let-ins): parse a real module instead and
+       extract its body child, then cut after the member's own `;` */
+    switch (parse("module Zz = {" ++ txt ++ ";\nlet zz = ?} in\n0")) {
+    | None => None
+    | Some(seg) =>
+      let body = {
+        let rec find_mod = (ps: Segment.t) =>
+          switch (ps) {
+          | [] => None
+          | [Piece.Tile(t), ...rest] =>
+            switch (t.label) {
+            | ["module", ..._] =>
+              switch (List.rev(t.children)) {
+              | [def, ..._] =>
+                List.find_map(
+                  (p: Piece.t) =>
+                    switch (p) {
+                    | Tile(bt) =>
+                      switch (bt.children) {
+                      | [inner] => Some(inner)
+                      | _ => None
+                      }
+                    | _ => None
+                    },
+                  def,
+                )
+              | [] => None
+              }
+            | _ => find_mod(rest)
+            }
+          | [_, ...rest] => find_mod(rest)
+          };
+        find_mod(seg);
       };
-      switch (by_id) {
-      | Some(_) as r => r
-      | None =>
-        /* outline row ids can be tiles INSIDE the item (module
-           binders, the trailing expression's root): the containing
-           span */
-        let rec scan = j =>
-          j >= n
-            ? None
-            : Focus.seg_contains_id(
-                fid,
-                Focus.slice(spans[j].sp_start, spans[j].sp_stop, seg),
-              )
-                ? Some(j) : scan(j + 1);
-        scan(0);
+      switch (body) {
+      | None => None
+      | Some(members) =>
+        let arr = Array.of_list(members);
+        let n = Array.length(arr);
+        let rec last_semi = (i, best) =>
+          i >= n
+            ? best
+            : last_semi(i + 1, Focus.is_semi(arr[i]) ? Some(i) : best);
+        switch (last_semi(0, None)) {
+        | None => None
+        | Some(j) =>
+          let rec ws_end = i =>
+            i < n && Focus.is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
+          Some(Focus.take(ws_end(j + 1), members));
+        };
       };
     };
-    let start_of = j => spans[j].sp_start;
-    let end_of = j => spans[j].sp_stop;
-    let movable = j => spans[j].sp_kind != Focus.ITail;
+  };
+
+  /* apply [op] to the item holding [fid] AT ITS OWNING BLOCK: a span
+     whose id is exactly [fid] applies at this level; an id contained
+     in a DEF span recurses into that def's tiles (module bodies, fn
+     bodies); an id contained in a statement/tail span means that span
+     IS the item. No cross-level fallback — an op invalid at its own
+     level (move at a block edge) no-ops rather than acting on the
+     enclosing item. [in_module]: the block is a module body, so
+     inserted/duplicated skeletons are 2-shard MEMBERS parsed at Mod
+     root, not `… in` forms. */
+  let apply_at =
+      (
+        op: OutlineSidebar.def_op,
+        ~in_module: bool,
+        spans: array(Focus.item_span),
+        j: int,
+        seg: Segment.t,
+      )
+      : option((Segment.t, option(Id.t))) => {
+    let n = Array.length(spans);
+    let start_of = j => spans[j].Focus.sp_start;
+    let end_of = j => spans[j].Focus.sp_stop;
+    let movable = j => spans[j].Focus.sp_kind != Focus.ITail;
     Focus.(
-      switch (idx) {
-      | None => None
-      | Some(j) =>
-        switch (op) {
-        | Delete when movable(j) =>
-          Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
-        | Delete => None
-        | MoveUp when j > 0 && movable(j) && movable(j - 1) =>
-          let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
-          Some((
-            take(a, seg)
-            @ slice(b, c, seg)
-            @ slice(a, b, seg)
-            @ drop(c, seg),
-            None,
-          ));
-        | MoveDown when j + 1 < n && movable(j) && movable(j + 1) =>
-          let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
-          Some((
-            take(a, seg)
-            @ slice(b, c, seg)
-            @ slice(a, b, seg)
-            @ drop(c, seg),
-            None,
-          ));
-        | MoveUp
-        | MoveDown => None
-        | NewBelow
-        | NewTypeBelow
-        | NewModuleBelow =>
-          /* a bare `let _ = _ in` is not a complete program: parse with
-             a dummy tail, then drop the trailing tail tile */
-          let strip_tail = (sk: Segment.t): Segment.t =>
-            switch (List.rev(sk)) {
-            | [Piece.Tile(_), ...rest] => List.rev(rest)
-            | _ => sk
-            };
-          let skel_txt =
-            switch (op) {
-            | NewTypeBelow => "type NewType = ? in\n0"
-            | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
-            | _ => "let new_def = ? in\n0"
-            };
-          switch (parse(skel_txt)) {
-          | None => None
-          | Some(sk) =>
-            let sk = strip_tail(sk);
-            /* inserting below the trailing expression would strand it
-               above the new def: insert ABOVE the tail instead */
-            let at = movable(j) ? end_of(j) : start_of(j);
-            Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
+      switch (op) {
+      | Delete when movable(j) =>
+        Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
+      | Delete => None
+      | MoveUp when j > 0 && movable(j) && movable(j - 1) =>
+        let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
+        Some((
+          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
+          None,
+        ));
+      | MoveDown when j + 1 < n && movable(j) && movable(j + 1) =>
+        let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
+        Some((
+          take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
+          None,
+        ));
+      | MoveUp
+      | MoveDown => None
+      | NewBelow
+      | NewTypeBelow
+      | NewModuleBelow =>
+        let sk =
+          if (in_module) {
+            let txt =
+              switch (op) {
+              | NewTypeBelow => "type NewType = ?"
+              | NewModuleBelow => "module NewModule = {let member = ?}"
+              | _ => "let new_def = ?"
+              };
+            member_chunk(txt);
+          } else {
+            /* a bare `let _ = _ in` is not a complete program: parse
+               with a dummy tail, then drop the trailing tail tile */
+            let strip_tail = (sk: Segment.t): Segment.t =>
+              switch (List.rev(sk)) {
+              | [Piece.Tile(_), ...rest] => List.rev(rest)
+              | _ => sk
+              };
+            let txt =
+              switch (op) {
+              | NewTypeBelow => "type NewType = ? in\n0"
+              | NewModuleBelow => "module NewModule = {let member = ?} in\n0"
+              | _ => "let new_def = ? in\n0"
+              };
+            Option.map(strip_tail, parse(txt));
           };
-        | Duplicate when movable(j) =>
-          let span = slice(start_of(j), end_of(j), seg);
-          let txt = MarkerParse.to_text(Zipper.unzip(span));
-          switch (parse(txt)) {
-          | None => None
-          | Some(copy) =>
-            let at = end_of(j);
-            Some((
-              take(at, seg) @ copy @ drop(at, seg),
-              first_tile_id(copy),
-            ));
-          };
-        | Duplicate => None
-        }
+        switch (sk) {
+        | None => None
+        | Some(sk) =>
+          /* inserting below the trailing expression would strand it
+             above the new def: insert ABOVE the tail instead */
+          let at = movable(j) ? end_of(j) : start_of(j);
+          Some((take(at, seg) @ sk @ drop(at, seg), first_tile_id(sk)));
+        };
+      | Duplicate when movable(j) =>
+        let span = slice(start_of(j), end_of(j), seg);
+        let txt = MarkerParse.to_text(Zipper.unzip(span));
+        switch (in_module ? member_chunk(txt) : parse(txt)) {
+        | None => None
+        | Some(copy) =>
+          let at = end_of(j);
+          Some((
+            take(at, seg) @ copy @ drop(at, seg),
+            first_tile_id(copy),
+          ));
+        };
+      | Duplicate => None
       }
     );
   };
+
+  /* where a level sits: module members live under a BRACE tile inside
+     the module tile's def child, so "is my parent a module" is two
+     hops away — thread it */
+  type block_ctx =
+    | BPlain
+    | BModDef /* the module tile's def child: the brace lives here */
+    | BModBody; /* the brace's child: the member list */
+
+  let rec apply_deep =
+          (
+            op: OutlineSidebar.def_op,
+            fid: Id.t,
+            ~bctx: block_ctx,
+            ~top: bool,
+            seg: Segment.t,
+          )
+          : option((Segment.t, option(Id.t))) => {
+    let spans =
+      Array.of_list(Focus.item_spans(~divided_only_tail=!top, seg));
+    let n = Array.length(spans);
+    let find = pred => {
+      let rec go = j =>
+        j >= n ? None : pred(spans[j]) ? Some(j) : go(j + 1);
+      go(0);
+    };
+    let in_module = bctx == BModBody;
+    switch (find((sp: Focus.item_span) => sp.sp_id == Some(fid))) {
+    | Some(j) => apply_at(op, ~in_module, spans, j, seg)
+    | None =>
+      /* descend into tile children first (the owning block may be a
+         module or fn body) */
+      let is_module_tile = (t: Base.tile) =>
+        switch (t.label) {
+        | ["module", ..._] => true
+        | _ => false
+        };
+      let child_bctx = (t: Base.tile, is_last: bool): block_ctx =>
+        if (is_module_tile(t) && is_last) {
+          BModDef;
+        } else if (bctx == BModDef
+                   && t.label == ["{", "}"]
+                   && List.length(t.children) == 1) {
+          BModBody;
+        } else {
+          BPlain;
+        };
+      let rec try_children =
+              (ps: Segment.t): option((Segment.t, option(Id.t))) =>
+        switch (ps) {
+        | [] => None
+        | [Piece.Tile(t), ...rest] =>
+          let n_kids = List.length(t.children);
+          let rec try_kids = (before, k, kids) =>
+            switch (kids) {
+            | [] => None
+            | [ch, ...more] =>
+              switch (
+                apply_deep(
+                  op,
+                  fid,
+                  ~bctx=child_bctx(t, k == n_kids - 1),
+                  ~top=false,
+                  ch,
+                )
+              ) {
+              | Some((ch', target)) =>
+                Some((List.rev(before) @ [ch', ...more], target))
+              | None => try_kids([ch, ...before], k + 1, more)
+              }
+            };
+          switch (try_kids([], 0, t.children)) {
+          | Some((children, target)) =>
+            Some((
+              [
+                Piece.Tile({
+                  ...t,
+                  children,
+                }),
+                ...rest,
+              ],
+              target,
+            ))
+          | None =>
+            try_children(rest)
+            |> Option.map(((rest', target)) =>
+                 ([Piece.Tile(t), ...rest'], target)
+               )
+          };
+        | [p, ...rest] =>
+          try_children(rest)
+          |> Option.map(((rest', target)) => ([p, ...rest'], target))
+        };
+      switch (try_children(seg)) {
+      | Some(_) as r => r
+      | None =>
+        /* contained in one of THIS level's statement/tail spans (e.g.
+           a ModExp test's row id is the inner test term): that span
+           is the item */
+        switch (
+          find((sp: Focus.item_span) =>
+            Focus.seg_contains_id(
+              fid,
+              Focus.slice(sp.sp_start, sp.sp_stop, seg),
+            )
+          )
+        ) {
+        | Some(j) => apply_at(op, ~in_module, spans, j, seg)
+        | None => None
+        }
+      };
+    };
+  };
+
+  let apply =
+      (op: OutlineSidebar.def_op, fid: Id.t, seg: Segment.t)
+      : option((Segment.t, option(Id.t))) =>
+    apply_deep(op, fid, ~bctx=BPlain, ~top=true, seg);
 };
 
 /* the outline's ids in document order — the stack mirrors this order */
@@ -1245,6 +1428,8 @@ module Persist = {
     prefix ++ ":" ++ name ++ ":caret";
   let pins_key = (prefix: string, name: string): string =>
     prefix ++ ":" ++ name ++ ":pins";
+  let collapse_key = (prefix: string, name: string): string =>
+    prefix ++ ":" ++ name ++ ":collapse";
 
   /* set when a loaded slide has a saved caret; the next calculate
      schedules the Move(Point) (measured exists by then) */
@@ -1270,6 +1455,29 @@ module Persist = {
       pending_pins := pins == [] ? None : Some(pins);
     | None => pending_pins := None
     };
+
+  let read_collapse = (prefix: string, name: string): unit =>
+    switch (HazelDB.kv_get(collapse_key(prefix, name))) {
+    | Some(txt) =>
+      let paths =
+        String.split_on_char('\n', txt)
+        |> List.filter_map(line => {
+             let line = String.trim(line);
+             line == "" ? None : Some(String.split_on_char('/', line));
+           });
+      paths == []
+        ? Hashtbl.remove(slide_collapse, name)
+        : Hashtbl.replace(slide_collapse, name, paths);
+    | None => ()
+    };
+
+  let write_collapse = (prefix: string, name: string): unit =>
+    HazelDB.kv_save(
+      collapse_key(prefix, name),
+      collapse_paths(name)
+      |> List.map(String.concat("/"))
+      |> String.concat("\n"),
+    );
 
   let write_pins =
       (prefix: string, name: string, pins: list((list(string), bool)))
@@ -1530,6 +1738,7 @@ module Persist = {
       (~settings, prefix: string, name: string): Scratchpad.t => {
     read_caret(prefix, name);
     read_pins(prefix, name);
+    read_collapse(prefix, name);
     switch (load_slide_kind(prefix, name)) {
     | Some(CodePersist({editor: e, agent})) =>
       let agent =
@@ -1796,6 +2005,7 @@ module Update = {
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | FocusToggleRun(Haz3lcore.Id.t) /* one cell for a whole test run */
     | RestorePins /* deferred per-slide pin restore after slide load */
+    | OutlineCollapse(list(string)) /* toggle a branch's collapse */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, float, float)))
@@ -2408,6 +2618,17 @@ module Update = {
       };
     | OutlineMenu(m) =>
       outline_menu := m;
+      model |> Updated.return_quiet;
+    | OutlineCollapse(path) =>
+      let name = List.nth(model.scratchpads, model.current).name;
+      let cur = collapse_paths(name);
+      let next =
+        List.mem(path, cur)
+          ? List.filter(p => p != path, cur) : [path, ...cur];
+      next == []
+        ? Hashtbl.remove(slide_collapse, name)
+        : Hashtbl.replace(slide_collapse, name, next);
+      Persist.write_collapse(is_documentation ? "doc" : "scratch", name);
       model |> Updated.return_quiet;
     | OutlineDefOp(op, fid) =>
       outline_menu := None;
