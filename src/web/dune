@@ -45,6 +45,7 @@
   mvu
   livelitdemos
   docslides
+  constellation
   pretty
   omd)
  (js_of_ocaml)

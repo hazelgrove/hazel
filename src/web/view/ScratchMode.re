@@ -372,8 +372,13 @@ module Persist = {
     };
   };
 
+  /* ~adopt_new_defaults: append default slides missing from the saved
+     meta (doc mode — built-in slides added after the profile first saved
+     would otherwise never appear). Scratch mode leaves it off so renamed
+     pads don't resurrect the stock name. */
   let load_all =
       (
+        ~adopt_new_defaults=false,
         prefix: string,
         ~settings,
         ~default_names: list(string),
@@ -382,7 +387,13 @@ module Persist = {
       : Model.t => {
     let (current, names) =
       switch (load_meta(prefix)) {
-      | Some(meta) => (meta.current, meta.names)
+      | Some(meta) =>
+        let names =
+          adopt_new_defaults
+            ? meta.names
+              @ List.filter(n => !List.mem(n, meta.names), default_names)
+            : meta.names;
+        (meta.current, names);
       | None => (default_current, default_names)
       };
     Model.{

@@ -128,6 +128,7 @@ module Store = {
   let load_documentation = (~settings) => {
     let (default_current, default_names) = doc_defaults();
     ScratchMode.Persist.load_all(
+      ~adopt_new_defaults=true,
       "doc",
       ~settings,
       ~default_names,

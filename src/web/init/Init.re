@@ -13,7 +13,8 @@ let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides
   @ Livelitdemos.Slides.all_slides
   @ Mvu.Slides.all_slides
-  @ B2t2.Slides.all_slides;
+  @ B2t2.Slides.all_slides
+  @ Constellation.Slides.all_slides;
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
