@@ -1190,18 +1190,51 @@ module Restructure = {
     let start_of = j => spans[j].Focus.sp_start;
     let end_of = j => spans[j].Focus.sp_stop;
     let movable = j => spans[j].Focus.sp_kind != Focus.ITail;
+    /* member-fn bodies FLATTEN into the module-body level (a fun's
+       body is siblings, not a child), so a module-level span can be a
+       let-in belonging to a member's inner chain. The op FORM follows
+       the target span's own head: an `…in`-headed span takes let-in
+       forms even inside a module; moves must not mix the two families
+       (swapping a nested let with its enclosing member head would
+       cross block levels). */
+    let arr = Array.of_list(seg);
+    let span_in_tile = j => {
+      let rec first_tile = i =>
+        i >= end_of(j)
+          ? None
+          : (
+            switch (arr[i]) {
+            | Piece.Tile(t) => Some(t)
+            | _ => first_tile(i + 1)
+            }
+          );
+      switch (first_tile(start_of(j))) {
+      | Some(t) => Focus.ends_with_in(t)
+      | None => false
+      };
+    };
+    let member_form = j => in_module && !span_in_tile(j);
+    let same_family = (j, k) => span_in_tile(j) == span_in_tile(k);
     Focus.(
       switch (op) {
       | Delete when movable(j) =>
         Some((take(start_of(j), seg) @ drop(end_of(j), seg), None))
       | Delete => None
-      | MoveUp when j > 0 && movable(j) && movable(j - 1) =>
+      | MoveUp
+          when
+            j > 0 && movable(j) && movable(j - 1) && same_family(j, j - 1) =>
         let (a, b, c) = (start_of(j - 1), start_of(j), end_of(j));
         Some((
           take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
           None,
         ));
-      | MoveDown when j + 1 < n && movable(j) && movable(j + 1) =>
+      | MoveDown
+          when
+            j
+            + 1 < n
+            && movable(j)
+            && movable(j + 1)
+            && same_family(j, j + 1) =>
         let (a, b, c) = (start_of(j), start_of(j + 1), end_of(j + 1));
         Some((
           take(a, seg) @ slice(b, c, seg) @ slice(a, b, seg) @ drop(c, seg),
@@ -1213,7 +1246,7 @@ module Restructure = {
       | NewTypeBelow
       | NewModuleBelow =>
         let sk =
-          if (in_module) {
+          if (member_form(j)) {
             let txt =
               switch (op) {
               | NewTypeBelow => "type NewType = ?"
@@ -1248,7 +1281,7 @@ module Restructure = {
       | Duplicate when movable(j) =>
         let span = slice(start_of(j), end_of(j), seg);
         let txt = MarkerParse.to_text(Zipper.unzip(span));
-        switch (in_module ? member_chunk(txt) : parse(txt)) {
+        switch (member_form(j) ? member_chunk(txt) : parse(txt)) {
         | None => None
         | Some(copy) =>
           let at = end_of(j);
@@ -2789,6 +2822,54 @@ module Update = {
                     },
                   );
             };
+          /* the op may have landed INSIDE an open cell (a nested row
+             of an open def): that cell's zipper is authoritative on
+             the next splice and would silently ERASE the edit — and
+             opening the created subdef as its own cell would overlap
+             the parent. Rebuild containing cells from the post-op
+             segment instead, and keep focus inside the parent. */
+          let entry_contains = (e: Model.stack_entry, id: Haz3lcore.Id.t) =>
+            e.e_id != id
+            && (
+              Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_body))
+              || Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_header))
+            );
+          let op_inside_open =
+            switch (focus) {
+            | Some(f) =>
+              List.exists(e => entry_contains(e, fid), f.f_entries)
+            | None => false
+            };
+          let focus =
+            switch (focus) {
+            | None => None
+            | Some(f) =>
+              op_inside_open
+                ? Some(
+                    Model.{
+                      ...f,
+                      f_entries:
+                        List.map(
+                          (e: Model.stack_entry) =>
+                            entry_contains(e, fid)
+                              ? switch (
+                                  Focus.mk_entry(
+                                    ~info_map=statics.info_map,
+                                    ~sym=?outline_sym(e.e_id, statics.term),
+                                    e.e_id,
+                                    new_seg,
+                                  )
+                                ) {
+                                | Some(e') => e'
+                                | None => e
+                                }
+                              : e,
+                          f.f_entries,
+                        ),
+                    },
+                  )
+                : Some(f)
+            };
           /* single-parse restructure: [statics] IS the stacked frame.
              Seed the slot and recapture the open cells' frozen ctxs
              from the fresh DefStatics items (a deleted/moved upstream
@@ -2846,6 +2927,7 @@ module Update = {
               );
             };
           switch (focus_target) {
+          | Some(_) when op_inside_open => () /* shown in the parent */
           | Some(id) =>
             schedule_action(
               focus == None ? FocusToggle(id) : FocusEnsure(id),

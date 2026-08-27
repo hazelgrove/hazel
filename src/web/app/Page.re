@@ -969,8 +969,28 @@ module View = {
          DEEPEST row containing it; ancestor rows get a roll-up badge
          that CSS shows only while collapsed (andrew: error goes on the
          deepest thing not hidden by a collapse) */
-      let (error_items, error_subtree) = {
+      /* the master's statics can be EMPTY while its view is hidden
+         (undo restores compacted snapshots; the hidden master never
+         recomputes): fall back to the DefStatics slot's term so the
+         outline survives until the next Force frame re-derives it */
+      let outline_term = {
         let term = current_editor.statics.term;
+        let named =
+          List.exists(
+            (n: OutlineTree.node) => n.o_label != "",
+            OutlineTree.of_term(term),
+          );
+        if (named) {
+          term;
+        } else {
+          switch (Haz3lcore.DefStatics.current()) {
+          | Some(ds) => ds.Haz3lcore.DefStatics.term
+          | None => term
+          };
+        };
+      };
+      let (error_items, error_subtree) = {
+        let term = outline_term;
         /* prefer the DefStatics slot: it stays live during stacked
            editing (the master's own statics are frozen then) */
         let (info_map, error_ids) =
@@ -1073,9 +1093,9 @@ module View = {
               |> Option.map(Language.TestMap.joint_status)
             );
         },
-        /* the master stays in its scratchpad slot while the stack is
-           open (statics warm), so its term is always current */
-        current_editor.statics.term,
+        /* the master's statics slot when warm; the DefStatics term
+           when the master was restored compacted (undo) */
+        outline_term,
       );
     };
     let indicated_id =
