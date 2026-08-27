@@ -174,24 +174,6 @@ module View = {
                     div(
                       ~attrs=[Attr.class_("hsod-links")],
                       [
-                        // button(
-                        //   ~attrs=[
-                        //     Attr.create("type", "button"),
-                        //     Attr.class_("hsod-button"),
-                        //     Attr.on_click(_ => {
-                        //       let confirmed =
-                        //         JsUtil.confirm(
-                        //           "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written!",
-                        //         );
-                        //       if (confirmed) {
-                        //         JsUtil.clear_localstore();
-                        //         Js_of_ocaml.Dom_html.window##.location##reload;
-                        //       };
-                        //       Virtual_dom.Vdom.Effect.Ignore;
-                        //     }),
-                        //   ],
-                        //   [Node.text("Reset Hazel")],
-                        // ),
                         a(
                           ~attrs=[
                             Attr.create(

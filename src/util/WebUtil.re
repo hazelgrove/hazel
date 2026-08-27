@@ -15,9 +15,6 @@ let span_c = cls => span(~attrs=[Attr.class_(cls)]);
 
 let div_empty = div(~attrs=[Attr.create("style", "display:none")], []);
 
-let div_if = (p, ats, ns) => p ? div(~attrs=[ats], ns) : div_empty;
-let span_if = (p, ats, ns) => p ? span(~attrs=[ats], ns) : span([]);
-
 let unless = (p, a) => p ? Effect.Many([]) : a;
 
 let range = (~attrs=[], ~min="0", ~max="100", value) =>
@@ -234,5 +231,3 @@ let empty_hole_svg = (~attrs=[], ()) =>
       @ attrs,
     [SvgUtil.Path.view(~attrs=[], EmptyHole.path_convex)],
   );
-
-let span_text = (text: string) => span(~attrs=[], [Node.text(text)]);

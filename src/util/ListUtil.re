@@ -100,8 +100,6 @@ let combine_opt = (xs, ys) =>
   | xys => Some(xys)
   };
 
-let flat_map = List.concat_map;
-
 let rec join = (sep: 'x, xs: list('x)): list('x) =>
   switch (xs) {
   | [] => []
@@ -191,13 +189,6 @@ let rec split_nth_opt = (n, xs) =>
          ([x, ...prefix], subject, suffix)
        )
   };
-let split_nth = (n, xs) =>
-  switch (split_nth_opt(n, xs)) {
-  | None =>
-    raise(Invalid_argument("ListUtil.split_nth: " ++ string_of_int(n)))
-  | Some(r) => r
-  };
-
 let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
   switch (n, xs) {
   | (_, []) => failwith("out of bounds")
@@ -229,8 +220,6 @@ let split_last = (xs: list('x)): (list('x), 'x) =>
   | None => raise(Invalid_argument("ListUtil.split_last"))
   | Some(r) => r
   };
-
-let leading = xs => fst(split_last(xs));
 
 let rec last_opt = (xs: list('x)): option('x) =>
   switch (xs) {
@@ -276,12 +265,6 @@ let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
   };
 
 let interleave = (xs, ys) => map_alt(x => x, y => y, xs, ys);
-
-let rotate = (xs: list('x)): list('x) =>
-  switch (xs) {
-  | [] => []
-  | [hd, ...tl] => tl @ [hd]
-  };
 
 let count_pred = (f: 'a => bool, xs: list('a)): int =>
   List.fold_left((n, x) => f(x) ? n + 1 : n, 0, xs);
@@ -399,9 +382,6 @@ let rec unzip3 =
   };
 };
 
-let cross = (xs, ys) =>
-  List.concat(List.map(x => List.map(y => (x, y), ys), xs));
-
 let rec intersperse = (sep, xs) =>
   switch (xs) {
   | [] => []
@@ -480,10 +460,6 @@ let slice = (i: int, k: int, xs: list('x)): list('x) =>
 let take = (n, xs: list('a)) =>
   List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
 
-/* Move the first element equal to x to the front of the list */
-let lift = (x: 'a, xs: list('a)): list('a) =>
-  List.cons(x, List.filter((!=)(x), xs));
-
 // for performance, doesn't check the whole list if already above length
 let rec is_length = (n: int, xs: list('a)): bool =>
   switch (xs) {
@@ -541,25 +517,6 @@ let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
     };
   };
   aux([], xs);
-};
-
-let rec fold_left2_opt =
-        (
-          f: ('a, 'b, 'c) => option('a),
-          acc: 'a,
-          xs: list('b),
-          ys: list('c),
-        )
-        : option('a) => {
-  switch (xs, ys) {
-  | ([], []) => Some(acc)
-  | ([x, ...xs], [y, ...ys]) =>
-    switch (f(acc, x, y)) {
-    | None => None
-    | Some(acc') => fold_left2_opt(f, acc', xs, ys)
-    }
-  | _ => None
-  };
 };
 
 /**

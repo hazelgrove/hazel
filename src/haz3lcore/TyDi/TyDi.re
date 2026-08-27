@@ -153,8 +153,9 @@ let suggestion =
         strategy == Any(FromMissingShards),
       suggestions,
     );
+  /* Graphemes, not bytes: a single `Ã©` or `æ¥` must not clear a 2-char gate. */
   let* _ =
-    String.length(tok_to_left) >= min_prefix_len || expectation_backed
+    Util.Unicode.length(tok_to_left) >= min_prefix_len || expectation_backed
       ? Some() : None;
   /* If any suggestion is an exact match for the current token, suppress
    * all suggestions. This check must scan the full list, not just the

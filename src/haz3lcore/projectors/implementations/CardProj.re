@@ -262,12 +262,6 @@ module SyntaxTerm = {
     | None => failwith("Cards: Get: seg_to_term ")
     };
 
-  let width_of_syntax = (syntax: state): int =>
-    switch (syntax) {
-    | (_, Card(_)) => 1
-    | (_, Hand(hand)) => List.length(hand)
-    };
-
   let width_of_any = (info: info): int =>
     switch (
       info.syntax

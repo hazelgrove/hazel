@@ -32,6 +32,7 @@ module Maps = Maps;
 module MerkleSet = MerkleSet;
 module Id = Id;
 module Unicode = Unicode;
+module HazelString = HazelString;
 module StructureShareSexp = StructureShareSexp;
 module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;

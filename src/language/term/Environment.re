@@ -117,14 +117,6 @@ let rec map = (f: 'a => 'b, env: t('a)): t('b) =>
     extend(~id, map(f, prev_env), (name, f(value)))
   };
 
-let rec filter = (p: (Var.t, 'a) => bool, env: t('a)): t('a) =>
-  switch (env) {
-  | Empty => Empty
-  | E({id, binding: (name, value), prev_env, cached_search_tree: _}) =>
-    let new_prev = filter(p, prev_env);
-    p(name, value) ? extend(~id, new_prev, (name, value)) : new_prev;
-  };
-
 let rec fold = (f: ((Var.t, 'a), 'b) => 'b, init: 'b, env: t('a)): 'b =>
   switch (env) {
   | Empty => init
@@ -138,9 +130,6 @@ let lookup = (env: t('a), v: Var.t): option('a) => {
     Maps.StringMap.find_opt(v, cached_search_tree)
   };
 };
-
-let without_keys = (type a, keys: list(Var.t), env: t(a)): t(a) =>
-  filter((name, _) => !List.mem(name, keys), env);
 
 let free_name = (type a, base: Var.t, env: t(a)): Var.t => {
   let rec aux = (name: Var.t): Var.t =>

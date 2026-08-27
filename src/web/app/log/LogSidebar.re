@@ -242,23 +242,6 @@ let log_message = (message: string): unit => {
   );
 };
 
-let log_action = (action_name: string, details: option(string)): unit => {
-  let message =
-    switch (details) {
-    | None => action_name
-    | Some(d) => action_name ++ ": " ++ d
-    };
-  log_message(message);
-};
-
 let log_error = (error: string): unit => {
   log_message("ERROR: " ++ error);
-};
-
-let log_info = (info: string): unit => {
-  log_message("INFO: " ++ info);
-};
-
-let log_step_update = (current: int, total: int): unit => {
-  log_message(Printf.sprintf("Step %d of %d", current, total));
 };

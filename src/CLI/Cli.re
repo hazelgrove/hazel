@@ -195,20 +195,13 @@ let extract_source_text =
     if (origin.row >= 0 && origin.row < Array.length(lines)) {
       if (origin.row == last.row) {
         /* Single line - extract substring */
-        let line = lines[origin.row];
-        let start_col = max(0, origin.col);
-        let end_col = min(String.length(line), last.col);
-        Some(String.sub(line, start_col, end_col - start_col));
+        Some(
+          Diagnostic.slice_columns(lines[origin.row], origin.col, last.col),
+        );
       } else {
         /* Multi-line - extract from origin to end of first line */
-        let first_line = lines[origin.row];
-        let start_col = max(0, origin.col);
         Some(
-          String.sub(
-            first_line,
-            start_col,
-            String.length(first_line) - start_col,
-          )
+          Diagnostic.suffix_from_column(lines[origin.row], origin.col)
           ++ "...",
         );
       };

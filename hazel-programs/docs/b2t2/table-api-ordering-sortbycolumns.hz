@@ -1,0 +1,73 @@
+type GradebookEntry = (
+  name= String,
+  age= Int,
+  quiz1= Int,
+  quiz2= Int,
+  midterm= Int,
+  quiz3= Int,
+  quiz4= Int,
+  final= Int
+) in
+let gradebook : [GradebookEntry] = (
+  [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ]
+) in
+
+# (benchmark) sortByColumns #
+let requires = [
+  (enforced=("no"), "cs has no duplicates"),
+  (enforced=("no"), "for all c in cs, c is in header(t1)"),
+  (enforced=("no"), "for all c in cs, schema(t1)[c] is Number")
+] in
+let ensures = [
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)"),
+  (enforced=("static"), "schema(t2) is equal to schema(t1)")
+] in
+let lexicographical =
+  typfun t ->
+    fun (comparator : (t, t) -> Ord, ts : [t], ts' : [t]) ->
+      case (ts, ts')
+      | ([], []) => Eq
+      | ([], _) => Lt
+      | (_, []) => Gt
+      | (x::xs, y::ys) =>
+        case comparator(x, y)
+        | Eq => lexicographical@<t>(comparator, xs, ys)
+        | ord => ord
+        end
+      end in
+let int_compare =
+  fun (first, second) ->
+    if first < second
+    then Lt
+    else if first > second then Gt else Eq in
+# Idiomatically I think we would do this with a implicit comparator on tuples and then project them #
+let sort_by_columns =
+  typfun r ->
+    let get_values =
+      fun (r, c : [String]) ->
+        (let entries = to_lvs(r) in filter_map(c,fun c -> find_opt(entries,fun (label=l, value=v) -> c == l))).value in
+    fun (t : [?], c : [String]) ->
+      sort(
+        (
+          fun (
+            f,
+            g
+          ) ->
+            let res =
+              lexicographical@<Int>(int_compare, get_values(f,c), get_values(g, c)) in
+            res),
+        t
+      )
+      : [r] in
+test
+  sort_by_columns@<GradebookEntry>(gradebook, ["quiz2", "quiz1"])
+  == [
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve",   13, 7, 9, 84, 8, 8, 77),
+    ("Bob", 12, 8, 9, 77, 7, 9, 87)
+  ]
+  : [GradebookEntry] end

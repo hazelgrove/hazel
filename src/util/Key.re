@@ -63,23 +63,6 @@ let mk = (dir, evt): t => {
   alt: to_held(alt_held(evt)),
 };
 
-let modifier_string = (h: held, m): string => h == Down ? " + " ++ m : "";
-
-let modifiers_string = (key: t): string =>
-  modifier_string(key.shift, "SHIFT")
-  ++ modifier_string(key.meta, "META")
-  ++ modifier_string(key.ctrl, "CTRL")
-  ++ modifier_string(key.alt, "ALT");
-
-let key_dir_string = (key: t): string =>
-  switch (key.key) {
-  | U(key) => "(UP): " ++ key
-  | D(key) => "(DN): " ++ key
-  };
-
-let to_string = (key: t): string =>
-  "KEY" ++ key_dir_string(key) ++ modifiers_string(key);
-
 /* Keyboard event handler for focusable components.
  * Adds tabindex(0) so the element can receive focus and key events. */
 let handler = (~f: t => Virtual_dom.Vdom.Effect.t(unit)) =>
