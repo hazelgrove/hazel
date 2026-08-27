@@ -194,14 +194,6 @@ module Model = {
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -902,11 +894,6 @@ module Persist = {
         }
       };
     };
-
-  let delete_slide = (prefix: string, name: string): unit => {
-    HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.kv_delete(agent_key(prefix, name));
-  };
 
   let save_agent =
       (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
@@ -2805,19 +2792,11 @@ module View = {
            between; rendered INSTEAD of the master cell */
         let stack_views = (f: Model.focus_t) => {
           let prev = stack_cache^;
-          /* master tint/pending only invalidate cell views when the
-             incremental deco setting is ON (they change per streamed
-             chunk — unconditional tracking re-rendered every open cell
-             on every chunk) */
-          let deco_on = globals.Globals.Model.settings.show_incremental_deco;
-          let deco_reuse =
-            deco_on
-              ? EvalResult.Model.predicted_reuse(editor.result)
-              : Language.IncrEval.empty;
-          let deco_pending =
-            deco_on ? EvalResult.Model.pending_eval_ids(editor.result) : [];
-          let deco_active =
-            deco_on && EvalResult.Model.eval_is_pending(editor.result);
+          /* the frozen tint was removed upstream; cells no longer take
+             master tint/pending, so these cache inputs are constant */
+          let deco_reuse = Language.IncrEval.empty;
+          let deco_pending: list(Haz3lcore.Id.t) = [];
+          let deco_active = false;
           let rendered =
             List.mapi(
               (i, e: Model.stack_entry) => {

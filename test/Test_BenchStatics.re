@@ -522,7 +522,7 @@ let payload_probe = (): unit => {
       EvalInfo.of_info_map(~probe_all=false, ~targets=Sample.no_targets, map);
     let (_, state) =
       Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab);
-    let prev = EvaluatorState.get_incr_eval(state);
+    let prev = state.EvaluatorState.incr_eval;
     let time_size = (label, v) => {
       let t0 = Sys.time();
       let s = Marshal.to_string(v, []);
@@ -550,7 +550,7 @@ let payload_probe = (): unit => {
       );
     let (_, state2) =
       Evaluator.evaluate(~eval_info=ei2, ~env=Builtins.env_init, elab2);
-    let prev2 = EvaluatorState.get_incr_eval(state2);
+    let prev2 = state2.EvaluatorState.incr_eval;
     time_size("BIG-VALUE expr+eval_info (kept)", (elab2, ei2));
     time_size("BIG-VALUE prev cache (no longer shipped)", prev2);
     time_size("BIG-VALUE old full request", (elab2, ei2, prev2));

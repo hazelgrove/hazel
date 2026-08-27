@@ -22,7 +22,6 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
-    show_incremental_deco: bool,
   };
 
   let init = {
@@ -89,35 +88,10 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
-    show_incremental_deco: false,
   };
-
-  let fix_instructor_mode = settings =>
-    if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {
-        ...settings,
-        instructor_mode: false,
-      };
-    } else {
-      settings;
-    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
-
-  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
-     and go stale across sessions. */
-  let persist = settings => {
-    ...settings,
-    sidebar: {
-      ...settings.sidebar,
-      problems: {
-        ...settings.sidebar.problems,
-        expanded: [],
-      },
-    },
-  };
-  let unpersist = fix_instructor_mode;
 };
 
 module Store =
@@ -171,8 +145,7 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines
-    | ShowIncrementalDeco;
+    | ShowRowLines;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -470,10 +443,6 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
-        }
-      | ShowIncrementalDeco => {
-          ...settings,
-          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )

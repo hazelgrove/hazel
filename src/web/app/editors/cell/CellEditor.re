@@ -38,10 +38,6 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
-
-  let zipper = (model: t) => model.editor.editor.state.zipper;
-
-  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
@@ -294,6 +290,9 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
+          /* stack cells: whole-program SAMPLES flow in from the master's
+             stacked eval (upstream removed the frozen tint, so samples
+             are the only master-derived decoration left) */
           ~dynamics={
             let own = EvalResult.Model.dynamics(model.result);
             switch (master_result) {
@@ -306,37 +305,8 @@ module View = {
             | None => own
             };
           },
-          /* master tint/pending in cells only with the incremental deco
-             setting ON: these inputs change per streamed chunk, so
-             threading them unconditionally re-rendered every open cell
-             on every chunk */
-          ~predicted_reuse=
-            switch (master_result) {
-            | Some(mr) when globals.settings.show_incremental_deco =>
-              EvalResult.Model.predicted_reuse(mr)
-            | Some(_)
-            | None => EvalResult.Model.predicted_reuse(model.result)
-            },
-          ~pending_eval_ids=
-            EvalResult.Model.pending_eval_ids(model.result)
-            @ (
-              switch (master_result) {
-              | Some(mr) when globals.settings.show_incremental_deco =>
-                EvalResult.Model.pending_eval_ids(mr)
-              | Some(_)
-              | None => []
-              }
-            ),
-          ~show_active_eval=
-            EvalResult.Model.eval_is_pending(model.result)
-            || (
-              switch (master_result) {
-              | Some(mr) when globals.settings.show_incremental_deco =>
-                EvalResult.Model.eval_is_pending(mr)
-              | Some(_)
-              | None => false
-              }
-            ),
+          ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
+          ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
           model.editor,
         ),
       ]

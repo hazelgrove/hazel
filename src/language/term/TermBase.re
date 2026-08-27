@@ -1,6 +1,4 @@
 let continue = x => x;
-let stop = (_, x) => x;
-
 /*
    This megafile contains the definitions of the expression data types in
    Hazel. They are all in one file because they are mutually recursive, and

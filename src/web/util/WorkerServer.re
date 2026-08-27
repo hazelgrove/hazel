@@ -54,7 +54,7 @@ module ClientMessage = {
 };
 
 module ServerMessage = {
-  /* Reuse-pass predictions for immediate UI tinting (frozen vs re-eval). */
+  /* Reuse-pass predictions sent before evaluation slices begin. */
   [@deriving (show, sexp, yojson)]
   type reuse_predictions =
     list((key, Language.IncrEval.t(Language.EvaluatorState.t)));
@@ -67,7 +67,7 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type ack = {request_id: int};
 
-  /* Predicted reusable cache entries for UI tinting (frozen vs re-eval). */
+  /* Predicted reusable cache entries for initializing streamed state. */
   [@deriving (show, sexp, yojson)]
   type reuse_plan = {
     request_id: int,
@@ -253,11 +253,7 @@ let resolve_prev =
 let store_resident = (key: key, response: Response.value): unit =>
   switch (response) {
   | Ok((_, state)) =>
-    Hashtbl.replace(
-      resident,
-      key,
-      Language.EvaluatorState.get_incr_eval(state),
-    )
+    Hashtbl.replace(resident, key, state.Language.EvaluatorState.incr_eval)
   | Error(_) => ()
   };
 
@@ -319,7 +315,7 @@ let initial_model = {
 
 /* Worker execution model (three phases per request):
  * 1. Instant `Ack` — liveness only; no ReusePass.
- * 2. `ReusePlan` — predicted reusable entries for frozen/re-eval tinting.
+ * 2. `ReusePlan` — predicted reusable entries for streamed state.
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
