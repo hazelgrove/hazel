@@ -90,9 +90,9 @@
 }
 
 .projector.card.Pat .card-sprite {
-  filter: drop-shadow(-1px 0px 0px var(--PAT))
-    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1px 0px 0px var(--PAT))
-    drop-shadow(0px 1px 0px var(--PAT));
+  filter: drop-shadow(-1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px -1px 0px var(--shadow-pat)) drop-shadow(1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px 1px 0px var(--shadow-pat));
 }
 
 @keyframes blink-shadow {
@@ -169,9 +169,9 @@
     drop-shadow(2px 2px 0px #6666);
 }
 .projector.card.indicated.Pat .hand .card-sprite:hover {
-  filter: drop-shadow(-1px 0px 0px var(--PAT))
-    drop-shadow(0px -1px 0px var(--PAT)) drop-shadow(1.5px 0px 0px var(--PAT))
-    drop-shadow(0px 1.5px 0px var(--PAT)) drop-shadow(2px 2px 0px #6666);
+  filter: drop-shadow(-1px 0px 0px var(--shadow-pat))
+    drop-shadow(0px -1px 0px var(--shadow-pat)) drop-shadow(1.5px 0px 0px var(--shadow-pat))
+    drop-shadow(0px 1.5px 0px var(--shadow-pat)) drop-shadow(2px 2px 0px #6666);
 }
 
 /* CHOOSER */

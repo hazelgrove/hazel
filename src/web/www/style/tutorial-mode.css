@@ -2,7 +2,7 @@
   width: 40px;
   position: relative;
   height: 40px;
-  background-color: var(--G1);
+  background-color: var(--surface-success-soft);
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -11,7 +11,7 @@
   font-weight: bold;
   color: white;
   cursor: pointer;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 #main.Tutorial .checkmark-container {
@@ -24,7 +24,7 @@
   width: 40px;
   position: relative;
   height: 40px;
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -33,7 +33,7 @@
   font-weight: bold;
   color: white;
   cursor: pointer;
-  border: 1px solid var(--BR2);
+  border: 1px solid var(--border-default);
 }
 
 #main.Tutorial .checkmark-grey:hover {
@@ -93,7 +93,7 @@
   top: -27px;
   font-size: 1.2em;
   right: 0px;
-  color: var(--BR2);
+  color: var(--text-muted);
   display: inline;
   vertical-align: top;
 }
@@ -214,14 +214,14 @@
 #main.Tutorial .prev-button {
   transform: scaleX(-1);
   font-size: 30px;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   z-index: 1000;
 }
 
 #main.Tutorial .next-button {
   font-size: 30px;
-  color: var(--BR2);
+  color: var(--text-muted);
   cursor: pointer;
   z-index: 1000;
 }
@@ -245,7 +245,7 @@
 #main.Tutorial .done-message {
   font-size: 1.2rem;
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
   text-align: right;
   margin-top: 1em;
   margin-bottom: 1em;

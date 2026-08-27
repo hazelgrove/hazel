@@ -55,7 +55,7 @@
   justify-content: flex-start;
   gap: 1.2em;
   background-color: var(--ui-bkg);
-  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
@@ -109,12 +109,12 @@
 .title-cell .title-text {
   font-size: 1.5rem;
   font-weight: bold;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .title-cell .title-placeholder {
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 
@@ -177,7 +177,7 @@
 
 .slide h1 {
   margin-top: 0;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 .em {
@@ -228,7 +228,7 @@
 .module-placeholder {
   display: inline;
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 
@@ -261,7 +261,7 @@
 
 .cell-prompt .prompt-placeholder {
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
   opacity: 0.5;
 }
 

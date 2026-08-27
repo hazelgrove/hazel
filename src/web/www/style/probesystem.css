@@ -22,16 +22,16 @@
 }
 
 #probe-sidebar .main-title .mode-label.inactive {
-  color: var(--BR1);
+  color: var(--text-faint);
   cursor: pointer;
 }
 
 #probe-sidebar .main-title .mode-label.inactive:hover {
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 #probe-sidebar .main-title .mode-separator {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 #probe-sidebar .header {
@@ -79,9 +79,9 @@
 
 #probe-sidebar .panel {
   padding: 0.5em;
-  outline: 1px solid var(--BR1);
+  outline: 1px solid var(--border-soft);
   border-radius: 0.3em;
-  color: var(--BR2);
+  color: var(--text-muted);
   overflow: clip;
 }
 
@@ -151,13 +151,13 @@
 #probe-sidebar .quick-ref .qr-action {
   font-weight: bold;
   white-space: nowrap;
-  color: var(--BR3);
+  color: var(--text-accent);
   width: 1%;
   padding-right: 0.8em;
 }
 
 #probe-sidebar .quick-ref .qr-how {
-  color: var(--BR2);
+  color: var(--text-muted);
   display: flex;
   gap: 0.5em;
   align-items: baseline;
@@ -177,7 +177,7 @@
 
 #probe-sidebar .quick-ref .qr-divider {
   padding: 0.3em 0;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 /* Dim keyboard badges based on probe focus state */
@@ -216,8 +216,8 @@ body:not(:has(.live-offside:focus))
 #probe-sidebar .quick-ref .qr-icons {
   margin-top: 0.4em;
   padding-top: 0.4em;
-  border-top: 0.5px solid var(--BR1);
-  color: var(--BR2);
+  border-top: 0.5px solid var(--border-soft);
+  color: var(--text-muted);
   font-size: 0.9em;
   display: flex;
   justify-content: center;
@@ -254,8 +254,8 @@ body:not(:has(.live-offside:focus))
   left: 0.4em;
   right: 0.4em;
   padding: 0.5em 0.75em;
-  background-color: var(--BR1);
-  color: var(--BR4);
+  background-color: var(--surface-shard);
+  color: var(--text-strong);
   border-radius: 0.5em;
   font-size: 0.85em;
   line-height: 1.4;
@@ -271,7 +271,7 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .legend-not-aligned {
-  outline: 1.5px dotted var(--BR1);
+  outline: 1.5px dotted var(--border-soft);
   border-radius: 0.2em;
   height: 1.3em;
   width: 6em;
@@ -294,12 +294,12 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .is-index .probe-entry > .code {
-  outline: 1px solid var(--BR1);
+  outline: 1px solid var(--border-soft);
   /* z-index: 1; */
 }
 
 #probe-sidebar .indicated-call .probe-entry > .code {
-  outline: 1px solid var(--R1);
+  outline: 1px solid var(--border-error);
   /* z-index: 2; */
 }
 
@@ -308,10 +308,10 @@ body:not(:has(.live-offside:focus))
 }
 
 .probe-entry > .code {
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   padding: 0 0.4em;
   border-radius: 0.3em;
-  border-left: 1px solid var(--BR2);
+  border-left: 1px solid var(--border-default);
 }
 
 #probe-sidebar .after-index .probe-entry .code {
@@ -340,13 +340,13 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .legend .legend-divider {
   grid-column: 1 / -1;
-  border-top: 1px solid var(--BR1);
+  border-top: 1px solid var(--border-soft);
 }
 
 #probe-sidebar .legend .segmented-control {
   display: flex;
   grid-column: 1 / -1;
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   border-radius: 4px;
   overflow: visible;
   pointer-events: auto;
@@ -361,7 +361,7 @@ body:not(:has(.live-offside:focus))
   font-size: 0.85em;
   font-family: var(--ui-font);
   background-color: transparent;
-  border-right: 1px solid var(--BR1);
+  border-right: 1px solid var(--border-soft);
   user-select: none;
   position: relative;
 }
@@ -371,13 +371,13 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .legend .segmented-control .segment.active {
-  background-color: var(--Y1);
-  color: var(--BR4);
+  background-color: var(--surface-highlight);
+  color: var(--text-strong);
   font-weight: 500;
 }
 
 #probe-sidebar .legend .segmented-control .segment:hover:not(.active) {
-  background-color: var(--Y0);
+  background-color: var(--surface-highlight-soft);
 }
 
 /* #probe-sidebar .legend .segmented-control .segment:hover:not(.active) {
@@ -391,8 +391,8 @@ body:not(:has(.live-offside:focus))
   left: 0;
   right: 0;
   padding: 0.5em 0.75em;
-  background-color: var(--BR1);
-  color: var(--BR4);
+  background-color: var(--surface-shard);
+  color: var(--text-strong);
   border-radius: 0.5em;
   font-size: 0.85em;
   line-height: 1.4;
@@ -422,7 +422,7 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .toggle-controls .toggle-label {
   font-size: 0.85em;
-  color: var(--BR2);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 0.3em;
@@ -439,7 +439,7 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .toggle-controls .segmented-control {
   display: flex;
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   border-radius: 4px;
   overflow: visible;
   pointer-events: auto;
@@ -454,7 +454,7 @@ body:not(:has(.live-offside:focus))
   font-size: 0.85em;
   font-family: var(--ui-font);
   background-color: transparent;
-  border-right: 1px solid var(--BR1);
+  border-right: 1px solid var(--border-soft);
   user-select: none;
   position: relative;
 }
@@ -464,13 +464,13 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .toggle-controls .segmented-control .segment.active {
-  background-color: var(--Y1);
-  color: var(--BR4);
+  background-color: var(--surface-highlight);
+  color: var(--text-strong);
   font-weight: 500;
 }
 
 #probe-sidebar .toggle-controls .segmented-control .segment:hover:not(.active) {
-  background-color: var(--Y0);
+  background-color: var(--surface-highlight-soft);
 }
 
 #probe-sidebar .toggle-controls .legend-tooltip {
@@ -480,8 +480,8 @@ body:not(:has(.live-offside:focus))
   left: 0;
   right: 0;
   padding: 0.5em 0.75em;
-  background-color: var(--BR1);
-  color: var(--BR4);
+  background-color: var(--surface-shard);
+  color: var(--text-strong);
   border-radius: 0.5em;
   font-size: 0.85em;
   line-height: 1.4;
@@ -496,8 +496,8 @@ body:not(:has(.live-offside:focus))
   font-size: 0.7em;
   padding: 1px 4px;
   border-radius: 3px;
-  background: var(--BR1);
-  color: var(--BR3);
+  background: var(--surface-shard);
+  color: var(--text-accent);
   font-family: inherit;
   vertical-align: middle;
   line-height: 1.4;
@@ -517,16 +517,16 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .click-kbd-pill .click-part {
   padding: 1px 3px;
-  outline: 1px solid var(--BR1);
+  outline: 1px solid var(--border-soft);
   border-radius: 3px 0 0 3px;
-  color: var(--BR2);
+  color: var(--text-muted);
   font-size: 0.85em;
 }
 
 #probe-sidebar .click-kbd-pill .kbd-part {
   padding: 1px 4px;
-  background: var(--BR1);
-  color: var(--BR3);
+  background: var(--surface-shard);
+  color: var(--text-accent);
   border-radius: 0 3px 3px 0;
 }
 
@@ -539,7 +539,7 @@ body:not(:has(.live-offside:focus))
   display: flex;
   align-items: baseline;
   padding: 0.2em 0.4em;
-  border-bottom: 0.5px solid var(--BR1);
+  border-bottom: 0.5px solid var(--border-soft);
   gap: 0.5em;
 }
 
@@ -548,7 +548,7 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .panel.prints .print-seq {
-  color: var(--BR1);
+  color: var(--text-faint);
   font-size: 0.85em;
   min-width: 2em;
   text-align: right;
@@ -563,7 +563,7 @@ body:not(:has(.live-offside:focus))
 }
 
 #probe-sidebar .panel.prints .print-line {
-  color: var(--BR1);
+  color: var(--text-faint);
   font-size: 0.85em;
   flex-shrink: 0;
   align-self: flex-start;
@@ -580,27 +580,27 @@ body:not(:has(.live-offside:focus))
 #probe-sidebar .eval-controls .named-menu-item {
   display: flex;
   gap: 0.5em;
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 #probe-sidebar .run-button {
   padding: 0.3em 0.7em;
   font-size: 0.8em;
-  color: var(--BR4);
+  color: var(--text-strong);
   cursor: pointer;
   border-radius: 3px;
-  background-color: var(--Y1);
-  border: 0.75px solid var(--BR2);
+  background-color: var(--surface-highlight);
+  border: 0.75px solid var(--border-default);
   margin-left: 0.5em;
   font-weight: bold;
 }
 
 #probe-sidebar .run-button:hover {
-  background-color: var(--Y2);
+  background-color: var(--surface-highlight-strong);
 }
 
 #probe-sidebar .run-button:active {
-  background-color: var(--Y3);
+  background-color: var(--surface-warning);
 }
 
 #probe-sidebar .panel.window-toggle {
@@ -612,8 +612,8 @@ body:not(:has(.live-offside:focus))
 
 /* Log Sidebar Styles */
 .log-sidebar {
-  background-color: var(--T1);
-  border: 1px solid var(--BR1);
+  background-color: var(--surface-default);
+  border: 1px solid var(--border-soft);
   border-radius: 0.3em;
   padding: 1em;
   margin-bottom: 1em;
@@ -627,7 +627,7 @@ body:not(:has(.live-offside:focus))
   font-size: 1.1em;
   color: var(--ui-header-text);
   text-transform: uppercase;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
   padding-bottom: 0.5em;
 }
 
@@ -646,8 +646,8 @@ body:not(:has(.live-offside:focus))
 
 .log-button {
   padding: 0.4em 0.8em;
-  background-color: var(--T2);
-  border: 1px solid var(--BR1);
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-soft);
   border-radius: 0.3em;
   color: var(--text-primary);
   cursor: pointer;
@@ -657,15 +657,15 @@ body:not(:has(.live-offside:focus))
 }
 
 .log-button:hover {
-  background-color: var(--BR1);
+  background-color: var(--surface-shard);
 }
 
 .log-button:active {
-  background-color: var(--BR2);
+  background-color: var(--surface-shard-strong);
 }
 
 .log-button[disabled] {
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   color: var(--text-disabled);
   cursor: not-allowed;
   opacity: 0.6;
@@ -673,15 +673,15 @@ body:not(:has(.live-offside:focus))
 
 .log-progress {
   position: relative;
-  background-color: var(--T2);
-  border: 1px solid var(--BR1);
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-soft);
   border-radius: 0.3em;
   height: 1.5em;
   overflow: hidden;
 }
 
 .log-progress-bar {
-  background-color: var(--G1);
+  background-color: var(--surface-success-soft);
   height: 100%;
   transition: width 0.3s ease;
 }
@@ -717,8 +717,8 @@ body:not(:has(.live-offside:focus))
 .log-clear-btn,
 .log-details-btn {
   padding: 0.2em 0.5em;
-  background-color: var(--T2);
-  border: 1px solid var(--BR1);
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-soft);
   border-radius: 0.2em;
   color: var(--text-primary);
   cursor: pointer;
@@ -728,14 +728,14 @@ body:not(:has(.live-offside:focus))
 
 .log-clear-btn:hover,
 .log-details-btn:hover {
-  background-color: var(--BR1);
+  background-color: var(--surface-shard);
 }
 
 .log-messages-content {
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   border-radius: 0.3em;
   padding: 0.5em;
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   max-height: 20em;
   overflow-y: auto;
 }
@@ -754,7 +754,7 @@ body:not(:has(.live-offside:focus))
 }
 
 .log-timestamp {
-  color: var(--G2);
+  color: var(--text-success-muted);
   flex-shrink: 0;
   font-weight: bold;
 }
@@ -772,7 +772,7 @@ body:not(:has(.live-offside:focus))
 }
 
 .log-debug {
-  border-top: 1px solid var(--BR1);
+  border-top: 1px solid var(--border-soft);
   padding-top: 0.75em;
   margin-top: 0.75em;
 }

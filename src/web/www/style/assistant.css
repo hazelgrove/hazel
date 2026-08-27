@@ -43,24 +43,24 @@
 }
 
 #assistant .chat-button {
-  color: var(--BR4);
+  color: var(--text-strong);
   font-size: 0.8em;
   padding: 0.5em 1em;
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
-  border: 0.75px solid var(--BR3);
-  background-color: var(--T1);
+  border: 0.75px solid var(--border-strong);
+  background-color: var(--surface-default);
   width: fit-content;
   align-self: end;
 }
 
 #assistant .chat-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 #assistant .chat-button:active {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 #assistant .input-container {
@@ -75,10 +75,10 @@
 
 #assistant .message-input {
   flex: 1;
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   padding: 14px;
   border: 0;
-  outline: 0.75px solid var(--BR3);
+  outline: 0.75px solid var(--border-strong);
   border-radius: 4px;
   min-height: 20px;
   max-height: 200px;
@@ -87,15 +87,15 @@
 }
 
 #assistant .message-input:focus {
-  outline: 0.75px solid var(--BLACK);
+  outline: 0.75px solid var(--border-black);
   background-color: white;
 }
 
 #assistant .send-button-disabled {
-  background-color: var(--SAND);
-  color: var(--STONE);
+  background-color: var(--surface-code);
+  color: var(--text-default);
   padding: 0.65em 0.75em;
-  border: 0 solid var(--SAND);
+  border: 0 solid var(--border-seam);
   border-radius: 0.5em;
   font-weight: bold;
   cursor: not-allowed;
@@ -105,15 +105,15 @@
 }
 
 #assistant .send-button-disabled:hover {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   box-shadow: none;
 }
 
 #assistant .send-button {
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 0.75em;
-  border: 0.75px solid var(--BR3);
-  background-color: var(--T1);
+  border: 0.75px solid var(--border-strong);
+  background-color: var(--surface-default);
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
@@ -121,11 +121,11 @@
 }
 
 #assistant .send-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 #assistant .send-button:active {
-  background-color: var(--Y2);
+  background-color: var(--surface-highlight-strong);
 }
 
 /* Message Display Container */
@@ -157,7 +157,7 @@
 
 #assistant .message-identifier {
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   opacity: 0.7;
   margin-bottom: 4px;
   padding: 0 12px;
@@ -211,7 +211,7 @@
 #assistant .collapse-indicator {
   width: 100%;
   text-align: center;
-  color: var(--STONE);
+  color: var(--text-default);
   font-size: 0.8em;
   opacity: 0.7;
   margin-top: 4px;
@@ -237,7 +237,7 @@
 
 #assistant .system-prompt-message {
   padding: 8px 12px;
-  background-color: var(--T1);
+  background-color: var(--surface-default);
   border-radius: 3px;
   font-size: 1em;
   max-width: 100%;
@@ -255,7 +255,7 @@
 
 #assistant .user-message {
   padding: 8px 12px;
-  background-color: var(--T1);
+  background-color: var(--surface-default);
   border-radius: 3px;
   font-size: 1em;
   max-width: 100%;
@@ -271,7 +271,7 @@
 #assistant .dot {
   width: 8px;
   height: 8px;
-  background-color: var(--STONE);
+  background-color: var(--surface-inverse);
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out both;
 }
@@ -313,20 +313,20 @@
 }
 
 #assistant .toggle-show-button svg {
-  fill: var(--STONE);
+  fill: var(--text-default);
   width: 18px;
   height: 18px;
 }
 
 #assistant .toggle-show-button svg {
-  fill: var(--STONE);
+  fill: var(--text-default);
   width: 18px;
   height: 18px;
 }
 
 #assistant .api-input,
 #assistant .llm-model-id-input {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   padding: 14px;
   outline: none;
   border-radius: 3.5px;
@@ -338,7 +338,7 @@
 #assistant .llm-model-id-input:hover,
 #assistant .api-input:focus,
 #assistant .llm-model-id-input:focus {
-  outline: 0.6px solid var(--BR2);
+  outline: 0.6px solid var(--border-default);
 }
 
 /* LLM and LSP toggle button containers */
@@ -369,9 +369,9 @@
 #assistant .api-key-display {
   padding: 12px;
   border-radius: 4px;
-  border: 0.6px solid var(--BR2);
+  border: 0.6px solid var(--border-default);
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   word-wrap: break-word;
   font-family: var(--code-font);
   overflow-x: auto;
@@ -379,7 +379,7 @@
 
 #assistant .api-key-label {
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   opacity: 0.7;
   margin-bottom: 5px;
 }
@@ -394,7 +394,7 @@
 .llm-label {
   font-weight: bold;
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   display: flex;
   gap: 1em;
 }
@@ -402,24 +402,24 @@
 .llm-dropdown {
   padding: 14px;
   border-radius: 4px;
-  border: 1px solid var(--SAND);
-  background-color: var(--SAND);
+  border: 1px solid var(--border-seam);
+  background-color: var(--surface-code);
   cursor: pointer;
   font-size: 0.8em;
   /* transition: all 0.2s ease; */
 }
 
 .llm-dropdown:hover {
-  outline: 0.6px solid var(--BR2);
+  outline: 0.6px solid var(--border-default);
 }
 
 .llm-dropdown:focus {
-  outline: 0.6px solid var(--BR2);
+  outline: 0.6px solid var(--border-default);
 }
 
 .llm-dropdown option {
   background-color: var(--UI-Background);
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 8px;
 }
 
@@ -433,21 +433,21 @@
 #assistant .mode-button {
   padding: 0.35em 0.75em;
   font-size: 0.8em;
-  color: var(--BR4);
+  color: var(--text-strong);
   cursor: pointer;
   border-radius: 3px;
   text-align: center;
 }
 
 #assistant .mode-button.disabled {
-  color: var(--BR1);
+  color: var(--text-faint);
   position: relative;
 }
 
 #assistant .mode-button .hover-view {
   display: none;
   position: absolute;
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 0.8em;
@@ -457,11 +457,11 @@
   transform: translateX(-50%);
   margin-top: 4px;
   box-shadow: 0 2px 8px var(--SHADOW);
-  border: 1px solid var(--SAND);
+  border: 1px solid var(--border-seam);
 }
 
 #assistant .mode-button.disabled:hover {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 #assistant .mode-button.disabled:hover .hover-view {
@@ -471,33 +471,33 @@
 #assistant .mode-button.active {
   text-decoration: underline;
   text-underline-offset: 8px;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 #assistant .mode-button:hover {
-  color: var(--Y3);
+  color: var(--text-warning);
 }
 
 #assistant .add-button,
 #assistant .history-button {
-  color: var(--BR4);
+  color: var(--text-strong);
   border-radius: 4px;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
   line-height: 0;
-  fill: var(--BR4);
+  fill: var(--text-strong);
 }
 
 #assistant .add-button:hover,
 #assistant .history-button:hover {
-  fill: var(--Y3);
+  fill: var(--text-warning);
 }
 
 #assistant .add-button:active,
 #assistant .history-button:active {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
   opacity: 0.5;
 }
 
@@ -526,17 +526,17 @@
 
 #assistant .history-menu-header {
   padding: 12px 16px;
-  background-color: var(--T1);
-  color: var(--STONE);
+  background-color: var(--surface-default);
+  color: var(--text-default);
   font-weight: bold;
-  border-bottom: 1px solid var(--SAND);
+  border-bottom: 1px solid var(--border-seam);
   font-size: 0.9em;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 #assistant .history-menu-list {
-  background: var(--T2);
+  background: var(--surface-raised);
   max-height: 400px;
   overflow-y: auto;
   padding: 4px 0;
@@ -551,17 +551,17 @@
 }
 
 #assistant .history-menu-list::-webkit-scrollbar-thumb {
-  background: var(--SAND);
+  background: var(--surface-code);
   border-radius: 4px;
 }
 
 #assistant .history-menu-item {
   padding: 10px 16px;
-  background-color: var(--T2);
-  color: var(--STONE);
+  background-color: var(--surface-raised);
+  color: var(--text-default);
   cursor: pointer;
   /* transition: all 0.1s ease; */
-  border-bottom: 1px solid var(--SAND);
+  border-bottom: 1px solid var(--border-seam);
   font-size: 0.9em;
   display: flex;
   align-items: center;
@@ -569,23 +569,23 @@
 
 #assistant .history-menu-item.active {
   padding: 10px 16px;
-  background-color: var(--T3);
-  color: var(--STONE);
+  background-color: var(--surface-sunken);
+  color: var(--text-default);
   cursor: pointer;
   /* transition: all 0.1s ease; */
-  border-bottom: 1px solid var(--SAND);
+  border-bottom: 1px solid var(--border-seam);
   font-size: 0.9em;
   display: flex;
   align-items: center;
 }
 
 #assistant .history-menu-item:hover:not(:has(.button:hover)) {
-  background-color: var(--T4);
+  background-color: var(--surface-deep);
   padding-left: 18px;
 }
 
 #assistant .history-menu-item:active:not(:has(.button:hover)) {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 #assistant .history-menu-item-content {
@@ -602,7 +602,7 @@
 
 /* Show delete button only on hover */
 #assistant .delete-chat-button {
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 4px;
   border-radius: 4px;
   cursor: pointer;
@@ -625,13 +625,13 @@
 }
 
 #assistant .delete-chat-button:hover {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
   opacity: 0.5 !important;
 }
 
 #assistant .history-menu-item-time {
   font-size: 0.725em;
-  color: var(--STONE);
+  color: var(--text-default);
   margin-left: 8px;
   /* transition: all 0.2s ease; */
 }
@@ -641,7 +641,7 @@
 }
 
 #assistant .resuggest-button {
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 4px 8px;
   cursor: pointer;
   opacity: 0.6;
@@ -662,7 +662,7 @@
   padding: 8px;
   border-radius: 4px;
   margin: 4px 0;
-  background: var(--SAND);
+  background: var(--surface-code);
   box-sizing: border-box;
   display: block;
   position: relative; /* Create new containing block */
@@ -694,7 +694,7 @@
 }
 
 #assistant .example::-webkit-scrollbar-thumb {
-  background: var(--STONE);
+  background: var(--surface-inverse);
   border-radius: 4px;
 }
 
@@ -703,17 +703,17 @@
   white-space: pre;
   max-width: 100%;
   padding: 8px;
-  background: var(--SAND);
+  background: var(--surface-code);
   border-radius: 4px;
   margin: 4px 0;
 }
 
 #assistant .assistant-info-container {
-  color: var(--STONE);
+  color: var(--text-default);
 }
 
 #assistant .assistant-info-container a {
-  color: var(--Y3);
+  color: var(--text-warning);
   text-decoration: none;
   /* transition: all 0.2s ease; */
 }
@@ -725,14 +725,14 @@
 
 #assistant .subtitle {
   font-size: 0.8em;
-  color: var(--STONE);
+  color: var(--text-default);
   opacity: 0.5;
   margin: 1em 0 0.5em 0;
   font-style: italic;
 }
 
 #assistant .show-prompt-button {
-  color: var(--STONE);
+  color: var(--text-default);
   padding: 0.2em 1.35em;
   border-radius: 4px;
   font-weight: bold;
@@ -744,7 +744,7 @@
   width: 24px;
   height: 24px;
   opacity: 0.7;
-  fill: var(--STONE);
+  fill: var(--text-default);
 }
 
 #assistant .show-prompt-button:hover svg {
@@ -789,7 +789,7 @@
 #assistant .initial-display svg {
   width: 72px;
   height: 72px;
-  fill: var(--BR4);
+  fill: var(--text-strong);
   opacity: 89%;
 }
 
@@ -804,7 +804,7 @@
 #assistant .initial-display-text span,
 #assistant .initial-display-text .vdom-text {
   font-size: 1.25em;
-  color: var(--STONE);
+  color: var(--text-default);
   margin-top: 0.25em;
   font-weight: bold;
   text-align: center;
@@ -812,7 +812,7 @@
 
 #assistant .disclaimer-display-text {
   font-size: 0.75em;
-  color: var(--STONE);
+  color: var(--text-default);
   opacity: 0.55;
   margin-top: 0.5em;
   text-align: center;

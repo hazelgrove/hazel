@@ -4,13 +4,13 @@
   --code-text: var(--token-exp);
   --main-base: hsl(281, 80%, 95%);
   --main-shadow: hsl(281, 40%, 25%);
-  --main-indicated: var(--TYP);
+  --main-indicated: var(--text-typ);
 }
 
 /* BACKING */
 
 .projector.statics > svg {
-  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow-strong));
 }
 
 .projector.statics.indicated > svg {
@@ -25,7 +25,7 @@
 /* INLINE VIEW */
 
 .projector.statics:hover {
-  color: var(--BLACK);
+  color: var(--text-black);
 }
 
 .projector.statics .main {

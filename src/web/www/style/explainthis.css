@@ -22,13 +22,13 @@
 }
 
 #explain-this .example+.example {
-  border-top: 1px dotted var(--BR2);
+  border-top: 1px dotted var(--border-default);
   padding-top: 0.75em;
 }
 
 #explain-this .example .cell {
   width: auto;
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
 }
 
 #explain-this .example .cell-item {
@@ -83,7 +83,7 @@
 }
 
 #explain-this .header .close svg {
-  fill: var(--BR2);
+  fill: var(--text-muted);
 }
 
 #explain-this .header .close:hover svg {
@@ -163,31 +163,31 @@
 }
 
 #explain-this .feedback .option.active {
-  background-color: var(--BR2);
+  background-color: var(--surface-shard-strong);
 }
 
 .highlight-a {
-  background-color: var(--highlight-a);
+  background-color: var(--surface-highlight-a);
 }
 
 .highlight-code-a {
-  fill: var(--highlight-a);
+  fill: var(--text-highlight-a);
 }
 
 .highlight-b {
-  background-color: var(--highlight-b);
+  background-color: var(--surface-highlight-b);
 }
 
 .highlight-code-b {
-  fill: var(--highlight-b);
+  fill: var(--text-highlight-b);
 }
 
 .highlight-c {
-  background-color: var(--highlight-c);
+  background-color: var(--surface-highlight-c);
 }
 
 .highlight-code-c {
-  fill: var(--highlight-c);
+  fill: var(--text-highlight-c);
 }
 
 .highlight-d {

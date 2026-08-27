@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci lint-css dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -92,6 +92,9 @@ coverage:
 # Analyses whichever ExerciseSettings/TutorialSettings variant is currently in
 # place; deliberately does not run setup-instructor, which would flip a student
 # checkout. Do not point this at a bisect_ppx-instrumented build.
+lint-css:
+	python3 scripts/lint_css_roles.py
+
 dead-code:
 	dune build @ocaml-index --profile dev
 	python3 scripts/find_dead_code.py --no-build

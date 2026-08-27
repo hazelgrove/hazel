@@ -145,8 +145,8 @@
 .proof-button {
   cursor: pointer;
   pointer-events: all;
-  background-color: var(--BR4);
-  color: var(--T3) !important;
+  background-color: var(--surface-accent-strong);
+  color: var(--text-sunken) !important;
   padding: 0.2em 0.5em;
   border-radius: 0.2em;
   white-space: nowrap;
@@ -207,7 +207,7 @@
 
 .substituted {
   text-decoration: line-through;
-  color: var(--STONE);
+  color: var(--text-default);
 }
 
 /* TILES */
@@ -219,7 +219,7 @@
 
 .step-next > svg.shard > path,
 .step-next > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
-  fill: var(--G1) !important;
+  fill: var(--text-success-strong) !important;
   cursor: pointer;
 }
 .step-refl > svg.shard > path,
@@ -229,34 +229,34 @@
 }
 .step-taken > svg.shard > path,
 .step-taken > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
-  border: 1px var(--BR1);
-  fill: var(--BR1);
+  border: 1px var(--border-soft);
+  fill: var(--text-faint);
 }
 
 .step-next > svg > path.child-line {
-  stroke: var(--G2);
+  stroke: var(--border-success-muted);
 }
 .step-taken > svg > path.child-line {
-  stroke: var(--BR1);
+  stroke: var(--border-soft);
 }
 .step-refl > svg > path.child-line {
-  stroke: var(--TYP);
+  stroke: var(--border-typ);
 }
 
 .step-next > svg.shard {
   pointer-events: all;
   cursor: pointer;
   z-index: var(--stepper-interactive-z) !important;
-  filter: drop-shadow(1px 1px var(--G2)) !important;
+  filter: drop-shadow(1px 1px var(--shadow-success-muted)) !important;
 }
 .step-refl > svg.shard {
   pointer-events: all;
   cursor: pointer;
   z-index: var(--stepper-interactive-z) !important;
-  filter: drop-shadow(1px 1px var(--TYP)) !important;
+  filter: drop-shadow(1px 1px var(--shadow-typ)) !important;
 }
 .step-taken > svg.shard {
-  filter: drop-shadow(1px 1px var(--BR1)) !important;
+  filter: drop-shadow(1px 1px var(--shadow-soft)) !important;
 }
 
 .cell-result .code {
@@ -311,14 +311,14 @@
 
 .settings-modal .icon {
   cursor: pointer;
-  color: var(--BR2);
+  color: var(--text-muted);
   height: 20px;
   left: 7px;
   bottom: 7px;
 }
 
 .settings-modal .icon svg {
-  fill: var(--BR2);
+  fill: var(--text-muted);
 }
 
 .settings-modal .icon.disabled {

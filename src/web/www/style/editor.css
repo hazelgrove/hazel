@@ -59,12 +59,12 @@
 }
 
 .code .code-text.line-numbers-text :not(.line-numbers-bold) {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 .code .code-text.line-numbers-text .line-numbers-bold {
   font-weight: bolder;
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 /* This is a hack to compensating for default linebreak handling
@@ -392,8 +392,8 @@ svg.shard.selected.buffer-parsed {
   );
 }
 svg.shard.selected.buffer-parsed > path {
-  fill: var(--T1);
-  stroke: var(--T1);
+  fill: var(--text-surface);
+  stroke: var(--border-surface);
 }
 
 /* VAR HIGHLIGHT DECO */
@@ -653,7 +653,7 @@ svg:has(.child-line) {
 }
 .context-menu .group .contents .named-menu-item:hover,
 .context-menu .group .contents .named-menu-item.selected {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   border-radius: 0.2em;
 }
 /* When hovering any item, suppress keyboard-selected highlight */

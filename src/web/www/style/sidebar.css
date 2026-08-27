@@ -37,7 +37,7 @@
 /* Persistent Sidebar */
 
 #persistent {
-  border-left: 0.6px solid var(--BR2);
+  border-left: 0.6px solid var(--border-default);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -46,7 +46,7 @@
   flex-direction: column;
   gap: 1em;
   background-color: var(--ui-bkg);
-  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
 }
 
 #persistent .tabs {
@@ -63,7 +63,7 @@
   height: 6.5em;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  fill: var(--BR3);
+  fill: var(--text-accent);
 }
 
 .collapse-button {
@@ -71,18 +71,18 @@
 }
 
 #persistent .tab.active {
-  border-right: 0.2em solid var(--BR3);
+  border-right: 0.2em solid var(--border-strong);
   padding-left: 0.2em;
-  fill: var(--BR4);
+  fill: var(--text-strong);
 }
 
 #persistent .tab:hover {
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
 }
 
 #persistent .tab:focus,
 #persistent .tab:active {
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
 }
 
 /* Status indicator inside sidebar tab */
@@ -158,7 +158,7 @@
   flex-direction: column;
   padding: 0.5em;
   overflow-y: auto;
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .problem-section-header {
@@ -179,8 +179,8 @@
   font-size: 0.9em;
   padding: 0.5em 0.5em 0.25em;
   margin-top: 0.25em;
-  border-top: 1px solid var(--BR2);
-  color: var(--BR3);
+  border-top: 1px solid var(--border-default);
+  color: var(--text-accent);
   user-select: none;
   cursor: pointer;
 }
@@ -209,12 +209,12 @@
   padding: 0.5em;
   padding-left: 0.75em;
   margin-bottom: 3px;
-  border-bottom: 1px solid var(--BR2);
-  border-left: 3px solid color-mix(in srgb, var(--R1) 40%, transparent);
-  background-color: color-mix(in srgb, var(--R0) 50%, transparent);
+  border-bottom: 1px solid var(--border-default);
+  border-left: 3px solid color-mix(in srgb, var(--border-error) 40%, transparent);
+  background-color: color-mix(in srgb, var(--surface-error-soft) 50%, transparent);
   cursor: pointer;
   transition: background-color 0.15s ease;
-  color: var(--STONE);
+  color: var(--text-default);
 }
 
 .problem-row > .status,
@@ -262,30 +262,30 @@
 }
 
 .problem-row:hover {
-  background-color: var(--R0);
+  background-color: var(--surface-error-soft);
   filter: brightness(0.95);
 }
 
 .problem-row.active {
-  border-left: 5px solid var(--R2);
+  border-left: 5px solid var(--border-error-strong);
   background-color: var(--ci-status-error-bkg);
-  box-shadow: inset 0 0 0 1px var(--R1);
+  box-shadow: inset 0 0 0 1px var(--shadow-error);
   font-weight: 600;
 }
 
 .problem-row.syntax {
-  border-left: 3px solid color-mix(in srgb, var(--Y1) 60%, transparent);
-  background-color: color-mix(in srgb, var(--Y0) 50%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--border-highlight) 60%, transparent);
+  background-color: color-mix(in srgb, var(--surface-highlight-soft) 50%, transparent);
 }
 
 .problem-row.syntax:hover {
-  background-color: var(--Y0);
+  background-color: var(--surface-highlight-soft);
 }
 
 .problem-row.syntax.active {
-  border-left: 5px solid var(--Y2);
-  background-color: color-mix(in srgb, var(--Y0) 80%, transparent);
-  box-shadow: inset 0 0 0 1px var(--Y1);
+  border-left: 5px solid var(--border-highlight-strong);
+  background-color: color-mix(in srgb, var(--surface-highlight-soft) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--shadow-highlight);
 }
 
 .problem-row.hole {
@@ -335,7 +335,7 @@
   display: flex;
   gap: 0.75em;
   padding: 0.5em;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
   font-size: 0.8em;
 }
 
@@ -353,7 +353,7 @@
 }
 
 .legend-swatch.syntax {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 .legend-swatch.hole {
@@ -361,7 +361,7 @@
 }
 
 .legend-swatch.static {
-  background-color: var(--R1);
+  background-color: var(--surface-error);
 }
 
 .legend-swatch.warning {
@@ -369,7 +369,7 @@
 }
 
 .legend-swatch.projector-error {
-  background-color: var(--R1);
+  background-color: var(--surface-error);
 }
 
 .problem-nav-buttons {
@@ -388,8 +388,8 @@
   border-radius: 3px;
   font-size: 12px;
   user-select: none;
-  color: var(--BR2);
-  border: 1px solid var(--BR2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
 }
 
 .problem-nav-btn:hover {
@@ -401,16 +401,16 @@
   display: flex;
   gap: 0;
   padding: 0.5em;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .toggle-option {
   padding: 0.2em 0.6em;
   font-size: 0.85em;
   cursor: pointer;
-  border: 1px solid var(--BR1);
+  border: 1px solid var(--border-soft);
   user-select: none;
-  color: var(--BR2);
+  color: var(--text-muted);
   min-width: 5.5em;
   display: flex;
   justify-content: center;
@@ -429,16 +429,16 @@
 }
 
 .toggle-option.active {
-  background-color: var(--Y1);
-  color: var(--BR4);
+  background-color: var(--surface-highlight);
+  color: var(--text-strong);
 }
 .toggle-option:not(.active):hover {
-  background-color: var(--Y0);
+  background-color: var(--surface-highlight-soft);
 }
 
 .no-problems-message {
   text-align: center;
-  color: var(--BR3);
+  color: var(--text-accent);
   padding: 1em;
 }
 
@@ -458,7 +458,7 @@
 #debug-sidebar .panel-title-bar {
   flex: 0 0 auto;
   padding: 0.5em 0.8em;
-  border-bottom: 1px solid var(--BR1);
+  border-bottom: 1px solid var(--border-soft);
   font-weight: bold;
   text-transform: uppercase;
   color: var(--ui-header-text);
@@ -469,7 +469,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.5em 0.8em 2em;
-  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
 }
 
 #debug-sidebar .debug-toggle-bar {
@@ -479,13 +479,13 @@
   justify-content: space-between;
   gap: 0.6em;
   padding: 0.35em 0.8em;
-  border-bottom: 1px solid var(--BR1);
-  background-color: color-mix(in srgb, var(--T1) 70%, transparent);
+  border-bottom: 1px solid var(--border-soft);
+  background-color: color-mix(in srgb, var(--surface-default) 70%, transparent);
 }
 
 #debug-sidebar .debug-toggle-label {
   font-size: 0.86em;
-  color: var(--STONE);
+  color: var(--text-default);
   font-style: italic;
 }
 
@@ -493,24 +493,24 @@
   padding: 0.2em 0.6em;
   font-size: 0.86em;
   font-weight: 600;
-  color: var(--BR4);
-  background-color: var(--SAND);
-  border: 1px solid var(--BR1);
+  color: var(--text-strong);
+  background-color: var(--surface-code);
+  border: 1px solid var(--border-soft);
   border-radius: 3px;
   cursor: pointer;
   user-select: none;
 }
 
 #debug-sidebar .debug-toggle-button:hover {
-  background-color: var(--T2);
-  border-color: var(--BR3);
+  background-color: var(--surface-raised);
+  border-color: var(--border-strong);
 }
 
 #debug-sidebar .debug-field-value:not(.raw) {
   /* Rendered code views bring their own typography; keep the wrapper plain. */
   padding: 0.15em 0.25em;
-  background-color: var(--SAND);
-  border: 1px solid var(--BR1);
+  background-color: var(--surface-code);
+  border: 1px solid var(--border-soft);
   border-radius: 2px;
   overflow-x: auto;
 }
@@ -529,8 +529,8 @@
   padding-bottom: 0.2em;
   font-weight: 600;
   font-size: 1em;
-  color: var(--BR4);
-  border-bottom: 1px solid var(--BR1);
+  color: var(--text-strong);
+  border-bottom: 1px solid var(--border-soft);
   letter-spacing: 0.02em;
   cursor: pointer;
   user-select: none;
@@ -557,8 +557,8 @@
 #debug-sidebar .debug-field {
   margin: 0.35em 0;
   padding: 0.25em 0.4em;
-  border-left: 2px solid var(--BR2);
-  background-color: color-mix(in srgb, var(--T1) 60%, transparent);
+  border-left: 2px solid var(--border-default);
+  background-color: color-mix(in srgb, var(--surface-default) 60%, transparent);
   border-radius: 2px;
 }
 
@@ -569,7 +569,7 @@
   font-family: var(--ui-font);
   font-size: 0.86em;
   font-weight: 600;
-  color: var(--STONE);
+  color: var(--text-default);
   letter-spacing: 0.02em;
   margin-bottom: 0.15em;
 }
@@ -590,7 +590,7 @@
   font-size: 0.9em;
   opacity: 0;
   cursor: pointer;
-  color: var(--BR3);
+  color: var(--text-accent);
   transition: opacity 0.12s ease, color 0.12s ease;
 }
 
@@ -600,7 +600,7 @@
 
 #debug-sidebar .debug-copy-button:hover {
   opacity: 1;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 #debug-sidebar .debug-field-value {
@@ -611,9 +611,9 @@
   line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--STONE);
-  background-color: var(--SAND);
-  border: 1px solid var(--BR1);
+  color: var(--text-default);
+  background-color: var(--surface-code);
+  border: 1px solid var(--border-soft);
   border-radius: 2px;
   max-height: 14em;
   overflow: auto;
@@ -628,7 +628,7 @@
 
 #debug-sidebar .debug-ctx-empty {
   font-style: italic;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 #debug-sidebar .debug-ctx-row,
@@ -638,7 +638,7 @@
   align-items: baseline;
   gap: 0.4em;
   padding: 0.1em 0;
-  border-bottom: 1px dotted var(--BR1);
+  border-bottom: 1px dotted var(--border-soft);
 }
 
 #debug-sidebar .debug-ctx-row:last-child,
@@ -648,7 +648,7 @@
 
 #debug-sidebar .debug-ctx-name {
   font-weight: 600;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 #debug-sidebar .debug-ctx-body {
@@ -660,7 +660,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 0.3em;
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 /* Worker Messaging section: per-variant on/off chips above the shared table. */
@@ -680,7 +680,7 @@
 }
 
 #debug-sidebar .wm-toggle.on {
-  color: var(--BR4);
+  color: var(--text-strong);
 }
 
 #debug-sidebar .wm-toggle.off {
@@ -689,7 +689,7 @@
 }
 
 #debug-sidebar .wm-toggle:hover {
-  background: var(--T3);
+  background: var(--surface-sunken);
 }
 
 /* All requests share one benchmark table so columns align; requests are
@@ -713,8 +713,8 @@
 
 #debug-sidebar .wire-metrics-table .wm-head {
   font-weight: 600;
-  color: var(--BR3);
-  border-bottom: 1px solid var(--BR1);
+  color: var(--text-accent);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 #debug-sidebar .wire-metrics-table .wm-wire {
@@ -735,24 +735,24 @@
 
 #debug-sidebar .wire-metrics-table .wm-req {
   font-weight: 600;
-  color: var(--BR4);
-  background: var(--T3);
-  border-top: 2px solid var(--BR2);
+  color: var(--text-strong);
+  background: var(--surface-sunken);
+  border-top: 2px solid var(--border-default);
 }
 
 #debug-sidebar .wire-metrics-table .wm-resp,
 #debug-sidebar .wire-metrics-table .wm-note {
   font-style: italic;
-  color: var(--BR3);
+  color: var(--text-accent);
   opacity: 0.8;
 }
 
 #debug-sidebar .wire-metrics-table .wm-ok {
-  color: var(--G0);
+  color: var(--text-success);
 }
 
 #debug-sidebar .wire-metrics-table .wm-fail {
-  color: var(--R2);
+  color: var(--text-error-strong);
   text-align: left;
   max-width: 8em;
   overflow: hidden;

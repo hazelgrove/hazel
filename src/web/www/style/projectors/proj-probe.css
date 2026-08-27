@@ -1,17 +1,17 @@
 /* Probe Projector */
 :root {
   --code-text: var(--token-exp);
-  --live-env-bkg: var(--T3);
+  --live-env-bkg: var(--surface-sunken);
 
-  --num-samples: var(--Y1);
-  --num-samples-indicated: var(--R1);
+  --num-samples: var(--surface-highlight);
+  --num-samples-indicated: var(--surface-error);
 
   --exp-ap: hsl(265, 75%, 80%);
   --pat-ap: hsl(220, 75%, 80%);
 
-  --exp-indicated: var(--G0);
-  --pat-indicated: var(--PAT);
-  --exp-ap-indicated: var(--TYP);
+  --exp-indicated: var(--text-success);
+  --pat-indicated: var(--text-pat);
+  --exp-ap-indicated: var(--text-typ);
 
   --exp-base: hsl(120, 40%, 85%);
   --pat-base: hsl(170, 40%, 85%);
@@ -85,22 +85,22 @@
   display: none;
 }
 .code-deco .refractors svg path.child-line {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
 }
 /* Kind-based colors for refractor arms: probe = green, type = purple */
 .code-deco .refractors svg path.child-line.probe {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
 }
 .code-deco .refractors svg path.child-line.statics {
   stroke: #bd92cf !important;
 }
 .code-deco .refractors svg path.child-line.repl {
-  stroke: var(--BR3) !important;
+  stroke: var(--border-strong) !important;
   /* stroke-dasharray: 0.5 2.5; */
   opacity: 0.25;
 }
 .code-deco .refractors svg path.child-line.repl-indicated {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
   stroke-dasharray: none;
 }
 
@@ -113,7 +113,7 @@
 }
 
 .code-deco .refractors svg.shard.indicated {
-  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-success));
 }
 
 .refractors .overlays .projector.probe .num-samples {
@@ -145,7 +145,7 @@
   opacity: 0.4;
 }
 .refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
-  stroke: var(--G0) !important;
+  stroke: var(--border-success) !important;
   opacity: 1;
 }
 .refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
@@ -244,15 +244,15 @@
 }
 .overlays .projector.probe.Pat .num-samples {
   --original-bg: var(--pat-base);
-  color: var(--PAT);
+  color: var(--text-pat);
 }
 .overlays .projector.probe.indicated.Exp .num-samples {
   --original-bg: var(--exp-indicated);
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 .overlays .projector.probe.indicated.Pat .num-samples {
   --original-bg: var(--pat-indicated);
-  color: var(--SAND);
+  color: var(--text-inverse);
 }
 /* .overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
@@ -265,7 +265,7 @@
 @keyframes blink-probe-caret {
   from,
   to {
-    background-color: var(--R1);
+    background-color: var(--surface-error);
   }
 
   50% {
@@ -279,7 +279,7 @@
 }
 
 .overlays .projector.probe.selected:not(.indicated) .num-samples {
-  color: var(--STONE);
+  color: var(--text-default);
 }
 
 .live-offside .pin {
@@ -290,7 +290,7 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(../../img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -306,7 +306,7 @@
   height: 0.7em;
   width: 0.7em;
   border-radius: 1em;
-  background: var(--R1);
+  background: var(--surface-error);
   transform-origin: top right;
   scale: 0.6;
 }
@@ -414,7 +414,7 @@
   --bottom-border-clr: oklch(0.4 0 0);
 }
 .live-offside .sample:has(.value.indet.focus) .value {
-  background-color: var(--T2) !important;
+  background-color: var(--surface-raised) !important;
 }
 /* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
@@ -557,7 +557,7 @@
 @keyframes flash-border {
   0%,
   50% {
-    border-bottom-color: var(--R1);
+    border-bottom-color: var(--border-error);
   }
   51%,
   100% {
@@ -565,7 +565,7 @@
   }
 }
 .projector.probe:not(.indicated) .sample:hover .value {
-  border-bottom: 1px double var(--R1);
+  border-bottom: 1px double var(--border-error);
   animation: flash-border 1s infinite;
 }
 
@@ -579,11 +579,11 @@
 }
 
 .projector.probe.indicated .live-offside:focus .sample:has(.value.focus) .value {
-  outline: 1.5px solid var(--R1);
+  outline: 1.5px solid var(--border-error);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
 .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
-  outline: 1.5px solid var(--G0);
+  outline: 1.5px solid var(--border-success);
 }
 
 .live-offside .sample:hover {
@@ -675,7 +675,7 @@
 }
 .live-offside.Many .value.related-after .code-text .token,
 .live-offside.Single .value.related-after .code-text .token {
-  color: var(--PAT);
+  color: var(--text-pat);
 }
 
 /* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
@@ -686,14 +686,14 @@
 
 .live-offside .sample-context-menu {
   border-radius: 0 0.2em 0.2em 0.2em;
-  background-color: var(--BR1);
+  background-color: var(--surface-shard);
   display: none;
   position: absolute;
   /* translate: 0 1px; */
   left: 3px;
   /* scale: 0.75; */
   transform-origin: top left;
-  border-bottom: 1px solid var(--BR2);
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* Context actions section */
@@ -729,7 +729,7 @@
 }
 
 .sample-context-menu .action-item:hover {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .sample-context-menu .action-item .shortcut {
@@ -737,19 +737,19 @@
   padding: 0 0.3em;
   font-size: 0.8em;
   opacity: 0.5;
-  background-color: var(--T2);
+  background-color: var(--surface-raised);
   border-radius: 0.2em;
 }
 
 .sample-context-menu .action-item.pinned .pin-icon {
-  background-color: var(--R1);
+  background-color: var(--surface-error);
 }
 
 .sample-context-menu .action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(../../img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -769,7 +769,7 @@
 }
 
 .sample-context-menu .action-item:hover .pin-icon {
-  background-color: var(--R1);
+  background-color: var(--surface-error);
 }
 
 .sample-context-menu .action-item.rich-probe-action .table-badge {
@@ -779,7 +779,7 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background-color: var(--LABEL);
+  background-color: var(--surface-label);
   scale: 0.75;
 }
 
@@ -798,7 +798,7 @@
 }
 
 .sample-context-menu .context-actions + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
+  border-top: 0.6px solid var(--border-strong);
 }
 
 /* Call display section showing function call with argument values */
@@ -810,16 +810,16 @@
   background-color: var(--live-env-bkg);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-  color: var(--GB0);
+  color: var(--text-info);
   white-space: nowrap;
 }
 
 .sample-context-menu .context-actions + .call-display {
-  border-top: 0.6px solid var(--BR3);
+  border-top: 0.6px solid var(--border-strong);
 }
 
 .sample-context-menu .call-display + .environment-section .live-env {
-  border-top: 0.6px solid var(--BR3);
+  border-top: 0.6px solid var(--border-strong);
 }
 
 .sample-context-menu .call-display .paren {
@@ -864,7 +864,7 @@
   flex-direction: row;
   white-space: pre;
   align-items: baseline;
-  color: var(--GB0);
+  color: var(--text-info);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
 }
@@ -875,7 +875,7 @@
   color: var(--exp-indicated);
   background: url(../../img/noun-arrow-3130579.svg);
   background-size: cover;
-  color: var(--NONE);
+  color: var(--text-none);
 }
 .projector.probe .nav-arrow:not(.disabled) {
   cursor: pointer;
