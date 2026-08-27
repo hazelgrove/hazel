@@ -13,20 +13,6 @@ module Model = {
     cur_exercise: Haz3lcore.Id.t,
     exercise_data: list((Haz3lcore.Id.t, TutorialMode.Model.persistent)),
   };
-  let persist = (~instructor_mode, model): persistent => {
-    {
-      cur_exercise: List.nth(model.exercises, model.current).editors.id,
-      exercise_data:
-        List.map(
-          (exercise: TutorialMode.Model.t) =>
-            (
-              exercise.editors.id,
-              TutorialMode.Model.persist(~instructor_mode, exercise),
-            ),
-          model.exercises,
-        ),
-    };
-  };
   let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
@@ -57,9 +43,6 @@ module StoreTutorialKey =
     let key = Store.CurrentTutorial;
   });
 module Store = {
-  let keystring_of_key = key => {
-    key |> Haz3lcore.Id.to_string;
-  };
   let save_exercise = (exercise: TutorialMode.Model.t, ~instructor_mode) => {
     let key = Tutorial.id_of(exercise.editors);
     let value = TutorialMode.Model.persist(exercise, ~instructor_mode);

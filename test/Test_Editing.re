@@ -17,8 +17,6 @@ let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
 let selection_char = "§"; /* Note this is two bytes */
-let caret_regexp = StringUtil.regexp(caret_char);
-
 let printer = (z: Zipper.t): string => {
   Printer.of_zipper(
     ~holes=convex_char,
@@ -2423,13 +2421,6 @@ let module_tests = [
 
    The test_complete helper checks both printer output AND that no
    incomplete tiles remain, which catches the structural breakage. */
-
-/* Helper: check that a zipper has a non-empty backpack (i.e. there are
- * missing shards from incomplete tiles visible at the caret position).
- * A non-empty backpack after entering what should be a complete program
- * indicates structural breakage. */
-let zip_backpack_empty = (z: Zipper.t): bool =>
-  Zipper.local_backpack(z) == [];
 
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
@@ -4875,14 +4866,15 @@ let inner_destruct_tests = [
     ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
     ~goal={|1 + "a¦"|},
   ),
-  /* Quote-wrapping drops the selection; its Inner caret must go too. */
+  /* Quote-wrapping wraps exactly the selected characters, not the whole
+   * boundary tokens, and the selection's Inner caret must not survive it. */
   test(
     ~name="Wrap char-level selection in quotes",
     ~acts=
       mk({|"aa" ++ "x"¦|})
       @ mv_l(4)
       @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
-    ~goal={|"aa" ~"++"~¦ "x"|},
+    ~goal={|"aa" +"+"~¦ "x"|},
   ),
   test(
     ~name="Delete after wrapping char-level selection in quotes",
@@ -4894,7 +4886,121 @@ let inner_destruct_tests = [
         Insert("\""),
         Destruct(Right),
       ],
-    ~goal={|"aa" ~"++"~¦"x"|},
+    ~goal={|"aa" +"+"~¦"x"|},
+  ),
+  /* Only `c` is wrapped; `ab` and `d` survive on either side. The trailing
+   * hole is how Hazel already grouts three adjacent operands — typing
+   * `ab"c"d` from scratch produces the same shape. */
+  test(
+    ~name="Wrap char-level selection interior to a token in quotes",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("\"")],
+    ~goal={|ab~"c"¦d?|},
+  ),
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in quotes",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("\"")],
+    ~goal={|abc +"+ xyz"¦|},
+  ),
+  /* smart_rounded displays the anchor at its piece's outer edge, so the
+   * whole starting token is what gets wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection takes the whole starting token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("\""),
+      ],
+    ~goal={|abc ++" xyz"¦|},
+  ),
+  /* Balanced wrapping likewise takes only the selected characters: the
+   * unselected head and tail of the boundary tokens stay outside the new
+   * tile, on opposite sides of it. The operator holes are how Hazel already
+   * grouts a paren tile beside an operand — typing `(ab)cd` or `1 + 2(3)4`
+   * from scratch grouts the same way. */
+  test(
+    ~name="Wrap char-level selection interior to a token in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("(")],
+    ~goal={|ab(§c¦)~d|},
+  ),
+  test(
+    ~name="Wrap right-focused char-level selection in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(3) @ sel_r(2) @ [Insert("(")],
+    ~goal={|a(§bc¦)~d|},
+  ),
+  /* Partial `++` outside, its other half plus the whole of `xyz` inside. */
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in parens",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("(")],
+    ~goal={|abc +(?§+ xyz¦)|},
+  ),
+  /* Selection reaching a token edge has a remainder on one side only. */
+  test(
+    ~name="Wrap char-level selection ending on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ sel_l(2) @ [Insert("(")],
+    ~goal={|ab(§cd¦)|},
+  ),
+  test(
+    ~name="Wrap char-level selection starting on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(2) @ sel_l(2) @ [Insert("(")],
+    ~goal={|(§ab¦)~cd|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in brackets",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("[")],
+    ~goal={|ab~[§c¦]~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in braces",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("{")],
+    ~goal={|ab~{§c¦}~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection in parens inside a let",
+    ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(1) @ [Insert("(")],
+    ~goal={|let x = 1(§2¦)~34 in x|},
+  ),
+  test(
+    ~name="Edit after wrapping char-level selection in parens",
+    ~acts=
+      mk({|abcd¦|})
+      @ mv_l(1)
+      @ sel_l(1)
+      @ [Insert("("), Unselect(None)]
+      @ string_to_ltr_actions("+1"),
+    ~goal={|ab(c+1¦)~d|},
+  ),
+  /* smart_rounded reads the anchor as Outer, so the whole token is wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection in parens takes the whole token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("("),
+      ],
+    ~goal={|abc ++(§ xyz¦)|},
+  ),
+  /* Whole-piece selections are untouched by the split. */
+  test(
+    ~name="Wrap whole-token selection in parens beside an operand",
+    ~acts=
+      mk({|¦ab cd|})
+      @ [Select(Resize(Local(Right, ByToken)))]
+      @ [Insert("(")],
+    ~goal={|(§ab¦) ~cd|},
+  ),
+  /* Splitting a string would strand its delimiters, so it wraps whole. */
+  test(
+    ~name="Wrap char-level selection inside a string wraps the whole string",
+    ~acts=mk({|"abcd"¦|}) @ mv_l(2) @ sel_l(1) @ [Insert("(")],
+    ~goal={|(§"abcd"¦)|},
   ),
 ];
 
@@ -5002,6 +5108,133 @@ let grapheme_tests = [
       @ string_to_ltr_actions("11")
       @ [Destruct(Left), Destruct(Left)],
     ~goal={|"👨‍👩‍👧¦"|},
+  ),
+  /* Outside string literals. Wide clusters used to be measured as one column
+   * everywhere but inside a string, so the caret drifted left of where it was
+   * drawn on any row containing one. */
+  test(
+    ~name="Insert emoji into a comment",
+    ~acts=mk({|#he¦llo#|}) @ [Insert({|😀|})],
+    ~goal={|#he😀¦llo#?|},
+  ),
+  test(
+    ~name="Insert after emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Insert("X")],
+    ~goal={|#he😀X¦llo#?|},
+  ),
+  test(
+    ~name="Backspace an emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Destruct(Left)],
+    ~goal={|#he¦llo#?|},
+  ),
+  test(
+    ~name="Move by char across emoji in a comment",
+    ~acts=mk({|#a😀b#¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|#a😀¦b#?|},
+  ),
+  test(
+    ~name="Insert after CJK in a comment",
+    ~acts=mk({|#日本¦語#|}) @ [Insert("X")],
+    ~goal={|#日本X¦語#?|},
+  ),
+  test(
+    ~name="Caret after a comment containing an emoji",
+    ~acts=mk({|#😀# 1 + ¦2|}),
+    ~goal={|#😀# 1 + ¦2|},
+  ),
+  test(
+    ~name="Insert emoji into an identifier",
+    ~acts=mk({|ab¦c|}) @ [Insert({|😀|})],
+    ~goal={|ab😀¦c|},
+  ),
+  test_case(
+    "Unicode identifiers are a single tile",
+    `Quick,
+    () => {
+      /* Names take Unicode letters, digits, marks and emoji, so none of these
+       * split. Pinned because the printed text gives no hint of tile count. */
+      let tiles = acts => {
+        let z = acts |> perform(Zipper.init());
+        Zipper.unselect_and_zip(~erase_buffer=true, z)
+        |> List.filter_map((p: Piece.t) =>
+             switch (p) {
+             | Tile(t) => Some(String.concat("", t.label))
+             | _ => None
+             }
+           );
+      };
+      check(
+        list(string),
+        "emoji inside a name",
+        [{|ab😀c|}],
+        tiles(mk({|ab¦c|}) @ [Insert({|😀|})]),
+      );
+      check(
+        list(string),
+        "accented name",
+        [{|café|}],
+        tiles(mk({|café¦|})),
+      );
+      check(
+        list(string),
+        "CJK name",
+        [{|日本語|}],
+        tiles(mk({|日本語¦|})),
+      );
+      check(
+        list(string),
+        "name led by an emoji",
+        [{|😀x|}],
+        tiles(mk({|😀x¦|})),
+      );
+      /* Decomposed: e + U+0301, one grapheme, still one name. */
+      check(
+        list(string),
+        "decomposed accent stays in the name",
+        ["cafe\xcc\x81"],
+        tiles(mk("cafe\xcc\x81\xc2\xa6")),
+      );
+      check(
+        list(string),
+        "operator next to a Unicode name still splits",
+        [{|café|}, "+", "1"],
+        tiles(mk({|café+1¦|})),
+      );
+    },
+  ),
+  test(
+    ~name="Backspace removes one grapheme from a Unicode name",
+    ~acts=mk({|café¦|}) @ [Destruct(Left)],
+    ~goal={|caf¦|},
+  ),
+  test_case(
+    "Wide clusters outside strings are measured as two columns",
+    `Quick,
+    () => {
+      let cols = (init: string) => {
+        let z = mk(init) |> perform(Zipper.init());
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        let m = Printer.measured_no_projectors(seg);
+        (
+          Zipper.Caret.point(m, z).col,
+          Measured.Rows.find(0, m.rows).max_col,
+        );
+      };
+      /* `#a😀b#` is five clusters but six columns */
+      check(pair(int, int), "comment", (6, 7), cols({|#a😀b#¦|}));
+      check(
+        pair(int, int),
+        "cjk comment",
+        (8, 9),
+        cols({|#日本語#¦|}),
+      );
+      check(
+        pair(int, int),
+        "string literal",
+        (6, 6),
+        cols({|"a😀b"¦|}),
+      );
+    },
   ),
 ];
 

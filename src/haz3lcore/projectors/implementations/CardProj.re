@@ -61,12 +61,6 @@ module SyntaxTerm = {
     | None => failwith("Cards: Get: seg_to_term ")
     };
 
-  let width_of_syntax = (syntax: state): int =>
-    switch (syntax) {
-    | (_, Card(_)) => 1
-    | (_, Hand(hand)) => List.length(hand)
-    };
-
   /* A hand is a FAN: each card after the first advances 8.5px (see
      card_wrapper), ~0.817 columns at default zoom. The base covers the
      top card (37px incl. border ~3.56 cols) plus the tab-extent's
