@@ -1078,41 +1078,29 @@ module Selection = {
       };
     cursor
     |> Cursor.with_actions([
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Export),
-           "Export Current Scratchpad",
+           ExportCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Encode),
-           "Encode Current Scratchpad in URL",
+           EncodeCurrentScratchpadInUrl,
          ),
-         ContextualAction.mk(
-           ~mdIcon="add",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddSlide),
-           "Add New Code Scratchpad",
+           AddNewCodeScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="rule",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddDrvSlide),
-           "Add New Derivation Scratchpad",
+           AddNewDerivationScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="edit",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(RenameSlide),
-           "Rename Current Scratchpad",
+           RenameCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="delete",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(DeleteSlide),
-           "Delete Current Scratchpad",
+           DeleteCurrentScratchpad,
          ),
        ]);
   };

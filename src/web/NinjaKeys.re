@@ -45,8 +45,8 @@ let of_contextual_action =
   ];
 };
 
-/* The Shortcuts config slide wins over the built-in ~hotkey literals at the
-   ContextualAction.mk sites. An action the config leaves Unbound maps to
+/* The Shortcuts config slide wins over the
+   ShortcutAction registry defaults. An action the config leaves Unbound maps to
    None here, which CLEARS the default rather than falling back to it.
 
    Overrides are applied on the way in rather than mutated afterwards: this

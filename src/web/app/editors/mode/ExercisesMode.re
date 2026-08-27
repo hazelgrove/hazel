@@ -523,27 +523,21 @@ module Selection = {
     cursor
     |> Cursor.with_actions(
          [
-           ContextualAction.mk(
-             ~mdIcon="download",
-             ~section="Export",
+           ContextualAction.of_shortcut(
              ~action=inject(ExportSubmission),
-             "Export Submission",
+             ExportSubmission,
            ),
          ]
          @ (
            if (ExerciseSettings.show_instructor) {
              [
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportModule),
-                 "Export Exercise Module",
+                 ExportExerciseModule,
                ),
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportTransitionary),
-                 "Export Transitionary Exercise Module",
+                 ExportTransitionaryExerciseModule,
                ),
              ];
            } else {

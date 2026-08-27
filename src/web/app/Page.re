@@ -498,8 +498,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
       ~selection,
@@ -507,135 +506,77 @@ module Selection = {
     )
     |> Cursor.with_actions([
          /* Undo / Redo */
-         mk(
-           ~mdIcon="undo",
-           ~hotkey=meta ++ "+z",
-           ~action=inject(Globals(Undo)),
-           "Undo",
-         ),
-         mk(
-           ~mdIcon="redo",
-           ~hotkey=meta ++ "+shift+z",
-           ~action=inject(Globals(Redo)),
-           "Redo",
-         ),
+         of_shortcut(~action=inject(Globals(Undo)), Undo),
+         of_shortcut(~action=inject(Globals(Redo)), Redo),
          /* Settings */
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
-           ~action=inject(Globals(Set(Statics))),
-           "Toggle Statics",
-         ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(~action=inject(Globals(Set(Statics))), ToggleStatics),
+         of_shortcut(
            ~action=inject(Globals(Set(Assist))),
-           "Toggle Completion",
+           ToggleCompletion,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
-           "Toggle Show Whitespace",
+           ToggleShowWhitespace,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SelectionChunkiness))),
-           "Toggle Character-level Mouse",
+           ToggleCharacterLevelMouse,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Benchmark))),
-           "Toggle Print Benchmarks",
+           TogglePrintBenchmarks,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ShowDebugPanel))),
-           "Toggle Debug Sidebar",
+           ToggleDebugSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Dynamics))),
-           "Toggle Dynamics",
+           ToggleDynamics,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Elaborate))),
-           "Toggle Show Elaboration",
+           ToggleShowElaboration,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
-           "Toggle Show Function Bodies",
+           ToggleShowFunctionBodies,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
-           "Toggle Show Case Clauses",
+           ToggleShowCaseClauses,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
-           "Toggle Show fixpoints",
+           ToggleShowFixpoints,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
-           "Toggle Show Ascription Steps",
+           ToggleShowAscriptionSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
-           "Toggle Show Lookup Steps",
+           ToggleShowLookupSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
-           "Toggle Show Stepper Filters",
+           ToggleShowStepperFilters,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
-           "Toggle Show Hidden Steps",
+           ToggleShowHiddenSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
-           "Toggle Show Sidebar",
+           ToggleShowSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
-           "Toggle Show Docs Feedback",
+           ToggleShowDocsFeedback,
          ),
          /* Export / Diagnostics */
-         mk(
-           ~mdIcon="download",
-           ~section="Export",
-           ~action=inject(Globals(ExportForInit)),
-           "Export For Init",
-         ),
-         mk(
-           ~mdIcon="timer",
-           ~section="Diagnostics",
-           ~hotkey="F7",
-           ~action=inject(Benchmark(Start)),
-           "Run Benchmark",
-         ),
+         of_shortcut(~action=inject(Globals(ExportForInit)), ExportForInit),
+         of_shortcut(~action=inject(Benchmark(Start)), RunBenchmark),
        ]);
   };
 };
