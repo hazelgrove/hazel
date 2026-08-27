@@ -210,6 +210,10 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~queue_worker: option(WorkerServer.Request.value => unit),
+        /* the pending-eval worklist feeds THIS editor's own pending
+           highlight; hosts whose editor isn't rendered (the hidden
+           master while a stack is open) skip the O(program) walk */
+        ~compute_pending=true,
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
         {
@@ -315,7 +319,7 @@ module Update = {
     let pending_eval_ids =
       switch (result) {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
-        if (Calc.get_value(settings).dynamics) {
+        if (compute_pending && Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
           | Some(_) => EvalWorklist.pending_ids(statics.info_map)
           | None => []

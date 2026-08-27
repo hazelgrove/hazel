@@ -1247,6 +1247,22 @@ module Persist = {
      but reuse the agent field). */
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
 
+  /* Same gate for the EDITOR blob: the 1Hz autosave re-serialized the
+     whole program (splice + to_text, ~0.7s at 1k) even while idle.
+     Content identity = the unstacked master zipper, or the live focus
+     record (any cell edit — including caret moves, which the caret
+     side key wants — rebuilds them). */
+  type save_stamp =
+    | Unstacked(Zipper.t)
+    | Stacked(Model.focus_t);
+  let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
+  let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
+    switch (a, b) {
+    | (Unstacked(x), Unstacked(y)) => x === y
+    | (Stacked(x), Stacked(y)) => x === y
+    | _ => false
+    };
+
   /* the scratchpad persistence should see: the master with any live
      focus-cell edits spliced in — never the bare focus cell. But it
      must NOT build a live editor for the spliced program: cell_of_seg
@@ -1283,71 +1299,87 @@ module Persist = {
     switch (sp.dormant, sp.kind) {
     | (true, _) => () /* never write a placeholder over the stored slide */
     | (false, Code({editor, agent})) =>
-      /* UNSTACKED saves are text-backed too: Zipper.sexp_of_t costs
-         ~2.5s per autosave tick at 1k lines. The caret can't ride the
-         text, so it saves as a (row col) side key and restores as a
-         Move(Point) after hydration. */
-      switch (model.focus) {
-      | Some(_) => ()
-      | None =>
-        let z = editor.editor.editor.state.zipper;
-        switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
-        | exception _ => ()
-        | Point.{row, col} =>
-          HazelDB.kv_save(
-            caret_key(prefix, sp.name),
-            string_of_int(row) ++ " " ++ string_of_int(col),
-          )
+      let stamp =
+        switch (model.focus) {
+        | Some(f) => Stacked(f)
+        | None => Unstacked(editor.editor.editor.state.zipper)
         };
+      let content_key = prefix ++ ":" ++ sp.name;
+      let content_unchanged =
+        switch (Hashtbl.find_opt(last_saved_content, content_key)) {
+        | Some(prev) => stamp_equal(prev, stamp)
+        | None => false
+        };
+      if (!content_unchanged) {
+        Hashtbl.replace(last_saved_content, content_key, stamp);
       };
-      {
-        /* pins ride a side key, name-anchored via the outline */
-
-        let term = editor.editor.statics.term;
-        let pins =
-          switch (model.focus) {
-          | None => []
-          | Some(f) =>
-            List.filter_map(
-              (e: Model.stack_entry) =>
-                OutlineTree.label_path(e.e_id, term)
-                |> Option.map(path => (path, e.e_run)),
-              f.f_entries,
+      if (!content_unchanged) {
+        /* UNSTACKED saves are text-backed too: Zipper.sexp_of_t costs
+           ~2.5s per autosave tick at 1k lines. The caret can't ride the
+           text, so it saves as a (row col) side key and restores as a
+           Move(Point) after hydration. */
+        switch (model.focus) {
+        | Some(_) => ()
+        | None =>
+          let z = editor.editor.editor.state.zipper;
+          switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
+          | exception _ => ()
+          | Point.{row, col} =>
+            HazelDB.kv_save(
+              caret_key(prefix, sp.name),
+              string_of_int(row) ++ " " ++ string_of_int(col),
             )
           };
-        write_pins(prefix, sp.name, pins);
-      };
-      switch (
-        switch (model.focus) {
-        | Some(f) => persist_spliced(f, editor)
-        | None =>
-          CellEditor.Model.{
-            editor:
-              Editor.Model.mk_persistent(
-                PersistentZipper.of_text(
-                  PersistentZipper.to_string(
-                    editor.editor.editor.state.zipper,
-                  )
-                  ++ "\n",
+        };
+        {
+          /* pins ride a side key, name-anchored via the outline */
+
+          let term = editor.editor.statics.term;
+          let pins =
+            switch (model.focus) {
+            | None => []
+            | Some(f) =>
+              List.filter_map(
+                (e: Model.stack_entry) =>
+                  OutlineTree.label_path(e.e_id, term)
+                  |> Option.map(path => (path, e.e_run)),
+                f.f_entries,
+              )
+            };
+          write_pins(prefix, sp.name, pins);
+        };
+        switch (
+          switch (model.focus) {
+          | Some(f) => persist_spliced(f, editor)
+          | None =>
+            CellEditor.Model.{
+              editor:
+                Editor.Model.mk_persistent(
+                  PersistentZipper.of_text(
+                    PersistentZipper.to_string(
+                      editor.editor.editor.state.zipper,
+                    )
+                    ++ "\n",
+                  ),
+                  ~root=Sort.Exp,
                 ),
-                ~root=Sort.Exp,
-              ),
-            result: EvalResult.Model.persist(editor.result),
+              result: EvalResult.Model.persist(editor.result),
+            }
           }
-        }
-      ) {
-      | e =>
-        /* The slide blob carries the editor only; the conversation
-           lives solely under the :agent key (it used to be embedded
-           here TOO, doubling every write and boot deserialization). */
-        save_slide_kind(
-          prefix,
-          sp.name,
-          CodePersist({
-            editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
-          }),
-        )
+        ) {
+        | e =>
+          /* The slide blob carries the editor only; the conversation
+             lives solely under the :agent key (it used to be embedded
+             here TOO, doubling every write and boot deserialization). */
+          save_slide_kind(
+            prefix,
+            sp.name,
+            CodePersist({
+              editor: Some(e),
+              agent: Agent.Persistent.persist(Agent.Utils.init()),
+            }),
+          )
+        };
       };
       let agent_key_str = prefix ++ ":" ++ sp.name;
       let unchanged =
@@ -2984,6 +3016,9 @@ module Update = {
                 assist: false,
               },
               ~queue_worker,
+              /* the master's editor (and its pending highlight) isn't
+                 rendered while stacked: skip the O(program) worklist */
+              ~compute_pending=false,
               ~is_edited,
               synth,
               editor.result,
