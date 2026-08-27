@@ -29,8 +29,6 @@ let tokens =
 type tile = (Id.t, Aba.t(Token.t, Any.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, Any.t);
-let single = (id, subst) => ([(id, subst)], []);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
@@ -106,9 +104,6 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | EmptyHole
   | Invalid(_) => [s]
   };
-
-let is_grout = tiles =>
-  Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
 let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;
@@ -299,17 +294,6 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       Some(u),
     )
   | t => BadEntry(t);
-
-let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
-    term: Var(ctr),
-  };
-  switch (value) {
-  | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
-  };
-};
 
 let is_hole_label = (t: string) =>
   t == " "
@@ -1175,7 +1159,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)

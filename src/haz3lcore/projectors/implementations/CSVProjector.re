@@ -100,7 +100,9 @@ module M: Projector = {
   let placeholder = (m, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>
-      ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
+      ProjectorCore.Shape.inline(
+        Unicode.Width.columns_of_string(filename) + 6,
+      ) // Account for reset button and toggle
     | NoFile => ProjectorCore.Shape.inline(11)
     };
   let update = (m: model, _, action: action) => {

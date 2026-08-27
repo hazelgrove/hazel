@@ -80,6 +80,37 @@ let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
     },
   );
 
+/* Names take Unicode (everything but Token.operator_chars), so the ocamllex
+ * alphabet has to accept them too or text stops round-tripping. Parse, print,
+ * reparse: the printed form must be stable and must still contain the name. */
+let print_exp = exp =>
+  Haz3lcore.Printer.of_segment(
+    ~holes="?",
+    Haz3lcore.ExpToSegment.(
+      exp_to_segment(
+        ~settings=Settings.editable(~inline=true),
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp),
+      )
+    ),
+  );
+
+let menhir_roundtrip_test = (name: string, source: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let parse = s =>
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(s));
+      let once = print_exp(parse(source));
+      Alcotest.check(
+        Alcotest.string,
+        "reprints identically",
+        once,
+        print_exp(parse(once)),
+      );
+    },
+  );
+
 let menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, actual: string) =>
   test_case(name, speed_level, () => {
@@ -302,6 +333,53 @@ let tests =
         "Let",
         let_(Fresh.Pat.var("x"), int(5), var("x")),
         "let x = 5 in x",
+      ),
+      full_parser_test(
+        "Let with an accented name",
+        let_(Fresh.Pat.var("caf\xc3\xa9"), int(5), var("caf\xc3\xa9")),
+        "let caf\xc3\xa9 = 5 in caf\xc3\xa9",
+      ),
+      full_parser_test(
+        "Let with a CJK name",
+        let_(
+          Fresh.Pat.var("\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"),
+          int(5),
+          var("\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"),
+        ),
+        "let \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e = 5 in \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e",
+      ),
+      full_parser_test(
+        "Emoji-led name is a variable",
+        let_(
+          Fresh.Pat.var("\xf0\x9f\x98\x80x"),
+          int(5),
+          var("\xf0\x9f\x98\x80x"),
+        ),
+        "let \xf0\x9f\x98\x80x = 5 in \xf0\x9f\x98\x80x",
+      ),
+      full_parser_test(
+        "Operator adjacent to a Unicode name",
+        bin_op(Int(Plus), var("caf\xc3\xa9"), int(1)),
+        "caf\xc3\xa9 + 1",
+      ),
+      menhir_only_test(
+        "Constructor with a trailing emoji",
+        constructor("Foo\xf0\x9f\x98\x80", None),
+        "Foo\xf0\x9f\x98\x80",
+      ),
+      menhir_roundtrip_test(
+        "Accented name round-trips",
+        "let caf\xc3\xa9 = 5 in caf\xc3\xa9 + 1",
+      ),
+      /* © is a symbol, not a letter. It used to be an operator, so this
+       * split into three tokens; the ocamllex alphabet has to agree. */
+      menhir_roundtrip_test(
+        "Symbol inside a name round-trips",
+        "let a\xc2\xa9b = 5 in a\xc2\xa9b + 1",
+      ),
+      menhir_roundtrip_test(
+        "CJK name round-trips",
+        "let \xe6\x97\xa5\xe6\x9c\xac = 5 in \xe6\x97\xa5\xe6\x9c\xac + 1",
       ),
       full_parser_test("Tuple", tuple([int(4), int(5)]), "(4, 5)"),
       full_parser_test(
