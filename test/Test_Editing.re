@@ -5318,8 +5318,7 @@ let inner_destruct_tests = [
     ~goal={|"aa" +"+"¦"x"|},
   ),
   /* Goals below drop the `?`/`~` upstream prints: grout is virtual here.
-   * Only `c` is wrapped; `ab` and `d` survive on either side. The trailing
-   * hole is how Hazel already grouts three adjacent operands — typing
+   * Only `c` is wrapped; `ab` and `d` survive on either side — typing
    * `ab"c"d` from scratch produces the same shape. */
   test(
     ~name="Wrap char-level selection interior to a token in quotes",
