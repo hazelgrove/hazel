@@ -1014,6 +1014,39 @@ let outline_sym = (fid: Haz3lcore.Id.t, term: Language.Exp.t): option(string) =>
   | _ => None
   };
 
+/* PROJECTION (plan §9e / program-view-split step 3): a stack cell's
+   statics come from its DefStatics ITEM — the same ids, analyzed with
+   the program's real context (headers see the type the def gave their
+   binder; module headers get real MPat info; warnings appear) —
+   scoped to the ids the cell actually contains so id-keyed consumers
+   (Arms, occurrence highlight) never see foreign ids. The private
+   init_* wrappers remain only as the fallback when no item is found.
+   [engine_warnings]: unused-binder warnings are computed by the
+   ENGINE across items (an item alone can't see its downstream uses),
+   so headers take them from the whole-program list. */
+let project_cell_statics =
+    (
+      ~item: Haz3lcore.DefStatics.item,
+      ~engine_warnings: list(Haz3lcore.Id.t),
+      cell: CellEditor.Model.t,
+    )
+    : Haz3lcore.CachedStatics.t => {
+  let term_data = cell.editor.editor.syntax.term_data;
+  let in_cell = id => Haz3lcore.Id.Map.mem(id, term_data);
+  Haz3lcore.CachedStatics.{
+    term: item.d_node,
+    elaborated: item.d_elab,
+    info_map: Haz3lcore.Id.Map.filter((id, _) => in_cell(id), item.d_map),
+    error_ids: List.filter(in_cell, item.d_error_ids),
+    warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
+    targets: Haz3lcore.Id.Map.empty, /* with_targets refreshes */
+    probe_ids:
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        cell.editor.editor.state.zipper,
+      ),
+  };
+};
+
 /* per-slide pin retention (andrew): switching slides splices the
    stack home; coming back re-opens the same cells. Keyed by slide
    NAME; ids stay valid in-session because hydrated slides keep their
@@ -3300,9 +3333,16 @@ module Update = {
             List.fold_left(
               (acc, e: Model.stack_entry) =>
                 probe_union(
-                  acc,
+                  probe_union(
+                    acc,
+                    Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                      e.e_body.editor.editor.state.zipper,
+                    ),
+                  ),
+                  /* header probes too: projected statics make header
+                     positions probeable */
                   Haz3lcore.CachedStatics.probe_ids_of_zipper(
-                    e.e_body.editor.editor.state.zipper,
+                    e.e_header.editor.editor.state.zipper,
                   ),
                 ),
               Haz3lcore.CachedStatics.probe_ids_of_zipper(
@@ -3442,12 +3482,53 @@ module Update = {
         | None =>
           let body_is_exp = e.e_body.editor.editor.root == Haz3lcore.Sort.Exp;
           let body_is_typ = e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
-          /* type bodies: STATICS on (wrapped-alias init gives the
-             inspector real type info), dynamics off */
+          /* PROJECTION: on Force frames (fresh DefStatics just ran on
+             the spliced program earlier in this calculate), cells read
+             their item's analysis instead of re-running a private one.
+             Built only on Force — the statics gate inside only
+             consults it then. */
+          let (proj_header, proj_body) =
+            statics_mode == CodeWithStatics.StaticsForce
+              ? {
+                switch (Haz3lcore.DefStatics.current()) {
+                | Some(ds) =>
+                  switch (
+                    List.find_opt(
+                      (it: Haz3lcore.DefStatics.item) =>
+                        it.d_id == e.e_id
+                        || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                      ds.items,
+                    )
+                  ) {
+                  | Some(it) =>
+                    let warns = Haz3lcore.DefStatics.all_warning_ids(ds);
+                    (
+                      Some(
+                        project_cell_statics(
+                          ~item=it,
+                          ~engine_warnings=warns,
+                          e.e_header,
+                        ),
+                      ),
+                      Some(
+                        project_cell_statics(
+                          ~item=it,
+                          ~engine_warnings=warns,
+                          e.e_body,
+                        ),
+                      ),
+                    );
+                  | None => (None, None)
+                  }
+                | None => (None, None)
+                };
+              }
+              : (None, None);
+          /* type bodies: STATICS on, dynamics off */
           let body_settings =
             body_is_exp
               ? settings
-              : body_is_typ
+              : body_is_typ || proj_body != None
                   ? Language.CoreSettings.{
                       ...settings,
                       dynamics: false,
@@ -3457,13 +3538,14 @@ module Update = {
             Model.{
               ...e,
               e_header:
-                /* headers get wrapped statics (init_pat/init_tpat):
-                   inspector + sort styling; binders bind into the
-                   wrapper so nothing reads unbound. Module headers
-                   stay statics-off (MPat binder). */
+                /* headers: projected item statics when available
+                   (real binder types, warnings, MPat info for module
+                   headers); wrapped init_pat/init_tpat as fallback.
+                   Module headers stay statics-off only when no
+                   projection exists (the Pat wrapper misreads MPat). */
                 CellEditor.Update.calculate(
                   ~settings=
-                    e.e_mod
+                    e.e_mod && proj_header == None
                       ? statics_off(settings)
                       : Language.CoreSettings.{
                           ...settings,
@@ -3472,6 +3554,7 @@ module Update = {
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
+                  ~projected=?proj_header,
                   ~queue_worker=None,
                   ~stitch=x => x,
                   e.e_header,
@@ -3482,6 +3565,7 @@ module Update = {
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
+                  ~projected=?proj_body,
                   ~extra_dynamics=extra_dyn,
                   ~queue_worker=None,
                   ~stitch=x => x,
