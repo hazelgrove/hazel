@@ -1,5 +1,6 @@
 # ══ Colour scheme ═══════════════════════════════════════════════════ #
-# Everything is folded (⋱) by default -- click one to open it.         #
+# The light seeds are open below; everything else is folded (⋱).      #
+# Double-click a fold to open it.                                      #
 #                                                                     #
 # The whole program is four definitions and a switch:                  #
 #                                                                     #
@@ -259,10 +260,10 @@ let theme_of = fun (p, role) ->
     ))
   )) in
 
-# ── Light scheme ────────────────────────────────────────────────────── #
+# ── Light scheme -- the seeds are the palette ───────────────────────── #
 let light =
   let p = palette_of(
-    ^^fold((
+    (
       `NONE` = Transparent,
       `SAND` = ^^color(Oklch(99., 0.012, 90.)),
       `STONE` = ^^color(Oklch(52., 0.03, 220.)),
@@ -301,7 +302,7 @@ let light =
       `pat-cell` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
       `main-base` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
       `main-shadow` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
-    )),
+    ),
     (
       `BR2` = 70.,
       `BR3` = 60.,
