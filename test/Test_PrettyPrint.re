@@ -12,6 +12,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
 };
@@ -26,7 +27,8 @@ let format =
   | Some(exp) =>
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    Printer.of_segment(~holes="?", ~indent="  ", pretty)
+    /* No ~indent: PrettySegment now emits real whitespace for indent. */
+    Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
@@ -40,7 +42,20 @@ let format_seg =
   switch (Parser.to_segment(input, ~root=Exp)) {
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    Printer.of_segment(~holes="?", ~indent=" ", pretty)
+    /* Pretty output must be a fixpoint of Format: prettify defers
+       linebreak indentation to Indentation.level_map, the editor's
+       single indentation authority */
+    let refixed = {
+      let map = Indentation.level_map(pretty);
+      Indentation.fix_indentation_in_segment(map, pretty);
+    };
+    check(
+      string,
+      "prettify output is Format-fixpoint",
+      Printer.of_segment(~holes="?", pretty),
+      Printer.of_segment(~holes="?", refixed),
+    );
+    Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
@@ -143,7 +158,7 @@ else 2|},
     ~width=15,
     ~input="fun x -> fun y -> x + y",
     ~expected={|fun x ->
-    fun y -> x + y|},
+  fun y -> x + y|},
     (),
   ),
   test_format(
@@ -163,7 +178,7 @@ z * 2|},
     ~expected={|let x = 1 in
 let y = 2 in
 let z =
-    x + y in
+  x + y in
 z * 2|},
     (),
   ),
@@ -188,11 +203,11 @@ let delimiter_tests = [
     ~width=10,
     ~input="(1, 2, 3, 4, 5)",
     ~expected={|(
-    1,
-    2,
-    3,
-    4,
-    5
+  1,
+  2,
+  3,
+  4,
+  5
 )|},
     (),
   ),
@@ -201,11 +216,11 @@ let delimiter_tests = [
     ~width=10,
     ~input="[1, 2, 3, 4, 5]",
     ~expected={|[
-    1,
-    2,
-    3,
-    4,
-    5
+  1,
+  2,
+  3,
+  4,
+  5
 ]|},
     (),
   ),
@@ -251,7 +266,7 @@ let complex_tests = [
     ~width=25,
     ~input="let f : Int -> Int = fun x -> x + 1 in f(5)",
     ~expected={|let f : (Int -> Int) =
-    fun x -> x + 1 in
+  fun x -> x + 1 in
 f(5)|},
     (),
   ),
@@ -284,7 +299,7 @@ fun z -> x + y + z|},
     ~width=10,
     ~input="let x = f(5) in x",
     ~expected={|let x =
-    f(5) in
+  f(5) in
 x|},
     (),
   ),
@@ -310,8 +325,8 @@ let comma_compound_tests = [
     ~width=20,
     ~input="(fun x -> x + 1, fun y -> y + 2)",
     ~expected={|(
-    fun x -> x + 1,
-    fun y -> y + 2
+  fun x -> x + 1,
+  fun y -> y + 2
 )|},
     (),
   ),
@@ -319,11 +334,10 @@ let comma_compound_tests = [
     ~name="Three functions in tuple",
     ~width=25,
     ~input="(fun x -> x + 1, fun y -> y + 2, fun z -> z + 3)",
-    ~expected=
-      {|(
-    fun x -> x + 1,
-    fun y -> y + 2,
-    fun z -> z + 3
+    ~expected={|(
+  fun x -> x + 1,
+  fun y -> y + 2,
+  fun z -> z + 3
 )|},
     (),
   ),
@@ -332,9 +346,9 @@ let comma_compound_tests = [
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p = (
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ) in
 p|},
     (),
@@ -344,8 +358,8 @@ p|},
     ~width=20,
     ~input="[fun x -> x, fun y -> y]",
     ~expected={|[
-    fun x -> x,
-    fun y -> y
+  fun x -> x,
+  fun y -> y
 ]|},
     (),
   ),
@@ -388,10 +402,9 @@ f(1, 2, 3)|},
     ~name="Fun header flat with long body",
     ~width=30,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 + 3 in 1",
-    ~expected=
-      {|let f =
-    fun (a, b, c) ->
-        a + b + c + 1 + 2 + 3 in
+    ~expected={|let f =
+  fun (a, b, c) ->
+    a + b + c + 1 + 2 + 3 in
 1|},
     (),
   ),
@@ -402,12 +415,11 @@ f(1, 2, 3)|},
     ~input=
       "let f = fun (canvas, emoji) -> map(canvas, fun row -> map(row, fun x -> emoji)) in 1",
     ~expected=
-      {|let f =
-    fun (canvas, emoji) ->
-        map(
-            canvas,
-            fun row -> map(row, fun x -> emoji)
-        ) in
+      {|let f = fun (canvas, emoji) ->
+  map(
+    canvas,
+    fun row -> map(row, fun x -> emoji)
+  ) in
 1|},
     (),
   ),
@@ -428,11 +440,11 @@ f(5)|},
       {|let f = fun m, action -> case action | 0 => m + 1 | 1 => m - 1 end in 1|},
     ~expected=
       {|let f =
-    fun (m, action) ->
-        case action
-        | 0 => m + 1
-        | 1 => m - 1
-        end in
+  fun (m, action) ->
+    case action
+    | 0 => m + 1
+    | 1 => m - 1
+    end in
 1|},
     (),
   ),
@@ -460,9 +472,9 @@ let hanging_delimiter_tests = [
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p = (
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ) in
 p|},
     (),
@@ -472,9 +484,9 @@ p|},
     ~width=15,
     ~input="let p = [1, 2, 3] in p",
     ~expected={|let p = [
-    1,
-    2,
-    3
+  1,
+  2,
+  3
 ] in
 p|},
     (),
@@ -486,7 +498,7 @@ p|},
     ~width=15,
     ~input="let p = (1, 2, 3) in p",
     ~expected={|let p =
-    (1, 2, 3) in
+  (1, 2, 3) in
 p|},
     (),
   ),
@@ -496,7 +508,7 @@ p|},
     ~width=15,
     ~input="let p = [1, 2, 3] in p",
     ~expected={|let p =
-    [1, 2, 3] in
+  [1, 2, 3] in
 p|},
     (),
   ),
@@ -533,8 +545,8 @@ let break_fun_params_tests = [
     ~width=25,
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
     ~expected={|let f =
-    fun (a, b, c) ->
-        a + b + c + 1 + 2 in
+  fun (a, b, c) ->
+    a + b + c + 1 + 2 in
 1|},
     (),
   ),
@@ -546,11 +558,11 @@ let break_fun_params_tests = [
     ~input="let f = fun a, b, c -> a + b + c + 1 + 2 in 1",
     ~expected=
       {|let f =
-    fun (
-        a,
-        b,
-        c
-    ) -> a + b + c + 1 + 2 in
+  fun (
+    a,
+    b,
+    c
+  ) -> a + b + c + 1 + 2 in
 1|},
     (),
   ),
@@ -661,10 +673,8 @@ let form_tests = [
     ~name="Test/end with semicolons consistent",
     ~width=40,
     ~input="test 1 + 1 == 2 end; test 3 + 3 == 6 end; 5",
-    ~expected={|test
-  1 + 1 == 2 end;
-test
-  3 + 3 == 6 end;
+    ~expected={|test 1 + 1 == 2 end;
+test 3 + 3 == 6 end;
 5|},
     (),
   ),
@@ -687,8 +697,8 @@ test
       "let f : poly a -> poly b -> (a, b) -> (a, b) = typfun a -> typfun b -> fun x -> x in f",
     ~expected=
       {|let f
-: poly a ->
-  poly b -> (a, b) -> (a, b) =
+  : poly a ->
+    poly b -> (a, b) -> (a, b) =
   typfun a ->
     typfun b -> fun x -> x in
 f|},
@@ -830,14 +840,10 @@ x|},
     ~name="Block breaking",
     ~width=20,
     ~input="let x = { 1 + 2 + 3 + 4 + 5 } in x",
-    ~expected={|let x =
-  {
-    1
-    + 2
-    + 3
-    + 4
-    + 5
-  } in
+    ~expected={|let x = {
+  1 + 2 + 3
+  + 4 + 5
+} in
 x|},
     (),
   ),
@@ -904,8 +910,8 @@ let labeled_tuple_tests = [
     ~width=20,
     ~input="(firsts = [1, 2], seconds = [3, 4])",
     ~expected={|(
-    firsts = [1, 2],
-    seconds = [3, 4]
+  firsts = [1, 2],
+  seconds = [3, 4]
 )|},
     (),
   ),
@@ -1183,6 +1189,108 @@ else 3|},
   ),
 ];
 
+/* === SpaceNormalize canonicalize (Format(Spacing) backend) === */
+
+let respace = (input: string): string =>
+  switch (Parser.to_segment(input, ~root=Exp)) {
+  | Some(seg) =>
+    Printer.of_segment(
+      ~holes="?",
+      SpaceNormalize.go(~canonicalize=true, seg),
+    )
+  | None => failwith("Failed to parse: " ++ input)
+  };
+
+let test_respace = (~name, ~input, ~expected, ()): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(string, name, expected, respace(input))
+  );
+
+let respace_tests = [
+  test_respace(
+    ~name="run collapses to one space",
+    ~input="1  +   2",
+    ~expected="1 + 2",
+    (),
+  ),
+  test_respace(
+    ~name="space after comma survives, padding inside parens dies",
+    ~input="f( x ,  y )",
+    ~expected="f(x, y)",
+    (),
+  ),
+  test_respace(
+    ~name="alignment spacing collapses",
+    ~input="let x    = 1 in
+let yy   = 2 in
+x + yy",
+    ~expected="let x = 1 in
+let yy = 2 in
+x + yy",
+    (),
+  ),
+  test_respace(
+    ~name="indentation untouched",
+    ~input="let f =
+  fun q ->
+    q  +  1 in
+f(2)",
+    ~expected="let f =
+  fun q ->
+    q + 1 in
+f(2)",
+    (),
+  ),
+  test_respace(
+    ~name="comment-adjacent runs untouched",
+    ~input="1 + 2   # note #",
+    ~expected="1 + 2   # note #",
+    (),
+  ),
+  test_respace(
+    ~name="single spaces are a fixpoint",
+    ~input="let a = [1, 2] in if a == [] then 0 else 1",
+    ~expected="let a = [1, 2] in if a == [] then 0 else 1",
+    (),
+  ),
+  test_respace(
+    ~name="list separators: hug left, one space right",
+    ~input="[ 1 ,2,  3 ]",
+    ~expected="[1, 2, 3]",
+    (),
+  ),
+  test_respace(
+    ~name="application hugs the function",
+    ~input="f (x) + g  (y)",
+    ~expected="f(x) + g(y)",
+    (),
+  ),
+  test_respace(
+    ~name="curried application stays tight",
+    ~input="(compose(f)) (x)",
+    ~expected="(compose(f))(x)",
+    (),
+  ),
+  test_respace(
+    ~name="binary operators get one space around",
+    ~input="1+2 *  3",
+    ~expected="1 + 2 * 3",
+    (),
+  ),
+  test_respace(
+    ~name="parens operand after operator keeps its space",
+    ~input="1 + (2)",
+    ~expected="1 + (2)",
+    (),
+  ),
+  test_respace(
+    ~name="unary minus junction preserved as authored",
+    ~input="(-2, -  3)",
+    ~expected="(-2, - 3)",
+    (),
+  ),
+];
+
 let tests = [
   ("PrettyPrint.TrailingHoles", trailing_hole_tests),
   ("PrettyPrint.BlockFormBody", block_form_body_tests),
@@ -1199,4 +1307,5 @@ let tests = [
   ("PrettyPrint.Forms", form_tests),
   ("PrettyPrint.Composition", composition_tests),
   ("PrettyPrint.LabeledTuple", labeled_tuple_tests),
+  ("PrettyPrint.Respace", respace_tests),
 ];

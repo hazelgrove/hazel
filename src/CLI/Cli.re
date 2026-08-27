@@ -50,10 +50,10 @@ let format_hazel = (implicit_hole: string, width, path) => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
     let output =
+      /* no ~indent: prettify output is self-indented (level_map) */
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
         ~concave_holes=implicit_hole,
-        ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );
@@ -531,8 +531,8 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
   Cmd.v(

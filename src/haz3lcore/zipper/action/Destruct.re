@@ -28,6 +28,54 @@ let capture = (z): t => {
   z;
 };
 
+/* Check if a piece is a space (not linebreak, not comment) */
+let is_space_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false
+  };
+
+/* Check if a piece is a linebreak */
+let is_linebreak_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_linebreak(s)
+  | _ => false
+  };
+
+/* Check if a piece is whitespace (space or linebreak, not comment) */
+let is_whitespace_piece = (p: Piece.t): bool =>
+  is_space_piece(p) || is_linebreak_piece(p);
+
+/* Check if cursor is in "leading whitespace" position:
+   - No selection
+   - Cursor is Outer
+   - All pieces to the left (back to linebreak) are spaces
+   - There is an actual linebreak (not just segment start)
+   Returns the count of spaces if true, None otherwise */
+let leading_whitespace_context = (z: t): option((int, Id.t)) =>
+  if (z.selection.content != [] || z.caret != Outer) {
+    None;
+  } else {
+    let (left_sibs, _) = z.relatives.siblings;
+    /* Count spaces from right end of left_sibs until we hit linebreak or non-space */
+    let rec count_spaces = (sibs, n) =>
+      switch (sibs) {
+      | [] => None /* Start of segment is not a line start */
+      | [p, ...rest] when is_space_piece(p) => count_spaces(rest, n + 1)
+      | [Piece.Secondary(w), ..._] when is_linebreak_piece(Secondary(w)) =>
+        Some((n, w.id)) /* Found linebreak */
+      | _ => None /* Found non-whitespace content */
+      };
+    count_spaces(List.rev(left_sibs), 0);
+  };
+
+/* Check if the left neighbor is whitespace (space or linebreak) */
+let left_neighbor_is_whitespace = (z: t): bool =>
+  switch (Zipper.generalized_neighbor(Left, z)) {
+  | Some(p) => is_whitespace_piece(p)
+  | None => false
+  };
+
 let delete = (d: Direction.t, z: t): option(t) => {
   let+ z = select(d, z);
   let z = capture(z);
@@ -110,18 +158,141 @@ let destruct = (d: Direction.t, z: t, ~root): option(t) =>
     }
   };
 
-let go = (d: Direction.t, z: t, ~root): option(t) => {
+/* Delete multiple spaces (for indent-level backspace) */
+let rec delete_spaces = (n: int, z: t): option(t) =>
+  if (n <= 0) {
+    Some(z);
+  } else {
+    switch (delete(Left, z)) {
+    | None => Some(z)
+    | Some(z) => delete_spaces(n - 1, z)
+    };
+  };
+
+/* Hungry delete: delete all contiguous whitespace to the left,
+   including at most one linebreak. Stops at non-whitespace or
+   after consuming one linebreak. */
+let rec hungry_delete = (z: t, seen_linebreak: bool): option(t) =>
+  switch (Zipper.generalized_neighbor(Left, z)) {
+  | Some(p) when is_space_piece(p) =>
+    /* Delete space and continue */
+    let* z = delete(Left, z);
+    hungry_delete(z, seen_linebreak);
+  | Some(p) when is_linebreak_piece(p) && !seen_linebreak =>
+    /* Delete linebreak (first one only) and continue */
+    let* z = delete(Left, z);
+    hungry_delete(z, true);
+  | _ =>
+    /* Stop: hit non-whitespace, second linebreak, or start of segment */
+    Some(z)
+  };
+
+/* Delete by token: delete the entire neighboring token/piece.
+   For multi-char tokens like "foo", this deletes the whole token.
+   For single-char pieces, this acts like normal delete. */
+let delete_token = (d: Direction.t, z: t): option(t) => {
+  /* If caret is inside a token, first escape to outer */
+  let z =
+    switch (z.caret) {
+    | Inner(_) => Caret.set(Outer, z)
+    | Outer => z
+    };
+  /* Now delete the adjacent piece */
+  delete(d, z);
+};
+
+/* Standard destruct with post-processing.
+ * Applies the dev-side cleanup of double-merge + rescan_reassemble
+ * so grout cleanup around the caret gets a second merge opportunity
+ * after remold_regrout. */
+let destruct_with_cleanup = (d: Direction.t, z: t, ~root): option(t) => {
+  let+ z = destruct(d, z, ~root);
+  let z =
+    z
+    |> Insert.merge_or_noop(~root)
+    |> remold_regrout(d, ~root)
+    |> Insert.merge_or_noop(~root);
+  Zipper.rescan_reassemble(d, z, ~root);
+};
+
+/* Delete from cursor to start of line (Cmd+Backspace on Mac).
+   This is the "Delete All Left" behavior in VS Code. */
+let delete_to_line_start = (z: t, ~root): option(t) => {
+  /* First, clear any selection by unselecting */
+  let z = Zipper.unselect(z);
+  /* Select from current position back to line start */
+  let* z = Zipper.do_until_linebreak(Select.local(Left), Left, z);
+  /* If we selected nothing, nothing to delete */
+  if (Selection.is_empty(z.selection)) {
+    Some(z);
+  } else {
+    let z = capture(z);
+    let z = destroy_selection(z);
+    let z =
+      z
+      |> Insert.merge_or_noop(~root)
+      |> remold_regrout(Left, ~root)
+      |> Insert.merge_or_noop(~root);
+    Some(Zipper.rescan_reassemble(Left, z, ~root));
+  };
+};
+
+let go_local =
+    (d: Direction.t, chunk: Action.chunkiness, z: t, ~root): option(t) => {
   Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
-    let+ z = destruct(d, z, ~root);
-    /* If grout disappears we may have a second merge opportunity */
-    let z =
-      z
-      |> Insert.merge_or_noop(~root)
-      |> remold_regrout(d, ~root)
-      |> Insert.merge_or_noop(~root);
-    Zipper.rescan_reassemble(d, z, ~root);
+    switch (chunk) {
+    /* BySmart is only meaningful for selection; destruct treats it as ByChar */
+    | Action.ByChar
+    | Action.BySmart =>
+      /* Indent-level backspace: within the line's AUTO-INDENT width,
+         delete an indent unit (2 spaces) per press; spaces the user
+         typed beyond the indent are real material, one per press
+         (andrew 2026-07-22) */
+      switch (d, leading_whitespace_context(z)) {
+      | (Left, Some((n, lb_id))) when n > 0 =>
+        let level =
+          Indentation.level_of(~target_id=lb_id, Zipper.unselect_and_zip(z));
+        let to_delete = n > level ? 1 : min(2, n);
+        let+ z = delete_spaces(to_delete, z);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      | _ => destruct_with_cleanup(d, z, ~root)
+      }
+    | Action.ByToken =>
+      /* Check if we're in a whitespace run */
+      if (d == Left && left_neighbor_is_whitespace(z)) {
+        /* Hungry delete: delete all whitespace including one linebreak */
+        let+ z = hungry_delete(z, false);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      } else {
+        /* Delete by token */
+        let+ z = delete_token(d, z);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      }
+    }
   };
 };
+
+let go = (destruct: Action.destruct, z: t, ~root): option(t) =>
+  switch (destruct) {
+  | Local(d, chunk) => go_local(d, chunk, z, ~root)
+  | Line(Left) => delete_to_line_start(z, ~root)
+  | Line(Right) => None /* Not yet implemented */
+  };

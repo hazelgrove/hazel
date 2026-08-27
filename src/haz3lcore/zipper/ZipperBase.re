@@ -8,7 +8,8 @@ type caret = CaretBase.t;
 /* Refractor state extracted to Refractors.re - see state location docs there */
 module Refractor = Refractors;
 
-// assuming single backpack, shards may appear in selection, backpack, or siblings
+// shards may appear in the selection or siblings; "missing" shards
+// (the derived missing-shard set) are those an incomplete tile still lacks
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
@@ -203,4 +204,71 @@ module MapPiece = {
     } else {
       go(f, z);
     };
+};
+
+/* Like MapPiece but for segment-level transformations.
+   Useful when you need to see/modify sequences of pieces together
+   (e.g., linebreak followed by spaces for indentation). */
+module MapSegment = {
+  type updater = Segment.t => Segment.t;
+
+  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
+    let seg = f(seg);
+    List.map(of_piece(f), seg);
+  }
+  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+    switch (piece) {
+    | Tile(t) => Tile(of_tile(f, t))
+    | Grout(_)
+    | Projector(_)
+    | Secondary(_) => piece
+    };
+  }
+  and of_tile = (f: updater, t: Tile.t): Tile.t => {
+    {
+      ...t,
+      children: List.map(of_segment(f), t.children),
+    };
+  };
+
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
+    of_segment(f, fst(sibs)),
+    of_segment(f, snd(sibs)),
+  );
+
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
+    {
+      ...ancestor,
+      children: (
+        List.map(of_segment(f), fst(ancestor.children)),
+        List.map(of_segment(f), snd(ancestor.children)),
+      ),
+    };
+  };
+
+  let of_generation =
+      (f: updater, generation: Ancestors.generation): Ancestors.generation => (
+    of_ancestor(f, fst(generation)),
+    of_siblings(f, snd(generation)),
+  );
+
+  let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
+    List.map(of_generation(f), ancestors);
+
+  let of_selection = (f: updater, selection: Selection.t): Selection.t => {
+    {
+      ...selection,
+      content: of_segment(f, selection.content),
+    };
+  };
+
+  /* Maps the updater over all segments in the zipper */
+  let go = (f: updater, z: t): t => {
+    ...z,
+    selection: of_selection(f, z.selection),
+    relatives: {
+      ancestors: of_ancestors(f, z.relatives.ancestors),
+      siblings: of_siblings(f, z.relatives.siblings),
+    },
+  };
 };

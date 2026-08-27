@@ -30,7 +30,7 @@ let submenu = (~tooltip, ~icon, menu) =>
 
 // SETTINGS MENU
 
-let settings_group = (~globals: Globals.t, name: string, ts) => {
+let settings_group = (~globals: Globals.t, ~extra=[], name: string, ts) => {
   let toggle = ({name, active, setting, tooltip}) =>
     toggle_named("", ~name, ~tooltip?, active, _ =>
       globals.inject_global(Set(setting))
@@ -39,7 +39,7 @@ let settings_group = (~globals: Globals.t, name: string, ts) => {
     "group",
     [
       div_c("name", [text(name)]),
-      div_c("contents", List.map(toggle, ts)),
+      div_c("contents", extra @ List.map(toggle, ts)),
     ],
   );
 };
@@ -67,12 +67,6 @@ let semantics_group = (~globals) => {
         active: globals.settings.core.dynamics,
         setting: Dynamics,
         tooltip: Some("Evaluate expressions and show results"),
-      },
-      {
-        name: "Docs",
-        active: globals.settings.sidebar.show,
-        setting: Sidebar(ToggleShow),
-        tooltip: Some("Show documentation sidebar"),
       },
     ],
   );
@@ -164,6 +158,85 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
+let format_shortcut_control = (~globals: Globals.t) => {
+  module FS = Language.CoreSettings.FormatShortcut;
+  let current = globals.settings.core.format_shortcut;
+  let segment = (label, tooltip, mode: FS.t) =>
+    div(
+      ~attrs=[
+        clss(["segment"] @ (current == mode ? ["active"] : [])),
+        Attr.title(tooltip),
+        Attr.on_mousedown(_ =>
+          globals.inject_global(Set(Settings.Update.FormatShortcut(mode)))
+        ),
+      ],
+      [text(label)],
+    );
+  div(
+    ~attrs=[clss(["segmented-setting"])],
+    [
+      div(
+        ~attrs=[clss(["segmented-control"])],
+        [
+          segment("None", "Do not format", FS.Nothing),
+          segment("Indent", "Re-indent only", FS.Indent),
+          segment(
+            "Spaces",
+            "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
+            FS.Spaces,
+          ),
+          segment(
+            "Breaks",
+            "Full pretty print (may change linebreaks)",
+            FS.Breaks,
+          ),
+        ],
+      ),
+      div(
+        ~attrs=[
+          clss(["segmented-name"]),
+          Attr.title(
+            "What the format shortcut ("
+            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+            ++ "+S) does. "
+            ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
+            ++ "+Shift+S always pretty-prints.",
+          ),
+        ],
+        [text("Format")],
+      ),
+    ],
+  );
+};
+
+let editing_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    ~extra=[format_shortcut_control(~globals)],
+    "Editing",
+    [
+      {
+        name: "Auto Re-indent",
+        active: globals.settings.core.auto_reindent,
+        setting: AutoReindent,
+        tooltip:
+          Some(
+            "Re-indent a form's contents when its delimiters complete (experimental)",
+          ),
+      },
+      {
+        name: "Character-level mouse",
+        active: globals.settings.core.selection_chunkiness,
+        setting: SelectionChunkiness,
+        tooltip:
+          Some(
+            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
+          ),
+      },
+    ],
+  );
+};
+
 let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
@@ -186,21 +259,6 @@ let dev_group = (~globals: Globals.t) => {
         active: globals.settings.core.probe_all,
         setting: ProbeAll,
         tooltip: Some("Enable probes on all top-level definitions"),
-      },
-      {
-        name: "Deep Reassociate",
-        active: globals.settings.core.deep_reassociate,
-        setting: DeepReassociate,
-        tooltip: Some("Enable deep reassociation of syntax"),
-      },
-      {
-        name: "Character-level mouse",
-        active: globals.settings.core.selection_chunkiness,
-        setting: SelectionChunkiness,
-        tooltip:
-          Some(
-            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
-          ),
       },
       {
         name: "Cap Undo Stack",
@@ -288,6 +346,7 @@ let settings_menu = (~globals) => {
     values_group(~globals),
     stepper_group(~globals),
     code_display_group(~globals),
+    editing_group(~globals),
     dev_group(~globals),
   ];
 };

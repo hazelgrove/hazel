@@ -562,8 +562,14 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.filter_map(((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
-       /* Could be pickier here, e.g. just trailing delimiters */
-       | _ when List.length(form.label) >= 2 => Some(form.label)
+       /* NON-LEADING tokens only (matching the comment above):
+          leading-delimiter prefixes live in operand position where
+          the bin mold can never serve their entry path, and
+          including them made any short variable prefixing a keyword
+          (`c` for case, `l` for let) mold as an operator in broken
+          buffers. Leading prefixes are recognized by the completion
+          side instead (expectation-gated leading witnesses). */
+       | _ when List.length(form.label) >= 2 => Some(List.tl(form.label))
        | _ => None
        };
      })
