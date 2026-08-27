@@ -206,7 +206,7 @@ module Update = {
            focus (which stays on the clicked sidebar row). Schedule a focus
            of the now-active cell after render so the editor receives
            keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -679,14 +679,30 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
+      Attr.on_blur(evt => {
+        /* Leave focus alone when it is moving INTO a projector. An
+           interactive projector (the keybinding recorder) needs to hold
+           focus; without this guard it receives focus and has it taken back
+           in the same frame, so it can never capture a key. */
+        let into_projector =
+          switch (JsUtil.blur_related_target(evt)) {
+          | Some(el) => JsUtil.is_in_projector(el)
+          | None => false
+          };
+        if (!into_projector) {
+          JsUtil.focus_clipboard_shim();
+        };
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
           : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
-        JsUtil.focus_clipboard_shim();
+        /* Focus events bubble here, so without this guard focusing a
+           projector is undone immediately: an interactive projector (the
+           keybinding recorder) could never hold focus or capture a key. */
+        if (!JsUtil.active_element_in_projector()) {
+          JsUtil.focus_clipboard_shim();
+        };
         Effect.Ignore;
       }),
     ];

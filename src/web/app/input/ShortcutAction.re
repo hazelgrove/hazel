@@ -15,20 +15,15 @@
    variant here adds it everywhere, and the compiler rejects a variant that
    forgets its metadata. */
 
-/* Mirrors the KeyMod type in the builtin context (BuiltinsADT). Meta is
-   abstract on purpose — it resolves to cmd/ctrl only in string_of_key_mod,
-   so one config program means the same thing on every machine. */
-type key_mod =
-  | Meta
-  | Ctrl
-  | Shift
-  | Alt;
+/* The shortcut vocabulary itself lives beside the Hazel types it mirrors, in
+   Language.BuiltinsADT.Shortcut, so the config slide and the keybinding
+   projector share one definition. Re-exported here (constructors included)
+   because this module's default bindings are written in terms of them. */
+module S = Language.BuiltinsADT.Shortcut;
 
-/* Mirrors the builtin Shortcut type. Unbound is a real value: an action with
-   no shortcut, as distinct from an action that forgot to declare one. */
-type binding =
-  | Unbound
-  | Bound(list(key_mod), string);
+type key_mod = S.key_mod = | Meta | Ctrl | Shift | Alt;
+
+type binding = S.binding = | Unbound | Bound(list(key_mod), string);
 
 /* Reuses the groups the command palette already displays, so the config
    slide is organised the way the palette is. */
@@ -443,29 +438,11 @@ let section_string = (a: t): option(string) =>
   | s => Some(section_label(s))
   };
 
-/* Resolve a modifier for hotkeys-js. THE only place the platform is
-   consulted, which is what keeps the config program system-independent. */
-let string_of_key_mod = (m: key_mod): string =>
-  switch (m) {
-  | Meta => Keyboard.meta()
-  | Ctrl => "ctrl"
-  | Shift => "shift"
-  | Alt => "alt"
-  };
-
-/* Canonical modifier order so the palette label is stable; hotkeys-js itself
-   compares sorted key codes, so this is display only. */
-let string_of_chord = (mods: list(key_mod), key: string): string => {
-  let ordered =
-    List.filter(m => List.mem(m, mods), [Meta, Ctrl, Alt, Shift]);
-  String.concat("+", List.map(string_of_key_mod, ordered) @ [key]);
-};
-
-let string_of_binding = (b: binding): option(string) =>
-  switch (b) {
-  | Unbound => None
-  | Bound(mods, key) => Some(string_of_chord(mods, key))
-  };
+/* Resolution lives in the shared module (the one place the platform is
+   consulted, which is what keeps the config program system-independent). */
+let string_of_key_mod = S.string_of_key_mod;
+let string_of_chord = S.string_of_chord;
+let string_of_binding = S.string_of_binding;
 
 let default_hotkey = (a: t): option(string) =>
   string_of_binding(default_binding(a));

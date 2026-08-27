@@ -206,8 +206,10 @@ module JSON = {
  * `Unbound` is how an action says it has no shortcut — the reason the type
  * is a sum rather than a bare String. */
 module Shortcut = {
+  /* ---- The Hazel types, registered in the builtin context ---- */
+
   /* type KeyMod = Meta + Ctrl + Shift + Alt */
-  let key_mod: Typ.t =
+  let key_mod_typ: Typ.t =
     sum_type([
       ("Meta", None),
       ("Ctrl", None),
@@ -216,14 +218,126 @@ module Shortcut = {
     ]);
 
   /* The chord: which modifiers are held, and the key itself. */
-  let chord: Typ.t = prod([list(var("KeyMod")), string()]);
+  let chord_typ: Typ.t = prod([list(var("KeyMod")), string()]);
 
   /* type Shortcut = Unbound + Bound(([KeyMod], String)) */
-  let t: Typ.t = sum_type([("Unbound", None), ("Bound", Some(chord))]);
-  /* No shared constructor VALUES here on purpose: FreshGrammar mints an id
-     when the combinator is CALLED, so a module-level value would hand the
-     same id to every occurrence and the editor would see one tile with N
-     shards. Callers build their own (see ShortcutConfiguration). */
+  let typ: Typ.t =
+    sum_type([("Unbound", None), ("Bound", Some(chord_typ))]);
+
+  /* ---- The OCaml mirror, plus the encoding between the two ----
+
+     Kept here beside the Hazel types so there is exactly one definition of
+     what a shortcut is. Both the config slide (ShortcutConfiguration, in
+     web) and the keybinding projector (KeybindingProj, in haz3lcore) read
+     and write shortcut syntax through these. */
+
+  /* list converters for the derivings below; a bare `open Util` here would
+     shadow this module's own Option. */
+  open Sexplib.Std;
+  open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type key_mod =
+    | Meta
+    | Ctrl
+    | Shift
+    | Alt;
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type binding =
+    | Unbound
+    | Bound(list(key_mod), string);
+
+  let all_key_mods = [Meta, Ctrl, Shift, Alt];
+
+  let name_of_key_mod = (m: key_mod): string =>
+    switch (m) {
+    | Meta => "Meta"
+    | Ctrl => "Ctrl"
+    | Shift => "Shift"
+    | Alt => "Alt"
+    };
+
+  /* Built fresh per occurrence, never hoisted to a module-level value:
+     FreshGrammar mints the id when the combinator is CALLED, so a shared
+     value would hand every occurrence the same id — statics still passes,
+     but the editor collapses them into one tile with N shards and
+     Highlight.of_tile fails at render. Unannotated, exactly as a
+     constructor the user typed would parse. */
+  let ctr = (name: string): Exp.t =>
+    IdTagged.FreshGrammar.Exp.constructor(name, None);
+
+  let exp_of_key_mod = (m: key_mod): Exp.t => ctr(name_of_key_mod(m));
+
+  let exp_of_binding = (b: binding): Exp.t => {
+    IdTagged.FreshGrammar.Exp.(
+      switch (b) {
+      | Unbound => ctr("Unbound")
+      | Bound(mods, key) =>
+        ap(
+          Forward,
+          ctr("Bound"),
+          tuple([list_lit(List.map(exp_of_key_mod, mods)), string(key)]),
+        )
+      }
+    );
+  };
+
+  let key_mod_of_exp = (v: Exp.t): option(key_mod) =>
+    List.find_map(
+      m =>
+        switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
+        | Matches () => Some(m)
+        | _ => None
+        },
+      all_key_mods,
+    );
+
+  let binding_of_exp = (v: Exp.t): option(binding) =>
+    switch (Unboxing.unbox(SumNoArg("Unbound"), v)) {
+    | Matches () => Some(Unbound)
+    | _ =>
+      switch (Unboxing.unbox(SumWithArg("Bound"), v)) {
+      | Matches(arg) =>
+        switch (Unboxing.unbox(Tuple(2), arg)) {
+        | Matches([mods, key]) =>
+          switch (
+            Unboxing.unbox(ListLit, mods),
+            Unboxing.unbox(Atom(String), key),
+          ) {
+          | (Matches(ms), Matches(k)) =>
+            Some(Bound(List.filter_map(key_mod_of_exp, ms), k))
+          | _ => None
+          }
+        | _ => None
+        }
+      | _ => None
+      }
+    };
+
+  /* ---- Resolution: the ONLY place the platform is consulted ---- */
+
+  let string_of_key_mod = (m: key_mod): string =>
+    switch (m) {
+    | Meta => Util.Os.is_mac^ ? "cmd" : "ctrl"
+    | Ctrl => "ctrl"
+    | Shift => "shift"
+    | Alt => "alt"
+    };
+
+  /* Canonical modifier order so a rendered chord is stable; hotkeys-js
+     compares sorted key codes, so the order is display only. */
+  let string_of_chord = (mods: list(key_mod), key: string): string => {
+    let ordered =
+      List.filter(m => List.mem(m, mods), [Meta, Ctrl, Alt, Shift]);
+    String.concat("+", List.map(string_of_key_mod, ordered) @ [key]);
+  };
+
+  let string_of_binding = (b: binding): option(string) =>
+    switch (b) {
+    | Unbound => None
+    | Bound(mods, key) => Some(string_of_chord(mods, key))
+    };
 };
 
 // List of type aliases to add to the context
@@ -232,8 +346,8 @@ let type_aliases: list((string, Typ.t)) = [
   ("Option", Option.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
-  ("KeyMod", Shortcut.key_mod),
-  ("Shortcut", Shortcut.t),
+  ("KeyMod", Shortcut.key_mod_typ),
+  ("Shortcut", Shortcut.typ),
   ("$Meta", meta_type),
 ];
 

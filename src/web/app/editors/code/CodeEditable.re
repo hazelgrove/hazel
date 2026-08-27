@@ -1006,7 +1006,7 @@ module View = {
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
-           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+           (see JsUtil.active_cell_id / FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>
