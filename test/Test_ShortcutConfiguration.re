@@ -1,5 +1,4 @@
 open Alcotest;
-open Haz3lcore;
 open Language;
 
 /* The Shortcuts config slide is analyzed against
@@ -12,24 +11,14 @@ open Language;
    failure, not a red config buffer); the second pins that the analysis is
    engaged at all, since a vacuous ~ana would pass the first on its own. */
 
-let shortcuts_source_zipper = (): Zipper.t =>
-  PersistentZipper.unpersist(Web.ShortcutConfiguration.source, ~root=Exp);
-
-let error_count = (~ana: Typ.t, z: Zipper.t): int => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  let (info_map, _) =
-    Statics.mk(~ana, CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  Statics.Map.error_ids(info_map) |> List.length;
-};
-
 let builtin_source_satisfies_expected_type = () =>
   check(
     int,
     "built-in Shortcuts source has no static errors under its expected type",
     0,
-    error_count(
+    ConfigSlideCheck.error_count(
       ~ana=Web.ShortcutConfiguration.expected_type,
-      shortcuts_source_zipper(),
+      Web.ShortcutConfiguration.source,
     ),
   );
 
@@ -39,9 +28,9 @@ let analysis_is_engaged = () =>
     bool,
     "analyzing the Shortcuts source against String reports an error",
     true,
-    error_count(
+    ConfigSlideCheck.error_count(
       ~ana=IdTagged.FreshGrammar.Typ.string(),
-      shortcuts_source_zipper(),
+      Web.ShortcutConfiguration.source,
     )
     > 0,
   );

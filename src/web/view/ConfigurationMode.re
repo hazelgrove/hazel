@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Util;
-open Language;
 
 /* Dedicated ConfigurationMode module for handling different types of configuration
    with side effects. Currently supports ColorScheme configuration.
@@ -41,9 +40,23 @@ module Model = {
     };
   };
 
-  let type_of_config_name = (name: string): option(config_type) => {
+  /* The key a slide is persisted under, deliberately separate from the name
+     it displays under. The Colors program changed shape — a flat list of
+     (String, String) pairs became a typed palette/roles record — so a slide
+     saved by an older build must NOT be restored into the new one: it would
+     fail the analyzed type and decode to no colours at all, leaving the
+     editor unstyled with no way back. Bumping the key makes those fall
+     through to the new default instead. */
+  let persistence_key = (config_type: config_type): string => {
+    switch (config_type) {
+    | ColorScheme => "Colors-v2"
+    | Shortcuts => "Shortcuts"
+    };
+  };
+
+  let type_of_persistence_key = (key: string): option(config_type) => {
     List.find_opt(
-      config_type => config_name_of_type(config_type) == name,
+      config_type => persistence_key(config_type) == key,
       all_of_config_type,
     );
   };
@@ -57,11 +70,10 @@ module Model = {
     };
   };
 
-  /* The type a config slide's editor is analyzed against, if any. Colors is
-     a free-form list, so it stays synthetic. */
+  /* The type a config slide's editor is analyzed against. */
   let expected_type = config_type =>
     switch (config_type) {
-    | ColorScheme => None
+    | ColorScheme => Some(ColorConfiguration.expected_type)
     | Shortcuts => Some(ShortcutConfiguration.expected_type)
     };
 
@@ -81,31 +93,10 @@ module Model = {
       : unit => {
     switch (config_type) {
     | ColorScheme =>
-      switch (value.term) {
-      | ListLit(lits) =>
-        let colors =
-          List.concat_map(
-            x => {
-              switch (Unboxing.unbox(Tuple(2), x)) {
-              | Matches([x, y]) =>
-                switch (
-                  Unboxing.unbox(Atom(String), x),
-                  Unboxing.unbox(Atom(String), y),
-                ) {
-                | (Matches(name), Matches(color)) => [(name, color)]
-                | _ => []
-                }
-              | _ => []
-              }
-            },
-            lits,
-          );
-        List.iter(
-          ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
-          colors,
-        );
-      | _ => ()
-      }
+      List.iter(
+        ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
+        ColorConfiguration.css_vars_of_value(value),
+      )
     | Shortcuts =>
       schedule_global(
         Set(
@@ -121,7 +112,7 @@ module Model = {
     model.current,
     List.map(
       ((config_type: config_type, m: CellEditor.Model.t)) => {
-        let name = config_name_of_type(config_type);
+        let name = persistence_key(config_type);
         let current_zipper = m.editor.editor.state.zipper;
         /* Built-in sources are text-backed and mint fresh ids on every
            parse, so id-sensitive segment equality can never match (same
@@ -149,7 +140,7 @@ module Model = {
     let get_persistent =
         ((s: string, m: option(CellEditor.Model.persistent))) => {
       let config_type =
-        switch (type_of_config_name(s)) {
+        switch (type_of_persistence_key(s)) {
         | Some(ct) => ct
         | None =>
           // Fallback to first config type if name is not recognized
@@ -171,7 +162,7 @@ module Model = {
       current:
         List.find_index(
           config_type =>
-            config_name_of_type(config_type)
+            persistence_key(config_type)
             == (List.nth(slides, current) |> fst),
           all_of_config_type,
         )
@@ -181,7 +172,7 @@ module Model = {
           (config_type: config_type) =>
             List.find_map(
               s =>
-                s |> fst == config_name_of_type(config_type)
+                s |> fst == persistence_key(config_type)
                   ? Some(get_persistent(s)) : None,
               slides,
             )

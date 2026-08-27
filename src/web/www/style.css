@@ -1,5 +1,6 @@
 @import "style/fonts.css";
 @import "style/variables.css";
+@import "style/roles.css";
 @import "style/animations.css";
 @import "style/loading.css";
 @import "style/editor.css";
@@ -92,7 +93,7 @@ select {
   /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
   grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
-  color: var(--STONE);
+  color: var(--text-default);
   user-select: none;
 }
 
@@ -116,12 +117,12 @@ select {
 #side-bar {
   display: flex;
   flex-direction: column;
-  border-left: 0.6px solid var(--BR2);
-  background-color: var(--T1);
+  border-left: 0.6px solid var(--border-default);
+  background-color: var(--surface-default);
   position: relative;
   min-width: 300px;
   width: 400px;
-  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-color: var(--main-scroll-thumb) var(--surface-none);
   scrollbar-width: thin;
 }
 
@@ -140,7 +141,7 @@ select {
   display: flex;
   align-items: center;
   background-color: var(--ui-bkg);
-  border-bottom: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--border-default);
 }
 
 #top-bar:hover {
@@ -156,7 +157,7 @@ select {
   align-items: center;
   gap: 0.5em;
   background-color: var(--ui-bkg);
-  border-bottom: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--border-default);
   padding: 0 0.75em 0 0.3em;
   font-family: var(--code-font);
   height: 2.2em;
@@ -168,7 +169,7 @@ select {
   font-size: 0.85em;
   font-family: var(--ui-font);
   color: rgb(255, 255, 255);
-  background-color: var(--G0);
+  background-color: var(--surface-success);
   border-radius: 0.3em 1.5em 1.3em 1.3em;
   padding: 4px 8px;
   white-space: nowrap;
@@ -199,7 +200,7 @@ select {
   cursor: pointer;
   padding: 0 0.4em;
   border-radius: 1em;
-  color: var(--BR3);
+  color: var(--text-accent);
   transition: background-color 0.1s;
   position: relative;
 }
@@ -209,14 +210,14 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-entry.focused {
-  color: var(--G0);
+  color: var(--text-success);
   background-color: var(--G5);
   font-weight: 500;
   text-decoration: underline;
 }
 
 #sample-focus-bar .breadcrumb-entry.indicated {
-  outline: 1.5px solid var(--R1);
+  outline: 1.5px solid var(--border-error);
   border-radius: 3px;
 }
 
@@ -243,7 +244,7 @@ select {
 } */
 
 #sample-focus-bar .breadcrumb-separator {
-  color: var(--BR2);
+  color: var(--text-muted);
   font-size: 0.8em;
   cursor: default;
   padding: 0.1em 0;
@@ -256,27 +257,27 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-separator.ghost {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 #sample-focus-bar .more-indicator {
-  color: var(--BR2);
+  color: var(--text-muted);
   margin-left: 0.25em;
   opacity: 0.5;
 }
 
 #sample-focus-bar .stack-icon {
-  color: var(--BR4);
+  color: var(--text-strong);
   margin-right: 0.5em;
   font-size: 0.9em;
 }
 
 #sample-focus-bar .breadcrumb-entry.unknown {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 #sample-focus-bar .breadcrumb-entry.unknown.focused {
-  color: var(--G0);
+  color: var(--text-success);
   background-color: var(--G5);
 }
 
@@ -286,7 +287,7 @@ select {
   width: 1em;
   height: 1em;
   border-radius: 1em;
-  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(../img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -308,21 +309,21 @@ select {
   cursor: pointer;
   padding: 0 0.4em;
   border-radius: 1em;
-  color: var(--BR3);
+  color: var(--text-accent);
   transition: background-color 0.1s;
 }
 
 #sample-focus-bar .breadcrumb-body.ghost {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 #sample-focus-bar .breadcrumb-body:hover {
   background-color: white;
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 #sample-focus-bar .breadcrumb-ellipsis {
-  color: var(--BR2);
+  color: var(--text-muted);
   font-size: 0.85em;
   cursor: default;
   padding: 0 0.2em;
@@ -331,11 +332,11 @@ select {
 #sample-focus-bar .clear-all {
   margin-left: auto;
   flex-shrink: 0;
-  color: var(--BR4);
+  color: var(--text-strong);
   font-family: var(--ui-font);
   font-size: 0.75em;
   padding: 0.15em 0.5em;
-  border: 0.75px solid var(--BR3);
+  border: 0.75px solid var(--border-strong);
   border-radius: 3px;
   cursor: pointer;
   background-color: transparent;
@@ -343,7 +344,7 @@ select {
 }
 
 #sample-focus-bar .clear-all:hover {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 #bottom-bar {
@@ -355,20 +356,20 @@ select {
   justify-content: space-between;
   align-items: stretch;
   background-color: var(--ui-bkg);
-  outline: 0.6px solid var(--BR2);
+  outline: 0.6px solid var(--border-default);
 }
 
 ninja-keys {
-  --ninja-group-text-color: var(--BR4);
-  --ninja-text-color: var(--STONE);
-  --ninja-accent-color: var(--G0);
-  --ninja-secondary-background-color: var(--T3);
-  --ninja-selected-background: var(--SAND);
-  --ninja-selected-text-color: var(--G0);
-  --ninja-secondary-text-color: var(--BR3);
-  --ninja-modal-background: var(--T1);
+  --ninja-group-text-color: var(--text-strong);
+  --ninja-text-color: var(--text-default);
+  --ninja-accent-color: var(--text-success);
+  --ninja-secondary-background-color: var(--surface-sunken);
+  --ninja-selected-background: var(--surface-code);
+  --ninja-selected-text-color: var(--text-success);
+  --ninja-secondary-text-color: var(--text-accent);
+  --ninja-modal-background: var(--surface-default);
   --ninja-font-family: var(--ui-font);
-  --ninja-footer-background: var(--T2);
+  --ninja-footer-background: var(--surface-raised);
   --ninja-modal-shadow: 0px 10px 20px var(--menu-shadow);
   --ninja-overflow-background: none;
 }

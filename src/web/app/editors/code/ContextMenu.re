@@ -338,6 +338,7 @@ module Projectors = {
     | Table => "Table"
     | Livelit => "Livelit"
     | Keybinding => "Keybinding"
+    | Color => "Color"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 

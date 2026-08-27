@@ -1,0 +1,419 @@
+# ══ Colour scheme ═══════════════════════════════════════════════════ #
+# Everything is folded (⋱) by default -- click one to open it.         #
+#                                                                     #
+# The whole program is four definitions and a switch:                  #
+#                                                                     #
+#   palette_of   seeds + ramp lightnesses -> every derived colour      #
+#   theme_of     colours + role overrides -> the theme the app reads   #
+#   light / dark the two schemes, each built by those two functions    #
+#   last line    picks one                                             #
+#                                                                     #
+# Both schemes run through the SAME two functions, so the derivation   #
+# -- how BR2 comes off BR1, how PAT comes off TYP, which colour each   #
+# role gets -- is written once and cannot drift between them. Only     #
+# three things differ per scheme: the seeds, six ramp lightnesses,     #
+# and the handful of roles that point somewhere else in dark.          #
+
+let dark_mode = false in
+
+# ── Seeds and ramp lightnesses become colours ───────────────────────── #
+let palette_of = fun (seed, step) ->
+  # PAT is needed twice (TPAT aliases it) and a tuple cannot refer to  #
+  # its own fields, so it is bound first.                              #
+  let pat = color_rotate(seed.`TYP`, -75.) in
+  ^^fold((
+    `NONE` = seed.`NONE`,
+    `SAND` = seed.`SAND`,
+    `STONE` = seed.`STONE`,
+    `BLACK` = seed.`BLACK`,
+    `BR1` = seed.`BR1`,
+    `T1` = seed.`T1`,
+    `Y0` = seed.`Y0`,
+    `Y1` = seed.`Y1`,
+    `Y2` = seed.`Y2`,
+    `Y3` = seed.`Y3`,
+    `R0` = seed.`R0`,
+    `R1` = seed.`R1`,
+    `R2` = seed.`R2`,
+    `TYP` = seed.`TYP`,
+    `LABEL` = seed.`LABEL`,
+    `highlight-a` = seed.`highlight-a`,
+    `G0` = seed.`G0`,
+    `G1` = seed.`G1`,
+    `G2` = seed.`G2`,
+    `GB0` = seed.`GB0`,
+    `GB1` = seed.`GB1`,
+    `textarea-v-stripe` = seed.`textarea-v-stripe`,
+    `textarea-h-stripe` = seed.`textarea-h-stripe`,
+    `textarea-h-strip-selected` = seed.`textarea-h-strip-selected`,
+    `SHADOW` = seed.`SHADOW`,
+    `ERRHOLE` = seed.`ERRHOLE`,
+    `CREASE` = seed.`CREASE`,
+    `exp-ap` = seed.`exp-ap`,
+    `pat-ap` = seed.`pat-ap`,
+    `exp-base` = seed.`exp-base`,
+    `pat-base` = seed.`pat-base`,
+    `exp-shadow` = seed.`exp-shadow`,
+    `pat-shadow` = seed.`pat-shadow`,
+    `exp-ap-shadow` = seed.`exp-ap-shadow`,
+    `exp-cell` = seed.`exp-cell`,
+    `pat-cell` = seed.`pat-cell`,
+    `main-base` = seed.`main-base`,
+    `main-shadow` = seed.`main-shadow`,
+    # Ramps: BR2-4 step off BR1, T2-4 off T1. The lightnesses come     #
+    # from `step` and INVERT between schemes -- in dark, more          #
+    # contrast means lighter.                                          #
+    `BR2` = color_with_lightness(seed.`BR1`, step.`BR2`),
+    `BR3` = color_with_lightness(seed.`BR1`, step.`BR3`),
+    `BR4` = color_with_lightness(seed.`BR1`, step.`BR4`),
+    `T2` = color_with_lightness(seed.`T1`, step.`T2`),
+    `T3` = color_with_lightness(seed.`T1`, step.`T3`),
+    `T4` = color_with_lightness(seed.`T1`, step.`T4`),
+    `PAT` = pat,
+    `TPAT` = pat,
+    `highlight-b` = color_rotate(seed.`highlight-a`, -120.),
+    `highlight-c` = color_rotate(seed.`highlight-a`, -240.)
+  )) in
+
+# ── Colours and role overrides become the theme ─────────────────────── #
+let theme_of = fun (p, role) ->
+  # Roles that other roles refer to. #
+  let menu_outline = p.`BR2` in
+  let menu_icon = p.`BR4` in
+  let token_exp = p.`STONE` in
+  let token_pat = p.`PAT` in
+  let token_typ = p.`TYP` in
+  let token_tpat = p.`TPAT` in
+  let shard_exp = p.`T2` in
+  let shard_selected = p.`Y1` in
+  let backpack_selection = shard_selected in
+  let test_fail_active = p.`R0` in
+  ^^fold((
+    palette = ^^fold((
+      `NONE` = p.`NONE`,
+      `SAND` = p.`SAND`,
+      `STONE` = p.`STONE`,
+      `BLACK` = p.`BLACK`,
+      `BR1` = p.`BR1`,
+      `BR2` = p.`BR2`,
+      `BR3` = p.`BR3`,
+      `BR4` = p.`BR4`,
+      `T1` = p.`T1`,
+      `T2` = p.`T2`,
+      `T3` = p.`T3`,
+      `T4` = p.`T4`,
+      `Y0` = p.`Y0`,
+      `Y1` = p.`Y1`,
+      `Y2` = p.`Y2`,
+      `Y3` = p.`Y3`,
+      `R0` = p.`R0`,
+      `R1` = p.`R1`,
+      `R2` = p.`R2`,
+      `TYP` = p.`TYP`,
+      `PAT` = p.`PAT`,
+      `TPAT` = p.`TPAT`,
+      `LABEL` = p.`LABEL`,
+      `highlight-a` = p.`highlight-a`,
+      `highlight-b` = p.`highlight-b`,
+      `highlight-c` = p.`highlight-c`,
+      `G0` = p.`G0`,
+      `G1` = p.`G1`,
+      `G2` = p.`G2`,
+      `GB0` = p.`GB0`,
+      `GB1` = p.`GB1`
+    )),
+    roles = ^^fold((
+      ui = ^^fold((
+        `primary-accent` = p.`G0`,
+        `nut-menu` = role.`nut-menu`,
+        `nut-menu-active` = p.`GB0`,
+        `menu-bkg` = role.`menu-bkg`,
+        `menu-item-hover-bkg` = role.`menu-item-hover-bkg`,
+        `menu-item-text` = p.`STONE`,
+        `menu-outline` = menu_outline,
+        `menu-icon` = menu_icon,
+        `menu-group-name` = menu_icon,
+        `menu-scroll-thumb` = menu_outline,
+        `menu-scroll-track` = p.`BR1`,
+        `menu-divider` = p.`CREASE`,
+        `menu-shadow` = p.`SHADOW`,
+        `ui-bkg` = role.`ui-bkg`,
+        `ui-header-text` = role.`ui-header-text`,
+        `toggle-knob` = p.`SAND`
+      )),
+      code = ^^fold((
+        `main-bkg` = p.`T3`,
+        `cell-active` = role.`cell-active`,
+        `main-scroll-thumb` = role.`main-scroll-thumb`,
+        `main-scroll-track` = p.`NONE`,
+        `cell-selected-accent` = p.`R1`,
+        `caret-color` = p.`R1`,
+        `error-hole-stroke` = p.`R1`,
+        `token-exp` = token_exp,
+        `token-pat` = token_pat,
+        `token-typ` = token_typ,
+        `token-tpat` = token_tpat,
+        `token-label` = p.`LABEL`,
+        `token-string-lit` = p.`Y3`,
+        `token-comment` = p.`G2`,
+        `token-incomplete` = p.`Y3`,
+        `token-inconsistent` = token_exp,
+        `token-buffer` = role.`token-buffer`,
+        `token-explicit-hole` = p.`Y2`,
+        `token-explicit-hole-shadow` = p.`BLACK`,
+        `token-secondary` = shard_exp,
+        `token-rul` = token_exp,
+        `token-any` = p.`R2`
+      )),
+      shard = ^^fold((
+        `shard-caret-exp` = p.`T2`,
+        `shard-lines-exp` = role.`shard-lines-exp`,
+        `shard-exp` = shard_exp,
+        `shard-caret-pat` = role.`shard-caret-pat`,
+        `shard-caret-typ` = role.`shard-caret-typ`,
+        `shard-caret-tpat` = role.`shard-caret-tpat`,
+        `shard-pat` = role.`shard-caret-pat`,
+        `shard-typ` = role.`shard-caret-typ`,
+        `shard-tpat` = role.`shard-caret-tpat`,
+        `shard-selected` = shard_selected,
+        `shard-buffer` = p.`T1`,
+        shard_projector = p.`T2`,
+        `shard-rul` = shard_exp,
+        `shard-lines-rul` = role.`shard-lines-exp`,
+        `shadow-selected` = p.`R0`,
+        `shard-any` = shard_exp,
+        `shadow-any` = p.`R0`
+      )),
+      hole = ^^fold((
+        `empty-hole-stroke` = role.`empty-hole-stroke`,
+        `empty-hole-fill` = role.`empty-hole-fill`,
+        `error-hole-fill` = p.`ERRHOLE`
+      )),
+      backpack = ^^fold((
+        `backpack-selection` = backpack_selection,
+        `backpack-joiner` = backpack_selection,
+        `backpack-genie` = backpack_selection,
+        `backpack-selection-outline` = role.`backpack-selection-outline`,
+        `backback-targets` = role.`backback-targets`
+      )),
+      projector = ^^fold((
+        `textarea-indicated` = p.`SAND`,
+        `textarea-text` = role.`textarea-text`
+      )),
+      dynamics = ^^fold((
+        `cell-result-text` = p.`BR4`,
+        `cell-result-border` = role.`cell-result-border`,
+        `cell-result-hidden` = p.`BR1`,
+        `eval-exception` = test_fail_active,
+        `eval-exception-stroke` = p.`R2`,
+        `step-hole-color` = p.`G0`
+      )),
+      ci = ^^fold((
+        `ci-icon-bkg` = role.`ci-icon-bkg`,
+        `ci-status-text` = role.`ci-status-text`,
+        `ci-status-error-text` = p.`R2`,
+        `ci-status-error-bkg` = test_fail_active,
+        `context-inspector-colon` = role.`context-inspector-colon`
+      )),
+      exercise = ^^fold((
+        `cell-caption` = role.`cell-caption`,
+        `cell-result` = p.`T3`,
+        `cell-exercises-border` = role.`cell-exercises-border`,
+        `test-panel-bkg` = role.`menu-bkg`,
+        `test-percent-text` = p.`SAND`,
+        `test-pass` = p.`G0`,
+        `test-pass-active` = p.`G1`,
+        `test-fail` = p.`R1`,
+        `test-fail-active` = test_fail_active,
+        `test-indet` = p.`BR2`,
+        `test-indet-active` = p.`BR1`
+      )),
+      special = ^^fold((
+        `textarea-v-stripe` = p.`textarea-v-stripe`,
+        `textarea-h-stripe` = p.`textarea-h-stripe`,
+        `textarea-h-strip-selected` = p.`textarea-h-strip-selected`,
+        `SHADOW` = p.`SHADOW`,
+        `ERRHOLE` = p.`ERRHOLE`,
+        `CREASE` = p.`CREASE`
+      )),
+      projector_extended = ^^fold((
+        `live-env-bkg` = p.`T3`,
+        `num-closures` = p.`Y1`,
+        `num-closures-indicated` = p.`R1`,
+        `exp-ap` = p.`exp-ap`,
+        `pat-ap` = p.`pat-ap`,
+        `exp-indicated` = p.`G0`,
+        `pat-indicated` = p.`PAT`,
+        `exp-ap-indicated` = p.`TYP`,
+        `exp-base` = p.`exp-base`,
+        `pat-base` = p.`pat-base`,
+        `exp-shadow` = p.`exp-shadow`,
+        `pat-shadow` = p.`pat-shadow`,
+        `exp-ap-shadow` = p.`exp-ap-shadow`,
+        `exp-cell` = p.`exp-cell`,
+        `pat-cell` = p.`pat-cell`,
+        `main-base` = p.`main-base`,
+        `main-shadow` = p.`main-shadow`,
+        `main-indicated` = p.`TYP`
+      ))
+    ))
+  )) in
+
+# ── Light scheme ────────────────────────────────────────────────────── #
+let light =
+  let p = palette_of(
+    ^^fold((
+      `NONE` = Transparent,
+      `SAND` = ^^color(Oklch(99., 0.012, 90.)),
+      `STONE` = ^^color(Oklch(52., 0.03, 220.)),
+      `BLACK` = ^^color(Oklch(0., 0., 0.)),
+      `BR1` = ^^color(Oklch(85., 0.07, 90.)),
+      `T1` = ^^color(Oklch(97., 0.025, 90.)),
+      `Y0` = ^^color(Oklch(95., 0.05, 90.)),
+      `Y1` = ^^color(Oklch(91., 0.11, 95.)),
+      `Y2` = ^^color(Oklch(88., 0.2, 95.)),
+      `Y3` = ^^color(Oklch(71., 0.2, 95.)),
+      `R0` = ^^color(Oklch(85., 0.1, 30.)),
+      `R1` = ^^color(Oklch(60., 0.3, 30.)),
+      `R2` = ^^color(Oklch(40., 0.3, 30.)),
+      `TYP` = ^^color(Oklch(60., 0.2, 300.)),
+      `LABEL` = ^^color(Oklch(60., 0.2, 180.)),
+      `highlight-a` = ^^color(Oklch(95., 0.07, 360.)),
+      `G0` = ^^color(Oklch(70., 0.15, 150.)),
+      `G1` = ^^color(Oklch(85., 0.15, 150.)),
+      `G2` = ^^color(Oklch(80., 0.05, 150.)),
+      `GB0` = ^^color(Oklch(70., 0.05, 120.)),
+      `GB1` = ^^color(Oklch(45., 0.05, 120.)),
+      `textarea-v-stripe` = Fade(^^color(Oklch(78., 0.14, 6.)), 55.),
+      `textarea-h-stripe` = ^^color(Oklch(87., 0.07, 246.)),
+      `textarea-h-strip-selected` = Fade(^^color(Oklch(68., 0.14, 76.)), 30.),
+      `SHADOW` = Fade(^^color(Oklch(50., 0.1, 90.)), 33.),
+      `ERRHOLE` = ^^color(Oklch(96., 0.02, 47.)),
+      `CREASE` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `exp-ap` = ^^color(Oklch(77.98377, 0.11156, 303.02104)),
+      `pat-ap` = ^^color(Oklch(80.43777, 0.07785, 263.9882)),
+      `exp-base` = ^^color(Oklch(90.06553, 0.05236, 145.12433)),
+      `pat-base` = ^^color(Oklch(90.75194, 0.03285, 184.47899)),
+      `exp-shadow` = ^^color(Oklch(55., 0.15, 150.)),
+      `pat-shadow` = ^^color(Oklch(50., 0.1, 245.)),
+      `exp-ap-shadow` = ^^color(Oklch(50., 0.1, 300.)),
+      `exp-cell` = ^^color(Oklch(79.48665, 0.07788, 142.66717)),
+      `pat-cell` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
+      `main-base` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
+      `main-shadow` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
+    )),
+    (
+      `BR2` = 70.,
+      `BR3` = 60.,
+      `BR4` = 50.,
+      `T2` = 94.,
+      `T3` = 91.,
+      `T4` = 88.
+    )
+  ) in
+  theme_of(p, ^^fold((
+    `nut-menu` = p.`GB1`,
+    `menu-bkg` = p.`Y0`,
+    `menu-item-hover-bkg` = p.`SAND`,
+    `ui-bkg` = p.`T1`,
+    `ui-header-text` = p.`BR3`,
+    `cell-active` = p.`SAND`,
+    `main-scroll-thumb` = p.`BR1`,
+    `token-buffer` = p.`BR1`,
+    `shard-lines-exp` = p.`BR1`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.25), 95.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.25), 95.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.25), 95.),
+    `empty-hole-stroke` = p.`BR1`,
+    `empty-hole-fill` = p.`Y0`,
+    `backpack-selection-outline` = p.`SAND`,
+    `backback-targets` = p.`Y3`,
+    `textarea-text` = p.`BR3`,
+    `cell-result-border` = p.`BR1`,
+    `ci-icon-bkg` = p.`BR3`,
+    `ci-status-text` = p.`BR4`,
+    `context-inspector-colon` = p.`BR2`,
+    `cell-caption` = p.`BR2`,
+    `cell-exercises-border` = p.`BR2`
+  ))) in
+
+# ── Dark scheme ─────────────────────────────────────────────────────── #
+let dark =
+  let p = palette_of(
+    ^^fold((
+      `NONE` = Transparent,
+      `SAND` = ^^color(Oklch(25., 0.015, 240.)),
+      `STONE` = ^^color(Oklch(75., 0.03, 250.)),
+      `BLACK` = ^^color(Oklch(0., 0., 0.)),
+      `BR1` = ^^color(Oklch(30., 0.04, 250.)),
+      `T1` = ^^color(Oklch(15., 0.02, 250.)),
+      `Y0` = ^^color(Oklch(22., 0.06, 95.)),
+      `Y1` = ^^color(Oklch(32., 0.09, 169.5)),
+      `Y2` = ^^color(Oklch(45., 0.15, 95.)),
+      `Y3` = ^^color(Oklch(65., 0.18, 118.38)),
+      `R0` = ^^color(Oklch(40., 0.1, 30.)),
+      `R1` = ^^color(Oklch(55., 0.25, 30.)),
+      `R2` = ^^color(Oklch(70., 0.3, 30.)),
+      `TYP` = ^^color(Oklch(70., 0.18, 300.)),
+      `LABEL` = ^^color(Oklch(75., 0.15, 210.)),
+      `highlight-a` = ^^color(Oklch(65., 0.1, 260.)),
+      `G0` = ^^color(Oklch(65., 0.15, 150.)),
+      `G1` = ^^color(Oklch(75., 0.15, 150.)),
+      `G2` = ^^color(Oklch(60., 0.05, 150.)),
+      `GB0` = ^^color(Oklch(60., 0.05, 200.)),
+      `GB1` = ^^color(Oklch(35., 0.05, 200.)),
+      `textarea-v-stripe` = Fade(^^color(Oklch(35., 0.14, 230.)), 55.),
+      `textarea-h-stripe` = ^^color(Oklch(30., 0.07, 240.)),
+      `textarea-h-strip-selected` = Fade(^^color(Oklch(45., 0.14, 230.)), 30.),
+      `SHADOW` = Fade(^^color(Oklch(10., 0.08, 250.)), 50.),
+      `ERRHOLE` = ^^color(Oklch(40., 0.02, 47.)),
+      `CREASE` = Fade(^^color(Oklch(100., 0., 0.)), 25.),
+      `exp-ap` = ^^color(Oklch(49.30911, 0.25288, 292.96451)),
+      `pat-ap` = ^^color(Oklch(52.84777, 0.20511, 262.11762)),
+      `exp-base` = ^^color(Oklch(45.7018, 0.03667, 248.63699)),
+      `pat-base` = ^^color(Oklch(42.87573, 0.04998, 275.36018)),
+      `exp-shadow` = ^^color(Oklch(30., 0.1, 230.)),
+      `pat-shadow` = ^^color(Oklch(25., 0.1, 260.)),
+      `exp-ap-shadow` = ^^color(Oklch(25., 0.1, 300.)),
+      `exp-cell` = ^^color(Oklch(49.35078, 0.04362, 256.83258)),
+      `pat-cell` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
+      `main-base` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
+      `main-shadow` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
+    )),
+    (
+      `BR2` = 40.,
+      `BR3` = 55.,
+      `BR4` = 70.,
+      `T2` = 18.,
+      `T3` = 22.,
+      `T4` = 26.
+    )
+  ) in
+  theme_of(p, ^^fold((
+    `nut-menu` = p.`G2`,
+    `menu-bkg` = p.`T1`,
+    `menu-item-hover-bkg` = ^^color(Oklch(95., 0.015, 240.)),
+    `ui-bkg` = p.`T2`,
+    `ui-header-text` = p.`BR4`,
+    `cell-active` = ^^color(Oklch(30., 0.02, 240.)),
+    `main-scroll-thumb` = p.`BR3`,
+    `token-buffer` = p.`BR3`,
+    `shard-lines-exp` = p.`BR2`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.3333), 40.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.3333), 40.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.3333), 40.),
+    `empty-hole-stroke` = p.`BR3`,
+    `empty-hole-fill` = p.`T2`,
+    `backpack-selection-outline` = ^^color(Oklch(80., 0.02, 250.)),
+    `backback-targets` = p.`Y2`,
+    `textarea-text` = p.`STONE`,
+    `cell-result-border` = p.`BR2`,
+    `ci-icon-bkg` = p.`BR2`,
+    `ci-status-text` = p.`STONE`,
+    `context-inspector-colon` = p.`BR3`,
+    `cell-caption` = p.`BR3`,
+    `cell-exercises-border` = p.`BR3`
+  ))) in
+
+# The whole program branches here, once. #
+if dark_mode then dark else light

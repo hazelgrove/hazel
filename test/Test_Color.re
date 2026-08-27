@@ -1,6 +1,4 @@
 open Alcotest;
-open Haz3lcore;
-open Language;
 
 module C = Language.BuiltinsADT.Color;
 

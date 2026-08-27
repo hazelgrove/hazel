@@ -77,6 +77,7 @@ let (suite, _) =
     @ Test_DerivationCase.tests
     @ Test_PromptFactory.tests
     @ Test_ShortcutConfiguration.tests
+    @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
     @ Test_ShortcutAction.tests
     @ Test_Color.tests

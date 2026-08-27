@@ -1,0 +1,31 @@
+/* PROJECTOR: COLOR (OKLCH PICKER) */
+
+.projector.color .color-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  width: 100%;
+}
+
+/* The swatch is the value: sized to the line so a column of seeds reads as a
+   palette rather than as three sliders repeated 38 times. The colour itself
+   is set inline by the projector. */
+.projector.color .color-swatch {
+  flex: 0 0 auto;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 0.2em;
+  border: 1px solid var(--border-default);
+}
+
+.projector.color .color-slider {
+  flex: 1 1 0;
+  min-width: 1.5em;
+  margin: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+.projector.color:not(.indicated):not(:hover) > svg {
+  fill: var(--text-none);
+}

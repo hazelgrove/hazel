@@ -406,7 +406,11 @@ module Color = {
         ap(Forward, ctr("Fade"), tuple([exp_of(inner), float(a)]))
       );
 
-  let rec of_exp = (v: Exp.t): option(t) =>
+  /* Strip ascriptions first: a builtin's result carries an ascription to its
+     declared return type, so `color_with_lightness(...)` decodes as
+     `Asc(Oklch(...), ColorValue)` and the unboxing below would miss it. */
+  let rec of_exp = (v: Exp.t): option(t) => {
+    let v = DHExp.strip_ascriptions(v);
     switch (Unboxing.unbox(SumNoArg("Transparent"), v)) {
     | Matches () => Some(Transparent)
     | _ =>
@@ -447,6 +451,7 @@ module Color = {
         }
       }
     };
+  };
 
   /* ---- Rendering to CSS ---- */
 
