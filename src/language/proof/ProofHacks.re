@@ -523,13 +523,6 @@ let find_refls = (~info_map, ~env, e) => {
   refls^;
 };
 
-let goal_of_typ = (ty: Typ.t): Exp.t => {
-  switch (ty.term) {
-  | ProofOf(e) => e
-  | _ => Exp.fresh(Invalid("Bad_Goal"))
-  };
-};
-
 let strip_theorems = (exp: Exp.t): Exp.t => {
   Exp.map_term(
     ~f_exp=
