@@ -503,13 +503,11 @@ module MutationTestingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           label([text("Hint: ")]),
           input(
             ~attrs=[
-              //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
@@ -537,7 +535,6 @@ module MutationTestingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           div(
@@ -574,63 +571,6 @@ module MutationTestingReport = {
            )
          ),
     );
-
-  // let passing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Pass,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let failing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Fail,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
-  //   let (reference_term, reference_map) = spliced_statics(editors);
-  //   let result_reference =
-  //     Interface.test_results(reference_map, reference_term);
-  //   switch (result_reference) {
-  //   | None => []
-  //   | Some(test_results) => test_results.test_map
-  //   };
-  // };
-  // let show_term = (editor: Editor.t, _) =>
-  //   editor.state.zipper
-  //   |> Zipper.zip
-  //   |> MakeTerm.go
-  //   |> fst
-  //   |> Exp.show
-  //   |> print_endline
-  //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
-
-  // let get_first_common =
-  //     (reference_passing, wrong): (TestStatus.t, option('a)) => {
-  //   let wrong_test_map = wrong |> get_test_map;
-  //   let wrong_failing = wrong_test_map |> failing_test_ids;
-  //   let common =
-  //     List.filter(x => List.mem(x, reference_passing), wrong_failing);
-  //   let instance: option(list('a)) =
-  //     switch (common) {
-  //     | [] => None
-  //     | [x, ..._] => List.assoc_opt(x, wrong_test_map)
-  //     };
-  //   switch (instance) {
-  //   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
-  //   | _ => (TestStatus.Fail, None)
-  //   };
-  // };
 
   let view =
       (
@@ -1008,13 +948,11 @@ module ImplGradingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           label([text("Hint: ")]),
           input(
             ~attrs=[
-              //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
@@ -1042,7 +980,6 @@ module ImplGradingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           div(
