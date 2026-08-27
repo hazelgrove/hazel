@@ -340,6 +340,136 @@ module Shortcut = {
     };
 };
 
+/* Colours, used as the analyzed type of the Colors config slide.
+
+   * Only DATA constructors live here — the arithmetic (lighten, mix, …) is a
+   * set of ordinary builtin functions in BuiltinsColor.re. That split is
+   * deliberate: because the maths is functions, every role in the config
+   * EVALUATES down to a canonical `Oklch(l, c, h)`, which is the form both the
+   * CSS applier and a future colour-picker projector want to read and write. If
+   * mixing were a constructor instead, a role's value would be an unevaluated
+   * tree and neither could do anything useful with it.
+   *
+   * `Transparent` and `Hex` occupy fairly common constructor names. A user
+   * program that declares its own shadows these lexically, as usual. */
+module Color = {
+  /* Self-reference: Fade wraps another colour. */
+  let self: Typ.t = var("ColorValue");
+
+  /* type ColorValue =
+     + Oklch((Float, Float, Float))   /* l 0..100, chroma, hue degrees */
+     + Fade((ColorValue, Float))      /* alpha 0..100 */
+     + Hex(String)
+     + Transparent */
+  let typ: Typ.t =
+    rec_(
+      Fresh.TPat.var("ColorValue"),
+      sum_type([
+        ("Oklch", Some(prod([float(), float(), float()]))),
+        ("Fade", Some(prod([self, float()]))),
+        ("Hex", Some(string())),
+        ("Transparent", None),
+      ]),
+    );
+
+  /* ---- OCaml mirror, plus the encoding between the two ---- */
+
+  /* float/string converters for the derivings below; a bare `open Util` here
+     would shadow this module's own Option. */
+  open Sexplib.Std;
+  open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Oklch(float, float, float)
+    | Fade(t, float)
+    | Hex(string)
+    | Transparent;
+
+  /* Fresh per occurrence, never a module-level value — FreshGrammar mints the
+     id at call time, and a shared constructor collapses every occurrence into
+     one tile, crashing Highlight.of_tile. */
+  let ctr = (name: string): Exp.t =>
+    IdTagged.FreshGrammar.Exp.constructor(name, None);
+
+  let rec exp_of: t => Exp.t =
+    fun
+    | Transparent => ctr("Transparent")
+    | Hex(s) =>
+      IdTagged.FreshGrammar.Exp.(ap(Forward, ctr("Hex"), string(s)))
+    | Oklch(l, c, h) =>
+      IdTagged.FreshGrammar.Exp.(
+        ap(Forward, ctr("Oklch"), tuple([float(l), float(c), float(h)]))
+      )
+    | Fade(inner, a) =>
+      IdTagged.FreshGrammar.Exp.(
+        ap(Forward, ctr("Fade"), tuple([exp_of(inner), float(a)]))
+      );
+
+  let rec of_exp = (v: Exp.t): option(t) =>
+    switch (Unboxing.unbox(SumNoArg("Transparent"), v)) {
+    | Matches () => Some(Transparent)
+    | _ =>
+      switch (Unboxing.unbox(SumWithArg("Hex"), v)) {
+      | Matches(arg) =>
+        switch (Unboxing.unbox(Atom(String), arg)) {
+        | Matches(s) => Some(Hex(s))
+        | _ => None
+        }
+      | _ =>
+        switch (Unboxing.unbox(SumWithArg("Oklch"), v)) {
+        | Matches(arg) =>
+          switch (Unboxing.unbox(Tuple(3), arg)) {
+          | Matches([l, c, h]) =>
+            switch (
+              Unboxing.unbox(Atom(Float), l),
+              Unboxing.unbox(Atom(Float), c),
+              Unboxing.unbox(Atom(Float), h),
+            ) {
+            | (Matches(l), Matches(c), Matches(h)) => Some(Oklch(l, c, h))
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ =>
+          switch (Unboxing.unbox(SumWithArg("Fade"), v)) {
+          | Matches(arg) =>
+            switch (Unboxing.unbox(Tuple(2), arg)) {
+            | Matches([inner, a]) =>
+              switch (of_exp(inner), Unboxing.unbox(Atom(Float), a)) {
+              | (Some(inner), Matches(a)) => Some(Fade(inner, a))
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          }
+        }
+      }
+    };
+
+  /* ---- Rendering to CSS ---- */
+
+  /* %g rather than string_of_float: OCaml renders 90. as "90." and 0.5 as
+     "0.5", and a trailing dot is not valid inside oklch(). */
+  let num = (f: float): string => Printf.sprintf("%g", f);
+
+  /* Alpha goes through color-mix so it composes with any inner colour,
+     including Hex, rather than only with the oklch() slash form. */
+  let rec to_css: t => string =
+    fun
+    | Transparent => "transparent"
+    | Hex(s) => s
+    | Oklch(l, c, h) =>
+      "oklch(" ++ num(l) ++ "% " ++ num(c) ++ " " ++ num(h) ++ ")"
+    | Fade(inner, a) =>
+      "color-mix(in oklch, "
+      ++ to_css(inner)
+      ++ " "
+      ++ num(a)
+      ++ "%, transparent)";
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
@@ -348,6 +478,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("JSON", JSON.t),
   ("KeyMod", Shortcut.key_mod_typ),
   ("Shortcut", Shortcut.typ),
+  ("ColorValue", Color.typ),
   ("$Meta", meta_type),
 ];
 

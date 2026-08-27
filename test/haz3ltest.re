@@ -79,6 +79,7 @@ let (suite, _) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ConfigurationMode.tests
     @ Test_ShortcutAction.tests
+    @ Test_Color.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
