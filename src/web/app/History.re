@@ -1,6 +1,95 @@
 open Util;
 
-let capped_undo_stack_size = 250;
+/* 50: even compacted snapshots cost ~5MB each on mega-scale programs
+   (zippers, frozen ctxs, master segments); a deep stack still OOMs.
+   Proper fix = zipper-level undo entries (docketed). */
+let capped_undo_stack_size = 50;
+
+/* Undo snapshots are COMPACTED: a raw Page.Model.t pins its
+   generation's derived caches — CachedSyntax (measured/term_data,
+   MBs per keystroke on large programs), statics maps, and decoded
+   worker eval states. None of that is needed to undo: the zipper is
+   the source of truth and everything else recomputes on restore
+   (syntax via the mark_old dummy, statics on the next edited
+   calculate, results by re-evaluating). Without this, editing a
+   mega-scale program leaked hundreds of MB within a few edits. */
+let dummy_syntax =
+  lazy(
+    Haz3lcore.CachedSyntax.mark_old(
+      Haz3lcore.CachedSyntax.init(
+        Haz3lcore.Zipper.unzip(
+          ~direction=Left,
+          [
+            Haz3lcore.Piece.Grout({
+              id: Haz3lcore.Id.mk(),
+              shape: Convex,
+            }),
+          ],
+        ),
+      ),
+    )
+  );
+
+let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
+  editor: {
+    editor: {
+      ...c.editor.editor,
+      syntax: Lazy.force(dummy_syntax),
+    },
+    statics: Haz3lcore.CachedStatics.empty,
+    dynamics: Language.Dynamics.Map.empty,
+    context_menu: c.editor.context_menu,
+  },
+  result: EvalResult.Model.init,
+};
+
+let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
+  ...m,
+  scratchpads:
+    List.map(
+      (sp: ScratchMode.Scratchpad.t) =>
+        switch (sp.kind) {
+        | Code({editor, agent}) => {
+            ...sp,
+            kind:
+              Code({
+                editor: compact_cell(editor),
+                agent,
+              }),
+          }
+        | Drv(_) => sp
+        },
+      m.scratchpads,
+    ),
+  focus:
+    Option.map(
+      (f: ScratchMode.Model.focus_t) =>
+        ScratchMode.Model.{
+          ...f,
+          f_entries:
+            List.map(
+              (e: ScratchMode.Model.stack_entry) =>
+                ScratchMode.Model.{
+                  ...e,
+                  e_header: compact_cell(e.e_header),
+                  e_body: compact_cell(e.e_body),
+                },
+              f.f_entries,
+            ),
+        },
+      m.focus,
+    ),
+};
+
+let compact = (m: Page.Model.t): Page.Model.t => {
+  ...m,
+  editors:
+    switch (m.editors) {
+    | Scratch(sm) => Scratch(compact_scratch(sm))
+    | Documentation(sm) => Documentation(compact_scratch(sm))
+    | (Tutorial(_) | Exercises(_)) as e => e
+    },
+};
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -58,7 +147,7 @@ module Update = {
             redo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: compact(model.current),
               },
               ...model.redo_stack,
             ],
@@ -77,7 +166,7 @@ module Update = {
             undo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: compact(model.current),
               },
               ...model.undo_stack,
             ],
@@ -98,16 +187,14 @@ module Update = {
         let new_stack = [
           {
             ...current,
-            model: model.current,
+            model: compact(model.current),
           },
           ...model.undo_stack,
         ];
+        /* ALWAYS capped: unbounded full-model history was the other
+           half of the mega-scale OOM (the setting used to gate this) */
         let undo_stack =
-          if (model.current.globals.settings.cap_undo_stack) {
-            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
-          } else {
-            new_stack;
-          };
+          List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
         {
           ...current,
           model: {

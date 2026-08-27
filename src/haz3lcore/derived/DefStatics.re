@@ -314,16 +314,23 @@ let fix_spine_infos =
         let bound = List.map(entry_name, it.d_exports);
         let below_co_scoped =
           List.filter(((name, _)) => !List.mem(name, bound), below_co);
-        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, m)) {
-        | (Some(_), Some(info)) =>
-          let co_ctx = CoCtx.union([info.co_ctx, below_co_scoped]);
+        /* CRITICAL: read the root's RAW info from the item's own
+           d_map, never from [m]. The incremental calc feeds the
+           previous run's PATCHED merged back in as the base — reading
+           the patched entry and unioning the suffix again DOUBLES the
+           co_ctx use-lists every calc (exponential memory: the mega
+           editors died within a few edits). d_maps stay raw, so
+           sourcing from them makes the patch idempotent. */
+        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, it.d_map)) {
+        | (Some(_), Some(raw)) =>
+          let co_ctx = CoCtx.union([raw.co_ctx, below_co_scoped]);
           let m =
             Id.Map.add(
               it.d_id,
               Info.InfoExp({
-                ...info,
+                ...raw,
                 probe_targets:
-                  SubexpProbeTargets.union(info.probe_targets, below_wit),
+                  SubexpProbeTargets.union(raw.probe_targets, below_wit),
                 co_ctx,
               }),
               m,
@@ -334,8 +341,8 @@ let fix_spine_infos =
              InfoExp at the root (e.g. module forms): thread what we
              know upward without patching */
           let own_co =
-            switch (Statics.Map.lookup_exp(it.d_id, m)) {
-            | Some(info) => info.co_ctx
+            switch (Statics.Map.lookup_exp(it.d_id, it.d_map)) {
+            | Some(raw) => raw.co_ctx
             | None => CoCtx.empty
             };
           (

@@ -618,6 +618,29 @@ let probe_capture_parity = (): unit => {
       true,
       DefStatics.last_analyzed^ < List.length(ds.items),
     );
+    /* IDEMPOTENCY gate: repeated no-change incremental calcs must not
+       grow the patched root infos (the suffix co_ctx patch once read
+       its own output back and DOUBLED per calc — exponential memory) */
+    let root_co_size = (t: DefStatics.t) =>
+      switch (Statics.Map.lookup_exp(Exp.rep_id(term), t.merged)) {
+      | Some(info) => List.length(info.co_ctx)
+      | None => (-1)
+      };
+    let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
+    let ds_i2 = DefStatics.calc(~settings, ~prev=ds_i1, ~probe_ids, term);
+    let ds_i3 = DefStatics.calc(~settings, ~prev=ds_i2, ~probe_ids, term);
+    Printf.printf(
+      "PROBECAP root co_ctx sizes across no-change calcs: %d %d %d\n",
+      root_co_size(ds_i1),
+      root_co_size(ds_i2),
+      root_co_size(ds_i3),
+    );
+    check(
+      int,
+      "spine patch idempotent (co_ctx does not grow)",
+      root_co_size(ds_i1),
+      root_co_size(ds_i3),
+    );
     let ds_off = DefStatics.calc(~settings, ~prev=ds, term);
     Printf.printf(
       "PROBECAP toggle-off analyzed: %d\n",
