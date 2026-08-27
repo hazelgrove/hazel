@@ -8,8 +8,6 @@ module DB = {
     HazelDB.log_add(key, value);
   };
 
-  let get = HazelDB.log_get;
-
   let get_all = HazelDB.log_get_all;
 
   let clear_and = (callback): unit => {
@@ -55,12 +53,6 @@ module Entry = {
 
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
-
-let get_count = (f: int => unit): unit =>
-  DB.get_all(entries => f(List.length(entries)));
-
-// Synchronously get the cached count (may be stale until sync_count is called)
-let get_count_sync = (): int => LogCount.get();
 
 // Sync the cached count with the database
 let sync_count = (): unit =>

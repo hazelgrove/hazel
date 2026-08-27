@@ -37,13 +37,11 @@ type entry = {
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = Id.Map.t(entry);
-  let empty = Id.Map.empty;
 };
 
 module RefractorList = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = list((Id.t, entry));
-  let empty = [];
 };
 
 /* Groups multi-probe related state together.

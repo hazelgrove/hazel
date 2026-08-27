@@ -12,11 +12,36 @@ let lines_of_string = (s: string): array(string) => {
   Array.of_list(String.split_on_char('\n', s));
 };
 
+/* `Measured` positions are display COLUMNS (a wide cluster counts two, same
+   as a terminal cell), so padding by `col` spaces lines the carets up. Raw
+   source lines, on the other hand, are bytes — see `slice_columns`. */
 let make_caret_line = (col: int, len: int): string => {
-  let spaces = String.make(col, ' ');
+  let spaces = String.make(max(0, col), ' ');
   let carets = String.make(max(1, len), '^');
   spaces ++ carets;
 };
+
+/* Substring of `line` between two column offsets. Columns are not byte
+   offsets once the line contains non-ASCII, so convert through grapheme
+   indices; this both keeps the excerpt aligned with the span and stops it
+   from being cut mid-cluster. */
+let slice_columns = (line: string, start_col: int, end_col: int): string => {
+  let index_of_col = col =>
+    Util.Unicode.Width.column_to_grapheme_index(line, max(0, col));
+  let start_idx = index_of_col(start_col);
+  let end_idx = max(start_idx, index_of_col(end_col));
+  let (_, rest) = Util.Unicode.split_nth(line, start_idx);
+  fst(Util.Unicode.split_nth(rest, end_idx - start_idx));
+};
+
+/* Everything in `line` from `start_col` onwards. */
+let suffix_from_column = (line: string, start_col: int): string =>
+  snd(
+    Util.Unicode.split_nth(
+      line,
+      Util.Unicode.Width.column_to_grapheme_index(line, max(0, start_col)),
+    ),
+  );
 
 let warning_string = (item: Language.Warning.list_item): string =>
   switch (item) {
