@@ -407,29 +407,55 @@ let menu_view =
       ],
       [],
     ),
-    div(
-      ~attrs=[
-        clss(["outline-def-menu"]),
-        Attr.style(
-          Css_gen.combine(
-            Css_gen.create(
+    {
+      /* flip away from viewport edges (same Menu helpers the editor
+         context menu uses); 7 items ≈ 190px tall, ~200px wide */
+      let dir =
+        Util.Menu.direction_of(
+          ~menu_height=190.,
+          ~menu_width=200.,
+          Util.Menu.space_from(
+            ~anchor_top=y,
+            ~anchor_bot=y,
+            ~anchor_left=x,
+            ~anchor_right=x,
+          ),
+        );
+      let vh: float = Js_of_ocaml.Js.Unsafe.global##.innerHeight;
+      let vw: float = Js_of_ocaml.Js.Unsafe.global##.innerWidth;
+      let v =
+        dir.vertical == `Down
+          ? Css_gen.create(~field="top", ~value=Printf.sprintf("%.0fpx", y))
+          : Css_gen.create(
+              ~field="bottom",
+              ~value=Printf.sprintf("%.0fpx", vh -. y),
+            );
+      let h =
+        dir.horizontal == `Right
+          ? Css_gen.create(
               ~field="left",
               ~value=Printf.sprintf("%.0fpx", x),
-            ),
-            Css_gen.create(~field="top", ~value=Printf.sprintf("%.0fpx", y)),
-          ),
-        ),
-      ],
-      [
-        item(NewBelow, "new definition below"),
-        item(NewTypeBelow, "new type below"),
-        item(NewModuleBelow, "new module below"),
-        item(Duplicate, "duplicate"),
-        item(MoveUp, "move up"),
-        item(MoveDown, "move down"),
-        item(Delete, "delete"),
-      ],
-    ),
+            )
+          : Css_gen.create(
+              ~field="right",
+              ~value=Printf.sprintf("%.0fpx", vw -. x),
+            );
+      div(
+        ~attrs=[
+          clss(["outline-def-menu"]),
+          Attr.style(Css_gen.combine(h, v)),
+        ],
+        [
+          item(NewBelow, "new definition below"),
+          item(NewTypeBelow, "new type below"),
+          item(NewModuleBelow, "new module below"),
+          item(Duplicate, "duplicate"),
+          item(MoveUp, "move up"),
+          item(MoveDown, "move down"),
+          item(Delete, "delete"),
+        ],
+      );
+    },
   ];
 };
 

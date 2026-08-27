@@ -3312,6 +3312,62 @@ module Selection = {
      the stack, select the pane holding the binder, then a follow-up
      caret jump there). None = local jump or not a jump — take the
      normal path. */
+  /* resolve a MASTER-domain id to a cross-cell jump while a stack is
+     open: (open the containing item, focus the right pane, move its
+     caret). Serves goto-definition from any pane AND result-strip /
+     test jumps (which used to move the hidden master's caret). */
+  let cross_cell_target =
+      (~target_id: Haz3lcore.Id.t, ~model: Model.t, ~f: Model.focus_t)
+      : option((Update.t, t, Update.t)) => {
+    Util.OptUtil.Syntax.(
+      {
+        let scratchpad = List.nth(model.scratchpads, model.current);
+        switch (scratchpad.kind) {
+        | Drv(_) => None
+        | Code({editor, _}) =>
+          let statics = editor.editor.statics;
+          let* info = Id.Map.find_opt(target_id, statics.info_map);
+          /* the nearest enclosing outline item is the def to focus */
+          let rec outline_ids = (acc, ns: list(OutlineTree.node)) =>
+            List.fold_left(
+              (acc, n: OutlineTree.node) =>
+                outline_ids(
+                  switch (n.o_id) {
+                  | Some(id) => [id, ...acc]
+                  | None => acc
+                  },
+                  n.o_children,
+                ),
+              acc,
+              ns,
+            );
+          let items = outline_ids([], OutlineTree.of_term(statics.term));
+          let* fid =
+            List.find_opt(
+              id => List.mem(id, items),
+              [target_id, ...Language.Info.ancestors_of(info)],
+            );
+          let j = stack_position(~term=statics.term, fid, f.f_entries);
+          /* the target lives in the pattern (header cell) for def
+             binders, in the body for everything else */
+          let in_header =
+            Focus.seg_contains_id(
+              target_id,
+              Option.value(Focus.find_pat(fid, f.f_master_seg), ~default=[]),
+            );
+          let caret: CellEditor.Update.t =
+            MainEditor(Perform(Move(Goal(TileId(target_id)))));
+          Some((
+            Update.FocusEnsure(fid),
+            in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
+            in_header
+              ? Update.StackHeader(j, caret) : Update.StackBody(j, caret),
+          ));
+        };
+      }
+    );
+  };
+
   let stack_jump_override =
       (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
     Util.OptUtil.Syntax.(
@@ -3320,63 +3376,27 @@ module Selection = {
           StackBody(
             i,
             MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+          ) |
+          StackHeader(
+            i,
+            MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
           ),
           Some(f),
         ) =>
+        let from_header =
+          switch (action) {
+          | StackHeader(_) => true
+          | _ => false
+          };
         let* entry = List.nth_opt(f.f_entries, i);
-        let cell_map = entry.e_body.editor.statics.info_map;
-        let* ci =
-          Indicated.ci_of(entry.e_body.editor.editor.state.zipper, cell_map);
+        let cell = from_header ? entry.Model.e_header : entry.Model.e_body;
+        let cell_map = cell.editor.statics.info_map;
+        let* ci = Indicated.ci_of(cell.editor.editor.state.zipper, cell_map);
         let* binding_id = Language.Info.get_binding_site(ci);
         if (Id.Map.mem(binding_id, cell_map)) {
           None; /* binder is inside this cell: the cell's own jump works */
         } else {
-          let scratchpad = List.nth(model.scratchpads, model.current);
-          switch (scratchpad.kind) {
-          | Drv(_) => None
-          | Code({editor, _}) =>
-            let statics = editor.editor.statics;
-            let* info = Id.Map.find_opt(binding_id, statics.info_map);
-            /* the nearest enclosing outline item is the def to focus */
-            let rec outline_ids = (acc, ns: list(OutlineTree.node)) =>
-              List.fold_left(
-                (acc, n: OutlineTree.node) =>
-                  outline_ids(
-                    switch (n.o_id) {
-                    | Some(id) => [id, ...acc]
-                    | None => acc
-                    },
-                    n.o_children,
-                  ),
-                acc,
-                ns,
-              );
-            let items = outline_ids([], OutlineTree.of_term(statics.term));
-            let* fid =
-              List.find_opt(
-                id => List.mem(id, items),
-                Language.Info.ancestors_of(info),
-              );
-            let j = stack_position(~term=statics.term, fid, f.f_entries);
-            /* the binder lives in the pattern (header cell) for defs,
-               in the definition body for e.g. ADT constructors */
-            let in_header =
-              Focus.seg_contains_id(
-                binding_id,
-                Option.value(
-                  Focus.find_pat(fid, f.f_master_seg),
-                  ~default=[],
-                ),
-              );
-            let caret: CellEditor.Update.t =
-              MainEditor(Perform(Move(Goal(TileId(binding_id)))));
-            Some((
-              Update.FocusEnsure(fid),
-              in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
-              in_header
-                ? Update.StackHeader(j, caret) : Update.StackBody(j, caret),
-            ));
-          };
+          cross_cell_target(~target_id=binding_id, ~model, ~f);
         };
       | _ => None
       }
@@ -3708,14 +3728,27 @@ module View = {
                 fun
                 | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
                 | JumpTo(id) =>
-                  Virtual_dom.Vdom.Effect.Many([
-                    signal(MakeActive(Cell(MainEditor))),
-                    inject(
-                      CellAction(
-                        MainEditor(Perform(Move(Goal(TileId(id))))),
+                  /* result-strip / test jumps used to move the HIDDEN
+                     master's caret: open the containing item instead */
+                  switch (
+                    Selection.cross_cell_target(~target_id=id, ~model, ~f)
+                  ) {
+                  | Some((ensure, sel, caret)) =>
+                    Virtual_dom.Vdom.Effect.Many([
+                      inject(ensure),
+                      signal(MakeActive(sel)),
+                      inject(caret),
+                    ])
+                  | None =>
+                    Virtual_dom.Vdom.Effect.Many([
+                      signal(MakeActive(Cell(MainEditor))),
+                      inject(
+                        CellAction(
+                          MainEditor(Perform(Move(Goal(TileId(id))))),
+                        ),
                       ),
-                    ),
-                  ]),
+                    ])
+                  },
               ~inject=a => inject(CellAction(ResultAction(a))),
               ~selected=
                 switch (selected) {
