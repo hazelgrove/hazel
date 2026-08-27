@@ -196,5 +196,14 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  let nodes = of_segment(segment);
+  /* a TRAILING linebreak produces no final line box in pre flow, so
+     the editor came up one row short and the caret hung below it
+     (worst in stacked cells, where the next cell sits right there):
+     a zero-width space reserves the last row */
+  switch (List.rev(segment)) {
+  | [Secondary(s), ..._] when Secondary.is_linebreak(s) =>
+    nodes @ [Node.text("\xe2\x80\x8b")]
+  | _ => nodes
+  };
 };
