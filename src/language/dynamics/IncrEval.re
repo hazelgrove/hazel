@@ -142,11 +142,11 @@ let copy_descendant_entries =
  * so expand via prev_elab rather than using only the map keys. Used by the
  * pending-eval worklist (to drop settled ids) and by the frozen debug tint
  * (to paint a reuse prediction). */
-let visible_ids = (incr: t('state)): list(Id.t) => {
-  let acc = ref([]);
+let visible_id_set = (incr: t('state)): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
   let collect_subtree = (root: Exp.t): unit => {
     let f_exp = (continue, e: Exp.t): Exp.t => {
-      acc := [Exp.rep_id(e), ...acc^];
+      acc := Id.Set.add(Exp.rep_id(e), acc^);
       continue(e);
     };
     let _ = TermBase.Exp.map_term(~f_exp, root);
@@ -155,6 +155,9 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
   Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
   acc^;
 };
+
+let visible_ids = (incr: t('state)): list(Id.t) =>
+  visible_id_set(incr) |> Id.Set.elements;
 
 /* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
 let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
