@@ -20,14 +20,6 @@ let switch_to = (~globals: Globals.t, panel: SidebarModel.Settings.panel, _) =>
     Effect.Prevent_default,
   ]);
 
-let switch_assistant = (~globals: Globals.t, _) =>
-  Effect.Many([
-    globals.inject_global(Set(Sidebar(ToggleShow))),
-    Effect.Stop_propagation,
-    /* Keep editor focus when collapsing/expanding the sidebar. */
-    Effect.Prevent_default,
-  ]);
-
 let tab_of =
     (
       ~panel: SidebarModel.Settings.panel,
@@ -282,16 +274,6 @@ let task_reference_view =
       ],
     );
   };
-};
-
-let collapse_tab = (~globals: Globals.t): Node.t => {
-  let tooltip =
-    globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
-  let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
-  div(
-    ~attrs=[clss(["collapse-button"])],
-    [tab(icon, ~tooltip, switch_assistant(~globals), false)],
-  );
 };
 
 let persistent_view =

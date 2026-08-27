@@ -3,10 +3,17 @@ open Haz3lcore;
 open Language;
 
 /* Corpus differential ratchet: every .hz program in the repo must parse
-   identically through the Menhir parser and the char-by-char editor
-   parser. A divergence is NOT a flake — either fix it or add the file to
-   known_gaps with a reason; the goal is an empty list. Cases are `Slow
-   because the editor parser is quadratic on large files.
+   identically through the Menhir parser and the editor parser. A divergence
+   is NOT a flake — either fix it or add the file to known_gaps with a
+   reason; the goal is an empty list. Cases are `Slow: the editor parse
+   dominates and the menhir side is negligible.
+
+   Parses via `Parser.to_segment`, not `Parser.to_zipper`. to_zipper is the
+   definitional editor parse — it replays what the editor does per keystroke —
+   and to_segment is an optimization over it, so this pins menhir against the
+   optimized path. They agree corpus-wide today; asserting that invariant costs
+   about as much as using to_zipper here would, so it belongs in a periodic run
+   rather than per-PR.
 
    Runs when the corpus is reachable (repo root or test dir cwd, as with
    `bash test/run_node.sh test MenhirCorpus`); skips silently otherwise
@@ -21,8 +28,13 @@ let known_gaps: list((string, string)) =
       "tuples.hz",
       "deliberate error exhibit (1=\"hello\"): MakeTerm reads a MultiHole, menhir a labeled tuple",
     ),
+    /* The two Properties slides containing `[()]`; nrows is clean. */
     (
-      "table-api-properties.hz",
+      "table-api-properties-header.hz",
+      "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
+    ),
+    (
+      "table-api-properties-ncols.hz",
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
   ]
@@ -73,10 +85,13 @@ let equal_terms =
   );
 
 let check_file = (path: string): unit => {
-  let txt = read_file(path) |> String.trim;
+  /* Normalize as the load path does, rather than String.trim: that is the
+     form the editor ever sees, and it lets ParsedCorpus share the parse with
+     DocSlides.ReparseBackuptext, which checks the same programs. */
+  let txt = read_file(path) |> ParsedCorpus.normalize;
   let mk =
-    switch (Parser.to_zipper(txt, ~root=Exp)) {
-    | Some(z) => Some(MakeTerm.from_zip_for_sem(z, ~root=Exp).term)
+    switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
+    | Some(seg) => Some(MakeTerm.go(seg).term)
     | None => None
     };
   let mh =

@@ -1057,3 +1057,28 @@
     transform: rotate(360deg);
   }
 }
+
+/* rich content embedded in a sample chip: inert, so the chip's own
+   interactions (dropdown, capture, dbl-click toggle) stay in charge */
+/* a chip holding rich content centers it as a flex box — as an inline
+   box the content rode the text BASELINE, leaving the descender gap
+   under the card (0-1px above, ~3px below) */
+.value:has(.value-rich) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.value .value-rich {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* a little breathing room inside the sample backing */
+  padding: 1px;
+}
+
+.value .value-rich .projector {
+  position: static;
+  display: inline-block;
+}

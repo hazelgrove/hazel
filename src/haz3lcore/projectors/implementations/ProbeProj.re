@@ -16,12 +16,21 @@ type probe_model = {
   /* Bumped to force a repaint when only the global open_dropdown ref
    * changed (SetModel repaints only on structural model change). */
   dropdown_redraw: int,
+  /* When no renderer is explicitly active, render the first applicable
+   * one automatically (canvas value wells). Off for editor probes. */
+  [@default false]
+  auto_rich: bool,
+  /* dbl-click toggles the auto rendering back to the text view */
+  [@default false]
+  rich_off: bool,
 };
 
 let init_probe_model: probe_model = {
   active_renderer: None,
   drawer_mode: false,
   dropdown_redraw: 0,
+  auto_rich: false,
+  rich_off: false,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -37,7 +46,7 @@ let probe_model_of_sexp = sexp =>
   | exception _ => init_probe_model
   };
 
-/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
+/* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
@@ -48,6 +57,25 @@ let model_string_for_renderer = (rid: string): option(string) =>
        })
        |> Sexplib.Sexp.to_string
      );
+
+/* Canvas wells pass their stored model (or the default) through this to
+   turn on automatic rich rendering. */
+let model_string_auto_rich = (stored: option(string)): string => {
+  let m =
+    switch (stored) {
+    | Some(s) =>
+      try(probe_model_of_sexp(Sexplib.Sexp.of_string(s))) {
+      | _ => init_probe_model
+      }
+    | None => init_probe_model
+    };
+  {
+    ...m,
+    auto_rich: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
+};
 
 let renderer_of_model_string = (model: string): option(string) =>
   switch (probe_model_of_sexp(Sexplib.Sexp.of_string(model))) {
@@ -62,6 +90,7 @@ type action =
   | ToggleModal(option(packed_model))
   | RendererAction(packed_action)
   | ToggleWindowMode
+  | ToggleAutoRich
   | ToggleDrawerMode
   | SetDrawerMode(bool)
   | ToggleDropdown(string)
@@ -92,9 +121,14 @@ module Settings = {
     caller_cutoff: option(int),
     callee_cutoff: option(int),
     drawer: drawer_settings,
+    /* render the first applicable rich view in place of sample text for
+       ANY probe (small content only — the in-chip embed); per-probe
+       dbl-click still opts out */
+    auto_rich_default: bool,
   };
 
   type set_action =
+    | ToggleAutoRichDefault
     | ToggleWindow
     | SetWindow(Sample.Window.mode)
     | SetSampleBase(sample_base)
@@ -113,12 +147,17 @@ module Settings = {
     caller_cutoff: None,
     callee_cutoff: None,
     drawer: init_drawer,
+    auto_rich_default: true,
   };
 
   let skip_unaligned_nav = true;
 
   let update = (settings: settings, action: set_action): settings =>
     switch (action) {
+    | ToggleAutoRichDefault => {
+        ...settings,
+        auto_rich_default: !settings.auto_rich_default,
+      }
     | ToggleWindow => {
         ...settings,
         window: settings.window == Sample.Window.Single ? Many : Single,
@@ -203,6 +242,17 @@ type probe_ctx = {
   local: action => Ui_effect.t(unit),
   sort: Sort.t,
   active_renderer_id: option(string),
+  /* auto-rich applies here: value dbl-click toggles rich <-> text
+     (instead of ToggleWindowMode) */
+  auto_rich_ready: bool,
+  /* the explicitly chosen renderer's model, for in-value rendering */
+  rich_model: option(packed_model),
+  /* auto-rich is on and not toggled off */
+  auto_rich_on: bool,
+  /* per-probe auto (canvas wells): embed regardless of size — the
+     global default only auto-embeds content that fits inline_rows_cap */
+  auto_unbounded: bool,
+  p_info: info,
 };
 
 module WindowState = {
@@ -304,6 +354,23 @@ let pretty_seg_of_value =
     utility.term_to_seg(~inline=false, Exp(exp |> DHExp.strip_ascriptions));
   PrettySegment.prettify(~width, seg);
 };
+
+/* rich content at most this many rows renders IN the offside row;
+   taller content lives in the drawer instead (an explicit activation
+   auto-opens it) */
+/* An empty list parses as an empty hand (and vacuously "matches" any
+   list-shaped renderer), so it is NO EVIDENCE for auto-picking a rich
+   renderer: [] of Int was rendering as an empty card hand. Auto paths
+   require a non-vacuous match; explicit picks are unaffected, and card
+   probes keep their empty-hand silhouettes when any SIBLING sample at
+   the site is a real match. */
+let vacuous_value = (exp: Exp.t): bool =>
+  switch (CardSyntax.strip_wraps_exp(exp).term) {
+  | ListLit([]) => true
+  | _ => false
+  };
+
+let inline_rows_cap = 4;
 
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
@@ -656,7 +723,9 @@ let value_view =
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      Attr.on_double_click(_ => local(ToggleWindowMode)),
+      Attr.on_double_click(_ =>
+        ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
+      ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
         Key.ctrl_held(evt)
@@ -694,10 +763,118 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=false, seg)],
+    {
+      /* rich content renders INSIDE the sample chip, inert
+         (pointer-events: none), so the chip keeps every sample
+         interaction: right/alt-click dropdown (with Hide), click to
+         capture, dbl-click toggles. Explicit renderers embed when they
+         fit inline_rows_cap (taller ones live in the drawer); auto-rich
+         (wells) embeds unconditionally. */
+      let render_rich = (r: packed_renderer, pm: packed_model) =>
+        r.render_model(
+          pm,
+          ~info=ctx.p_info,
+          ~exp=sample.value,
+          ~view_seg=(_, sg) => view_seg(~text_only=false, sg),
+          ~local=pa => local(RendererAction(pa)),
+          ~parent=ctx.parent,
+          ~sort=ctx.sort,
+          (),
+        );
+      let rich_node =
+        switch (ctx.rich_model) {
+        | Some(pm) =>
+          switch (find(RichProbe.renderer_id_of_model(pm))) {
+          | Some(r)
+              when
+                r.can_handle(ctx.sort, sample.value)
+                && (
+                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  | Some(n) => n <= inline_rows_cap
+                  | None => true
+                  }
+                ) =>
+            render_rich(r, pm)
+          | _ => None
+          }
+        | None when ctx.auto_rich_on =>
+          switch (
+            List.find_opt(
+              (r: packed_renderer) =>
+                r.id != "table"
+                && r.can_handle(ctx.sort, sample.value)
+                && (
+                  !vacuous_value(sample.value)
+                  || List.exists(
+                       (s: Sample.t) =>
+                         !vacuous_value(s.value)
+                         && r.can_handle(ctx.sort, s.value),
+                       ctx.dynamics.samples,
+                     )
+                )
+                && (
+                  ctx.auto_unbounded
+                  || (
+                    switch (r.drawer_rows(ctx.sort, sample.value)) {
+                    | Some(n) => n <= inline_rows_cap
+                    | None => true
+                    }
+                  )
+                ),
+              renderers,
+            )
+          ) {
+          | Some(r) =>
+            switch (r.init_model(ctx.sort, sample.value)) {
+            | Some(pm) => render_rich(r, pm)
+            | None => None
+            }
+          | None => None
+          }
+        | None => None
+        };
+      switch (rich_node) {
+      | Some(n) => [div(~attrs=[Attr.classes(["value-rich"])], [n])]
+      | None => [view_seg(~text_only=false, seg)]
+      };
+    },
   );
 };
 
+/* Standalone rich rendering for ONE value, outside any probe: the
+   in-chip auto logic (first non-table matching renderer, inert) without
+   the sample-stream machinery. Aggregate/type wells use this — mixing
+   samples from different probes into one navigable stream would break
+   the indication/window invariants, so they render value chips instead. */
+let standalone_rich =
+    (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
+  let pick =
+    vacuous_value(value)
+      ? (None: option(packed_renderer))
+      : List.find_opt(
+          (r: packed_renderer) =>
+            r.id != "table" && r.can_handle(sort, value),
+          renderers,
+        );
+  switch (pick) {
+  | Some(r) =>
+    switch (r.init_model(sort, value)) {
+    | Some(pm) =>
+      r.render_model(
+        pm,
+        ~info,
+        ~exp=value,
+        ~view_seg,
+        ~local=_ => Ui_effect.Ignore,
+        ~parent=_ => Ui_effect.Ignore,
+        ~sort,
+        (),
+      )
+    | None => None
+    }
+  | None => None
+  };
+};
 /* Hard cap for code in the sample dropdown (env values + call args), so a
  * wide sample doesn't make them uselessly long. */
 let dropdown_value_width = 50;
@@ -1298,7 +1475,10 @@ let empty_status_view =
         Attr.classes(["empty-status", "not-aligned"]),
         Attr.title("Samples not aligned with focus — click to align"),
         Attr.on_pointerdown(mv_least_distant_sample(ctx)),
-        Attr.on_double_click(_ => local(ToggleWindowMode)),
+        Attr.on_double_click(_ =>
+          ctx.auto_rich_ready
+            ? local(ToggleAutoRich) : local(ToggleWindowMode)
+        ),
       ],
       [text("⊖")],
     )
@@ -1692,6 +1872,19 @@ let prepare_offside =
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let active_renderer_id =
       Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
+    let auto_rich_ready =
+      (model.auto_rich || settings.auto_rich_default)
+      && model.active_renderer == None
+      && List.exists(
+           (sample: Sample.t) =>
+             !vacuous_value(sample.value)
+             && List.exists(
+                  (r: packed_renderer) =>
+                    r.id != "table" && r.can_handle(sort, sample.value),
+                  renderers,
+                ),
+           dynamics.samples,
+         );
     let ctx = {
       id,
       ap_id,
@@ -1703,6 +1896,12 @@ let prepare_offside =
       local,
       sort,
       active_renderer_id,
+      auto_rich_ready,
+      rich_model: model.active_renderer,
+      auto_rich_on:
+        (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
+      auto_unbounded: model.auto_rich,
+      p_info: info,
     };
     let filtered_samples =
       Sample.Selection.filter_by_pin(
@@ -1983,6 +2182,7 @@ let rich_drawer_view =
     (
       ~local: action => Ui_effect.t(unit),
       ~overflowing: bool,
+      ~closable: bool=true,
       content: Node.t,
     )
     : Node.t =>
@@ -1990,38 +2190,55 @@ let rich_drawer_view =
     ~attrs=[
       Attr.classes(["rich-drawer"] @ (overflowing ? ["overflowing"] : [])),
     ],
-    [
-      div(
-        ~attrs=[
-          Attr.classes(["rich-drawer-close"]),
-          Attr.title("Close"),
-          Attr.on_click(_ => local(ToggleModal(None))),
-        ],
-        [text("×")],
-      ),
-      content,
-    ],
+    (
+      closable
+        ? [
+          div(
+            ~attrs=[
+              Attr.classes(["rich-drawer-close"]),
+              Attr.title("Close"),
+              Attr.on_click(_ => local(ToggleModal(None))),
+            ],
+            [text("×")],
+          ),
+        ]
+        : []
+    )
+    @ [content],
   );
 
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
-let rich_drawer_rows = (model: probe_model, info: info): option(int) =>
+let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
+  let sort =
+    switch (info.statics) {
+    | Some(statics) => Language.Statics.Info.sort_of(statics)
+    | None => Sort.Exp
+    };
   switch (model.active_renderer) {
-  | None => None
   | Some(pm) =>
-    let sort =
-      switch (info.statics) {
-      | Some(statics) => Language.Statics.Info.sort_of(statics)
-      | None => Sort.Exp
-      };
     switch (
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
     | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
     | _ => None
-    };
+    }
+  | None when model.auto_rich =>
+    switch (get_current(~settings=Settings.s^, info)) {
+    | Some(exp) when !vacuous_value(exp) =>
+      List.find_opt(
+        (r: packed_renderer) => r.id != "table" && r.can_handle(sort, exp),
+        renderers,
+      )
+      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.join
+    | Some(_)
+    | None => None
+    }
+  | None => None
   };
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
@@ -2089,6 +2306,10 @@ module M: Projector = {
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
+    | ToggleAutoRich => {
+        ...model,
+        rich_off: !model.rich_off,
+      }
     | ToggleDrawerMode =>
       Settings.version := Settings.version^ + 1;
       /* Toggling moves the focusable .live-offside between DOM slots, which
@@ -2125,10 +2346,27 @@ module M: Projector = {
       model;
     | ToggleModal(pm) =>
       switch (model.active_renderer) {
-      | None => {
+      | None =>
+        /* activation: content taller than the inline cap opens the
+           drawer (chevron / Cmd+ArrowUp toggles back) */
+        let wants_drawer =
+          switch (
+            rich_drawer_rows(
+              {
+                ...model,
+                active_renderer: pm,
+              },
+              info,
+            )
+          ) {
+          | Some(n) => n > inline_rows_cap
+          | None => false
+          };
+        {
           ...model,
           active_renderer: pm,
-        }
+          drawer_mode: model.drawer_mode || wants_drawer,
+        };
       | Some(_) => {
           ...model,
           active_renderer: None,
@@ -2172,17 +2410,21 @@ module M: Projector = {
                 Attr.classes(["modal"]),
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
-              [
-                div(
-                  ~attrs=[
-                    Attr.classes(["modal-close-btn"]),
-                    Attr.title("Close"),
-                    Attr.on_click(_ => local(ToggleModal(None))),
-                  ],
-                  [text("×")],
-                ),
-                content,
-              ],
+              (
+                model.active_renderer != None
+                  ? [
+                    div(
+                      ~attrs=[
+                        Attr.classes(["modal-close-btn"]),
+                        Attr.title("Close"),
+                        Attr.on_click(_ => local(ToggleModal(None))),
+                      ],
+                      [text("×")],
+                    ),
+                  ]
+                  : []
+              )
+              @ [content],
             ),
           ],
         ),
@@ -2209,6 +2451,8 @@ module M: Projector = {
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
+        /* rich content embeds inside each sample chip (value_view);
+           no whole-row replacement in inline mode */
         live_offside_view(
           ~display=Inline,
           ~include_nav_bar=true,
@@ -2235,6 +2479,12 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       drawer
+      && (
+        switch (rich_drawer_rows(model, info)) {
+        | Some(n) => n > inline_rows_cap
+        | None => false
+        }
+      )
         ? rich_content(
             ~settings,
             model,
@@ -2245,21 +2495,20 @@ module M: Projector = {
             ~sort,
           )
           |> Option.map(content =>
-               rich_drawer_view(~local, ~overflowing=drawer_overflow, content)
+               rich_drawer_view(
+                 ~local,
+                 ~overflowing=drawer_overflow,
+                 /* auto-rich (no explicit renderer) has nothing to close:
+                    dismissal would just re-trigger */
+                 ~closable=model.active_renderer != None,
+                 content,
+               )
              )
         : None;
-    let modal_nodes =
-      drawer
-        ? []
-        : modal_overlay(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
-          );
+    /* the anchored modal is retired: small rich views replace the
+       offside row, big ones live in the drawer */
+    let modal_nodes = [];
+    let _unused_modal = modal_overlay;
     /* Wrap in a div only when the modal is open, to avoid an extra DOM level
      * around the positioned .live-offside otherwise. */
     let offside_node =

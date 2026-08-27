@@ -19,12 +19,6 @@ module Info = {
     pinned_interval: option((int, int)),
   };
 
-  let init = {
-    samples: [],
-    sample_focus: Sample.Focus.init,
-    pinned_interval: None,
-  };
-
   let is_in = (di: t): option(Sample.t) => {
     let cursor_stack = Sample.Focus.effective_stack(di.sample_focus);
     List.find_opt(

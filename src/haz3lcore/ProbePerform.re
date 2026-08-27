@@ -578,20 +578,6 @@ let toggle_probe =
     };
   };
 
-let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
-  let* ci = Indicated.ci_of(z, info_map);
-  let* ci =
-    switch (ci) {
-    | InfoExp({
-        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
-        _,
-      }) =>
-      Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map)
-    | _ => Some(ci)
-    };
-  Info.get_binding_site(ci);
-};
-
 /* For function-sugar (`let f(args) = body`), params live in the surface binder
    outside the body's rows, so return their pattern id to anchor separately.
    Climb to the enclosing Let (not parent_term_of: desugaring inserts a Fun parent). */
