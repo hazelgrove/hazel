@@ -38,6 +38,72 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
+/* Structurally place the caret at a side of the piece with the given
+ * id, descending into tile children. O(n) list scans instead of the
+ * O(n) per-token zipper moves of Move.jump_to_side_of_id, which cost
+ * ~90ms on a few-page buffer. None if the id is absent. */
+let unzip_to_id =
+    (~side: Direction.t=Left, id: Id.t, seg: Segment.t): option(t) => {
+  let rec p_contains = (p: Piece.t): bool =>
+    Id.equal(Piece.id(p), id)
+    || (
+      switch (p) {
+      | Tile(t) => List.exists(seg_contains, t.children)
+      | _ => false
+      }
+    )
+  and seg_contains = (seg: Segment.t): bool => List.exists(p_contains, seg);
+  let split_by = (f, xs) => {
+    let rec split = (pre, xs) =>
+      switch (xs) {
+      | [] => None
+      | [x, ...rest] =>
+        f(x) ? Some((List.rev(pre), x, rest)) : split([x, ...pre], rest)
+      };
+    split([], xs);
+  };
+  let rec go = (seg: Segment.t, ancestors: Ancestors.t): option(Relatives.t) =>
+    switch (split_by(p_contains, seg)) {
+    | None => None
+    | Some((pre, p, suf)) when Id.equal(Piece.id(p), id) =>
+      let siblings =
+        switch (side) {
+        | Left => (pre, [p, ...suf])
+        | Right => (pre @ [p], suf)
+        };
+      Some({
+        siblings,
+        ancestors,
+      });
+    | Some((pre, Tile(t), suf)) =>
+      switch (split_by(seg_contains, t.children)) {
+      | None => None
+      | Some((kids_l, child, kids_r)) =>
+        let k = List.length(kids_l);
+        let (shards_l, shards_r) = ListUtil.split_n(k + 1, t.shards);
+        let a =
+          Ancestor.{
+            id: t.id,
+            label: t.label,
+            mold: t.mold,
+            shards: (shards_l, shards_r),
+            children: (kids_l, kids_r),
+          };
+        go(child, [(a, (pre, suf)), ...ancestors]);
+      }
+    | Some(_) => None
+    };
+  go(seg, [])
+  |> Option.map(relatives =>
+       {
+         selection: Selection.mk([]),
+         relatives,
+         caret: CaretBase.Outer,
+         refractors: Refractor.init,
+       }
+     );
+};
+
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);

@@ -203,6 +203,15 @@ let start = default_model => {
         JsUtil.setup_focus_bar_scroll_compensation();
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
+        /* Play any pending code-movement ghosts (see CodeFlip.re) */
+        try({
+          let page = model.model.current.current;
+          let syntax = Page.Update.get_editor(page).editor.syntax;
+          IdWatch.check(syntax.segment);
+          CodeFlip.go(~syntax, ~font_metrics=page.globals.font_metrics);
+        }) {
+        | _ => ()
+        };
       },
       (),
     );

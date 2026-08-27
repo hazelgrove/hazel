@@ -1,6 +1,21 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
+
+/* pending insist press: (indicated target, gesture) of the last dead
+   press that had a remedied move available, with its arm time — the
+   confirmation window expires (a press minutes later must re-shake,
+   not fire a forgotten convoy; also keeps demo cadence legible) */
+let insist_pending:
+  ref(option(((option(Haz3lcore.Id.t), Action.Gesture.t), float))) =
+  ref(None);
+let insist_window_ms = 1100.;
+let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
+let insist_armed = signature =>
+  switch (insist_pending^) {
+  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | None => false
+  };
 open Util;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
@@ -21,73 +36,204 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
-      Editor.Update.update(
-        ~settings=settings.core,
-        action,
-        model.statics,
-        model.dynamics,
-        model.editor,
-      )
-      |> (
-        fun
-        | Ok(editor) =>
-          Model.{
-            editor,
-            statics: model.statics,
-            dynamics: model.dynamics,
-            context_menu: None,
-          }
-        | Error(err) => raise(Action.Failure.Exception(err))
-      )
-      |> Updated.return(
-           ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
-           ~recalculate=true,
-           ~scroll_active={
-             switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
-             | Move(_)
-             | Select(_)
-             | Destruct(_)
-             | Insert(_)
-             | Put_down
-             | Buffer(Set(_) | Accept | Clear)
-             | Paste(_)
-             | Copy
-             | Cut
-             | Reparse
-             | Introduce
-             | Probe(StepInto(_))
-             | Format(_)
-             | AdjustIndent(_, _)
-             | ApplyCompletion(_)
-             | ToggleLineComment => true
-             | Project(_)
-             | Unselect(_)
-             | Structural(_)
-             | Probe(_) => false
-             };
-           },
-         );
+      switch (
+        Editor.Update.update(
+          ~settings=settings.core,
+          action,
+          model.statics,
+          model.dynamics,
+          model.editor,
+        )
+      ) {
+      | Error(Action.Failure.Cant_refactor) =>
+        /* dead press: gated-not-fall-through is the rule, but
+           silence read as breakage — make the refusal visible.
+           The model is UNCHANGED: quiet return, or every dead press
+           eats an undo frame (andrew) */
+        CodeFlip.shake_dead_press(
+          ~segment=model.editor.syntax.segment,
+          ~axis=
+            switch (action) {
+            | RefactorGesture(Up | Down) => `Y
+            | _ => `X
+            },
+          (),
+        );
+        Updated.return_quiet(model);
+      | Error(err) => raise(Action.Failure.Exception(err))
+      | Ok(editor) =>
+        Model.{
+          editor,
+          statics: model.statics,
+          dynamics: model.dynamics,
+          context_menu: None,
+        }
+        |> Updated.return(
+             ~historic=Action.is_historic(action),
+             ~is_edit=
+               Action.is_edit(action)
+               /* When probe_all is on, Refractor actions don't require
+                * re-evaluation since all probes are already computed */
+               && !(
+                    settings.core.probe_all
+                    && (
+                      switch (action) {
+                      | Probe(_) => true
+                      | _ => false
+                      }
+                    )
+                  ),
+             ~recalculate=true,
+             ~scroll_active={
+               switch (action) {
+               | Move(Point(_)) => false
+               | Select(All) => false
+               | Select(Resize(Point(_))) => false
+               | Move(_)
+               | Select(_)
+               | Destruct(_)
+               | Insert(_)
+               | Put_down
+               | Buffer(Set(_) | Accept | Clear)
+               | Paste(_)
+               | Copy
+               | Cut
+               | Reparse
+               | Introduce
+               | Refactor(_)
+               | RefactorGesture(_)
+               | Probe(StepInto(_))
+               | Format(_)
+               | AdjustIndent(_, _)
+               | ApplyCompletion(_)
+               | ToggleLineComment => true
+               | Project(_)
+               | Unselect(_)
+               | Structural(_)
+               | Probe(_) => false
+               };
+             },
+           )
+      };
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      /* INSIST: a dead gesture press with a remedied move available
+         (convoy hoist / lift-to-helper) shakes; the SAME press again
+         fires the remedy. Transient interaction state, deliberately
+         imperative (not model): it never affects the document and
+         must not survive undo/replay. */
+      let action =
+        switch (action) {
+        | RefactorGesture(g) =>
+          let z = model.editor.state.zipper;
+          let info_map = model.statics.info_map;
+          let term = model.statics.term;
+          let signature = (Haz3lcore.Indicated.index(z), g);
+          switch (Refactor.gesture(~info_map, ~term, g, z)) {
+          | Some(_) =>
+            /* a plain rung mid-journey keeps carrying mode armed
+               (and refreshes its window): one shake per (grab,
+               direction) journey, not one per convoy step */
+            if (insist_armed(signature)) {
+              insist_pending := Some((signature, insist_now()));
+            } else {
+              insist_pending := None;
+            };
+            action;
+          | None =>
+            switch (Refactor.gesture_insist(~info_map, ~term, g, z)) {
+            | Some(kind) =>
+              if (insist_armed(signature)) {
+                insist_pending := Some((signature, insist_now()));
+                Action.Refactor(kind);
+              } else {
+                insist_pending := Some((signature, insist_now()));
+                CodeFlip.shake_insist();
+                action;
+              }
+            | None =>
+              /* refused outright: the grabbed form's delimiters go
+                 red (press registered, no-go — distinguishes a wall
+                 from a mis-hit chord), plus the culprit tokens when
+                 the refusal has nameable ones (andrew). The insist
+                 prompt stays a PLAIN shake: red = refused, plain =
+                 press again, silence = only for non-gesture keys. */
+              let culprits = Refactor.gesture_blockers(~term, g, z);
+              let grab =
+                switch (Haz3lcore.Indicated.index(z)) {
+                | Some(t) => [t]
+                | None => []
+                };
+              switch (culprits @ grab) {
+              | [] => ()
+              | ids => CodeFlip.request_shake(ids)
+              };
+              insist_pending := None;
+              action;
+            }
+          };
+        | _ =>
+          /* any actual edit invalidates an armed insist (the program
+             the shake described no longer exists); caret motion and
+             selection keep it (andrew: come-back-and-continue is fine,
+             edits should reset) */
+          if (Action.is_edit(action)) {
+            insist_pending := None;
+          };
+          action;
+        };
+      if (settings.core.flip_animations && Action.should_animate(action)) {
+        /* the indication backing FLIPs by id like the caret; ids only
+           survive the action when the same construct stays indicated
+           (focus-follows-content), which is exactly when motion makes
+           sense — otherwise the request drops out harmlessly */
+        Animation.request(
+          [Animation.Actions.move("caret")]
+          @ (
+            JsUtil.ids_with_prefix("indication-")
+            @ JsUtil.ids_with_prefix("varhl-")
+            @ JsUtil.ids_with_prefix("errdec-")
+            @ JsUtil.ids_with_prefix("warndec-")
+            |> List.map(Animation.Actions.move)
+          ),
+        );
+        switch (action) {
+        | Refactor(_)
+        | RefactorGesture(_) =>
+          /* feed's clone flies from the def it splits off (D2
+             emergeMode=clone) — stage the source ids for the flight
+             pairing; non-feed kinds stage [] (no-op) */
+          {
+            let z = model.editor.state.zipper;
+            let info_map = model.statics.info_map;
+            let term = model.statics.term;
+            CodeFlip.set_emerge_src(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_emerge_source(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_emerge_source(~info_map, ~term, kind, z)
+              | _ => []
+              },
+            );
+            CodeFlip.set_merge(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_merge_target(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_merge_target(~info_map, ~term, kind, z)
+              | _ => ([], [])
+              },
+            );
+          };
+          CodeFlip.request(model.editor.syntax);
+        | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
+          /* movement only: grow-ins on every keystroke/completion
+             re-animate constantly and read as churn */
+          CodeFlip.request(~enters=false, model.editor.syntax)
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -172,146 +318,165 @@ module Selection = {
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
     }
-    |> Cursor.with_actions([
-         /* Navigation */
-         mk(
-           ~hotkey="F12",
-           ~mdIcon="arrow_forward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
-           "Go to Definition",
-         ),
-         mk(
-           ~hotkey="shift+tab",
-           ~mdIcon="arrow_upward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(NextProblem(Left)))),
-           "Go to Previous Problem",
-         ),
-         mk(
-           ~mdIcon="arrow_downward",
-           ~section="Navigation",
-           ~action=action(Move(Goal(NextProblem(Right)))),
-           "Go to Next Problem",
-         ),
-         /* Selection */
-         mk(
-           ~hotkey=meta ++ "+d",
-           ~mdIcon="select_all",
-           ~section="Selection",
-           ~action=action(Select(Term(Current))),
-           "Select current term",
-         ),
-         mk(
-           ~mdIcon="select_all",
-           ~hotkey=meta ++ "+a",
-           ~section="Selection",
-           ~action=action(Select(All)),
-           "Select All",
-         ),
-         mk(
-           ~mdIcon="flip_horizontal",
-           ~section="Selection",
-           ~action=action(Select(ToggleFocus)),
-           "Toggle Selection Focus",
-         ),
-         mk(
-           ~mdIcon="border_left",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+left",
-           ~action=action(Select(SetFocus(Left))),
-           "Set Selection Focus Left",
-         ),
-         mk(
-           ~mdIcon="border_right",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+right",
-           ~action=action(Select(SetFocus(Right))),
-           "Set Selection Focus Right",
-         ),
-         mk(
-           ~mdIcon="chevron_left",
-           ~section="Selection",
-           ~hotkey="alt+shift+left",
-           ~action=action(Select(Resize(Local(Left, ByToken)))),
-           "Extend Selection Left by Token",
-         ),
-         mk(
-           ~mdIcon="chevron_right",
-           ~section="Selection",
-           ~hotkey="alt+shift+right",
-           ~action=action(Select(Resize(Local(Right, ByToken)))),
-           "Extend Selection Right by Token",
-         ),
-         /* Projection */
-         mk(
-           ~hotkey="alt+f",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Project(SetIndicated(Specific(Fold)))),
-           "Fold",
-         ),
-         mk(
-           ~hotkey=meta ++ "+e",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleManual)),
-           "Probe",
-         ),
-         mk(
-           ~hotkey="alt+t",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleStatics)),
-           "Statics",
-         ),
-         mk(
-           ~hotkey="alt+l",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Project(SetIndicated(ChooseLivelit))),
-           "Livelit",
-         ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
-         ),
-         mk(
-           ~section="Diagnostics",
-           ~mdIcon="refresh",
-           ~action=inject(Perform(Reparse)),
-           "Reparse Current Editor",
-         ),
-         mk(
-           ~mdIcon="bolt",
-           ~section="Refactoring",
-           ~hotkey=meta ++ "+i",
-           ~action=action(Introduce),
-           "Introduce",
-         ),
-         mk(
-           ~mdIcon="format_indent_increase",
-           ~section="Formatting",
-           ~action=action(Format(Indent)),
-           "Re-indent",
-         ),
-         mk(
-           ~mdIcon="space_bar",
-           ~section="Formatting",
-           ~action=action(Format(Spacing)),
-           "Normalize Spacing",
-         ),
-         mk(
-           ~mdIcon="format_align_left",
-           ~section="Formatting",
-           ~hotkey=meta ++ "+shift+s",
-           ~action=action(Format(Pretty)),
-           "Pretty Print",
-         ),
-       ]);
+    |> Cursor.with_lazy_actions(() =>
+         Haz3lcore.Refactor.menu_items(
+           ~info_map=model.statics.info_map,
+           ~term=model.statics.term,
+           model.editor.state.zipper,
+         )
+         |> List.map(((kind, label, _tooltip)) =>
+              ContextualAction.mk(
+                ~mdIcon="compress",
+                ~section="Refactoring",
+                ~action=inject(Perform(Refactor(kind))),
+                label,
+              )
+            )
+       )
+    |> Cursor.with_actions(
+         [
+           /* Navigation */
+           mk(
+             ~hotkey="F12",
+             ~mdIcon="arrow_forward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
+             "Go to Definition",
+           ),
+           mk(
+             ~hotkey="shift+tab",
+             ~mdIcon="arrow_upward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(NextProblem(Left)))),
+             "Go to Previous Problem",
+           ),
+           mk(
+             ~mdIcon="arrow_downward",
+             ~section="Navigation",
+             ~action=action(Move(Goal(NextProblem(Right)))),
+             "Go to Next Problem",
+           ),
+           /* Selection */
+           mk(
+             ~hotkey=meta ++ "+d",
+             ~mdIcon="select_all",
+             ~section="Selection",
+             ~action=action(Select(Term(Current))),
+             "Select current term",
+           ),
+           mk(
+             ~mdIcon="select_all",
+             ~hotkey=meta ++ "+a",
+             ~section="Selection",
+             ~action=action(Select(All)),
+             "Select All",
+           ),
+           mk(
+             ~mdIcon="flip_horizontal",
+             ~section="Selection",
+             ~action=action(Select(ToggleFocus)),
+             "Toggle Selection Focus",
+           ),
+           mk(
+             ~mdIcon="border_left",
+             ~section="Selection",
+             ~hotkey=meta ++ "+alt+shift+left",
+             ~action=action(Select(SetFocus(Left))),
+             "Set Selection Focus Left",
+           ),
+           mk(
+             ~mdIcon="border_right",
+             ~section="Selection",
+             ~hotkey=meta ++ "+alt+shift+right",
+             ~action=action(Select(SetFocus(Right))),
+             "Set Selection Focus Right",
+           ),
+           mk(
+             ~mdIcon="chevron_left",
+             ~section="Selection",
+             ~hotkey="alt+shift+left",
+             ~action=action(Select(Resize(Local(Left, ByToken)))),
+             "Extend Selection Left by Token",
+           ),
+           mk(
+             ~mdIcon="chevron_right",
+             ~section="Selection",
+             ~hotkey="alt+shift+right",
+             ~action=action(Select(Resize(Local(Right, ByToken)))),
+             "Extend Selection Right by Token",
+           ),
+           /* Projection */
+           mk(
+             ~hotkey="alt+f",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Project(SetIndicated(Specific(Fold)))),
+             "Fold",
+           ),
+           mk(
+             ~hotkey=meta ++ "+e",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Probe(ToggleManual)),
+             "Probe",
+           ),
+           mk(
+             ~hotkey="alt+t",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Probe(ToggleStatics)),
+             "Statics",
+           ),
+           mk(
+             ~hotkey="alt+l",
+             ~mdIcon="camera",
+             ~section="Projection",
+             ~action=action(Project(SetIndicated(ChooseLivelit))),
+             "Livelit",
+           ),
+           /* Editor tools */
+           mk(
+             ~hotkey=meta ++ "+/",
+             ~mdIcon="assistant",
+             ~action=action(Buffer(Set(TyDi))),
+             "TyDi Assistant",
+           ),
+           mk(
+             ~section="Diagnostics",
+             ~mdIcon="refresh",
+             ~action=inject(Perform(Reparse)),
+             "Reparse Current Editor",
+           ),
+           mk(
+             ~mdIcon="bolt",
+             ~section="Refactoring",
+             ~hotkey=meta ++ "+i",
+             ~action=action(Introduce),
+             "Introduce",
+           ),
+         ]
+         @ [
+           mk(
+             ~mdIcon="format_indent_increase",
+             ~section="Formatting",
+             ~action=action(Format(Indent)),
+             "Re-indent",
+           ),
+           mk(
+             ~mdIcon="space_bar",
+             ~section="Formatting",
+             ~action=action(Format(Spacing)),
+             "Normalize Spacing",
+           ),
+           mk(
+             ~mdIcon="format_align_left",
+             ~section="Formatting",
+             ~hotkey=meta ++ "+shift+s",
+             ~action=action(Format(Pretty)),
+             "Pretty Print",
+           ),
+         ],
+       );
   };
 
   /* Focus the indicated probe (if any) */
@@ -679,6 +844,7 @@ module View = {
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
             ~info_map=model.statics.info_map,
+            ~term=model.statics.term,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
             ~dispatch_menu=a => inject(ContextMenu(a)),
@@ -688,6 +854,17 @@ module View = {
           ),
       (),
     );
+    if (selected) {
+      CodeDrag.sync(
+        ~info_map=model.statics.info_map,
+        ~term=model.statics.term,
+        ~measured=model.editor.syntax.measured,
+        ~segment=model.editor.syntax.segment,
+        ~shape_map=model.editor.syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        model.editor.state.zipper,
+      );
+    };
     let edit_decos =
       selected
         ? deco(
@@ -726,6 +903,7 @@ module View = {
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~term=model.statics.term,
                   ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~model=model.context_menu,
@@ -889,6 +1067,29 @@ module View = {
               ),
             ),
           ),
+        ]);
+      | {button: Left, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+          when globals.settings.core.drag_refactor =>
+        /* modal drag-to-refactor (Settings > Drag Refactoring): a
+           plain drag pulls the grabbed construct along candidate
+           tracks; candidates are enumerated by CodeDrag.sync once
+           the caret lands at the grab point */
+        CodeDrag.arm(
+          ~commit=
+            g =>
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(RefactorGesture(g))),
+              ),
+          ~text_box=container_target(mouse.current_target),
+          ~client=(
+            float_of_int(mouse.loc.col),
+            float_of_int(mouse.loc.row),
+          ),
+          ~goal=loc(mouse),
+        );
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Point(loc(mouse), None)))),
         ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>

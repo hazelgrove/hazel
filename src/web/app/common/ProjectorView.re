@@ -277,28 +277,36 @@ let view_wrapper =
       ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
+      ~dom_id: option(string)=?,
       views: list(Node.t),
     ) =>
   div(
-    ~attrs=[
-      Attr.classes(projector_clss(~view_error, status)),
-      /* Stopping propagation here stops the base editor's
-       * drag-select interaction from being triggered.
-       * However, we let right-clicks bubble through so the
-       * context menu can be shown. */
-      Attr.on_pointerdown(evt =>
-        switch (Pointer.Event.mk(evt)) {
-        | {button: Right, _} => Effect.Ignore /* Let right-clicks bubble for context menu */
-        | _ =>
-          Effect.Many([
-            Effect.Stop_propagation,
-            make_active,
-            inject(Project(Focus(idx, kind, None))),
-          ])
+    ~attrs=
+      (
+        switch (dom_id) {
+        | Some(id) => [Attr.id(id)]
+        | None => []
         }
-      ),
-      DecUtil.abs_style(measurement, ~font_metrics),
-    ],
+      )
+      @ [
+        Attr.classes(projector_clss(~view_error, status)),
+        /* Stopping propagation here stops the base editor's
+         * drag-select interaction from being triggered.
+         * However, we let right-clicks bubble through so the
+         * context menu can be shown. */
+        Attr.on_pointerdown(evt =>
+          switch (Pointer.Event.mk(evt)) {
+          | {button: Right, _} => Effect.Ignore /* Let right-clicks bubble for context menu */
+          | _ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              make_active,
+              inject(Project(Focus(idx, kind, None))),
+            ])
+          }
+        ),
+        DecUtil.abs_style(measurement, ~font_metrics),
+      ],
     views,
   );
 
@@ -538,6 +546,9 @@ let split_views =
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
+      /* anchor id: the projector/refractor rides its token in drag
+         scrubs and commit flights (CodeFlip.anchored_decos) */
+      ~dom_id="projdec-" ++ Id.to_string(p.id),
       (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,

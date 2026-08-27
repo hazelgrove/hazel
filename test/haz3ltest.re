@@ -68,6 +68,7 @@ let (suite, exit_with_test_status) =
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
+    @ Test_Refactor.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [

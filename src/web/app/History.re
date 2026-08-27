@@ -94,6 +94,9 @@ module Update = {
           action,
           model.current,
         );
+      /* a swallowed no-op (e.g. a dead refactor press converted to shake
+         feedback) returns its model unchanged with historic=false, so it
+         doesn't eat an undo frame */
       if (current.historic) {
         let new_stack = [
           {

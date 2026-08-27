@@ -1,0 +1,43 @@
+/* Placeholder names for refactorings that must mint a binding
+   (extract, bind-argument, eta-expand). Drawn in order, first unused
+   wins; numbered x1/x2/... only when the pool runs dry. Deliberately
+   nonsense (3-5 chars) so they read as "obviously rename me" —
+   andrew curates this list freely. */
+let pool: list(string) = [
+  "foo",
+  "bar",
+  "baz",
+  "qux",
+  "garg",
+  "yorp",
+  "blorg",
+  "blog",
+  "zug",
+  "wug",
+  "gorp",
+  "blip",
+  "bloop",
+  "fnord",
+  "moop",
+  "zonk",
+  "zoob",
+  "gleep",
+  "blort",
+  "thud",
+  "gronk",
+  "skree",
+  "norf",
+  "plugh",
+  "mimsy",
+  "tove",
+  "wabe",
+  "narf",
+  "poit",
+  "zort",
+  "meep",
+  "glorp",
+  "floof",
+  "borp",
+  "dorf",
+  "treeb",
+];

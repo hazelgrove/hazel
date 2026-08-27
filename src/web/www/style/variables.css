@@ -270,6 +270,7 @@
   --warn-hole-z: 3;
   --select-z: 4;
   --stepper-interactive-z: 5;
+  --drag-track-z: 8; /* drag tracks/targets: above backings, under text */
   --projector-underlay-z: 9;
 
   /* TABLE PROJECTOR */

@@ -931,7 +931,20 @@ let to_start: t => t = Zipper.do_to_extreme(local(Left));
 
 let to_end: t => t = Zipper.do_to_extreme(local(Right));
 
-let all = (z: t): t => z |> Move.to_start |> to_end;
+/* P8: structural — the whole buffer IS the selection (the walk
+   grew it token-by-token from the start, twice over the buffer) */
+let all = (z: t): t => {
+  let seg = Zipper.unselect_and_zip(z);
+  {
+    selection: Selection.mk(~focus=Direction.Right, seg),
+    relatives: {
+      siblings: ([], []),
+      ancestors: [],
+    },
+    caret: Outer,
+    refractors: z.refractors,
+  };
+};
 
 let to_linebreak = (d: Direction.t, z: t): option(t) =>
   Zipper.do_until_linebreak(local(d), d, z);

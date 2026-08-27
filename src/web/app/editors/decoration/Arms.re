@@ -233,6 +233,10 @@ let shards =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
+      /* stable per-shard DOM ids ("<prefix><tile>-<shard>") so each
+         backing piece rides ITS OWN token in drag scrubs and commit
+         FLIPs (prefix distinguishes deco kinds on the same token) */
+      ~dom_prefix: option(string)=?,
       ~font_metrics: FontMetrics.t,
       ~base_clss: option(string),
       tiles: tile_data,
@@ -242,16 +246,29 @@ let shards =
     ((id, mold: Mold.t, shards: list(Shards.shard))) => {
       let sort = refine_sort(id, mold.out);
       List.map(
-        ((index: int, measurement: Measured.measurement)) =>
+        ((index: int, measurement: Measured.measurement)) => {
+          let attr =
+            Option.value(attr, ~default=[])
+            @ (
+              switch (dom_prefix) {
+              | Some(prefix) => [
+                  Attr.id(
+                    prefix ++ Id.to_string(id) ++ "-" ++ string_of_int(index),
+                  ),
+                ]
+              | None => []
+              }
+            );
           ShardDec.simple(
-            ~attr?,
+            ~attr,
             {
               font_metrics,
               measurement,
               tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
             },
             Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
-          ),
+          );
+        },
         shards,
       );
     },
@@ -264,6 +281,7 @@ let term =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
+      ~dom_prefix: option(string)=?,
       ~font_metrics: FontMetrics.t,
       ~rows: Rows.t,
       ~tiles: tile_data,
@@ -272,7 +290,7 @@ let term =
       range: (Point.t, Point.t),
     )
     : list(Node.t) =>
-  shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
+  shards(~refine_sort, ~attr?, ~dom_prefix?, ~font_metrics, ~base_clss, tiles)
   @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
 let tiles_data =
@@ -300,6 +318,7 @@ let term =
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,
+      ~dom_prefix: option(string)=?,
       tile: Tile.t,
     )
     : list(Node.t) => {
@@ -328,6 +347,7 @@ let term =
       shards(
         ~refine_sort,
         ~attr?,
+        ~dom_prefix?,
         ~font_metrics,
         ~base_clss=None,
         [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
@@ -346,6 +366,7 @@ let term =
         ~tiles,
         (l, r),
         ~attr?,
+        ~dom_prefix?,
       );
     | _ => []
     };
@@ -357,6 +378,7 @@ let term =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~dom_prefix: option(string)=?,
     ) =>
   term(
     ~refine_sort,
@@ -364,6 +386,7 @@ let term =
     ~terms=syntax.terms,
     ~measured=syntax.measured,
     ~font_metrics,
+    ~dom_prefix?,
   );
 
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
@@ -413,7 +436,17 @@ module Errors = {
         }
       | None =>
         switch (TermData.root_tile(id, syntax.term_data)) {
-        | Some(t) => term(~refine_sort, ~syntax, ~font_metrics, t)
+        | Some(t) =>
+          /* per-piece anchor ids: each backing piece rides its own
+             token (a multi-token error term's pieces move
+             independently — case stays, end drops on add-arm) */
+          term(
+            ~refine_sort,
+            ~syntax,
+            ~font_metrics,
+            ~dom_prefix=is_warning ? "warndec-" : "errdec-",
+            t,
+          )
         | None => []
         }
       },
@@ -470,7 +503,13 @@ module Indicated = {
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
-        term(~refine_sort, ~font_metrics, ~syntax, t);
+        term(
+          ~refine_sort,
+          ~font_metrics,
+          ~syntax,
+          ~dom_prefix="indication-",
+          t,
+        );
       }
     };
   };

@@ -149,6 +149,63 @@ type indent_gate =
   | AtBoundary;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type refactor =
+  | InlineLet
+  | FeedLet
+  | RemoveUnusedLet
+  | InlineAlias
+  | ExtractAlias
+  | AddTypeAnnotation
+  | EtaExpand
+  | EvaluateInPlace
+  | AddCaseArm
+  | ExpandWildcard
+  | AddParameter
+  | RemoveParameter
+  | RenameFree(string, string)
+  | RenameTypFree(string, string)
+  | SwapParams(int)
+  | SwapArms(int)
+  | SwapTuplePat(int)
+  | HoistLet
+  | SinkLet
+  | MergeUp
+  | MergeDown
+  | IfToCase
+  | CaseToIf
+  | ExtractLet
+  | Explode
+  | Implode
+  | EtaReduce
+  | BindArgument
+  | UnfoldCall
+  | HoistCarry
+  | LiftFunction
+  | BetaReduce
+  | SplitLet
+  | ReduceCase
+  | BindArm
+  | ReduceIf
+  | NegateIf;
+
+/* Directional refactor gestures (see Refactor.gesture): the caret's
+ * target zone plus a direction resolves to a refactor, or a dead
+ * press */
+module Gesture = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Up
+    | Down
+    | Left
+    | Right
+    /* the temporal axis: Step advances evaluation one rewrite
+       (beta / take arm / take branch); Bind stages it (introduce
+       the binding without substituting) */
+    | Step
+    | Bind;
+};
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type format =
   | Indent
   /* re-indent + canonicalize within-line spacing */
@@ -180,6 +237,8 @@ type t =
      one obligation (a tile's missing shards) or all of them */
   | ApplyCompletion(apply_target)
   | Introduce
+  | Refactor(refactor)
+  | RefactorGesture(Gesture.t)
   | Probe(probe)
   | Format(format)
   /* indent/dedent the caret's line (or all selected lines) one level */
@@ -200,6 +259,7 @@ module Failure = {
     | CantReparse
     | CantAccept
     | CantIntroduce
+    | Cant_refactor
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
 
@@ -221,6 +281,8 @@ let is_edit: t => bool =
   | Put_down
   | ApplyCompletion(_)
   | Introduce
+  | Refactor(_)
+  | RefactorGesture(_)
   | Buffer(Accept | Clear | Set(_))
   | Format(_)
   | AdjustIndent(_, _)
@@ -259,6 +321,8 @@ let is_historic: t => bool =
   | Put_down
   | ApplyCompletion(_)
   | Introduce
+  | Refactor(_)
+  | RefactorGesture(_)
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
@@ -303,6 +367,8 @@ let should_animate: t => bool =
   | Move(_)
   | Structural(_)
   | Probe(_)
+  | Refactor(_)
+  | RefactorGesture(_)
   | Format(_)
   | AdjustIndent(_, _)
   | ToggleLineComment => true

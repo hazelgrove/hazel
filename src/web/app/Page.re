@@ -532,6 +532,16 @@ module Selection = {
          ),
          mk(
            ~section="Settings",
+           ~mdIcon="slow_motion_video",
+           ~action=
+             Bonsai.Effect.of_sync_fun(
+               () => CodeFlip.slow_mo := ! CodeFlip.slow_mo^,
+               (),
+             ),
+           "Toggle Slow Animations (5x)",
+         ),
+         mk(
+           ~section="Settings",
            ~mdIcon="tune",
            ~action=inject(Globals(Set(ShowDebugPanel))),
            "Toggle Debug Sidebar",
@@ -626,13 +636,58 @@ module Selection = {
   };
 };
 
+/* Bare-cmd tracking must not depend on events reaching the page's
+   bubble-phase listener — the editor stops propagation on keys it
+   handles, stranding the meta-down flag (stuck ref-underlines).
+   A document-level CAPTURE listener sees every key first. */
+module MetaListener = {
+  open Js_of_ocaml;
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let on_key = (e: Js.t(Dom_html.event)): unit => {
+    let coerced = Js.Unsafe.coerce(e);
+    let bare_meta =
+      Js.to_bool(coerced##.metaKey)
+      && !Js.to_bool(coerced##.ctrlKey)
+      && !Js.to_bool(coerced##.altKey)
+      && !Js.to_bool(coerced##.shiftKey);
+    if (bare_meta != state^) {
+      state := bare_meta;
+      dispatch^(bare_meta);
+    };
+  };
+  let sync = (set: bool => unit): unit => {
+    dispatch := set;
+    if (! installed^) {
+      installed := true;
+      ["keydown", "keyup"]
+      |> List.iter(name => {
+           let _ =
+             Dom_html.addEventListener(
+               Dom_html.document,
+               Dom.Event.make(name),
+               Dom_html.handler(e => {
+                 on_key(e);
+                 Js._true;
+               }),
+               Js._true /* capture */,
+             );
+           ();
+         });
+    };
+  };
+};
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
-      let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* meta state is maintained by MetaListener (document capture);
+         the page's bubble listener misses keys the editor consumes */
+      let meta_effects = [];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -711,6 +766,24 @@ module View = {
           Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
+      let open_palette =
+        switch (key) {
+        | {key: D("K" | "k"), sys: Mac, meta: Down, ctrl: Up, alt: Up, _}
+        | {key: D("K" | "k"), sys: PC, meta: Up, ctrl: Down, alt: Up, _} =>
+          true
+        | _ => false
+        };
+      if (open_palette) {
+        let cursor =
+          Selection.get_cursor_info(
+            ~inject,
+            ~selection=model.selection,
+            model,
+          );
+        NinjaKeys.open_with(
+          cursor.contextual_actions @ cursor.contextual_actions_lazy(),
+        );
+      };
       Effect.(
         switch (page_action) {
         | None => meta_effects == [] ? Ignore : Many(meta_effects)
@@ -741,6 +814,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
+        ~cursor,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -761,7 +835,12 @@ module View = {
             button(
               Icons.command_palette_terminal,
               _ => {
-                NinjaKeys.open_command_palette();
+                NinjaKeys.open_with(
+                  Cursor.(
+                    cursor.contextual_actions
+                    @ cursor.contextual_actions_lazy()
+                  ),
+                );
                 Effect.Ignore;
               },
               ~tooltip="Command Palette (" ++ Keyboard.meta() ++ " + k)",
@@ -778,7 +857,8 @@ module View = {
     );
   };
 
-  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
+  let top_bar =
+      (~globals, ~inject: Update.t => Ui_effect.t(unit), ~cursor, ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
       [
@@ -786,7 +866,12 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        nut_menu(
+          ~globals,
+          ~inject=a => inject(Editors(a)),
+          ~cursor,
+          ~editors,
+        ),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -899,7 +984,7 @@ module View = {
     };
 
     [
-      top_bar(~globals, ~inject, ~editors),
+      top_bar(~globals, ~inject, ~cursor, ~editors),
       closure_cursor_bar,
       div(
         ~attrs=[

@@ -557,6 +557,40 @@ let rec go =
     |> Option.map(maybe_reassoc)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_insert);
+  | Refactor(k) =>
+    Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+    |> Option.map(
+         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+       )
+    |> return(Cant_refactor)
+  | RefactorGesture(g) =>
+    switch (
+      Refactor.gesture(~info_map=statics.info_map, ~term=statics.term, g, z)
+    ) {
+    | Some(k) =>
+      /* negate toggles: invoked from then/else, the caret lands on
+         the OPPOSITE delimiter (the arm you moved now lives there),
+         so repeating the gesture flips back */
+      let toggle =
+        switch (k, Indicated.index(z), Indicated.shard_index(z)) {
+        | (NegateIf, Some(tile), Some(shard)) when shard == 1 || shard == 2 =>
+          Some((tile, 3 - shard))
+        | _ => None
+        };
+      Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+      |> Option.map(z' =>
+           switch (toggle) {
+           | Some((tile, shard)) =>
+             Move.jump_to_shard(z', tile, shard) |> Option.value(~default=z')
+           | None => z'
+           }
+         )
+      |> Option.map(
+           LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+         )
+      |> return(Cant_refactor);
+    | None => Error(Cant_refactor)
+    }
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)
