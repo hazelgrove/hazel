@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8009/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -104,9 +104,26 @@ dead-code-summary:
 	dune build @ocaml-index --profile dev
 	python3 scripts/find_dead_code.py --no-build --format=markdown
 
+# The CI entry points. Unlike `test` / `test-quick`, none of these
+# --auto-promote: a violation in CI should be reported, not rewritten into a
+# checkout that is thrown away.
+
+# No `dune build --profile dev` first: dev is the lax profile (`-warn-error -A`,
+# see the (env) stanzas in src/*/dune), so it caught nothing the release build
+# misses, and runtest builds its own dependencies.
 ci: setup-zarith
-	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
+
+# alcotest's -q filter, which skips the Slow-tagged QCheck tests that dominate
+# the suite's runtime.
+ci-quick: setup-zarith
+	dune build @test-quick --profile dev
+
+# The strict-warning gate (issue #2456): release promotes warnings to errors,
+# and @check reaches test/ -- which no release build covers -- by type-checking
+# without linking, so it costs no second js_of_ocaml build of the test bundle.
+ci-check:
+	dune build @check --profile release
 
 generate-coverage-html:
 	bisect-ppx-report html
