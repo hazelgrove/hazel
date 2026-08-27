@@ -1,0 +1,26 @@
+# The same checks as ci.yml, for the one case ci.yml cannot see: a pull request
+# from a fork. A fork's branch pushes happen in the fork, so no `push` event
+# reaches this repository and `pull_request` is the only trigger that fires.
+#
+# Guarded to forks so a same-repo pull request -- which ci.yml already covers
+# via `push` -- does not run everything a second time. That leaves a skipped
+# check on same-repo pull requests, which is the intended reading: this workflow
+# is the fork path and it did not apply.
+name: Fork CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    if: ${{ github.event.pull_request.head.repo.fork }}
+    uses: ./.github/workflows/checks.yml
+    # No secrets and no report check runs: a fork's GITHUB_TOKEN is read-only,
+    # so publishing one would fail and mark the pull request red, and no
+    # CODECOV_TOKEN is available to upload with.
+    with:
+      publish-reports: false
