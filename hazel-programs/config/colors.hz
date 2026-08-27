@@ -6,7 +6,7 @@
 #                                                                     #
 #   palette_of   seeds + ramp lightnesses -> every derived colour      #
 #   theme_of     colours + role overrides -> the theme the app reads   #
-#   light / dark the two schemes, each built by those two functions    #
+#   light / dark / contrast   three schemes, each built by those two  #
 #   last line    picks one                                             #
 #                                                                     #
 # Both schemes run through the SAME two functions, so the derivation   #
@@ -15,7 +15,8 @@
 # three things differ per scheme: the seeds, six ramp lightnesses,     #
 # and the handful of roles that point somewhere else in dark.          #
 
-let dark_mode = false in
+let dark_mode = ^^check(false) in
+let high_contrast = ^^check(false) in
 
 # ── Seeds and ramp lightnesses become colours ───────────────────────── #
 let palette_of = fun (seed, step) ->
@@ -416,5 +417,85 @@ let dark =
     `cell-exercises-border` = p.`BR3`
   ))) in
 
-# The whole program branches here, once. #
-if dark_mode then dark else light
+# ── High contrast -- for accessibility ──────────────────────────────── #
+let contrast =
+  let p = palette_of(
+    ^^fold((
+      `NONE` = Transparent,
+      `SAND` = ^^color(Oklch(100., 0., 90.)),
+      `STONE` = ^^color(Oklch(0., 0., 220.)),
+      `BLACK` = ^^color(Oklch(0., 0., 0.)),
+      `BR1` = ^^color(Oklch(35., 0., 90.)),
+      `T1` = ^^color(Oklch(100., 0., 90.)),
+      `Y0` = ^^color(Oklch(95., 0.08, 90.)),
+      `Y1` = ^^color(Oklch(90., 0.14, 95.)),
+      `Y2` = ^^color(Oklch(85., 0.2, 95.)),
+      `Y3` = ^^color(Oklch(41.5, 0.2, 95.)),
+      `R0` = ^^color(Oklch(90., 0.1, 30.)),
+      `R1` = ^^color(Oklch(35.5, 0.28, 30.)),
+      `R2` = ^^color(Oklch(28., 0.28, 30.)),
+      `TYP` = ^^color(Oklch(36., 0.25, 300.)),
+      `LABEL` = ^^color(Oklch(36., 0.2, 180.)),
+      `highlight-a` = ^^color(Oklch(92., 0.1, 360.)),
+      `G0` = ^^color(Oklch(38., 0.2, 150.)),
+      `G1` = ^^color(Oklch(90., 0.15, 150.)),
+      `G2` = ^^color(Oklch(40.5, 0.12, 150.)),
+      `GB0` = ^^color(Oklch(41.5, 0.1, 120.)),
+      `GB1` = ^^color(Oklch(30., 0.1, 120.)),
+      `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 6.)), 55.),
+      `textarea-h-stripe` = ^^color(Oklch(70., 0.12, 246.)),
+      `textarea-h-strip-selected` = Fade(^^color(Oklch(55., 0.2, 76.)), 30.),
+      `SHADOW` = Fade(^^color(Oklch(0., 0., 90.)), 33.),
+      `ERRHOLE` = ^^color(Oklch(95., 0.06, 47.)),
+      `CREASE` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `exp-ap` = ^^color(Oklch(88., 0.1, 303.02104)),
+      `pat-ap` = ^^color(Oklch(88., 0.08, 263.9882)),
+      `exp-base` = ^^color(Oklch(94., 0.06, 145.12433)),
+      `pat-base` = ^^color(Oklch(94., 0.05, 184.47899)),
+      `exp-shadow` = ^^color(Oklch(35., 0.18, 150.)),
+      `pat-shadow` = ^^color(Oklch(35., 0.14, 245.)),
+      `exp-ap-shadow` = ^^color(Oklch(35., 0.16, 300.)),
+      `exp-cell` = ^^color(Oklch(90., 0.08, 142.66717)),
+      `pat-cell` = ^^color(Oklch(90., 0.06, 177.90838)),
+      `main-base` = ^^color(Oklch(96., 0.04, 315.29055)),
+      `main-shadow` = ^^color(Oklch(25., 0.12, 314.00959))
+    )),
+    (
+      `BR2` = 25.,
+      `BR3` = 15.,
+      `BR4` = 5.,
+      `T2` = 97.,
+      `T3` = 94.,
+      `T4` = 91.
+    )
+  ) in
+  theme_of(p, ^^fold((
+    `nut-menu` = p.`GB1`,
+    `menu-bkg` = p.`Y0`,
+    `menu-item-hover-bkg` = p.`SAND`,
+    `ui-bkg` = p.`T1`,
+    `ui-header-text` = p.`BR3`,
+    `cell-active` = p.`SAND`,
+    `main-scroll-thumb` = p.`BR1`,
+    `token-buffer` = p.`BR1`,
+    `shard-lines-exp` = p.`BR1`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.25), 95.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.25), 95.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.25), 95.),
+    `empty-hole-stroke` = p.`BR1`,
+    `empty-hole-fill` = p.`Y0`,
+    `backpack-selection-outline` = p.`SAND`,
+    `backback-targets` = p.`Y3`,
+    `textarea-text` = p.`BR3`,
+    `cell-result-border` = p.`BR1`,
+    `ci-icon-bkg` = p.`BR3`,
+    `ci-status-text` = p.`BR4`,
+    `context-inspector-colon` = p.`BR2`,
+    `cell-caption` = p.`BR2`,
+    `cell-exercises-border` = p.`BR2`
+  ))) in
+
+# The whole program branches HERE and nowhere else: each flag is read #
+# exactly once, so adding a scheme costs one line, not one test per    #
+# colour. High contrast wins over dark when both are set.             #
+if high_contrast then contrast else if dark_mode then dark else light

@@ -107,36 +107,56 @@ let every_value_is_css = () => {
   );
 };
 
-/* The shape the slide is written for: one conditional selecting a whole
-   scheme, rather than a `dark_mode` test at every seed. Comments are stripped
-   first — `#…#` is the .hz comment syntax and the header prose mentions the
-   word. */
-let single_conditional = () => {
-  let text = CC.source.backup_text;
-  let stripped = {
-    let buf = Buffer.create(String.length(text));
-    let inside = ref(false);
-    String.iter(
-      c =>
-        if (c == '#') {
-          inside := ! inside^;
-        } else if (! inside^) {
-          Buffer.add_char(buf, c);
-        },
-      text,
-    );
-    Buffer.contents(buf);
-  };
-  let words =
-    String.split_on_char(
-      ' ',
-      String.concat(" ", String.split_on_char('\n', stripped)),
-    );
+/* The shape the slide is written for. The scheme flags are read at the very
+   bottom and NOWHERE else: everything above is written once and reused by all
+   three schemes. This is the property the slide was restructured to get, and
+   it is what makes adding a scheme cost one line instead of one conditional
+   per colour — the previous shape tested `dark_mode` at all 50-odd places a
+   colour differed. Comments are stripped first, since the header prose names
+   the flags. */
+let strip_comments = (text: string) => {
+  let buf = Buffer.create(String.length(text));
+  let inside = ref(false);
+  String.iter(
+    c =>
+      if (c == '#') {
+        inside := ! inside^;
+      } else if (! inside^) {
+        Buffer.add_char(buf, c);
+      },
+    text,
+  );
+  Buffer.contents(buf);
+};
+
+let words = text =>
+  String.split_on_char('\n', text)
+  |> String.concat(" ")
+  |> String.split_on_char(' ')
+  |> List.filter(w => w != "");
+
+let flags_are_read_once = () => {
+  let ws = words(strip_comments(CC.source.backup_text));
+  let occurrences = w => List.length(List.filter(x => x == w, ws));
+  /* one binding plus one use */
   check(
     int,
-    "the slide branches on the scheme exactly once",
-    1,
-    List.length(List.filter(w => w == "if", words)),
+    "`dark_mode` is bound once and read once",
+    2,
+    occurrences("dark_mode"),
+  );
+  check(
+    int,
+    "`high_contrast` is bound once and read once",
+    2,
+    occurrences("high_contrast"),
+  );
+  /* One branch per flag, and no more: three schemes need exactly two. */
+  check(
+    int,
+    "the slide branches once per scheme flag",
+    2,
+    occurrences("if"),
   );
 };
 
@@ -178,7 +198,7 @@ let tests = [
       test_case("analysis is engaged", `Quick, analysis_is_engaged),
       test_case("slide matches its contract", `Quick, slide_matches_contract),
       test_case("every value is valid CSS", `Quick, every_value_is_css),
-      test_case("exactly one conditional", `Quick, single_conditional),
+      test_case("scheme flags read once", `Quick, flags_are_read_once),
       test_case(
         "takes the fast parse path",
         `Quick,
