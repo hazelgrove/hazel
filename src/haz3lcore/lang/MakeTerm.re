@@ -1693,8 +1693,31 @@ module Incr = {
   type entry = {
     e_pieces: Segment.t,
     e_term: Exp.t,
-    e_hole: option(Id.t) /* the synthetic body hole to graft into */
+    e_hole: option(Id.t), /* the synthetic body hole to graft into */
+    /* outer secondary runs for the item's top-level tile ids at build
+       time: cross-item trivia lands in a NEIGHBORING slice, so piece
+       equality alone cannot validate the term's secondary annotations */
+    e_secs: list((Id.t, IdTagged.IdTag.secondary_runs)),
   };
+
+  let secs_of =
+      (sec: Segment.SecondaryCollection.secondary_map, ps: Segment.t)
+      : list((Id.t, IdTagged.IdTag.secondary_runs)) =>
+    List.filter_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          Some((
+            t.id,
+            switch (Id.Map.find_opt(t.id, sec)) {
+            | Some(runs) => runs
+            | None => IdTagged.IdTag.empty_secondary
+            },
+          ))
+        | _ => None
+        },
+      ps,
+    );
 
   /* keyed by the item's FIRST piece id (stable across splices for
      unchanged items; an edited item re-mints its changed pieces) */
@@ -1702,7 +1725,7 @@ module Incr = {
   let last: ref(option((Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
-  let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
+  let parse_item = (~secondary=?, pieces: Segment.t): (Exp.t, option(Id.t)) => {
     let attempt = (ps: Segment.t) =>
       switch (Segment.skel(ps)) {
       | skel =>
@@ -1711,7 +1734,17 @@ module Incr = {
         projectors := Id.Map.empty;
         projector_list := [];
         adopted_ids := [];
-        secondary_map := Segment.SecondaryCollection.collect(ps);
+        /* whole-segment collection when provided: a slice alone cannot
+           see the trivia that follows its trailing `in` (it lives at
+           the head of the NEXT slice), so per-slice collection dropped
+           those runs from term annotations */
+        secondary_map :=
+          (
+            switch (secondary) {
+            | Some(m) => m
+            | None => Segment.SecondaryCollection.collect(ps)
+            }
+          );
         Some(exp(unsorted(Exp, skel, ps)));
       | exception _ => None
       };
@@ -1768,6 +1801,7 @@ module Incr = {
     | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let items = slices(seg);
+      let sec = Segment.SecondaryCollection.collect(seg);
       let keyed =
         List.filter_map(
           ps =>
@@ -1781,14 +1815,19 @@ module Incr = {
         List.map(
           ((key, ps)) =>
             switch (Id.Map.find_opt(key, memo^)) {
-            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
+            | Some(e)
+                when seg_eq(e.e_pieces, ps) && e.e_secs == secs_of(sec, ps) => (
+                key,
+                e,
+              )
             | _ =>
               incr(analyzed);
-              let (term, hole) = parse_item(ps);
+              let (term, hole) = parse_item(~secondary=sec, ps);
               let e = {
                 e_pieces: ps,
                 e_term: term,
                 e_hole: hole,
+                e_secs: secs_of(sec, ps),
               };
               (key, e);
             },
@@ -1821,6 +1860,301 @@ module Incr = {
       term;
     };
   };
+
+  /* ===== go_incr: the full go() record, composed per item =====
+     Per-item parses capture the side maps go accumulates globally;
+     three exact fixups then reconcile the one frame that differs
+     from go's single whole-segment walk (the TOP-LEVEL frame):
+       1. term map: re-add every graft-spine node under its ids
+          (per-item values hold the pre-graft holed bodies);
+       2. term_data: re-record every top-level skel node with
+          base_seg = the whole segment (per-item frames recorded
+          their slice), mirroring unsorted's sort propagation;
+       3. adopted ids: re-consolidate against the fixed maps (go
+          consolidates once at the end, when rep entries are final).
+     Exact parity with go is test-gated (Test_MakeTermIncr). */
+
+  type entry_full = {
+    f_pieces: Segment.t,
+    f_term: Exp.t,
+    f_hole: option(Id.t),
+    f_map: TermMap.t,
+    f_td: TermData.t,
+    f_proj: Id.Map.t(Base.projector),
+    f_plist: list(Id.t),
+    f_adopted: list(Id.t),
+    f_secs: list((Id.t, IdTagged.IdTag.secondary_runs)),
+  };
+
+  /* one per editor (rides in CachedSyntax): last build's entries and
+     the PRE-FIXUP unions, so the next build diffs instead of
+     re-merging. Entries for vanished/changed keys are dropped every
+     build. */
+  type cache = {
+    mutable c_prev:
+      option(
+        (
+          list((Id.t, entry_full)),
+          TermMap.t,
+          TermData.t,
+          Id.Map.t(Base.projector),
+        ),
+      ),
+  };
+  let mk_cache = (): cache => {c_prev: None};
+
+  let full_analyzed = ref(0); /* observability for tests */
+
+  /* strip the synthetic body hole from captured maps: go never sees
+     that grout, so nothing keyed by it may survive into the union */
+  let scrub_hole = (hole: option(Id.t), (m, td)) =>
+    switch (hole) {
+    | None => (m, td)
+    | Some(h) => (Id.Map.remove(h, m), Id.Map.remove(h, td))
+    };
+
+  let parse_item_full = (~secondary, ps: Segment.t): entry_full => {
+    incr(full_analyzed);
+    let (term, hole) = parse_item(~secondary, ps);
+    consolidate_adopted();
+    let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
+    {
+      f_pieces: ps,
+      f_term: term,
+      f_hole: hole,
+      f_map,
+      f_td,
+      f_proj: projectors^,
+      f_plist: projector_list^,
+      f_adopted: adopted_ids^,
+      f_secs: secs_of(secondary, ps),
+    };
+  };
+
+  /* mirror of the sort propagation in [unsorted]/[go_s], recording
+     TermData for every node of the top-level skel with the WHOLE
+     segment as base_seg (children of tiles are separate frames both
+     here and in go, so only this frame needs replaying) */
+  let record_top_frame = (td0: TermData.t, seg: Segment.t): TermData.t => {
+    let td = ref(td0);
+    let resolve = (s: Sort.t, skel: Skel.t): Sort.t =>
+      switch (s) {
+      | Any =>
+        let so = Segment.sort_of(skel, seg);
+        so == Any ? Exp : so;
+      | Drv(Jdmt | Ctx | Prop | Exp) => Drv(Exp)
+      | s => s
+      };
+    let rec sim = (s: Sort.t, skel: Skel.t): unit => {
+      let s = resolve(s, skel);
+      let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
+      Aba.get_as(root)
+      |> List.iter(p =>
+           td := Id.Map.add(Piece.id(p), TermData.mk(p, s, skel, seg), td^)
+         );
+      Aba.aba_triples(root)
+      |> List.iter(((p_l, kid, p_r)) => {
+           let (_, s_l) = Piece.nib_sorts(p_l);
+           let (s_r, _) = Piece.nib_sorts(p_r);
+           sim(s_l == s_r ? s_l : Sort.Any, kid);
+         });
+      let (l_sort, r_sort) = {
+        let p_l = Aba.first_a(root);
+        let p_r = Aba.last_a(root);
+        let (l, _) = Option.get(Piece.nibs(p_l));
+        let (_, r) = Option.get(Piece.nibs(p_r));
+        (l.sort, r.sort);
+      };
+      switch (skel) {
+      | Op(_) => ()
+      | Pre(_, r) => sim(r_sort, r)
+      | Post(l, _) => sim(l_sort, l)
+      | Bin(l, _, r) =>
+        sim(l_sort, l);
+        sim(r_sort, r);
+      };
+    };
+    sim(Exp, Segment.skel(seg));
+    td^;
+  };
+
+  /* the graft replaced holed bodies along each item's spine; re-add
+     those nodes so the term map shows the grafted terms (mirrors
+     [graft_at]'s descend set) */
+  let rec fix_spine = (m: TermMap.t, e: Exp.t): TermMap.t => {
+    let m = TermMap.add_all(e.annotation.ids, Exp(e), m);
+    switch (e.term) {
+    | Let(_, _, b)
+    | Seq(_, b)
+    | TyAlias(_, _, b)
+    | ModuleExp(_, _, b)
+    | Filter(_, b)
+    | Parens(b) => fix_spine(m, b)
+    | _ => m
+    };
+  };
+
+  /* consolidate_adopted against explicit maps (go runs it once at the
+     end; per-item runs used pre-fixup rep data, so replay here) */
+  let reconsolidate =
+      (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
+    List.fold_left(
+      (td, id) =>
+        switch (Id.Map.find_opt(id, m)) {
+        | None => td
+        | Some(term) =>
+          let rep = Language.Any.rep_id(term);
+          switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
+          | (Some(rep_data), Some(old_data)) =>
+            Id.Map.add(
+              id,
+              TermData.{
+                ...rep_data,
+                root_piece: old_data.root_piece,
+                sort: old_data.sort,
+              },
+              td,
+            )
+          | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
+          | (None, _) => td
+          };
+        },
+      td0,
+      adopted,
+    );
+
+  let go_incr' = (~cache: cache, seg: Segment.t): t => {
+    let sec = Segment.SecondaryCollection.collect(seg);
+    let keyed =
+      List.filter_map(
+        ps =>
+          switch (ps) {
+          | [] => None
+          | [p, ..._] => Some((Piece.id(p), ps))
+          },
+        slices(seg),
+      );
+    let (prev_assoc, m_map0, m_td0, m_proj0) =
+      switch (cache.c_prev) {
+      | Some(p) => p
+      | None => ([], Id.Map.empty, Id.Map.empty, Id.Map.empty)
+      };
+    let prev_tbl = Hashtbl.create(List.length(prev_assoc) + 1);
+    List.iter(((k, e)) => Hashtbl.replace(prev_tbl, k, e), prev_assoc);
+    let entries =
+      List.map(
+        ((key, ps)) =>
+          switch (Hashtbl.find_opt(prev_tbl, key)) {
+          | Some(e)
+              when seg_eq(e.f_pieces, ps) && e.f_secs == secs_of(sec, ps) => (
+              key,
+              e,
+            )
+          | _ => (key, parse_item_full(~secondary=sec, ps))
+          },
+        keyed,
+      );
+    let cur_tbl = Hashtbl.create(List.length(entries) + 1);
+    List.iter(((k, e)) => Hashtbl.replace(cur_tbl, k, e), entries);
+    /* diff the pre-fixup unions: drop bindings of vanished/rebuilt
+       entries, add bindings of rebuilt entries */
+    let m_map = ref(m_map0);
+    let m_td = ref(m_td0);
+    let m_proj = ref(m_proj0);
+    List.iter(
+      ((key, old_e)) => {
+        let keep =
+          switch (Hashtbl.find_opt(cur_tbl, key)) {
+          | Some(e) => e === old_e
+          | None => false
+          };
+        if (!keep) {
+          Id.Map.iter(
+            (id, _) => m_map := Id.Map.remove(id, m_map^),
+            old_e.f_map,
+          );
+          Id.Map.iter(
+            (id, _) => m_td := Id.Map.remove(id, m_td^),
+            old_e.f_td,
+          );
+          Id.Map.iter(
+            (id, _) => m_proj := Id.Map.remove(id, m_proj^),
+            old_e.f_proj,
+          );
+        };
+      },
+      prev_assoc,
+    );
+    List.iter(
+      ((key, e)) => {
+        let carried =
+          switch (Hashtbl.find_opt(prev_tbl, key)) {
+          | Some(old_e) => old_e === e
+          | None => false
+          };
+        if (!carried) {
+          Id.Map.iter(
+            (id, v) => m_map := Id.Map.add(id, v, m_map^),
+            e.f_map,
+          );
+          Id.Map.iter((id, v) => m_td := Id.Map.add(id, v, m_td^), e.f_td);
+          Id.Map.iter(
+            (id, v) => m_proj := Id.Map.add(id, v, m_proj^),
+            e.f_proj,
+          );
+        };
+      },
+      entries,
+    );
+    cache.c_prev = Some((entries, m_map^, m_td^, m_proj^));
+    /* graft, then the three exact fixups on top of the pure union */
+    let term = {
+      let rec graft = (es: list((Id.t, entry_full))): Exp.t =>
+        switch (es) {
+        | [] => Exp.fresh(EmptyHole)
+        | [(_, e)] => e.f_term
+        | [(_, e), ...rest] =>
+          let below = graft(rest);
+          switch (e.f_hole) {
+          | Some(h) =>
+            switch (graft_at(h, below, e.f_term)) {
+            | Some(t) => t
+            | None => e.f_term
+            }
+          | None => e.f_term
+          };
+        };
+      graft(entries);
+    };
+    last := Some((seg, term)); /* share with term_of (statics path) */
+    let terms = fix_spine(m_map^, term);
+    let term_data = record_top_frame(m_td^, seg);
+    let adopted = List.concat_map(((_, e)) => e.f_adopted, entries);
+    let term_data = reconsolidate(adopted, terms, term_data);
+    /* go conses projector ids during a single left-to-right walk, so
+       its list has later items first: concat per-item lists (each
+       already in go's within-item order) over reversed item order */
+    let projector_list =
+      List.concat_map(((_, e)) => e.f_plist, List.rev(entries));
+    {
+      term,
+      terms,
+      term_data,
+      projectors: m_proj^,
+      projector_list,
+    };
+  };
+
+  /* any structural surprise (e.g. Segment.skel on a malformed whole
+     segment) falls back to the monolithic parse */
+  let fell_back = ref(0); /* observability: parity tests assert 0 */
+  let go_incr = (~cache: cache, seg: Segment.t): t =>
+    switch (go_incr'(~cache, seg)) {
+    | r => r
+    | exception _ =>
+      incr(fell_back);
+      go(seg);
+    };
 };
 
 let from_zip_for_sem = (z: Zipper.t, ~root) =>

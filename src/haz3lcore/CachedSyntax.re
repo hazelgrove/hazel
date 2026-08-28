@@ -40,6 +40,9 @@ type t = {
   /* per-editor chunk memo for incremental re-measurement; rides the
      generation chain via {...old} so each editor keeps its own */
   m_cache: Measured.Incr.cache,
+  /* per-editor item memo for incremental parsing (terms/term_data/
+     projectors composed per item instead of a whole-program walk) */
+  t_cache: MakeTerm.Incr.cache,
 };
 
 // should not be serializing
@@ -49,11 +52,25 @@ let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 let mk =
-    (~root=Sort.Exp, ~m_cache=?, ~info_map, ~dyn_map, ~elaborated=None, z): t => {
+    (
+      ~root=Sort.Exp,
+      ~m_cache=?,
+      ~t_cache=?,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      z,
+    )
+    : t => {
   let m_cache =
     switch (m_cache) {
     | Some(c) => c
     | None => Measured.Incr.mk_cache()
+    };
+  let t_cache =
+    switch (t_cache) {
+    | Some(c) => c
+    | None => MakeTerm.Incr.mk_cache()
     };
   let segment = Zipper.unselect_and_zip(z);
   /* non-Exp-rooted cells parse ONCE at their own root sort — the
@@ -62,7 +79,7 @@ let mk =
   let (terms, term_data, projectors, projector_list) =
     if (root == Sort.Exp) {
       let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-        MakeTerm.go(segment);
+        MakeTerm.Incr.go_incr(~cache=t_cache, segment);
       (terms, term_data, projectors, projector_list);
     } else {
       MakeTerm.sorted_syntax_data(~root, segment);
@@ -99,6 +116,7 @@ let mk =
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
     m_cache,
+    t_cache,
   };
 };
 
@@ -195,7 +213,15 @@ let calculate =
         selection_ids: Selection.selection_ids(z.selection),
       };
     } else {
-      mk(~root, ~m_cache=old.m_cache, z, ~info_map, ~dyn_map, ~elaborated);
+      mk(
+        ~root,
+        ~m_cache=old.m_cache,
+        ~t_cache=old.t_cache,
+        z,
+        ~info_map,
+        ~dyn_map,
+        ~elaborated,
+      );
     };
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
