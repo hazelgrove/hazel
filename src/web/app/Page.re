@@ -1124,7 +1124,7 @@ module View = {
       let culling_enabled =
         switch (editors) {
         | Scratch(_)
-        | Documentation(_)
+        | Documentation(_) => true
         | Tutorial(_)
         | Exercises(_) => false
         };

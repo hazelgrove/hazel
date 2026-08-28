@@ -692,7 +692,10 @@ module View = {
         ~editor_active=selected,
       );
     // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
+    /* Visible row range from the scroll handler. Consumed ONLY by the
+       pending-eval highlight below: culling projectors/refractors with
+       these bounds hid them incorrectly on stale bounds (the Jan
+       "Disable culling" fix, #2702) - they render uncculled. */
     let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
@@ -700,7 +703,6 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~core_settings=globals.settings.core,
-        ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
@@ -712,7 +714,6 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~core_settings=globals.settings.core,
-        ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.for_decoration(zipper),

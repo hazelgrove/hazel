@@ -794,6 +794,53 @@ let color_range =
     [svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb)];
   };
 
+/* One text-hugging svg per contiguous row run of a range: per-row
+   extents from the measured row shapes, contoured by outline_path -
+   shard-shaped visuals at bounding-box node cost. (Rendering the
+   range's SEGMENT through the shard machinery emitted hundreds of
+   nodes per item-sized range - 23k+ overlays on a mega program.)
+   Blank rows split the contour, so the highlight skips empty lines. */
+let contour_of_range =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Measured.t,
+      ~sweep: bool=false,
+      clss: list(string),
+      (origin: Point.t, final: Point.t),
+    )
+    : list(Node.t) =>
+  if (final.row < origin.row) {
+    [];
+  } else {
+    let rows =
+      List.init(final.row - origin.row + 1, i => origin.row + i)
+      |> List.filter_map(row =>
+           switch (Measured.row_shape(row, measured)) {
+           | None => None
+           | Some(shape) =>
+             /* max/min: window-clamped regions may start/end mid-range
+                with cols from a different row */
+             let left =
+               row == origin.row
+                 ? max(origin.col, shape.indent) : shape.indent;
+             let right =
+               row == final.row
+                 ? min(final.col, shape.max_col) : shape.max_col;
+             right <= left
+               ? None
+               : Some({
+                   row_num: row,
+                   left_col: left,
+                   right_col: right,
+                   left_tip: None,
+                   right_tip: None,
+                 });
+           }
+         );
+    group_consecutive(rows)
+    |> List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep));
+  };
+
 let colors =
     (
       ~font_metrics: FontMetrics.t,
@@ -857,28 +904,76 @@ let incr_eval =
              active_ids,
            )
        );
-  let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) =>
+  /* None = the scroll handler has not fired yet (or the mode has no
+     culling), i.e. the view is at its initial scroll position: cull
+     to a generous top window rather than building every range - a
+     full mega-program pending set is tens of thousands of SVGs */
+  let visible_bounds =
     switch (visible) {
-    | None => ranges
-    | Some({first, last}) =>
-      List.filter(
-        ((_, (origin: Point.t, final: Point.t))) =>
-          origin.row <= last && final.row >= first,
-        ranges,
-      )
+    | None => (0, 300)
+    | Some({first, last}) => (first, last)
     };
+  let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
+    let (first, last) = visible_bounds;
+    List.filter(
+      ((_, (origin: Point.t, final: Point.t))) =>
+        origin.row <= last && final.row >= first,
+      ranges,
+    );
+  };
   /* The pending set shrinks on EVERY streamed chunk, and each of those
      frames used to rebuild every remaining range's SVG (~70 ranges x
      all their rows) - the highlight itself cost multiples of the
      actual statics work per edit. Cache nodes per id: within one
      evaluation the measured/range/metrics are stable, so all but the
      popped head are reference-equal and the vdom diff skips them. */
+  /* Shard-hugging contours, not bounding rectangles - but at REGION
+     granularity: the pending set is leaf-granular (thousands of ids on
+     a mega program), and per-leaf SVGs cost ~1s of path serialization
+     per edit even viewport-culled. Adjacent pending rows merge into a
+     few contiguous regions (the worklist completes roughly in program
+     order, so the remainder stays near-contiguous), clamped to the
+     visible window so path sizes stay bounded. */
+  let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
+    List.fold_left(
+      (acc, (id, (o: Point.t, f: Point.t))) =>
+        switch (acc) {
+        | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
+            when o.row <= rf.row + 1 =>
+          let rf' = rf.row > f.row ? rf : f;
+          [(rid, (ro, rf')), ...rest];
+        | _ => [(id, (o, f)), ...acc]
+        },
+      [],
+      ranges,
+    )
+    |> List.rev;
+  let clamp_region = ((id, (o: Point.t, f: Point.t))) => {
+    let (first, last) = visible_bounds;
+    let o =
+      o.row >= first
+        ? o
+        : Point.{
+            row: first,
+            col: 0,
+          };
+    let f =
+      f.row <= last
+        ? f
+        : Point.{
+            row: last,
+            col: Int.max_int,
+          };
+    (id, (o, f));
+  };
   let inactive_nodes =
     visible_ranges(pending_inactive_ranges)
+    |> merge_regions
+    |> List.map(clamp_region)
     |> List.concat_map(((id, range)) =>
          IncrEvalCache.get(
            ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~mk=() =>
-           color_range(
+           contour_of_range(
              ~font_metrics,
              ~measured=syntax.measured,
              ["incremental-pending"],
@@ -891,7 +986,7 @@ let incr_eval =
     inactive_nodes
     @ List.concat_map(
         ((_, range)) =>
-          color_range(
+          contour_of_range(
             ~font_metrics,
             ~measured=syntax.measured,
             ~sweep=true,
