@@ -1693,31 +1693,8 @@ module Incr = {
   type entry = {
     e_pieces: Segment.t,
     e_term: Exp.t,
-    e_hole: option(Id.t), /* the synthetic body hole to graft into */
-    /* outer secondary runs for the item's top-level tile ids at build
-       time: cross-item trivia lands in a NEIGHBORING slice, so piece
-       equality alone cannot validate the term's secondary annotations */
-    e_secs: list((Id.t, IdTagged.IdTag.secondary_runs)),
+    e_hole: option(Id.t) /* the synthetic body hole to graft into */
   };
-
-  let secs_of =
-      (sec: Segment.SecondaryCollection.secondary_map, ps: Segment.t)
-      : list((Id.t, IdTagged.IdTag.secondary_runs)) =>
-    List.filter_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          Some((
-            t.id,
-            switch (Id.Map.find_opt(t.id, sec)) {
-            | Some(runs) => runs
-            | None => IdTagged.IdTag.empty_secondary
-            },
-          ))
-        | _ => None
-        },
-      ps,
-    );
 
   /* keyed by the item's FIRST piece id (stable across splices for
      unchanged items; an edited item re-mints its changed pieces) */
@@ -1725,7 +1702,7 @@ module Incr = {
   let last: ref(option((Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
 
-  let parse_item = (~secondary=?, pieces: Segment.t): (Exp.t, option(Id.t)) => {
+  let parse_item = (pieces: Segment.t): (Exp.t, option(Id.t)) => {
     let attempt = (ps: Segment.t) =>
       switch (Segment.skel(ps)) {
       | skel =>
@@ -1734,17 +1711,15 @@ module Incr = {
         projectors := Id.Map.empty;
         projector_list := [];
         adopted_ids := [];
-        /* whole-segment collection when provided: a slice alone cannot
-           see the trivia that follows its trailing `in` (it lives at
-           the head of the NEXT slice), so per-slice collection dropped
-           those runs from term annotations */
-        secondary_map :=
-          (
-            switch (secondary) {
-            | Some(m) => m
-            | None => Segment.SecondaryCollection.collect(ps)
-            }
-          );
+        /* per-slice collection is EXACT despite the cut: ownership in
+           collect_from_skel gives a Pre node only its before-run, so
+           with cuts right after `in`-tiles no secondary run crosses a
+           slice boundary (the boundary trivia is the next item's
+           before-run, inside the next slice). Parity with go's
+           whole-segment collection is test-gated. Note the collection
+           runs on the HOLED attempt for nonconvex slices, whose skel
+           matches the whole-segment structure restricted to the item. */
+        secondary_map := Segment.SecondaryCollection.collect(ps);
         Some(exp(unsorted(Exp, skel, ps)));
       | exception _ => None
       };
@@ -1801,7 +1776,6 @@ module Incr = {
     | Some((prev_seg, prev_term)) when seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let items = slices(seg);
-      let sec = Segment.SecondaryCollection.collect(seg);
       let keyed =
         List.filter_map(
           ps =>
@@ -1815,19 +1789,14 @@ module Incr = {
         List.map(
           ((key, ps)) =>
             switch (Id.Map.find_opt(key, memo^)) {
-            | Some(e)
-                when seg_eq(e.e_pieces, ps) && e.e_secs == secs_of(sec, ps) => (
-                key,
-                e,
-              )
+            | Some(e) when seg_eq(e.e_pieces, ps) => (key, e)
             | _ =>
               incr(analyzed);
-              let (term, hole) = parse_item(~secondary=sec, ps);
+              let (term, hole) = parse_item(ps);
               let e = {
                 e_pieces: ps,
                 e_term: term,
                 e_hole: hole,
-                e_secs: secs_of(sec, ps),
               };
               (key, e);
             },
@@ -1883,7 +1852,6 @@ module Incr = {
     f_proj: Id.Map.t(Base.projector),
     f_plist: list(Id.t),
     f_adopted: list(Id.t),
-    f_secs: list((Id.t, IdTagged.IdTag.secondary_runs)),
   };
 
   /* one per editor (rides in CachedSyntax): last build's entries and
@@ -1913,9 +1881,9 @@ module Incr = {
     | Some(h) => (Id.Map.remove(h, m), Id.Map.remove(h, td))
     };
 
-  let parse_item_full = (~secondary, ps: Segment.t): entry_full => {
+  let parse_item_full = (ps: Segment.t): entry_full => {
     incr(full_analyzed);
-    let (term, hole) = parse_item(~secondary, ps);
+    let (term, hole) = parse_item(ps);
     consolidate_adopted();
     let (f_map, f_td) = scrub_hole(hole, (map^, term_data^));
     {
@@ -1927,7 +1895,6 @@ module Incr = {
       f_proj: projectors^,
       f_plist: projector_list^,
       f_adopted: adopted_ids^,
-      f_secs: secs_of(secondary, ps),
     };
   };
 
@@ -2024,7 +1991,6 @@ module Incr = {
     );
 
   let go_incr' = (~cache: cache, seg: Segment.t): t => {
-    let sec = Segment.SecondaryCollection.collect(seg);
     let keyed =
       List.filter_map(
         ps =>
@@ -2045,12 +2011,8 @@ module Incr = {
       List.map(
         ((key, ps)) =>
           switch (Hashtbl.find_opt(prev_tbl, key)) {
-          | Some(e)
-              when seg_eq(e.f_pieces, ps) && e.f_secs == secs_of(sec, ps) => (
-              key,
-              e,
-            )
-          | _ => (key, parse_item_full(~secondary=sec, ps))
+          | Some(e) when seg_eq(e.f_pieces, ps) => (key, e)
+          | _ => (key, parse_item_full(ps))
           },
         keyed,
       );
