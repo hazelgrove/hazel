@@ -41,6 +41,7 @@ let (suite, _) =
       Test_MakeTermIncr.tests,
       Test_PieceIdentity.tests,
       Test_ClickTeleport.tests,
+      Test_AliasProbe.tests,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
