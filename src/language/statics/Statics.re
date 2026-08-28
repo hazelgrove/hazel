@@ -56,16 +56,19 @@ let rec any_to_info_map =
   }
 and multi =
     (~ctx, ~ancestors, ~probe_ids: Id.Map.t(unit)=Id.Map.empty, m, tms)
-    : (list(CoCtx.t), list(Any.t), Map.t) =>
-  List.fold_left(
-    ((co_ctxs, tms_elab, m), any) => {
-      let (co_ctx, any_elab, m) =
-        any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-      (co_ctxs @ [co_ctx], tms_elab @ [any_elab], m);
-    },
-    ([], [], m),
-    tms,
-  )
+    : (list(CoCtx.t), list(Any.t), Map.t) => {
+  let (co_ctxs, tms_elab, m) =
+    List.fold_left(
+      ((co_ctxs, tms_elab, m), any) => {
+        let (co_ctx, any_elab, m) =
+          any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
+        ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
+      },
+      ([], [], m),
+      tms,
+    );
+  (List.rev(co_ctxs), List.rev(tms_elab), m);
+}
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -958,7 +961,7 @@ and uexp_to_info_map =
                   e_info,
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -1054,7 +1057,7 @@ and uexp_to_info_map =
                   ~warnings=[],
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             | _ =>
               let (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
@@ -1063,12 +1066,13 @@ and uexp_to_info_map =
                   e_info,
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
+              ([e_info, ...es], [elab, ...es_elab], m);
             },
           ([], [], m),
           ana_tys,
           List.combine(inferred, es),
         );
+      let (es', es_elab) = (List.rev(es'), List.rev(es_elab));
 
       let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
 
@@ -2376,11 +2380,12 @@ and uexp_to_info_map =
         List.fold_left2(
           ((es, elabs, m), e, ctx) =>
             go(~ctx, ~ana, e, m)
-            |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
+            |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
           ([], [], m),
           es,
           p_ctxs,
         );
+      let (es, es_elabs) = (List.rev(es), List.rev(es_elabs));
 
       let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
@@ -2400,13 +2405,14 @@ and uexp_to_info_map =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
 
             let p_constraint = Info.pat_constraint(info);
-            ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
+            ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
           },
           ([], [], m),
           List.combine(ps, e_co_ctxs),
         );
 
       let constraints = List.rev(constraints);
+      let ps_elabs = List.rev(ps_elabs);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
@@ -3333,11 +3339,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
@@ -3458,11 +3464,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab_tl],
+                [info, ...info_all],
+                [elab_tl, ...elabs],
               );
             | _ =>
               let (info, elab, m) =
@@ -3482,17 +3488,23 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
           modes,
         );
+      let (tys, cons, info_pats, ps_elabs) = (
+        List.rev(tys),
+        List.rev(cons),
+        List.rev(info_pats),
+        List.rev(ps_elabs),
+      );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 
       let malformed_labels =
