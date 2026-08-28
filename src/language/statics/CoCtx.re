@@ -33,47 +33,28 @@ type entry = {
   expected_ty: Typ.t,
 };
 
-module NameMap = Map.Make(String);
-
 /* Each co-context entry is a list of the uses of a variable within
-   some scope, including their type demands. The map replaced an assoc
-   list whose union was O(|a|*|b|): along a top-level chain the body
-   co-ctx at depth k carries every free name of the rest of the
-   program and was unioned at every level — a quadratic term in
-   whole-program statics, and the amplifier in the exponential co_ctx
-   blowups. Serialization stays the assoc-pairs shape (sorted by
-   name). */
-type t = NameMap.t(list(entry));
-
-let to_list = (co_ctx: t): list((Var.t, list(entry))) =>
-  NameMap.bindings(co_ctx);
-let of_list = (l: list((Var.t, list(entry)))): t =>
-  /* preserve assoc lookup semantics: FIRST binding of a name wins */
-  List.fold_left(
-    (m, (name, entries)) =>
-      NameMap.mem(name, m) ? m : NameMap.add(name, entries, m),
-    NameMap.empty,
-    l,
-  );
-
+   some scope, including their type demands. A name-keyed map
+   representation was tried (2026-08-28) and REVERTED together with
+   ctx-as-map: the DocSlides Mega-2k wedge it was hoped to fix
+   persisted (900s cap, 1.57GB RSS), and frame benchmarks were
+   unchanged (plans/perf-ledger.md stage A). The accessor API below
+   remains the only sanctioned way to consume the representation. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent = list((Var.t, list(entry)));
-let sexp_of_t = (co_ctx: t) => sexp_of_persistent(to_list(co_ctx));
-let t_of_sexp = s => of_list(persistent_of_sexp(s));
-let yojson_of_t = (co_ctx: t) => yojson_of_persistent(to_list(co_ctx));
-let t_of_yojson = j => of_list(persistent_of_yojson(j));
-let pp = (fmt, co_ctx: t) => pp_persistent(fmt, to_list(co_ctx));
-let show = (co_ctx: t) => show_persistent(to_list(co_ctx));
+type t = VarMap.t_(list(entry));
 
-let empty: t = NameMap.empty;
+let empty: t = VarMap.empty;
+
+let to_list = (co_ctx: t): list((Var.t, list(entry))) => co_ctx;
+let of_list = (l: list((Var.t, list(entry)))): t => l;
 
 let lookup = (co_ctx: t, name: Var.t): option(list(entry)) =>
-  NameMap.find_opt(name, co_ctx);
-let contains = (co_ctx: t, name: Var.t): bool => NameMap.mem(name, co_ctx);
-let names = (co_ctx: t): list(Var.t) =>
-  NameMap.bindings(co_ctx) |> List.map(fst);
+  VarMap.lookup(co_ctx, name);
+let contains = (co_ctx: t, name: Var.t): bool =>
+  VarMap.contains(co_ctx, name);
+let names = (co_ctx: t): list(Var.t) => List.map(fst, co_ctx);
 let filter_names = (pred: Var.t => bool, co_ctx: t): t =>
-  NameMap.filter((name, _) => pred(name), co_ctx);
+  VarMap.filter(((name, _)) => pred(name), co_ctx);
 
 let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   let added_bindings = Ctx.added_bindings(ctx_after, ctx_before);
@@ -87,23 +68,28 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   );
 };
 
-/* Merge co-contexts, combining entry lists for the same variable name
-   (earlier operands' uses first, as before). */
+/* Merge co-contexts, combining entry lists for the same variable name. */
 let union: list(t) => t =
-  co_ctxs =>
+  co_ctxs => {
     List.fold_left(
       (acc, co_ctx) =>
-        NameMap.union(
-          (_, existing, entries) => Some(existing @ entries),
+        List.fold_left(
+          (acc, (name, entries)) =>
+            if (VarMap.contains(acc, name)) {
+              VarMap.update(acc, name, existing => existing @ entries);
+            } else {
+              VarMap.extend(acc, (name, entries));
+            },
           acc,
           co_ctx,
         ),
-      NameMap.empty,
+      VarMap.empty,
       co_ctxs,
     );
+  };
 
-let singleton = (name, id, expected_ty): t =>
-  NameMap.singleton(
+let singleton = (name, id, expected_ty): t => [
+  (
     name,
     [
       {
@@ -111,7 +97,8 @@ let singleton = (name, id, expected_ty): t =>
         expected_ty,
       },
     ],
-  );
+  ),
+];
 
 let meet: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {

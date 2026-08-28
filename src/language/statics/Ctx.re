@@ -40,20 +40,15 @@ type entry =
   | TVarEntry(tvar_entry)
   | LivelitEntry(LivelitCtx.raw_livelit);
 
-module NameMap = Map.Make(String);
-
-/* Ctx was a bare entry list with linear kind-filtered scans for every
-   lookup — O(depth) per Var/ctr/tvar resolution, which made statics
-   scale with a definition's POSITION in the program (measured
-   350/950/1200ms per item by depth at mega-4k). [entries] remains the
-   CANONICAL, ordered (newest-first), serialized representation;
-   the per-kind name maps and [size] are derived caches. Innermost-
-   wins map insertion is equivalent to the old nearest-first scan
-   (each lookup was already kind-filtered, so per-kind maps preserve
-   cross-kind non-shadowing in lookups exactly); scoping semantics are
-   unchanged — see Test_AliasProbe for the pinned alias-shadowing
-   characterization. Order-sensitive operations (added_bindings,
-   filters, display, iteration) use [entries]/[size]. */
+/* Ctx is the entry list it always was, plus a SIZE field: the scope
+   operations (added_bindings, subtract_prefix — called per binder
+   scope via CoCtx.mk) previously paid two O(n) List.lengths each.
+   A full name-keyed map representation was tried (2026-08-28) and
+   REVERTED: measured no benefit at mega-4k — expensive statics items
+   are labeled-tuple-bound, not ctx-lookup-bound, and local names sit
+   near the head of the list anyway (see plans/perf-ledger.md stage A
+   results). [entries] is newest-first; serialization goes through
+   [repr] (wire format unchanged from before the size field). */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type repr = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred
@@ -64,62 +59,31 @@ type t = {
   use_mode: option(Operators.mode),
   entries: list(entry),
   size: int,
-  by_var: NameMap.t(var_entry),
-  by_ctr: NameMap.t(var_entry),
-  by_tvar: NameMap.t(tvar_entry),
-  by_livelit: NameMap.t(LivelitCtx.raw_livelit),
 };
 
 let extend = (ctx: t, entry): t => {
-  let ctx = {
-    ...ctx,
-    entries: [entry, ...ctx.entries],
-    size: ctx.size + 1,
-  };
-  switch (entry) {
-  | VarEntry(v) => {
-      ...ctx,
-      by_var: NameMap.add(v.name, v, ctx.by_var),
-    }
-  | ConstructorEntry(v) => {
-      ...ctx,
-      by_ctr: NameMap.add(v.name, v, ctx.by_ctr),
-    }
-  | TVarEntry(v) => {
-      ...ctx,
-      by_tvar: NameMap.add(v.name, v, ctx.by_tvar),
-    }
-  | LivelitEntry(v) => {
-      ...ctx,
-      by_livelit: NameMap.add(v.name, v, ctx.by_livelit),
-    }
-  };
+  ...ctx,
+  entries: [entry, ...ctx.entries],
+  size: ctx.size + 1,
 };
 
 let of_entries =
-    (~use_mode: option(Operators.mode), entries: list(entry)): t =>
-  /* [entries] is newest-first: extend oldest-first so newest wins */
-  List.fold_left(
-    extend,
-    {
-      use_mode,
-      entries: [],
-      size: 0,
-      by_var: NameMap.empty,
-      by_ctr: NameMap.empty,
-      by_tvar: NameMap.empty,
-      by_livelit: NameMap.empty,
-    },
-    List.rev(entries),
-  );
+    (~use_mode: option(Operators.mode), entries: list(entry)): t => {
+  use_mode,
+  entries,
+  size: List.length(entries),
+};
 
 /* prepend a newest-first run of entries (preserves the old
    [new_entries @ ctx.entries] semantics) */
-let prepend_entries = (ctx: t, new_entries: list(entry)): t =>
-  List.fold_left(extend, ctx, List.rev(new_entries));
+let prepend_entries = (ctx: t, new_entries: list(entry)): t => {
+  ...ctx,
+  entries: new_entries @ ctx.entries,
+  size: ctx.size + List.length(new_entries),
+};
 
 /* ---- serialization: [entries] is canonical; the wire format is
-   identical to the pre-map representation ---- */
+   identical to the plain-record representation ---- */
 let repr_of = (ctx: t): repr => {
   use_mode: ctx.use_mode,
   entries: ctx.entries,
@@ -132,8 +96,6 @@ let t_of_yojson = j => of_repr(repr_of_yojson(j));
 let pp = (fmt, ctx: t) => pp_repr(fmt, repr_of(ctx));
 let show = (ctx: t) => show_repr(repr_of(ctx));
 
-/* content equality (map internals are shape-dependent; never compare
-   ctxs structurally) */
 let equal = (a: t, b: t): bool =>
   a.use_mode == b.use_mode && a.entries == b.entries;
 
@@ -167,13 +129,28 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   };
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
-  NameMap.find_opt(name, ctx.by_tvar) |> Option.map(v => v.kind);
+  List.find_map(
+    fun
+    | TVarEntry(v) when v.name == name => Some(v.kind)
+    | _ => None,
+    ctx.entries,
+  );
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
-  NameMap.find_opt(name, ctx.by_tvar) |> Option.map(v => v.id);
+  List.find_map(
+    fun
+    | TVarEntry(v) when v.name == name => Some(v.id)
+    | _ => None,
+    ctx.entries,
+  );
 
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
-  NameMap.find_opt(name, ctx.by_livelit);
+  List.find_map(
+    fun
+    | LivelitEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx.entries,
+  );
 
 let get_id: entry => Id.t =
   fun
@@ -183,10 +160,20 @@ let get_id: entry => Id.t =
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  NameMap.find_opt(name, ctx.by_var);
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx.entries,
+  );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
-  NameMap.find_opt(name, ctx.by_ctr);
+  List.find_map(
+    fun
+    | ConstructorEntry(t) when t.name == name => Some(t)
+    | _ => None,
+    ctx.entries,
+  );
 
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
