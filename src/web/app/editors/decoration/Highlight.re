@@ -685,6 +685,35 @@ let color =
   | None => []
   };
 
+/* per-id RANGE memo for the pending-eval highlight: incr_eval runs on
+   every streamed chunk and recomputed extreme_measures for every
+   pending leaf id (thousands of measured lookups per frame). Ranges
+   only change with the measured/term_data generation, so one table
+   serves a whole evaluation. Cleared on generation change. */
+module RangeCache = {
+  let key: ref(Obj.t) = ref(Obj.repr(0));
+  let tbl: Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))) =
+    Hashtbl.create(1024);
+  let for_gen =
+      (~measured: Measured.t, ~term_data: TermData.t)
+      : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
+    /* measured is the stricter generation proxy: term_data only
+       changes in mk, where measured is rebuilt too */
+    if (!(key^ === Obj.repr(measured))) {
+      Hashtbl.reset(tbl);
+      key := Obj.repr(measured);
+    };
+    id =>
+      switch (Hashtbl.find_opt(tbl, id)) {
+      | Some(r) => r
+      | None =>
+        let r = TermData.extreme_measures(id, term_data, measured);
+        Hashtbl.replace(tbl, id, r);
+        r;
+      };
+  };
+};
+
 /* per-id node cache for the pending-eval highlight (see incr_eval).
    Eviction: tick sweep, view-side cache discipline. */
 module IncrEvalCache = {
@@ -871,13 +900,16 @@ let incr_eval =
   IncrEvalCache.bump();
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
+  let range_of =
+    RangeCache.for_gen(
+      ~measured=syntax.measured,
+      ~term_data=syntax.term_data,
+    );
   let ranged_ids_of = ids =>
     ids
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
-         switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         ) {
+         switch (range_of(id)) {
          | Some(range) => Some((id, range))
          | None => None
          }
