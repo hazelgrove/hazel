@@ -408,6 +408,9 @@ let of_segment_inner =
 type chunk = {
   c_anchor: Id.t, /* first piece's id: the chunk's stable identity */
   c_start: int, /* absolute starting row */
+  c_height: int, /* flat_height(c_flat), cached: chunk_for_row runs on
+                    every row_shape and a per-probe max_binding_opt
+                    made row-sweeping decorations quadratic-ish */
   c_pieces: Segment.t, /* the chunk's top-level pieces (for chunked views) */
   c_flat: flat,
 };
@@ -454,17 +457,19 @@ let mk_chunked = (~chunk_of_id, flats: list((Id.t, Segment.t, flat))): t => {
     List.fold_left(
       ((acc, row), (anchor, pieces, f)) => {
         Hashtbl.replace(anchor_index, anchor, List.length(acc));
+        let h = flat_height(f);
         (
           [
             {
               c_anchor: anchor,
               c_start: row,
+              c_height: h,
               c_pieces: pieces,
               c_flat: f,
             },
             ...acc,
           ],
-          row + flat_height(f),
+          row + h,
         );
       },
       ([], 0),
@@ -499,7 +504,7 @@ let chunk_for_row = (row: int, m: t): option(chunk) => {
     } else {
       let mid = (lo + hi) / 2;
       let ch = m.chunks[mid];
-      let h = flat_height(ch.c_flat);
+      let h = ch.c_height;
       if (row < ch.c_start) {
         bs(lo, mid - 1);
       } else if (row >= ch.c_start + h && mid < n - 1) {

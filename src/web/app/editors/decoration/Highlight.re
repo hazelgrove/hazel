@@ -685,6 +685,56 @@ let color =
   | None => []
   };
 
+/* per-id node cache for the pending-eval highlight (see incr_eval).
+   Eviction: tick sweep, view-side cache discipline. */
+module IncrEvalCache = {
+  type entry = {
+    mutable e_meas: Obj.t,
+    mutable e_range: (Measured.Point.t, Measured.Point.t),
+    mutable e_fm: Obj.t,
+    mutable e_nodes: list(Node.t),
+    mutable e_tick: int,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  let tick = ref(0);
+  let bump = () => {
+    incr(tick);
+    if (tick^ mod 64 == 0) {
+      let dead =
+        Hashtbl.fold(
+          (id, e, acc) => e.e_tick < tick^ - 16 ? [id, ...acc] : acc,
+          cache,
+          [],
+        );
+      List.iter(Hashtbl.remove(cache), dead);
+    };
+  };
+  let get = (~id, ~measured, ~range, ~font_metrics, ~mk): list(Node.t) =>
+    switch (Hashtbl.find_opt(cache, id)) {
+    | Some(e)
+        when
+          e.e_meas === Obj.repr(measured)
+          && e.e_range == range
+          && e.e_fm === Obj.repr(font_metrics) =>
+      e.e_tick = tick^;
+      e.e_nodes;
+    | _ =>
+      let nodes = mk();
+      Hashtbl.replace(
+        cache,
+        id,
+        {
+          e_meas: Obj.repr(measured),
+          e_range: range,
+          e_fm: Obj.repr(font_metrics),
+          e_nodes: nodes,
+          e_tick: tick^,
+        },
+      );
+      nodes;
+    };
+};
+
 let bbox_of_range =
     (~measured: Measured.t, (origin: Point.t, final: Point.t)): option(bbox) =>
   if (final.row < origin.row) {
@@ -771,6 +821,7 @@ let incr_eval =
       ~show_active_eval: bool=false,
       (),
     ) => {
+  IncrEvalCache.bump();
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
   let ranged_ids_of = ids =>
@@ -816,18 +867,28 @@ let incr_eval =
         ranges,
       )
     };
+  /* The pending set shrinks on EVERY streamed chunk, and each of those
+     frames used to rebuild every remaining range's SVG (~70 ranges x
+     all their rows) - the highlight itself cost multiples of the
+     actual statics work per edit. Cache nodes per id: within one
+     evaluation the measured/range/metrics are stable, so all but the
+     popped head are reference-equal and the vdom diff skips them. */
+  let inactive_nodes =
+    visible_ranges(pending_inactive_ranges)
+    |> List.concat_map(((id, range)) =>
+         IncrEvalCache.get(
+           ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~mk=() =>
+           color_range(
+             ~font_metrics,
+             ~measured=syntax.measured,
+             ["incremental-pending"],
+             range,
+           )
+         )
+       );
   div_c(
     "incremental-highlights",
-    List.concat_map(
-      ((_, range)) =>
-        color_range(
-          ~font_metrics,
-          ~measured=syntax.measured,
-          ["incremental-pending"],
-          range,
-        ),
-      visible_ranges(pending_inactive_ranges),
-    )
+    inactive_nodes
     @ List.concat_map(
         ((_, range)) =>
           color_range(
