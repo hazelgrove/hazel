@@ -247,6 +247,63 @@ let tests = (
       },
     ),
     test_case(
+      "nested triggers: refractor pinned on a projector",
+      `Quick,
+      () => {
+        let text = "let a = ^^probe(^^slider(50)) in a";
+        /* the fast path itself must handle the nest, not the fallback */
+        let parsed: FastParse.parsed =
+          switch (
+            FastParse.parsed_of_text(
+              ~materialize=Triggers.invoked_projector,
+              ~collect_refractors=true,
+              ~root=Exp,
+              text,
+            )
+          ) {
+          | Ok(p) => p
+          | Error(why) => failwith("nested trigger bailed fast path: " ++ why)
+          };
+        check(
+          int,
+          "one refractor collected",
+          1,
+          List.length(parsed.refractors),
+        );
+        check(
+          bool,
+          "wrapped projector materialized",
+          true,
+          List.exists(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile({children, _}) =>
+                List.exists(
+                  List.exists((p: Piece.t) =>
+                    switch (p) {
+                    | Projector({kind: Slider, _}) => true
+                    | _ => false
+                    }
+                  ),
+                  children,
+                )
+              | _ => false
+              },
+            parsed.segment,
+          ),
+        );
+        /* end-to-end: the load path pins the probe and reprints verbatim */
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(int, "one manual pin", 1, List.length(z.refractors.manuals));
+        check(
+          string,
+          "nest reprints as written",
+          text,
+          String.trim(MarkerParse.to_text(z)),
+        );
+      },
+    ),
+    test_case(
       "probe_table renderer option round-trips",
       `Quick,
       () => {
