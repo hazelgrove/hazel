@@ -104,7 +104,7 @@ let is_top_level_leaf =
   | _ => false
   };
 
-let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) => {
+let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
   let inside_function_ids = ids_inside_functions(info_map);
   Id.Map.fold(
     (id, info, acc) =>
@@ -114,6 +114,21 @@ let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) => {
     [],
   );
 };
+
+/* pending_ids is a pure O(info_map) walk that ran on the main thread
+   for every eval request (~90ms on mega-4k). Single-slot memo keyed
+   by map identity: the slot pins one info_map generation, which the
+   current statics retains anyway. */
+let pending_memo: ref(option((StaticsBase.Map.t, list(Id.t)))) =
+  ref(None);
+let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
+  switch (pending_memo^) {
+  | Some((m, ids)) when m === info_map => ids
+  | _ =>
+    let ids = pending_ids_uncached(info_map);
+    pending_memo := Some((info_map, ids));
+    ids;
+  };
 
 /* Runs on the MAIN thread per streamed chunk. Pending ids are
    top-level leaves, which are entry-recording sites themselves — a

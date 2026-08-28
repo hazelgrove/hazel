@@ -727,7 +727,7 @@ module View = {
       );
     ProjectorView.ViewCache.log_frame();
     let incr_eval_overlay =
-      if (pending_eval_ids != []) {
+      if (globals.settings.show_pending_eval && pending_eval_ids != []) {
         [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],

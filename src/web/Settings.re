@@ -22,6 +22,8 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* grey re-evaluation-progress backings after edits */
+    show_pending_eval: bool,
   };
 
   let init = {
@@ -88,6 +90,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_pending_eval: true,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -145,7 +148,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowPendingEval;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -443,6 +447,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowPendingEval => {
+          ...settings,
+          show_pending_eval: !settings.show_pending_eval,
         }
       }
     )

@@ -380,10 +380,34 @@ let scroll_vertically_into_view =
   };
 };
 
+/* find_scroll_container reads scrollHeight/clientHeight up the parent
+   chain — forced layout on dirty frames, and this runs after every
+   action. Cache the resolved container; revalidate only that it is
+   still in the document (slide/mode switches replace it). */
+let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
+  ref(None);
+let find_scroll_container_cached =
+    (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
+  let valid = (el: Js.t(Dom_html.element)): bool =>
+    Js.to_bool(Js.Unsafe.get(el, "isConnected"))
+    /* must still be an ancestor: the caret can move to an editor with
+       a different scroll container (e.g. stacked cells) */
+    && Js.to_bool(
+         Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
+       );
+  switch (scroll_container_cache^) {
+  | Some(el) when valid(el) => Some(el)
+  | _ =>
+    let found = find_scroll_container(element);
+    scroll_container_cache := found;
+    found;
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container(caret_elem)) {
+    switch (find_scroll_container_cached(caret_elem)) {
     | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(

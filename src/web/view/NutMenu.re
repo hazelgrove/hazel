@@ -215,6 +215,12 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show horizontal lines between each row of code"),
       },
       {
+        name: "Eval Progress",
+        active: globals.settings.show_pending_eval,
+        setting: ShowPendingEval,
+        tooltip: Some("Highlight code pending re-evaluation after edits"),
+      },
+      {
         name: "Debug Sidebar",
         active: globals.settings.show_debug_panel,
         setting: ShowDebugPanel,
