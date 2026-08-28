@@ -26,6 +26,15 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    /* load-time evaluations (fresh slide/load, and the settle churn
+       that re-requests as statics stabilize) show no pending-eval
+       highlight: the whole program is pending, and a wall of grey
+       boxes on startup is noise (and thousands of overlay nodes).
+       The highlight is for re-evaluation after USER EDITS — and load
+       frames also claim is_edited, so an edit only counts once a
+       first result exists. */
+    has_result: bool,
+    edited_since_load: bool,
     display,
     theorems: Theorems.Model.t,
   };
@@ -46,6 +55,8 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    has_result: false,
+    edited_since_load: false,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -72,6 +83,8 @@ module Model = {
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
+        has_result: false,
+        edited_since_load: false,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -226,6 +239,8 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          has_result,
+          edited_since_load,
           display,
           theorems,
         }: Model.t,
@@ -319,7 +334,9 @@ module Update = {
     let pending_eval_ids =
       switch (result) {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
-        if (compute_pending && Calc.get_value(settings).dynamics) {
+        if (edited_since_load
+            && compute_pending
+            && Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
           | Some(_) => EvalWorklist.pending_ids(statics.info_map)
           | None => []
@@ -483,6 +500,16 @@ module Update = {
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
+        has_result:
+          has_result
+          || (
+            switch (Calc.get_value(result)) {
+            | ProgramResult.ResultOk(_)
+            | ProgramResult.ResultFail(_) => true
+            | ProgramResult.ResultPending(_) => false
+            }
+          ),
+        edited_since_load: edited_since_load || is_edited && has_result,
         display,
         theorems,
       }: Model.t
