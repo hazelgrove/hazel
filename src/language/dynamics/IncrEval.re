@@ -193,7 +193,7 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
         };
       },
     empty_reuse_map,
-    VarMap.to_list(co_ctx),
+    CoCtx.to_list(co_ctx),
   );
 
 let reuse_map_for_co_ctx =
@@ -213,7 +213,7 @@ let reuse_map_for_co_ctx =
         };
       },
     Some(empty_reuse_map),
-    VarMap.to_list(co_ctx),
+    CoCtx.to_list(co_ctx),
   );
 
 // For builtins

@@ -623,7 +623,10 @@ let probe_capture_parity = (): unit => {
        its own output back and DOUBLED per calc — exponential memory) */
     let root_co_size = (t: DefStatics.t) =>
       switch (Statics.Map.lookup_exp(Exp.rep_id(term), t.merged)) {
-      | Some(info) => List.length(info.co_ctx)
+      | Some(info) =>
+        /* total USES (per-name entry lists), the thing that doubled */
+        CoCtx.to_list(info.co_ctx)
+        |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
       | None => (-1)
       };
     let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);

@@ -46,9 +46,7 @@ module Map = {
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx
-      |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+      co_ctx |> CoCtx.names |> List.map(n => Ctx.binding_of(ctx, n))
     | _ => []
     };
 

@@ -197,7 +197,7 @@ let calc_item =
     | None => []
     | Some(d) =>
       switch (Statics.Map.lookup_exp(Exp.rep_id(d), map)) {
-      | Some(info) => List.map(fst, info.co_ctx)
+      | Some(info) => CoCtx.names(info.co_ctx)
       | None =>
         /* refuse to fail silent: treat as depending on everything */
         ["*"]
@@ -317,7 +317,7 @@ let fix_spine_infos =
       (it: item, (m, below_wit, below_co)) => {
         let bound = List.map(entry_name, it.d_exports);
         let below_co_scoped =
-          List.filter(((name, _)) => !List.mem(name, bound), below_co);
+          CoCtx.filter_names(name => !List.mem(name, bound), below_co);
         /* CRITICAL: read the root's RAW info from the item's own
            d_map, never from [m]. The incremental calc feeds the
            previous run's PATCHED merged back in as the base — reading
@@ -580,10 +580,7 @@ let calc =
                      doesn't use: re-chain its exports onto the new
                      ctx without re-running statics */
                   : {
-                    let ctx_out = {
-                      ...ctx,
-                      Ctx.entries: q.d_exports @ ctx.entries,
-                    };
+                    let ctx_out = Ctx.prepend_entries(ctx, q.d_exports);
                     (
                       {
                         ...q,
