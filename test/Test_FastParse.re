@@ -224,6 +224,35 @@ let tests = (
       }
     }),
     test_case(
+      "fragment load regrouts: pins reprint, save is a fixed point (#2450)",
+      `Quick,
+      () => {
+        let text = "let f = fun x -> x + 1 in\n^^probe(f(1));\n^^probe(f(2));";
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(int, "two manual pins", 2, List.length(z.refractors.manuals));
+        let out = String.trim(MarkerParse.to_text(z));
+        check(
+          bool,
+          "reprint ends with the materialized hole marker",
+          true,
+          String.ends_with(~suffix="\xc2\xbf", out),
+        );
+        let z2 = PersistentZipper.from_backup_text(out, ~root=Exp);
+        check(
+          int,
+          "pins survive reload",
+          2,
+          List.length(z2.refractors.manuals),
+        );
+        check(
+          string,
+          "fixed point",
+          out,
+          String.trim(MarkerParse.to_text(z2)),
+        );
+      },
+    ),
+    test_case(
       "refractor pins collected and reprinted",
       `Quick,
       () => {
