@@ -186,11 +186,34 @@ let vertical =
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  /* Cross-file clicks used to walk the whole distance ByChar
+     (O(chars), >100k steps at 4k lines). Two-phase: a coarse ByToken
+     walk to the start of a row NEXT TO the goal, then the ByChar walk
+     as before. The coarse goal sits on the SAME side of the final goal
+     as the initial position, so the char walk approaches the goal from
+     the side it always did and inaccessible-goal tie-breaks are
+     unchanged. */
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > 1) {
+      let coarse =
+        Point.{
+          row: init.row < goal.row ? goal.row : goal.row + 1,
+          col: 0,
+        };
+      switch (do_towards_point(~measured, local(ByToken), coarse, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    } else {
+      z;
+    };
   switch (do_towards_point(~measured, local(ByChar), goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
+};
 
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 

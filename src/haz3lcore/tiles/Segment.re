@@ -1188,6 +1188,30 @@ let to_string = Base.segment_to_string;
 
 /* Secondary collection for outer secondary model.
    Collects (before, after) secondary runs for each term based on skeleton structure. */
+/* Restore piece IDENTITY after a whole-segment rebuild: wherever the
+   rebuilt piece is structurally equal to the piece with the same id in
+   [old], substitute the old OBJECT. remold/regrout re-mint every piece
+   each action even when nothing changed, which silently degrades every
+   pointer-keyed incremental layer (Measured.Incr, chunked views,
+   MakeTerm.Incr) to O(program) per keystroke. Substituting equal
+   values is semantically invisible; the cost is one structural compare
+   per unchanged piece. */
+let restore_identity = (old: t, neu: t): t =>
+  if (old === neu) {
+    neu;
+  } else {
+    let tbl = Hashtbl.create(List.length(old) + 1);
+    List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), old);
+    List.map(
+      p =>
+        switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
+        | Some(o) when o === p || compare(o, p) == 0 => o
+        | _ => p
+        },
+      neu,
+    );
+  };
+
 module SecondaryCollection = {
   type secondary_runs = Language.IdTagged.IdTag.secondary_runs;
   type secondary_map = Id.Map.t(secondary_runs);

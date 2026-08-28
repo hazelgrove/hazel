@@ -39,6 +39,7 @@ let (suite, _) =
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
+      Test_PieceIdentity.tests,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,

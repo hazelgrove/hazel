@@ -55,8 +55,38 @@ let remold = (z: t, ~root): t => {
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t, ~root): t =>
-  z |> remold(~root) |> regrout(d);
+/* remold/regrout rebuild every piece object even when nothing about it
+   changed; restoring identity afterwards keeps the ZIPPER holding the
+   pre-action objects for unchanged pieces, so every downstream
+   pointer-keyed incremental layer localizes to the actual change. */
+let restore_sibs = (o: Siblings.t, n: Siblings.t): Siblings.t => (
+  Segment.restore_identity(fst(o), fst(n)),
+  Segment.restore_identity(snd(o), snd(n)),
+);
+
+let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
+  List.length(o.ancestors) != List.length(n.ancestors)
+    ? n
+    : {
+      siblings: restore_sibs(o.siblings, n.siblings),
+      ancestors:
+        List.map2(
+          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+            let a = oa === na || compare(oa, na) == 0 ? oa : na;
+            (a, restore_sibs(osibs, nsibs));
+          },
+          o.ancestors,
+          n.ancestors,
+        ),
+    };
+
+let remold_regrout = (d: Direction.t, z: t, ~root): t => {
+  let z' = z |> remold(~root) |> regrout(d);
+  {
+    ...z',
+    relatives: restore_relatives(z.relatives, z'.relatives),
+  };
+};
 
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
@@ -1215,21 +1245,20 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  let max_iter = 100_000;
-  let rec go = (iter: int, prev: t, curr: t) => {
+  /* Backstop against non-advancing loops only (the guard below already
+     stops zero-progress steps). Long walks legitimately outgrow any
+     fixed budget on large programs — a cross-file click at 4k lines is
+     >100k ByChar steps — so hitting the cap is NOT an error: stop
+     where we are, strictly closer to the goal. The former failwith
+     crashed the click action. */
+  let max_iter = 1_000_000;
+  let rec go = (iter: int, prev: t, curr: t) =>
     if (iter > max_iter) {
-      failwith(
-        "do_towards_point: exceeded "
-        ++ string_of_int(max_iter)
-        ++ " iterations (goal="
-        ++ Point.show(goal)
-        ++ ", init="
-        ++ Point.show(init)
-        ++ ", curr="
-        ++ Point.show(caret_point(curr))
-        ++ ")",
-      );
-    };
+      curr;
+    } else {
+      go_body(iter, prev, curr);
+    }
+  and go_body = (iter: int, prev: t, curr: t) => {
     let curr_p = caret_point(curr);
     let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
     let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
