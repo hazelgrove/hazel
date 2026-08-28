@@ -52,6 +52,56 @@ let incomplete_tiles_to_missing_shards = seg =>
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
+/* Per-top-level-piece memo for the above: the deep incomplete-tile
+   walk is O(program) and ran on every CachedSyntax.mk (so on every
+   in-token caret move at 4k). Keyed by piece identity; results for a
+   piece are context-free. Tick-swept. */
+module MissingShardsMemo = {
+  type entry = {
+    mutable m_piece: Obj.t,
+    mutable m_tiles: list(Tile.t),
+    mutable m_tick: int,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(256);
+  let tick = ref(0);
+};
+
+let global_missing_shards_incr = (seg: t): list(Tile.t) => {
+  open MissingShardsMemo;
+  incr(tick);
+  if (tick^ mod 128 == 0) {
+    let dead =
+      Hashtbl.fold(
+        (id, e, acc) => e.m_tick < tick^ - 32 ? [id, ...acc] : acc,
+        cache,
+        [],
+      );
+    List.iter(Hashtbl.remove(cache), dead);
+  };
+  seg
+  |> List.concat_map(p => {
+       let id = Piece.id(p);
+       switch (Hashtbl.find_opt(cache, id)) {
+       | Some(e) when e.m_piece === Obj.repr(p) =>
+         e.m_tick = tick^;
+         e.m_tiles;
+       | _ =>
+         let tiles =
+           incomplete_tiles_deep([p]) |> incomplete_tiles_to_missing_shards;
+         Hashtbl.replace(
+           cache,
+           id,
+           {
+             m_piece: Obj.repr(p),
+             m_tiles: tiles,
+             m_tick: tick^,
+           },
+         );
+         tiles;
+       };
+     });
+};
+
 let tiles =
   List.filter_map(
     fun

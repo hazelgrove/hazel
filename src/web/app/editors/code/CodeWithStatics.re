@@ -321,6 +321,7 @@ module View = {
             ~shape_map,
             ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
             ~refine_sort,
+            ~statics_ident=Obj.repr(info_map),
           );
         let error_decos =
           Arms.Errors.of_ids(

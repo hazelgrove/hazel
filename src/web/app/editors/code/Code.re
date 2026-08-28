@@ -232,6 +232,10 @@ module ChunkViews = {
     mutable cv_final: bool,
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
     mutable cv_sorts: array((Sort.t, option(Sort.t))),
+    /* info_map identity at the last sort probe: when it matches, the
+       probe is skipped entirely — for unchanged pieces go_incr shares
+       term_data values, so sorts can only change via new statics */
+    mutable cv_info: Obj.t,
     mutable cv_buffer: Obj.t, /* buffer_ids identity (usually []) */
     mutable cv_fm: Obj.t,
     mutable cv_settings: Obj.t,
@@ -279,6 +283,8 @@ let view_chunked =
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       ~refine_sort: (Id.t, Sort.t) => Sort.t,
+      /* identity of the statics map behind refine_sort (see cv_info) */
+      ~statics_ident: Obj.t,
       ~buffer_ids: list(Id.t),
     )
     : list(Node.t) => {
@@ -317,15 +323,18 @@ let view_chunked =
   |> List.map(i => {
        let ch = measured.chunks[i];
        let final = i == n - 1;
+       let stable = (e: ChunkViews.entry) =>
+         e.cv_flat === Obj.repr(ch.c_flat)
+         && e.cv_final == final
+         && e.cv_buffer === Obj.repr(buffer_ids)
+         && e.cv_fm === Obj.repr(font_metrics)
+         && e.cv_settings === Obj.repr(settings);
        switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
-       | Some(e)
-           when
-             e.cv_flat === Obj.repr(ch.c_flat)
-             && e.cv_final == final
-             && e.cv_buffer === Obj.repr(buffer_ids)
-             && e.cv_fm === Obj.repr(font_metrics)
-             && e.cv_settings === Obj.repr(settings)
-             && e.cv_sorts == sorts_of(e.cv_tiles) =>
+       | Some(e) when stable(e) && e.cv_info === statics_ident =>
+         e.cv_tick = ChunkViews.tick^;
+         e.cv_node;
+       | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
+         e.cv_info = statics_ident;
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
@@ -336,6 +345,7 @@ let view_chunked =
            cv_final: final,
            cv_tiles: tiles,
            cv_sorts: sorts_of(tiles),
+           cv_info: statics_ident,
            cv_buffer: Obj.repr(buffer_ids),
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),

@@ -111,7 +111,7 @@ let mk =
     projector_list,
     shape_map: projector_shapes,
     projector_errors,
-    cached_backpack: Segment.global_missing_shards(segment),
+    cached_backpack: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,

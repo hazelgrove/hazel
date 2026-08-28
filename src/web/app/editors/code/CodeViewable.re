@@ -42,6 +42,7 @@ let view_chunked =
       ~shape_map,
       ~refractor_shape_map,
       ~refine_sort: (Id.t, Sort.t) => Sort.t,
+      ~statics_ident: Obj.t,
     )
     : Node.t => {
   let chunks =
@@ -53,6 +54,7 @@ let view_chunked =
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~refine_sort,
+      ~statics_ident,
       ~buffer_ids,
     );
   div_c("code", [span_c("code-text", chunks)]);
