@@ -313,7 +313,7 @@ module View = {
         let refine_sort = (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
         let code_text_view =
-          CodeViewable.view(
+          CodeViewable.view_chunked(
             ~globals,
             ~measured,
             ~term_data,
@@ -321,7 +321,6 @@ module View = {
             ~shape_map,
             ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
             ~refine_sort,
-            segment,
           );
         let error_decos =
           Arms.Errors.of_ids(

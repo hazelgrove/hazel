@@ -31,6 +31,33 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
+/* chunked variant: one memoized span per measured chunk, so edits
+   re-render (and re-diff) only the chunk that changed */
+let view_chunked =
+    (
+      ~globals: Globals.t,
+      ~measured,
+      ~term_data,
+      ~buffer_ids,
+      ~shape_map,
+      ~refractor_shape_map,
+      ~refine_sort: (Id.t, Sort.t) => Sort.t,
+    )
+    : Node.t => {
+  let chunks =
+    Code.view_chunked(
+      ~measured,
+      ~settings=globals.settings,
+      ~shape_map,
+      ~refractor_shape_map,
+      ~font_metrics=globals.font_metrics,
+      ~term_data,
+      ~refine_sort,
+      ~buffer_ids,
+    );
+  div_c("code", [span_c("code-text", chunks)]);
+};
+
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_shape_map = Id.Map.empty; //assume no refractors

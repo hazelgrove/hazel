@@ -408,6 +408,7 @@ let of_segment_inner =
 type chunk = {
   c_anchor: Id.t, /* first piece's id: the chunk's stable identity */
   c_start: int, /* absolute starting row */
+  c_pieces: Segment.t, /* the chunk's top-level pieces (for chunked views) */
   c_flat: flat,
 };
 
@@ -446,18 +447,19 @@ let shift_m = (s: int, m: measurement): measurement => {
   last: shift_point(s, m.last),
 };
 
-let mk_chunked = (~chunk_of_id, flats: list((Id.t, flat))): t => {
+let mk_chunked = (~chunk_of_id, flats: list((Id.t, Segment.t, flat))): t => {
   let n = List.length(flats);
   let anchor_index = Hashtbl.create(n > 0 ? n : 1);
   let (chunks_rev, total) =
     List.fold_left(
-      ((acc, row), (anchor, f)) => {
+      ((acc, row), (anchor, pieces, f)) => {
         Hashtbl.replace(anchor_index, anchor, List.length(acc));
         (
           [
             {
               c_anchor: anchor,
               c_start: row,
+              c_pieces: pieces,
               c_flat: f,
             },
             ...acc,
@@ -625,7 +627,7 @@ let of_segment =
       Id.Map.empty,
       ids_of_flat(f),
     );
-  mk_chunked(~chunk_of_id, [(anchor, f)]);
+  mk_chunked(~chunk_of_id, [(anchor, seg, f)]);
 };
 
 let empty: t = mk_chunked(~chunk_of_id=Id.Map.empty, []);
@@ -1035,7 +1037,7 @@ module Incr = {
     cache.prev = Some((chunk_of_id, new_entries));
     mk_chunked(
       ~chunk_of_id,
-      List.map(((a, e: entry)) => (a, e.e_flat), chunks),
+      List.map(((a, e: entry)) => (a, e.e_pieces, e.e_flat), chunks),
     );
   };
 };
