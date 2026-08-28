@@ -1017,19 +1017,34 @@ and Stepper: {
 
   let coq_domain_for_steps = _steps => CoqExport.Reals;
 
+  let rec is_hazel_equality_proposition = exp =>
+    switch (Exp.term_of(exp)) {
+    | Parens(inner)
+    | Asc(inner, _)
+    | Tuple([inner]) => is_hazel_equality_proposition(inner)
+    | BinOp(Operators.Poly(Operators.Equals), _, _) => true
+    | _ => false
+    };
+
   let single_step_export = (ind, step: step_model, forall_str, domain) => {
     switch (step.next_step) {
     | Some(next) =>
-      let old_expr =
-        CoqExport.string_of_d_for_domain(
-          ~domain,
-          step.expr |> Calc.get_saved_exc,
-        );
-      let new_expr =
-        CoqExport.string_of_d_for_domain(
-          ~domain,
-          next.expr |> Calc.get_saved_exc,
-        );
+      let old_exp = step.expr |> Calc.get_saved_exc;
+      let new_exp = next.expr |> Calc.get_saved_exc;
+      let old_expr = CoqExport.string_of_d_for_domain(~domain, old_exp);
+      let new_expr = CoqExport.string_of_d_for_domain(~domain, new_exp);
+      let tactic = coq_tactic_for_step(~forall_str, ~domain, step.step_kind);
+      let tactic =
+        if (is_hazel_equality_proposition(old_exp)
+            && is_hazel_equality_proposition(new_exp)) {
+          /* Each exported step is itself an equality.  A theorem exercise
+             therefore produces an equality between propositions.  Descend
+             through that shared equality context before replaying the
+             profile-authorized numeric tactic. */
+          "f_equal; " ++ tactic;
+        } else {
+          tactic;
+        };
       Printf.sprintf(
         "%sLemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\n%s\nQed.",
         coq_trace_comment(step.step_kind),
@@ -1037,7 +1052,7 @@ and Stepper: {
         forall_str,
         new_expr,
         old_expr,
-        coq_tactic_for_step(~forall_str, ~domain, step.step_kind),
+        tactic,
       );
     | None => ""
     };
@@ -1047,9 +1062,19 @@ and Stepper: {
     switch (step.next_step) {
     | None => []
     | Some(next_step) =>
-      switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
-      | Fun(_, _, _, _) => coq_export_steps(next_step)
-      | _ => [step, ...coq_export_steps(next_step)]
+      switch (
+        Calc.get_saved_exc(next_step.expr) |> Exp.term_of,
+        next_step.next_step,
+      ) {
+      /* Completing an equality evaluates the final reflexive proposition to
+         Hazel's UI value [true].  That value is administrative proof state,
+         not another proposition in the Rocq development. */
+      | (Atom(Bool(true)), None) => []
+      | _ =>
+        switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
+        | Fun(_, _, _, _) => coq_export_steps(next_step)
+        | _ => [step, ...coq_export_steps(next_step)]
+        }
       }
     };
 

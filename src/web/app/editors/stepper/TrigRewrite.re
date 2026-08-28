@@ -7,6 +7,11 @@ type op_kind =
   | Div
   | Pow;
 
+type numeric_style =
+  | IntegerMath
+  | FloatMath
+  | RealMath;
+
 type pat =
   | Meta(string)
   | VarName(string)
@@ -96,6 +101,8 @@ let rec canonical = exp => {
   | Atom(Float(value)) when value == Float.round(value) =>
     int_exp(int_of_float(value))
   | Atom(Real(Real.Pi)) => var_exp("pi")
+  | Var("pi_real")
+  | BuiltinFun("pi_real") => var_exp("pi")
   | Atom(Real(Real.Rational({numerator, denominator, _})))
       when Bigint.equal(denominator, Bigint.one) =>
     Exp.fresh(Atom(Int(numerator)))
@@ -111,6 +118,13 @@ let rec canonical = exp => {
   | BuiltinFun("sin_real") => var_exp("sin")
   | BuiltinFun("cos_real") => var_exp("cos")
   | BuiltinFun("tan_real") => var_exp("tan")
+  /* Expressions elaborated by statics use [BuiltinFun], while the same
+   * function typed into a stepper rewrite box initially arrives as [Var].
+   * Treat both representations as the same catalog function so proof search
+   * does not miss an otherwise exact rewrite at this UI boundary. */
+  | Var("sin_real") => var_exp("sin")
+  | Var("cos_real") => var_exp("cos")
+  | Var("tan_real") => var_exp("tan")
   | BinOp(op, left, right) =>
     switch (standard_bin_op(op)) {
     | Some(op) => Exp.fresh(BinOp(op, canonical(left), canonical(right)))
@@ -139,7 +153,10 @@ let rec lookup_meta = (name, env) =>
 let bind_meta = (name, exp, env) =>
   switch (lookup_meta(name, env)) {
   | Some(existing) => exp_same(existing, exp) ? Some(env) : None
-  | None => Some([(name, canonical(exp)), ...env])
+  /* Canonicalization is for comparison only: it intentionally erases the
+   * numeric operator family. Keep the matched term itself for substitution,
+   * otherwise a Real/Float subexpression can reappear as Int syntax. */
+  | None => Some([(name, strip(exp)), ...env])
   };
 
 let int_constant = exp => {
@@ -160,7 +177,8 @@ let int_constant = exp => {
 let is_pi_exp = exp => {
   let exp = strip(exp);
   switch (exp.term) {
-  | Var("pi") => true
+  | Var("pi" | "pi_real")
+  | BuiltinFun("pi_real") => true
   | Atom(Float(value)) when is_float_pi(value) => true
   | Atom(Real(Real.Pi)) => true
   | _ => false
@@ -281,7 +299,10 @@ let rec uses_real_math = exp => {
   | Atom(Real(_))
   | BinOp(Operators.Real(_), _, _)
   | UnOp(Operators.Real(_), _)
-  | BuiltinFun("sin_real" | "cos_real" | "tan_real") => true
+  | Var("pi_real")
+  | BuiltinFun("pi_real")
+  | BuiltinFun("sin_real" | "cos_real" | "tan_real")
+  | Var("sin_real" | "cos_real" | "tan_real") => true
   | BinOp(_, left, right)
   | Ap(_, left, right) => uses_real_math(left) || uses_real_math(right)
   | UnOp(_, inner)
@@ -295,57 +316,100 @@ let rec uses_real_math = exp => {
   };
 };
 
-let numeric_literal = (~float_math, value) =>
-  float_math ? float_exp(float_of_int(value)) : int_exp(value);
+let numeric_style_for_exp = exp =>
+  if (uses_float_math(exp)) {
+    FloatMath;
+  } else if (uses_real_math(exp)) {
+    RealMath;
+  } else {
+    IntegerMath;
+  };
 
-let numeric_bin_op = (~float_math, kind) =>
-  if (float_math) {
+let numeric_literal = (~style, value) =>
+  switch (style) {
+  | IntegerMath => int_exp(value)
+  | FloatMath => float_exp(float_of_int(value))
+  | RealMath =>
+    Exp.fresh(Atom(Real(Real.of_bigint(Bigint.of_int(value)))))
+  };
+
+let numeric_bin_op = (~style, kind) =>
+  switch (style) {
+  | FloatMath =>
     switch (kind) {
     | Add => Operators.Float(Operators.Plus)
     | Sub => Operators.Float(Operators.Minus)
     | Mul => Operators.Float(Operators.Times)
     | Div => Operators.Float(Operators.Divide)
     | Pow => Operators.Float(Operators.Power)
-    };
-  } else {
+    }
+  | RealMath =>
+    switch (kind) {
+    | Add => Operators.Real(Operators.Plus)
+    | Sub => Operators.Real(Operators.Minus)
+    | Mul => Operators.Real(Operators.Times)
+    | Div => Operators.Real(Operators.Divide)
+    | Pow => Operators.Real(Operators.Power)
+    }
+  | IntegerMath =>
     switch (kind) {
     | Add => Operators.Int(Operators.Plus)
     | Sub => Operators.Int(Operators.Minus)
     | Mul => Operators.Int(Operators.Times)
     | Div => Operators.Int(Operators.Divide)
     | Pow => Operators.Int(Operators.Power)
-    };
+    }
   };
 
-let rec instantiate_with_style = (~float_math, pat, env) =>
+let function_name_with_style = (style, name) =>
+  switch (style, name) {
+  | (RealMath, "sin") => "sin_real"
+  | (RealMath, "cos") => "cos_real"
+  | (RealMath, "tan") => "tan_real"
+  | _ => name
+  };
+
+let pi_with_style =
+  fun
+  | RealMath => Exp.fresh(Atom(Real(Real.Pi)))
+  | IntegerMath
+  | FloatMath => var_exp("pi");
+
+let rec instantiate_with_style = (~style, pat, env) =>
   switch (pat) {
   | Meta(name) =>
     lookup_meta(name, env) |> Option.value(~default=var_exp(name))
   | VarName(name) => var_exp(name)
-  | IntLit(value) => numeric_literal(~float_math, value)
-  | Pi => var_exp("pi")
+  | IntLit(value) => numeric_literal(~style, value)
+  | Pi => pi_with_style(style)
   | App(name, arg) =>
-    app_exp(name, instantiate_with_style(~float_math, arg, env))
+    app_exp(
+      function_name_with_style(style, name),
+      instantiate_with_style(~style, arg, env),
+    )
   | Bin(kind, left, right) =>
     Exp.fresh(
       BinOp(
-        numeric_bin_op(~float_math, kind),
-        instantiate_with_style(~float_math, left, env),
-        instantiate_with_style(~float_math, right, env),
+        numeric_bin_op(~style, kind),
+        instantiate_with_style(~style, left, env),
+        instantiate_with_style(~style, right, env),
       ),
     )
   | Neg(inner) =>
     Exp.fresh(
       UnOp(
-        float_math
-          ? Operators.Float(Operators.Minus) : Operators.Int(Operators.Minus),
-        instantiate_with_style(~float_math, inner, env),
+        switch (style) {
+        | IntegerMath => Operators.Int(Operators.Minus)
+        | FloatMath => Operators.Float(Operators.Minus)
+        | RealMath => Operators.Real(Operators.Minus)
+        },
+        instantiate_with_style(~style, inner, env),
       ),
     )
   };
 
 let instantiate = (pat, env) =>
-  instantiate_with_style(~float_math=false, pat, env);
+  instantiate_with_style(~style=IntegerMath, pat, env);
 
 let m = name => Meta(name);
 let i = value => IntLit(value);
@@ -536,7 +600,7 @@ let apply_spec_direction = (spec: spec, before_pat, after_pat, exp) =>
         before_exp: strip(exp),
         after_exp:
           instantiate_with_style(
-            ~float_math=uses_float_math(exp),
+            ~style=numeric_style_for_exp(exp),
             after_pat,
             env,
           ),

@@ -61,6 +61,7 @@ let is_power_op =
   | Operators.Int(Operators.Power)
   | Nat(Power)
   | SInt(Power)
+  | Real(Power)
   | Float(Power) => true
   | _ => false;
 
@@ -177,6 +178,10 @@ let small_multiplication_permutations = exp => {
 
 let power_literal = (power_op, value) =>
   switch (power_op) {
+  | Operators.Nat(Power) => Exp.fresh(Atom(Nat(Bigint.of_int(value))))
+  | Operators.SInt(Power) => Exp.fresh(Atom(SInt(value)))
+  | Operators.Real(Power) =>
+    Exp.fresh(Atom(Real(Real.of_bigint(Bigint.of_int(value)))))
   | Operators.Float(Operators.Power) =>
     Exp.fresh(Atom(Float(float_of_int(value))))
   | _ => int_exp(Bigint.of_int(value))
@@ -184,8 +189,16 @@ let power_literal = (power_op, value) =>
 
 let times_exp_for_power_op = (power_op, left, right) =>
   switch (power_op) {
-  | Operators.Float(Operators.Power) =>
-    Exp.fresh(BinOp(Operators.Float(Operators.Times), left, right))
+  | Operators.Int(Operators.Power) =>
+    Exp.fresh(BinOp(Operators.Int(Operators.Times), left, right))
+  | Operators.Nat(Power) =>
+    Exp.fresh(BinOp(Operators.Nat(Times), left, right))
+  | Operators.SInt(Power) =>
+    Exp.fresh(BinOp(Operators.SInt(Times), left, right))
+  | Operators.Real(Power) =>
+    Exp.fresh(BinOp(Operators.Real(Times), left, right))
+  | Operators.Float(Power) =>
+    Exp.fresh(BinOp(Operators.Float(Times), left, right))
   | _ => times_exp(left, right)
   };
 
@@ -885,6 +898,30 @@ let targeted_finish_from = (~level, ~allowed_rule_ids, ~target, exp) => {
          rule.id == rule_id
          && (allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids))
        );
+  /* Literal power splitting has a small, deterministic candidate set. Check
+   * those exact catalog transitions before starting the broader incremental
+   * search; do not change the scheduling semantics of unrelated rules. */
+  let direct_power_result =
+    allowed_rules(level)
+    @ cleanup_rules(level)
+    |> List.filter((rule: Axioms.rewrite_rule) =>
+         List.mem(rule.id, ["alg.power_add", "alg.power_mul"])
+         && (allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids))
+       )
+    |> List.find_map(rule =>
+         apply_rule_everywhere(rule, exp)
+         |> List.find_opt((app: application) =>
+              exp_same(app.after_full_exp, target)
+            )
+         |> Option.map(app =>
+              {
+                source: strip(exp),
+                target: strip(target),
+                steps: [application_to_prover_step(app)],
+                applications: [app],
+              }
+            )
+       );
   let candidates = [
     (
       "arith.const_fold",
@@ -918,10 +955,14 @@ let targeted_finish_from = (~level, ~allowed_rule_ids, ~target, exp) => {
       () => targeted_multiplication_reorder(exp, target),
     ),
   ];
-  candidates
-  |> List.find_map(((rule_id, candidate)) =>
-       has_targeted_rule(rule_id) ? candidate() : None
-     );
+  switch (direct_power_result) {
+  | Some(_) as result => result
+  | None =>
+    candidates
+    |> List.find_map(((rule_id, candidate)) =>
+         has_targeted_rule(rule_id) ? candidate() : None
+       )
+  };
 };
 
 let start_search =

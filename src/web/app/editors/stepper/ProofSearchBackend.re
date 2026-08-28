@@ -78,8 +78,9 @@ let cancel_local_profile_plans_except = check_id =>
   active_local_planning_id := check_id;
 
 /* Direct semantic checkers run in the first scheduled task. If they need the
-   catalog search fallback, that breadth-first search advances one state per
-   browser task so rendering, cancellation, and the deadline remain live. */
+   catalog search fallback, that breadth-first search advances in small batches
+   per browser task so rendering, cancellation, and the deadline remain live
+   without letting background-tab timer throttling dominate the search. */
 let local_profile_plan_incremental =
     (
       ~check_id,
@@ -94,7 +95,7 @@ let local_profile_plan_incremental =
       request: request,
     ) => {
   planning_owner := Some(check_id);
-  let started_at = JsUtil.date_now()##getTime;
+  let search_started_at = ref(None);
   let authorization_request =
     ProfileProofPlan.{
       profile,
@@ -112,19 +113,25 @@ let local_profile_plan_incremental =
       planning_owner := None;
       on_finish(outcome);
     };
+  let search_timed_out = () =>
+    switch (search_started_at^) {
+    | Some(started_at) =>
+      JsUtil.date_now()##getTime -. started_at >= timeout_ms
+    | None => false
+    };
   let rec schedule = progress =>
     Js_of_ocaml.Dom_html.window##setTimeout(
       Js_of_ocaml.Js.wrap_callback(() =>
         if (planning_owner^ != Some(check_id)) {
           on_finish(LocalPlanningCancelled);
-        } else if (JsUtil.date_now()##getTime -. started_at >= timeout_ms) {
+        } else if (search_timed_out()) {
           finish(LocalPlanningTimedOut);
         } else {
           try(
             switch (
               progress
               |> Option.map(
-                   ProfileProofPlan.continue_authorize(~work_budget=1),
+                   ProfileProofPlan.continue_authorize(~work_budget=8),
                  )
               |> Option.value(
                    ~default=
@@ -137,7 +144,11 @@ let local_profile_plan_incremental =
                   ProfileProofPlan.authorized_plan(result),
                 ),
               )
-            | PlanningSearch(_, _) as progress => schedule(Some(progress))
+            | PlanningSearch(_, _) as progress =>
+              if (search_started_at^ == None) {
+                search_started_at := Some(JsUtil.date_now()##getTime);
+              };
+              schedule(Some(progress));
             }
           ) {
           | Failure(message) => finish(LocalPlanningFailed(message))

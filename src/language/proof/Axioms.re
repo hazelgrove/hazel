@@ -367,9 +367,14 @@ let is_trig_builtin = name =>
   switch (name) {
   | "sin"
   | "cos"
-  | "tan" => true
+  | "tan"
+  | "sin_real"
+  | "cos_real"
+  | "tan_real" => true
   | _ => false
   };
+
+let is_trig_constant = name => name == "pi" || name == "pi_real";
 
 let is_calculus_builtin = name =>
   name == DerivativeOperator.expression_internal_name
@@ -390,12 +395,20 @@ let requirement_at_exp = (requirement, exp) => {
 let rec construct_requirements = exp => {
   let exp = exp |> DHExp.strip_ascriptions;
   switch (exp.term) {
-  | Var("pi") => [require("pi", Trigonometry, exp)]
+  | Var(name) when is_trig_constant(name) => [
+      require(name, Trigonometry, exp),
+    ]
+  | Var(name) when is_trig_builtin(name) => [
+      require(name, Trigonometry, exp),
+    ]
   | Var(name) when is_calculus_builtin(name) => [
       require(name, Calculus, exp),
     ]
   | Var(_) => [require("variables", Algebra, exp)]
   | BuiltinFun(name) when is_trig_builtin(name) => [
+      require(name, Trigonometry, exp),
+    ]
+  | BuiltinFun(name) when is_trig_constant(name) => [
       require(name, Trigonometry, exp),
     ]
   | BuiltinFun(name) when is_calculus_builtin(name) => [
@@ -547,8 +560,12 @@ let rec exp_fingerprint = exp => {
 let trig_function_name = exp => {
   let exp = exp |> DHExp.strip_ascriptions;
   switch (exp.term) {
-  | Var(("sin" | "cos" | "tan") as name)
-  | BuiltinFun(("sin" | "cos" | "tan") as name) => Some(name)
+  | Var("sin" | "sin_real")
+  | BuiltinFun("sin" | "sin_real") => Some("sin")
+  | Var("cos" | "cos_real")
+  | BuiltinFun("cos" | "cos_real") => Some("cos")
+  | Var("tan" | "tan_real")
+  | BuiltinFun("tan" | "tan_real") => Some("tan")
   | _ => None
   };
 };

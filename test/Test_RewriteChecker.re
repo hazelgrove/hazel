@@ -129,8 +129,44 @@ let real_minus = (left, right) =>
 let real_times = (left, right) =>
   Exp.bin_op(Operators.Real(Operators.Times), left, right);
 
+let real_divide = (left, right) =>
+  Exp.bin_op(Operators.Real(Operators.Divide), left, right);
+
 let real_power = (left, right) =>
   Exp.bin_op(Operators.Real(Operators.Power), left, right);
+
+let rec contains_int_numeric_syntax = (exp: Exp.t) =>
+  switch (exp.term) {
+  | Atom(Int(_))
+  | BinOp(Int(_), _, _)
+  | UnOp(Int(_), _) => true
+  | BinOp(_, left, right) =>
+    contains_int_numeric_syntax(left) || contains_int_numeric_syntax(right)
+  | UnOp(_, inner) => contains_int_numeric_syntax(inner)
+  | Ap(_, fn, arg) =>
+    contains_int_numeric_syntax(fn) || contains_int_numeric_syntax(arg)
+  | Parens(inner)
+  | Asc(inner, _) => contains_int_numeric_syntax(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(contains_int_numeric_syntax, entries)
+  | _ => false
+  };
+
+let rec contains_generic_trig_name = (exp: Exp.t) =>
+  switch (exp.term) {
+  | Var("sin" | "cos" | "tan")
+  | BuiltinFun("sin" | "cos" | "tan") => true
+  | BinOp(_, left, right)
+  | Ap(_, left, right) =>
+    contains_generic_trig_name(left) || contains_generic_trig_name(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _)
+  | Projector(_, inner) => contains_generic_trig_name(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(contains_generic_trig_name, entries)
+  | _ => false
+  };
 
 type exact_numeric_syntax = {
   label: string,
@@ -464,6 +500,40 @@ let sample_export_chain = () => {
       }),
     ~next_step=Some(written_step),
   );
+};
+
+let rec append_terminal_true = (model: Web.StepperBase.step_model) =>
+  switch (model.next_step) {
+  | None => {
+      ...model,
+      next_step:
+        Some(
+          step_model(
+            ~expr=Exp.bool(true),
+            ~step_kind=MissingStep(Web.MissingStep.Model.init),
+            ~next_step=None,
+          ),
+        ),
+    }
+  | Some(next_step) => {
+      ...model,
+      next_step: Some(append_terminal_true(next_step)),
+    }
+  };
+
+let theorem_equality = (left, right) =>
+  Exp.bin_op(Operators.Poly(Operators.Equals), left, right);
+
+let rec wrap_export_chain_in_theorem_equality =
+        (model: Web.StepperBase.step_model) => {
+  ...model,
+  expr:
+    model.expr
+    |> Calc.get_saved_exc
+    |> theorem_equality(_, Exp.var("expected"))
+    |> saved,
+  next_step:
+    model.next_step |> Option.map(wrap_export_chain_in_theorem_equality),
 };
 
 let sample_written_step_export_chain = (~source, ~target, ~trace) => {
@@ -1833,6 +1903,37 @@ let sample_real_distribution_export_chain = () => {
           ~after_exp=target,
           ~occurrence=1,
           ~detail="real-domain distribution",
+        ),
+      ],
+      exportable: true,
+    };
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_rational_polynomial_export_chain = () => {
+  let x = Exp.var("x");
+  let half = divide(Exp.int(1), Exp.int(2));
+  let source = times(half, plus(x, Exp.int(1)));
+  let target = plus(times(half, x), half);
+  let trace =
+    Web.ProofTrace.{
+      justification: "rational polynomial expansion",
+      group_name: Some("algebra"),
+      from_normal_exp: source,
+      to_normal_exp: target,
+      from_rule_ids: ["alg.expand_polynomial"],
+      to_rule_ids: [],
+      rule_ids: ["alg.expand_polynomial"],
+      prover_steps: [
+        prover_step_at(
+          ~origin=Normalization,
+          ~rule_id="alg.expand_polynomial",
+          ~before_full_exp=source,
+          ~after_full_exp=target,
+          ~before_exp=source,
+          ~after_exp=target,
+          ~occurrence=1,
+          ~detail="profile-enabled exact rational polynomial expansion",
         ),
       ],
       exportable: true,
@@ -5816,9 +5917,12 @@ let tests = (
                write_text_file(path, program);
                check(
                  bool,
-                 label ++ " emits exact field replay for rational division",
+                 label
+                 ++ " emits bounded denominator clearing for rational division",
                  true,
-                 string_contains("field.", program),
+                 string_contains("field_simplify; try field", program)
+                 && !string_contains("unfold Rsqr; field.", program)
+                 && !string_contains("assert (H_hazel_step_", program),
                );
              | Rejected(rejection) =>
                fail(Web.ProfileProofPlan.rejection_message(rejection))
@@ -6188,10 +6292,10 @@ let tests = (
              if (label == "rational polynomial cleanup") {
                check(
                  bool,
-                 "multiple recorded transitions compose by equality transitivity",
+                 "rational polynomial paths use one bounded endpoint certificate",
                  true,
-                 string_contains("exact (eq_trans", program)
-                 && !string_contains("try rewrite <- H_hazel_step_", program),
+                 string_contains("field_simplify; try field", program)
+                 && !string_contains("assert (H_hazel_step_", program),
                );
                let contextual =
                  Web.CoqProofExport.tactic_for_written_summary(
@@ -6201,10 +6305,10 @@ let tests = (
                  );
                check(
                  bool,
-                 "embedded derivation replay rewrites local transitions forward",
+                 "embedded rational replay uses the same bounded certificate",
                  true,
-                 string_contains("rewrite H_hazel_step_1.", contextual)
-                 && string_contains("rewrite H_hazel_step_2.", contextual)
+                 string_contains("field_simplify; try field", contextual)
+                 && !string_contains("rewrite H_hazel_step_", contextual)
                  && !string_contains("exact (eq_trans", contextual),
                );
                let embedded_source = plus(Exp.int(1), target);
@@ -8928,6 +9032,142 @@ let tests = (
       },
     ),
     test_case(
+      "algebrite suggestion preserves Real trig builtin names",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        ["sin_real", "cos_real", "tan_real"]
+        |> List.iter(name =>
+             check(
+               option(string),
+               name,
+               Some(name ++ "(x)"),
+               Web.AlgebriteSuggestion.serialize_for_algebrite(
+                 builtin_app(name, x),
+               ),
+             )
+           );
+      },
+    ),
+    test_case(
+      "Rocq export maps surface Real trig aliases",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        ["sin_real", "cos_real", "tan_real"]
+        |> List.iter(name => {
+             let export =
+               Web.CoqExport.string_of_d_for_domain(
+                 ~domain=Web.CoqExport.Reals,
+                 real_power(app(name, x), real(2)),
+               );
+             check(
+               bool,
+               name ++ " is not emitted as an undefined Rocq identifier",
+               false,
+               string_contains(name, export),
+             );
+           });
+      },
+    ),
+    test_case(
+      "surface pi_real matches its elaborated Real constant",
+      `Quick,
+      () => {
+        let surface_pi = Exp.var("pi_real");
+        let elaborated_pi = Exp.real(Real.Pi);
+        check(
+          bool,
+          "surface and elaborated pi compare equally",
+          true,
+          Web.TrigRewrite.exp_same(surface_pi, elaborated_pi),
+        );
+        check(
+          bool,
+          "cached proof endpoints compare across pi elaboration",
+          true,
+          Web.RewriteChecker.same_math_exp(surface_pi, elaborated_pi),
+        );
+        check(
+          bool,
+          "surface pi retains Real mode",
+          true,
+          Language.Exp.fast_equal(
+            Web.RewriteChecker.inherit_numeric_mode(
+              ~source=surface_pi,
+              plus(Exp.int(1), Exp.int(2)),
+            ),
+            real_plus(real(1), real(2)),
+          ),
+        );
+        check(
+          string,
+          "surface pi exports as Rocq PI",
+          "PI",
+          Web.CoqExport.string_of_d_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            surface_pi,
+          ),
+        );
+        check(
+          bool,
+          "builtin-form pi requests the Real exporter",
+          true,
+          Web.CoqExport.requires_reals(Exp.builtin_fun("pi_real")),
+        );
+        check(
+          option(string),
+          "surface pi uses Algebrite's constant name",
+          Some("pi"),
+          Web.AlgebriteSuggestion.serialize_for_algebrite(surface_pi),
+        );
+        check(
+          option(string),
+          "surface pi requires the trig profile",
+          Some("Needs Trigonometry"),
+          Web.AxiomSearch.unsupported_constructs_message_for_rewrite(
+            ~level=Algebra,
+            ~source=surface_pi,
+            ~target=elaborated_pi,
+          ),
+        );
+        let cofunction =
+          Web.TrigRewrite.specs
+          |> List.find((spec: Web.TrigRewrite.spec) =>
+               spec.rule_id == "trig.sin_cofunction"
+             );
+        let surface_cos = app("cos_real", Exp.var("x"));
+        let real_rewrites =
+          Web.TrigRewrite.apply_spec(cofunction, surface_cos);
+        check(
+          bool,
+          "reverse Real cofunction rewrite is available",
+          true,
+          real_rewrites != [],
+        );
+        check(
+          bool,
+          "reverse Real cofunction rewrite uses Real pi",
+          true,
+          real_rewrites
+          |> List.exists((rewrite: Web.TrigRewrite.rewrite) => {
+               let rec contains_real_pi = exp => {
+                 let exp = Web.RewriteChecker.strip_math_wrappers(exp);
+                 switch (exp.term) {
+                 | Atom(Real(Real.Pi)) => true
+                 | BinOp(_, left, right)
+                 | Ap(_, left, right) =>
+                   contains_real_pi(left) || contains_real_pi(right)
+                 | UnOp(_, inner) => contains_real_pi(inner)
+                 | _ => false
+                 };
+               };
+               contains_real_pi(rewrite.after_exp);
+             }),
+        );
+      },
+    ),
+    test_case(
       "algebrite suggestion normalizes output back to Hazel syntax",
       `Quick,
       () => {
@@ -10297,6 +10537,8 @@ let tests = (
             target,
           };
         let profile = Axioms.math_profile(Trigonometry);
+        let real_power = (base, exponent) =>
+          Exp.bin_op(Operators.Real(Operators.Power), base, exponent);
         let check_trace = (~profile, source, target) =>
           local_profile_trace(
             ~profile,
@@ -10314,6 +10556,57 @@ let tests = (
             power(
               power(builtin_cos(plus(x, Exp.int(1))), Exp.int(2)),
               Exp.int(3),
+            ),
+          ),
+          (
+            power(builtin_app("sin_real", x), Exp.int(4)),
+            power(
+              power(builtin_app("sin_real", x), Exp.int(2)),
+              Exp.int(2),
+            ),
+          ),
+          (
+            power(
+              builtin_app("cos_real", plus(x, Exp.int(1))),
+              Exp.int(6),
+            ),
+            power(
+              power(
+                builtin_app("cos_real", plus(x, Exp.int(1))),
+                Exp.int(2),
+              ),
+              Exp.int(3),
+            ),
+          ),
+          (
+            power(app("tan_real", minus(x, Exp.int(1))), Exp.int(4)),
+            power(
+              power(app("tan_real", minus(x, Exp.int(1))), Exp.int(2)),
+              Exp.int(2),
+            ),
+          ),
+          (
+            real_power(builtin_app("sin_real", x), real(4)),
+            real_power(real_power(app("sin_real", x), real(2)), real(2)),
+          ),
+          (
+            real_power(
+              builtin_app("cos_real", plus(x, Exp.int(1))),
+              real(6),
+            ),
+            real_power(
+              real_power(app("cos_real", plus(x, Exp.int(1))), real(2)),
+              real(3),
+            ),
+          ),
+          (
+            real_power(
+              builtin_app("tan_real", minus(x, real(1))),
+              real(6),
+            ),
+            real_power(
+              real_power(app("tan_real", minus(x, real(1))), real(3)),
+              real(2),
             ),
           ),
         ];
@@ -10341,6 +10634,30 @@ let tests = (
           )
           |> Option.is_some,
         );
+        check(
+          option(string),
+          "Real trig aliases are accepted by the Trigonometry UI gate",
+          None,
+          Web.AxiomSearch.unsupported_constructs_message_for_rewrite(
+            ~level=Trigonometry,
+            ~source=power(builtin_app("sin_real", x), Exp.int(4)),
+            ~target=
+              power(
+                power(builtin_app("sin_real", x), Exp.int(2)),
+                Exp.int(2),
+              ),
+          ),
+        );
+        check(
+          option(string),
+          "Real trig aliases remain unavailable below Trigonometry",
+          Some("Needs Trigonometry"),
+          Web.AxiomSearch.unsupported_constructs_message_for_rewrite(
+            ~level=Arithmetic,
+            ~source=app("tan_real", x),
+            ~target=app("tan_real", x),
+          ),
+        );
         let without_power_cleanup =
           Web.ProfileBoard.profile_with_cleanup(
             ~cleanup=
@@ -10348,8 +10665,12 @@ let tests = (
               |> List.filter(capability => capability != Axioms.PowerNotation),
             profile,
           );
-        let source = power(builtin_sin(x), Exp.int(4));
-        let target = power(power(builtin_sin(x), Exp.int(2)), Exp.int(2));
+        let source = real_power(builtin_app("sin_real", x), real(4));
+        let target =
+          real_power(
+            real_power(builtin_app("sin_real", x), real(2)),
+            real(2),
+          );
         check(
           bool,
           "disabled power cleanup blocks power normalization",
@@ -10741,6 +11062,222 @@ let tests = (
       },
     ),
     test_case(
+      "named algebra and trig identities preserve browser-Real syntax",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let square_source = real_power(real_plus(a, b), real(2));
+        let square_target =
+          real_plus(
+            real_plus(
+              real_power(a, real(2)),
+              real_times(real_times(real(2), a), b),
+            ),
+            real_power(b, real(2)),
+          );
+        check(
+          bool,
+          "Real square identity is generated in the same numeric domain",
+          true,
+          Web.AlgebraIdentityRewrite.apply_rule_at_root(
+            "alg.square_of_sum",
+            square_source,
+          )
+          |> List.exists((rewrite: Web.TrigRewrite.rewrite) =>
+               Language.Exp.fast_equal(rewrite.after_exp, square_target)
+             ),
+        );
+        let x = Exp.var("x");
+        let sin_x = app("sin_real", x);
+        let cos_2x = app("cos_real", real_times(real(2), x));
+        let trig_source = real_power(sin_x, real(2));
+        let trig_target =
+          real_divide(real_minus(real(1), cos_2x), real(2));
+        let trig_profile = Axioms.math_profile(Trigonometry);
+        let trace = profile =>
+          local_profile_trace(
+            ~profile,
+            ~settings,
+            ~env,
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Trigonometry,
+              max_depth: 2,
+              max_states: 80,
+              source: trig_source,
+              target: trig_target,
+            },
+          );
+        check(
+          bool,
+          "Real sine identity is profile-authorized",
+          true,
+          trace(trig_profile)
+          |> Option.map((summary: Web.ProofTrace.trace_summary) =>
+               List.mem("trig.sin_squared_double", summary.rule_ids)
+             )
+          |> Option.value(~default=false),
+        );
+        check(
+          bool,
+          "inequivalent Real sine identity is rejected",
+          false,
+          local_profile_trace(
+            ~profile=trig_profile,
+            ~settings,
+            ~env,
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Trigonometry,
+              max_depth: 2,
+              max_states: 80,
+              source: trig_source,
+              target: real_plus(trig_target, real(1)),
+            },
+          )
+          |> Option.is_some,
+        );
+        let without_sine_identity =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="trig.sin_squared_double",
+            trig_profile,
+          );
+        check(
+          bool,
+          "disabled Real sine identity is rejected",
+          false,
+          trace(without_sine_identity) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "all identity catalog rewrites preserve non-Int numeric domains",
+      `Quick,
+      () => {
+        let check_catalog = (catalog_name, specs) =>
+          [
+            ("Real", Web.TrigRewrite.RealMath),
+            ("Float", Web.TrigRewrite.FloatMath),
+          ]
+          |> List.iter(((domain_name, style)) =>
+               specs
+               |> List.iter((spec: Web.TrigRewrite.spec) =>
+                    [spec.left, spec.right]
+                    |> List.iter(pattern => {
+                         let source =
+                           Web.TrigRewrite.instantiate_with_style(
+                             ~style,
+                             pattern,
+                             [],
+                           );
+                         let rewrites =
+                           Web.TrigRewrite.apply_spec(spec, source);
+                         let label =
+                           domain_name
+                           ++ " "
+                           ++ catalog_name
+                           ++ " "
+                           ++ spec.rule_id;
+                         check(
+                           bool,
+                           label ++ " has a rewrite",
+                           true,
+                           rewrites != [],
+                         );
+                         rewrites
+                         |> List.iter((rewrite: Web.TrigRewrite.rewrite) => {
+                              /* Generic sin/cos/tan syntax carries no Float
+                               * marker by itself. Assert domain preservation
+                               * whenever the source representation actually
+                               * retains the requested non-Int domain. Real
+                               * aliases do retain that evidence. */
+                              if (Web.TrigRewrite.numeric_style_for_exp(
+                                    source,
+                                  )
+                                  == style) {
+                                check(
+                                  bool,
+                                  label ++ " does not introduce Int syntax",
+                                  false,
+                                  contains_int_numeric_syntax(
+                                    rewrite.after_exp,
+                                  ),
+                                );
+                              };
+                              if (style == Web.TrigRewrite.RealMath) {
+                                check(
+                                  bool,
+                                  label ++ " keeps Real trig names",
+                                  false,
+                                  contains_generic_trig_name(
+                                    rewrite.after_exp,
+                                  ),
+                                );
+                              };
+                            });
+                       })
+                  )
+             );
+        check_catalog("algebra", Web.AlgebraIdentityRewrite.specs);
+        check_catalog("trigonometry", Web.TrigRewrite.specs);
+      },
+    ),
+    test_case(
+      "all Real trig identities cross the surface-elaboration boundary",
+      `Quick,
+      () => {
+        let elaborate_real_surface = exp =>
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, exp) => {
+                let exp = continue(exp);
+                switch (exp.term) {
+                | Var(("sin_real" | "cos_real" | "tan_real") as name) => {
+                    ...exp,
+                    term: BuiltinFun(name),
+                  }
+                | Var("pi" | "pi_real") => {
+                    ...exp,
+                    term: Atom(Real(Real.Pi)),
+                  }
+                | _ => exp
+                };
+              },
+            exp,
+          );
+        Web.TrigRewrite.specs
+        |> List.iter((spec: Web.TrigRewrite.spec) =>
+             [spec.left, spec.right]
+             |> List.iter(pattern => {
+                  let surface =
+                    Web.TrigRewrite.instantiate_with_style(
+                      ~style=Web.TrigRewrite.RealMath,
+                      pattern,
+                      [],
+                    );
+                  let elaborated = elaborate_real_surface(surface);
+                  let rewrites = Web.TrigRewrite.apply_spec(spec, elaborated);
+                  check(
+                    bool,
+                    spec.rule_id ++ " accepts elaborated Real aliases",
+                    true,
+                    rewrites != [],
+                  );
+                  rewrites
+                  |> List.iter((rewrite: Web.TrigRewrite.rewrite) =>
+                       check(
+                         bool,
+                         spec.rule_id ++ " keeps an explicit Real domain",
+                         true,
+                         Web.TrigRewrite.uses_real_math(rewrite.after_exp),
+                       )
+                     );
+                })
+           );
+      },
+    ),
+    test_case(
       "single algebra step records manual prover replay step",
       `Quick,
       () => {
@@ -10849,6 +11386,46 @@ let tests = (
             List.mem("alg.expand_polynomial", rule_ids),
           );
         | None => fail("expected binomial square expansion target")
+        };
+      },
+    ),
+    test_case(
+      "specialized algebra shape targets preserve Real syntax",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let two = real(2);
+        let square_source = real_power(real_plus(a, b), two);
+        let square_expected =
+          real_plus(
+            real_plus(
+              real_power(a, two),
+              real_times(real_times(two, a), b),
+            ),
+            real_power(b, two),
+          );
+        switch (Web.RewriteChecker.normalize_algebra_shape(square_source)) {
+        | Some((actual, _)) =>
+          check_exp_equal(
+            "Real binomial square keeps Real operators and literals",
+            square_expected,
+            actual,
+          )
+        | None => fail("expected Real binomial square expansion target")
+        };
+        let conjugate_source =
+          real_times(real_plus(a, b), real_minus(a, b));
+        let conjugate_expected =
+          real_minus(real_power(a, two), real_power(b, two));
+        switch (Web.RewriteChecker.normalize_algebra_shape(conjugate_source)) {
+        | Some((actual, _)) =>
+          check_exp_equal(
+            "Real conjugate product keeps Real operators and literals",
+            conjugate_expected,
+            actual,
+          )
+        | None => fail("expected Real conjugate-product target")
         };
       },
     ),
@@ -11326,7 +11903,7 @@ let tests = (
       },
     ),
     test_case(
-      "real rational constant-fold replay uses an exact field certificate",
+      "real rational constant-fold replay clears numeric denominators",
       `Quick,
       () => {
         let source = power(divide(Exp.int(1), Exp.int(2)), Exp.int(2));
@@ -11343,8 +11920,8 @@ let tests = (
           );
         check(
           string,
-          "field replay",
-          "try unfold Rsqr; field.",
+          "bounded rational replay",
+          "unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate.",
           Web.CoqProofExport.recorded_transition_replay_script(
             ~domain=Web.CoqExport.Reals,
             [step],
@@ -14981,6 +15558,27 @@ let tests = (
       },
     ),
     test_case(
+      "coq export lowers Hazel polymorphic equality to Rocq equality",
+      `Quick,
+      () => {
+        let expr =
+          Exp.bin_op(
+            Operators.Poly(Operators.Equals),
+            builtin_cos(Exp.var("x")),
+            builtin_cos(Exp.var("x")),
+          );
+        check(
+          string,
+          "printed equality",
+          "(cos (x) = cos (x))",
+          Web.CoqExport.string_of_d_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            expr,
+          ),
+        );
+      },
+    ),
+    test_case(
       "coq real export prints unary function literals with lexical binders",
       `Quick,
       () => {
@@ -15565,6 +16163,32 @@ let tests = (
       },
     ),
     test_case(
+      "stepper coq export omits terminal completed-result true",
+      `Quick,
+      () => {
+        let ordinary =
+          switch (Web.StepperBase.Stepper.export_coq(sample_export_chain())) {
+          | Some(export) => export
+          | None => fail("expected ordinary stepper export")
+          };
+        let completed =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_export_chain() |> append_terminal_true,
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected completed stepper export")
+          };
+        check(
+          string,
+          "terminal UI truth value does not become a Rocq proof term",
+          ordinary,
+          completed,
+        );
+      },
+    ),
+    test_case(
       "stepper coq export dumps named algebra identity proofs",
       `Quick,
       () => {
@@ -15704,6 +16328,71 @@ let tests = (
           "no ring tactic",
           false,
           string_contains("ring.", export),
+        );
+      },
+    ),
+    test_case(
+      "stepper coq export descends through theorem equality before replay",
+      `Quick,
+      () => {
+        let affine_export =
+          switch (
+            sample_check_result_constant_export_chain()
+            |> wrap_export_chain_in_theorem_equality
+            |> Web.StepperBase.Stepper.export_coq
+          ) {
+          | Some(export) => export
+          | None => fail("expected equality-wrapped affine export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_equation_affine_export.v",
+          affine_export,
+        );
+        check(
+          bool,
+          "affine replay descends from Prop to its numeric operands",
+          true,
+          string_contains("\nintros.\nf_equal; try lra", affine_export),
+        );
+        let field_export =
+          switch (
+            sample_rational_polynomial_export_chain()
+            |> wrap_export_chain_in_theorem_equality
+            |> Web.StepperBase.Stepper.export_coq
+          ) {
+          | Some(export) => export
+          | None => fail("expected equality-wrapped field export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_equation_field_export.v",
+          field_export,
+        );
+        check(
+          bool,
+          "field replay descends from Prop to its numeric operands",
+          true,
+          string_contains(
+            "\nintros.\nf_equal; unfold Rsqr; field_simplify",
+            field_export,
+          ),
+        );
+        let scalar_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_rational_polynomial_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected scalar field export")
+          };
+        check(
+          bool,
+          "plain scalar replay is not given proposition congruence",
+          false,
+          string_contains(
+            "\nintros.\nf_equal; unfold Rsqr; field_simplify",
+            scalar_export,
+          ),
         );
       },
     ),
@@ -16071,7 +16760,7 @@ let tests = (
         check(
           string,
           "argument congruence precedes rational field closure",
-          "repeat progress hazel_function_argument_algebra; try unfold Rsqr; field.",
+          "repeat progress hazel_function_argument_algebra; unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate.",
           Web.CoqProofExport.recorded_transition_replay_script(
             ~domain=Web.CoqExport.Reals,
             [contextual_step],
@@ -16097,7 +16786,7 @@ let tests = (
         check(
           string,
           "rational distribution uses an exact field certificate",
-          "try unfold Rsqr; field.",
+          "unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate.",
           Web.CoqProofExport.recorded_transition_replay_script(
             ~domain=Web.CoqExport.Reals,
             [distribution_step],
@@ -16144,7 +16833,7 @@ let tests = (
           "export proves application congruence before field closure",
           true,
           string_contains(
-            "repeat progress hazel_function_argument_algebra; try unfold Rsqr; field.",
+            "repeat progress hazel_function_argument_algebra; unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate.",
             export,
           ),
         );
@@ -17172,6 +17861,28 @@ let tests = (
           true,
           accepts(profile, first_source, first_target),
         );
+        switch (
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            first_source,
+            first_target,
+          )
+        ) {
+        | Some(summary) =>
+          check(
+            bool,
+            "Real normalization proof trace contains no Int syntax",
+            true,
+            summary.prover_steps
+            |> List.for_all((step: Web.ProofTrace.prover_step) =>
+                 !contains_int_numeric_syntax(step.before_full_exp)
+                 && !contains_int_numeric_syntax(step.after_full_exp)
+               ),
+          )
+        | None => fail("expected Real polynomial proof trace")
+        };
         let second_source =
           real_times(
             real_plus(real_times(real(2), x), real(3)),

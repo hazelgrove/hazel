@@ -979,6 +979,93 @@ let tests = (
       },
     ),
     test_case(
+      "trig power reduction accepts its first Real power step",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_TrigPowerReduction.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        let real_typ = Language.Typ.temp(Atom(Real));
+        let ctx =
+          Ctx.extend(
+            Builtins.ctx_init(Some(Real)),
+            Ctx.VarEntry({
+              name: "x",
+              id: Id.invalid,
+              typ: real_typ,
+              custom_statics: None,
+            }),
+          );
+        let surface_source = exp_of_source("sin_real(x) ** 4");
+        let (info_map, _) =
+          Statics.mk(~ana=real_typ, CoreSettings.on, ctx, surface_source);
+        check(
+          list(string),
+          "selected source has no static errors",
+          [],
+          Statics.Map.error_ids(info_map) |> List.map(Id.show),
+        );
+        let (source, target) =
+          Web.MissingStep.proof_request_expressions(
+            ~info_map,
+            ~source=surface_source,
+            ~target=exp_of_source("(sin_real(x) ** 2) ** 2"),
+          );
+        let x = Language.Exp.fresh(Var("x"));
+        let sin_x =
+          Language.Exp.fresh(
+            Ap(
+              Operators.Forward,
+              Language.Exp.fresh(BuiltinFun("sin_real")),
+              x,
+            ),
+          );
+        let number = BrowserReal.number;
+        let power = BrowserReal.power;
+        let authorize = (~profile=profile, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Axioms.MultiStepCheck,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings: CoreSettings.on,
+            env: Environment.empty,
+            source,
+            target,
+            max_depth: 4,
+            max_states: 80,
+          });
+        switch (authorize(target)) {
+        | Authorized(plan) =>
+          check(
+            bool,
+            "first step records power regrouping",
+            true,
+            List.mem("alg.power_mul", plan.summary.rule_ids),
+          )
+        | Rejected(_) => fail("expected the first Real power step")
+        };
+        switch (authorize(power(power(sin_x, number(2)), number(3)))) {
+        | Authorized(_) => fail("non-equivalent Real power was accepted")
+        | Rejected(_) => ()
+        };
+        let without_power_regrouping =
+          Axioms.profile_with_capability_usage_overrides(
+            profile,
+            profile.capability_usage_overrides
+            @ [
+              Axioms.{
+                capability_id: "alg.power_mul",
+                stage: MultiStepCheck,
+                usage: Disabled,
+              },
+            ],
+          );
+        switch (authorize(~profile=without_power_regrouping, target)) {
+        | Authorized(_) => fail("disabled power regrouping was accepted")
+        | Rejected(_) => ()
+        };
+      },
+    ),
+    test_case(
       "polynomial derivative Check Result certifies intermediate calculus rules",
       `Quick,
       () => {

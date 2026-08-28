@@ -42,14 +42,13 @@ let op_to_algebrite =
 let function_name = exp => {
   let exp = exp |> DHExp.strip_ascriptions;
   switch (exp.term) {
-  | Var(("sin" | "cos" | "tan") as name)
-  | BuiltinFun(("sin" | "cos" | "tan") as name) => Some(name)
-  | Var("sin_real")
-  | BuiltinFun("sin_real") => Some("sin")
-  | Var("cos_real")
-  | BuiltinFun("cos_real") => Some("cos")
-  | Var("tan_real")
-  | BuiltinFun("tan_real") => Some("tan")
+  | Var(
+      ("sin" | "cos" | "tan" | "sin_real" | "cos_real" | "tan_real") as name,
+    )
+  | BuiltinFun(
+      ("sin" | "cos" | "tan" | "sin_real" | "cos_real" | "tan_real") as name,
+    ) =>
+    Some(name)
   | _ => None
   };
 };
@@ -75,6 +74,8 @@ let rec serialize_for_algebrite = (exp: Exp.t): option(string) => {
             ++ Bigint.to_string(denominator),
           ),
     )
+  | Var("pi_real")
+  | BuiltinFun("pi_real") => Some("pi")
   | Var(name) => Some(name)
   | UnOp(
       Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |

@@ -77,6 +77,9 @@ let int_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Some(value)
   | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(numerator)
   | Atom(Float(value)) when value == Float.round(value) =>
     Some(Bigint.of_int(int_of_float(value)))
   | _ => None

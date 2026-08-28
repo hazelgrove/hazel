@@ -490,7 +490,7 @@ let int_exp = MathRewriteUtil.int_exp;
 /* Normalization rebuilds parts of an expression from canonical coefficients.
  * Preserve the explicit numeric mode carried by the elaborated source instead
  * of silently reintroducing Int nodes inside (for example) a Real theorem. */
-let numeric_mode_of_exp = (exp: Exp.t): option(Operators.mode) => {
+let rec numeric_mode_of_exp = (exp: Exp.t): option(Operators.mode) => {
   let exp =
     exp |> DHExp.strip_ascriptions |> MathRewriteUtil.strip_math_wrappers;
   switch (exp.term) {
@@ -509,6 +509,14 @@ let numeric_mode_of_exp = (exp: Exp.t): option(Operators.mode) => {
   | UnOp(SInt(_), _) => Some(Operators.SInt)
   | UnOp(Float(_), _) => Some(Operators.Float)
   | UnOp(Real(_), _) => Some(Operators.Real)
+  | Var("pi_real" | "sin_real" | "cos_real" | "tan_real")
+  | BuiltinFun("pi_real" | "sin_real" | "cos_real" | "tan_real") =>
+    Some(Operators.Real)
+  | Ap(_, fn, arg) =>
+    switch (numeric_mode_of_exp(fn)) {
+    | Some(_) as mode => mode
+    | None => numeric_mode_of_exp(arg)
+    }
   | _ => None
   };
 };
@@ -687,6 +695,9 @@ let trace_int_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Some(value)
   | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(numerator)
   | _ => None
   };
 };
@@ -735,6 +746,7 @@ let normalizer_prover_steps = (~from_, ~to_, rule_ids) => {
   let current = ref(from_ |> DHExp.strip_ascriptions |> strip_math_wrappers);
   let add_step = (steps, rule_id, detail, after_) => {
     let before_ = current^;
+    let after_ = inherit_numeric_mode(~source=before_, after_);
     current := after_;
     steps
     @ [
@@ -909,6 +921,7 @@ let is_real_math_builtin =
   | "sin_real"
   | "cos_real"
   | "tan_real" => true
+  | "pi_real" => true
   | _ => false;
 
 let rec same_math_exp = (left, right) => {
@@ -955,6 +968,10 @@ let rec same_math_exp = (left, right) => {
       ) =>
       Bigint.equal(real.denominator, Bigint.one)
       && Bigint.equal(real.numerator, integer)
+    | (Atom(Real(Real.Pi)), Var("pi" | "pi_real"))
+    | (Var("pi" | "pi_real"), Atom(Real(Real.Pi)))
+    | (Atom(Real(Real.Pi)), BuiltinFun("pi_real"))
+    | (BuiltinFun("pi_real"), Atom(Real(Real.Pi))) => true
     | (BuiltinFun(left), Var(right))
     | (Var(left), BuiltinFun(right)) =>
       left == right && is_real_math_builtin(left)
@@ -1665,6 +1682,9 @@ let rational_polynomial_integer_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Some(value)
   | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(numerator)
   | _ => None
   };
 };
@@ -1680,6 +1700,10 @@ let rec rational_polynomial_of_exp = (exp: Exp.t) => {
       rational_polynomial_constant(
         rational_coeff(Bigint.of_int(value), Bigint.one),
       ),
+    )
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) =>
+    Some(
+      rational_polynomial_constant(rational_coeff(numerator, denominator)),
     )
   | Parens(inner)
   | Asc(inner, _) => rational_polynomial_of_exp(inner)
@@ -3100,35 +3124,41 @@ let polynomial_expansion_target = exp => {
   };
 };
 
-let normalize_algebra_shape = exp =>
-  switch (complete_positive_square(exp)) {
-  | Some(factored) => Some((factored, ["alg.factor_common"]))
-  | None =>
-    switch (expand_binomial_square(exp)) {
-    | Some(expanded) => Some((expanded, ["alg.expand_polynomial"]))
+let normalize_algebra_shape = exp => {
+  let normalized =
+    switch (complete_positive_square(exp)) {
+    | Some(factored) => Some((factored, ["alg.factor_common"]))
     | None =>
-      switch (multiply_conjugates(exp)) {
+      switch (expand_binomial_square(exp)) {
       | Some(expanded) => Some((expanded, ["alg.expand_polynomial"]))
       | None =>
-        switch (distribute_div_over_add_candidates(exp)) {
-        | [expanded, ..._] => Some((expanded, ["alg.distribute_div_add"]))
-        | [] =>
-          switch (distribute_mul_over_add(exp)) {
-          | Some(expanded) => Some((expanded, ["alg.distribute_mul_add"]))
-          | None =>
-            switch (normalize_common_factor_sum(exp)) {
-            | Some(expanded) =>
-              Some((
-                expanded,
-                ["alg.factor_common", "alg.distribute_mul_add"],
-              ))
-            | None => polynomial_expansion_target(exp)
+        switch (multiply_conjugates(exp)) {
+        | Some(expanded) => Some((expanded, ["alg.expand_polynomial"]))
+        | None =>
+          switch (distribute_div_over_add_candidates(exp)) {
+          | [expanded, ..._] => Some((expanded, ["alg.distribute_div_add"]))
+          | [] =>
+            switch (distribute_mul_over_add(exp)) {
+            | Some(expanded) => Some((expanded, ["alg.distribute_mul_add"]))
+            | None =>
+              switch (normalize_common_factor_sum(exp)) {
+              | Some(expanded) =>
+                Some((
+                  expanded,
+                  ["alg.factor_common", "alg.distribute_mul_add"],
+                ))
+              | None => polynomial_expansion_target(exp)
+              }
             }
           }
         }
       }
-    }
-  };
+    };
+  normalized
+  |> Option.map(((target, rule_ids)) =>
+       (inherit_numeric_mode(~source=exp, target), rule_ids)
+     );
+};
 
 let normalize_algebra_distribution =
     (~settings as _: CoreSettings.t, ~env as _: Environment.t(Exp.t), exp) => {

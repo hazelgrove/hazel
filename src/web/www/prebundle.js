@@ -789,30 +789,54 @@ window.HazelJSCoq = {
 
   checkAndReport(code, callback, opts = {}) {
     const request = opts.request || null;
-    const errorText = (error, seen = new Set()) => {
+    const maxDiagnosticDepth = 24;
+    const maxDiagnosticNodes = 800;
+    const maxDiagnosticChars = 6000;
+    const truncateDiagnostic = text =>
+      text.length <= maxDiagnosticChars
+        ? text
+        : `${text.slice(0, maxDiagnosticChars)}… [Rocq diagnostic truncated]`;
+    const errorText = (
+      error,
+      seen = new Set(),
+      depth = 0,
+      budget = {nodes: 0},
+    ) => {
       if (error == null) return '';
-      if (typeof error === 'string') return error;
+      if (depth > maxDiagnosticDepth || budget.nodes++ > maxDiagnosticNodes) {
+        return '[Rocq diagnostic truncated]';
+      }
+      if (typeof error === 'string') return truncateDiagnostic(error);
       if (typeof error === 'number' || typeof error === 'boolean') return String(error);
       if (seen.has(error)) return '';
       if (typeof error === 'object') seen.add(error);
       if (Array.isArray(error)) {
-        return error.map(item => errorText(item, seen)).filter(Boolean).join(' ');
+        return truncateDiagnostic(
+          error
+            .map(item => errorText(item, seen, depth + 1, budget))
+            .filter(Boolean)
+            .join(' '),
+        );
       }
-      if (error.message) return errorText(error.message, seen);
-      if (error.msg) return errorText(error.msg, seen);
-      if (error.pp) return errorText(error.pp, seen);
-      if (error.feedback) return errorText(error.feedback, seen);
-      if (error.textContent) return String(error.textContent);
+      if (error.message) return errorText(error.message, seen, depth + 1, budget);
+      if (error.msg) return errorText(error.msg, seen, depth + 1, budget);
+      if (error.pp) return errorText(error.pp, seen, depth + 1, budget);
+      if (error.feedback) return errorText(error.feedback, seen, depth + 1, budget);
+      if (error.textContent) return truncateDiagnostic(String(error.textContent));
       try {
         const text = String(error);
-        return text === '[object Object]' ? JSON.stringify(error) : text;
+        return truncateDiagnostic(
+          text === '[object Object]' ? JSON.stringify(error) : text,
+        );
       } catch (_) {
         return '';
       }
     };
     const formatErrors = errors => {
       if (!errors || errors.length === 0) return 'no JSCoq errors reported';
-      return errors.map(error => errorText(error) || 'unknown JSCoq error').join('\n');
+      return truncateDiagnostic(
+        errors.map(error => errorText(error) || 'unknown JSCoq error').join('\n'),
+      );
     };
     const reportCancellation = result => {
       if (request && !request.callbackDelivered) {

@@ -1414,6 +1414,32 @@ let elaborated_exp_for_math = (~info_map: Statics.Map.t, exp: Exp.t): Exp.t =>
   | None => exp
   };
 
+let proof_request_expressions =
+    (~info_map: Statics.Map.t, ~source: Exp.t, ~target: Exp.t) => {
+  let source = elaborated_exp_for_math(~info_map, source);
+  /* A structural selection may be reparenthesized or copied before this
+   * boundary, so its representative id can no longer occur in [info_map].
+   * Explicit syntax such as [sin_real] is still authoritative evidence of
+   * the intended mode; use it to align both endpoints instead of depending
+   * solely on id-based elaboration. */
+  let mode_witness =
+    switch (
+      TrigRewrite.numeric_style_for_exp(source),
+      TrigRewrite.numeric_style_for_exp(target),
+    ) {
+    | (RealMath, _)
+    | (_, RealMath) => Exp.fresh(Atom(Real(Real.of_bigint(Bigint.zero))))
+    | (FloatMath, _)
+    | (_, FloatMath) => Exp.fresh(Atom(Float(0.0)))
+    | (IntegerMath, IntegerMath) => source
+    };
+  let source =
+    RewriteChecker.inherit_numeric_mode(~source=mode_witness, source);
+  let target =
+    RewriteChecker.inherit_numeric_mode(~source=mode_witness, target);
+  (source, target);
+};
+
 let replacement_in_math_mode =
     (~info_map: Statics.Map.t, ~source: Exp.t, target: Exp.t): Exp.t =>
   target
@@ -2027,14 +2053,20 @@ module View = {
               ),
             )
           };
+        let (math_selected_exp, math_cached_exp) =
+          proof_request_expressions(
+            ~info_map,
+            ~source=unboxed_selected_exp,
+            ~target=unboxed_cached_exp,
+          );
         let proof_plan_matches_current =
             (plan: ProfileProofPlan.authorized_plan) => {
           let active_profile = active_profile_for_model(model, rewrite_level);
           ProfileProofPlan.authorized_plan_matches_current(
             ~profile=active_profile,
             ~stage=automation_stage,
-            ~source=unboxed_selected_exp,
-            ~target=unboxed_cached_exp,
+            ~source=math_selected_exp,
+            ~target=math_cached_exp,
             plan,
           );
         };
@@ -2058,8 +2090,8 @@ module View = {
                 level: rewrite_level,
                 max_depth: 4,
                 max_states: 80,
-                source: unboxed_selected_exp,
-                target: unboxed_cached_exp,
+                source: math_selected_exp,
+                target: math_cached_exp,
               };
             let active_profile =
               active_profile_for_model(model, rewrite_level);
@@ -2089,9 +2121,9 @@ module View = {
                 Axioms.Manual,
               )
               ++ "|"
-              ++ Exp.show(unboxed_selected_exp)
+              ++ Exp.show(math_selected_exp)
               ++ "|"
-              ++ Exp.show(unboxed_cached_exp);
+              ++ Exp.show(math_cached_exp);
             LiveOneStepPlanning.schedule(
               ~key=planning_key,
               ~run=() => {
@@ -2105,8 +2137,8 @@ module View = {
                     level: rewrite_level,
                     max_depth: 4,
                     max_states: 80,
-                    source: unboxed_selected_exp,
-                    target: unboxed_cached_exp,
+                    source: math_selected_exp,
+                    target: math_cached_exp,
                   };
                 ProofSearchBackend.local_profile_plan_incremental(
                   ~check_id,
@@ -2208,8 +2240,8 @@ module View = {
                   level: rewrite_level,
                   max_depth: 4,
                   max_states: 80,
-                  source: unboxed_selected_exp,
-                  target: unboxed_cached_exp,
+                  source: math_selected_exp,
+                  target: math_cached_exp,
                 };
               let active_profile =
                 active_profile_for_model(model, rewrite_level);
@@ -2467,8 +2499,8 @@ module View = {
         let mode_issue =
           AxiomSearch.unsupported_constructs_message_for_rewrite(
             ~level=rewrite_level,
-            ~source=unboxed_selected_exp,
-            ~target=unboxed_cached_exp,
+            ~source=math_selected_exp,
+            ~target=math_cached_exp,
           );
         let inactive_session_warning =
           check_mode == Model.ProofSearch
@@ -2492,8 +2524,8 @@ module View = {
         let mode_issue_ids =
           AxiomSearch.unsupported_construct_ids_for_rewrite(
             ~level=rewrite_level,
-            ~source=unboxed_selected_exp,
-            ~target=unboxed_cached_exp,
+            ~source=math_selected_exp,
+            ~target=math_cached_exp,
           );
         let mode_issue_overlay = (editor: CodeWithStatics.Model.t) =>
           switch (mode_issue_ids) {

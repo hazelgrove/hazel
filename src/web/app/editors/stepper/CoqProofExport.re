@@ -245,14 +245,16 @@ let recorded_transition_replay_script =
          `ring`: inverses such as [/ 2] need their field laws. The transition
          has already been authorized from the recorded catalog evidence, so
          argument congruence first replays any authorized scalar normalization
-         beneath applications; `field` then closes only the surrounding exact
-         rational algebra while treating applications as opaque real atoms. */
+         beneath applications. Clear only the numeric denominators before
+         invoking `field` on the reduced goal: JSCoq's monolithic `field`
+         invocation on the original nested divisions can build an
+         exception/proof term whose pretty-printer overflows. */
       Some(
         (
           includes_scalar_argument_normalization
             ? "repeat progress hazel_function_argument_algebra; " : ""
         )
-        ++ "try unfold Rsqr; field.",
+        ++ "unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate.",
       );
     } else if (includes_algebra_identity) {
       /* Named polynomial identities have already been authorized by the
@@ -346,7 +348,53 @@ let recorded_transition_replay_script =
     );
   };
   let groups = transition_groups(steps);
+  let is_rational_polynomial_rule_id = rule_id =>
+    List.mem(rule_id, Axioms.algebra_identity_rule_ids)
+    || List.mem(
+         rule_id,
+         [
+           "arith.const_fold",
+           "arith.mul_const",
+           "arith.reorder_add_terms",
+           "arith.simplify_scalar_products",
+           "alg.distribute_mul_add",
+           "alg.distribute_div_add",
+           "alg.expand_polynomial",
+           "alg.factor_common",
+         ],
+       );
+  let is_rational_polynomial_path =
+    switch (steps) {
+    | [first, ..._] =>
+      let last = steps |> List.rev |> List.hd;
+      domain == CoqExport.Reals
+      && (
+        RewriteChecker.contains_rational_division(first.before_full_exp)
+        || RewriteChecker.contains_rational_division(last.after_full_exp)
+      )
+      && steps
+      |> List.for_all((step: ProofTrace.prover_step) =>
+           is_rational_polynomial_rule_id(step.rule_id)
+         );
+    | [] => false
+    };
+  let normalizes_function_arguments =
+    steps
+    |> List.exists((step: ProofTrace.prover_step) =>
+         step.rule_id == "arith.simplify_scalar_products"
+       );
   switch (groups) {
+  | _ when is_rational_polynomial_path =>
+    /* The active profile has already authorized every transition in this
+       path. Certify its polynomial endpoints directly rather than exporting
+       normalization-dependent intermediate cuts (for example, the two
+       orientations of a squared difference). Clearing numeric denominators
+       bounds the remaining `field` work in JSCoq. */
+    (
+      normalizes_function_arguments
+        ? "repeat progress hazel_function_argument_algebra; " : ""
+    )
+    ++ "unfold Rsqr; field_simplify; try field; try ring; try lra; try discriminate."
   | [group] =>
     /* A single recorded transition already has the theorem's complete source
        and target. Replaying its certificate directly avoids constructing and
@@ -533,7 +581,7 @@ let written_trace_comment = (summary: ProofTrace.trace_summary) => {
       ? "(* Export policy: replay Hazel prover steps. Coarse normalizer steps are still a TODO for local-fragment replay. *)\n"
       : summary.rule_ids |> List.exists(SessionRewrite.is_session_rule_id)
           ? "(* Export policy: UNSOUND custom rewrite; replayed from a reusable Admitted lemma below. *)\n"
-          : "(* Export policy: non-exportable Hazel step. *)\n"
+          : "(* Export policy: certified by profile fallback. *)\n"
   );
 };
 
@@ -720,12 +768,13 @@ let real_prelude =
   ++ "  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n"
   ++ "  end.\n\n"
   ++ "Ltac hazel_power_normalize :=\n"
-  ++ "  cbn;\n"
   ++ "  try unfold Rsqr;\n"
-  ++ "  repeat rewrite Rmult_1_r;\n"
-  ++ "  repeat rewrite Rmult_1_l;\n"
-  ++ "  repeat rewrite Rmult_assoc;\n"
-  ++ "  reflexivity.\n\n"
+  ++ "  first [ring |\n"
+  ++ "    cbn;\n"
+  ++ "    repeat rewrite Rmult_1_r;\n"
+  ++ "    repeat rewrite Rmult_1_l;\n"
+  ++ "    repeat rewrite Rmult_assoc;\n"
+  ++ "    reflexivity].\n\n"
   ++ "Ltac hazel_real_algebra :=\n"
   ++ "  try unfold Rsqr;\n"
   ++ "  first [ring | field; try lra | lra].\n\n"

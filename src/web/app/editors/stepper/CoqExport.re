@@ -10,7 +10,8 @@ type domain =
 let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
 let is_real_builtin = name =>
-  name == "sin"
+  name == "pi_real"
+  || name == "sin"
   || name == "sin_real"
   || name == "cos"
   || name == "cos_real"
@@ -26,7 +27,7 @@ let rec requires_reals = (d: Language.DHExp.t) =>
   | Asc(exp, _) => requires_reals(exp)
   | Tuple([exp]) => requires_reals(exp)
   | Atom(Float(_) | Real(_)) => true
-  | Var("pi") => true
+  | Var("pi" | "pi_real") => true
   | Var(name) when is_real_builtin(name) => true
   | BuiltinFun(name) => is_real_builtin(name)
   | BinOp(Language.Operators.Float(_), _, _) => true
@@ -74,6 +75,8 @@ let real_float_op_to_string = op =>
 
 let string_of_op = (~domain, op) =>
   switch (domain, op) {
+  | (_, Language.Operators.Poly(Language.Operators.Equals)) => "="
+  | (_, Language.Operators.Poly(Language.Operators.NotEquals)) => "<>"
   | (
       Integers,
       Language.Operators.Int(Language.Operators.Power) | Nat(Power) |
@@ -331,6 +334,7 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
           ++ ")";
   let builtin_name =
     fun
+    | "pi_real" => "PI"
     | "sin_real" => "sin"
     | "cos_real" => "cos"
     | "tan_real" => "tan"
@@ -377,8 +381,11 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
         ++ string_of_float(value),
       )
     | Atom(Real(value)) => real_literal(value)
-    | Var("pi") => "PI"
-    | Var(x) => x
+    | Var("pi" | "pi_real") => "PI"
+    /* Surface math builtins can remain Vars in a selected/reparenthesized
+     * step even when the theorem's elaborated tree used BuiltinFun. Export
+     * both representations through the same Rocq name mapping. */
+    | Var(x) => builtin_name(x)
     | BuiltinFun(name) => builtin_name(name)
     | Fun(pattern, body, _, _) =>
       switch (function_parameter_name(pattern)) {
