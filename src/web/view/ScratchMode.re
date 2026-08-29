@@ -1817,7 +1817,7 @@ module Persist = {
       editor:
         Editor.Model.mk_persistent(
           PersistentZipper.of_text(PersistentZipper.to_string(z) ++ "\n"),
-          ~root=Sort.Exp,
+          ~root=editor.editor.editor.root,
         ),
       result: EvalResult.Model.persist(editor.result),
     };
@@ -1898,7 +1898,10 @@ module Persist = {
                     )
                     ++ "\n",
                   ),
-                  ~root=Sort.Exp,
+                  /* the editor's OWN root: persisting a Mod-rooted
+                     slide as Exp made the reload re-parse it as an
+                     expression (backpack full of `in`s, editor wedged) */
+                  ~root=editor.editor.editor.root,
                 ),
               result: EvalResult.Model.persist(editor.result),
             }
@@ -1955,7 +1958,21 @@ module Persist = {
             editor:
               (
                 switch (e) {
-                | Some(e) => e
+                | Some(e) =>
+                  /* repair blobs persisted with the wrong root (and
+                     track canonical root changes): the slide table is
+                     authoritative for documentation slides */
+                  switch (Init.documentation_slide_root(name)) {
+                  | Some(root) when root != e.editor.root =>
+                    CellEditor.Model.{
+                      ...e,
+                      editor: {
+                        ...e.editor,
+                        root,
+                      },
+                    }
+                  | _ => e
+                  }
                 | None => Init.default_documentation_slide_name(name)
                 }
               )
