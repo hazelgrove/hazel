@@ -721,6 +721,7 @@ module IncrEvalCache = {
     mutable e_meas: Obj.t,
     mutable e_range: (Measured.Point.t, Measured.Point.t),
     mutable e_fm: Obj.t,
+    mutable e_sweep: bool,
     mutable e_nodes: list(Node.t),
     mutable e_tick: int,
   };
@@ -738,13 +739,16 @@ module IncrEvalCache = {
       List.iter(Hashtbl.remove(cache), dead);
     };
   };
-  let get = (~id, ~measured, ~range, ~font_metrics, ~mk): list(Node.t) =>
+  let get =
+      (~id, ~measured, ~range, ~font_metrics, ~sweep: bool, ~mk)
+      : list(Node.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
           e.e_meas === Obj.repr(measured)
           && e.e_range == range
-          && e.e_fm === Obj.repr(font_metrics) =>
+          && e.e_fm === Obj.repr(font_metrics)
+          && e.e_sweep == sweep =>
       e.e_tick = tick^;
       e.e_nodes;
     | _ =>
@@ -756,6 +760,7 @@ module IncrEvalCache = {
           e_meas: Obj.repr(measured),
           e_range: range,
           e_fm: Obj.repr(font_metrics),
+          e_sweep: sweep,
           e_nodes: nodes,
           e_tick: tick^,
         },
@@ -998,13 +1003,20 @@ let incr_eval =
           };
     (id, (o, f));
   };
-  let inactive_nodes =
+  let regions =
     visible_ranges(pending_inactive_ranges)
     |> merge_regions
-    |> List.map(clamp_region)
+    |> List.map(clamp_region);
+  let inactive_nodes =
+    regions
     |> List.concat_map(((id, range)) =>
          IncrEvalCache.get(
-           ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~mk=() =>
+           ~id,
+           ~measured=syntax.measured,
+           ~range,
+           ~font_metrics,
+           ~sweep=false,
+           ~mk=() =>
            contour_of_range(
              ~font_metrics,
              ~measured=syntax.measured,
@@ -1013,19 +1025,31 @@ let incr_eval =
            )
          )
        );
-  div_c(
-    "incremental-highlights",
-    inactive_nodes
-    @ List.concat_map(
-        ((_, range)) =>
-          contour_of_range(
-            ~font_metrics,
-            ~measured=syntax.measured,
-            ~sweep=true,
-            ["incremental-pending", "incremental-active"],
-            range,
-          ),
-        visible_ranges(active_ids),
-      ),
-  );
+  /* The active range can span thousands of rows (head-by-origin of the
+     pending set) - clamp it to the visible window like the inactive
+     regions, and cache its node: the sweep animates via CSS, so an
+     identical vdom node across renders keeps animating. Uncached +
+     unclamped this was ~50ms of path serialization on EVERY render
+     for the whole duration of an evaluation. */
+  let active_nodes =
+    visible_ranges(active_ids)
+    |> List.map(clamp_region)
+    |> List.concat_map(((id, range)) =>
+         IncrEvalCache.get(
+           ~id,
+           ~measured=syntax.measured,
+           ~range,
+           ~font_metrics,
+           ~sweep=true,
+           ~mk=() =>
+           contour_of_range(
+             ~font_metrics,
+             ~measured=syntax.measured,
+             ~sweep=true,
+             ["incremental-pending", "incremental-active"],
+             range,
+           )
+         )
+       );
+  div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };
