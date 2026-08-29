@@ -64,6 +64,12 @@ let post_evaluate = (worker, request: Request.t) =>
     Active.encode_request(ClientMessage.Evaluate(request)),
   );
 
+/* W2a: segment-residency sync (fire-and-forget; the answer arrives as
+   ServerMessage.Summary through on_summary) */
+let on_summary: ref(ServerMessage.summary_msg => unit) = ref(_ => ());
+let post_sync = (worker, sync: WorkerServer.SyncProgram.t) =>
+  worker##postMessage(Active.encode_request(ClientMessage.Sync(sync)));
+
 let fail_latest = latest => {
   clear_timeouts();
   latest_request := None;
@@ -108,6 +114,10 @@ let setup_worker_message_handler = worker => {
             };
           },
         )
+      | ServerMessage.Summary(summary) =>
+        /* W2a: not tied to an eval request — routed unconditionally
+           (generation tracking lives with the shadow-mode consumer) */
+        on_summary^(summary)
       };
       Js._true;
     });
@@ -134,6 +144,10 @@ let get_worker = () =>
     worker_ref.contents = Some(w);
     w;
   };
+
+/* W2a: fire-and-forget segment sync (answer arrives via on_summary) */
+let sync = (s: WorkerServer.SyncProgram.t): unit =>
+  post_sync(get_worker(), s);
 
 let restart_worker = (): unit => {
   switch (worker_ref.contents) {

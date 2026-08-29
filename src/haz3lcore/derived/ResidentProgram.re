@@ -75,8 +75,7 @@ let derive = (~settings, ~root, ~prev: option(DefStatics.t), items) => {
 };
 
 let sync_full =
-    (~settings, ~generation: int, ~root: Sort.t, seg: Segment.t, prev)
-    : t => {
+    (~settings, ~generation: int, ~root: Sort.t, seg: Segment.t, prev): t => {
   let items = items_of_segment(seg);
   let prev_statics =
     switch (prev) {
@@ -192,8 +191,7 @@ module Summary = {
          ),
   };
 
-  let equal = (a: t, b: t): bool =>
-    a.s_items == b.s_items; /* generations compare separately */
+  let equal = (a: t, b: t): bool => a.s_items == b.s_items; /* generations compare separately */
 };
 
 let summarize = (t: t): Summary.t =>

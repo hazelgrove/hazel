@@ -203,6 +203,78 @@ let corpus_mod_case =
     },
   );
 
+/* Mod-root DELTA parity — repro harness for the browser shadow
+   mismatch (Mega-Mod slides mismatched on every post-load delta):
+   full-sync the corpus, then ship a hydration-shaped delta (all items
+   replaced by a fresh parse of the same text) and an incremental
+   derivation must still agree with a from-scratch one. */
+let corpus_mod_delta_case =
+  test_case(
+    "mega-mod-1k all-items delta parity (Mod root)",
+    `Slow,
+    () => {
+      let src =
+        switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
+        | Some(src) => src
+        | None => Alcotest.fail("no corpus")
+        };
+      let seg = parse(~root=Sort.Mod, src);
+      let rp =
+        ResidentProgram.sync_full(
+          ~settings,
+          ~generation=1,
+          ~root=Sort.Mod,
+          seg,
+          None,
+        );
+      let items' = ResidentProgram.items_of_segment(parse(~root=Sort.Mod, src));
+      let changed =
+        List.combine(rp.items, items')
+        |> List.map(
+             (((old: ResidentProgram.item), (nu: ResidentProgram.item))) =>
+             (old.i_id, nu.i_seg, nu.i_print)
+           );
+      let roster =
+        List.map((it: ResidentProgram.item) => (it.i_id, it.i_print), items');
+      switch (
+        ResidentProgram.sync_items(
+          ~settings,
+          ~generation=2,
+          ~changed,
+          ~roster,
+          rp,
+        )
+      ) {
+      | Error(_) => Alcotest.fail("delta rejected")
+      | Ok(rp') =>
+        let expected =
+          reference_summary(
+            ~root=Sort.Mod,
+            ~generation=2,
+            ResidentProgram.segment_of_items(rp'.items),
+          );
+        let actual = ResidentProgram.summarize(rp');
+        if (!ResidentProgram.Summary.equal(expected, actual)) {
+          /* print the differing items for diagnosis */
+          List.combine(expected.s_items, actual.s_items)
+          |> List.iteri((i, (e: ResidentProgram.Summary.item_summary, a: ResidentProgram.Summary.item_summary)) =>
+               if (e != a) {
+                 Printf.printf(
+                   "item %d: expected errs=%d warns=%d / actual errs=%d warns=%d\n",
+                   i,
+                   List.length(e.s_errors),
+                   List.length(e.s_warnings),
+                   List.length(a.s_errors),
+                   List.length(a.s_warnings),
+                 );
+               }
+             );
+          Alcotest.fail("mod delta parity MISMATCH (see prints)");
+        };
+      };
+    },
+  );
+
 let tests = [
   (
     "ResidentProgram",
@@ -212,6 +284,7 @@ let tests = [
       mismatch_case,
       corpus_case,
       corpus_mod_case,
+      corpus_mod_delta_case,
     ],
   ),
 ];

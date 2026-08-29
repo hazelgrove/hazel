@@ -75,6 +75,7 @@ let (suite, _) =
     @ Test_ReparseDocSlides.tests
     @ Test_StreamInterests.tests
     @ Test_ResidentProgram.tests
+    @ Test_W2Protocol.tests
     @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

@@ -2300,8 +2300,7 @@ module View = {
                         )
                       ) {
                       | [] => 0
-                      | path =>
-                        String.length(String.concat(".", path)) + 1
+                      | path => String.length(String.concat(".", path)) + 1
                       }
                     | None => 0
                     };
@@ -2310,8 +2309,7 @@ module View = {
                     | Some(e) =>
                       max(
                         0,
-                        e.Model.e_body.editor.editor.syntax.measured.
-                          total_rows
+                        e.Model.e_body.editor.editor.syntax.measured.total_rows
                         - 1,
                       )
                     | None => 0
@@ -2320,7 +2318,13 @@ module View = {
                     pane_focus(
                       idx,
                       to_header,
-                      Point(Util.Point.{row, col: max(0, col)}, None),
+                      Point(
+                        Util.Point.{
+                          row,
+                          col: max(0, col),
+                        },
+                        None,
+                      ),
                     );
                   let same_pane = (to_header, v: Haz3lcore.Action.vertical) =>
                     inject(
@@ -2366,7 +2370,12 @@ module View = {
                       headerless(i)
                         ? i == 0
                             ? same_pane(false, Up)
-                            : pane_point(i - 1, false, body_last_row(i - 1), col)
+                            : pane_point(
+                                i - 1,
+                                false,
+                                body_last_row(i - 1),
+                                col,
+                              )
                         : pane_point(i, true, 0, col - qual_cols(i))
                     };
                   let header_pane =

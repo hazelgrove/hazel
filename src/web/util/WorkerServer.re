@@ -58,10 +58,38 @@ module Response = {
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 };
 
+/* ===== W2a segment residency (plans/w2-worker-residency.md) =====
+   Main is authoritative; it syncs SEGMENTS here and this side derives
+   term + per-item statics (Haz3lcore.ResidentProgram) and answers
+   with a summary. Version-stamped: any schema change bumps this and
+   mismatched builds demand resync instead of mis-decoding. */
+let w2_protocol_version = 1;
+
+module SyncProgram = {
+  [@deriving (show, sexp, yojson)]
+  type payload =
+    /* full resync: root + analysis settings + the whole segment */
+    | Full(Haz3lcore.Sort.t, Language.CoreSettings.t, Haz3lcore.Segment.t)
+    /* per-item delta: changed slices + the complete post-change
+       (item id, fingerprint) roster for drift detection */
+    | Items(
+        list((Util.Id.t, Haz3lcore.Segment.t, int)),
+        list((Util.Id.t, int)),
+      );
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    version: int,
+    key,
+    generation: int,
+    payload,
+  };
+};
+
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t);
+    | Evaluate(Request.t)
+    | Sync(SyncProgram.t);
 };
 
 module ServerMessage = {
@@ -98,12 +126,29 @@ module ServerMessage = {
     response: Response.t,
   };
 
+  /* W2a: worker's answer to a SyncProgram — the per-item statics
+     summary, or a demand for full resync (drift, missing state, or
+     protocol-version skew). */
+  [@deriving (show, sexp, yojson)]
+  type sync_verdict =
+    | SyncOk(Haz3lcore.ResidentProgram.Summary.t)
+    | NeedResync(string);
+
+  [@deriving (show, sexp, yojson)]
+  type summary_msg = {
+    version: int,
+    key,
+    generation: int,
+    verdict: sync_verdict,
+  };
+
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    | Summary(summary_msg);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -699,6 +744,81 @@ and run_scheduled_slice = model => {
   };
 };
 
+/* ===== W2a sync handling ===== */
+
+/* one resident program (the current slide); a sync for a different
+   key evicts (plan §4.8) */
+type resident =
+  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
+
+let resident_slot: ref(resident) = ref(None);
+
+/* Pure over the slot — the loopback tests drive this directly. Runs
+   synchronously in onmessage: statics are per-item incremental and the
+   eval loop yields between slices, so summaries preempt eval work
+   rather than queueing behind it (plan §4.2). */
+let handle_sync =
+    (resident: resident, sync: SyncProgram.t): (resident, ServerMessage.t) => {
+  let answer = verdict =>
+    ServerMessage.Summary({
+      version: w2_protocol_version,
+      key: sync.key,
+      generation: sync.generation,
+      verdict,
+    });
+  if (sync.version != w2_protocol_version) {
+    (resident, answer(NeedResync("protocol-version-skew")));
+  } else {
+    switch (sync.payload) {
+    | Full(root, settings, seg) =>
+      let prev =
+        switch (resident) {
+        | Some((k, _, rp)) when k == sync.key => Some(rp)
+        | _ => None
+        };
+      let rp =
+        Haz3lcore.ResidentProgram.sync_full(
+          ~settings,
+          ~generation=sync.generation,
+          ~root,
+          seg,
+          prev,
+        );
+      (
+        Some((sync.key, settings, rp)),
+        answer(SyncOk(Haz3lcore.ResidentProgram.summarize(rp))),
+      );
+    | Items(changed, roster) =>
+      switch (resident) {
+      | Some((k, settings, rp)) when k == sync.key =>
+        switch (
+          Haz3lcore.ResidentProgram.sync_items(
+            ~settings,
+            ~generation=sync.generation,
+            ~changed,
+            ~roster,
+            rp,
+          )
+        ) {
+        | Ok(rp') => (
+            Some((sync.key, settings, rp')),
+            answer(SyncOk(Haz3lcore.ResidentProgram.summarize(rp'))),
+          )
+        | Error(RosterMismatch) => (
+            resident,
+            answer(NeedResync("roster-mismatch")),
+          )
+        | Error(UnknownItem(_)) => (
+            resident,
+            answer(NeedResync("unknown-item")),
+          )
+        }
+      | _ => (resident, answer(NeedResync("no-resident-program")))
+      }
+    };
+  };
+};
+
 let install_message_handler = () => {
   let model = ref(initial_model);
 
@@ -722,15 +842,20 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(request) = Active.decode_request(req);
-    post_ack(request);
-    commit({
-      ...model^,
-      latest_request: Some(request),
-      runtime: Planning,
-    });
-  };
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | ClientMessage.Evaluate(request) =>
+      post_ack(request);
+      commit({
+        ...model^,
+        latest_request: Some(request),
+        runtime: Planning,
+      });
+    | ClientMessage.Sync(sync) =>
+      let (resident, msg) = handle_sync(resident_slot^, sync);
+      resident_slot := resident;
+      post_message(msg);
+    };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

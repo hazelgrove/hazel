@@ -1576,7 +1576,12 @@ let go =
    statics/elab reuse keys on term identity, so it must not churn per
    rebuild. (One id module-wide is fine: only the master editor of a
    slide is Mod-rooted, and info maps are per-editor.) */
-let mod_wrap_id: Id.t = Id.mk();
+/* NAME-derived, not Id.mk(): DefStatics derives stable ids from this
+   rep (Id.mk_str(tag ++ rep)), and the id must agree across BUNDLES —
+   the worker's ResidentProgram derives the same chain from synced
+   segments, and a per-bundle random wrap id forked every derived id
+   downstream (caught by W2a shadow mode on the mod slides). */
+let mod_wrap_id: Id.t = Id.mk_str("mod-root-wrap");
 let wrap_module = (items: list(Mod.t)): Exp.t =>
   IdTagged.fast_copy(mod_wrap_id, Exp.fresh(Module(items)));
 
