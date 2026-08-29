@@ -524,26 +524,17 @@ let prune_closure_envs = (e: Language.Exp.t): Language.Exp.t =>
    prune trips exactly when this one did */
 let value_ship_budget = 6_000;
 let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
-  let count = ref(0);
-  let f = (cont, x: Language.Exp.t) => {
-    incr(count);
-    count^ > value_ship_budget ? Language.Exp.fresh(EmptyHole) : cont(x);
+  let (pruned, truncated) =
+    Language.TermPrune.prune(~budget=value_ship_budget, e);
+  if (truncated) {
+    print_endline(
+      Printf.sprintf(
+        "[worker] result value exceeds %d nodes: truncated for shipping (elided parts shown as holes)",
+        value_ship_budget,
+      ),
+    );
   };
-  switch (Language.Exp.map_term(~f_exp=f, e)) {
-  | pruned =>
-    if (count^ > value_ship_budget) {
-      print_endline(
-        Printf.sprintf(
-          "[worker] result value exceeds %d nodes: truncated for shipping (over-budget subtrees become holes)",
-          value_ship_budget,
-        ),
-      );
-    };
-    pruned;
-  | exception _ =>
-    print_endline("[worker] result value prune hit the stack backstop");
-    Language.Exp.fresh(EmptyHole);
-  };
+  pruned;
 };
 
 /* The UI never consumes the incremental cache from ASYNC responses:

@@ -139,17 +139,8 @@ module Model = {
    warning and the result strip's truncation note. */
 let display_budget = 5_000;
 
-let exceeds_display_budget = (e: Exp.t): bool => {
-  let count = ref(0);
-  let f = (cont, x: Exp.t) => {
-    incr(count);
-    count^ > display_budget ? x : cont(x);
-  };
-  switch (Exp.map_term(~f_exp=f, e)) {
-  | _ => count^ > display_budget
-  | exception _ => true
-  };
-};
+let exceeds_display_budget = (e: Exp.t): bool =>
+  TermPrune.size_within(display_budget, e) == None;
 
 /* single-slot memo: the view asks per render, the value is stable */
 let exceeds_memo: ref(option((Exp.t, bool))) = ref(None);
@@ -163,26 +154,16 @@ let value_truncated = (e: Exp.t): bool =>
   };
 
 let prune_for_display = (e: Exp.t): Exp.t => {
-  let count = ref(0);
-  let f = (cont, x: Exp.t) => {
-    incr(count);
-    count^ > display_budget ? Exp.fresh(EmptyHole) : cont(x);
+  let (pruned, truncated) = TermPrune.prune(~budget=display_budget, e);
+  if (truncated) {
+    print_endline(
+      Printf.sprintf(
+        "result value exceeds %d nodes: truncated for display (elided parts shown as holes)",
+        display_budget,
+      ),
+    );
   };
-  switch (Exp.map_term(~f_exp=f, e)) {
-  | pruned =>
-    if (count^ > display_budget) {
-      print_endline(
-        Printf.sprintf(
-          "result value exceeds %d nodes: truncated for display (over-budget subtrees shown as holes)",
-          display_budget,
-        ),
-      );
-    };
-    pruned;
-  | exception _ =>
-    print_endline("result value prune hit the stack backstop");
-    Exp.fresh(EmptyHole);
-  };
+  pruned;
 };
 
 module Update = {
