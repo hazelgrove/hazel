@@ -232,7 +232,9 @@ let statics_incremental = () => {
   check(bool, "edit found the literal", true, edited);
   let term2 = MakeTerm.go_mod_root(seg2).term;
   let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
-  check(int, "1 item re-analyzed", 1, DefStatics.last_analyzed^);
+  /* member granularity: the module ITEM re-analyzes (cheap surrogate)
+     plus the ONE edited member */
+  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
   /* second calc on the SAME term: everything clean */
   let ds2 = DefStatics.calc(~settings, ~prev=ds1, term2);
   check(int, "0 items re-analyzed", 0, DefStatics.last_analyzed^);
@@ -305,7 +307,71 @@ let corpus = () => {
     check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
     let ds1 = DefStatics.calc(~settings, ~prev=ds0, incr2.term);
     ignore(ds1);
-    check(int, "1 item re-analyzed", 1, DefStatics.last_analyzed^);
+    check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
+  };
+};
+
+/* ---- Stage D: ONE BIG MODULE (the shape member granularity is for):
+   the whole corpus inside a single `module App = {...}` — a member
+   edit must cost ~one member, not the whole module ---- */
+let big_module = () => {
+  let path = "hazel-programs/mega/mega-mod-1k.hz";
+  let path = Sys.file_exists(path) ? path : "../" ++ path;
+  switch (read_file(path)) {
+  | None => fail("mega-mod-1k.hz unreadable")
+  | Some(src) =>
+    let seg = parse_mod(src);
+    let inner = MakeTerm.go_mod_root(seg).term; /* Module(items) */
+    let app = Mod.fresh(ModuleMod(MPat.fresh(Var("App")), inner));
+    let term = Exp.fresh(Module([app]));
+    let t0 = Sys.time();
+    let ds0 = DefStatics.calc(~settings, term);
+    let cold = (Sys.time() -. t0) *. 1000.0;
+    /* statics parity vs monolithic on the nested shape */
+    let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
+    check(
+      Alcotest.list(string),
+      "big-module error-id parity",
+      sorted_ids(Statics.Map.error_ids(mono_map)),
+      sorted_ids(DefStatics.all_error_ids(ds0)),
+    );
+    /* deep member edit: 180 -> 181 inside App.WateringTimer.format */
+    let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+    check(bool, "edit found the literal", true, edited);
+    let inner2 = MakeTerm.go_mod_root(seg2).term;
+    let app2 =
+      IdTagged.fast_copy(
+        Mod.rep_id(app),
+        Mod.fresh(
+          ModuleMod(
+            IdTagged.fast_copy(
+              MPat.rep_id(
+                switch (app.term) {
+                | ModuleMod(mp, _) => mp
+                | _ => failwith("app shape")
+                },
+              ),
+              MPat.fresh(Var("App")),
+            ),
+            inner2,
+          ),
+        ),
+      );
+    let term2 =
+      IdTagged.fast_copy(Exp.rep_id(term), Exp.fresh(Module([app2])));
+    let t1 = Sys.time();
+    let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
+    let incr = (Sys.time() -. t1) *. 1000.0;
+    Printf.printf(
+      "BIGMOD cold calc: %.0f ms; member edit: %.0f ms, %d analyzed\n",
+      cold,
+      incr,
+      DefStatics.last_analyzed^,
+    );
+    /* depth 2: App item + WateringTimer member + its format member */
+    check(int, "3 analyzed at depth 2", 3, DefStatics.last_analyzed^);
+    check(bool, "member edit under half of cold", true, incr < cold /. 2.0);
+    ignore(ds1);
   };
 };
 
@@ -319,5 +385,6 @@ let tests = (
     test_case("statics parity", `Quick, statics_parity),
     test_case("statics incremental", `Quick, statics_incremental),
     test_case("corpus mega-mod-1k", `Quick, corpus),
+    test_case("big module (stage D)", `Quick, big_module),
   ],
 );
