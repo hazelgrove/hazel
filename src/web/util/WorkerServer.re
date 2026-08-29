@@ -513,6 +513,25 @@ let prune_closure_envs = (e: Language.Exp.t): Language.Exp.t =>
     e,
   );
 
+/* ... and cap the value's SIZE: the main thread only ever displays a
+   budget-pruned copy (EvalResult.prune_for_display), so anything past
+   the budget is marshal/decode dead weight — a Mod-rooted program's
+   value (the module exports tuple, full member ASTs) added a
+   ~300-400ms decode frame to EVERY edit's result arrival. Budget
+   matches the display side; over-budget subtrees become holes. */
+let value_ship_budget = 5_000;
+let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
+  let count = ref(0);
+  let f = (cont, x: Language.Exp.t) => {
+    incr(count);
+    count^ > value_ship_budget ? Language.Exp.fresh(EmptyHole) : cont(x);
+  };
+  switch (Language.Exp.map_term(~f_exp=f, e)) {
+  | pruned => pruned
+  | exception _ => Language.Exp.fresh(EmptyHole) /* stack-depth backstop */
+  };
+};
+
 /* The UI never consumes the incremental cache from ASYNC responses:
    the next request's prev is WORKER-RESIDENT and reuse predictions
    arrive via ReusePlan. Strip it AFTER store_resident so the
@@ -522,7 +541,7 @@ let slim_response = (response: Response.value): Response.value =>
   switch (response) {
   | Ok((exp, state)) =>
     Ok((
-      prune_closure_envs(exp),
+      exp |> prune_closure_envs |> prune_value_size,
       Language.EvaluatorState.{
         ...state,
         incr_eval: Language.IncrEval.empty,
