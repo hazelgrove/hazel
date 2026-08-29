@@ -417,6 +417,28 @@ module Update = {
         };
       };
 
+    /* Result values can be giant shared GRAPHS — a Mod-rooted
+       program's value is the module exports tuple, which embeds every
+       member AST, and tree walks multiply the sharing away (~574k
+       statics entries / ~17s Statics.mk, ~28s ExpToSegment at 1k
+       lines, all on the MAIN thread). Cap the term at the door:
+       over-budget subtrees become holes. Under the budget the prune
+       is the identity, so ordinary results are untouched; the capped
+       copy feeds BOTH the display segment and the stitched statics.
+       The raw value stays in the model for semantic consumers. */
+    let display_budget = 5_000;
+    let prune_for_display = (e: Exp.t): Exp.t => {
+      let count = ref(0);
+      let f = (cont, x: Exp.t) => {
+        incr(count);
+        count^ > display_budget ? Exp.fresh(EmptyHole) : cont(x);
+      };
+      switch (Exp.map_term(~f_exp=f, e)) {
+      | pruned => pruned
+      | exception _ => Exp.fresh(EmptyHole) /* stack-depth backstop */
+      };
+    };
+
     // Calculate the display
     let display =
       switch (display) {
@@ -433,7 +455,8 @@ module Update = {
                  so the result editor is rooted at Exp. */
               Some((
                 exp,
-                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+                prune_for_display(exp)
+                |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
               ))
             | ResultFail(_)
             | ResultPending(_) =>
@@ -444,19 +467,20 @@ module Update = {
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) =>
+             Option.map(((exp, editor)) => {
+               let display_exp = prune_for_display(exp);
                (
                  exp,
                  CodeSelectable.Update.calculate(
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
-                   ~stitch=_ => exp,
+                   ~stitch=_ => display_exp,
                    ~dynamics=Dynamics.Map.empty,
                    ~is_edited=is_edited || result_changed,
                    editor,
                  ),
-               )
-             ),
+               );
+             }),
            )
         |> Calc.save
         |> (x => Model.Evaluation(x));
