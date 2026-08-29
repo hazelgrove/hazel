@@ -125,6 +125,66 @@ module Model = {
     model.elab |> Calc.get_saved_opt;
 };
 
+/* Result values can be giant shared GRAPHS — a Mod-rooted program's
+   value is the module exports tuple, which embeds every member AST,
+   and tree walks multiply the sharing away (~574k statics entries /
+   ~17s Statics.mk, ~28s ExpToSegment at 1k lines, all on the MAIN
+   thread). Cap the term at the door: over-budget subtrees become
+   holes. Under the budget the prune is the identity, so ordinary
+   results are untouched; the capped copy feeds BOTH the display
+   segment and the stitched statics. The raw (ship-pruned) value stays
+   in the model for semantic consumers. The worker ships values pruned
+   to a slightly LARGER budget, so this one trips exactly when the
+   shipped value was itself truncated — that trip drives the console
+   warning and the result strip's truncation note. */
+let display_budget = 5_000;
+
+let exceeds_display_budget = (e: Exp.t): bool => {
+  let count = ref(0);
+  let f = (cont, x: Exp.t) => {
+    incr(count);
+    count^ > display_budget ? x : cont(x);
+  };
+  switch (Exp.map_term(~f_exp=f, e)) {
+  | _ => count^ > display_budget
+  | exception _ => true
+  };
+};
+
+/* single-slot memo: the view asks per render, the value is stable */
+let exceeds_memo: ref(option((Exp.t, bool))) = ref(None);
+let value_truncated = (e: Exp.t): bool =>
+  switch (exceeds_memo^) {
+  | Some((prev, r)) when prev === e => r
+  | _ =>
+    let r = exceeds_display_budget(e);
+    exceeds_memo := Some((e, r));
+    r;
+  };
+
+let prune_for_display = (e: Exp.t): Exp.t => {
+  let count = ref(0);
+  let f = (cont, x: Exp.t) => {
+    incr(count);
+    count^ > display_budget ? Exp.fresh(EmptyHole) : cont(x);
+  };
+  switch (Exp.map_term(~f_exp=f, e)) {
+  | pruned =>
+    if (count^ > display_budget) {
+      print_endline(
+        Printf.sprintf(
+          "result value exceeds %d nodes: truncated for display (over-budget subtrees shown as holes)",
+          display_budget,
+        ),
+      );
+    };
+    pruned;
+  | exception _ =>
+    print_endline("result value prune hit the stack backstop");
+    Exp.fresh(EmptyHole);
+  };
+};
+
 module Update = {
   open Updated;
 
@@ -426,19 +486,6 @@ module Update = {
        is the identity, so ordinary results are untouched; the capped
        copy feeds BOTH the display segment and the stitched statics.
        The raw value stays in the model for semantic consumers. */
-    let display_budget = 5_000;
-    let prune_for_display = (e: Exp.t): Exp.t => {
-      let count = ref(0);
-      let f = (cont, x: Exp.t) => {
-        incr(count);
-        count^ > display_budget ? Exp.fresh(EmptyHole) : cont(x);
-      };
-      switch (Exp.map_term(~f_exp=f, e)) {
-      | pruned => pruned
-      | exception _ => Exp.fresh(EmptyHole) /* stack-depth backstop */
-      };
-    };
-
     // Calculate the display
     let display =
       switch (display) {
@@ -618,8 +665,16 @@ module View = {
         ~selected,
         ~locked,
         result: ProgramResult.t(ProgramResult.inner),
-        editor: option(('a, CodeSelectable.Model.t)),
+        editor: option((Exp.t, CodeSelectable.Model.t)),
       ) => {
+    /* the shipped value arrives pruned to a slightly larger budget
+       than the display's, so this trips exactly when the value was
+       truncated anywhere along the way */
+    let truncated =
+      switch (editor) {
+      | Some((exp, _)) => value_truncated(exp)
+      | None => false
+      };
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
@@ -651,6 +706,20 @@ module View = {
         ]
       | _ => []
       };
+    let truncated_note =
+      truncated
+        ? [
+          div(
+            ~attrs=[
+              Attr.classes(["result-truncated-note"]),
+              Attr.title(
+                "The result is too large to display in full; elided parts are shown as holes.",
+              ),
+            ],
+            [text({js|⚠ large value — display truncated|js})],
+          ),
+        ]
+        : [];
     Node.(
       div(
         ~attrs=[Attr.classes(["cell-item", "cell-result"])],
@@ -668,6 +737,7 @@ module View = {
             Option.to_list(code_view),
           ),
         ]
+        @ truncated_note
         @ (
           locked
             ? []

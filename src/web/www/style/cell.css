@@ -364,3 +364,12 @@
   width: 50px;
   font-size: 12px;
 }
+/* note shown under a result whose value was truncated for display
+   (over the display budget; elided subtrees render as holes) */
+.cell-result .result-truncated-note {
+  font-size: 11px;
+  opacity: 0.65;
+  padding: 2px 16px 4px;
+  font-family: var(--code-font, monospace);
+  color: var(--BR2, #8a7a4d);
+}

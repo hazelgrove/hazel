@@ -519,7 +519,10 @@ let prune_closure_envs = (e: Language.Exp.t): Language.Exp.t =>
    value (the module exports tuple, full member ASTs) added a
    ~300-400ms decode frame to EVERY edit's result arrival. Budget
    matches the display side; over-budget subtrees become holes. */
-let value_ship_budget = 5_000;
+/* slightly ABOVE the display budget (EvalResult.display_budget), so
+   the main side can detect ship-side truncation: its own display
+   prune trips exactly when this one did */
+let value_ship_budget = 6_000;
 let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
   let count = ref(0);
   let f = (cont, x: Language.Exp.t) => {
@@ -527,8 +530,19 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
     count^ > value_ship_budget ? Language.Exp.fresh(EmptyHole) : cont(x);
   };
   switch (Language.Exp.map_term(~f_exp=f, e)) {
-  | pruned => pruned
-  | exception _ => Language.Exp.fresh(EmptyHole) /* stack-depth backstop */
+  | pruned =>
+    if (count^ > value_ship_budget) {
+      print_endline(
+        Printf.sprintf(
+          "[worker] result value exceeds %d nodes: truncated for shipping (over-budget subtrees become holes)",
+          value_ship_budget,
+        ),
+      );
+    };
+    pruned;
+  | exception _ =>
+    print_endline("[worker] result value prune hit the stack backstop");
+    Language.Exp.fresh(EmptyHole);
   };
 };
 

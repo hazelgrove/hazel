@@ -543,6 +543,16 @@ let current_term =
   | Tile({label: ["let" | "type" | "module", "=", "in"], _})
       when defs_exclude_bodies =>
     current_tile(z)
+  /* Mod-sort analogs (plans/mod-root.md): the `in`-less def tiles, and
+     the `;` separator whose enclosing term is the WHOLE module body —
+     selecting that walked shard_range across the entire program
+     (~2.7s at 1k lines) */
+  | Tile({label: ["let" | "type" | "module", "="], mold, _})
+      when defs_exclude_bodies && mold.out == Sort.Mod =>
+    current_tile(z)
+  | Tile({label: [";"], mold, _})
+      when defs_exclude_bodies && mold.out == Sort.Mod =>
+    current_tile(z)
   | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
