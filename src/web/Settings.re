@@ -90,7 +90,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
-    show_pending_eval: true,
+    show_pending_eval: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -448,10 +448,12 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
-      | ShowPendingEval => {
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        {
           ...settings,
           show_pending_eval: !settings.show_pending_eval,
-        }
+        };
       }
     )
     |> Updated.return(

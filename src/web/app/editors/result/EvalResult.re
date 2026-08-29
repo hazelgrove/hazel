@@ -336,6 +336,7 @@ module Update = {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
         if (edited_since_load
             && compute_pending
+            && EvalWorklist.compute_enabled^
             && Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
           | Some(_) => EvalWorklist.pending_ids(statics.info_map)

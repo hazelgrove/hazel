@@ -133,6 +133,7 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
+    Language.EvalWorklist.compute_enabled := settings.show_pending_eval;
     init(~settings, ());
   };
 

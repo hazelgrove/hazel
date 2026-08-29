@@ -104,6 +104,12 @@ let is_top_level_leaf =
   | _ => false
   };
 
+/* Mirror of the web-layer "Eval Progress" setting (the pending-eval
+   highlight). When off, the UI never renders the highlight, so
+   callers skip the O(program) worklist walk entirely. Set from
+   Main.start and the settings toggle. */
+let compute_enabled = ref(true);
+
 let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
   let inside_function_ids = ids_inside_functions(info_map);
   Id.Map.fold(
