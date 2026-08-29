@@ -334,6 +334,10 @@ module Update = {
             expr: elab,
             eval_info_map: Lazy.force(eval_info_map),
             prev: UseResident,
+            /* highlight off ⇒ stream only effect-bearing entries
+               (tests/probes); husk chunks cost a main-thread render
+               cycle each (WorkerServer.Request.stream_interest) */
+            stream: Language.EvalWorklist.compute_enabled^ ? Full : Effects,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -343,6 +347,7 @@ module Update = {
               expr: elab,
               eval_info_map: Lazy.force(eval_info_map),
               prev: Seed(prev_incr),
+              stream: Full /* sync path: nothing streams */
             })
           ) {
           | Ok((exp, state)) =>

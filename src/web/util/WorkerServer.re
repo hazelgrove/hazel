@@ -18,11 +18,22 @@ module Request = {
   type prev_source =
     | UseResident
     | Seed(Language.EvaluatorState.incr_eval);
+  /* What the client wants STREAMED during this evaluation. The stream's
+     only consumers are the pending-eval highlight (entry-key membership +
+     [current]), test badges, and probe samples — so when the highlight is
+     off, entries carrying none of those are pure decode/merge/render cost
+     on the main thread (one full cycle per posted chunk). [Effects] ships
+     only effect-bearing entries; the completion response is unaffected. */
+  [@deriving (show, sexp, yojson)]
+  type stream_interest =
+    | Full
+    | Effects;
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
     prev: prev_source,
+    stream: stream_interest,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -258,7 +269,7 @@ let store_resident = (key: key, response: Response.value): unit =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev=resolve_prev(prev),
@@ -320,7 +331,7 @@ let initial_model = {
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     switch (
       Language.ReusePass.reuse_pass(
@@ -338,8 +349,14 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
 
 let stream_min_interval_ms: ref(float) = ref(100.);
 
+/* interest of the CURRENTLY RUNNING batch item (items run one at a
+   time; flushes only ever concern the running item) */
+let current_stream_interest: ref(Request.stream_interest) =
+  ref(Request.Full);
+
 let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, stream} = req_value;
+  current_stream_interest := stream;
   /* stream cadence scales with program size: each posted chunk costs
      the client a stream-collection + recalc cycle that grows with the
      program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
@@ -461,11 +478,43 @@ let post_stream_update =
    evaluation's outbox; completion flushes unconditionally. */
 let last_stream_post: ref(float) = ref(0.);
 
+let entry_has_effects =
+    (e: Language.IncrEval.entry(Language.EvaluatorState.t)): bool =>
+  Language.EvaluatorState.(
+    e.state.tests != []
+    || !Util.Id.Map.is_empty(e.state.probes)
+    || e.state.theorems != []
+  );
+
+/* [Effects] interest: only effect-bearing entries ship; husks (ids +
+   step counts) exist for the pending-eval highlight, which the client
+   said is off. A filtered-to-empty chunk is not posted at all, so the
+   client pays no render cycle for it. */
+let filter_stream_interest =
+    (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
+    : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
+  switch (current_stream_interest^) {
+  | Full => u
+  | Effects =>
+    Language.IncrEval.{
+      completed: {
+        entries:
+          Util.Id.Map.filter(
+            (_, e) => entry_has_effects(e),
+            u.completed.entries,
+          ),
+      },
+      current: None,
+    }
+  };
+
 let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
   let now: float = Js.Unsafe.global##.Date##now();
   if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
     last_stream_post := now;
-    let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+    let update =
+      Language.Evaluator.drain_streaming_outbox(evaluation)
+      |> filter_stream_interest;
     post_stream_update(model, request_id, key, update);
   };
 };
