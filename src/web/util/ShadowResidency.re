@@ -39,6 +39,8 @@ let pending: ref(list((int, Haz3lcore.ResidentProgram.Summary.t))) =
 let oks = ref(0);
 let mismatches = ref(0);
 let resyncs = ref(0);
+let full_ships = ref(0);
+let item_ships = ref(0);
 let counters = (): (int, int, int) => (oks^, mismatches^, resyncs^);
 
 /* console access: window.__w2shadowToggle(bool) flips shadow mode */
@@ -57,10 +59,12 @@ let () =
     Js_of_ocaml.Js.wrap_callback(() =>
       Js_of_ocaml.Js.string(
         Printf.sprintf(
-          "oks=%d mismatches=%d resyncs=%d",
+          "oks=%d mismatches=%d resyncs=%d full=%d items=%d",
           oks^,
           mismatches^,
           resyncs^,
+          full_ships^,
+          item_ships^,
         ),
       )
     ),
@@ -222,6 +226,7 @@ let on_master_statics =
               m_slices: slices,
               m_roster: roster,
             });
+          incr(item_ships);
           ship(Items(changed, roster));
         | None =>
           let roster = full_roster(slices);
@@ -232,6 +237,7 @@ let on_master_statics =
               m_slices: slices,
               m_roster: roster,
             });
+          incr(full_ships);
           ship(Full(root, settings, seg));
         }
       | _ =>
@@ -243,6 +249,7 @@ let on_master_statics =
             m_slices: slices,
             m_roster: roster,
           });
+        incr(full_ships);
         ship(Full(root, settings, seg));
       };
     };
