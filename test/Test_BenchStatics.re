@@ -301,6 +301,9 @@ let defstatics_bench = (): unit =>
               List.length(e),
             );
           };
+          /* a print-only mismatch slipped through a whole stage
+             (member chains ignored incoming dirty names); ASSERT */
+          check(bool, name ++ " " ++ label ++ " error parity", true, w == e);
         };
         let time = (label, f) => {
           let t0 = Sys.time();

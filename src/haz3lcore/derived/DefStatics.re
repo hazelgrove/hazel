@@ -25,6 +25,7 @@ type item = {
   d_warning_ids: list(Id.t), /* engine-corrected (see unused pass) */
   d_exports: list(Ctx.entry),
   d_free: list(string), /* free expression vars of pat+def */
+  d_tfree: list(string), /* type-side names the item depends on */
   d_ctx_out: Ctx.t,
   d_elab: Exp.t, /* elaboration of the hollow item */
   d_hole: option(Id.t), /* the body hole's id (None: trailing exp) */
@@ -189,57 +190,160 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   | _ => false
   };
 
-/* did the exports change, and how? Type-side changes (aliases,
-   constructors) can be referenced from type positions that co_ctx
-   doesn't track, so they invalidate everything downstream. */
+/* ---- type-side dependency tracking ("type co_ctx") ----
+   co_ctx records only EXPRESSION variables, so type-side export
+   changes (aliases, constructors) used to set a dirty_types flag
+   that re-analyzed the WHOLE downstream suffix. Instead, track the
+   type-side NAMES: which an item depends on (d_tfree), and which an
+   export change touches. Chain folds carry a dirty name set on the
+   type side too, with shadowing by type-side rebinds and TRANSITIVE
+   closure through alias definitions (an alias whose definition
+   mentions a dirty name is itself dirty — normalization chases
+   chains lazily at use sites, so users of the head alias never
+   mention the tail name). */
+
+/* type-side names an export ENTRY involves (the ctor's typ mentions
+   its sum name — case scrutinee infos mention the sum, not the ctor) */
+let tnames_of_entry = (e: Ctx.entry): list(string) =>
+  switch (e) {
+  | TVarEntry({name, _}) => [name]
+  | ConstructorEntry({name, typ, _}) => [name, ...Typ.free_vars(typ)]
+  | VarEntry(_)
+  | LivelitEntry(_) => []
+  };
+
+let is_type_entry = (e: Ctx.entry): bool =>
+  switch (e) {
+  | TVarEntry(_)
+  | ConstructorEntry(_) => true
+  | _ => false
+  };
+
+/* type-side names an ITEM depends on: syntactic type-position names
+   and constructor uses, plus names in the STORED (unnormalized)
+   types of its infos — an item using a var x : T depends on T
+   without ever writing it (normalization resolves lazily at use). */
+let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
+  let acc = ref([]);
+  let add = names =>
+    switch (names) {
+    | [] => ()
+    | _ => acc := names @ acc^
+    };
+  let f_typ = (cont, ty: Typ.t) => {
+    switch (Typ.term_of(ty)) {
+    | Var(v) => add([v])
+    | _ => ()
+    };
+    cont(ty);
+  };
+  let f_exp = (cont, e: Exp.t) => {
+    switch (e.term) {
+    | Constructor(c, _) => add([c])
+    | _ => ()
+    };
+    cont(e);
+  };
+  let f_pat = (cont, p: Pat.t) => {
+    switch (p.term) {
+    | Constructor(c, _) => add([c])
+    | _ => ()
+    };
+    cont(p);
+  };
+  switch (Exp.map_term(~f_typ, ~f_exp, ~f_pat, node)) {
+  | _ => ()
+  | exception _ => add(["*"])
+  };
+  Id.Map.iter(
+    (_, info: Info.t) =>
+      switch (info) {
+      | InfoExp({ty, _})
+      | InfoPat({ty, _}) => add(Typ.free_vars(ty))
+      | _ => ()
+      },
+    map,
+  );
+  List.sort_uniq(compare, acc^);
+};
+
+/* dirty type names SHADOWED by this item's own type-side exports
+   (a rebinding serves downstream lookups; expression bindings never
+   shadow the type namespace — lookup_tvar walks past them) */
+let tshadow = (exports: list(Ctx.entry), dirty: list(string)) =>
+  List.filter(
+    n => !List.exists(e => is_type_entry(e) && entry_name(e) == n, exports),
+    dirty,
+  );
+
+/* transitive closure step: aliases exported here whose DEFINITION
+   mentions a dirty type name are dirty for everything downstream */
+let ttransit = (exports: list(Ctx.entry), dirty: list(string)) =>
+  dirty == []
+    ? []
+    : List.concat_map(
+        e =>
+          switch (e) {
+          | Ctx.TVarEntry({name, kind: Singleton(def), _}) =>
+            List.exists(v => List.mem(v, dirty), Typ.free_vars(def))
+              ? [name] : []
+          | _ => []
+          },
+        exports,
+      );
+
+/* did the exports change, and how? */
 type export_delta =
   | Unchanged
-  | VarsChanged(list(string))
-  | TypesChanged;
+  | Changed({
+      vars: list(string),
+      tnames: list(string),
+    });
 
 let export_delta =
-    (old: list(Ctx.entry), new_: list(Ctx.entry)): export_delta =>
+    (old: list(Ctx.entry), new_: list(Ctx.entry)): export_delta => {
+  let mk = (vars, tnames) =>
+    vars == [] && tnames == []
+      ? Unchanged
+      : Changed({
+          vars: List.sort_uniq(compare, vars),
+          tnames: List.sort_uniq(compare, tnames),
+        });
+  let of_pair = (o, n, vars, tnames) => {
+    let vside = e => is_type_entry(e) ? [] : [entry_name(e)];
+    (
+      vside(o) @ vside(n) @ vars,
+      tnames_of_entry(o) @ tnames_of_entry(n) @ tnames,
+    );
+  };
   if (List.length(old) != List.length(new_)) {
-    List.exists(
-      fun
-      | Ctx.TVarEntry(_)
-      | ConstructorEntry(_) => true
-      | _ => false,
-      old @ new_,
-    )
-      ? TypesChanged
-      : VarsChanged(
-          List.sort_uniq(compare, List.map(entry_name, old @ new_)),
-        );
+    let (vars, tnames) =
+      List.fold_left(
+        ((vars, tnames), e) =>
+          (
+            (is_type_entry(e) ? [] : [entry_name(e)]) @ vars,
+            tnames_of_entry(e) @ tnames,
+          ),
+        ([], []),
+        old @ new_,
+      );
+    mk(vars, tnames);
   } else {
-    let rec go = (os, ns, vars, typs) =>
+    let rec go = (os, ns, vars, tnames) =>
       switch (os, ns) {
-      | ([], []) =>
-        typs ? TypesChanged : vars == [] ? Unchanged : VarsChanged(vars)
+      | ([], []) => mk(vars, tnames)
       | ([o, ...os], [n, ...ns]) =>
         entry_equal(o, n)
-          ? go(os, ns, vars, typs)
-          : (
-            switch (o, n) {
-            | (Ctx.TVarEntry(_) | ConstructorEntry(_), _)
-            | (_, Ctx.TVarEntry(_) | ConstructorEntry(_)) =>
-              go(os, ns, vars, true)
-            | _ =>
-              go(
-                os,
-                ns,
-                List.sort_uniq(
-                  compare,
-                  [entry_name(o), entry_name(n), ...vars],
-                ),
-                typs,
-              )
-            }
-          )
-      | _ => TypesChanged /* unreachable: same length */
+          ? go(os, ns, vars, tnames)
+          : {
+            let (vars, tnames) = of_pair(o, n, vars, tnames);
+            go(os, ns, vars, tnames);
+          }
+      | _ => mk(["*"], ["*"]) /* unreachable: same length */
       };
-    go(old, new_, [], false);
+    go(old, new_, [], []);
   };
+};
 
 let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) =>
   List.filter(v => !List.exists(e => entry_name(e) == v, exports), dirty);
@@ -249,14 +353,13 @@ let depends = (free: list(string), dirty: list(string)): bool =>
   dirty != []
   && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
 
-let seed_delta = (delta: export_delta, dirty_vars, dirty_types) =>
+let seed_delta = (delta: export_delta, dirty_vars, dirty_tnames) =>
   switch (delta) {
-  | Unchanged => (dirty_vars, dirty_types)
-  | VarsChanged(vs) => (
-      List.sort_uniq(compare, vs @ dirty_vars),
-      dirty_types,
+  | Unchanged => (dirty_vars, dirty_tnames)
+  | Changed({vars, tnames}) => (
+      List.sort_uniq(compare, vars @ dirty_vars),
+      List.sort_uniq(compare, tnames @ dirty_tnames),
     )
-  | TypesChanged => (dirty_vars, true)
   };
 
 /* observability: how many items the last calc actually re-analyzed */
@@ -400,6 +503,13 @@ let rec calc_item =
           ~probe_ids=Id.Map.empty,
           ~probe_dirty: item => bool=_ => false,
           ~prev: option(item)=?,
+          /* dirty names INCOMING at this item's position: a module
+             item re-analyzing because an UPSTREAM export changed must
+             pass them into its member chain, or members using the
+             changed name reuse stale maps (the BenchStatics cascade
+             parity gate: whole=7 engine=3) */
+          ~dirty_vars: list(string)=[],
+          ~dirty_tnames: list(string)=[],
           ~ctx_in: Ctx.t,
           node: Exp.t,
         )
@@ -411,6 +521,8 @@ let rec calc_item =
       ~probe_ids,
       ~probe_dirty,
       ~prev,
+      ~dirty_vars,
+      ~dirty_tnames,
       ~ctx_in,
       ~bind_pat,
       ~def,
@@ -487,6 +599,7 @@ and calc_plain_item =
     d_warning_ids: Statics.Map.warning_ids(map),
     d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
     d_free: free,
+    d_tfree: tfree_of_item(hollow, map),
     d_ctx_out: ctx_out,
     d_elab: elab,
     d_hole: is_tail ? None : Some(Exp.rep_id(hole)),
@@ -535,6 +648,8 @@ and calc_module_item =
       ~probe_ids,
       ~probe_dirty: item => bool,
       ~prev: option(item),
+      ~dirty_vars: list(string),
+      ~dirty_tnames: list(string),
       ~ctx_in: Ctx.t,
       ~bind_pat: Pat.t,
       ~def: Exp.t,
@@ -557,6 +672,8 @@ and calc_module_item =
       ~probe_ids,
       ~probe_dirty,
       ~prev_members,
+      ~dirty_vars,
+      ~dirty_tnames,
       ~ctx_in,
       member_nodes,
     );
@@ -668,6 +785,13 @@ and calc_module_item =
       items_m,
       [],
     );
+  let tfree =
+    List.fold_right(
+      (m: item, below) =>
+        List.sort_uniq(compare, m.d_tfree @ tshadow(m.d_exports, below)),
+      items_m,
+      [],
+    );
   /* elab: graft the member elabs into the module value, finish like
      monolithic Module statics, and splice into the wrapper's elab */
   let d_elab =
@@ -693,6 +817,7 @@ and calc_module_item =
       @ Statics.Map.warning_ids(map_sur),
     d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
     d_free: free,
+    d_tfree: tfree,
     d_ctx_out: ctx_out,
     d_elab,
     d_hole: Some(Exp.rep_id(body_hole)),
@@ -709,6 +834,8 @@ and calc_members =
       ~probe_ids,
       ~probe_dirty: item => bool,
       ~prev_members: list(item),
+      ~dirty_vars: list(string),
+      ~dirty_tnames: list(string),
       ~ctx_in: Ctx.t,
       nodes: list(Exp.t),
     )
@@ -718,7 +845,7 @@ and calc_members =
     (q: item) => Hashtbl.replace(prev_tbl, q.d_id, q),
     prev_members,
   );
-  let rec go = (ns, ctx, dirty_vars, dirty_types, acc) =>
+  let rec go = (ns, ctx, dirty_vars, dirty_tnames, acc) =>
     switch (ns) {
     | [] => List.rev(acc)
     | [n, ...nt] =>
@@ -727,9 +854,9 @@ and calc_members =
       let clean =
         switch (prev_it) {
         | Some(q) =>
-          !dirty_types
-          && head_equal(q.d_node, n)
+          head_equal(q.d_node, n)
           && !depends(q.d_free, dirty_vars)
+          && !depends(q.d_tfree, dirty_tnames)
           && !probe_dirty(q)
         | None => false
         };
@@ -749,11 +876,15 @@ and calc_members =
                 ctx_out,
               );
             };
+        let incoming_t = tshadow(it.d_exports, dirty_tnames);
         go(
           nt,
           ctx_out,
           shadow_filter(it.d_exports, dirty_vars),
-          dirty_types,
+          List.sort_uniq(
+            compare,
+            ttransit(it.d_exports, incoming_t) @ incoming_t,
+          ),
           [it, ...acc],
         );
       | _ =>
@@ -763,6 +894,8 @@ and calc_members =
             ~probe_ids,
             ~probe_dirty,
             ~prev=?prev_it,
+            ~dirty_vars,
+            ~dirty_tnames,
             ~ctx_in=ctx,
             n,
           );
@@ -773,12 +906,18 @@ and calc_members =
           };
         let delta = export_delta(p_exports, it.d_exports);
         let incoming = shadow_filter(it.d_exports, dirty_vars);
-        let (dirty_vars, dirty_types) =
-          seed_delta(delta, incoming, dirty_types);
-        go(nt, it.d_ctx_out, dirty_vars, dirty_types, [it, ...acc]);
+        let incoming_t = tshadow(it.d_exports, dirty_tnames);
+        let (dirty_vars, dirty_tnames) =
+          seed_delta(delta, incoming, incoming_t);
+        let dirty_tnames =
+          List.sort_uniq(
+            compare,
+            ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
+          );
+        go(nt, it.d_ctx_out, dirty_vars, dirty_tnames, [it, ...acc]);
       };
     };
-  go(nodes, ctx_in, [], false, []);
+  go(nodes, ctx_in, dirty_vars, dirty_tnames, []);
 };
 
 /* engine-level unused-binding pass: a top-level export is used iff a
@@ -940,7 +1079,7 @@ let calc =
             node,
             ctx,
             dirty_vars,
-            dirty_types,
+            dirty_tnames,
             merged,
           ) => {
         let it =
@@ -949,6 +1088,8 @@ let calc =
             ~probe_ids,
             ~probe_dirty,
             ~prev=?prev_it,
+            ~dirty_vars,
+            ~dirty_tnames,
             ~ctx_in=ctx,
             node,
           );
@@ -972,31 +1113,40 @@ let calc =
         /* this item's exports shadow INCOMING dirty names; its own
            delta is added after (it must not filter itself) */
         let incoming = shadow_filter(it.d_exports, dirty_vars);
-        let (dirty_vars, dirty_types) =
-          seed_delta(delta, incoming, dirty_types);
+        let incoming_t = tshadow(it.d_exports, dirty_tnames);
+        let (dirty_vars, dirty_tnames) =
+          seed_delta(delta, incoming, incoming_t);
         /* a moved item's names may resolve to a DIFFERENT binder
            downstream (ctx entry order = shadowing order changed):
-           floor its delta at VarsChanged(its export names) */
-        let (dirty_vars, dirty_types) =
+           floor its delta at its own export names */
+        let (dirty_vars, dirty_tnames) =
           if (moved_in) {
-            has_type_exports(it.d_exports)
-              ? (dirty_vars, true)
-              : (
-                List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
-                dirty_types,
-              );
+            (
+              List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
+              List.sort_uniq(
+                compare,
+                List.concat_map(tnames_of_entry, it.d_exports) @ dirty_tnames,
+              ),
+            );
           } else {
-            (dirty_vars, dirty_types);
+            (dirty_vars, dirty_tnames);
           };
+        /* aliases defined here whose definitions mention dirty names
+           are dirty downstream (transitive chains) */
+        let dirty_tnames =
+          List.sort_uniq(
+            compare,
+            ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
+          );
         (
           it,
           ctx_out,
           dirty_vars,
-          dirty_types,
+          dirty_tnames,
           map_union(map_remove_keys(p_map, merged), it.d_map),
         );
       };
-      let rec go = (ps, ns, acc, ctx, dirty_vars, dirty_types, merged) =>
+      let rec go = (ps, ns, acc, ctx, dirty_vars, dirty_tnames, merged) =>
         switch (ps, ns) {
         | (ps, []) =>
           /* remaining prev items were deleted */
@@ -1011,11 +1161,11 @@ let calc =
           (List.rev(acc), merged);
         | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
           /* deleted: downstream loses its exports */
-          let (dirty_vars, dirty_types) =
+          let (dirty_vars, dirty_tnames) =
             seed_delta(
               export_delta(q.d_exports, []),
               dirty_vars,
-              dirty_types,
+              dirty_tnames,
             );
           go(
             pt,
@@ -1023,7 +1173,7 @@ let calc =
             acc,
             ctx,
             dirty_vars,
-            dirty_types,
+            dirty_tnames,
             map_remove_keys(q.d_map, merged),
           );
         | ([q, ...pt], [n, ..._])
@@ -1036,22 +1186,22 @@ let calc =
              exports go dirty for the span it crosses; its old map
              stays in merged until the move-in replaces it. */
           moved := Id.Map.add(q.d_id, q, moved^);
-          let (dirty_vars, dirty_types) =
+          let (dirty_vars, dirty_tnames) =
             seed_delta(
               export_delta(q.d_exports, []),
               dirty_vars,
-              dirty_types,
+              dirty_tnames,
             );
-          go(pt, ns, acc, ctx, dirty_vars, dirty_types, merged);
+          go(pt, ns, acc, ctx, dirty_vars, dirty_tnames, merged);
         | (ps, [n, ...nt]) =>
           let nid = Exp.rep_id(n);
           switch (ps) {
           | [q, ...pt] when q.d_id == nid =>
             /* aligned head */
             let clean =
-              !dirty_types
-              && head_equal(q.d_node, n)
+              head_equal(q.d_node, n)
               && !depends(q.d_free, dirty_vars)
+              && !depends(q.d_tfree, dirty_tnames)
               && !probe_dirty(q);
             if (clean) {
               let (it, ctx_out) =
@@ -1071,25 +1221,29 @@ let calc =
                       ctx_out,
                     );
                   };
+              let incoming_t = tshadow(it.d_exports, dirty_tnames);
               go(
                 pt,
                 nt,
                 [it, ...acc],
                 ctx_out,
                 shadow_filter(it.d_exports, dirty_vars),
-                dirty_types,
+                List.sort_uniq(
+                  compare,
+                  ttransit(it.d_exports, incoming_t) @ incoming_t,
+                ),
                 merged,
               );
             } else {
-              let (it, ctx_out, dirty_vars, dirty_types, merged) =
-                run_dirty(Some(q), n, ctx, dirty_vars, dirty_types, merged);
+              let (it, ctx_out, dirty_vars, dirty_tnames, merged) =
+                run_dirty(Some(q), n, ctx, dirty_vars, dirty_tnames, merged);
               go(
                 pt,
                 nt,
                 [it, ...acc],
                 ctx_out,
                 dirty_vars,
-                dirty_types,
+                dirty_tnames,
                 merged,
               );
             };
@@ -1099,14 +1253,14 @@ let calc =
               | Some(q) => (Some(q), true)
               | None => (None, false) /* inserted */
               };
-            let (it, ctx_out, dirty_vars, dirty_types, merged) =
+            let (it, ctx_out, dirty_vars, dirty_tnames, merged) =
               run_dirty(
                 ~moved_in,
                 prev_it,
                 n,
                 ctx,
                 dirty_vars,
-                dirty_types,
+                dirty_tnames,
                 merged,
               );
             go(
@@ -1115,12 +1269,12 @@ let calc =
               [it, ...acc],
               ctx_out,
               dirty_vars,
-              dirty_types,
+              dirty_tnames,
               merged,
             );
           };
         };
-      go(prev_items, nodes, [], ctx0, [], false, prev_merged);
+      go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
   let merged = fix_spine_infos(~probe_ids, items, merged);
   {
