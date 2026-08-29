@@ -305,17 +305,25 @@ let init_compositional =
     (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
   if (!settings.statics) {
     empty;
-  } else if (root != Sort.Exp) {
+  } else if (root != Sort.Exp && root != Sort.Mod) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
     /* from_zip_for_sem exists to EMPTY THE BACKPACK for semantics —
        with an empty backpack its Dump.to_segment walk is pure
        overhead (~660ms at 4k lines), and the per-item incremental
-       parse replaces the monolithic one */
+       parse replaces the monolithic one. Mod roots would be MISPARSED
+       by the Exp-rooted [go], so their backpack fallback goes through
+       go_mod_root on the emptied segment instead. */
     let term =
       Zipper.local_backpack(z) == []
-        ? MakeTerm.Incr.term_of(Zipper.unselect_and_zip(z)) |> stitch
-        : MakeTerm.from_zip_for_sem(z, ~root).term |> stitch;
+        ? MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z))
+          |> stitch
+        : (
+            root == Sort.Mod
+              ? MakeTerm.go_mod_root(Dump.to_segment(z, ~root)).term
+              : MakeTerm.from_zip_for_sem(z, ~root).term
+          )
+          |> stitch;
     /* callers with probes living in OTHER zippers (stacked cells)
        pass the union; default = this zipper's own */
     let probe_ids =

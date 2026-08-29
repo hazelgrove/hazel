@@ -57,6 +57,98 @@ let rec chain = (e: Exp.t): list(Exp.t) => {
   };
 };
 
+/* ---- Mod-rooted programs (plans/mod-root.md phase 2) ----
+   A Module(items) ROOT itemizes exactly like the monolithic lowering
+   (ModuleHelpers.wrap_item): each mod item becomes a hollow-able
+   Let/TyAlias wrapper feeding the SAME per-item machinery, plus a
+   trailing labeled tuple of the exports (the module value). Wrapper
+   and tail ids must be STABLE across calcs — head_equal gates item
+   cleanliness on them — so wrappers that can't reuse the item's rep
+   id (ModExp/hole items: the rep belongs to the expression itself)
+   get deterministic derived ids instead of the monolithic lowering's
+   per-run fresh ones. */
+let derived_id = (tag: string, rep: Id.t): Id.t =>
+  Id.mk_str(tag ++ Id.to_string(rep));
+
+let lower_mod_item = (item: Mod.t): Exp.t => {
+  let hole = Exp.fresh(EmptyHole);
+  let rep = Mod.rep_id(item);
+  let stable_wild_let = (tag: string, e: Exp.t): Exp.t =>
+    IdTagged.fast_copy(
+      derived_id(tag ++ "let:", rep),
+      Exp.fresh(
+        Let(
+          IdTagged.fast_copy(
+            derived_id(tag ++ "pat:", rep),
+            Pat.fresh(Wild),
+          ),
+          e,
+          hole,
+        ),
+      ),
+    );
+  switch (item.term) {
+  | ModLet(pat, def) =>
+    IdTagged.fast_copy(rep, Exp.fresh(Let(pat, def, hole)))
+  | ModType(tpat, typ) =>
+    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, hole)))
+  | ModuleMod(mp, def) =>
+    IdTagged.fast_copy(
+      rep,
+      Exp.fresh(Let(ModuleHelpers.mpat_to_pat(mp), def, hole)),
+    )
+  | ModExp(e) => stable_wild_let("modexp-", e)
+  | EmptyHole =>
+    stable_wild_let(
+      "modhole-",
+      IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)),
+    )
+  | Invalid(s) =>
+    stable_wild_let(
+      "modinv-",
+      IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))),
+    )
+  | MultiHole(es) =>
+    stable_wild_let(
+      "modmh-",
+      IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))),
+    )
+  };
+};
+
+/* the module-value tail: ModuleHelpers.labeled_tuple_exp with
+   deterministic ids (derived from the root's rep + export name) so
+   the tail stays head-equal — and thus clean — across calcs unless
+   the export NAME SET changes. Its free vars are every export name,
+   so any export delta re-analyzes it through the normal dirty path. */
+let exports_tail = (root_rep: Id.t, items: list(Mod.t)): Exp.t => {
+  let sid = (tag: string, name: string) =>
+    derived_id(tag ++ name ++ ":", root_rep);
+  let fields =
+    ModuleHelpers.value_exports(items)
+    |> List.map(({name, _}: ModuleHelpers.value_export) =>
+         IdTagged.fast_copy(
+           sid("modtail-f-", name),
+           Exp.fresh(
+             TupLabel(
+               IdTagged.fast_copy(
+                 sid("modtail-l-", name),
+                 Exp.fresh(Label(name)),
+               ),
+               IdTagged.fast_copy(
+                 sid("modtail-v-", name),
+                 Exp.fresh(Var(name)),
+               ),
+             ),
+           ),
+         )
+       );
+  IdTagged.fast_copy(
+    derived_id("modtail:", root_rep),
+    Exp.fresh(Tuple(fields)),
+  );
+};
+
 /* item equality between program versions: the pat+def head, body
    excluded. Ids participate (they're stable across unrelated edits),
    so an id-preserving MakeTerm rebuild compares equal. */
@@ -387,10 +479,23 @@ let seed_delta = (delta: export_delta, dirty_vars, dirty_types) =>
   | TypesChanged => (dirty_vars, true)
   };
 
+/* the top-level item chain of a whole-program term. A Module ROOT
+   (mod-rooted editors) itemizes via the lowering; a Module literal
+   anywhere else is an ordinary expression (chain never descends into
+   defs, so only the root case can see one). */
+let chain_root = (e: Exp.t): list(Exp.t) => {
+  let s = strip(e);
+  switch (s.term) {
+  | Module(items) =>
+    List.map(lower_mod_item, items) @ [exports_tail(Exp.rep_id(s), items)]
+  | _ => chain(e)
+  };
+};
+
 let calc =
     (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   last_analyzed := 0;
-  let nodes = chain(whole);
+  let nodes = chain_root(whole);
   /* probe ids are an ANALYSIS input (witness stamping): an item whose
      map contains a toggled probe id must re-analyze. Everything else
      stays clean — a probe toggle costs one item, not the program. */
@@ -695,7 +800,17 @@ let whole_elab = (t: t): option(Exp.t) => {
       | _ => None
       }
     };
-  go(t.items);
+  let grafted = go(t.items);
+  switch (strip(t.term).term) {
+  | Module(_) =>
+    /* mod root: the graft is the lowered expansion's elab; finish it
+       the way monolithic Module statics does (marks the module value) */
+    Option.map(
+      ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(strip(t.term))),
+      grafted,
+    )
+  | _ => grafted
+  };
 };
 
 /* single-slot auto cache: the scratch/documentation master is the one

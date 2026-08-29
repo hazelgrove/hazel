@@ -73,13 +73,15 @@ let mk =
     | None => MakeTerm.Incr.mk_cache()
     };
   let segment = Zipper.unselect_and_zip(z);
-  /* non-Exp-rooted cells parse ONCE at their own root sort — the
-     Exp-rooted [go] misparses them (every token sort-inconsistent),
-     and running it just for projectors paid a full wrong parse */
+  /* Exp and Mod roots take the per-item incremental parse; other
+     roots (Pat/Typ/TPat/Drv/... cells, all small) parse ONCE at their
+     own sort — the Exp-rooted [go] misparses them (every token
+     sort-inconsistent), and running it just for projectors paid a
+     full wrong parse */
   let (terms, term_data, projectors, projector_list) =
-    if (root == Sort.Exp) {
+    if (root == Sort.Exp || root == Sort.Mod) {
       let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-        MakeTerm.Incr.go_incr(~cache=t_cache, segment);
+        MakeTerm.Incr.go_incr(~root, ~cache=t_cache, segment);
       (terms, term_data, projectors, projector_list);
     } else {
       MakeTerm.sorted_syntax_data(~root, segment);

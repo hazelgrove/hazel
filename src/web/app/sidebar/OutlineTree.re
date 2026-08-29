@@ -112,6 +112,9 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
         ]
       };
     entry @ of_exp(~top, body);
+  /* a Module ROOT (mod-rooted editors, plans/mod-root.md): its items
+     ARE the program's top level — no wrapper row */
+  | Module(items) when top => of_mod(items)
   | _ when top => [
       {
         o_label: "",

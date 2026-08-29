@@ -44,6 +44,7 @@ let (suite, _) =
       Test_AliasProbe.tests,
       Test_LabelBench.tests,
       Test_FlatBench.tests,
+      Test_ModRoot.tests,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
