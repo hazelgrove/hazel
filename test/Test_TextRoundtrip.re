@@ -31,22 +31,24 @@
 open Alcotest;
 open Haz3lcore;
 
-let parse_or_fail = text =>
-  switch (MarkerParse.of_text(~root=Exp, text)) {
+let parse_or_fail = (~root=Sort.Exp, text) =>
+  switch (MarkerParse.of_text(~root, text)) {
   | Some(z) => z
   | None => Alcotest.fail("of_text returned None on: " ++ text)
   };
 
-let roundtripped_text = (z: Zipper.t): string =>
-  MarkerParse.to_text(z) |> parse_or_fail |> MarkerParse.to_text;
+let roundtripped_text = (~root=Sort.Exp, z: Zipper.t): string =>
+  MarkerParse.to_text(z) |> parse_or_fail(~root) |> MarkerParse.to_text;
 
-let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
+let slide_roundtrip_case =
+    ((name, root, z): (string, Sort.t, unit => Zipper.t)) =>
   test_case(
     name,
     `Slow,
     () => {
+      let z = z();
       let before = MarkerParse.to_text(z);
-      let after = roundtripped_text(z);
+      let after = roundtripped_text(~root, z);
       check(
         string,
         "marker text round-trip is fixed-point for " ++ name,
@@ -59,11 +61,14 @@ let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
 /* Slides are text-backed (committed .hz): materialize each via the load
    path so the usual fixed-point check applies. (Includes the B2T2
    slides: they were excluded when each cost ~2s via the typing parser,
-   but the fast path loads them in milliseconds.) */
+   but the fast path loads them in milliseconds.) Materialization is
+   DEFERRED into the test body: eager unpersist here would pin every
+   slide's zipper — six of them mega-scale — for the whole suite run. */
 let doc_slide_cases =
   Web.Init.documentation_slides
+  |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))
   |> List.map(((name, root, p: PersistentZipper.t)) =>
-       (name, PersistentZipper.unpersist(p, ~root))
+       (name, root, () => PersistentZipper.unpersist(p, ~root))
      )
   |> List.map(slide_roundtrip_case);
 

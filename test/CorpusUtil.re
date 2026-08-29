@@ -85,3 +85,9 @@ let rec edit_token =
 
 let sorted_ids = (ids: list(Id.t)): list(string) =>
   List.sort_uniq(compare, List.map(Id.to_string, ids));
+
+/* Mega-scale slides/corpora skip super-linear per-slide gates (typing
+   parse, roundtrip): minutes each, composed from already-swept
+   sources. Cheap gates (load-path text fidelity) still run on them. */
+let mega_scale = (name: string): bool =>
+  String.length(name) >= 4 && String.sub(name, 0, 4) == "Mega";
