@@ -543,13 +543,11 @@ let current_term =
   | Tile({label: ["let" | "type" | "module", "=", "in"], _})
       when defs_exclude_bodies =>
     current_tile(z)
-  /* Mod-sort analogs (plans/mod-root.md): the `in`-less def tiles, and
-     the `;` separator whose enclosing term is the WHOLE module body —
-     selecting that walked shard_range across the entire program
-     (~2.7s at 1k lines) */
-  | Tile({label: ["let" | "type" | "module", "="], mold, _})
-      when defs_exclude_bodies && mold.out == Sort.Mod =>
-    current_tile(z)
+  /* Mod-sort analog (plans/mod-root.md): the `;` separator's enclosing
+     term is the WHOLE module body — selecting that walked shard_range
+     across the entire program (~2.7s at 1k lines). The `in`-less def
+     tiles need no guard: their term is item-local (Cmd+D escalation
+     value → def → module is gated in Test_Editing module_tests). */
   | Tile({label: [";"], mold, _})
       when defs_exclude_bodies && mold.out == Sort.Mod =>
     current_tile(z)
