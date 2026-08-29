@@ -241,6 +241,17 @@
   padding: 0 16px 0 1px;
 }
 
+/* stacked body cells keep the master editor's lighter surface: the
+   generic cell-background rule matches `#main > * > .code-editor`,
+   but stack cells sit one wrapper deeper (`.focus-body > .cell`).
+   (The frozen-tint deco used to paper over this; removed upstream.) */
+:is(#main.Scratch, #main.Documentation)
+  > .focus-body
+  > .cell
+  > .code-editor {
+  background-color: var(--cell-active);
+}
+
 /* trailing slack below the stack: jump targets can align to the
    viewport top even near the program's end */
 #main .stack-slack {
