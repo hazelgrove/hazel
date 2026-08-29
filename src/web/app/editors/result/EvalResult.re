@@ -125,18 +125,16 @@ module Model = {
     model.elab |> Calc.get_saved_opt;
 };
 
-/* Result values can be giant shared GRAPHS — a Mod-rooted program's
-   value is the module exports tuple, which embeds every member AST,
-   and tree walks multiply the sharing away (~574k statics entries /
-   ~17s Statics.mk, ~28s ExpToSegment at 1k lines, all on the MAIN
-   thread). Cap the term at the door: over-budget subtrees become
-   holes. Under the budget the prune is the identity, so ordinary
-   results are untouched; the capped copy feeds BOTH the display
-   segment and the stitched statics. The raw (ship-pruned) value stays
-   in the model for semantic consumers. The worker ships values pruned
-   to a slightly LARGER budget, so this one trips exactly when the
-   shipped value was itself truncated — that trip drives the console
-   warning and the result strip's truncation note. */
+/* Result values can be giant shared GRAPHS (a module value embeds
+   every member AST; tree walks multiply the sharing away — Statics.mk
+   on one raw value measured 574k info entries / ~17s). Cap the term
+   at the door: the pruned copy feeds BOTH the display segment and the
+   stitched statics; under-budget values pass through untouched, and
+   the raw (ship-pruned) value stays in the model for semantic
+   consumers. The worker ships values pruned to a slightly LARGER
+   budget, so this prune trips exactly iff the shipped value was
+   truncated — driving the console warning and the result strip's
+   truncation note. */
 let display_budget = 5_000;
 
 let exceeds_display_budget = (e: Exp.t): bool =>
@@ -458,16 +456,7 @@ module Update = {
         };
       };
 
-    /* Result values can be giant shared GRAPHS — a Mod-rooted
-       program's value is the module exports tuple, which embeds every
-       member AST, and tree walks multiply the sharing away (~574k
-       statics entries / ~17s Statics.mk, ~28s ExpToSegment at 1k
-       lines, all on the MAIN thread). Cap the term at the door:
-       over-budget subtrees become holes. Under the budget the prune
-       is the identity, so ordinary results are untouched; the capped
-       copy feeds BOTH the display segment and the stitched statics.
-       The raw value stays in the model for semantic consumers. */
-    // Calculate the display
+    // Calculate the display (giant values: see prune_for_display)
     let display =
       switch (display) {
       | Evaluation(ev_display) =>

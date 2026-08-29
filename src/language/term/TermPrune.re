@@ -1,16 +1,14 @@
-/* Budget-pruning of runtime VALUES for shipping and display
-   (plans/mod-root.md): a program's value can be a giant shared graph
-   (a module's value embeds every member AST), and every tree walk on
-   the main thread — marshal decode, display segment build, result
-   statics — pays for it. Values under the budget pass through
-   UNTOUCHED (physically the same term). Over-budget values are pruned
-   STRUCTURE-AWARE: tuples and lists keep complete leading elements
-   while the budget lasts, dropped tails are marked by ONE trailing
-   hole, and an over-budget non-structural subtree becomes a single
-   hole — instead of the node-count cutoff that sprayed holes at
-   whatever depth the walk happened to die. Holes are the type-safe
-   elision (the display statics run on this term; any other marker
-   would light up error decorations). */
+/* Budget-pruning of runtime VALUES for shipping and display: a
+   program's value can be a giant shared graph (a module's value
+   embeds every member AST), and every tree walk on the main thread —
+   marshal decode, display segment build, result statics — pays for
+   it. Values under the budget pass through UNTOUCHED (physically the
+   same term). Over-budget values prune STRUCTURE-AWARE: tuples and
+   lists keep complete leading elements while the budget lasts,
+   dropped tails are marked by ONE trailing hole, and an over-budget
+   non-structural subtree becomes a single hole. Holes are the
+   type-safe elision (the display statics run on this term; any other
+   marker would light up error decorations). */
 
 /* node count if within [budget], None otherwise (bail early: stops
    descending once the count is exceeded) */
@@ -84,3 +82,23 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
   let pruned = go(e);
   (pruned, truncated^);
 };
+
+/* strip closure ENVIRONMENTS: they are display-opaque (never printed;
+   the stepper re-evaluates from the elab) but reference most of the
+   program's runtime state. The env is replaced BEFORE the recursive
+   descent, so the walk never enters the shared, program-sized
+   environment structures. */
+let prune_closure_envs = (e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        switch (e.term) {
+        | Closure(_, body) =>
+          cont({
+            ...e,
+            term: Closure(Environment.empty, body),
+          })
+        | _ => cont(e)
+        },
+    e,
+  );

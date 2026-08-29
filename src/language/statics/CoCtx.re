@@ -34,12 +34,10 @@ type entry = {
 };
 
 /* Each co-context entry is a list of the uses of a variable within
-   some scope, including their type demands. A name-keyed map
-   representation was tried (2026-08-28) and REVERTED together with
-   ctx-as-map: the DocSlides Mega-2k wedge it was hoped to fix
-   persisted (900s cap, 1.57GB RSS), and frame benchmarks were
-   unchanged (plans/perf-ledger.md stage A). The accessor API below
-   remains the only sanctioned way to consume the representation. */
+   some scope, including their type demands. Consume the
+   representation only through the accessor API below. NOTE a
+   name-keyed map representation was tried and reverted — no measured
+   benefit; see plans/perf-ledger.md §5/§7 before re-proposing. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(list(entry));
 

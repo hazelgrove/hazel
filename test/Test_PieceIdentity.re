@@ -1,6 +1,5 @@
 open Alcotest;
 open Haz3lcore;
-open Language;
 
 /* Regression gate: top-level piece IDENTITY must survive an insert.
    All the master-view incrementality (Measured.Incr, chunked views,
@@ -9,28 +8,7 @@ open Language;
    silently degraded every layer to O(program) per edit.
      bash test/run_node.sh test 'PieceIdentity' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
-let corpus_seg = (name: string): option(Segment.t) => {
-  let path = "hazel-programs/mega/" ++ name;
-  let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-  Option.bind(read_file(path), src =>
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  );
-};
+let corpus_seg = CorpusUtil.corpus_seg(~root=Exp);
 
 let settings = {
   ...Language.CoreSettings.off,

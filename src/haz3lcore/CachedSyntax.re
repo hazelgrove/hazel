@@ -187,19 +187,6 @@ let elaborated_phys_eq =
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-/* pointer-elementwise segment equality: caret/selection moves rebuild
-   the zipper (and thus the unzipped top-level list) but reuse every
-   PIECE, so this cheap scan distinguishes "moved" from "edited" */
-let seg_eq = (a: Segment.t, b: Segment.t): bool => {
-  let rec go = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
-    | _ => false
-    };
-  go(a, b);
-};
-
 let calculate =
     (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   if (old.old) {
@@ -208,7 +195,7 @@ let calculate =
        segment functions and can be reused wholesale (a full mk paid
        ~350ms per caret move at 4k lines) */
     let segment = Zipper.unselect_and_zip(z);
-    if (seg_eq(segment, old.segment)) {
+    if (Segment.ptr_eq(segment, old.segment)) {
       {
         ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
         old: false,

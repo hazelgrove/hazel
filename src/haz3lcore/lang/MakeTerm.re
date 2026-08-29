@@ -1719,15 +1719,7 @@ module Incr = {
     walk(0, 0, []);
   };
 
-  let seg_eq = (a: Segment.t, b: Segment.t): bool => {
-    let rec go = (xs, ys) =>
-      switch (xs, ys) {
-      | ([], []) => true
-      | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
-      | _ => false
-      };
-    go(a, b);
-  };
+  let seg_eq = Segment.ptr_eq;
 
   type entry = {
     e_pieces: Segment.t,
@@ -1736,7 +1728,9 @@ module Incr = {
   };
 
   /* keyed by the item's FIRST piece id (stable across splices for
-     unchanged items; an edited item re-mints its changed pieces) */
+     unchanged items; an edited item re-mints its changed pieces).
+     Module-level single slot: only the one whole-program master
+     editor takes this path (view builds use the per-editor cache) */
   let memo: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
   let last: ref(option((Segment.t, Exp.t))) = ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
@@ -1907,8 +1901,7 @@ module Incr = {
             | Some(t) => t
             | None => e.e_term /* shape gap: keep the hollow item */
             }
-          | None => e.e_term /* item didn't need a hole: drop the rest?
-                                 (shouldn't happen for non-last items) */
+          | None => e.e_term /* unreachable: non-last items parse holed */
           };
         };
       let term = graft(entries);

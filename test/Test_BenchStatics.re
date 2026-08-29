@@ -6,15 +6,7 @@ open Language;
    (hazel-programs/bench). Always passes; timings print to the log.
    Run: bash test/run_node.sh test 'BenchStatics' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
+let read_file = CorpusUtil.read_file;
 
 let time_statics = (src: string): option(float) =>
   switch (

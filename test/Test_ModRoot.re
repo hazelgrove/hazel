@@ -109,52 +109,8 @@ let full_parity = () => {
   check_parity(seg, incr);
 };
 
-/* rewrite the "16" literal in place with a fresh id, preserving the
-   physical identity of every untouched piece — the shape of a real
-   editor edit after the remold identity restore */
-let rec edit_piece = (~needle="16", ~repl="17", p: Piece.t): (Piece.t, bool) =>
-  switch (p) {
-  | Tile(t) when t.label == [needle] => (
-      Tile({
-        ...t,
-        id: Id.mk(),
-        label: [repl],
-      }),
-      true,
-    )
-  | Tile(t) =>
-    let (children, changed) =
-      List.fold_right(
-        (seg, (segs, ch)) => {
-          let (seg', ch') = edit_seg(~needle, ~repl, seg);
-          ([seg', ...segs], ch || ch');
-        },
-        t.children,
-        ([], false),
-      );
-    changed
-      ? (
-        Tile({
-          ...t,
-          children,
-        }),
-        true,
-      )
-      : (p, false);
-  | p => (p, false)
-  }
-and edit_seg = (~needle="16", ~repl="17", seg: Segment.t): (Segment.t, bool) => {
-  let (pieces, changed) =
-    List.fold_right(
-      (p, (ps, ch)) => {
-        let (p', ch') = edit_piece(~needle, ~repl, p);
-        ([p', ...ps], ch || ch');
-      },
-      seg,
-      ([], false),
-    );
-  changed ? (pieces, true) : (seg, false);
-};
+let edit_seg = (~needle="16", ~repl="17", seg) =>
+  CorpusUtil.edit_token(~needle, ~repl, seg);
 
 let incremental_edit = () => {
   let seg = parse_mod(mod_src);
@@ -181,8 +137,7 @@ let term_of_mod_matches = () => {
 let settings = CoreSettings.on;
 let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
 
-let sorted_ids = (ids: list(Id.t)): list(string) =>
-  List.sort_uniq(compare, List.map(Id.to_string, ids));
+let sorted_ids = CorpusUtil.sorted_ids;
 
 /* an error-bearing, richer program: labels, module member using an
    earlier binding, a type error, a trailing member expression */
@@ -243,20 +198,8 @@ let statics_incremental = () => {
 
 /* ---- corpus scale: mega-mod-1k (build_mega.py compose_mod_root) ---- */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
 let corpus = () => {
-  let path = "hazel-programs/mega/mega-mod-1k.hz";
-  let path = Sys.file_exists(path) ? path : "../" ++ path;
-  switch (read_file(path)) {
+  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
   | None => fail("mega-mod-1k.hz unreadable")
   | Some(src) =>
     let seg = parse_mod(src);
@@ -315,9 +258,7 @@ let corpus = () => {
    the whole corpus inside a single `module App = {...}` — a member
    edit must cost ~one member, not the whole module ---- */
 let big_module = () => {
-  let path = "hazel-programs/mega/mega-mod-1k.hz";
-  let path = Sys.file_exists(path) ? path : "../" ++ path;
-  switch (read_file(path)) {
+  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
   | None => fail("mega-mod-1k.hz unreadable")
   | Some(src) =>
     let seg = parse_mod(src);

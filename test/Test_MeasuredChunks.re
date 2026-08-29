@@ -7,21 +7,11 @@ open Haz3lcore;
    measurement on every map, and the memo must localize rebuilds.
      bash test/run_node.sh test 'MeasuredChunks' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
 let corpus_seg = (name: string): option(Segment.t) => {
   let path = "hazel-programs/mega/" ++ name;
   let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
   /* FastParse: the typing parser costs tens of seconds at this size */
-  Option.bind(read_file(path), src =>
+  Option.bind(CorpusUtil.read_file(path), src =>
     FastParse.of_text(
       ~materialize=Triggers.invoked_projector,
       ~collect_refractors=true,

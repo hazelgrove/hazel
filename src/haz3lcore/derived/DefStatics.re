@@ -6,10 +6,9 @@ open Language;
    ctxs, so an edit recomputes only the dirty set:
      - the edited item always;
      - downstream items, only when an upstream item's EXPORTS changed
-       (name/id/type of a binding) AND they mention a changed name
-       (their co_ctx); type-side exports (aliases, constructors)
-       cascade to all downstream items for now — co_ctx only tracks
-       expression variables;
+       (name/id/type of a binding) AND they mention a changed name —
+       expression names via their co_ctx (d_free), type-side names
+       (aliases, constructors) via d_tfree;
      - top-level unused-binding warnings are computed by the ENGINE
        (an item in isolation can't see its downstream uses).
    Item statics runs on the item with its body replaced by a hole, so
@@ -190,17 +189,14 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   | _ => false
   };
 
-/* ---- type-side dependency tracking ("type co_ctx") ----
-   co_ctx records only EXPRESSION variables, so type-side export
-   changes (aliases, constructors) used to set a dirty_types flag
-   that re-analyzed the WHOLE downstream suffix. Instead, track the
-   type-side NAMES: which an item depends on (d_tfree), and which an
-   export change touches. Chain folds carry a dirty name set on the
-   type side too, with shadowing by type-side rebinds and TRANSITIVE
-   closure through alias definitions (an alias whose definition
-   mentions a dirty name is itself dirty — normalization chases
-   chains lazily at use sites, so users of the head alias never
-   mention the tail name). */
+/* ---- type-side dependency tracking ----
+   co_ctx records only EXPRESSION variables, so type-side names get a
+   parallel treatment: d_tfree per item, type-name sets in export
+   deltas, and a dirty type-name set down the chain folds — with
+   shadowing by type-side rebinds and TRANSITIVE closure through
+   alias definitions (an alias whose definition mentions a dirty name
+   is itself dirty: normalization chases chains lazily at use sites,
+   so users of the head alias never mention the tail name). */
 
 /* type-side names an export ENTRY involves (the ctor's typ mentions
    its sum name — case scrutinee infos mention the sum, not the ctor) */
@@ -506,8 +502,7 @@ let rec calc_item =
           /* dirty names INCOMING at this item's position: a module
              item re-analyzing because an UPSTREAM export changed must
              pass them into its member chain, or members using the
-             changed name reuse stale maps (the BenchStatics cascade
-             parity gate: whole=7 engine=3) */
+             changed name reuse stale maps */
           ~dirty_vars: list(string)=[],
           ~dirty_tnames: list(string)=[],
           ~ctx_in: Ctx.t,
@@ -565,8 +560,7 @@ and calc_plain_item =
     };
   /* free expression vars: read the DEF's co_ctx (the item node itself
      may not carry an InfoExp — e.g. ModuleExp — and a silent [] here
-     would make items falsely clean). Type-side deps aren't in co_ctx;
-     they cascade via TypesChanged instead. */
+     would make items falsely clean); type-side deps live in d_tfree */
   let free = {
     let src =
       switch (node.term) {
@@ -770,28 +764,17 @@ and calc_module_item =
       )
     | None => map
     };
-  /* free names: the members' frees, minus module-internal bindings
-     (the surrogate def's co_ctx is empty, so compose from members) */
-  let free =
-    List.fold_right(
-      (m: item, below) => {
-        let below =
-          List.filter(
-            n => !List.exists(e => entry_name(e) == n, m.d_exports),
-            below,
-          );
-        List.sort_uniq(compare, m.d_free @ below);
-      },
-      items_m,
-      [],
-    );
-  let tfree =
+  /* the item's free names = the members' frees minus module-internal
+     bindings (the surrogate def's co_ctx is empty, so compose) */
+  let compose_free = (~get, ~shadow) =>
     List.fold_right(
       (m: item, below) =>
-        List.sort_uniq(compare, m.d_tfree @ tshadow(m.d_exports, below)),
+        List.sort_uniq(compare, get(m) @ shadow(m.d_exports, below)),
       items_m,
       [],
     );
+  let free = compose_free(~get=m => m.d_free, ~shadow=shadow_filter);
+  let tfree = compose_free(~get=m => m.d_tfree, ~shadow=tshadow);
   /* elab: graft the member elabs into the module value, finish like
      monolithic Module statics, and splice into the wrapper's elab */
   let d_elab =
@@ -962,29 +945,18 @@ let unused_binders = (items: list(item)): list(Id.t) => {
 let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
 
 /* incremental calculate. INVARIANT down the fold: [ctx] differs from
-   the prev run's ctx at this position only at [dirty_vars] entries
-   (or arbitrarily, if [dirty_types]). A clean item is one whose head
-   is unchanged and whose free vars avoid the dirty set — its statics
-   are reused; its embedded map keeps STALE ctx entries for dirty
-   names it doesn't use (sound for typing; Γ display of unrelated
-   names can lag until the item is next recomputed). Structural edits
-   (item added/removed/reordered) align BY ID and cost the changed
-   item plus downstream mentioners of its export names; type-side
-   exports (aliases, ctors) still cascade — co_ctx can't see type
-   positions, so a moved/inserted/deleted type recomputes its whole
-   suffix (follow-up: a type-side co_ctx would fix this). */
+   the prev run's ctx at this position only at [dirty_vars] /
+   [dirty_tnames] entries. A clean item is one whose head is
+   unchanged and whose d_free/d_tfree avoid the dirty sets — its
+   statics are reused; its embedded map keeps STALE ctx entries for
+   dirty names it doesn't use (sound for typing; Γ display of
+   unrelated names can lag until the item is next recomputed).
+   Structural edits (item added/removed/reordered) align BY ID and
+   cost the changed item plus downstream mentioners of its export
+   names. */
 
 let names_of = (exports: list(Ctx.entry)): list(string) =>
   List.sort_uniq(compare, List.map(entry_name, exports));
-
-let has_type_exports = (exports: list(Ctx.entry)): bool =>
-  List.exists(
-    fun
-    | Ctx.TVarEntry(_)
-    | ConstructorEntry(_) => true
-    | _ => false,
-    exports,
-  );
 
 /* the top-level item chain of a whole-program term. A Module ROOT
    (mod-rooted editors) itemizes via the lowering; a Module literal

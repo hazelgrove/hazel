@@ -8,16 +8,6 @@ open Language;
    --cpu-prof for attribution.
      bash test/run_node.sh test 'LabelBench' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
 let slice_lines = (src: string, lo: int, hi: int): string =>
   String.split_on_char('\n', src)
   |> List.filteri((i, _) => i + 1 >= lo && i + 1 <= hi)
@@ -45,7 +35,7 @@ let bench = (label: string, src: string, iters: int) => {
 let insitu = () => {
   let path = "hazel-programs/mega/mega-4k.hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
-  switch (read_file(path)) {
+  switch (CorpusUtil.read_file(path)) {
   | None => fail("corpus unreadable")
   | Some(src) =>
     let parse = txt =>
@@ -66,26 +56,11 @@ let insitu = () => {
       (Sys.time() -. t0) *. 1000.0,
       DefStatics.last_analyzed^,
     );
-    /* a SURGICAL one-item edit: rewrite the "16" literal tile inside
-       SmithWorks to "17" IN PLACE — every id (incl. all binders) is
-       preserved, exactly like a real editor edit after the
-       remold_regrout identity restore */
-    let rec edit_piece = (p: Piece.t): Piece.t =>
-      switch (p) {
-      | Tile(t) when t.label == ["16"] =>
-        Tile({
-          ...t,
-          id: Id.mk(), /* real edits mint fresh ids for typed pieces */
-          label: ["17"],
-        })
-      | Tile(t) =>
-        Tile({
-          ...t,
-          children: List.map(List.map(edit_piece), t.children),
-        })
-      | p => p
-      };
-    let spliced = List.map(edit_piece, seg);
+    /* a SURGICAL one-item edit: rewrite the "16" literal inside
+       SmithWorks in place; ids elsewhere preserved */
+    let (spliced, found) =
+      CorpusUtil.edit_token(~needle="16", ~repl="17", seg);
+    assert(found);
     let term2 = MakeTerm.go(spliced).term;
     let t1 = Sys.time();
     let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
@@ -130,7 +105,7 @@ let insitu = () => {
 let case = () => {
   let path = "hazel-programs/mega/mega-4k.hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
-  switch (read_file(path)) {
+  switch (CorpusUtil.read_file(path)) {
   | None => fail("corpus unreadable")
   | Some(src) =>
     /* SmithWorks: labeled-tuple Model, the hot class */

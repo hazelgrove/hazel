@@ -40,15 +40,12 @@ type entry =
   | TVarEntry(tvar_entry)
   | LivelitEntry(LivelitCtx.raw_livelit);
 
-/* Ctx is the entry list it always was, plus a SIZE field: the scope
-   operations (added_bindings, subtract_prefix — called per binder
-   scope via CoCtx.mk) previously paid two O(n) List.lengths each.
-   A full name-keyed map representation was tried (2026-08-28) and
-   REVERTED: measured no benefit at mega-4k — expensive statics items
-   are labeled-tuple-bound, not ctx-lookup-bound, and local names sit
-   near the head of the list anyway (see plans/perf-ledger.md stage A
-   results). [entries] is newest-first; serialization goes through
-   [repr] (wire format unchanged from before the size field). */
+/* An entry list ([entries] is newest-first) plus a SIZE field, so the
+   per-binder-scope operations (added_bindings, subtract_prefix) are
+   O(diff) instead of paying O(n) List.lengths. Serialization goes
+   through [repr]; the wire format carries no size. NOTE a name-keyed
+   map representation was tried and reverted — no measured benefit;
+   see plans/perf-ledger.md §5/§7 before re-proposing. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type repr = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred

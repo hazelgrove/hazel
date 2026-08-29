@@ -13,7 +13,7 @@ let settings = CoreSettings.on;
 let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
 
 let parse_exp = (src: string): Segment.t =>
-  switch (FastParse.of_text(~root=Exp, src)) {
+  switch (CorpusUtil.parse(~root=Exp, src)) {
   | Some(seg) => seg
   | None =>
     fail(
@@ -21,55 +21,7 @@ let parse_exp = (src: string): Segment.t =>
     )
   };
 
-/* in-place token rewrite with fresh ids, preserving the physical
-   identity of untouched pieces (the shape of a real editor edit) */
-let rec edit_piece =
-        (~needle: string, ~repl: string, p: Piece.t): (Piece.t, bool) =>
-  switch (p) {
-  | Tile(t) when t.label == [needle] => (
-      Tile({
-        ...t,
-        id: Id.mk(),
-        label: [repl],
-      }),
-      true,
-    )
-  | Tile(t) =>
-    let (children, changed) =
-      List.fold_right(
-        (seg, (segs, ch)) => {
-          let (seg', ch') = edit_seg(~needle, ~repl, seg);
-          ([seg', ...segs], ch || ch');
-        },
-        t.children,
-        ([], false),
-      );
-    changed
-      ? (
-        Tile({
-          ...t,
-          children,
-        }),
-        true,
-      )
-      : (p, false);
-  | p => (p, false)
-  }
-and edit_seg = (~needle, ~repl, seg: Segment.t): (Segment.t, bool) => {
-  let (pieces, changed) =
-    List.fold_right(
-      (p, (ps, ch)) => {
-        let (p', ch') = edit_piece(~needle, ~repl, p);
-        ([p', ...ps], ch || ch');
-      },
-      seg,
-      ([], false),
-    );
-  changed ? (pieces, true) : (seg, false);
-};
-
-let sorted_ids = (ids: list(Id.t)): list(string) =>
-  List.sort_uniq(compare, List.map(Id.to_string, ids));
+let sorted_ids = CorpusUtil.sorted_ids;
 
 /* run: cold calc on src, apply needle edit, incremental calc; assert
    analyzed count and error parity vs monolithic on the edited term */
@@ -77,7 +29,7 @@ let run = (~src, ~needle, ~repl, ~expect_analyzed, name) => {
   let seg = parse_exp(src);
   let term = MakeTerm.go(seg).term;
   let ds0 = DefStatics.calc(~settings, term);
-  let (seg2, edited) = edit_seg(~needle, ~repl, seg);
+  let (seg2, edited) = CorpusUtil.edit_token(~needle, ~repl, seg);
   check(bool, name ++ ": edit found", true, edited);
   let term2 = MakeTerm.go(seg2).term;
   let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);

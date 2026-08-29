@@ -2851,8 +2851,8 @@ module Update = {
              master's own calculate is skipped — a fresh empty statics
              would blank the outline. Probe-aware (union of master +
              open-cell zippers), so this single whole-program parse
-             also serves as the stacked-statics frame: restructures
-             used to Force a second parse the next frame. */
+             also serves as the stacked-statics frame (no second
+             Force parse next frame). */
           let probe_union = (a, b) =>
             Haz3lcore.Id.Map.union((_, x, _) => Some(x), a, b);
           let entry_probes =
@@ -4147,12 +4147,6 @@ module View = {
     c_settings: Settings.t,
     c_font_metrics: FontMetrics.t,
     c_colors: option(ColorSteps.colorMap),
-    /* master-derived decoration inputs rendered inside the cell
-       (frozen tint, pending/active-eval): identity-tracked so cached
-       nodes don't show stale decorations */
-    c_reuse: Language.EvaluatorState.incr_eval,
-    c_pending: list(Haz3lcore.Id.t),
-    c_active: bool,
     c_nodes: list(Virtual_dom.Vdom.Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
@@ -4200,11 +4194,6 @@ module View = {
         /* the STACK: [header band, body cell] per entry, thin rules
            between; rendered INSTEAD of the master cell */
         let stack_views = (f: Model.focus_t) => {
-          /* the frozen tint was removed upstream; cells no longer take
-             master tint/pending, so these cache inputs are constant */
-          let deco_reuse = Language.IncrEval.empty;
-          let deco_pending: list(Haz3lcore.Id.t) = [];
-          let deco_active = false;
           let rendered =
             List.mapi(
               (i, e: Model.stack_entry) => {
@@ -4235,10 +4224,7 @@ module View = {
                       && c.c_settings === globals.Globals.Model.settings
                       && c.c_font_metrics
                       === globals.Globals.Model.font_metrics
-                      && c.c_colors === globals.Globals.Model.color_highlights
-                      && c.c_reuse === deco_reuse
-                      && c.c_pending === deco_pending
-                      && c.c_active == deco_active => (
+                      && c.c_colors === globals.Globals.Model.color_highlights => (
                     e.e_id,
                     c,
                   )
@@ -4397,9 +4383,6 @@ module View = {
                       c_settings: globals.Globals.Model.settings,
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
-                      c_reuse: deco_reuse,
-                      c_pending: deco_pending,
-                      c_active: deco_active,
                       c_nodes: nodes,
                     },
                   );
@@ -4417,8 +4400,8 @@ module View = {
                 fun
                 | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
                 | JumpTo(id) =>
-                  /* result-strip / test jumps used to move the HIDDEN
-                     master's caret: open the containing item instead */
+                  /* the jump target lives in the HIDDEN master while a
+                     stack is open: open the containing item instead */
                   switch (
                     Selection.cross_cell_target(~target_id=id, ~model, ~f)
                   ) {

@@ -490,29 +490,6 @@ let post_reuse_plan = (model, request: Request.t) =>
 let schedule_async = callback =>
   ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
-/* The result VALUE can embed closure ENVIRONMENTS that reference most
-   of the program's runtime state — a Mod-rooted program's value is
-   the module exports tuple, ~18MB marshaled at 1k lines, decoded on
-   the MAIN thread (a one-time multi-second stall). Environments are
-   display-opaque (the result strip never prints them; the stepper
-   re-evaluates from the elab), so strip them before shipping. The
-   env is replaced BEFORE the recursive descent, so the walk never
-   enters the (shared, program-sized) environment structures. */
-let prune_closure_envs = (e: Language.Exp.t): Language.Exp.t =>
-  Language.Exp.map_term(
-    ~f_exp=
-      (cont, e: Language.Exp.t) =>
-        switch (e.term) {
-        | Closure(_, body) =>
-          cont({
-            ...e,
-            term: Closure(Language.Environment.empty, body),
-          })
-        | _ => cont(e)
-        },
-    e,
-  );
-
 /* ... and cap the value's SIZE: the main thread only ever displays a
    budget-pruned copy (EvalResult.prune_for_display), so anything past
    the budget is marshal/decode dead weight — a Mod-rooted program's
@@ -546,7 +523,7 @@ let slim_response = (response: Response.value): Response.value =>
   switch (response) {
   | Ok((exp, state)) =>
     Ok((
-      exp |> prune_closure_envs |> prune_value_size,
+      exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
       Language.EvaluatorState.{
         ...state,
         incr_eval: Language.IncrEval.empty,

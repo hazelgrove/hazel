@@ -958,12 +958,10 @@ let incr_eval =
       ranges,
     );
   };
-  /* The pending set shrinks on EVERY streamed chunk, and each of those
-     frames used to rebuild every remaining range's SVG (~70 ranges x
-     all their rows) - the highlight itself cost multiples of the
-     actual statics work per edit. Cache nodes per id: within one
-     evaluation the measured/range/metrics are stable, so all but the
-     popped head are reference-equal and the vdom diff skips them. */
+  /* The pending set shrinks on EVERY streamed chunk; caching nodes
+     per id keeps those frames cheap: within one evaluation the
+     measured/range/metrics are stable, so all but the popped head
+     are reference-equal and the vdom diff skips them. */
   /* Shard-hugging contours, not bounding rectangles - but at REGION
      granularity: the pending set is leaf-granular (thousands of ids on
      a mega program), and per-leaf SVGs cost ~1s of path serialization
@@ -1025,12 +1023,11 @@ let incr_eval =
            )
          )
        );
-  /* The active range can span thousands of rows (head-by-origin of the
-     pending set) - clamp it to the visible window like the inactive
-     regions, and cache its node: the sweep animates via CSS, so an
-     identical vdom node across renders keeps animating. Uncached +
-     unclamped this was ~50ms of path serialization on EVERY render
-     for the whole duration of an evaluation. */
+  /* The active range can span thousands of rows (head-by-origin of
+     the pending set): clamp it to the visible window like the
+     inactive regions, and cache its node — otherwise every render
+     during an evaluation pays ~50ms of path serialization. The sweep
+     animates via CSS, so an identical vdom node keeps animating. */
   let active_nodes =
     visible_ranges(active_ids)
     |> List.map(clamp_region)

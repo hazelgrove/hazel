@@ -691,7 +691,6 @@ module View = {
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
       );
-    // let t1 = JsUtil.precise_timestamp();
     /* Visible row range from the scroll handler. Consumed ONLY by the
        pending-eval highlight below: culling projectors/refractors with
        these bounds hid them incorrectly on stale bounds (the Jan
@@ -707,7 +706,6 @@ module View = {
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
-    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),

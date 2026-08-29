@@ -8,28 +8,7 @@ open Language;
    changing the program.
      bash test/run_node.sh test 'ClickTeleport' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
-let corpus_seg = (name: string): option(Segment.t) => {
-  let path = "hazel-programs/mega/" ++ name;
-  let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-  Option.bind(read_file(path), src =>
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  );
-};
+let corpus_seg = CorpusUtil.corpus_seg(~root=Exp);
 
 let ids_of = (z: Zipper.t): list(Id.t) =>
   Zipper.unselect_and_zip(z) |> List.map(Piece.id);

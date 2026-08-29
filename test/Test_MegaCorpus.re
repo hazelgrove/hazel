@@ -8,20 +8,10 @@ open Language;
    time. Register in test/haz3ltest.re to run:
      bash test/run_node.sh test 'MegaCorpus' */
 
-let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
-  | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
-    Some(s);
-  | exception _ => None
-  };
-
 let check_variant = (name: string): unit => {
   let path = "hazel-programs/mega/" ++ name;
   let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-  switch (read_file(path)) {
+  switch (CorpusUtil.read_file(path)) {
   | None => fail("unreadable: " ++ name)
   | Some(src) =>
     switch (
