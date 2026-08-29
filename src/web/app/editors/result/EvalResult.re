@@ -662,6 +662,7 @@ module View = {
               EditMode.Editable({
                 inject: a => inject(EvalEditorAction(a)),
                 escape: _ => Ui_effect.Ignore,
+                escape_vertical: None,
                 take_focus: _ => Ui_effect.Ignore,
                 focus: selected ? Some() : None,
               }),

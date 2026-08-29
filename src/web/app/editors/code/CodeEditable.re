@@ -541,6 +541,11 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
+    let escape_vertical =
+      switch (edit_mode) {
+      | ReadOnly => None
+      | Editable({escape_vertical, _}) => escape_vertical
+      };
     /* Editor-level clipboard helpers. Bypass the page-level
        on_copy/on_paste path because Firefox refuses to dispatch
        native clipboard events to non-editable focused elements
@@ -939,11 +944,51 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
+        /* row-edge detection for escape_vertical: hosts that stack
+           editors (see EditMode) get Up-on-first-row / Down-on-last-row
+           BEFORE the core move snaps the caret to line start/end */
+        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+          switch (escape_vertical) {
+          | None => None
+          | Some(_) when z.selection.content != [] => None
+          | Some(_) =>
+            let measured = model.editor.syntax.measured;
+            let Util.Point.{row, col} =
+              Haz3lcore.Zipper.Caret.point(measured, z);
+            let last_row = max(0, measured.total_rows - 1);
+            switch (v) {
+            | Up when row == 0 => Some(col)
+            | Down when row == last_row => Some(col)
+            | _ => None
+            };
+          };
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
+          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Up)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(escape_vertical)(
+                Up,
+                Option.get(caret_row_edge(Up)),
+              ),
+            ])
+          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Down)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(escape_vertical)(
+                Down,
+                Option.get(caret_row_edge(Down)),
+              ),
+            ])
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,

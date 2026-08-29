@@ -2282,6 +2282,93 @@ module View = {
                         : pane_focus(i, true, End)
                     | Right => pane_focus(i + 1, true, Start)
                     };
+                  /* vertical escape: Up/Down at a pane's row edge move
+                     straight to the adjacent pane at the same goal
+                     column (no end-of-line snap first). Header editors
+                     sit one qualifier-chip width right of body content,
+                     so columns shift by the qualifier's length when
+                     crossing a header boundary. At the stack's ends the
+                     plain vertical move is re-dispatched (restores the
+                     line-start/end snap). */
+                  let qual_cols = idx =>
+                    switch (List.nth_opt(f.f_entries, idx)) {
+                    | Some(e) =>
+                      switch (
+                        OutlineTree.path_of(
+                          e.Model.e_id,
+                          editor.editor.statics.term,
+                        )
+                      ) {
+                      | [] => 0
+                      | path =>
+                        String.length(String.concat(".", path)) + 1
+                      }
+                    | None => 0
+                    };
+                  let body_last_row = idx =>
+                    switch (List.nth_opt(f.f_entries, idx)) {
+                    | Some(e) =>
+                      max(
+                        0,
+                        e.Model.e_body.editor.editor.syntax.measured.
+                          total_rows
+                        - 1,
+                      )
+                    | None => 0
+                    };
+                  let pane_point = (idx, to_header, row, col) =>
+                    pane_focus(
+                      idx,
+                      to_header,
+                      Point(Util.Point.{row, col: max(0, col)}, None),
+                    );
+                  let same_pane = (to_header, v: Haz3lcore.Action.vertical) =>
+                    inject(
+                      to_header
+                        ? StackHeader(
+                            i,
+                            MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                          )
+                        : StackBody(
+                            i,
+                            MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                          ),
+                    );
+                  let header_escape_vertical =
+                      (v: Haz3lcore.Action.vertical, col) =>
+                    switch (v) {
+                    | Down => pane_point(i, false, 0, col + qual_cols(i))
+                    | Up =>
+                      i == 0
+                        ? same_pane(true, Up)
+                        : pane_point(
+                            i - 1,
+                            false,
+                            body_last_row(i - 1),
+                            col + qual_cols(i),
+                          )
+                    };
+                  let body_escape_vertical =
+                      (v: Haz3lcore.Action.vertical, col) =>
+                    switch (v) {
+                    | Down =>
+                      i + 1 >= List.length(f.f_entries)
+                        ? same_pane(false, Down)
+                        : headerless(i + 1)
+                            ? pane_point(i + 1, false, 0, col)
+                            : pane_point(
+                                i + 1,
+                                true,
+                                0,
+                                col - qual_cols(i + 1),
+                              )
+                    | Up =>
+                      headerless(i)
+                        ? i == 0
+                            ? same_pane(false, Up)
+                            : pane_point(i - 1, false, body_last_row(i - 1), col)
+                        : pane_point(i, true, 0, col - qual_cols(i))
+                    };
                   let header_pane =
                     switch (e.e_sym) {
                     | Some(sym) =>
@@ -2324,6 +2411,7 @@ module View = {
                             ~locked=false,
                             ~lines=false,
                             ~escape=header_escape,
+                            ~escape_vertical=Some(header_escape_vertical),
                             e.e_header,
                           ),
                         ],
@@ -2347,6 +2435,7 @@ module View = {
                           ~lines=true,
                           ~master_result=editor.result,
                           ~escape=body_escape,
+                          ~escape_vertical=Some(body_escape_vertical),
                           e.e_body,
                         ),
                       ],

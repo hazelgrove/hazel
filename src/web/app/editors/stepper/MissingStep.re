@@ -603,6 +603,7 @@ module View = {
                                   inject: x =>
                                     inject(RewriteEditorAction(x)),
                                   escape: _ => Ui_effect.Ignore,
+                                  escape_vertical: None,
                                   take_focus: _ => Ui_effect.Ignore,
                                   focus:
                                     switch (selected) {

@@ -237,6 +237,10 @@ module View = {
         /* arrow-key at the buffer's edge: hosts (e.g. the editor
            stack) route the caret to a neighboring pane */
         ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
+        ~escape_vertical: option(
+                            (Haz3lcore.Action.vertical, int) =>
+                            Ui_effect.t(unit),
+                          )=None,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -287,6 +291,7 @@ module View = {
               : Editable({
                   inject: action => inject(MainEditor(action)),
                   escape,
+                  escape_vertical,
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
