@@ -2010,6 +2010,11 @@ module Incr = {
   let mk_cache = (): cache => {c_prev: None};
 
   let full_analyzed = ref(0); /* observability for tests */
+  let incr_calls = ref(0);
+  let incr_hits = ref(0);
+  let incr_misses = ref(0);
+  let incr_miss_neq = ref(0);
+  let incr_miss_nokey = ref(0);
 
   /* strip the synthetic body hole from captured maps: go never sees
      that grout, so nothing keyed by it may survive into the union */
@@ -2148,6 +2153,7 @@ module Incr = {
     );
 
   let go_incr' = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t => {
+    incr(incr_calls);
     let keyed =
       List.filter_map(
         ps =>
@@ -2168,8 +2174,17 @@ module Incr = {
       List.map(
         ((key, ps)) =>
           switch (Hashtbl.find_opt(prev_tbl, key)) {
-          | Some(e) when seg_eq(e.f_pieces, ps) => (key, e)
-          | _ => (key, parse_item_full(~root, ps))
+          | Some(e) when seg_eq(e.f_pieces, ps) =>
+            incr(incr_hits);
+            (key, e);
+          | Some(_) =>
+            incr(incr_miss_neq);
+            incr(incr_misses);
+            (key, parse_item_full(~root, ps));
+          | None =>
+            incr(incr_miss_nokey);
+            incr(incr_misses);
+            (key, parse_item_full(~root, ps));
           },
         keyed,
       );
