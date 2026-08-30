@@ -468,7 +468,9 @@ let start_evaluation = (~key: key, req_value: Request.value): evaluation_start =
   current_stream_interest := stream;
   switch (resolve_payload(~key, payload)) {
   | Error(msg) =>
-    CompletedImmediately(Error(Language.ProgramResult.UnknownException(msg)))
+    CompletedImmediately(
+      Error(Language.ProgramResult.UnknownException(msg)),
+    )
   | Ok((expr, eval_info_map)) =>
     /* stream cadence scales with program size: each posted chunk costs
        the client a stream-collection + recalc cycle that grows with the

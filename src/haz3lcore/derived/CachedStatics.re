@@ -289,9 +289,7 @@ let init_compositional_term =
          SENTINEL is never evaluated — it exists so eval-request
          triggering (keyed on elaborated changing) fires exactly when
          the statics semantically changed */
-      dh_err(
-        "w2-resident:" ++ string_of_int(DefStatics.semantic_gen^),
-      )
+      dh_err("w2-resident:" ++ string_of_int(DefStatics.semantic_gen^))
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>

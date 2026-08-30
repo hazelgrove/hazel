@@ -1827,7 +1827,7 @@ module Update = {
       switch (model.focus) {
       | None =>
         let ed =
-          switch ((List.nth(model.scratchpads, model.current)).kind) {
+          switch (List.nth(model.scratchpads, model.current).kind) {
           | Code({editor, _}) => Some(editor.editor)
           | Drv(_) => None
           };

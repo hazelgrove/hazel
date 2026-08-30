@@ -71,7 +71,8 @@ let items_of_segment = (seg: Segment.t): list(item) =>
 let segment_of_items = (items: list(item)): Segment.t =>
   List.concat_map(it => it.i_seg, items);
 
-let derive = (~settings, ~root, ~probe_ids, ~prev: option(DefStatics.t), items) => {
+let derive =
+    (~settings, ~root, ~probe_ids, ~prev: option(DefStatics.t), items) => {
   let seg = segment_of_items(items);
   let whole = MakeTerm.Incr.term_of_root(~root, seg);
   DefStatics.calc(~settings, ~probe_ids, ~prev?, whole);

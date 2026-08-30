@@ -113,8 +113,10 @@ let log = msg => print_endline("[w2-shadow] " ++ msg);
    Superseded generations are dropped. Synthetic-node ids cannot cross
    (derivation-local); stale items keep their old synthetic ids. */
 let graft_summary =
-    (msg: WorkerServer.ServerMessage.summary_msg,
-     theirs: Haz3lcore.ResidentProgram.Summary.t)
+    (
+      msg: WorkerServer.ServerMessage.summary_msg,
+      theirs: Haz3lcore.ResidentProgram.Summary.t,
+    )
     : unit =>
   if (msg.generation == generation^) {
     switch (Haz3lcore.DefStatics.slot^) {
@@ -138,7 +140,11 @@ let graft_summary =
              | None => it
              }
            );
-      Haz3lcore.DefStatics.slot := Some({...t, items});
+      Haz3lcore.DefStatics.slot :=
+        Some({
+          ...t,
+          items,
+        });
     };
   };
 
