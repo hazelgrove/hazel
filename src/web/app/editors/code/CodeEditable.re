@@ -980,7 +980,8 @@ module View = {
                 && Option.is_some(caret_row_edge(Up)) =>
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(escape_vertical)(
+              Option.get(
+                escape_vertical,
                 Up,
                 Option.get(caret_row_edge(Up)),
               ),
@@ -991,7 +992,8 @@ module View = {
                 && Option.is_some(caret_row_edge(Down)) =>
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(escape_vertical)(
+              Option.get(
+                escape_vertical,
                 Down,
                 Option.get(caret_row_edge(Down)),
               ),
