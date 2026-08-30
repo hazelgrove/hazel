@@ -77,6 +77,7 @@ let (suite, _) =
     @ Test_ResidentProgram.tests
     @ Test_W2Protocol.tests
     @ Test_DeriveDeterminism.tests
+    @ Test_PropagateClamp.tests
     @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

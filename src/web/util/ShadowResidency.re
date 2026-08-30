@@ -29,6 +29,8 @@ type mirror = {
   m_slices: list(Haz3lcore.Segment.t),
   /* roster as the worker now holds it */
   m_roster: list((Id.t, int)),
+  /* probe set as last shipped (toggles can change with no edit) */
+  m_probes: list(Id.t),
 };
 
 let mirror: ref(option(mirror)) = ref(None);
@@ -46,6 +48,30 @@ let resyncs = ref(0);
 let full_ships = ref(0);
 let item_ships = ref(0);
 let counters = (): (int, int, int) => (oks^, mismatches^, resyncs^);
+
+/* ===== W2b FLIP ===== when on: main clamps statics propagation to
+   the edited item (DefStatics.clamp), evals run from the worker's
+   resident program, and worker summaries GRAFT fresh cross-item
+   error/warning ids into the main slot (stale info elsewhere, per the
+   staleness contract). The shadow COMPARISON is off while flipped
+   (main's summary is stale-by-design). Turning the flip off busts the
+   DefStatics slot — a clamped chain cannot be caught up incrementally
+   (Test_PropagateClamp). */
+let flip_enabled: ref(bool) = ref(false);
+let set_flip = (b: bool): unit =>
+  if (b != flip_enabled^) {
+    flip_enabled := b;
+    Haz3lcore.DefStatics.clamp := b;
+    Haz3lcore.DefStatics.slot := None; /* fresh baseline either way */
+    print_endline("[w2-shadow] flip " ++ (b ? "ON" : "OFF"));
+  };
+
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__w2flip",
+    Js_of_ocaml.Js.wrap_callback(b => set_flip(Js_of_ocaml.Js.to_bool(b))),
+  );
 
 /* console access: window.__w2shadowToggle(bool) flips shadow mode */
 let () =
@@ -76,12 +102,50 @@ let () =
 
 let log = msg => print_endline("[w2-shadow] " ++ msg);
 
+/* FLIP mode: the worker's per-item error/warning ids are the truth
+   for cross-item display — graft them into the main slot's items (the
+   next calculate pass rebuilds the view's error_ids from the slot).
+   Superseded generations are dropped. Synthetic-node ids cannot cross
+   (derivation-local); stale items keep their old synthetic ids. */
+let graft_summary =
+    (msg: WorkerServer.ServerMessage.summary_msg,
+     theirs: Haz3lcore.ResidentProgram.Summary.t)
+    : unit =>
+  if (msg.generation == generation^) {
+    switch (Haz3lcore.DefStatics.slot^) {
+    | None => ()
+    | Some(t) =>
+      let items =
+        t.items
+        |> List.map((it: Haz3lcore.DefStatics.item) =>
+             switch (
+               List.find_opt(
+                 (si: Haz3lcore.ResidentProgram.Summary.item_summary) =>
+                   Id.equal(si.s_id, it.d_id),
+                 theirs.s_items,
+               )
+             ) {
+             | Some(si) => {
+                 ...it,
+                 d_error_ids: si.s_errors,
+                 d_warning_ids: si.s_warnings,
+               }
+             | None => it
+             }
+           );
+      Haz3lcore.DefStatics.slot := Some({...t, items});
+    };
+  };
+
 let on_summary = (msg: WorkerServer.ServerMessage.summary_msg): unit =>
   switch (msg.verdict) {
   | NeedResync(reason) =>
     incr(resyncs);
     mirror := None; /* next statics update ships Full */
     log("worker demands resync: " ++ reason);
+  | SyncOk(theirs) when flip_enabled^ =>
+    incr(oks);
+    graft_summary(msg, theirs);
   | SyncOk(theirs) =>
     switch (List.assoc_opt(msg.generation, pending^)) {
     | None => () /* superseded generation */
@@ -190,6 +254,8 @@ let on_master_statics =
     | Some(prev) when prev === ds => ()
     | _ =>
       last_ds := Some(ds);
+      let probes =
+        Id.Map.bindings(ds.Haz3lcore.DefStatics.probe_ids) |> List.map(fst);
       let slices = Haz3lcore.MakeTerm.Incr.slices(seg);
       let ship = payload => {
         incr(generation);
@@ -210,6 +276,7 @@ let on_master_statics =
           version: WorkerServer.w2_protocol_version,
           key,
           generation: g,
+          probe_ids: probes,
           payload,
         });
       };
@@ -217,20 +284,31 @@ let on_master_statics =
       | Some(m)
           when m.m_key == key && m.m_root == root && m.m_settings == settings =>
         switch (diff_items(m, slices)) {
-        | Some(([], _)) =>
-          /* statics changed without segment change (probe toggles
-             etc.) — nothing to sync; refresh slice identities */
+        | Some(([], _)) when m.m_probes == probes =>
+          /* statics identity churn without segment or probe change —
+             nothing to sync; refresh slice identities */
           mirror :=
             Some({
               ...m,
               m_slices: slices,
             })
+        | Some(([], roster)) =>
+          /* probe-only change: empty delta, same roster, new probes */
+          mirror :=
+            Some({
+              ...m,
+              m_slices: slices,
+              m_probes: probes,
+            });
+          incr(item_ships);
+          ship(Items([], roster));
         | Some((changed, roster)) =>
           mirror :=
             Some({
               ...m,
               m_slices: slices,
               m_roster: roster,
+              m_probes: probes,
             });
           incr(item_ships);
           ship(Items(changed, roster));
@@ -243,6 +321,7 @@ let on_master_statics =
               m_settings: settings,
               m_slices: slices,
               m_roster: roster,
+              m_probes: probes,
             });
           incr(full_ships);
           ship(Full(root, settings, seg));
@@ -256,6 +335,7 @@ let on_master_statics =
             m_settings: settings,
             m_slices: slices,
             m_roster: roster,
+            m_probes: probes,
           });
         incr(full_ships);
         ship(Full(root, settings, seg));

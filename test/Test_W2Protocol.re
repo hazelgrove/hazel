@@ -26,6 +26,7 @@ let full_sync = (~key="k", ~generation=1, seg): WorkerServer.SyncProgram.t => {
   version: WorkerServer.w2_protocol_version,
   key,
   generation,
+  probe_ids: [],
   payload: Full(Sort.Exp, settings, seg),
 };
 
@@ -77,6 +78,7 @@ let tests = [
               version: WorkerServer.w2_protocol_version,
               key: "k",
               generation: 1,
+              probe_ids: [],
               payload: Items([], []),
             },
           );
@@ -124,6 +126,7 @@ let tests = [
               version: WorkerServer.w2_protocol_version,
               key: "k",
               generation: 2,
+              probe_ids: [],
               payload: Items(changed, roster),
             },
           );

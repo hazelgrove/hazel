@@ -28,10 +28,24 @@ module Request = {
   type stream_interest =
     | Full
     | Effects;
+  /* W2b: [Resident] evaluates the worker-resident program (synced via
+     SyncProgram) — the worker elaborates from its OWN statics, so the
+     request ships no program at all. postMessage FIFO guarantees the
+     sync for a generation arrives before an eval referencing it. */
+  [@deriving (show, sexp, yojson)]
+  type payload =
+    | Ship({
+        expr: Language.Exp.t,
+        eval_info_map: Language.EvalInfo.t,
+      })
+    | Resident({
+        generation: int,
+        probe_all: bool,
+      });
+
   [@deriving (show, sexp, yojson)]
   type value = {
-    expr: Language.Exp.t,
-    eval_info_map: Language.EvalInfo.t,
+    payload,
     prev: prev_source,
     stream: stream_interest,
   };
@@ -81,6 +95,9 @@ module SyncProgram = {
     version: int,
     key,
     generation: int,
+    /* current probe set — analysis + sample-target input, rides every
+       sync (probe toggles can change with no segment change) */
+    probe_ids: list(Util.Id.t),
     payload,
   };
 };
@@ -314,7 +331,13 @@ let store_resident = (key: key, response: Response.value): unit =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+  let Request.{payload, prev, _} = req_value;
+  let (expr, eval_info_map) =
+    switch (payload) {
+    | Ship({expr, eval_info_map}) => (expr, eval_info_map)
+    | Resident(_) =>
+      failwith("evaluate_sync: Resident requests are worker-only")
+    };
   switch (
     Language.Evaluator.evaluate(
       ~prev=resolve_prev(prev),
@@ -375,19 +398,60 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
+/* one resident program (the current slide); a sync for a different
+   key evicts (plan §4.8) */
+type resident =
+  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
+
+let resident_slot: ref(resident) = ref(None);
+
+/* resolve a Resident payload against the slot; the caller only sends
+   Resident after syncing (FIFO), so a miss is a protocol bug surfaced
+   as an eval error rather than silence */
+let resolve_payload =
+    (~key: key, payload: Request.payload)
+    : result((Language.Exp.t, Language.EvalInfo.t), string) =>
+  switch (payload) {
+  | Ship({expr, eval_info_map}) => Ok((expr, eval_info_map))
+  | Resident({probe_all, _}) =>
+    switch (resident_slot^) {
+    | Some((k, settings, rp)) when k == key =>
+      switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
+      | None => Error("resident elaboration gap")
+      | Some(expr) =>
+        let info_map = rp.statics.merged;
+        let targets =
+          Haz3lcore.CachedStatics.compute_targets(
+            ~settings,
+            ~info_map,
+            ~probe_ids=rp.probe_ids,
+          );
+        Ok((
+          expr,
+          Language.EvalInfo.of_info_map(~probe_all, ~targets, info_map),
+        ));
+      }
+    | _ => Error("no resident program for key " ++ key)
+    }
+  };
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+  let Request.{payload, prev, _} = req_value;
   let stream =
-    switch (
-      Language.ReusePass.reuse_pass(
-        ~prev=resolve_prev(~key, prev),
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception _ => Language.IncrEval.empty
-    | stream => stream
+    switch (resolve_payload(~key, payload)) {
+    | Error(_) => Language.IncrEval.empty
+    | Ok((expr, eval_info_map)) =>
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev=resolve_prev(~key, prev),
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      }
     };
   (key, stream);
 };
@@ -400,30 +464,35 @@ let current_stream_interest: ref(Request.stream_interest) =
   ref(Request.Full);
 
 let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev, stream} = req_value;
+  let Request.{payload, prev, stream} = req_value;
   current_stream_interest := stream;
-  /* stream cadence scales with program size: each posted chunk costs
-     the client a stream-collection + recalc cycle that grows with the
-     program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
-     drowned the main thread. Clamped to [100ms, 1s]. */
-  stream_min_interval_ms :=
-    max(
-      100.,
-      min(
-        1000.,
-        float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
-      ),
-    );
-  switch (
-    Language.Evaluator.start_yielding_evaluation(
-      ~prev=resolve_prev(~key, prev),
-      ~eval_info=eval_info_map,
-      ~env=Language.Builtins.env_init,
-      expr,
-    )
-  ) {
-  | exception exn => CompletedImmediately(error_response(exn))
-  | evaluation => Yielding(evaluation)
+  switch (resolve_payload(~key, payload)) {
+  | Error(msg) =>
+    CompletedImmediately(Error(Language.ProgramResult.UnknownException(msg)))
+  | Ok((expr, eval_info_map)) =>
+    /* stream cadence scales with program size: each posted chunk costs
+       the client a stream-collection + recalc cycle that grows with the
+       program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
+       drowned the main thread. Clamped to [100ms, 1s]. */
+    stream_min_interval_ms :=
+      max(
+        100.,
+        min(
+          1000.,
+          float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
+        ),
+      );
+    switch (
+      Language.Evaluator.start_yielding_evaluation(
+        ~prev=resolve_prev(~key, prev),
+        ~eval_info=eval_info_map,
+        ~env=Language.Builtins.env_init,
+        expr,
+      )
+    ) {
+    | exception exn => CompletedImmediately(error_response(exn))
+    | evaluation => Yielding(evaluation)
+    };
   };
 };
 
@@ -746,13 +815,6 @@ and run_scheduled_slice = model => {
 
 /* ===== W2a sync handling ===== */
 
-/* one resident program (the current slide); a sync for a different
-   key evicts (plan §4.8) */
-type resident =
-  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
-
-let resident_slot: ref(resident) = ref(None);
-
 /* Pure over the slot — the loopback tests drive this directly. Runs
    synchronously in onmessage: statics are per-item incremental and the
    eval loop yields between slices, so summaries preempt eval work
@@ -781,6 +843,7 @@ let handle_sync =
           ~settings,
           ~generation=sync.generation,
           ~root,
+          ~probe_ids=sync.probe_ids,
           seg,
           prev,
         );
@@ -795,6 +858,7 @@ let handle_sync =
           Haz3lcore.ResidentProgram.sync_items(
             ~settings,
             ~generation=sync.generation,
+            ~probe_ids=sync.probe_ids,
             ~changed,
             ~roster,
             rp,

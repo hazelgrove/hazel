@@ -278,10 +278,20 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
    from_zip_for_sem's Dump.to_segment walk alone was ~300ms on mega-2k */
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
-  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+  let clamped = DefStatics.clamp^;
+  let ds =
+    DefStatics.calc_auto(~settings, ~propagate=!clamped, ~probe_ids, term);
   let info_map = ds.merged;
   let elaborated =
     switch () {
+    | _ when clamped =>
+      /* W2b: dynamics run worker-side from the resident program; this
+         SENTINEL is never evaluated — it exists so eval-request
+         triggering (keyed on elaborated changing) fires exactly when
+         the statics semantically changed */
+      dh_err(
+        "w2-resident:" ++ string_of_int(DefStatics.semantic_gen^),
+      )
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>

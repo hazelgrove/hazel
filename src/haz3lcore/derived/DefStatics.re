@@ -971,8 +971,23 @@ let chain_root = (e: Exp.t): list(Exp.t) => {
   };
 };
 
+/* [propagate=false] clamps downstream dirtying: items whose CONTENT
+   changed still re-analyze, but their export/type deltas seed no
+   dirty names — downstream items keep their previous (now stale)
+   results, with exports re-chained onto the new ctx so a later
+   analysis of any downstream item sees fresh upstream bindings. This
+   is the W2b main-thread mode: rename/type-edit cascades cost one
+   item here; the full propagation runs worker-side and lands async
+   (plans/w2-worker-residency.md §10-11). */
 let calc =
-    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+    (
+      ~settings,
+      ~propagate=true,
+      ~prev: option(t)=?,
+      ~probe_ids=Id.Map.empty,
+      whole: Exp.t,
+    )
+    : t => {
   last_analyzed := 0;
   let nodes = chain_root(whole);
   /* probe ids are an ANALYSIS input (witness stamping): an item whose
@@ -1087,12 +1102,12 @@ let calc =
         let incoming = shadow_filter(it.d_exports, dirty_vars);
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         let (dirty_vars, dirty_tnames) =
-          seed_delta(delta, incoming, incoming_t);
+          propagate ? seed_delta(delta, incoming, incoming_t) : ([], []);
         /* a moved item's names may resolve to a DIFFERENT binder
            downstream (ctx entry order = shadowing order changed):
            floor its delta at its own export names */
         let (dirty_vars, dirty_tnames) =
-          if (moved_in) {
+          if (moved_in && propagate) {
             (
               List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
               List.sort_uniq(
@@ -1106,10 +1121,12 @@ let calc =
         /* aliases defined here whose definitions mention dirty names
            are dirty downstream (transitive chains) */
         let dirty_tnames =
-          List.sort_uniq(
-            compare,
-            ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
-          );
+          propagate
+            ? List.sort_uniq(
+                compare,
+                ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
+              )
+            : dirty_tnames;
         (
           it,
           ctx_out,
@@ -1134,11 +1151,13 @@ let calc =
         | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
           /* deleted: downstream loses its exports */
           let (dirty_vars, dirty_tnames) =
-            seed_delta(
-              export_delta(q.d_exports, []),
-              dirty_vars,
-              dirty_tnames,
-            );
+            propagate
+              ? seed_delta(
+                  export_delta(q.d_exports, []),
+                  dirty_vars,
+                  dirty_tnames,
+                )
+              : (dirty_vars, dirty_tnames);
           go(
             pt,
             ns,
@@ -1159,11 +1178,13 @@ let calc =
              stays in merged until the move-in replaces it. */
           moved := Id.Map.add(q.d_id, q, moved^);
           let (dirty_vars, dirty_tnames) =
-            seed_delta(
-              export_delta(q.d_exports, []),
-              dirty_vars,
-              dirty_tnames,
-            );
+            propagate
+              ? seed_delta(
+                  export_delta(q.d_exports, []),
+                  dirty_vars,
+                  dirty_tnames,
+                )
+              : (dirty_vars, dirty_tnames);
           go(pt, ns, acc, ctx, dirty_vars, dirty_tnames, merged);
         | (ps, [n, ...nt]) =>
           let nid = Exp.rep_id(n);
@@ -1283,10 +1304,26 @@ let whole_elab = (t: t): option(Exp.t) => {
    to a full recompute via calc's own alignment check */
 let slot: ref(option(t)) = ref(None);
 
-let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+/* W2b main-thread mode: clamp downstream propagation (set by the web
+   layer's flip toggle; see CachedStatics.init_compositional_term).
+   TOGGLE-OFF MUST BUST THE SLOT — a clamped chain records fresh
+   exports without having propagated them, so a later incremental calc
+   cannot recover the missed dirt (Test_PropagateClamp). */
+let clamp: ref(bool) = ref(false);
+
+/* increments only when a calc actually re-analyzed something (caret
+   motion and identical reparses stay clean): the clamped mode's
+   eval-request trigger */
+let semantic_gen: ref(int) = ref(0);
+
+let calc_auto =
+    (~settings, ~propagate=true, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* probe changes no longer bust the slot: calc's probe-aware dirtying
      re-analyzes exactly the items whose maps contain a toggled id */
-  let t = calc(~settings, ~prev=?slot^, ~probe_ids, whole);
+  let t = calc(~settings, ~propagate, ~prev=?slot^, ~probe_ids, whole);
+  if (last_analyzed^ > 0 || slot^ == None) {
+    incr(semantic_gen);
+  };
   slot := Some(t);
   t;
 };

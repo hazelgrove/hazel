@@ -32,6 +32,9 @@ type t = {
   generation: int,
   root: Sort.t,
   items: list(item),
+  /* probe ids are an ANALYSIS input (witness stamping) and a dynamics
+     input (sample targets): main ships its current set on every sync */
+  probe_ids: Id.Map.t(unit),
   statics: DefStatics.t,
 };
 
@@ -68,15 +71,27 @@ let items_of_segment = (seg: Segment.t): list(item) =>
 let segment_of_items = (items: list(item)): Segment.t =>
   List.concat_map(it => it.i_seg, items);
 
-let derive = (~settings, ~root, ~prev: option(DefStatics.t), items) => {
+let derive = (~settings, ~root, ~probe_ids, ~prev: option(DefStatics.t), items) => {
   let seg = segment_of_items(items);
   let whole = MakeTerm.Incr.term_of_root(~root, seg);
-  DefStatics.calc(~settings, ~prev?, whole);
+  DefStatics.calc(~settings, ~probe_ids, ~prev?, whole);
 };
 
+let probe_map = (probe_ids: list(Id.t)): Id.Map.t(unit) =>
+  List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, probe_ids);
+
 let sync_full =
-    (~settings, ~generation: int, ~root: Sort.t, seg: Segment.t, prev): t => {
+    (
+      ~settings,
+      ~generation: int,
+      ~root: Sort.t,
+      ~probe_ids: list(Id.t)=[],
+      seg: Segment.t,
+      prev,
+    )
+    : t => {
   let items = items_of_segment(seg);
+  let probe_ids = probe_map(probe_ids);
   let prev_statics =
     switch (prev) {
     | Some(p) when p.root == root => Some(p.statics)
@@ -86,7 +101,8 @@ let sync_full =
     generation,
     root,
     items,
-    statics: derive(~settings, ~root, ~prev=prev_statics, items),
+    probe_ids,
+    statics: derive(~settings, ~root, ~probe_ids, ~prev=prev_statics, items),
   };
 };
 
@@ -100,11 +116,13 @@ let sync_items =
     (
       ~settings,
       ~generation: int,
+      ~probe_ids: list(Id.t)=[],
       ~changed: list((Id.t, Segment.t, int)),
       ~roster: list((Id.t, int)),
       prev: t,
     )
     : result(t, sync_error) => {
+  let probe_ids = probe_map(probe_ids);
   let missing =
     changed
     |> List.find_opt(((id, _, _)) =>
@@ -144,10 +162,12 @@ let sync_items =
         generation,
         root: prev.root,
         items,
+        probe_ids,
         statics:
           derive(
             ~settings,
             ~root=prev.root,
+            ~probe_ids,
             ~prev=Some(prev.statics),
             items,
           ),
