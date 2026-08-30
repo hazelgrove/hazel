@@ -84,7 +84,14 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
+      /* Rapid input snaps instead of gliding: every qualifying action
+         starts a fresh 125ms caret translate, so under key repeat the
+         caret is perpetually mid-glide, visibly trailing the text.
+         Animate only when the previous glide has had time to finish —
+         discrete jumps keep the animation, bursts stay tight. */
+      settings.core.flip_animations
+      && Action.should_animate(action)
+      && Animation.caret_glide_available()
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);
