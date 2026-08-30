@@ -16,6 +16,11 @@ open Util;
 
 let enabled: ref(bool) = ref(true);
 
+/* the resident key must MATCH the eval-request key for the same
+   editor, or Resident payloads resolve against nothing: ScratchMode
+   queues the master eval under "" (ScratchMode.calculate) */
+let master_key = "";
+
 type mirror = {
   m_key: string,
   m_root: Haz3lcore.Sort.t,

@@ -204,33 +204,6 @@ let start = default_model => {
         };
         /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
-        /* W2a shadow sync: ship master segments when the statics slot
-           advances (Force frames — ShadowResidency gates on slot
-           identity, so this is a no-op read between them). Unstacked
-           Scratch/Documentation only; never allowed to crash the app. */
-        try({
-          let page = model.model.current.current;
-          switch (page.Page.Model.editors) {
-          | Scratch(m)
-          | Documentation(m) when m.focus == None =>
-            let ed = Page.Update.get_editor(page);
-            let root = ed.editor.root;
-            switch (root, Haz3lcore.DefStatics.current()) {
-            | (Exp | Mod, Some(ds)) =>
-              ShadowResidency.on_master_statics(
-                ~key="master",
-                ~root,
-                ~settings=page.globals.settings.core,
-                ed.editor.syntax.segment,
-                ds,
-              )
-            | _ => ()
-            };
-          | _ => ()
-          };
-        }) {
-        | _ => ()
-        };
         /* Scroll-compensate when focus bar appears/disappears */
         JsUtil.setup_focus_bar_scroll_compensation();
         /* Update floating elements (backpack) to viewport coordinates */
