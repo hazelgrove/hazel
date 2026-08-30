@@ -8,6 +8,42 @@ let scroll_to_caret = ref(true);
 /* W2a: route worker statics summaries to the shadow comparator */
 let () = WorkerClient.on_summary := ShadowResidency.on_summary;
 
+/* console: window.__incrCounters() — MakeTerm.Incr observability
+   (fell_back should stay 0; analyzed ~1 per stacked edit) */
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__incrCountersReset",
+    Js_of_ocaml.Js.wrap_callback(() => {
+      Haz3lcore.MakeTerm.Incr.fell_back := 0;
+      Haz3lcore.MakeTerm.Incr.full_analyzed := 0;
+      Haz3lcore.MakeTerm.Incr.analyzed := 0;
+      Haz3lcore.MakeTerm.Incr.incr_calls := 0;
+      Haz3lcore.MakeTerm.Incr.incr_hits := 0;
+      Haz3lcore.MakeTerm.Incr.incr_misses := 0;
+    }),
+  );
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__incrCounters",
+    Js_of_ocaml.Js.wrap_callback(() =>
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "fell_back=%d full_analyzed=%d analyzed=%d calls=%d hits=%d misses=%d neq=%d nokey=%d",
+          Haz3lcore.MakeTerm.Incr.fell_back^,
+          Haz3lcore.MakeTerm.Incr.full_analyzed^,
+          Haz3lcore.MakeTerm.Incr.analyzed^,
+          Haz3lcore.MakeTerm.Incr.incr_calls^,
+          Haz3lcore.MakeTerm.Incr.incr_hits^,
+          Haz3lcore.MakeTerm.Incr.incr_misses^,
+          Haz3lcore.MakeTerm.Incr.incr_miss_neq^,
+          Haz3lcore.MakeTerm.Incr.incr_miss_nokey^,
+        ),
+      )
+    ),
+  );
+
 let restart_caret_animation = () =>
   // necessary to trigger reflow
   // <https://css-tricks.com/restart-css-animation/>

@@ -41,34 +41,41 @@ let tests = [
         check(bool, "husk", false, WorkerServer.entry_has_effects(husk))
       ),
       test_case("test-bearing entries carry effects", `Quick, () =>
-        check(
-          bool,
-          "test",
-          true,
-          WorkerServer.entry_has_effects(with_test),
-        )
+        check(bool, "test", true, WorkerServer.entry_has_effects(with_test))
       ),
-      test_case("Effects interest drops husks, keeps tests", `Quick, () => {
-        WorkerServer.current_stream_interest := WorkerServer.Request.Effects;
-        let u =
-          outbox_of([(Id.mk(), husk), (Id.mk(), with_test)])
-          |> WorkerServer.filter_stream_interest;
-        check(int, "kept", 1, count(u));
-      }),
-      test_case("Effects interest: all-husk chunk becomes empty", `Quick, () => {
-        WorkerServer.current_stream_interest := WorkerServer.Request.Effects;
-        let u =
-          outbox_of([(Id.mk(), husk)])
-          |> WorkerServer.filter_stream_interest;
-        check(bool, "empty", true, IncrEval.outbox_is_empty(u));
-      }),
-      test_case("Full interest ships everything", `Quick, () => {
-        WorkerServer.current_stream_interest := WorkerServer.Request.Full;
-        let u =
-          outbox_of([(Id.mk(), husk), (Id.mk(), with_test)])
-          |> WorkerServer.filter_stream_interest;
-        check(int, "kept", 2, count(u));
-      }),
+      test_case(
+        "Effects interest drops husks, keeps tests",
+        `Quick,
+        () => {
+          WorkerServer.current_stream_interest := WorkerServer.Request.Effects;
+          let u =
+            outbox_of([(Id.mk(), husk), (Id.mk(), with_test)])
+            |> WorkerServer.filter_stream_interest;
+          check(int, "kept", 1, count(u));
+        },
+      ),
+      test_case(
+        "Effects interest: all-husk chunk becomes empty",
+        `Quick,
+        () => {
+          WorkerServer.current_stream_interest := WorkerServer.Request.Effects;
+          let u =
+            outbox_of([(Id.mk(), husk)])
+            |> WorkerServer.filter_stream_interest;
+          check(bool, "empty", true, IncrEval.outbox_is_empty(u));
+        },
+      ),
+      test_case(
+        "Full interest ships everything",
+        `Quick,
+        () => {
+          WorkerServer.current_stream_interest := WorkerServer.Request.Full;
+          let u =
+            outbox_of([(Id.mk(), husk), (Id.mk(), with_test)])
+            |> WorkerServer.filter_stream_interest;
+          check(int, "kept", 2, count(u));
+        },
+      ),
     ],
   ),
 ];

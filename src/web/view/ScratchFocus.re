@@ -303,6 +303,29 @@ let headless_content_deep =
     )
   };
 
+/* identity-preserving map: return [xs] ITSELF when f changed nothing.
+   The splice walks below rebuilt EVERY tile record on every splice
+   (fresh children lists ⇒ fresh tiles all the way up), re-minting the
+   whole spliced segment each Force frame — which defeated every
+   pointer-keyed cache downstream (incremental parse slices, outline
+   term memo, W2 item diffing). Splices must only re-mint the spine
+   ABOVE the actual replacement. */
+let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
+  let ys = List.map(f, xs);
+  List.for_all2((===), xs, ys) ? xs : ys;
+};
+
+/* NB returns the ORIGINAL piece on no-change: rebuilding even the
+   variant wrapper (Piece.Tile(t)) breaks pointer equality upstream */
+let tile_sharing =
+    (p: Piece.t, t: Base.tile, children: list(Segment.t)): Piece.t =>
+  children === t.children
+    ? p
+    : Piece.Tile({
+        ...t,
+        children,
+      });
+
 let splice_headless_deep =
     (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
   let rec go = (~top: bool, seg: Segment.t): Segment.t =>
@@ -311,14 +334,11 @@ let splice_headless_deep =
       let (pre, _, suf) = trim_ws(slice(start, stop, seg));
       take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
     | None =>
-      List.map(
+      map_sharing(
         (p: Piece.t) =>
           switch (p) {
           | Tile(t) =>
-            Piece.Tile({
-              ...t,
-              children: List.map(go(~top=false), t.children),
-            })
+            tile_sharing(p, t, map_sharing(go(~top=false), t.children))
           | _ => p
           },
         seg,
@@ -434,16 +454,17 @@ let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => 
         let (_, tail) = split_at_semi(rest);
         [Piece.Tile(t), ...repl] @ tail;
       }
-    | [Piece.Tile(t), ...rest] => [
-        Piece.Tile({
-          ...t,
-          children: List.map(splice_def(fid, repl), t.children),
-        }),
+    | [Piece.Tile(t) as p, ...rest] => [
+        tile_sharing(p, t, map_sharing(splice_def(fid, repl), t.children)),
         ...scan(rest),
       ]
     | [p, ...rest] => [p, ...scan(rest)]
     };
-  scan(seg);
+  /* preserve LIST identity on no-change: parents compare child
+     segments by ===, so a fresh-cons copy of identical pieces would
+     still rebuild every ancestor tile */
+  let out = scan(seg);
+  Segment.ptr_eq(out, seg) ? seg : out;
 };
 
 let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
@@ -535,7 +556,7 @@ let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
   );
 
 let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  List.map(
+  map_sharing(
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when t.id == fid =>
@@ -548,10 +569,7 @@ let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
         | [] => p
         }
       | Tile(t) =>
-        Piece.Tile({
-          ...t,
-          children: List.map(splice_pat(fid, repl), t.children),
-        })
+        tile_sharing(p, t, map_sharing(splice_pat(fid, repl), t.children))
       | _ => p
       },
     seg,

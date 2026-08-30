@@ -64,6 +64,12 @@ let project_cell_statics =
   };
 };
 let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
+/* incremental-parse cache for the stacked Force frame: the plain
+   memoized term_of cost ~312ms/edit at 4k (ledger §14) — the go_incr
+   path with a persistent cache replays the top frame exactly and
+   re-parses only the edited item */
+let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
+  ref(Haz3lcore.MakeTerm.Incr.mk_cache());
 
 /* Structural operations on TOP-LEVEL definitions (outline context
    menu): insert / duplicate / move / delete. All act on the LIVE
@@ -1503,6 +1509,7 @@ module Update = {
          forces their own recalc below. */
       if (model.focus == None) {
         stacked_statics := None;
+        stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
       };
       let model =
         switch (model.focus) {
@@ -1519,7 +1526,13 @@ module Update = {
           /* per-item incremental parse: unchanged items reuse their
              terms (parity test-gated); a one-cell edit re-parses one
              item instead of the whole program (~165ms at 2k) */
-          let term = Haz3lcore.MakeTerm.Incr.term_of(spliced);
+          let term =
+            Haz3lcore.MakeTerm.Incr.go_incr(
+              ~root=editor.editor.editor.root,
+              ~cache=stacked_incr_cache^,
+              spliced,
+            ).
+              term;
           /* probes live in ZIPPERS: union the master's with every open
              cell's, so a probe placed in a cell reaches the
              whole-program evaluation */
