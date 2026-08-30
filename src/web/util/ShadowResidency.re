@@ -19,6 +19,10 @@ let enabled: ref(bool) = ref(true);
 type mirror = {
   m_key: string,
   m_root: Haz3lcore.Sort.t,
+  /* settings cross only on FULL syncs; a change forces one (the
+     worker would otherwise analyze under stale settings — permanent
+     mismatch) */
+  m_settings: Language.CoreSettings.t,
   /* slice objects as last shipped — the per-edit diff is pointer
      equality against these (identity-restore keeps unchanged items
      physically intact across edits) */
@@ -196,6 +200,7 @@ let on_master_statics =
               g,
               Haz3lcore.ResidentProgram.Summary.of_def_statics(
                 ~generation=g,
+                ~piece_ids=Haz3lcore.ResidentProgram.piece_ids(seg),
                 ds,
               ),
             ),
@@ -209,7 +214,8 @@ let on_master_statics =
         });
       };
       switch (mirror^) {
-      | Some(m) when m.m_key == key && m.m_root == root =>
+      | Some(m)
+          when m.m_key == key && m.m_root == root && m.m_settings == settings =>
         switch (diff_items(m, slices)) {
         | Some(([], _)) =>
           /* statics changed without segment change (probe toggles
@@ -234,6 +240,7 @@ let on_master_statics =
             Some({
               m_key: key,
               m_root: root,
+              m_settings: settings,
               m_slices: slices,
               m_roster: roster,
             });
@@ -246,6 +253,7 @@ let on_master_statics =
           Some({
             m_key: key,
             m_root: root,
+            m_settings: settings,
             m_slices: slices,
             m_roster: roster,
           });

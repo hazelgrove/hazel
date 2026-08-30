@@ -59,6 +59,7 @@ let tests = [
         let expected =
           ResidentProgram.Summary.of_def_statics(
             ~generation=1,
+            ~piece_ids=ResidentProgram.piece_ids(seg),
             DefStatics.calc(~settings, MakeTerm.go(seg).term),
           );
         check(
@@ -131,13 +132,12 @@ let tests = [
           | Some((_, _, rp')) => rp'
           | None => Alcotest.fail("no resident after delta")
           };
+        let spliced = ResidentProgram.segment_of_items(rp'.items);
         let expected =
           ResidentProgram.Summary.of_def_statics(
             ~generation=2,
-            DefStatics.calc(
-              ~settings,
-              MakeTerm.go(ResidentProgram.segment_of_items(rp'.items)).term,
-            ),
+            ~piece_ids=ResidentProgram.piece_ids(spliced),
+            DefStatics.calc(~settings, MakeTerm.go(spliced).term),
           );
         check(
           bool,

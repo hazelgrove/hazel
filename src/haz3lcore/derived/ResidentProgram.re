@@ -158,16 +158,23 @@ let sync_items =
   };
 };
 
-/* The cross-boundary statics summary: per-item error/warning id sets.
- * Both sides compute it from their own DefStatics results, so the
- * shadow-mode comparison (plan §4.6) is definitionally apples-to-
- * apples. */
+/* The cross-boundary statics summary. Error/warning ids split by
+ * anchor: PIECE-anchored ids (present in the segment) compare and
+ * ship exactly — they are the ones decorations can target. Ids on
+ * nodes SYNTHESIZED during analysis (statics-time lowering mints
+ * fresh ids, e.g. module expansion; they are unmeasurable and
+ * derivation-local) compare by COUNT only — upgraded to message-
+ * content comparison when the W2b payload ships rendered messages.
+ * Both sides classify against their own segment's piece ids, which
+ * are identical because pieces are what crosses the boundary. */
 module Summary = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type item_summary = {
     s_id: Id.t,
     s_errors: list(Id.t),
     s_warnings: list(Id.t),
+    s_synth_errors: int,
+    s_synth_warnings: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -178,21 +185,40 @@ module Summary = {
 
   let sorted = ids => List.sort_uniq(Id.compare, ids);
 
-  let of_def_statics = (~generation: int, ds: DefStatics.t): t => {
-    s_generation: generation,
-    s_items:
-      ds.items
-      |> List.map((it: DefStatics.item) =>
-           {
-             s_id: it.d_id,
-             s_errors: sorted(it.d_error_ids),
-             s_warnings: sorted(it.d_warning_ids),
-           }
-         ),
+  let of_def_statics =
+      (~generation: int, ~piece_ids: Id.Set.t, ds: DefStatics.t): t => {
+    let split = ids => {
+      let (anchored, synth) =
+        List.partition(id => Id.Set.mem(id, piece_ids), ids);
+      (sorted(anchored), List.length(synth));
+    };
+    {
+      s_generation: generation,
+      s_items:
+        ds.items
+        |> List.map((it: DefStatics.item) => {
+             let (errs, synth_errs) = split(it.d_error_ids);
+             let (warns, synth_warns) = split(it.d_warning_ids);
+             {
+               s_id: it.d_id,
+               s_errors: errs,
+               s_warnings: warns,
+               s_synth_errors: synth_errs,
+               s_synth_warnings: synth_warns,
+             };
+           }),
+    };
   };
 
   let equal = (a: t, b: t): bool => a.s_items == b.s_items; /* generations compare separately */
 };
 
+let piece_ids = (seg: Segment.t): Id.Set.t =>
+  Id.Set.of_list(Segment.ids(seg));
+
 let summarize = (t: t): Summary.t =>
-  Summary.of_def_statics(~generation=t.generation, t.statics);
+  Summary.of_def_statics(
+    ~generation=t.generation,
+    ~piece_ids=piece_ids(segment_of_items(t.items)),
+    t.statics,
+  );

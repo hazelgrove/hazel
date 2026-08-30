@@ -19,6 +19,7 @@ let reference_summary = (~root, ~generation, seg: Segment.t) => {
     };
   ResidentProgram.Summary.of_def_statics(
     ~generation,
+    ~piece_ids=ResidentProgram.piece_ids(seg),
     DefStatics.calc(~settings, term),
   );
 };

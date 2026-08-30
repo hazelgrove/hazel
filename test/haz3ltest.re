@@ -76,6 +76,7 @@ let (suite, _) =
     @ Test_StreamInterests.tests
     @ Test_ResidentProgram.tests
     @ Test_W2Protocol.tests
+    @ Test_DeriveDeterminism.tests
     @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

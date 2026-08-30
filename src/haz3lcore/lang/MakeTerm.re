@@ -61,6 +61,14 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
 let is_sig_seq = is_nary(Any.is_sig, ";");
 
+/* Nodes SYNTHESIZED during derivation (wrappers with no tile of their
+   own) take ids DERIVED from their content, never Id.mk(): term
+   derivation must be a pure function of the segment — W2 residency
+   derives statics on both sides of the worker boundary, and random
+   minting forks them (gated by Test_DeriveDeterminism). */
+let derived = (tag: string, anchor: Id.t, tagged) =>
+  IdTagged.fast_copy(Id.mk_str(tag ++ Id.to_string(anchor)), tagged);
+
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
    during parsing and need to be flattened into a proper list for Module(items).
@@ -73,8 +81,27 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     |> List.map(
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         | Grammar.Exp(e) => [
+             derived("modexp-wrap", Exp.rep_id(e), Mod.fresh(ModExp(e))),
+           ]
+         | other => {
+             let anchor = Language.Any.rep_id(other);
+             [
+               derived(
+                 "modexp-multihole-wrap",
+                 anchor,
+                 Mod.fresh(
+                   ModExp(
+                     derived(
+                       "exp-multihole-wrap",
+                       anchor,
+                       Exp.fresh(MultiHole([other])),
+                     ),
+                   ),
+                 ),
+               ),
+             ];
+           },
        )
     |> List.flatten
   | ModLet(_, _)
@@ -96,7 +123,13 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.map(
          fun
          | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | other => [Sig.fresh(MultiHole([other]))],
+         | other => [
+             derived(
+               "sig-multihole-wrap",
+               Language.Any.rep_id(other),
+               Sig.fresh(MultiHole([other])),
+             ),
+           ],
        )
     |> List.flatten
   | SigLet(_)
@@ -610,8 +643,11 @@ and exp = unsorted => {
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
+      let anchor = Exp.rep_id(e);
       let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+      rewrap(
+        Tuple([derived("tuplabel-wrap", anchor, Exp.fresh(e_term))]): Exp.term,
+      );
     | _ => e
     };
   };
@@ -913,10 +949,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
+              let anchor = Exp.rep_id(l);
               let (e_term, rewrap) = IdTagged.unwrap(l);
-
               TupLabel(
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                rewrap(
+                  MultiHole([
+                    Exp(
+                      derived("label-multihole", anchor, Exp.fresh(e_term)),
+                    ),
+                  ]): Exp.term,
+                ),
                 r,
               );
             }
@@ -934,11 +976,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
+              let anchor = Exp.rep_id(r);
               let (e_term, rewrap) = IdTagged.unwrap(r);
-
               Dot(
                 l,
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                rewrap(
+                  MultiHole([
+                    Exp(
+                      derived("dot-multihole", anchor, Exp.fresh(e_term)),
+                    ),
+                  ]): Exp.term,
+                ),
               );
             }
           | (["|>"], []) => Ap(Reverse, r, l)
@@ -958,7 +1006,8 @@ and pat = unsorted => {
   let p =
     return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
-  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | TupLabel(_) =>
+    derived("pat-tuplabel-wrap", Pat.rep_id(p), Pat.fresh(Tuple([p])))
   | _ => p
   };
 }
@@ -1073,10 +1122,21 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
+          let anchor = Pat.rep_id(l);
           let (e_term, rewrap) = IdTagged.unwrap(l);
           ret(
             TupLabel(
-              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              rewrap(
+                MultiHole([
+                  Pat(
+                    derived(
+                      "pat-label-multihole",
+                      anchor,
+                      Pat.fresh(e_term),
+                    ),
+                  ),
+                ]): Pat.term,
+              ),
               r,
             ),
           );
