@@ -47,10 +47,13 @@ module Js = {
   };
 
   let client_height = (): float =>
-    Js.Optdef.get(
-      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
-      0.0
-    );
+    try(
+      JsUtil.cached_client_height(
+        Js.Unsafe.get(Dom_html.document, "documentElement"),
+      )
+    ) {
+    | _ => 0.0
+    };
 
   let inner_height = (): float =>
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);

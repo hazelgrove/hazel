@@ -352,6 +352,34 @@ let find_ancestor_with_class =
   loop(element_to_node(el));
 };
 
+/* clientHeight forces layout on a dirty tree, and scroll handlers run
+   per scrolled frame (every held key once reveals write scrollTop) —
+   a container's viewport height only changes on resize, so cache it.
+   Keyed by element identity; resize clears (see the listener below). */
+let client_height_cache: ref(option((Js.t(Dom_html.element), float))) =
+  ref(None);
+let client_height_listener = ref(false);
+let cached_client_height = (el: Js.t(Dom_html.element)): float => {
+  if (! client_height_listener^) {
+    client_height_listener := true;
+    let clear = Js.wrap_callback(_ => client_height_cache := None);
+    let _ =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "addEventListener",
+        [|Js.Unsafe.inject(Js.string("resize")), Js.Unsafe.inject(clear)|],
+      );
+    ();
+  };
+  switch (client_height_cache^) {
+  | Some((el', h)) when el' === el => h
+  | _ =>
+    let h = float_of_int(el##.clientHeight);
+    client_height_cache := Some((el, h));
+    h;
+  };
+};
+
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
     let current = float_of_int(container##.scrollTop);
