@@ -52,7 +52,14 @@ let slide_case = ((name, root, p: PersistentZipper.t)) =>
           let imap_a = ds_a.DefStatics.merged;
           let imap_b = ds_b.DefStatics.merged;
           List.combine(a.s_items, b.s_items)
-          |> List.iteri((i, (x: ResidentProgram.Summary.item_summary, y: ResidentProgram.Summary.item_summary)) =>
+          |> List.iteri(
+               (
+                 i,
+                 (
+                   x: ResidentProgram.Summary.item_summary,
+                   y: ResidentProgram.Summary.item_summary,
+                 ),
+               ) =>
                if (x != y) {
                  let only = (l1, l2) =>
                    List.filter(id => !List.mem(id, l2), l1);
@@ -61,7 +68,8 @@ let slide_case = ((name, root, p: PersistentZipper.t)) =>
                    ++ "("
                    ++ (
                      switch (Id.Map.find_opt(id, imap)) {
-                     | Some(info) => Info.show(info) |> String.sub(_, 0, 120)
+                     | Some(info) =>
+                       Info.show(info) |> String.sub(_, 0, 120)
                      | None => "?"
                      }
                    )

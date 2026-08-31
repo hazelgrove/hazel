@@ -41,20 +41,20 @@ let time3 = (label, f) => {
 
 let bench_zipper = (name: string, z: Zipper.t) => {
   Printf.printf("== %s ==\n", name);
-  let text = time("print text (MarkerParse.to_text)", () =>
-    MarkerParse.to_text(z)
-  );
+  let text =
+    time("print text (MarkerParse.to_text)", () => MarkerParse.to_text(z));
   Printf.printf("  text chars: %d\n", String.length(text));
-  let sexp = time3("sexp_of_t (tree construction)", () =>
-    Zipper.sexp_of_t(z)
-  );
-  let str = time3("Sexp.to_string (string build)", () =>
-    Sexplib.Sexp.to_string(sexp)
-  );
+  let sexp =
+    time3("sexp_of_t (tree construction)", () => Zipper.sexp_of_t(z));
+  let str =
+    time3("Sexp.to_string (string build)", () =>
+      Sexplib.Sexp.to_string(sexp)
+    );
   Printf.printf("  sexp chars: %d\n", String.length(str));
-  let _ = time3("restore: of_string + t_of_sexp", () =>
-    Sexplib.Sexp.of_string(str) |> Zipper.t_of_sexp
-  );
+  let _ =
+    time3("restore: of_string + t_of_sexp", () =>
+      Sexplib.Sexp.of_string(str) |> Zipper.t_of_sexp
+    );
   /* per-item proxy: top-level piece slices of increasing size */
   let seg = Zipper.unselect_and_zip(z);
   let n = List.length(seg);
@@ -88,16 +88,20 @@ let load = (name: string): option(Zipper.t) =>
   };
 
 let cases = [
-  test_case("serialization cost accounting", `Quick, () => {
-    switch (load("mega-1k.hz")) {
-    | None => Alcotest.skip()
-    | Some(z) => bench_zipper("mega-1k (27k chars)", z)
-    };
-    switch (load("mega-4k.hz")) {
-    | None => ()
-    | Some(z) => bench_zipper("mega-4k (123k chars)", z)
-    };
-  }),
+  test_case(
+    "serialization cost accounting",
+    `Quick,
+    () => {
+      switch (load("mega-1k.hz")) {
+      | None => Alcotest.skip()
+      | Some(z) => bench_zipper("mega-1k (27k chars)", z)
+      };
+      switch (load("mega-4k.hz")) {
+      | None => ()
+      | Some(z) => bench_zipper("mega-4k (123k chars)", z)
+      };
+    },
+  ),
 ];
 
 let tests = [("SerBench", cases)];

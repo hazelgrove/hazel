@@ -59,7 +59,8 @@ let full_sync_case = (name, root, src) =>
     `Quick,
     () => {
       let seg = parse(~root, src);
-      let rp = ResidentProgram.sync_full(~settings, ~generation=1, ~root, seg, None);
+      let rp =
+        ResidentProgram.sync_full(~settings, ~generation=1, ~root, seg, None);
       check_summary(
         name,
         reference_summary(~root, ~generation=1, seg),
@@ -76,7 +77,8 @@ let delta_case = (name, root, src, src') =>
     `Quick,
     () => {
       let seg = parse(~root, src);
-      let rp = ResidentProgram.sync_full(~settings, ~generation=1, ~root, seg, None);
+      let rp =
+        ResidentProgram.sync_full(~settings, ~generation=1, ~root, seg, None);
       /* production-shaped delta: main's segment evolves incrementally
          (unchanged items keep their piece ids — the identity-restore
          invariant), so build the post-edit state by splicing ONE
@@ -86,20 +88,30 @@ let delta_case = (name, root, src, src') =>
       let changed =
         List.combine(rp.items, items')
         |> List.filter_map(
-             (((old: ResidentProgram.item), (nu: ResidentProgram.item))) =>
+             ((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              old.i_print == nu.i_print
                ? None : Some((old.i_id, nu.i_seg, nu.i_print))
            );
-      check(int, name ++ ": exactly one item changed", 1, List.length(changed));
+      check(
+        int,
+        name ++ ": exactly one item changed",
+        1,
+        List.length(changed),
+      );
       let roster =
         List.combine(rp.items, items')
-        |> List.map(
-             (((old: ResidentProgram.item), (nu: ResidentProgram.item))) =>
+        |> List.map(((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              old.i_print == nu.i_print
                ? (old.i_id, old.i_print) : (nu.i_id, nu.i_print)
            );
       switch (
-        ResidentProgram.sync_items(~settings, ~generation=2, ~changed, ~roster, rp)
+        ResidentProgram.sync_items(
+          ~settings,
+          ~generation=2,
+          ~changed,
+          ~roster,
+          rp,
+        )
       ) {
       | Error(_) => Alcotest.fail(name ++ ": delta sync rejected")
       | Ok(rp') =>
@@ -126,7 +138,14 @@ let mismatch_case =
     `Quick,
     () => {
       let seg = parse(~root=Sort.Exp, exp_src);
-      let rp = ResidentProgram.sync_full(~settings, ~generation=1, ~root=Sort.Exp, seg, None);
+      let rp =
+        ResidentProgram.sync_full(
+          ~settings,
+          ~generation=1,
+          ~root=Sort.Exp,
+          seg,
+          None,
+        );
       let roster =
         List.map(
           (it: ResidentProgram.item) => (it.i_id, it.i_print + 1),
@@ -164,7 +183,13 @@ let corpus_case =
         | None => Alcotest.fail("mega-1k parse failed")
         };
       let rp =
-        ResidentProgram.sync_full(~settings, ~generation=1, ~root=Sort.Exp, seg, None);
+        ResidentProgram.sync_full(
+          ~settings,
+          ~generation=1,
+          ~root=Sort.Exp,
+          seg,
+          None,
+        );
       check_summary(
         "mega-1k",
         reference_summary(~root=Sort.Exp, ~generation=1, seg),
@@ -228,15 +253,18 @@ let corpus_mod_delta_case =
           seg,
           None,
         );
-      let items' = ResidentProgram.items_of_segment(parse(~root=Sort.Mod, src));
+      let items' =
+        ResidentProgram.items_of_segment(parse(~root=Sort.Mod, src));
       let changed =
         List.combine(rp.items, items')
-        |> List.map(
-             (((old: ResidentProgram.item), (nu: ResidentProgram.item))) =>
+        |> List.map(((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              (old.i_id, nu.i_seg, nu.i_print)
            );
       let roster =
-        List.map((it: ResidentProgram.item) => (it.i_id, it.i_print), items');
+        List.map(
+          (it: ResidentProgram.item) => (it.i_id, it.i_print),
+          items',
+        );
       switch (
         ResidentProgram.sync_items(
           ~settings,
@@ -258,7 +286,14 @@ let corpus_mod_delta_case =
         if (!ResidentProgram.Summary.equal(expected, actual)) {
           /* print the differing items for diagnosis */
           List.combine(expected.s_items, actual.s_items)
-          |> List.iteri((i, (e: ResidentProgram.Summary.item_summary, a: ResidentProgram.Summary.item_summary)) =>
+          |> List.iteri(
+               (
+                 i,
+                 (
+                   e: ResidentProgram.Summary.item_summary,
+                   a: ResidentProgram.Summary.item_summary,
+                 ),
+               ) =>
                if (e != a) {
                  Printf.printf(
                    "item %d: expected errs=%d warns=%d / actual errs=%d warns=%d\n",
