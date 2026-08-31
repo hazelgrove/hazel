@@ -9,8 +9,8 @@
     to bottom,
     transparent 0,
     transparent calc(var(--row-height-px) - 1px),
-    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
-    rgba(255, 0, 0, 0.2) var(--row-height-px)
+    var(--border-error) calc(var(--row-height-px) - 1px),
+    var(--border-error) var(--row-height-px)
   );
 }
 
@@ -197,25 +197,25 @@
 
 @keyframes rainbow {
   0% {
-    color: #4477ff;
+    color: oklch(from var(--text-default) l 0.2 265);
   } /* Start with muted blue */
   17% {
-    color: #9944ff;
+    color: oklch(from var(--text-default) l 0.2 300);
   } /* Muted purple */
   33% {
-    color: #ff4488;
+    color: oklch(from var(--text-default) l 0.2 355);
   } /* Muted pink */
   50% {
-    color: #ff7744;
+    color: oklch(from var(--text-default) l 0.2 45);
   } /* Muted orange */
   67% {
-    color: #88aa44;
+    color: oklch(from var(--text-default) l 0.2 120);
   } /* Muted green */
   83% {
-    color: #44aaff;
+    color: oklch(from var(--text-default) l 0.2 240);
   } /* Muted cyan */
   100% {
-    color: #4477ff;
+    color: oklch(from var(--text-default) l 0.2 265);
   } /* Back to muted blue */
 }
 

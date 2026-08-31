@@ -1316,15 +1316,15 @@
 }
 
 .session-mode-converse {
-  color: #2e8b57;
+  color: var(--text-success);
 }
 
 .session-mode-edit {
-  color: #8a2be2;
+  color: var(--text-typ);
 }
 
 .session-mode-plan {
-  color: #1f6feb;
+  color: var(--text-pat);
 }
 
 .session-mode-info {

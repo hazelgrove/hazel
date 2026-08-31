@@ -88,7 +88,7 @@
 
 #assistant .message-input:focus {
   outline: 0.75px solid var(--border-black);
-  background-color: white;
+  background-color: var(--surface-raised);
 }
 
 #assistant .send-button-disabled {

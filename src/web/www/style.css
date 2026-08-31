@@ -168,7 +168,7 @@ select {
 #sample-focus-bar .title {
   font-size: 0.85em;
   font-family: var(--ui-font);
-  color: rgb(255, 255, 255);
+  color: var(--text-inverse);
   background-color: var(--surface-success);
   border-radius: 0.3em 1.5em 1.3em 1.3em;
   padding: 4px 8px;
@@ -206,7 +206,7 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-entry:hover {
-  background-color: white;
+  background-color: var(--menu-item-hover-bkg);
 }
 
 #sample-focus-bar .breadcrumb-entry.focused {
@@ -318,7 +318,7 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-body:hover {
-  background-color: white;
+  background-color: var(--menu-item-hover-bkg);
   color: var(--text-accent);
 }
 

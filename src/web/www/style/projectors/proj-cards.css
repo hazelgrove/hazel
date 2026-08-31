@@ -85,8 +85,8 @@
   height: var(--card-height);
   image-rendering: pixelated;
   background-image: url("../../img/cards-pixel-pattern.png");
-  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-    drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+  filter: drop-shadow(-1px 0px 0px var(--shadow-strong)) drop-shadow(0px -1px 0px var(--shadow-strong))
+    drop-shadow(1px 0px 0px var(--shadow-strong)) drop-shadow(0px 1px 0px var(--shadow-strong));
 }
 
 .projector.card.Pat .card-sprite {
@@ -98,26 +98,26 @@
 @keyframes blink-shadow {
   0%,
   50% {
-    filter: drop-shadow(0px -1px 0px black) drop-shadow(1px 0px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(-2px 0px 0px red);
+    filter: drop-shadow(0px -1px 0px var(--shadow-strong)) drop-shadow(1px 0px 0px var(--shadow-strong))
+      drop-shadow(0px 1px 0px var(--shadow-strong)) drop-shadow(-2px 0px 0px red);
   }
   51%,
   100% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+    filter: drop-shadow(-1px 0px 0px var(--shadow-strong)) drop-shadow(0px -1px 0px var(--shadow-strong))
+      drop-shadow(1px 0px 0px var(--shadow-strong)) drop-shadow(0px 1px 0px var(--shadow-strong));
   }
 }
 
 @keyframes blink-shadow-right {
   0%,
   50% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(0px 1px 0px black) drop-shadow(2px 0px 0px red);
+    filter: drop-shadow(-1px 0px 0px var(--shadow-strong)) drop-shadow(0px -1px 0px var(--shadow-strong))
+      drop-shadow(0px 1px 0px var(--shadow-strong)) drop-shadow(2px 0px 0px red);
   }
   51%,
   100% {
-    filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-      drop-shadow(1px 0px 0px black) drop-shadow(0px 1px 0px black);
+    filter: drop-shadow(-1px 0px 0px var(--shadow-strong)) drop-shadow(0px -1px 0px var(--shadow-strong))
+      drop-shadow(1px 0px 0px var(--shadow-strong)) drop-shadow(0px 1px 0px var(--shadow-strong));
   }
 }
 
@@ -164,8 +164,8 @@
 
 .projector.card.indicated .hand .card-sprite:hover {
   translate: 0px -9px;
-  filter: drop-shadow(-1px 0px 0px black) drop-shadow(0px -1px 0px black)
-    drop-shadow(1.5px 0px 0px black) drop-shadow(0px 1.5px 0px black)
+  filter: drop-shadow(-1px 0px 0px var(--shadow-strong)) drop-shadow(0px -1px 0px var(--shadow-strong))
+    drop-shadow(1.5px 0px 0px var(--shadow-strong)) drop-shadow(0px 1.5px 0px var(--shadow-strong))
     drop-shadow(2px 2px 0px #6666);
 }
 .projector.card.indicated.Pat .hand .card-sprite:hover {

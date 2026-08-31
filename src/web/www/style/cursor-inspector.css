@@ -95,7 +95,7 @@
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.error .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
-  background-color: #dfcc99;
+  background-color: var(--surface-highlight-soft);
   outline: 0.3px solid var(--border-strong);
   color: var(--text-strong);
 }
@@ -105,7 +105,7 @@
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.warning .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
-  background-color: #dfcc99;
+  background-color: var(--surface-highlight-soft);
   outline: 0.3px solid var(--warning-hole-stroke);
   color: var(--warning-hole-stroke);
 }

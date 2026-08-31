@@ -42,7 +42,7 @@
 }
 
 #probe-sidebar .quick-select-deco svg {
-  fill: oklch(0.93 0.06 90.1);
+  fill: var(--surface-highlight-soft);
 }
 
 #probe-sidebar .ephemerals {

@@ -243,6 +243,9 @@ let role_groups: list((string, list(string))) = [
       "sample-below-text",
       "sample-below-bg",
       "sample-below-shadow",
+      "sample-neutral-text",
+      "sample-neutral-bg",
+      "sample-focus-text",
     ],
   ),
 ];

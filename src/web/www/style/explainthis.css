@@ -133,7 +133,7 @@
 
 #explain-this div.expandable-target:hover .arrow,
 #explain-this .arrow:hover {
-  border-top: 6px solid black;
+  border-top: 6px solid var(--border-strong);
 }
 
 #explain-this svg.expandable {

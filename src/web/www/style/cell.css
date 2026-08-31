@@ -121,7 +121,7 @@
 .edit-icon {
   margin-left: 0.5em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
 }
 
 .title-cell .title-edit {
@@ -147,7 +147,7 @@
   margin-top: 0.175em;
   margin-left: 1em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
 }
 
 #add-icon {
@@ -353,7 +353,7 @@
 .edit-pencil {
   margin-left: 0.5em;
   cursor: pointer;
-  fill: #7a6219;
+  fill: var(--text-accent);
   display: inline;
   vertical-align: top;
 }

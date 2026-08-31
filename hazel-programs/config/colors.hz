@@ -293,7 +293,15 @@ let theme_of = fun (p, role) ->
         `sample-above-shadow` = at(p.`highlight-a`, 0.4),
         `sample-below-text` = at(p.`LABEL`, 1.),
         `sample-below-bg` = at(p.`LABEL`, 0.12),
-        `sample-below-shadow` = at(p.`LABEL`, 0.4)
+        `sample-below-shadow` = at(p.`LABEL`, 0.4),
+        # Samples with no call-stack relation, and the focused one. Green   #
+        # like the rest of the probe furniture, but placed on the axis so   #
+        # the text keeps its distance from the fill in every scheme -- the  #
+        # palette's own greens do not: G0 is 70 and G1 is 85 in light, so   #
+        # text-on-fill from those two would be nearly the same colour.      #
+        `sample-neutral-text` = at(p.`G0`, 0.72),
+        `sample-neutral-bg` = at(p.`G0`, 0.1),
+        `sample-focus-text` = at(p.`G0`, 1.)
       ))
     ))
   )) in

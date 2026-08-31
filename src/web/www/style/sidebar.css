@@ -103,21 +103,21 @@
   height: 18px;
   border-radius: 50%;
   font-weight: 600;
-  color: white;
+  color: var(--text-inverse);
   transition: background-color 0.2s ease;
 }
 
 .tab-status-indicator.no-errors span {
-  background-color: oklch(70% 0.15 150);
+  background-color: var(--surface-success);
   font-size: 12px;
 }
 
 .tab-status-indicator.has-errors span {
-  background-color: oklch(40% 0.3 30);
+  background-color: var(--surface-error-strong);
 }
 
 .tab-status-indicator.has-warnings span {
-  background-color: oklch(75% 0.15 85);
+  background-color: var(--surface-warning);
   font-size: 12px;
 }
 

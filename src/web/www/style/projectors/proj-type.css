@@ -39,7 +39,7 @@
 }
 
 .projector.statics.indicated:not(.selected):not(.error) .main {
-  color: white;
+  color: var(--text-inverse);
 }
 
 .projector.statics .icon {
@@ -93,7 +93,7 @@
 }
 
 .projector.statics .offside .code .token.explicit-hole {
-  color: white;
+  color: var(--text-inverse);
 }
 
 /* REFRACTOR MODE */

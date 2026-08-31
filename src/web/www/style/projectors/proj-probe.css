@@ -33,6 +33,11 @@
   --sample-above-bg: oklch(0.93 0.06 -0.01);
   --sample-below-bg: oklch(0.93 0.03 195);
   --sample-above-shadow: oklch(0.85 0.08 355); /* pinkish/magenta */
+  /* Samples with no call-stack relation, and the focused one. Defaults only:
+     the Colors slide emits all three as roles and overrides these. */
+  --sample-neutral-bg: #e5efe8;
+  --sample-neutral-text: #437543;
+  --sample-focus-text: #247e3d;
   --sample-below-shadow: oklch(0.8 0.09 230); /* blue */
 }
 
@@ -92,7 +97,7 @@
   stroke: var(--border-success) !important;
 }
 .code-deco .refractors svg path.child-line.statics {
-  stroke: #bd92cf !important;
+  stroke: var(--border-typ) !important;
 }
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--border-strong) !important;
@@ -149,7 +154,7 @@
   opacity: 1;
 }
 .refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
-  stroke: #bd92cf !important;
+  stroke: var(--border-typ) !important;
   opacity: 1;
 }
 
@@ -162,7 +167,7 @@
 }
 
 .indication-refractored.statics svg.shard.indicated > path {
-  fill: hsl(281, 80%, 95%);
+  fill: var(--main-base);
 }
 
 /* INLINE VIEW */
@@ -182,7 +187,7 @@
 }
 .projector.probe.indicated:not(.selected):not(.error) .main,
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
-  color: white;
+  color: var(--text-inverse);
 }
 .projector.probe .live-offside:focus {
   outline: none;
@@ -227,7 +232,7 @@
   top: -0.3em;
   transform-origin: top right;
   scale: 0.6;
-  color: oklch(1 0 0);
+  color: var(--text-default);
   font-family: var(--ui-font);
   display: flex;
   justify-content: center;
@@ -259,7 +264,7 @@
 } */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
-  color: black;
+  color: var(--text-default);
 }
 
 @keyframes blink-probe-caret {
@@ -493,7 +498,7 @@
 }
 .live-offside.Many
   .sample:has(.value.unrelated:not(.depth-above):not(.depth-below)) .value {
-  background-color: #e5efe8;
+  background-color: var(--sample-neutral-bg);
 }
 
 .live-offside.Many .sample:has(.value.depth-above.depth-2) {
@@ -575,7 +580,7 @@
 
 /* Fallback style for when above/below are turned off */
 .live-offside.Single .sample .value {
-  background-color: #d6eed6;
+  background-color: var(--sample-neutral-bg);
 }
 
 .projector.probe.indicated .live-offside:focus .sample:has(.value.focus) .value {
@@ -627,7 +632,7 @@
 } */
 
 .live-offside .value .token.explicit-hole {
-  color: white;
+  color: var(--text-default);
   text-shadow: none;
 }
 
@@ -636,7 +641,7 @@
   display: none;
 }
 .indicated .live-offside .value.focus .code-text .token {
-  color: #247e3d;
+  color: var(--sample-focus-text);
 }
 
 .live-offside .value.focus .code-text .token {
@@ -644,7 +649,7 @@
 }
 
 .live-offside.Many .value.unrelated .code-text .token {
-  color: #437543;
+  color: var(--sample-neutral-text);
   opacity: 0.7;
 }
 .live-offside.Many .value.tangent-before .code-text .token {
@@ -659,7 +664,7 @@
   color: rgb(102, 102, 102);
 } */
 .live-offside.Single .value.unrelated .code-text .token {
-  color: #437543;
+  color: var(--sample-neutral-text);
 }
 /* Faded text for tangent (unrelated but directional) samples */
 .live-offside.Single .value.tangent-before .code-text .token {
@@ -671,7 +676,7 @@
 /* Saturated text for related (caller/callee) samples */
 .live-offside.Many .value.related-before .code-text .token,
 .live-offside.Single .value.related-before .code-text .token {
-  color: oklch(0.58 0.21 346.68);
+  color: var(--sample-above-text);
 }
 .live-offside.Many .value.related-after .code-text .token,
 .live-offside.Single .value.related-after .code-text .token {
@@ -724,7 +729,7 @@
   width: fit-content;
   padding: 0 0.3em;
   gap: 0.1em;
-  color: black;
+  color: var(--menu-item-text);
   white-space: nowrap;
 }
 
@@ -789,7 +794,7 @@
 }
 
 .sample-context-menu .action-item.rich-probe-action .table-badge svg path {
-  fill: white;
+  fill: var(--text-inverse);
 }
 
 .live-offside .live-env {
