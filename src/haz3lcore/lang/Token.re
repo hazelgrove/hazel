@@ -151,7 +151,7 @@ let operator_chars = ascii_operator_chars ++ unicode_operator_chars;
 /* Neither class: delimiters, whitespace, control characters, and the
  * implicit-hole marker. ¿ is excluded so a decoded slide like `[1, ¿, 3]`
  * doesn't merge `¿,` into one token; see Haz3lcore.MarkerParse. */
-let excluded_chars = {|"`#¿\s\x00-\x1F\x7F\[\]\(\)\{\}|};
+let excluded_chars = {|"`#¿⧖\s\x00-\x1F\x7F\[\]\(\)\{\}|};
 
 /* Names are the complement, so `é 日 😀 © ✓ λ` all behave alike and a
  * decomposed `é` stays one name. On ASCII this is exactly `a-zA-Z0-9_'?^$`
@@ -349,6 +349,17 @@ let is_explicit_hole = t => t == explicit_hole;
  * commas, semicolons, or identifiers). */
 let implicit_hole_marker = "¿";
 let is_implicit_hole_marker = t => t == implicit_hole_marker;
+
+/* Concave-grout marker: `¿` stands in for CONVEX Grout (an operand
+ * hole, grammatically expressible as `?`), but concave Grout is an
+ * OPERATOR hole (`1 <grout> 2`) that no operand marker can spell —
+ * printing both shapes as `¿` made persisted text ambiguous AND
+ * unparseable by the fast path (`1 ¿ 2` lexes as three operands),
+ * dropping every reload of such a document into the quadratic
+ * recovering parser. Same atomic-token character requirements as the
+ * ¿ marker above. */
+let concave_hole_marker = "\xe2\xa7\x96"; /* ⧖ U+29D6 WHITE HOURGLASS */
+let is_concave_hole_marker = t => t == concave_hole_marker;
 let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
 
 /* Projector invocation textual syntax */
