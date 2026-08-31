@@ -1298,6 +1298,13 @@ let calc =
      skip it (measured ~22ms/tick at 4k, the fixed floor of the
      statics tick). Idempotent + raw-sourced, so toggling dynamics
      back on heals the merged view on the next calc. */
+  if (prof^) {
+    Printf.printf(
+      "[staticsProf]   calc.gate dynamics=%b probes=%d\n",
+      settings.dynamics,
+      Id.Map.cardinal(probe_ids),
+    );
+  };
   let merged =
     !settings.dynamics && Id.Map.is_empty(probe_ids)
       ? merged
