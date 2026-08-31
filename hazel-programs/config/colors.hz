@@ -104,6 +104,12 @@ let theme_of = fun (p, role) ->
   # that reproduce the literals these roles replaced, so light is left    #
   # exactly as it was and the other three schemes finally follow it.      #
   let wash = fun (c, t, sat) -> at(color_saturate(c, sat), t) in
+  # The plate behind an indicated tile: the sort's own hue, desaturated and  #
+  # pinned to one lightness. All three sorts share the pair, because they    #
+  # were three copies of one decision written out per scheme.                #
+  let sort_plate = fun c ->
+    color_with_lightness(
+      color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
   ^^fold((
     palette = ^^fold((
       `none` = p.`none`,
@@ -141,27 +147,27 @@ let theme_of = fun (p, role) ->
     roles = ^^fold((
       # Menus, popovers and the command palette.                           #
       menu = ^^fold((
-        `nut` = role.`nut-menu`,
-        `background` = role.`menu-bkg`,
-        `hover` = role.`menu-item-hover-bkg`,
+        `nut` = role.`menu-nut`,
+        `background` = role.`menu-background`,
+        `hover` = role.`menu-hover`,
         `divider` = p.`CREASE`,
         `shadow` = p.`SHADOW`
       )),
       # The frame around the editor: toolbars, sidebars, status.           #
       chrome = ^^fold((
-        `background` = role.`ui-bkg`,
-        `heading` = role.`ui-header-text`,
+        `background` = role.`chrome-background`,
+        `heading` = role.`chrome-heading`,
         `meter` = wash(p.`pattern`, 0.87, 1.),
         `table-row-hover` = wash(p.`success`, 0.15, 0.35)
       )),
       # The editing surface itself.                                        #
       editor = ^^fold((
-        `cell` = role.`cell-active`,
-        `scrollbar` = role.`main-scroll-thumb`,
-        `buffer` = role.`token-buffer`,
+        `cell` = role.`editor-cell`,
+        `scrollbar` = role.`editor-scrollbar`,
+        `buffer` = role.`editor-buffer`,
         `derivation` = wash(p.`success`, 0.82, 0.67),
-        `locked-cell` = role.`cell-exercises-border`,
-        `backpack-outline` = role.`backpack-selection-outline`,
+        `locked-cell` = role.`editor-locked-cell`,
+        `backpack-outline` = role.`editor-backpack-outline`,
         # Findable names for three colours a themer will go looking for by  #
         # name rather than by ramp position. Each defaults to its place in  #
         # the ramp, so it stays ONE decision until you want it to be two.   #
@@ -171,10 +177,10 @@ let theme_of = fun (p, role) ->
       )),
       # The plate behind whatever the cursor is on, one per sort.          #
       cursor = ^^fold((
-        `connector` = role.`shard-lines-exp`,
-        `pattern` = role.`shard-caret-pat`,
-        `type` = role.`shard-caret-typ`,
-        `type-pattern` = role.`shard-caret-tpat`,
+        `connector` = role.`cursor-connector`,
+        `pattern` = sort_plate(p.`pattern`),
+        `type` = sort_plate(p.`type`),
+        `type-pattern` = sort_plate(p.`type-pattern`),
         `derivation` = wash(p.`success`, 0.04, 0.25),
         `module` = wash(p.`label`, 0.04, 0.25),
         `signature` = wash(p.`type`, 0.04, 0.25),
@@ -182,8 +188,8 @@ let theme_of = fun (p, role) ->
       )),
       # Holes in the program, and the boxes drawn round problems.          #
       hole = ^^fold((
-        `empty` = role.`empty-hole-fill`,
-        `empty-edge` = role.`empty-hole-stroke`,
+        `empty` = role.`hole-empty`,
+        `empty-edge` = role.`hole-empty-edge`,
         `error` = p.`ERRHOLE`,
         `warning` = wash(p.`attention-3`, 0., 0.2),
         `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
@@ -196,16 +202,16 @@ let theme_of = fun (p, role) ->
       )),
       # Evaluation results and the incremental evaluator's tints.          #
       results = ^^fold((
-        `divider` = role.`cell-result-border`,
+        `divider` = role.`results-divider`,
         `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
         `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
         `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.)
       )),
       # The cursor inspector along the bottom.                             #
       inspector = ^^fold((
-        `badge` = role.`ci-icon-bkg`,
-        `text` = role.`ci-status-text`,
-        `separator` = role.`context-inspector-colon`
+        `badge` = role.`inspector-badge`,
+        `text` = role.`inspector-text`,
+        `separator` = role.`inspector-separator`
       )),
       # Probes: live values pinned to the program.                         #
       probe = ^^fold((
@@ -230,7 +236,7 @@ let theme_of = fun (p, role) ->
       projector = ^^fold((
         `statics-background` = p.`main-base`,
         `statics-edge` = p.`main-shadow`,
-        `textarea-text` = role.`textarea-text`,
+        `textarea-text` = role.`projector-textarea-text`,
         `fold-background` = wash(p.`pattern`, 1.44, 0.17),
         `textarea-margin` = p.`textarea-v-stripe`,
         `textarea-rule` = p.`textarea-h-stripe`,
@@ -293,27 +299,26 @@ let light =
   ) in
   theme_of(p, ^^fold((
     `dark` = false,
-    `nut-menu` = p.`info-strong`,
-    `menu-bkg` = p.`attention-1`,
-    `menu-item-hover-bkg` = p.`code-background`,
-    `ui-bkg` = p.`surface-1`,
-    `ui-header-text` = p.`frame-3`,
-    `cell-active` = p.`code-background`,
-    `main-scroll-thumb` = p.`frame-1`,
-    `token-buffer` = p.`frame-1`,
-    `shard-lines-exp` = p.`frame-1`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.25), 95.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.25), 95.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.25), 95.),
-    `empty-hole-stroke` = p.`frame-1`,
-    `empty-hole-fill` = p.`attention-1`,
-    `backpack-selection-outline` = p.`code-background`,
-    `textarea-text` = p.`frame-3`,
-    `cell-result-border` = p.`frame-1`,
-    `ci-icon-bkg` = p.`frame-3`,
-    `ci-status-text` = p.`frame-4`,
-    `context-inspector-colon` = p.`frame-2`,
-    `cell-exercises-border` = p.`frame-2`
+    `menu-nut` = p.`info-strong`,
+    `menu-background` = p.`attention-1`,
+    `menu-hover` = p.`code-background`,
+    `chrome-background` = p.`surface-1`,
+    `chrome-heading` = p.`frame-3`,
+    `editor-cell` = p.`code-background`,
+    `editor-scrollbar` = p.`frame-1`,
+    `editor-buffer` = p.`frame-1`,
+    `cursor-connector` = p.`frame-1`,
+    `cursor-tint` = 0.25,
+    `cursor-level` = 95.,
+    `hole-empty-edge` = p.`frame-1`,
+    `hole-empty` = p.`attention-1`,
+    `editor-backpack-outline` = p.`code-background`,
+    `projector-textarea-text` = p.`frame-3`,
+    `results-divider` = p.`frame-1`,
+    `inspector-badge` = p.`frame-3`,
+    `inspector-text` = p.`frame-4`,
+    `inspector-separator` = p.`frame-2`,
+    `editor-locked-cell` = p.`frame-2`
   ))) in
 
 # ── Dark scheme ─────────────────────────────────────────────────────── #
@@ -367,27 +372,27 @@ let dark =
   ) in
   theme_of(p, ^^fold((
     `dark` = true,
-    `nut-menu` = p.`success-muted`,
-    `menu-bkg` = p.`surface-1`,
-    `menu-item-hover-bkg` = ^^color(Oklch(95., 0.015, 240.)),
-    `ui-bkg` = p.`surface-2`,
-    `ui-header-text` = p.`frame-4`,
-    `cell-active` = ^^color(Oklch(30., 0.02, 240.)),
-    `main-scroll-thumb` = p.`frame-3`,
-    `token-buffer` = p.`frame-3`,
-    `shard-lines-exp` = p.`frame-2`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.3333), 40.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.3333), 40.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.3333), 40.),
-    `empty-hole-stroke` = p.`frame-3`,
-    `empty-hole-fill` = p.`surface-2`,
-    `backpack-selection-outline` = ^^color(Oklch(80., 0.02, 250.)),
-    `textarea-text` = p.`ink`,
-    `cell-result-border` = p.`frame-2`,
-    `ci-icon-bkg` = p.`frame-2`,
-    `ci-status-text` = p.`ink`,
-    `context-inspector-colon` = p.`frame-3`,
-    `cell-exercises-border` = p.`frame-3`
+    `menu-nut` = p.`success-muted`,
+    `menu-background` = p.`surface-1`,
+    `menu-hover` = color_with_lightness(p.`code-background`, 95.),
+    `chrome-background` = p.`surface-2`,
+    `chrome-heading` = p.`frame-4`,
+    `editor-cell` =
+      color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
+    `editor-scrollbar` = p.`frame-3`,
+    `editor-buffer` = p.`frame-3`,
+    `cursor-connector` = p.`frame-2`,
+    `cursor-tint` = 0.3333,
+    `cursor-level` = 40.,
+    `hole-empty-edge` = p.`frame-3`,
+    `hole-empty` = p.`surface-2`,
+    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
+    `projector-textarea-text` = p.`ink`,
+    `results-divider` = p.`frame-2`,
+    `inspector-badge` = p.`frame-2`,
+    `inspector-text` = p.`ink`,
+    `inspector-separator` = p.`frame-3`,
+    `editor-locked-cell` = p.`frame-3`
   ))) in
 
 # ── High contrast -- for accessibility ──────────────────────────────── #
@@ -441,27 +446,26 @@ let contrast_light =
   ) in
   theme_of(p, ^^fold((
     `dark` = false,
-    `nut-menu` = p.`info-strong`,
-    `menu-bkg` = p.`attention-1`,
-    `menu-item-hover-bkg` = p.`code-background`,
-    `ui-bkg` = p.`surface-1`,
-    `ui-header-text` = p.`frame-3`,
-    `cell-active` = p.`code-background`,
-    `main-scroll-thumb` = p.`frame-1`,
-    `token-buffer` = p.`frame-1`,
-    `shard-lines-exp` = p.`frame-1`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.25), 95.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.25), 95.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.25), 95.),
-    `empty-hole-stroke` = p.`frame-1`,
-    `empty-hole-fill` = p.`attention-1`,
-    `backpack-selection-outline` = p.`code-background`,
-    `textarea-text` = p.`frame-3`,
-    `cell-result-border` = p.`frame-1`,
-    `ci-icon-bkg` = p.`frame-3`,
-    `ci-status-text` = p.`frame-4`,
-    `context-inspector-colon` = p.`frame-2`,
-    `cell-exercises-border` = p.`frame-2`
+    `menu-nut` = p.`info-strong`,
+    `menu-background` = p.`attention-1`,
+    `menu-hover` = p.`code-background`,
+    `chrome-background` = p.`surface-1`,
+    `chrome-heading` = p.`frame-3`,
+    `editor-cell` = p.`code-background`,
+    `editor-scrollbar` = p.`frame-1`,
+    `editor-buffer` = p.`frame-1`,
+    `cursor-connector` = p.`frame-1`,
+    `cursor-tint` = 0.25,
+    `cursor-level` = 95.,
+    `hole-empty-edge` = p.`frame-1`,
+    `hole-empty` = p.`attention-1`,
+    `editor-backpack-outline` = p.`code-background`,
+    `projector-textarea-text` = p.`frame-3`,
+    `results-divider` = p.`frame-1`,
+    `inspector-badge` = p.`frame-3`,
+    `inspector-text` = p.`frame-4`,
+    `inspector-separator` = p.`frame-2`,
+    `editor-locked-cell` = p.`frame-2`
   ))) in
 
 # ── High contrast, dark -- accessibility on a near-black ground ─────── #
@@ -519,27 +523,26 @@ let contrast_dark =
   ) in
   theme_of(p, ^^fold((
     `dark` = true,
-    `nut-menu` = p.`success-muted`,
-    `menu-bkg` = p.`surface-1`,
-    `menu-item-hover-bkg` = ^^color(Oklch(22., 0., 240.)),
-    `ui-bkg` = p.`surface-2`,
-    `ui-header-text` = p.`frame-4`,
-    `cell-active` = ^^color(Oklch(14., 0., 240.)),
-    `main-scroll-thumb` = p.`frame-3`,
-    `token-buffer` = p.`frame-3`,
-    `shard-lines-exp` = p.`frame-2`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.5), 28.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.5), 28.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.5), 28.),
-    `empty-hole-stroke` = p.`frame-3`,
-    `empty-hole-fill` = p.`surface-2`,
-    `backpack-selection-outline` = ^^color(Oklch(100., 0., 250.)),
-    `textarea-text` = p.`ink`,
-    `cell-result-border` = p.`frame-2`,
-    `ci-icon-bkg` = p.`frame-2`,
-    `ci-status-text` = p.`ink`,
-    `context-inspector-colon` = p.`frame-3`,
-    `cell-exercises-border` = p.`frame-3`
+    `menu-nut` = p.`success-muted`,
+    `menu-background` = p.`surface-1`,
+    `menu-hover` = color_with_lightness(p.`code-background`, 22.),
+    `chrome-background` = p.`surface-2`,
+    `chrome-heading` = p.`frame-4`,
+    `editor-cell` = color_with_lightness(p.`code-background`, 14.),
+    `editor-scrollbar` = p.`frame-3`,
+    `editor-buffer` = p.`frame-3`,
+    `cursor-connector` = p.`frame-2`,
+    `cursor-tint` = 0.5,
+    `cursor-level` = 28.,
+    `hole-empty-edge` = p.`frame-3`,
+    `hole-empty` = p.`surface-2`,
+    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.),
+    `projector-textarea-text` = p.`ink`,
+    `results-divider` = p.`frame-2`,
+    `inspector-badge` = p.`frame-2`,
+    `inspector-text` = p.`ink`,
+    `inspector-separator` = p.`frame-3`,
+    `editor-locked-cell` = p.`frame-3`
   ))) in
 
 # The whole program branches HERE and nowhere else: each flag is read  #
