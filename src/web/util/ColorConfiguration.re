@@ -9,9 +9,12 @@ module C = Language.BuiltinsADT.Color;
    documentation slides are. It is not generated: a generator cannot emit
    comments, and the layering is much easier to read stated directly.
 
-   This module is only the CONTRACT around that text: the CSS custom properties
-   the app expects the slide to define, the type it is analyzed against, and
-   the read-back that turns the evaluated slide into CSS.
+   This module is only the CONTRACT around that text, and it has two levels.
+   The slide names ROLES -- what a colour is for, in the user's terms. The
+   `aliases` table below fans each role out to the CSS custom properties that
+   carry it. So `expected_type` is built from the role names, `all_targets` is
+   the list of properties the stylesheets actually read, and the read-back
+   walks the evaluated slide from one to the other.
 
    Keeping the names here rather than scraping them from the .hz is deliberate.
    They are what the stylesheets consume, so they are an interface, and
@@ -59,9 +62,11 @@ let palette: list(string) = [
   "info-strong",
 ];
 
-/* Semantic roles, grouped by the part of the UI they dress. The label IS
-   the CSS custom-property name, verbatim -- there is no registry to drift
-   from, because `set_css_variable` is the only consumer. */
+/* Semantic roles, grouped by the part of the UI they dress. These are the
+   names a themer meets, so they say what a colour is for rather than where it
+   happens to be plumbed; `aliases` maps them onto the CSS properties. Groups
+   are for reading -- the decoder matches them with a wildcard -- but they must
+   agree with `aliases`, which is keyed by (group, name). */
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   ("chrome", ["background", "heading", "meter", "table-row-hover"]),
@@ -145,7 +150,9 @@ let role_groups: list((string, list(string))) = [
    That indirection is what lets one semantic field stand in for a family of
    CSS names -- `token-inconsistent`, `token-rul` and `token-exp` are three
    properties carrying one decision -- without the slide having to name all
-   three. Empty for now: this commit changes no output. */
+   three. It also pins the properties whose names would otherwise follow a
+   role's: renaming a role must not rename a CSS variable, so a renamed role
+   keeps a row here naming the property it always wrote. */
 let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "surface-2"),

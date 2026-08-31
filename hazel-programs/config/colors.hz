@@ -11,8 +11,8 @@
 #   last line    picks one, per (dark_mode, high_contrast)              #
 #                                                                     #
 # All four schemes run through the SAME two functions, so derivation   #
-# -- how BR2 comes off BR1, how PAT comes off TYP, which colour each   #
-# role gets -- is written once and cannot drift between them. Only     #
+# -- how frame-2 comes off frame-1, how pattern comes off type, which  #
+# colour each role gets -- is written once and cannot drift. Only      #
 # three things differ per scheme: the seeds, six ramp lightnesses,     #
 # and the handful of roles that point somewhere else in the dark       #
 # schemes. The two flags COMPOSE: high contrast has a dark variant.    #
