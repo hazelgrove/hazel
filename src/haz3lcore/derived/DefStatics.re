@@ -1293,8 +1293,17 @@ let calc =
       List.length(items),
     );
   };
+  /* the spine patch feeds the evaluator's reuse gating and probe
+     witnesses; with dynamics off and no probes it has no consumer —
+     skip it (measured ~22ms/tick at 4k, the fixed floor of the
+     statics tick). Idempotent + raw-sourced, so toggling dynamics
+     back on heals the merged view on the next calc. */
   let merged =
-    ptime("fix_spine_infos", () => fix_spine_infos(~probe_ids, items, merged));
+    !settings.dynamics && Id.Map.is_empty(probe_ids)
+      ? merged
+      : ptime("fix_spine_infos", () =>
+          fix_spine_infos(~probe_ids, items, merged)
+        );
   {
     items,
     term: whole,
@@ -1341,13 +1350,34 @@ let clamp: ref(bool) = ref(false);
    eval-request trigger */
 let semantic_gen: ref(int) = ref(0);
 
+/* per-DOCUMENT slots, LRU-capped: a single global slot meant any
+   alternation of statics consumers (slide switches; a second client)
+   thrashed it into full cold re-analyses (measured: 891 members /
+   ~650ms on returning to a mega slide). Keyed by the whole term's
+   rep id — stable for a document unless its first item is replaced,
+   which costs one cold pass. `slot` still tracks the ACTIVE document
+   for current()/error_item_ids. */
+let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
+let slots_mru: ref(list(Id.t)) = ref([]);
+let slots_cap = 8;
+
 let calc_auto =
     (~settings, ~propagate=true, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* probe changes no longer bust the slot: calc's probe-aware dirtying
      re-analyzes exactly the items whose maps contain a toggled id */
-  let t = calc(~settings, ~propagate, ~prev=?slot^, ~probe_ids, whole);
-  if (last_analyzed^ > 0 || slot^ == None) {
+  let key = Exp.rep_id(whole);
+  let prev = Hashtbl.find_opt(slots, key);
+  let t = calc(~settings, ~propagate, ~prev?, ~probe_ids, whole);
+  if (last_analyzed^ > 0 || prev == None) {
     incr(semantic_gen);
+  };
+  Hashtbl.replace(slots, key, t);
+  slots_mru := [key, ...List.filter(k => k != key, slots_mru^)];
+  switch (Util.ListUtil.split_n_opt(slots_cap, slots_mru^)) {
+  | Some((keep, evict)) when evict != [] =>
+    List.iter(Hashtbl.remove(slots), evict);
+    slots_mru := keep;
+  | _ => ()
   };
   slot := Some(t);
   t;
