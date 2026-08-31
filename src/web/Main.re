@@ -10,6 +10,23 @@ let () = WorkerClient.on_summary := ShadowResidency.on_summary;
 
 /* console: window.__incrCounters() — MakeTerm.Incr observability
    (fell_back should stay 0; analyzed ~1 per stacked edit) */
+/* console: window.__normCounters() — sparse remold/regrout regime
+   observability (fallbacks fire on structure-entering edits; a hot
+   fallback rate is the "forgotten spike" signal, ledger §17) */
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__normCounters",
+    Js_of_ocaml.Js.wrap_callback(() =>
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "sparse_hits=%d sparse_fallbacks=%d",
+          Haz3lcore.Zipper.sparse_hits^,
+          Haz3lcore.Zipper.sparse_fallbacks^,
+        ),
+      )
+    ),
+  );
 let () =
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,
@@ -234,7 +251,7 @@ let start = default_model => {
       () => {
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
+          CaretReveal.reveal();
         } else {
           ();
         };
