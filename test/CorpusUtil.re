@@ -89,5 +89,13 @@ let sorted_ids = (ids: list(Id.t)): list(string) =>
 /* Mega-scale slides/corpora skip super-linear per-slide gates (typing
    parse, roundtrip): minutes each, composed from already-swept
    sources. Cheap gates (load-path text fidelity) still run on them. */
-let mega_scale = (name: string): bool =>
-  String.length(name) >= 4 && String.sub(name, 0, 4) == "Mega";
+/* substring, not prefix: slide names carry folder prefixes
+   ("Perf / Mega 1k") and a miss here re-enables the typing-parse
+   gates that blew the CI budget */
+let mega_scale = (name: string): bool => {
+  let sub = "Mega";
+  let (nl, sl) = (String.length(name), String.length(sub));
+  let rec go = i =>
+    i + sl <= nl && (String.sub(name, i, sl) == sub || go(i + 1));
+  go(0);
+};

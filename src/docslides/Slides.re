@@ -18,9 +18,9 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
     /* perf/outline stress corpora (hazel-programs/mega): realistic
        module-heavy programs in the thousands of lines */
-    ("Mega 1k", [%blob "mega-1k.hz"]),
-    ("Mega 2k", [%blob "mega-2k.hz"]),
-    ("Mega 4k", [%blob "mega-4k.hz"]),
+    ("Perf / Mega 1k", [%blob "mega-1k.hz"]),
+    ("Perf / Mega 2k", [%blob "mega-2k.hz"]),
+    ("Perf / Mega 4k", [%blob "mega-4k.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
@@ -30,9 +30,9 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
    level is a module body (`;`-separated items), editor root = Mod. */
 let mod_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
-    ("Mega-Mod 1k", [%blob "mega-mod-1k.hz"]),
-    ("Mega-Mod 2k", [%blob "mega-mod-2k.hz"]),
-    ("Mega-Mod 4k", [%blob "mega-mod-4k.hz"]),
+    /* one Mod-rooted slide suffices to demonstrate the root flip;
+       the 2k/4k corpus files remain for tests (CorpusUtil) */
+    ("Perf / Mega-Mod 1k", [%blob "mega-mod-1k.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
