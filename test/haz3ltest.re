@@ -8,6 +8,10 @@ Printexc.register_printer(exn => {
   }
 });
 
+/* every editing action in the suite asserts sparse-normalize parity
+   (Zipper.remold_regrout runs BOTH pipelines and compares) */
+Haz3lcore.Zipper.normalize_parity := true;
+
 let (suite, _) =
   run_and_report(
     ~and_exit=false,

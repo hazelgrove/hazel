@@ -78,10 +78,31 @@ let rescan = ((pre, suf): t): t => {
   ListUtil.split_n(n, combined);
 };
 
-let regrout = ((pre, suf): t) => {
+let regrout =
+    (
+      ~l_shape: option(Nib.Shape.t)=?,
+      ~r_shape: option(Nib.Shape.t)=?,
+      ~skip_clean: option(Piece.t => bool)=?,
+      (pre, suf): t,
+    ) => {
+  /* boundary shapes default to the segment-edge convention (concave);
+     WINDOWED runs (sparse regrout) pass the true shapes at the window
+     boundaries instead */
   let s = Nib.Shape.concave();
-  let suf = Segment.regrout_affix(Right, suf, s);
-  let (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, s);
+  let suf =
+    Segment.regrout_affix(
+      ~skip_clean?,
+      Right,
+      suf,
+      Option.value(~default=s, r_shape),
+    );
+  let (trim_l, s_l, pre) =
+    Segment.regrout_affix(
+      ~skip_clean?,
+      Left,
+      pre,
+      Option.value(~default=s, l_shape),
+    );
   ((pre, s_l, trim_l), suf);
 };
 

@@ -150,50 +150,61 @@ let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
   };
 };
 
-let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
-  /* Direction is side of grout caret will end up on */
-
-  let ancestors = Ancestors.regrout(ancestors);
-  let siblings = {
-    let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
-      Siblings.regrout(siblings);
-    let (trim_l, trim_r) = {
-      open Segment.Trim;
-      let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
-      let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
-      switch (ListUtil.split_last_opt(gs_l), gs_r) {
-      | (Some((_, g_l)), [g_r, ..._]) =>
-        Grout.fits(g_l, g_r)
-          // note: assumes single grout invariant in un-caret-interrupted trim
-          ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
-          : (
-            switch (d) {
-            | Left => (ws(trim_l), seg_r)
-            | Right => (seg_l, ws(trim_r))
-            }
-          )
-      | (Some((_, g)), []) =>
-        Grout.fits_shape(g, s_r) ? (seg_l, seg_r) : (ws(trim_l), seg_r)
-      | (None, [g, ..._]) =>
-        Grout.fits_shape(g, s_l) ? (seg_l, seg_r) : (seg_l, ws(trim_r))
-      | (None, []) =>
-        Nib.Shape.fits(s_l, s_r)
-          ? (seg_l, seg_r)
-          // can modulate with directional arg
-          : (
-            switch (d) {
-            | Left =>
-              let trim = add_grout(s_r, trim_r);
-              (seg_l, to_seg(trim));
-            | Right =>
-              let trim = add_grout(s_l, trim_l);
-              (to_seg(trim), seg_r);
-            }
-          )
-      };
+/* the sibling half of regrout, factored so the SPARSE path can run it
+   on a caret WINDOW with true boundary shapes; Direction is the side
+   of the grout the caret will end up on */
+let regrout_siblings =
+    (
+      d: Direction.t,
+      ~l_shape: option(Nib.Shape.t)=?,
+      ~r_shape: option(Nib.Shape.t)=?,
+      ~skip_clean: option(Piece.t => bool)=?,
+      siblings: Siblings.t,
+    )
+    : Siblings.t => {
+  let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
+    Siblings.regrout(~l_shape?, ~r_shape?, ~skip_clean?, siblings);
+  let (trim_l, trim_r) = {
+    open Segment.Trim;
+    let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
+    let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
+    switch (ListUtil.split_last_opt(gs_l), gs_r) {
+    | (Some((_, g_l)), [g_r, ..._]) =>
+      Grout.fits(g_l, g_r)
+        // note: assumes single grout invariant in un-caret-interrupted trim
+        ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
+        : (
+          switch (d) {
+          | Left => (ws(trim_l), seg_r)
+          | Right => (seg_l, ws(trim_r))
+          }
+        )
+    | (Some((_, g)), []) =>
+      Grout.fits_shape(g, s_r) ? (seg_l, seg_r) : (ws(trim_l), seg_r)
+    | (None, [g, ..._]) =>
+      Grout.fits_shape(g, s_l) ? (seg_l, seg_r) : (seg_l, ws(trim_r))
+    | (None, []) =>
+      Nib.Shape.fits(s_l, s_r)
+        ? (seg_l, seg_r)
+        // can modulate with directional arg
+        : (
+          switch (d) {
+          | Left =>
+            let trim = add_grout(s_r, trim_r);
+            (seg_l, to_seg(trim));
+          | Right =>
+            let trim = add_grout(s_l, trim_l);
+            (to_seg(trim), seg_r);
+          }
+        )
     };
-    (pre @ trim_l, trim_r @ suf);
   };
+  (pre @ trim_l, trim_r @ suf);
+};
+
+let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
+  let ancestors = Ancestors.regrout(ancestors);
+  let siblings = regrout_siblings(d, siblings);
   {
     siblings,
     ancestors,
