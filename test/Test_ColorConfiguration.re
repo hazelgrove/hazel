@@ -466,11 +466,10 @@ let a_partial_theme_yields_nothing = () => {
   let text = CC.source.backup_text;
   /* Drop one leaf by breaking its colour, leaving the shape intact. */
   let broken =
-    Str.replace_first(
-      Str.regexp_string("`NONE` = Transparent,"),
-      "`NONE` = 1,",
-      text,
-    );
+    /* Break one leaf while leaving the shape intact. Anchored on the value,
+       not on a field name, so a rename does not silently turn this test into
+       a no-op that always passes. */
+    Str.replace_first(Str.regexp_string("= Transparent,"), "= 1,", text);
   check(bool, "the edit applied", true, broken != text);
   check(
     list(pair(string, string)),

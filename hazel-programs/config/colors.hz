@@ -24,29 +24,29 @@ let high_contrast = ^^check(false) in
 let palette_of = fun (seed, step) ->
   # PAT is needed twice (TPAT aliases it) and a tuple cannot refer to  #
   # its own fields, so it is bound first.                              #
-  let pat = color_rotate(seed.`TYP`, -75.) in
+  let pat = color_rotate(seed.`type`, -75.) in
   ^^fold((
-    `NONE` = seed.`NONE`,
-    `SAND` = seed.`SAND`,
-    `STONE` = seed.`STONE`,
-    `BLACK` = seed.`BLACK`,
-    `BR1` = seed.`BR1`,
-    `T1` = seed.`T1`,
-    `Y0` = seed.`Y0`,
-    `Y1` = seed.`Y1`,
-    `Y2` = seed.`Y2`,
-    `Y3` = seed.`Y3`,
-    `R0` = seed.`R0`,
-    `R1` = seed.`R1`,
-    `R2` = seed.`R2`,
-    `TYP` = seed.`TYP`,
-    `LABEL` = seed.`LABEL`,
-    `highlight-a` = seed.`highlight-a`,
-    `G0` = seed.`G0`,
-    `G1` = seed.`G1`,
-    `G2` = seed.`G2`,
-    `GB0` = seed.`GB0`,
-    `GB1` = seed.`GB1`,
+    `none` = seed.`none`,
+    `code-background` = seed.`code-background`,
+    `ink` = seed.`ink`,
+    `black` = seed.`black`,
+    `frame-1` = seed.`frame-1`,
+    `surface-1` = seed.`surface-1`,
+    `attention-1` = seed.`attention-1`,
+    `attention-2` = seed.`attention-2`,
+    `attention-3` = seed.`attention-3`,
+    `attention-4` = seed.`attention-4`,
+    `error-1` = seed.`error-1`,
+    `error-2` = seed.`error-2`,
+    `error-3` = seed.`error-3`,
+    `type` = seed.`type`,
+    `label` = seed.`label`,
+    `doc-1` = seed.`doc-1`,
+    `success` = seed.`success`,
+    `success-soft` = seed.`success-soft`,
+    `success-muted` = seed.`success-muted`,
+    `info` = seed.`info`,
+    `info-strong` = seed.`info-strong`,
     `textarea-v-stripe` = seed.`textarea-v-stripe`,
     `textarea-h-stripe` = seed.`textarea-h-stripe`,
     `textarea-h-strip-selected` = seed.`textarea-h-strip-selected`,
@@ -64,39 +64,39 @@ let palette_of = fun (seed, step) ->
     # Ramps: BR2-4 step off BR1, T2-4 off T1. The lightnesses come     #
     # from `step` and INVERT between schemes -- in dark, more          #
     # contrast means lighter.                                          #
-    `BR2` = color_with_lightness(seed.`BR1`, step.`BR2`),
-    `BR3` = color_with_lightness(seed.`BR1`, step.`BR3`),
-    `BR4` = color_with_lightness(seed.`BR1`, step.`BR4`),
-    `T2` = color_with_lightness(seed.`T1`, step.`T2`),
-    `T3` = color_with_lightness(seed.`T1`, step.`T3`),
-    `T4` = color_with_lightness(seed.`T1`, step.`T4`),
-    `PAT` = pat,
-    `TPAT` = pat,
-    `highlight-b` = color_rotate(seed.`highlight-a`, -120.),
-    `highlight-c` = color_rotate(seed.`highlight-a`, -240.)
+    `frame-2` = color_with_lightness(seed.`frame-1`, step.`frame-2`),
+    `frame-3` = color_with_lightness(seed.`frame-1`, step.`frame-3`),
+    `frame-4` = color_with_lightness(seed.`frame-1`, step.`frame-4`),
+    `surface-2` = color_with_lightness(seed.`surface-1`, step.`surface-2`),
+    `surface-3` = color_with_lightness(seed.`surface-1`, step.`surface-3`),
+    `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
+    `pattern` = pat,
+    `type-pattern` = pat,
+    `doc-2` = color_rotate(seed.`doc-1`, -120.),
+    `doc-3` = color_rotate(seed.`doc-1`, -240.)
   )) in
 
 # ── Colours and role overrides become the theme ─────────────────────── #
 let theme_of = fun (p, role) ->
   # Roles that other roles refer to. #
-  let menu_outline = p.`BR2` in
-  let menu_icon = p.`BR4` in
-  let token_exp = p.`STONE` in
-  let token_pat = p.`PAT` in
-  let token_typ = p.`TYP` in
-  let token_tpat = p.`TPAT` in
-  let shard_exp = p.`T2` in
-  let shard_selected = p.`Y1` in
+  let menu_outline = p.`frame-2` in
+  let menu_icon = p.`frame-4` in
+  let token_exp = p.`ink` in
+  let token_pat = p.`pattern` in
+  let token_typ = p.`type` in
+  let token_tpat = p.`type-pattern` in
+  let shard_exp = p.`surface-2` in
+  let shard_selected = p.`attention-2` in
   let backpack_selection = shard_selected in
-  let test_fail_active = p.`R0` in
+  let test_fail_active = p.`error-1` in
   # Roles below are placed on the palette's OWN contrast axis instead of   #
   # being given a number per scheme: at(c, 0.) sits at the page            #
   # background's lightness and at(c, 1.) at the body text's, so one        #
   # definition is correct in all four schemes. This is exactly what the    #
   # hardcoded literals in variables.css could not do -- a warning fill     #
   # pinned at 97% lightness is right in light and invisible in dark.       #
-  let bg_l = color_lightness(p.`T1`) in
-  let text_l = color_lightness(p.`STONE`) in
+  let bg_l = color_lightness(p.`surface-1`) in
+  let text_l = color_lightness(p.`ink`) in
   let at = fun (c, t) -> color_with_lightness(c, bg_l +. (text_l -. bg_l) *. t) in
   # ...and its chroma, because placing a colour on the axis says nothing  #
   # about how saturated it should be there. A fill wants a wash of its    #
@@ -106,37 +106,37 @@ let theme_of = fun (p, role) ->
   let wash = fun (c, t, sat) -> at(color_saturate(c, sat), t) in
   ^^fold((
     palette = ^^fold((
-      `NONE` = p.`NONE`,
-      `SAND` = p.`SAND`,
-      `STONE` = p.`STONE`,
-      `BLACK` = p.`BLACK`,
-      `BR1` = p.`BR1`,
-      `BR2` = p.`BR2`,
-      `BR3` = p.`BR3`,
-      `BR4` = p.`BR4`,
-      `T1` = p.`T1`,
-      `T2` = p.`T2`,
-      `T3` = p.`T3`,
-      `T4` = p.`T4`,
-      `Y0` = p.`Y0`,
-      `Y1` = p.`Y1`,
-      `Y2` = p.`Y2`,
-      `Y3` = p.`Y3`,
-      `R0` = p.`R0`,
-      `R1` = p.`R1`,
-      `R2` = p.`R2`,
-      `TYP` = p.`TYP`,
-      `PAT` = p.`PAT`,
-      `TPAT` = p.`TPAT`,
-      `LABEL` = p.`LABEL`,
-      `highlight-a` = p.`highlight-a`,
-      `highlight-b` = p.`highlight-b`,
-      `highlight-c` = p.`highlight-c`,
-      `G0` = p.`G0`,
-      `G1` = p.`G1`,
-      `G2` = p.`G2`,
-      `GB0` = p.`GB0`,
-      `GB1` = p.`GB1`
+      `none` = p.`none`,
+      `code-background` = p.`code-background`,
+      `ink` = p.`ink`,
+      `black` = p.`black`,
+      `frame-1` = p.`frame-1`,
+      `frame-2` = p.`frame-2`,
+      `frame-3` = p.`frame-3`,
+      `frame-4` = p.`frame-4`,
+      `surface-1` = p.`surface-1`,
+      `surface-2` = p.`surface-2`,
+      `surface-3` = p.`surface-3`,
+      `surface-4` = p.`surface-4`,
+      `attention-1` = p.`attention-1`,
+      `attention-2` = p.`attention-2`,
+      `attention-3` = p.`attention-3`,
+      `attention-4` = p.`attention-4`,
+      `error-1` = p.`error-1`,
+      `error-2` = p.`error-2`,
+      `error-3` = p.`error-3`,
+      `type` = p.`type`,
+      `pattern` = p.`pattern`,
+      `type-pattern` = p.`type-pattern`,
+      `label` = p.`label`,
+      `doc-1` = p.`doc-1`,
+      `doc-2` = p.`doc-2`,
+      `doc-3` = p.`doc-3`,
+      `success` = p.`success`,
+      `success-soft` = p.`success-soft`,
+      `success-muted` = p.`success-muted`,
+      `info` = p.`info`,
+      `info-strong` = p.`info-strong`
     )),
     roles = ^^fold((
       ui = ^^fold((
@@ -147,48 +147,48 @@ let theme_of = fun (p, role) ->
         `menu-shadow` = p.`SHADOW`,
         `ui-bkg` = role.`ui-bkg`,
         `ui-header-text` = role.`ui-header-text`,
-        `df-hover-bg` = wash(p.`G0`, 0.15, 0.35),
-        `context-meter-fill` = wash(p.`PAT`, 0.87, 1.)
+        `df-hover-bg` = wash(p.`success`, 0.15, 0.35),
+        `context-meter-fill` = wash(p.`pattern`, 0.87, 1.)
       )),
       code = ^^fold((
         `cell-active` = role.`cell-active`,
         `main-scroll-thumb` = role.`main-scroll-thumb`,
         `token-buffer` = role.`token-buffer`,
-        `token-drv` = wash(p.`G0`, 0.82, 0.67)
+        `token-drv` = wash(p.`success`, 0.82, 0.67)
       )),
       shard = ^^fold((
         `shard-lines-exp` = role.`shard-lines-exp`,
         `shard-caret-pat` = role.`shard-caret-pat`,
         `shard-caret-typ` = role.`shard-caret-typ`,
         `shard-caret-tpat` = role.`shard-caret-tpat`,
-        `shard-caret-drv` = wash(p.`G0`, 0.04, 0.25),
-        `shard-caret-mod` = wash(p.`LABEL`, 0.04, 0.25),
-        `shard-caret-sig` = wash(p.`TYP`, 0.04, 0.25),
-        `shard-caret-mpat` = wash(p.`PAT`, 0.04, 0.25)
+        `shard-caret-drv` = wash(p.`success`, 0.04, 0.25),
+        `shard-caret-mod` = wash(p.`label`, 0.04, 0.25),
+        `shard-caret-sig` = wash(p.`type`, 0.04, 0.25),
+        `shard-caret-mpat` = wash(p.`pattern`, 0.04, 0.25)
       )),
       hole = ^^fold((
         `empty-hole-stroke` = role.`empty-hole-stroke`,
         `empty-hole-fill` = role.`empty-hole-fill`,
         `error-hole-fill` = p.`ERRHOLE`,
         # The unused-variable box and its outline. #
-        `warning-hole-fill` = wash(p.`Y2`, 0., 0.2),
-        `warning-hole-stroke` = wash(p.`Y2`, 0.82, 1.5),
-        `hole-fill` = wash(p.`PAT`, 0.11, 0.2),
-        `hole-stroke` = wash(p.`PAT`, 0.82, 0.75),
-        `hole-active` = wash(p.`PAT`, 1.04, 1.)
+        `warning-hole-fill` = wash(p.`attention-3`, 0., 0.2),
+        `warning-hole-stroke` = wash(p.`attention-3`, 0.82, 1.5),
+        `hole-fill` = wash(p.`pattern`, 0.11, 0.2),
+        `hole-stroke` = wash(p.`pattern`, 0.82, 0.75),
+        `hole-active` = wash(p.`pattern`, 1.04, 1.)
       )),
       backpack = ^^fold((
         `backpack-selection-outline` = role.`backpack-selection-outline`
       )),
       projector = ^^fold((
         `textarea-text` = role.`textarea-text`,
-        `fold-bkg` = wash(p.`PAT`, 1.44, 0.17)
+        `fold-bkg` = wash(p.`pattern`, 1.44, 0.17)
       )),
       dynamics = ^^fold((
         `cell-result-border` = role.`cell-result-border`,
-        `incremental-frozen` = Fade(wash(p.`PAT`, 0.13, 0.23), 55.),
-        `incremental-frozen-edge` = Fade(wash(p.`PAT`, 0.41, 0.45), 55.),
-        `incremental-active-sweep` = Fade(wash(p.`STONE`, -0.07, 0.), 56.)
+        `incremental-frozen` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
+        `incremental-frozen-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
+        `incremental-active-sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.)
       )),
       ci = ^^fold((
         `ci-icon-bkg` = role.`ci-icon-bkg`,
@@ -212,23 +212,23 @@ let theme_of = fun (p, role) ->
         `pat-cell` = p.`pat-cell`,
         `main-base` = p.`main-base`,
         `main-shadow` = p.`main-shadow`,
-        `depth-shadow` = wash(p.`STONE`, 0.49, 0.),
+        `depth-shadow` = wash(p.`ink`, 0.49, 0.),
         # Probe samples: above the cursor reads magenta, below reads    #
         # cyan, each as a text/fill/shadow triple off one hue.          #
-        `sample-above-text` = wash(p.`highlight-a`, 0.64, 1.71),
-        `sample-above-bg` = wash(p.`highlight-a`, 0.09, 0.86),
-        `sample-above-shadow` = wash(p.`highlight-a`, 0.27, 1.14),
-        `sample-below-text` = wash(p.`LABEL`, 0.47, 0.4),
-        `sample-below-bg` = wash(p.`LABEL`, 0.09, 0.15),
-        `sample-below-shadow` = wash(p.`LABEL`, 0.38, 0.45),
+        `sample-above-text` = wash(p.`doc-1`, 0.64, 1.71),
+        `sample-above-bg` = wash(p.`doc-1`, 0.09, 0.86),
+        `sample-above-shadow` = wash(p.`doc-1`, 0.27, 1.14),
+        `sample-below-text` = wash(p.`label`, 0.47, 0.4),
+        `sample-below-bg` = wash(p.`label`, 0.09, 0.15),
+        `sample-below-shadow` = wash(p.`label`, 0.38, 0.45),
         # Samples with no call-stack relation, and the focused one. Green   #
         # like the rest of the probe furniture, but placed on the axis so   #
         # the text keeps its distance from the fill in every scheme -- the  #
         # palette's own greens do not: G0 is 70 and G1 is 85 in light, so   #
         # text-on-fill from those two would be nearly the same colour.      #
-        `sample-neutral-text` = wash(p.`G0`, 1.01, 0.63),
-        `sample-neutral-bg` = wash(p.`G0`, 0.06, 0.09),
-        `sample-focus-text` = wash(p.`G0`, 0.99, 0.87)
+        `sample-neutral-text` = wash(p.`success`, 1.01, 0.63),
+        `sample-neutral-bg` = wash(p.`success`, 0.06, 0.09),
+        `sample-focus-text` = wash(p.`success`, 0.99, 0.87)
       ))
     ))
   )) in
@@ -237,27 +237,27 @@ let theme_of = fun (p, role) ->
 let light =
   let p = palette_of(
     (
-      `NONE` = Transparent,
-      `SAND` = ^^color(Oklch(99., 0.012, 90.)),
-      `STONE` = ^^color(Oklch(52., 0.03, 220.)),
-      `BLACK` = ^^color(Oklch(0., 0., 0.)),
-      `BR1` = ^^color(Oklch(85., 0.07, 90.)),
-      `T1` = ^^color(Oklch(97., 0.025, 90.)),
-      `Y0` = ^^color(Oklch(95., 0.05, 90.)),
-      `Y1` = ^^color(Oklch(91., 0.11, 95.)),
-      `Y2` = ^^color(Oklch(88., 0.2, 95.)),
-      `Y3` = ^^color(Oklch(71., 0.2, 95.)),
-      `R0` = ^^color(Oklch(85., 0.1, 30.)),
-      `R1` = ^^color(Oklch(60., 0.3, 30.)),
-      `R2` = ^^color(Oklch(40., 0.3, 30.)),
-      `TYP` = ^^color(Oklch(60., 0.2, 300.)),
-      `LABEL` = ^^color(Oklch(60., 0.2, 180.)),
-      `highlight-a` = ^^color(Oklch(95., 0.07, 360.)),
-      `G0` = ^^color(Oklch(70., 0.15, 150.)),
-      `G1` = ^^color(Oklch(85., 0.15, 150.)),
-      `G2` = ^^color(Oklch(80., 0.05, 150.)),
-      `GB0` = ^^color(Oklch(70., 0.05, 120.)),
-      `GB1` = ^^color(Oklch(45., 0.05, 120.)),
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(99., 0.012, 90.)),
+      `ink` = ^^color(Oklch(52., 0.03, 220.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(85., 0.07, 90.)),
+      `surface-1` = ^^color(Oklch(97., 0.025, 90.)),
+      `attention-1` = ^^color(Oklch(95., 0.05, 90.)),
+      `attention-2` = ^^color(Oklch(91., 0.11, 95.)),
+      `attention-3` = ^^color(Oklch(88., 0.2, 95.)),
+      `attention-4` = ^^color(Oklch(71., 0.2, 95.)),
+      `error-1` = ^^color(Oklch(85., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(60., 0.3, 30.)),
+      `error-3` = ^^color(Oklch(40., 0.3, 30.)),
+      `type` = ^^color(Oklch(60., 0.2, 300.)),
+      `label` = ^^color(Oklch(60., 0.2, 180.)),
+      `doc-1` = ^^color(Oklch(95., 0.07, 360.)),
+      `success` = ^^color(Oklch(70., 0.15, 150.)),
+      `success-soft` = ^^color(Oklch(85., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(80., 0.05, 150.)),
+      `info` = ^^color(Oklch(70., 0.05, 120.)),
+      `info-strong` = ^^color(Oklch(45., 0.05, 120.)),
       `textarea-v-stripe` = Fade(^^color(Oklch(78., 0.14, 6.)), 55.),
       `textarea-h-stripe` = ^^color(Oklch(87., 0.07, 246.)),
       `textarea-h-strip-selected` = Fade(^^color(Oklch(68., 0.14, 76.)), 30.),
@@ -274,63 +274,63 @@ let light =
       `main-shadow` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
     ),
     (
-      `BR2` = 70.,
-      `BR3` = 60.,
-      `BR4` = 50.,
-      `T2` = 94.,
-      `T3` = 91.,
-      `T4` = 88.
+      `frame-2` = 70.,
+      `frame-3` = 60.,
+      `frame-4` = 50.,
+      `surface-2` = 94.,
+      `surface-3` = 91.,
+      `surface-4` = 88.
     )
   ) in
   theme_of(p, ^^fold((
-    `nut-menu` = p.`GB1`,
-    `menu-bkg` = p.`Y0`,
-    `menu-item-hover-bkg` = p.`SAND`,
-    `ui-bkg` = p.`T1`,
-    `ui-header-text` = p.`BR3`,
-    `cell-active` = p.`SAND`,
-    `main-scroll-thumb` = p.`BR1`,
-    `token-buffer` = p.`BR1`,
-    `shard-lines-exp` = p.`BR1`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.25), 95.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.25), 95.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.25), 95.),
-    `empty-hole-stroke` = p.`BR1`,
-    `empty-hole-fill` = p.`Y0`,
-    `backpack-selection-outline` = p.`SAND`,
-    `textarea-text` = p.`BR3`,
-    `cell-result-border` = p.`BR1`,
-    `ci-icon-bkg` = p.`BR3`,
-    `ci-status-text` = p.`BR4`,
-    `context-inspector-colon` = p.`BR2`,
-    `cell-exercises-border` = p.`BR2`
+    `nut-menu` = p.`info-strong`,
+    `menu-bkg` = p.`attention-1`,
+    `menu-item-hover-bkg` = p.`code-background`,
+    `ui-bkg` = p.`surface-1`,
+    `ui-header-text` = p.`frame-3`,
+    `cell-active` = p.`code-background`,
+    `main-scroll-thumb` = p.`frame-1`,
+    `token-buffer` = p.`frame-1`,
+    `shard-lines-exp` = p.`frame-1`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.25), 95.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.25), 95.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.25), 95.),
+    `empty-hole-stroke` = p.`frame-1`,
+    `empty-hole-fill` = p.`attention-1`,
+    `backpack-selection-outline` = p.`code-background`,
+    `textarea-text` = p.`frame-3`,
+    `cell-result-border` = p.`frame-1`,
+    `ci-icon-bkg` = p.`frame-3`,
+    `ci-status-text` = p.`frame-4`,
+    `context-inspector-colon` = p.`frame-2`,
+    `cell-exercises-border` = p.`frame-2`
   ))) in
 
 # ── Dark scheme ─────────────────────────────────────────────────────── #
 let dark =
   let p = palette_of(
     ^^fold((
-      `NONE` = Transparent,
-      `SAND` = ^^color(Oklch(25., 0.015, 240.)),
-      `STONE` = ^^color(Oklch(75., 0.03, 250.)),
-      `BLACK` = ^^color(Oklch(0., 0., 0.)),
-      `BR1` = ^^color(Oklch(30., 0.04, 250.)),
-      `T1` = ^^color(Oklch(15., 0.02, 250.)),
-      `Y0` = ^^color(Oklch(22., 0.06, 95.)),
-      `Y1` = ^^color(Oklch(32., 0.09, 169.5)),
-      `Y2` = ^^color(Oklch(45., 0.15, 95.)),
-      `Y3` = ^^color(Oklch(65., 0.18, 118.38)),
-      `R0` = ^^color(Oklch(40., 0.1, 30.)),
-      `R1` = ^^color(Oklch(55., 0.25, 30.)),
-      `R2` = ^^color(Oklch(70., 0.3, 30.)),
-      `TYP` = ^^color(Oklch(70., 0.18, 300.)),
-      `LABEL` = ^^color(Oklch(75., 0.15, 210.)),
-      `highlight-a` = ^^color(Oklch(65., 0.1, 260.)),
-      `G0` = ^^color(Oklch(65., 0.15, 150.)),
-      `G1` = ^^color(Oklch(75., 0.15, 150.)),
-      `G2` = ^^color(Oklch(60., 0.05, 150.)),
-      `GB0` = ^^color(Oklch(60., 0.05, 200.)),
-      `GB1` = ^^color(Oklch(35., 0.05, 200.)),
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(25., 0.015, 240.)),
+      `ink` = ^^color(Oklch(75., 0.03, 250.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(30., 0.04, 250.)),
+      `surface-1` = ^^color(Oklch(15., 0.02, 250.)),
+      `attention-1` = ^^color(Oklch(22., 0.06, 95.)),
+      `attention-2` = ^^color(Oklch(32., 0.09, 169.5)),
+      `attention-3` = ^^color(Oklch(45., 0.15, 95.)),
+      `attention-4` = ^^color(Oklch(65., 0.18, 118.38)),
+      `error-1` = ^^color(Oklch(40., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(55., 0.25, 30.)),
+      `error-3` = ^^color(Oklch(70., 0.3, 30.)),
+      `type` = ^^color(Oklch(70., 0.18, 300.)),
+      `label` = ^^color(Oklch(75., 0.15, 210.)),
+      `doc-1` = ^^color(Oklch(65., 0.1, 260.)),
+      `success` = ^^color(Oklch(65., 0.15, 150.)),
+      `success-soft` = ^^color(Oklch(75., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(60., 0.05, 150.)),
+      `info` = ^^color(Oklch(60., 0.05, 200.)),
+      `info-strong` = ^^color(Oklch(35., 0.05, 200.)),
       `textarea-v-stripe` = Fade(^^color(Oklch(35., 0.14, 230.)), 55.),
       `textarea-h-stripe` = ^^color(Oklch(30., 0.07, 240.)),
       `textarea-h-strip-selected` = Fade(^^color(Oklch(45., 0.14, 230.)), 30.),
@@ -347,63 +347,63 @@ let dark =
       `main-shadow` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
     )),
     (
-      `BR2` = 40.,
-      `BR3` = 55.,
-      `BR4` = 70.,
-      `T2` = 18.,
-      `T3` = 22.,
-      `T4` = 26.
+      `frame-2` = 40.,
+      `frame-3` = 55.,
+      `frame-4` = 70.,
+      `surface-2` = 18.,
+      `surface-3` = 22.,
+      `surface-4` = 26.
     )
   ) in
   theme_of(p, ^^fold((
-    `nut-menu` = p.`G2`,
-    `menu-bkg` = p.`T1`,
+    `nut-menu` = p.`success-muted`,
+    `menu-bkg` = p.`surface-1`,
     `menu-item-hover-bkg` = ^^color(Oklch(95., 0.015, 240.)),
-    `ui-bkg` = p.`T2`,
-    `ui-header-text` = p.`BR4`,
+    `ui-bkg` = p.`surface-2`,
+    `ui-header-text` = p.`frame-4`,
     `cell-active` = ^^color(Oklch(30., 0.02, 240.)),
-    `main-scroll-thumb` = p.`BR3`,
-    `token-buffer` = p.`BR3`,
-    `shard-lines-exp` = p.`BR2`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.3333), 40.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.3333), 40.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.3333), 40.),
-    `empty-hole-stroke` = p.`BR3`,
-    `empty-hole-fill` = p.`T2`,
+    `main-scroll-thumb` = p.`frame-3`,
+    `token-buffer` = p.`frame-3`,
+    `shard-lines-exp` = p.`frame-2`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.3333), 40.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.3333), 40.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.3333), 40.),
+    `empty-hole-stroke` = p.`frame-3`,
+    `empty-hole-fill` = p.`surface-2`,
     `backpack-selection-outline` = ^^color(Oklch(80., 0.02, 250.)),
-    `textarea-text` = p.`STONE`,
-    `cell-result-border` = p.`BR2`,
-    `ci-icon-bkg` = p.`BR2`,
-    `ci-status-text` = p.`STONE`,
-    `context-inspector-colon` = p.`BR3`,
-    `cell-exercises-border` = p.`BR3`
+    `textarea-text` = p.`ink`,
+    `cell-result-border` = p.`frame-2`,
+    `ci-icon-bkg` = p.`frame-2`,
+    `ci-status-text` = p.`ink`,
+    `context-inspector-colon` = p.`frame-3`,
+    `cell-exercises-border` = p.`frame-3`
   ))) in
 
 # ── High contrast -- for accessibility ──────────────────────────────── #
 let contrast_light =
   let p = palette_of(
     ^^fold((
-      `NONE` = Transparent,
-      `SAND` = ^^color(Oklch(100., 0., 90.)),
-      `STONE` = ^^color(Oklch(0., 0., 220.)),
-      `BLACK` = ^^color(Oklch(0., 0., 0.)),
-      `BR1` = ^^color(Oklch(35., 0., 90.)),
-      `T1` = ^^color(Oklch(100., 0., 90.)),
-      `Y0` = ^^color(Oklch(95., 0.08, 90.)),
-      `Y1` = ^^color(Oklch(90., 0.14, 95.)),
-      `Y2` = ^^color(Oklch(85., 0.2, 95.)),
-      `Y3` = ^^color(Oklch(41.5, 0.2, 95.)),
-      `R0` = ^^color(Oklch(90., 0.1, 30.)),
-      `R1` = ^^color(Oklch(35.5, 0.28, 30.)),
-      `R2` = ^^color(Oklch(28., 0.28, 30.)),
-      `TYP` = ^^color(Oklch(36., 0.25, 300.)),
-      `LABEL` = ^^color(Oklch(36., 0.2, 180.)),
-      `highlight-a` = ^^color(Oklch(92., 0.1, 360.)),
-      `G0` = ^^color(Oklch(38., 0.2, 150.)),
-      `G1` = ^^color(Oklch(90., 0.15, 150.)),
-      `G2` = ^^color(Oklch(40.5, 0.12, 150.)),
-      `GB0` = ^^color(Oklch(41.5, 0.1, 120.)),
-      `GB1` = ^^color(Oklch(30., 0.1, 120.)),
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(100., 0., 90.)),
+      `ink` = ^^color(Oklch(0., 0., 220.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(35., 0., 90.)),
+      `surface-1` = ^^color(Oklch(100., 0., 90.)),
+      `attention-1` = ^^color(Oklch(95., 0.08, 90.)),
+      `attention-2` = ^^color(Oklch(90., 0.14, 95.)),
+      `attention-3` = ^^color(Oklch(85., 0.2, 95.)),
+      `attention-4` = ^^color(Oklch(41.5, 0.2, 95.)),
+      `error-1` = ^^color(Oklch(90., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(35.5, 0.28, 30.)),
+      `error-3` = ^^color(Oklch(28., 0.28, 30.)),
+      `type` = ^^color(Oklch(36., 0.25, 300.)),
+      `label` = ^^color(Oklch(36., 0.2, 180.)),
+      `doc-1` = ^^color(Oklch(92., 0.1, 360.)),
+      `success` = ^^color(Oklch(38., 0.2, 150.)),
+      `success-soft` = ^^color(Oklch(90., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(40.5, 0.12, 150.)),
+      `info` = ^^color(Oklch(41.5, 0.1, 120.)),
+      `info-strong` = ^^color(Oklch(30., 0.1, 120.)),
       `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 6.)), 55.),
       `textarea-h-stripe` = ^^color(Oklch(70., 0.12, 246.)),
       `textarea-h-strip-selected` = Fade(^^color(Oklch(55., 0.2, 76.)), 30.),
@@ -420,36 +420,36 @@ let contrast_light =
       `main-shadow` = ^^color(Oklch(25., 0.12, 314.00959))
     )),
     (
-      `BR2` = 25.,
-      `BR3` = 15.,
-      `BR4` = 5.,
-      `T2` = 97.,
-      `T3` = 94.,
-      `T4` = 91.
+      `frame-2` = 25.,
+      `frame-3` = 15.,
+      `frame-4` = 5.,
+      `surface-2` = 97.,
+      `surface-3` = 94.,
+      `surface-4` = 91.
     )
   ) in
   theme_of(p, ^^fold((
-    `nut-menu` = p.`GB1`,
-    `menu-bkg` = p.`Y0`,
-    `menu-item-hover-bkg` = p.`SAND`,
-    `ui-bkg` = p.`T1`,
-    `ui-header-text` = p.`BR3`,
-    `cell-active` = p.`SAND`,
-    `main-scroll-thumb` = p.`BR1`,
-    `token-buffer` = p.`BR1`,
-    `shard-lines-exp` = p.`BR1`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.25), 95.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.25), 95.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.25), 95.),
-    `empty-hole-stroke` = p.`BR1`,
-    `empty-hole-fill` = p.`Y0`,
-    `backpack-selection-outline` = p.`SAND`,
-    `textarea-text` = p.`BR3`,
-    `cell-result-border` = p.`BR1`,
-    `ci-icon-bkg` = p.`BR3`,
-    `ci-status-text` = p.`BR4`,
-    `context-inspector-colon` = p.`BR2`,
-    `cell-exercises-border` = p.`BR2`
+    `nut-menu` = p.`info-strong`,
+    `menu-bkg` = p.`attention-1`,
+    `menu-item-hover-bkg` = p.`code-background`,
+    `ui-bkg` = p.`surface-1`,
+    `ui-header-text` = p.`frame-3`,
+    `cell-active` = p.`code-background`,
+    `main-scroll-thumb` = p.`frame-1`,
+    `token-buffer` = p.`frame-1`,
+    `shard-lines-exp` = p.`frame-1`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.25), 95.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.25), 95.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.25), 95.),
+    `empty-hole-stroke` = p.`frame-1`,
+    `empty-hole-fill` = p.`attention-1`,
+    `backpack-selection-outline` = p.`code-background`,
+    `textarea-text` = p.`frame-3`,
+    `cell-result-border` = p.`frame-1`,
+    `ci-icon-bkg` = p.`frame-3`,
+    `ci-status-text` = p.`frame-4`,
+    `context-inspector-colon` = p.`frame-2`,
+    `cell-exercises-border` = p.`frame-2`
   ))) in
 
 # ── High contrast, dark -- accessibility on a near-black ground ─────── #
@@ -460,27 +460,27 @@ let contrast_light =
 let contrast_dark =
   let p = palette_of(
     ^^fold((
-      `NONE` = Transparent,
-      `SAND` = ^^color(Oklch(12., 0., 240.)),
-      `STONE` = ^^color(Oklch(100., 0., 250.)),
-      `BLACK` = ^^color(Oklch(0., 0., 0.)),
-      `BR1` = ^^color(Oklch(65., 0., 250.)),
-      `T1` = ^^color(Oklch(0., 0., 250.)),
-      `Y0` = ^^color(Oklch(14., 0.08, 95.)),
-      `Y1` = ^^color(Oklch(38., 0.13, 169.5)),
-      `Y2` = ^^color(Oklch(75., 0.16, 95.)),
-      `Y3` = ^^color(Oklch(88., 0.18, 118.38)),
-      `R0` = ^^color(Oklch(30., 0.14, 30.)),
-      `R1` = ^^color(Oklch(70., 0.2, 30.)),
-      `R2` = ^^color(Oklch(80., 0.15, 30.)),
-      `TYP` = ^^color(Oklch(80., 0.16, 300.)),
-      `LABEL` = ^^color(Oklch(88., 0.11, 210.)),
-      `highlight-a` = ^^color(Oklch(70., 0.14, 260.)),
-      `G0` = ^^color(Oklch(82., 0.17, 150.)),
-      `G1` = ^^color(Oklch(90., 0.14, 150.)),
-      `G2` = ^^color(Oklch(78., 0.12, 150.)),
-      `GB0` = ^^color(Oklch(78., 0.1, 200.)),
-      `GB1` = ^^color(Oklch(55., 0.1, 200.)),
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(12., 0., 240.)),
+      `ink` = ^^color(Oklch(100., 0., 250.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(65., 0., 250.)),
+      `surface-1` = ^^color(Oklch(0., 0., 250.)),
+      `attention-1` = ^^color(Oklch(14., 0.08, 95.)),
+      `attention-2` = ^^color(Oklch(38., 0.13, 169.5)),
+      `attention-3` = ^^color(Oklch(75., 0.16, 95.)),
+      `attention-4` = ^^color(Oklch(88., 0.18, 118.38)),
+      `error-1` = ^^color(Oklch(30., 0.14, 30.)),
+      `error-2` = ^^color(Oklch(70., 0.2, 30.)),
+      `error-3` = ^^color(Oklch(80., 0.15, 30.)),
+      `type` = ^^color(Oklch(80., 0.16, 300.)),
+      `label` = ^^color(Oklch(88., 0.11, 210.)),
+      `doc-1` = ^^color(Oklch(70., 0.14, 260.)),
+      `success` = ^^color(Oklch(82., 0.17, 150.)),
+      `success-soft` = ^^color(Oklch(90., 0.14, 150.)),
+      `success-muted` = ^^color(Oklch(78., 0.12, 150.)),
+      `info` = ^^color(Oklch(78., 0.1, 200.)),
+      `info-strong` = ^^color(Oklch(55., 0.1, 200.)),
       `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 230.)), 55.),
       `textarea-h-stripe` = ^^color(Oklch(45., 0.12, 240.)),
       `textarea-h-strip-selected` = Fade(^^color(Oklch(65., 0.2, 230.)), 30.),
@@ -497,36 +497,36 @@ let contrast_dark =
       `main-shadow` = ^^color(Oklch(6., 0.02, 292.02116))
     )),
     (
-      `BR2` = 75.,
-      `BR3` = 85.,
-      `BR4` = 95.,
-      `T2` = 4.,
-      `T3` = 8.,
-      `T4` = 12.
+      `frame-2` = 75.,
+      `frame-3` = 85.,
+      `frame-4` = 95.,
+      `surface-2` = 4.,
+      `surface-3` = 8.,
+      `surface-4` = 12.
     )
   ) in
   theme_of(p, ^^fold((
-    `nut-menu` = p.`G2`,
-    `menu-bkg` = p.`T1`,
+    `nut-menu` = p.`success-muted`,
+    `menu-bkg` = p.`surface-1`,
     `menu-item-hover-bkg` = ^^color(Oklch(22., 0., 240.)),
-    `ui-bkg` = p.`T2`,
-    `ui-header-text` = p.`BR4`,
+    `ui-bkg` = p.`surface-2`,
+    `ui-header-text` = p.`frame-4`,
     `cell-active` = ^^color(Oklch(14., 0., 240.)),
-    `main-scroll-thumb` = p.`BR3`,
-    `token-buffer` = p.`BR3`,
-    `shard-lines-exp` = p.`BR2`,
-    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.5), 28.),
-    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.5), 28.),
-    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.5), 28.),
-    `empty-hole-stroke` = p.`BR3`,
-    `empty-hole-fill` = p.`T2`,
+    `main-scroll-thumb` = p.`frame-3`,
+    `token-buffer` = p.`frame-3`,
+    `shard-lines-exp` = p.`frame-2`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`pattern`, 0.5), 28.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`type`, 0.5), 28.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`type-pattern`, 0.5), 28.),
+    `empty-hole-stroke` = p.`frame-3`,
+    `empty-hole-fill` = p.`surface-2`,
     `backpack-selection-outline` = ^^color(Oklch(100., 0., 250.)),
-    `textarea-text` = p.`STONE`,
-    `cell-result-border` = p.`BR2`,
-    `ci-icon-bkg` = p.`BR2`,
-    `ci-status-text` = p.`STONE`,
-    `context-inspector-colon` = p.`BR3`,
-    `cell-exercises-border` = p.`BR3`
+    `textarea-text` = p.`ink`,
+    `cell-result-border` = p.`frame-2`,
+    `ci-icon-bkg` = p.`frame-2`,
+    `ci-status-text` = p.`ink`,
+    `context-inspector-colon` = p.`frame-3`,
+    `cell-exercises-border` = p.`frame-3`
   ))) in
 
 # The whole program branches HERE and nowhere else: each flag is read  #
