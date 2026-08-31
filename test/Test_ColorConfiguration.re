@@ -321,6 +321,111 @@ let a_non_theme_yields_no_colours = () =>
     ],
   );
 
+/* ── Golden: every variable, every scheme ──────────────────────────────
+
+      The slide is 165 variables across four schemes, and the interesting
+      failure is not "it errored" but "a colour moved". Nothing above would
+      notice: the contract check only asks WHICH names appear, and the CSS check
+      only asks whether each value parses. So the values themselves are pinned
+      here, and a diff is the review.
+
+      Regenerate deliberately, never reflexively -- the diff IS the thing to
+      read, and an unexplained line in it is the bug:
+
+          UPDATE_COLOR_GOLDEN=1 ./run_tests test 'ColorConfiguration'
+   */
+let golden_candidates = [
+  "test/goldens/colors.tsv",
+  "../test/goldens/colors.tsv",
+  "../../test/goldens/colors.tsv",
+  "../../../test/goldens/colors.tsv",
+  "../../../../test/goldens/colors.tsv",
+];
+
+let golden_path = () =>
+  switch (List.find_opt(Sys.file_exists, golden_candidates)) {
+  | Some(p) => p
+  | None =>
+    /* First run, or the file was deleted: write where the tree root is. */
+    switch (
+      List.find_opt(
+        d => Sys.file_exists(d),
+        [
+          "test/goldens",
+          "../test/goldens",
+          "../../test/goldens",
+          "../../../test/goldens",
+          "../../../../test/goldens",
+        ],
+      )
+    ) {
+    | Some(d) => Filename.concat(d, "colors.tsv")
+    | None => failwith("Colors golden: cannot locate test/goldens")
+    }
+  };
+
+let render_golden = (): string => {
+  let buf = Buffer.create(64 * 1024);
+  List.iter(
+    (((label, _, _), vars)) =>
+      List.iter(
+        ((n, v)) =>
+          Buffer.add_string(
+            buf,
+            Printf.sprintf("%s\t%s\t%s\n", label, n, v),
+          ),
+        List.sort(compare, vars),
+      ),
+    Lazy.force(evaluated_schemes),
+  );
+  Buffer.contents(buf);
+};
+
+let read_file = (path: string): string => {
+  let ic = open_in_bin(path);
+  let n = in_channel_length(ic);
+  let s = really_input_string(ic, n);
+  close_in(ic);
+  s;
+};
+
+let write_file = (path: string, s: string): unit => {
+  let oc = open_out_bin(path);
+  output_string(oc, s);
+  close_out(oc);
+};
+
+let colours_match_golden = () => {
+  let path = golden_path();
+  let actual = render_golden();
+  if (Sys.getenv_opt("UPDATE_COLOR_GOLDEN") != None) {
+    write_file(path, actual);
+    check(bool, "golden rewritten (" ++ path ++ ")", true, true);
+  } else if (!Sys.file_exists(path)) {
+    failwith(
+      "Colors golden missing at "
+      ++ path
+      ++ " -- run UPDATE_COLOR_GOLDEN=1 ./run_tests test 'ColorConfiguration'",
+    );
+  } else {
+    let expected = read_file(path);
+    /* Report the differing LINES, not a 40KB blob: alcotest would print both
+       whole files and the actual change would be unfindable. */
+    let split = t =>
+      String.split_on_char('\n', t) |> List.filter(l => l != "");
+    let (e, a) = (split(expected), split(actual));
+    let missing = List.filter(l => !List.mem(l, a), e);
+    let extra = List.filter(l => !List.mem(l, e), a);
+    check(
+      list(string),
+      "no colour changed value (was, per the golden)",
+      [],
+      missing,
+    );
+    check(list(string), "no colour appeared or moved (is, now)", [], extra);
+  };
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -334,6 +439,7 @@ let tests = [
       test_case("slide matches its contract", `Quick, slide_matches_contract),
       test_case("every value is valid CSS", `Quick, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
+      test_case("colours match golden", `Quick, colours_match_golden),
       test_case(
         "a non-theme yields no colours",
         `Quick,
