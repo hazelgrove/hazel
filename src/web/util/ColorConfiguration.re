@@ -82,6 +82,8 @@ let role_groups: list((string, list(string))) = [
       "ui-bkg",
       "ui-header-text",
       "toggle-knob",
+      "df-hover-bg",
+      "context-meter-fill",
     ],
   ),
   (
@@ -109,6 +111,7 @@ let role_groups: list((string, list(string))) = [
       "token-secondary",
       "token-rul",
       "token-any",
+      "token-drv",
     ],
   ),
   (
@@ -131,9 +134,25 @@ let role_groups: list((string, list(string))) = [
       "shadow-selected",
       "shard-any",
       "shadow-any",
+      "shard-caret-drv",
+      "shard-caret-mod",
+      "shard-caret-sig",
+      "shard-caret-mpat",
     ],
   ),
-  ("hole", ["empty-hole-stroke", "empty-hole-fill", "error-hole-fill"]),
+  (
+    "hole",
+    [
+      "empty-hole-stroke",
+      "empty-hole-fill",
+      "error-hole-fill",
+      "warning-hole-fill",
+      "warning-hole-stroke",
+      "hole-fill",
+      "hole-stroke",
+      "hole-active",
+    ],
+  ),
   (
     "backpack",
     [
@@ -144,7 +163,7 @@ let role_groups: list((string, list(string))) = [
       "backback-targets",
     ],
   ),
-  ("projector", ["textarea-indicated", "textarea-text"]),
+  ("projector", ["textarea-indicated", "textarea-text", "fold-bkg"]),
   (
     "dynamics",
     [
@@ -154,6 +173,9 @@ let role_groups: list((string, list(string))) = [
       "eval-exception",
       "eval-exception-stroke",
       "step-hole-color",
+      "incremental-frozen",
+      "incremental-frozen-edge",
+      "incremental-active-sweep",
     ],
   ),
   (
@@ -214,6 +236,13 @@ let role_groups: list((string, list(string))) = [
       "main-base",
       "main-shadow",
       "main-indicated",
+      "depth-shadow",
+      "sample-above-text",
+      "sample-above-bg",
+      "sample-above-shadow",
+      "sample-below-text",
+      "sample-below-bg",
+      "sample-below-shadow",
     ],
   ),
 ];

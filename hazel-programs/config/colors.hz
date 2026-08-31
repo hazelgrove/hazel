@@ -92,6 +92,15 @@ let theme_of = fun (p, role) ->
   let shard_selected = p.`Y1` in
   let backpack_selection = shard_selected in
   let test_fail_active = p.`R0` in
+  # Roles below are placed on the palette's OWN contrast axis instead of   #
+  # being given a number per scheme: at(c, 0.) sits at the page            #
+  # background's lightness and at(c, 1.) at the body text's, so one        #
+  # definition is correct in all four schemes. This is exactly what the    #
+  # hardcoded literals in variables.css could not do -- a warning fill     #
+  # pinned at 97% lightness is right in light and invisible in dark.       #
+  let bg_l = color_lightness(p.`T1`) in
+  let text_l = color_lightness(p.`STONE`) in
+  let at = fun (c, t) -> color_with_lightness(c, bg_l +. (text_l -. bg_l) *. t) in
   ^^fold((
     palette = ^^fold((
       `NONE` = p.`NONE`,
@@ -143,7 +152,9 @@ let theme_of = fun (p, role) ->
         `menu-shadow` = p.`SHADOW`,
         `ui-bkg` = role.`ui-bkg`,
         `ui-header-text` = role.`ui-header-text`,
-        `toggle-knob` = p.`SAND`
+        `toggle-knob` = p.`SAND`,
+        `df-hover-bg` = at(p.`G0`, 0.12),
+        `context-meter-fill` = at(p.`PAT`, 0.7)
       )),
       code = ^^fold((
         `main-bkg` = p.`T3`,
@@ -167,7 +178,8 @@ let theme_of = fun (p, role) ->
         `token-explicit-hole-shadow` = p.`BLACK`,
         `token-secondary` = shard_exp,
         `token-rul` = token_exp,
-        `token-any` = p.`R2`
+        `token-any` = p.`R2`,
+        `token-drv` = at(p.`G0`, 0.9)
       )),
       shard = ^^fold((
         `shard-caret-exp` = p.`T2`,
@@ -186,12 +198,22 @@ let theme_of = fun (p, role) ->
         `shard-lines-rul` = role.`shard-lines-exp`,
         `shadow-selected` = p.`R0`,
         `shard-any` = shard_exp,
-        `shadow-any` = p.`R0`
+        `shadow-any` = p.`R0`,
+        `shard-caret-drv` = at(p.`G0`, 0.08),
+        `shard-caret-mod` = at(p.`LABEL`, 0.08),
+        `shard-caret-sig` = at(p.`TYP`, 0.08),
+        `shard-caret-mpat` = at(p.`PAT`, 0.08)
       )),
       hole = ^^fold((
         `empty-hole-stroke` = role.`empty-hole-stroke`,
         `empty-hole-fill` = role.`empty-hole-fill`,
-        `error-hole-fill` = p.`ERRHOLE`
+        `error-hole-fill` = p.`ERRHOLE`,
+        # The unused-variable box and its outline. #
+        `warning-hole-fill` = at(p.`Y2`, 0.08),
+        `warning-hole-stroke` = at(p.`Y2`, 0.95),
+        `hole-fill` = at(p.`PAT`, 0.1),
+        `hole-stroke` = at(p.`PAT`, 0.7),
+        `hole-active` = at(p.`PAT`, 1.)
       )),
       backpack = ^^fold((
         `backpack-selection` = backpack_selection,
@@ -202,7 +224,8 @@ let theme_of = fun (p, role) ->
       )),
       projector = ^^fold((
         `textarea-indicated` = p.`SAND`,
-        `textarea-text` = role.`textarea-text`
+        `textarea-text` = role.`textarea-text`,
+        `fold-bkg` = at(p.`PAT`, 0.15)
       )),
       dynamics = ^^fold((
         `cell-result-text` = p.`BR4`,
@@ -210,7 +233,10 @@ let theme_of = fun (p, role) ->
         `cell-result-hidden` = p.`BR1`,
         `eval-exception` = test_fail_active,
         `eval-exception-stroke` = p.`R2`,
-        `step-hole-color` = p.`G0`
+        `step-hole-color` = p.`G0`,
+        `incremental-frozen` = Fade(at(p.`PAT`, 0.25), 55.),
+        `incremental-frozen-edge` = Fade(at(p.`PAT`, 0.45), 55.),
+        `incremental-active-sweep` = Fade(at(p.`STONE`, 1.), 56.)
       )),
       ci = ^^fold((
         `ci-icon-bkg` = role.`ci-icon-bkg`,
@@ -258,7 +284,16 @@ let theme_of = fun (p, role) ->
         `pat-cell` = p.`pat-cell`,
         `main-base` = p.`main-base`,
         `main-shadow` = p.`main-shadow`,
-        `main-indicated` = p.`TYP`
+        `main-indicated` = p.`TYP`,
+        `depth-shadow` = at(p.`STONE`, 0.4),
+        # Probe samples: above the cursor reads magenta, below reads    #
+        # cyan, each as a text/fill/shadow triple off one hue.          #
+        `sample-above-text` = at(p.`highlight-a`, 1.),
+        `sample-above-bg` = at(p.`highlight-a`, 0.12),
+        `sample-above-shadow` = at(p.`highlight-a`, 0.4),
+        `sample-below-text` = at(p.`LABEL`, 1.),
+        `sample-below-bg` = at(p.`LABEL`, 0.12),
+        `sample-below-shadow` = at(p.`LABEL`, 0.4)
       ))
     ))
   )) in

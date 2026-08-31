@@ -296,6 +296,31 @@ let schemes_are_pairwise_distinct = () => {
   check(list(string), "no two schemes render identically", [], collisions);
 };
 
+/* The startup path rests on this: a slide that does not satisfy the contract
+   must yield NO colours -- not a partial theme, and not an exception.
+   `apply_theme_at_startup` reads `[]` as "change nothing", which keeps the
+   last theme up while the user repairs the slide. A partial theme would
+   half-apply instead, and an exception would take the app down before Bonsai
+   starts. */
+let a_non_theme_yields_no_colours = () =>
+  List.iter(
+    ((label, text)) =>
+      check(
+        list(pair(string, string)),
+        label ++ ": produces no colours",
+        [],
+        CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(text)),
+      ),
+    [
+      ("an int", "1 + 1"),
+      ("a string", "\"not a theme\""),
+      ("empty", ""),
+      ("the wrong record", "(palette = 1, roles = 2)"),
+      /* The shape the slide had before the palette/roles rewrite. */
+      ("the old flat list", "[(\"T1\", \"oklch(97% 0.025 90)\")]"),
+    ],
+  );
+
 let tests = [
   (
     "ColorConfiguration",
@@ -309,6 +334,11 @@ let tests = [
       test_case("slide matches its contract", `Quick, slide_matches_contract),
       test_case("every value is valid CSS", `Quick, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
+      test_case(
+        "a non-theme yields no colours",
+        `Quick,
+        a_non_theme_yields_no_colours,
+      ),
       test_case(
         "every scheme is complete and valid CSS",
         `Quick,

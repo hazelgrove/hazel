@@ -41,15 +41,20 @@ module Model = {
   };
 
   /* The key a slide is persisted under, deliberately separate from the name
-     it displays under. The Colors program changed shape — a flat list of
-     (String, String) pairs became a typed palette/roles record — so a slide
-     saved by an older build must NOT be restored into the new one: it would
-     fail the analyzed type and decode to no colours at all, leaving the
-     editor unstyled with no way back. Bumping the key makes those fall
-     through to the new default instead. */
+     it displays under: one is storage, the other is UI text, and coupling
+     them is how a rename becomes a silent data migration.
+
+     No version in the key. It used to carry one, so that a slide saved
+     against an older contract would not be restored into a newer build --
+     but a slide that no longer satisfies the contract simply yields no
+     colours, and `apply_theme_at_startup` treats that as "use the defaults"
+     (every palette var has a literal default in variables.css). Resetting
+     the slide is how the user gets a working one back. That is a better
+     answer than a version we have to remember to bump, and it covers shapes
+     no bump would have anticipated. */
   let persistence_key = (config_type: config_type): string => {
     switch (config_type) {
-    | ColorScheme => "Colors-v2"
+    | ColorScheme => "Colors"
     | Shortcuts => "Shortcuts"
     };
   };
@@ -285,8 +290,19 @@ let apply_theme_at_startup = (): unit => {
     | Some((cached_key, vars)) when cached_key == key && vars != [] => vars
     | _ => ColorConfiguration.vars_of_source(colors_source(persistent))
     };
-  apply_colors(vars);
-  write_theme_cache(~key, vars);
+  /* Nothing on failure -- deliberately. A slide that does not satisfy the
+     contract leaves the last theme the inline <head> script painted, and
+     leaves the cache holding it, so the editor stays in the colours the user
+     chose while they go and fix the slide. Snapping to the defaults instead
+     would hand someone a bright editor to repair a dark theme in, and it
+     would disagree with the in-session behaviour: `perform_side_effect` only
+     fires on a SUCCESSFUL evaluation, so a mid-edit broken slide already
+     leaves the last good theme up. With no cache to fall back on there is
+     nothing painted, and the literal defaults in variables.css show. */
+  if (vars != []) {
+    apply_colors(vars);
+    write_theme_cache(~key, vars);
+  };
 };
 
 /* Applied on every successful evaluation of a config slide.
