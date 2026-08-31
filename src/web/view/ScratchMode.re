@@ -2227,14 +2227,36 @@ module View = {
         /* SwitchSlide painted this frame before hydration: the next
            update parses + runs first statics, which blocks for a bit on
            large slides */
+        /* same spinner as the app boot screen (index.html/loading.css) */
         Virtual_dom.Vdom.Node.div(
           ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading"])],
           [
-            Virtual_dom.Vdom.Node.span(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading-dot"])],
-              [Virtual_dom.Vdom.Node.text({js|●|js})],
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[Virtual_dom.Vdom.Attr.classes(["spinner"])],
+              [
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["loader"])],
+                  [],
+                ),
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["nut-container"])],
+                  [
+                    Virtual_dom.Vdom.Node.create(
+                      "img",
+                      ~attrs=[
+                        Virtual_dom.Vdom.Attr.classes(["spinner-nut"]),
+                        Virtual_dom.Vdom.Attr.create(
+                          "src",
+                          "img/hazelnut.svg",
+                        ),
+                      ],
+                      [],
+                    ),
+                  ],
+                ),
+              ],
             ),
-            Virtual_dom.Vdom.Node.text(" loading "),
+            Virtual_dom.Vdom.Node.text("loading "),
             Virtual_dom.Vdom.Node.text(current.name),
             Virtual_dom.Vdom.Node.text({js|…|js}),
           ],

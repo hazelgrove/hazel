@@ -221,6 +221,40 @@ type save_stamp =
   | Unstacked(Zipper.t)
   | Stacked(Model.focus_t);
 let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
+
+/* === Per-item persistence (ItemPersist) ===
+   The primary restore: top-level item slices as individual sexp
+   values + an ordered roster under side keys, so autosave writes
+   only the items an edit touched and reload restores the zipper
+   EXACTLY (incomplete tiles included) with no text parse. The text
+   blob below remains the write-through fallback and migration path:
+   no/inconsistent roster falls back to the text load. */
+let items_ns = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name ++ ":items:";
+
+let item_store = (prefix: string, name: string): ItemPersist.store => {
+  let ns = items_ns(prefix, name);
+  {
+    get: k => HazelDB.kv_get(ns ++ k),
+    set: (k, v) => HazelDB.kv_save(ns ++ k, v),
+    remove: k => HazelDB.kv_remove(ns ++ k),
+  };
+};
+
+/* previously-saved item slices per content key: pieces are shared
+   across ticks when unchanged, so dirtiness is a pointer walk */
+let last_item_saves: Hashtbl.t(string, ItemPersist.saved) =
+  Hashtbl.create(8);
+
+let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
+  let content_key = prefix ++ ":" ++ name;
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let prev =
+    Hashtbl.find_opt(last_item_saves, content_key)
+    |> Option.value(~default=[]);
+  let saved = ItemPersist.save(~store=item_store(prefix, name), ~prev, seg);
+  Hashtbl.replace(last_item_saves, content_key, saved);
+};
 let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   switch (a, b) {
   | (Unstacked(x), Unstacked(y)) => x === y
@@ -313,6 +347,11 @@ let save_current = (prefix: string, model: Model.t): unit => {
           };
         write_pins(prefix, sp.name, pins);
       };
+      switch (model.focus) {
+      | Some(f) =>
+        save_items(prefix, sp.name, Focus.splice_all(f) |> Zipper.unzip)
+      | None => save_items(prefix, sp.name, editor.editor.editor.state.zipper)
+      };
       switch (
         switch (model.focus) {
         | Some(f) => persist_spliced(f, editor)
@@ -382,28 +421,58 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
       name,
       kind:
         Code({
-          editor:
-            (
+          editor: {
+            /* repair blobs persisted with the wrong root (and track
+               canonical root changes): the slide table is
+               authoritative for documentation slides */
+            let (persisted, root_repaired) =
               switch (e) {
               | Some(e) =>
-                /* repair blobs persisted with the wrong root (and
-                   track canonical root changes): the slide table is
-                   authoritative for documentation slides */
                 switch (Init.documentation_slide_root(name)) {
-                | Some(root) when root != e.editor.root =>
-                  CellEditor.Model.{
-                    ...e,
-                    editor: {
-                      ...e.editor,
-                      root,
+                | Some(root) when root != e.editor.root => (
+                    CellEditor.Model.{
+                      ...e,
+                      editor: {
+                        ...e.editor,
+                        root,
+                      },
                     },
-                  }
-                | _ => e
+                    true,
+                  )
+                | _ => (e, false)
                 }
-              | None => Init.default_documentation_slide_name(name)
-              }
-            )
-            |> CellEditor.Model.unpersist(~settings),
+              | None => (Init.default_documentation_slide_name(name), false)
+              };
+            /* per-item restore: exact zipper, no text parse. Skipped
+               when the root was just repaired (stored items were
+               normalized under the OLD root — reparse once instead)
+               or on any roster inconsistency (text fallback). */
+            switch (
+              root_repaired
+                ? None : ItemPersist.load(~store=item_store(prefix, name))
+            ) {
+            | Some(seg) =>
+              let root = persisted.editor.root;
+              let z =
+                Zipper.unzip(~direction=Left, seg)
+                |> Zipper.remold_regrout(Right, ~root);
+              /* prime the dirty cache: the first autosave tick after
+                 a load should rewrite nothing */
+              Hashtbl.replace(
+                last_item_saves,
+                prefix ++ ":" ++ name,
+                ItemPersist.items_of(
+                  Zipper.unselect_and_zip(~erase_buffer=true, z),
+                ),
+              );
+              CellEditor.Model.unpersist_with(
+                ~settings,
+                ~zipper=z,
+                persisted,
+              );
+            | None => CellEditor.Model.unpersist(~settings, persisted)
+            };
+          },
           agent: Agent.Persistent.unpersist(agent),
         }),
       dormant: false,
