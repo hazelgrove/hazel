@@ -87,6 +87,10 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  /* per-item persistence rebuilds the zipper directly (no text or
+     sexp parse); the persistent record still supplies the root */
+  let unpersist_with = (~zipper: Haz3lcore.Zipper.t, p: persistent) =>
+    Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
 type statics_mode =

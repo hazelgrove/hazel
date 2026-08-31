@@ -37,6 +37,12 @@ module Model = {
     result: EvalResult.Model.unpersist(result),
   };
 
+  let unpersist_with =
+      (~settings as _=?, ~zipper, {editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist_with(~zipper, editor),
+    result: EvalResult.Model.unpersist(result),
+  };
+
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
