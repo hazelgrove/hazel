@@ -4,6 +4,7 @@ open AST
 
 
 
+%token CONCAVE_HOLE
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -123,6 +124,9 @@ open AST
 
 
 
+/* Concave grout (the `⧖` operator-hole marker): loosest of all
+   infix forms, mirroring Grout's Precedence.min in the editor */
+%left CONCAVE_HOLE
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
 %right SUM_TYP
@@ -220,6 +224,7 @@ program:
 
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
+    | e1 = exp; CONCAVE_HOLE; e2 = exp { BinHole (e1, e2) }
 
 label:
     | l = IDENT { l }

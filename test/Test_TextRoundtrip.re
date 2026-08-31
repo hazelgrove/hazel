@@ -162,8 +162,152 @@ let arb_exp_roundtrip =
     },
   );
 
+/* Concave-grout marker (`⧖`): an operator hole. The fast parse must
+   accept it (that is the point of the marker — `1 ¿ 2` lexes as three
+   operands and rejects, poisoning every reload of a text-persisted
+   document that contains an infix hole), and the canonical print must
+   be a fast-parse fixed point. */
+let concave_fast_case = (~name, text) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      switch (FastParse.parsed_of_text(~root=Sort.Exp, text)) {
+      | Error(why) => fail("fast parse rejected: " ++ why)
+      | Ok(_) => ()
+      };
+      /* fast-parse fixed point via the persistence load path */
+      switch (
+        PersistentZipper.parse_text(~source="test", ~root=Sort.Exp, text)
+      ) {
+      | None => fail("parse_text returned None")
+      | Some(z) =>
+        let printed = MarkerParse.to_text(z);
+        check(string, "print is the input", text, printed);
+        switch (FastParse.parsed_of_text(~root=Sort.Exp, printed)) {
+        | Error(why) => fail("reprint not fast-parseable: " ++ why)
+        | Ok(_) => ()
+        };
+      };
+    },
+  );
+
+let concave_marker_cases = [
+  concave_fast_case(
+    ~name="infix hole",
+    "let x : Int = 1 \xe2\xa7\x96 2 in\nx",
+  ),
+  concave_fast_case(
+    ~name="infix hole chain",
+    "1 \xe2\xa7\x96 2 \xe2\xa7\x96 3",
+  ),
+  concave_fast_case(
+    ~name="infix hole among operators",
+    "1 + 2 \xe2\xa7\x96 3 * 4",
+  ),
+  /* NB `¿ ⧖ 2` standalone is NOT a legitimate case: load-time
+     normalization (parse_text remold_regrouts fast results) deletes
+     grout at fitting junctions, and no real zipper persists
+     non-normal text. The canonical operand-hole-at-misfit shape: */
+  concave_fast_case(~name="operand hole at misfit", "1 + \xc2\xbf * 2"),
+  concave_fast_case(
+    ~name="operator and operand holes in one program",
+    "let x : Int = \xc2\xbf in\n1 \xe2\xa7\x96 x",
+  ),
+  /* legacy `¿`-as-infix text (persisted before the concave marker):
+     still loads via the recovering parser and CANONICALIZES to the
+     new spelling — the reprint must fast-parse */
+  test_case("legacy infix ¿ canonicalizes to ⧖", `Quick, () =>
+    switch (MarkerParse.of_text(~root=Sort.Exp, "1 \xc2\xbf 2")) {
+    | None => fail("legacy parse failed")
+    | Some(z) =>
+      let printed = MarkerParse.to_text(z);
+      switch (FastParse.parsed_of_text(~root=Sort.Exp, printed)) {
+      | Error(why) =>
+        fail("canonicalized legacy text not fast-parseable: " ++ why)
+      | Ok(_) => ()
+      };
+    }
+  ),
+  /* slow-path parity: the marker also round-trips through the
+     recovering parser */
+  text_fixed_point_case(
+    ~name="infix hole (recovering parser)",
+    "1 \xe2\xa7\x96 2",
+  ),
+];
+
+let debug_pieces = (tag, text) =>
+  test_case(
+    "DBG " ++ tag,
+    `Quick,
+    () => {
+      switch (MarkerParse.of_text(~root=Sort.Exp, text)) {
+      | None => print_endline(tag ++ ": slow parse None")
+      | Some(z) =>
+        let seg = Zipper.unselect_and_zip(z);
+        print_endline(
+          tag
+          ++ " SLOW: "
+          ++ String.concat(
+               " ",
+               List.map(
+                 (p: Piece.t) =>
+                   switch (p) {
+                   | Tile(t) => "T(" ++ String.concat("", t.label) ++ ")"
+                   | Grout({shape: Convex, _}) => "Gcvx"
+                   | Grout({shape: Concave, _}) => "Gccv"
+                   | Secondary(_) => "_"
+                   | Projector(_) => "P"
+                   },
+                 seg,
+               ),
+             ),
+        );
+      };
+      switch (FastParse.parsed_of_text(~root=Sort.Exp, text)) {
+      | Error(why) => print_endline(tag ++ " FAST: Error " ++ why)
+      | Ok({segment, _}) =>
+        print_endline(
+          tag
+          ++ " FAST: "
+          ++ String.concat(
+               " ",
+               List.map(
+                 (p: Piece.t) =>
+                   switch (p) {
+                   | Tile(t) => "T(" ++ String.concat("", t.label) ++ ")"
+                   | Grout({shape: Convex, _}) => "Gcvx"
+                   | Grout({shape: Concave, _}) => "Gccv"
+                   | Secondary(_) => "_"
+                   | Projector(_) => "P"
+                   },
+                 segment,
+               ),
+             ),
+        )
+      };
+    },
+  );
+
+let debug_parse_text = (tag, text) =>
+  test_case("DBG PT " ++ tag, `Quick, () =>
+    switch (
+      FastParse.parsed_of_text(
+        ~materialize=Triggers.invoked_projector,
+        ~collect_refractors=true,
+        ~root=Sort.Exp,
+        text,
+      )
+    ) {
+    | Error(why) => print_endline(tag ++ " PT-FAST Error: " ++ why)
+    | Ok(_) => print_endline(tag ++ " PT-FAST Ok")
+    }
+  );
+
 let tests = [
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
+  ("TextRoundtrip.ConcaveMarker", concave_marker_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
   (
     "TextRoundtrip.Property",
