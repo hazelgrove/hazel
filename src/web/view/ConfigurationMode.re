@@ -234,13 +234,10 @@ let theme_key = (persistent: Model.persistent): string =>
     /* Joined into one string on purpose: `Hashtbl.hash` samples only the
        first few nodes of a list, so a name added at the end of a 142-entry
        contract would not change the hash. */
-    Hashtbl.hash(
-      String.concat(
-        ",",
-        ColorConfiguration.palette
-        @ List.concat_map(snd, ColorConfiguration.role_groups),
-      ),
-    ),
+    /* The OUTPUT contract, not the slide's field names: a field can be
+       re-pointed at different properties without its name changing, and the
+       cache has to notice. */
+    Hashtbl.hash(String.concat(",", ColorConfiguration.all_targets)),
   );
 
 let apply_colors = (vars: list((string, string))): unit =>

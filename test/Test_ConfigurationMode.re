@@ -173,9 +173,7 @@ let startup_theme_is_complete = () => {
         CM.colors_source(CM.StoreConfig.default()),
       ),
     );
-  let declared =
-    Web.ColorConfiguration.palette
-    @ List.concat_map(snd, Web.ColorConfiguration.role_groups);
+  let declared = Web.ColorConfiguration.all_targets;
   check(
     list(string),
     "the startup theme defines every declared colour",

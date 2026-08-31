@@ -43,7 +43,7 @@ let analysis_is_engaged = () =>
 let evaluated = lazy(CC.vars_of_source(CC.source));
 let evaluated_vars = () => Lazy.force(evaluated);
 
-let declared_names = CC.palette @ List.concat_map(snd, CC.role_groups);
+let declared_names = CC.all_targets;
 
 /* The join between the slide and its contract. A name in the contract that
    the slide does not produce is a variable that silently keeps its stylesheet
@@ -426,6 +426,60 @@ let colours_match_golden = () => {
   };
 };
 
+/* ── The fan-out table ─────────────────────────────────────────────────
+
+   These need no evaluation: they are properties of the table alone, so they
+   fail in milliseconds and point straight at the row that is wrong. The
+   table is the join between what a themer writes and what the stylesheets
+   read, and a mistake in it is invisible from either side. */
+let table_is_well_formed = () => {
+  check(
+    list(string),
+    "no field expands to an empty target list",
+    [],
+    List.filter_map(
+      ((name, targets)) => targets == [] ? Some(name) : None,
+      CC.aliases,
+    ),
+  );
+  /* Two fields writing one property means whichever evaluates last silently
+     wins, which is a coin toss dressed up as a theme. */
+  let dupes =
+    List.filter(
+      t => List.length(List.filter((==)(t), CC.all_targets)) > 1,
+      List.sort_uniq(compare, CC.all_targets),
+    );
+  check(list(string), "no property is written by two fields", [], dupes);
+  /* An alias for a field the slide does not have is a silent no-op. */
+  check(
+    list(string),
+    "every aliased field exists",
+    [],
+    List.filter(((name, _)) => !List.mem(name, CC.field_names), CC.aliases)
+    |> List.map(fst),
+  );
+};
+
+/* The gate: a slide missing even one property yields nothing rather than a
+   half-applied theme. */
+let a_partial_theme_yields_nothing = () => {
+  let text = CC.source.backup_text;
+  /* Drop one leaf by breaking its colour, leaving the shape intact. */
+  let broken =
+    Str.replace_first(
+      Str.regexp_string("`NONE` = Transparent,"),
+      "`NONE` = 1,",
+      text,
+    );
+  check(bool, "the edit applied", true, broken != text);
+  check(
+    list(pair(string, string)),
+    "one undecodable colour yields no theme at all",
+    [],
+    CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(broken)),
+  );
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -439,6 +493,12 @@ let tests = [
       test_case("slide matches its contract", `Quick, slide_matches_contract),
       test_case("every value is valid CSS", `Quick, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
+      test_case("fan-out table is well formed", `Quick, table_is_well_formed),
+      test_case(
+        "a partial theme yields nothing",
+        `Quick,
+        a_partial_theme_yields_nothing,
+      ),
       test_case("colours match golden", `Quick, colours_match_golden),
       test_case(
         "a non-theme yields no colours",
