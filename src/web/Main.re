@@ -16,6 +16,15 @@ let () = WorkerClient.on_summary := ShadowResidency.on_summary;
 let () =
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,
+    "__staticsProf",
+    Js_of_ocaml.Js.wrap_callback(b => {
+      Haz3lcore.CachedStatics.prof := Js_of_ocaml.Js.to_bool(b);
+      Haz3lcore.DefStatics.prof := Js_of_ocaml.Js.to_bool(b);
+    }),
+  );
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
     "__normCounters",
     Js_of_ocaml.Js.wrap_callback(() =>
       Js_of_ocaml.Js.string(

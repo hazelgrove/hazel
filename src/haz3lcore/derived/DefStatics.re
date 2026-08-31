@@ -979,6 +979,22 @@ let chain_root = (e: Exp.t): list(Exp.t) => {
    is the W2b main-thread mode: rename/type-edit cascades cost one
    item here; the full propagation runs worker-side and lands async
    (plans/w2-worker-residency.md §10-11). */
+/* TEMP instrumentation (paired with CachedStatics.prof) */
+let prof: ref(bool) = ref(false);
+let ptime = (label: string, f: unit => 'a): 'a =>
+  if (prof^) {
+    let t0 = Sys.time();
+    let x = f();
+    Printf.printf(
+      "[staticsProf]   calc.%-18s %6.1fms\n",
+      label,
+      (Sys.time() -. t0) *. 1000.,
+    );
+    x;
+  } else {
+    f();
+  };
+
 let calc =
     (
       ~settings,
@@ -989,7 +1005,7 @@ let calc =
     )
     : t => {
   last_analyzed := 0;
-  let nodes = chain_root(whole);
+  let nodes = ptime("chain_root", () => chain_root(whole));
   /* probe ids are an ANALYSIS input (witness stamping): an item whose
      map contains a toggled probe id must re-analyze. Everything else
      stays clean — a probe toggle costs one item, not the program. */
@@ -1012,6 +1028,7 @@ let calc =
     !Id.Map.is_empty(probe_delta)
     && Id.Map.exists((pid, ()) => Id.Map.mem(pid, p.d_map), probe_delta);
   let (items, merged) =
+    ptime("items+merged", () =>
     switch (prev) {
     | None =>
       /* cold: compute every item in chain order */
@@ -1268,8 +1285,16 @@ let calc =
           };
         };
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
-    };
-  let merged = fix_spine_infos(~probe_ids, items, merged);
+    });
+  if (prof^) {
+    Printf.printf(
+      "[staticsProf]   calc.analyzed=%d items=%d\n",
+      last_analyzed^,
+      List.length(items),
+    );
+  };
+  let merged =
+    ptime("fix_spine_infos", () => fix_spine_infos(~probe_ids, items, merged));
   {
     items,
     term: whole,
