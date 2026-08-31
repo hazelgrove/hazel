@@ -1205,7 +1205,7 @@ module View = {
           let new_visible =
             Globals.VisibleRows.compute(
               ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=float_of_int(c##.clientHeight),
+              ~client_height=JsUtil.cached_client_height(c),
               ~row_height=globals.font_metrics.row_height,
               (),
             );
