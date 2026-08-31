@@ -246,22 +246,6 @@ let item_store = (prefix: string, name: string): ItemPersist.store => {
 let last_item_saves: Hashtbl.t(string, ItemPersist.saved) =
   Hashtbl.create(8);
 
-/* the text blob is schema-drift INSURANCE (sexp item values break on
-   type changes; text does not), not the primary restore — its
-   freshness barely decays, so rewrite it lazily: the full text print
-   is ~225ms at 4k lines and was landing on every typing pause */
-let last_text_save: Hashtbl.t(string, float) = Hashtbl.create(8);
-let text_save_interval_ms = 10_000.;
-let text_save_due = (content_key: string): bool => {
-  let now = Sys.time() *. 1000.;
-  switch (Hashtbl.find_opt(last_text_save, content_key)) {
-  | Some(t) when now -. t < text_save_interval_ms => false
-  | _ =>
-    Hashtbl.replace(last_text_save, content_key, now);
-    true;
-  };
-};
-
 let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
   let content_key = prefix ++ ":" ++ name;
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
@@ -368,42 +352,40 @@ let save_current = (prefix: string, model: Model.t): unit => {
         save_items(prefix, sp.name, Focus.splice_all(f) |> Zipper.unzip)
       | None => save_items(prefix, sp.name, editor.editor.editor.state.zipper)
       };
-      if (text_save_due(content_key)) {
-        switch (
-          switch (model.focus) {
-          | Some(f) => persist_spliced(f, editor)
-          | None =>
-            CellEditor.Model.{
-              editor:
-                Editor.Model.mk_persistent(
-                  PersistentZipper.of_text(
-                    PersistentZipper.to_string(
-                      editor.editor.editor.state.zipper,
-                    )
-                    ++ "\n",
-                  ),
-                  /* the editor's OWN root: persisting a Mod-rooted
-                     slide as Exp made the reload re-parse it as an
-                     expression (backpack full of `in`s, editor wedged) */
-                  ~root=editor.editor.editor.root,
+      switch (
+        switch (model.focus) {
+        | Some(f) => persist_spliced(f, editor)
+        | None =>
+          CellEditor.Model.{
+            editor:
+              Editor.Model.mk_persistent(
+                PersistentZipper.of_text(
+                  PersistentZipper.to_string(
+                    editor.editor.editor.state.zipper,
+                  )
+                  ++ "\n",
                 ),
-              result: EvalResult.Model.persist(editor.result),
-            }
+                /* the editor's OWN root: persisting a Mod-rooted
+                   slide as Exp made the reload re-parse it as an
+                   expression (backpack full of `in`s, editor wedged) */
+                ~root=editor.editor.editor.root,
+              ),
+            result: EvalResult.Model.persist(editor.result),
           }
-        ) {
-        | e =>
-          /* The slide blob carries the editor only; the conversation
-             lives solely under the :agent key (it used to be embedded
-             here TOO, doubling every write and boot deserialization). */
-          save_slide_kind(
-            prefix,
-            sp.name,
-            CodePersist({
-              editor: Some(e),
-              agent: Agent.Persistent.persist(Agent.Utils.init()),
-            }),
-          )
-        };
+        }
+      ) {
+      | e =>
+        /* The slide blob carries the editor only; the conversation
+           lives solely under the :agent key (it used to be embedded
+           here TOO, doubling every write and boot deserialization). */
+        save_slide_kind(
+          prefix,
+          sp.name,
+          CodePersist({
+            editor: Some(e),
+            agent: Agent.Persistent.persist(Agent.Utils.init()),
+          }),
+        )
       };
     };
     let agent_key_str = prefix ++ ":" ++ sp.name;

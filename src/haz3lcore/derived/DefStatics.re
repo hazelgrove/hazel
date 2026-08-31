@@ -1248,14 +1248,7 @@ let calc =
         };
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
-  /* the spine patch feeds the evaluator's reuse gating and probe
-     witnesses; with dynamics off and no probes it has no consumer —
-     skip it (measured ~22ms/tick at 4k, the fixed floor of the
-     statics tick). Idempotent + raw-sourced, so toggling dynamics
-     back on heals the merged view on the next calc. */
-  let merged =
-    !settings.dynamics && Id.Map.is_empty(probe_ids)
-      ? merged : fix_spine_infos(~probe_ids, items, merged);
+  let merged = fix_spine_infos(~probe_ids, items, merged);
   {
     items,
     term: whole,
