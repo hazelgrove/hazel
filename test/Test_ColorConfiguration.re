@@ -76,40 +76,46 @@ let slide_matches_contract = () => {
   );
 };
 
+let starts_with = (p, s) =>
+  String.length(s) >= String.length(p)
+  && String.sub(s, 0, String.length(p)) == p;
+
+let contains = (needle, s) => {
+  let (n, h) = (String.length(needle), String.length(s));
+  let rec go = i =>
+    i + n <= h && (String.sub(s, i, n) == needle || go(i + 1));
+  go(0);
+};
+
+/* OCaml float printing is the hazard: `%g` renders 1e-05 or nan, both of
+   which a browser silently drops rather than reporting. */
+let plausible = s =>
+  (
+    starts_with("oklch(", s)
+    || starts_with("color-mix(", s)
+    || starts_with("#", s)
+  )
+  && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
+
+let unparseable = vars =>
+  vars
+  |> List.filter(((_, v)) => !plausible(v))
+  |> List.map(((n, v)) => n ++ " = " ++ v);
+
 /* The applier writes these straight into a CSS custom property, where an
    unparseable value is silently ignored by the browser. */
 let every_value_is_css = () => {
-  let starts_with = (p, s) =>
-    String.length(s) >= String.length(p)
-    && String.sub(s, 0, String.length(p)) == p;
-  let contains = (needle, s) => {
-    let (n, h) = (String.length(needle), String.length(s));
-    let rec go = i =>
-      i + n <= h && (String.sub(s, i, n) == needle || go(i + 1));
-    go(0);
-  };
-  /* OCaml float printing is the hazard: `%g` renders 1e-05 or nan, both of
-     which a browser silently drops rather than reporting. */
-  let plausible = s =>
-    (
-      starts_with("oklch(", s)
-      || starts_with("color-mix(", s)
-      || starts_with("#", s)
-    )
-    && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
   check(
     list(string),
     "no colour renders to something CSS cannot parse",
     [],
-    evaluated_vars()
-    |> List.filter(((_, v)) => !plausible(v))
-    |> List.map(((n, v)) => n ++ " = " ++ v),
+    unparseable(evaluated_vars()),
   );
 };
 
 /* The shape the slide is written for. The scheme flags are read at the very
    bottom and NOWHERE else: everything above is written once and reused by all
-   three schemes. This is the property the slide was restructured to get, and
+   four schemes. This is the property the slide was restructured to get, and
    it is what makes adding a scheme cost one line instead of one conditional
    per colour — the previous shape tested `dark_mode` at all 50-odd places a
    colour differed. Comments are stripped first, since the header prose names
@@ -129,9 +135,21 @@ let strip_comments = (text: string) => {
   Buffer.contents(buf);
 };
 
+/* Identifier tokens, split on anything that cannot appear in a name. The
+   flags are read inside a tuple scrutinee — `case (dark_mode, ...` — so
+   splitting on spaces alone would miss them. */
 let words = text =>
-  String.split_on_char('\n', text)
-  |> String.concat(" ")
+  String.to_seq(text)
+  |> Seq.map(c =>
+       switch (c) {
+       | 'a' .. 'z'
+       | 'A' .. 'Z'
+       | '0' .. '9'
+       | '_' => c
+       | _ => ' '
+       }
+     )
+  |> String.of_seq
   |> String.split_on_char(' ')
   |> List.filter(w => w != "");
 
@@ -151,13 +169,11 @@ let flags_are_read_once = () => {
     2,
     occurrences("high_contrast"),
   );
-  /* One branch per flag, and no more: three schemes need exactly two. */
-  check(
-    int,
-    "the slide branches once per scheme flag",
-    2,
-    occurrences("if"),
-  );
+  /* One branch total: a single `case` on the flag pair covers all four
+     schemes, so each flag is read once and no `if` survives. Nested `if`s
+     would read one of the two flags twice. */
+  check(int, "the slide branches exactly once", 1, occurrences("case"));
+  check(int, "the slide uses no `if`", 0, occurrences("if"));
 };
 
 /* The slide MUST take the fast (menhir) parse path. When it does not, nothing
@@ -186,6 +202,106 @@ let slide_takes_the_fast_parse_path = () =>
     )
   };
 
+/* Everything above evaluates the slide as committed — both flags false — so
+   only `light` is ever exercised. Statics does cover all four schemes (the
+   whole program is analyzed), but evaluation does not, and it is evaluation
+   the applier reads.
+
+   The two flags are closed `^^check` literals, so rewriting them in the
+   source text is the only lever the program offers. Splitting on the literal
+   also pins that there are exactly two of them. */
+let split_on_string = (~needle, s) => {
+  let (n, h) = (String.length(needle), String.length(s));
+  let rec go = (start, i, acc) =>
+    if (i + n > h) {
+      List.rev([String.sub(s, start, h - start), ...acc]);
+    } else if (String.sub(s, i, n) == needle) {
+      go(i + n, i + n, [String.sub(s, start, i - start), ...acc]);
+    } else {
+      go(start, i + 1, acc);
+    };
+  go(0, 0, []);
+};
+
+let flag_literal = "^^check(false)";
+
+/* dark_mode is bound first, high_contrast second. */
+let source_with_flags = (~dark_mode: bool, ~high_contrast: bool) =>
+  switch (split_on_string(~needle=flag_literal, CC.source.backup_text)) {
+  | [before, between, after] =>
+    let lit = v => "^^check(" ++ string_of_bool(v) ++ ")";
+    before
+    ++ lit(dark_mode)
+    ++ between
+    ++ lit(high_contrast)
+    ++ after
+    |> Haz3lcore.PersistentZipper.of_slide_text;
+  | parts =>
+    failf(
+      "colors.hz: expected exactly two %s flag literals, found %d",
+      flag_literal,
+      List.length(parts) - 1,
+    )
+  };
+
+let schemes = [
+  ("light", false, false),
+  ("contrast_light", false, true),
+  ("dark", true, false),
+  ("contrast_dark", true, true),
+];
+
+let scheme_vars = ((_, dark_mode, high_contrast)) => {
+  let src = source_with_flags(~dark_mode, ~high_contrast);
+  CC.css_vars_of_value(
+    ConfigSlideCheck.evaluate(~ana=CC.expected_type, src),
+  );
+};
+
+let evaluated_schemes = lazy(List.map(s => (s, scheme_vars(s)), schemes));
+
+/* Each scheme must define the whole contract and render to real CSS — a
+   scheme nothing evaluates can go bad silently, and only `light` is on the
+   default path. */
+let every_scheme_is_complete_and_css = () =>
+  List.iter(
+    (((label, _, _), vars)) => {
+      let produced = List.map(fst, vars);
+      check(
+        list(string),
+        label ++ ": every declared colour is produced",
+        [],
+        List.filter(n => !List.mem(n, produced), declared_names),
+      );
+      check(
+        list(string),
+        label ++ ": no colour renders to something CSS cannot parse",
+        [],
+        unparseable(vars),
+      );
+    },
+    Lazy.force(evaluated_schemes),
+  );
+
+/* The flags must COMPOSE. This is the regression: the switch used to read
+   `high_contrast` first and return, so `dark_mode` was dead whenever high
+   contrast was on and (true, true) gave back the light high-contrast scheme.
+   Any scheme pair that renders identically means a flag is being ignored. */
+let schemes_are_pairwise_distinct = () => {
+  let evaluated = Lazy.force(evaluated_schemes);
+  let collisions =
+    List.concat_map(
+      (((a, _, _), va)) =>
+        List.filter_map(
+          (((b, _, _), vb)) =>
+            a < b && va == vb ? Some(a ++ " == " ++ b) : None,
+          evaluated,
+        ),
+      evaluated,
+    );
+  check(list(string), "no two schemes render identically", [], collisions);
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -199,6 +315,16 @@ let tests = [
       test_case("slide matches its contract", `Quick, slide_matches_contract),
       test_case("every value is valid CSS", `Quick, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
+      test_case(
+        "every scheme is complete and valid CSS",
+        `Quick,
+        every_scheme_is_complete_and_css,
+      ),
+      test_case(
+        "schemes are pairwise distinct",
+        `Quick,
+        schemes_are_pairwise_distinct,
+      ),
       test_case(
         "takes the fast parse path",
         `Quick,

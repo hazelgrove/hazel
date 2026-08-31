@@ -6,14 +6,16 @@
 #                                                                     #
 #   palette_of   seeds + ramp lightnesses -> every derived colour      #
 #   theme_of     colours + role overrides -> the theme the app reads   #
-#   light / dark / contrast   three schemes, each built by those two  #
-#   last line    picks one                                             #
+#   light / dark / contrast_light / contrast_dark                      #
+#                            four schemes, each built by those two     #
+#   last line    picks one, per (dark_mode, high_contrast)              #
 #                                                                     #
-# Both schemes run through the SAME two functions, so the derivation   #
+# All four schemes run through the SAME two functions, so derivation   #
 # -- how BR2 comes off BR1, how PAT comes off TYP, which colour each   #
 # role gets -- is written once and cannot drift between them. Only     #
 # three things differ per scheme: the seeds, six ramp lightnesses,     #
-# and the handful of roles that point somewhere else in dark.          #
+# and the handful of roles that point somewhere else in the dark       #
+# schemes. The two flags COMPOSE: high contrast has a dark variant.    #
 
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
@@ -418,7 +420,7 @@ let dark =
   ))) in
 
 # ── High contrast -- for accessibility ──────────────────────────────── #
-let contrast =
+let contrast_light =
   let p = palette_of(
     ^^fold((
       `NONE` = Transparent,
@@ -495,7 +497,94 @@ let contrast =
     `cell-exercises-border` = p.`BR2`
   ))) in
 
-# The whole program branches HERE and nowhere else: each flag is read #
+# ── High contrast, dark -- accessibility on a near-black ground ─────── #
+# Derived from `dark` the way `contrast_light` is derived from `light`,  #
+# but the pushes INVERT: text and tokens go toward white and gain       #
+# chroma, page surfaces go toward black. Projector island fills keep    #
+# dark's polarity (lighter fill, darker edge) and only widen.           #
+let contrast_dark =
+  let p = palette_of(
+    ^^fold((
+      `NONE` = Transparent,
+      `SAND` = ^^color(Oklch(12., 0., 240.)),
+      `STONE` = ^^color(Oklch(100., 0., 250.)),
+      `BLACK` = ^^color(Oklch(0., 0., 0.)),
+      `BR1` = ^^color(Oklch(65., 0., 250.)),
+      `T1` = ^^color(Oklch(0., 0., 250.)),
+      `Y0` = ^^color(Oklch(14., 0.08, 95.)),
+      `Y1` = ^^color(Oklch(38., 0.13, 169.5)),
+      `Y2` = ^^color(Oklch(75., 0.16, 95.)),
+      `Y3` = ^^color(Oklch(88., 0.18, 118.38)),
+      `R0` = ^^color(Oklch(30., 0.14, 30.)),
+      `R1` = ^^color(Oklch(70., 0.2, 30.)),
+      `R2` = ^^color(Oklch(80., 0.15, 30.)),
+      `TYP` = ^^color(Oklch(80., 0.16, 300.)),
+      `LABEL` = ^^color(Oklch(88., 0.11, 210.)),
+      `highlight-a` = ^^color(Oklch(70., 0.14, 260.)),
+      `G0` = ^^color(Oklch(82., 0.17, 150.)),
+      `G1` = ^^color(Oklch(90., 0.14, 150.)),
+      `G2` = ^^color(Oklch(78., 0.12, 150.)),
+      `GB0` = ^^color(Oklch(78., 0.1, 200.)),
+      `GB1` = ^^color(Oklch(55., 0.1, 200.)),
+      `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 230.)), 55.),
+      `textarea-h-stripe` = ^^color(Oklch(45., 0.12, 240.)),
+      `textarea-h-strip-selected` = Fade(^^color(Oklch(65., 0.2, 230.)), 30.),
+      `SHADOW` = Fade(^^color(Oklch(0., 0., 250.)), 66.),
+      `ERRHOLE` = ^^color(Oklch(28., 0.06, 47.)),
+      `CREASE` = Fade(^^color(Oklch(100., 0., 0.)), 55.),
+      `exp-ap` = ^^color(Oklch(58., 0.24, 292.96451)),
+      `pat-ap` = ^^color(Oklch(60., 0.19, 262.11762)),
+      `exp-base` = ^^color(Oklch(58., 0.05, 248.63699)),
+      `pat-base` = ^^color(Oklch(55., 0.07, 275.36018)),
+      `exp-shadow` = ^^color(Oklch(18., 0.12, 230.)),
+      `pat-shadow` = ^^color(Oklch(15., 0.12, 260.)),
+      `exp-ap-shadow` = ^^color(Oklch(15., 0.12, 300.)),
+      `exp-cell` = ^^color(Oklch(60., 0.06, 256.83258)),
+      `pat-cell` = ^^color(Oklch(57., 0.08, 283.45785)),
+      `main-base` = ^^color(Oklch(32., 0.06, 290.34169)),
+      `main-shadow` = ^^color(Oklch(6., 0.02, 292.02116))
+    )),
+    (
+      `BR2` = 75.,
+      `BR3` = 85.,
+      `BR4` = 95.,
+      `T2` = 4.,
+      `T3` = 8.,
+      `T4` = 12.
+    )
+  ) in
+  theme_of(p, ^^fold((
+    `nut-menu` = p.`G2`,
+    `menu-bkg` = p.`T1`,
+    `menu-item-hover-bkg` = ^^color(Oklch(22., 0., 240.)),
+    `ui-bkg` = p.`T2`,
+    `ui-header-text` = p.`BR4`,
+    `cell-active` = ^^color(Oklch(14., 0., 240.)),
+    `main-scroll-thumb` = p.`BR3`,
+    `token-buffer` = p.`BR3`,
+    `shard-lines-exp` = p.`BR2`,
+    `shard-caret-pat` = color_with_lightness(color_saturate(p.`PAT`, 0.5), 28.),
+    `shard-caret-typ` = color_with_lightness(color_saturate(p.`TYP`, 0.5), 28.),
+    `shard-caret-tpat` = color_with_lightness(color_saturate(p.`TPAT`, 0.5), 28.),
+    `empty-hole-stroke` = p.`BR3`,
+    `empty-hole-fill` = p.`T2`,
+    `backpack-selection-outline` = ^^color(Oklch(100., 0., 250.)),
+    `backback-targets` = p.`Y2`,
+    `textarea-text` = p.`STONE`,
+    `cell-result-border` = p.`BR2`,
+    `ci-icon-bkg` = p.`BR2`,
+    `ci-status-text` = p.`STONE`,
+    `context-inspector-colon` = p.`BR3`,
+    `cell-caption` = p.`BR3`,
+    `cell-exercises-border` = p.`BR3`
+  ))) in
+
+# The whole program branches HERE and nowhere else: each flag is read  #
 # exactly once, so adding a scheme costs one line, not one test per    #
-# colour. High contrast wins over dark when both are set.             #
-if high_contrast then contrast else if dark_mode then dark else light
+# colour. The flags are independent -- either, both, or neither.       #
+case (dark_mode, high_contrast)
+| (false, false) => light
+| (false, true) => contrast_light
+| (true, false) => dark
+| (true, true) => contrast_dark
+end
