@@ -88,6 +88,9 @@ let plausible = s =>
   (
     starts_with("oklch(", s)
     || starts_with("color-mix(", s)
+    /* A seed written in sRGB bytes that nothing adjusted stays `Rgb`, and
+       renders as rgb() -- valid CSS, and not to be read as unparseable. */
+    || starts_with("rgb(", s)
     || starts_with("#", s)
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);

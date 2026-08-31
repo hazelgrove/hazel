@@ -9,10 +9,10 @@ module C = Language.BuiltinsADT.Color;
 let colors: list((string, C.t)) = [
   ("opaque", C.Oklch(99., 0.012, 90.)),
   ("zero chroma", C.Oklch(0., 0., 0.)),
-  ("hex", C.Hex("#293445")),
+  ("rgb bytes", C.Rgb(41, 52, 69)),
   ("transparent", C.Transparent),
   ("faded", C.Fade(C.Oklch(52., 0.03, 220.), 40.)),
-  ("faded hex", C.Fade(C.Hex("#293445"), 12.5)),
+  ("faded rgb", C.Fade(C.Rgb(41, 52, 69), 12.5)),
   ("nested fade", C.Fade(C.Fade(C.Oklch(50., 0.1, 10.), 50.), 50.)),
 ];
 
@@ -43,6 +43,7 @@ let renders = ((name, c: C.t), ()) => {
     true,
     String.starts_with(~prefix="oklch(", css)
     || String.starts_with(~prefix="color-mix(", css)
+    || String.starts_with(~prefix="rgb(", css)
     || String.starts_with(~prefix="#", css)
     || css == "oklch(0 0 0 / 0)",
   );
@@ -186,20 +187,29 @@ let mix_endpoints = () => {
   );
 };
 
-/* Hex has no components to adjust and Transparent has nothing to adjust, so
-   both pass through rather than erroring or degrading to black. */
+/* `Transparent` has nothing to adjust, so it passes through rather than
+   erroring or degrading to black. It is now the ONLY form that does: `Rgb` is
+   converted into the working space and therefore responds, which is the whole
+   difference between it and the `Hex` constructor it replaced. */
 let opaque_forms_pass_through = () => {
-  check(
-    bool,
-    "hex unchanged",
-    true,
-    lighten(C.Hex("#293445"), 20.) == C.Hex("#293445"),
-  );
   check(
     bool,
     "transparent unchanged",
     true,
     lighten(C.Transparent, 20.) == C.Transparent,
+  );
+  /* Not just "changed": an adjusted Rgb lands as Oklch, because that is the
+     space the adjustment happened in. */
+  check(
+    bool,
+    "rgb responds to lightening, as oklch",
+    true,
+    switch (lighten(C.Rgb(41, 52, 69), 20.)) {
+    | Oklch(l, _, _) =>
+      let (l0, _, _) = C.oklch_of_rgb((41, 52, 69));
+      Float.abs(l -. (l0 +. 20.)) < 0.001;
+    | _ => false
+    },
   );
 };
 

@@ -21,8 +21,14 @@ module C = Language.BuiltinsADT.Color;
 
    Why not <input type="color">: that control is sRGB hex, so round-tripping
    through it would quantise every seed and silently discard the wide-gamut
-   chroma the palette is written in. Editing stays in OKLCH; RGB is an entry
-   and display format, converted at the boundary.
+   chroma the palette is written in. Editing stays in OKLCH.
+
+   Literals come in two forms, `Oklch(l, c, h)` and `Rgb(r, g, b)`, and the
+   picker reads and writes both, always keeping the one the literal is already
+   in. There is no `Hex` colour: a hex string has no components the arithmetic
+   can reach, so as a STORED form it could not be ramped, mixed or measured.
+   Hex is an input format -- paste one into the text field and it lands as
+   bytes in an `Rgb` literal, or as components in an `Oklch` one.
 
    Why no canvas: the plane is a stack of thin divs, each a horizontal
    `oklch()` gradient at its own lightness, so the BROWSER interpolates in
@@ -83,14 +89,34 @@ module M: Projector = {
     | _ => e
     };
 
-  let floats_of = (e: Language.Exp.t): option((float, float, float)) =>
+  /* Which literal form the syntax is written in. The picker always WORKS in
+     OKLCH; this only decides what is written back, so a palette authored in
+     sRGB bytes -- a base16 scheme, say -- stays authored in sRGB bytes
+     instead of being silently rewritten into OKLCH on the first drag. */
+  type form =
+    | AsOklch
+    | AsRgb;
+
+  let byte_of = (v): option(int) => Bigint.to_int(v);
+
+  let form_of = (e: Language.Exp.t): option((form, (float, float, float))) =>
     switch (unparen(e).term) {
     | Ap(Forward, ctr, arg) =>
       switch (unparen(ctr).term, unparen(arg).term) {
       | (Constructor("Oklch", _), Tuple([l, c, h])) =>
         switch (unparen(l).term, unparen(c).term, unparen(h).term) {
         | (Atom(Float(l)), Atom(Float(c)), Atom(Float(h))) =>
-          Some((l, c, h))
+          Some((AsOklch, (l, c, h)))
+        | _ => None
+        }
+      | (Constructor("Rgb", _), Tuple([r, g, b])) =>
+        switch (unparen(r).term, unparen(g).term, unparen(b).term) {
+        | (Atom(Int(r)), Atom(Int(g)), Atom(Int(b))) =>
+          switch (byte_of(r), byte_of(g), byte_of(b)) {
+          | (Some(r), Some(g), Some(b)) =>
+            Some((AsRgb, C.oklch_of_rgb((r, g, b))))
+          | _ => None
+          }
         | _ => None
         }
       | _ => None
@@ -98,10 +124,26 @@ module M: Projector = {
     | _ => None
     };
 
+  let floats_of = (e: Language.Exp.t): option((float, float, float)) =>
+    switch (form_of(e)) {
+    | Some((_, t)) => Some(t)
+    | None => None
+    };
+
   let oklch_of = (any: Language.Any.t): option((float, float, float)) =>
     switch (any) {
     | Exp(e) => floats_of(e)
     | _ => None
+    };
+
+  let form_of_info = (info: info): form =>
+    switch (info.syntax |> info.utility.seg_to_term) {
+    | Some(Exp(e)) =>
+      switch (form_of(e)) {
+      | Some((f, _)) => f
+      | None => AsOklch
+      }
+    | _ => AsOklch
     };
 
   let init = (any: Language.Any.t) =>
@@ -115,7 +157,7 @@ module M: Projector = {
       info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(oklch_of)
     ) {
     | Some(t) => t
-    | None => failwith("Color: Get: not an Oklch literal")
+    | None => failwith("Color: Get: not an Oklch or Rgb literal")
     };
 
   /* What the widget is currently showing: mid-drag that is the preview, and
@@ -129,9 +171,30 @@ module M: Projector = {
   /* Rewrite the three components in place, preserving every id: the
      constructor and the tuple are the same nodes, only the leaves change. */
   let put = (info: info, (l, c, h): (float, float, float)): Base.segment => {
+    /* Three leaves in the literal's own units: floats for Oklch, sRGB bytes
+       for Rgb. Rounding to bytes is lossy, so an Rgb literal only holds what
+       sRGB can express -- which is the point of authoring in it.
+
+       The FORM never changes here, whatever was typed. Only the leaves are
+       rewritten, so that every id survives (see below); switching
+       representation would mean rewriting the constructor token too. It is
+       also the better rule: converting an OKLCH literal to bytes because
+       someone pasted a hex would quantise it and discard exactly the
+       wide-gamut chroma this picker exists to preserve. */
+    let (v1, v2, v3) =
+      switch (form_of_info(info)) {
+      | AsOklch => Language.Atom.(Float(l), Float(c), Float(h))
+      | AsRgb =>
+        let (r, g, b) = C.rgb_of_oklch((l, c, h));
+        Language.Atom.(
+          Int(Bigint.of_int(r)),
+          Int(Bigint.of_int(g)),
+          Int(Bigint.of_int(b)),
+        );
+      };
     let set = (e: Language.Exp.t, v): Language.Exp.t => {
       ...e,
-      term: Atom(Float(v)),
+      term: Atom(v),
     };
     let rewrite = (e: Language.Exp.t): Language.Exp.t =>
       switch (e.term) {
@@ -143,7 +206,7 @@ module M: Projector = {
               ctr,
               {
                 ...tup,
-                term: Tuple([set(el, l), set(ec, c), set(eh, h)]),
+                term: Tuple([set(el, v1), set(ec, v2), set(eh, v3)]),
               },
             ),
         }
@@ -178,7 +241,14 @@ module M: Projector = {
     };
 
   /* Accepts either format in either mode: someone pasting a hex code into the
-     OKLCH field means the colour, not a syntax error. */
+     OKLCH field means the colour, not a syntax error.
+
+     Whatever the format, the result is components -- which is why there is no
+     `Hex` colour any more. A `Hex` stored a string, and a string has nothing
+     the arithmetic can reach: a hex seed could not be ramped, mixed or
+     measured, it just sat there. Hex is an INPUT format, and this is where it
+     is converted; the literal it lands in is `Rgb` for a base16 palette,
+     because that is what those literals already are. */
   let parse_text = (s: string): option((float, float, float)) => {
     let s = String.trim(s);
     let inside_oklch =
@@ -207,6 +277,16 @@ module M: Projector = {
     | None => C.oklch_of_css(s)
     };
   };
+
+  /* Only the primary button drives the widget. Anything else -- a right-click
+     above all -- must fall through UNSTOPPED: the editor opens its context
+     menu from pointerdown (CodeEditable.move_or_select), so swallowing the
+     event here is exactly what made right-clicking a swatch open the picker
+     instead of the menu.
+
+     `Pointer.Event` would be the idiom, but it lives in src/web and this is
+     haz3lcore, so the button is read off the event directly. */
+  let primary = (e): bool => e##.button == 0;
 
   /* --- geometry --- */
 
@@ -297,8 +377,10 @@ module M: Projector = {
         Node.div(
           ~attrs=[
             Attr.classes(["cp-closed"]),
-            Attr.on_pointerdown(_ =>
-              Effect.Many([local(Toggle), Effect.Stop_propagation])
+            Attr.on_pointerdown(e =>
+              primary(e)
+                ? Effect.Many([local(Toggle), Effect.Stop_propagation])
+                : Effect.Ignore
             ),
           ],
           [swatch()],
@@ -308,13 +390,16 @@ module M: Projector = {
       /* Pointer capture keeps the gesture alive when it leaves the element,
          which is what makes the plane feel like a colour picker rather than a
          set of steppers. */
-      let grab = (t, e: Js.t(Dom_html.pointerEvent)) => {
-        let target =
-          e##.currentTarget |> Js.Opt.get(_, _ => failwith("target"));
-        JsUtil.setPointerCapture(target, e##.pointerId);
-        let (fx, fy) = fractions(e);
-        Effect.Many([local(Grab(t, fx, fy)), Effect.Stop_propagation]);
-      };
+      let grab = (t, e: Js.t(Dom_html.pointerEvent)) =>
+        if (!primary(e)) {
+          Effect.Ignore;
+        } else {
+          let target =
+            e##.currentTarget |> Js.Opt.get(_, _ => failwith("target"));
+          JsUtil.setPointerCapture(target, e##.pointerId);
+          let (fx, fy) = fractions(e);
+          Effect.Many([local(Grab(t, fx, fy)), Effect.Stop_propagation]);
+        };
       let move = (e: Js.t(Dom_html.mouseEvent)) =>
         switch (model.dragging) {
         | None => Effect.Ignore
@@ -407,8 +492,10 @@ module M: Projector = {
         Node.div(
           ~attrs=[
             Attr.classes(["cp-tab", ...model.mode == m ? ["on"] : []]),
-            Attr.on_pointerdown(_ =>
-              Effect.Many([local(SetMode(m)), Effect.Stop_propagation])
+            Attr.on_pointerdown(e =>
+              primary(e)
+                ? Effect.Many([local(SetMode(m)), Effect.Stop_propagation])
+                : Effect.Ignore
             ),
           ],
           [Node.text(text)],
@@ -434,7 +521,12 @@ module M: Projector = {
         Node.div(
           ~attrs=[
             Attr.classes(["cp-panel"]),
-            /* A click inside the panel must not move the editor caret. */
+            /* A click inside the panel must not move the editor caret. This
+               one swallows EVERY button, unlike the handlers above: an open
+               panel is its own surface, so a right-click inside it is inert
+               rather than opening the editor's menu on top of it. The closed
+               swatch is the opposite -- there the code underneath is what you
+               are pointing at. */
             Attr.on_pointerdown(_ => Effect.Stop_propagation),
           ],
           [
@@ -446,8 +538,13 @@ module M: Projector = {
                 Node.div(
                   ~attrs=[
                     Attr.classes(["cp-close"]),
-                    Attr.on_pointerdown(_ =>
-                      Effect.Many([local(Toggle), Effect.Stop_propagation])
+                    Attr.on_pointerdown(e =>
+                      primary(e)
+                        ? Effect.Many([
+                            local(Toggle),
+                            Effect.Stop_propagation,
+                          ])
+                        : Effect.Ignore
                     ),
                   ],
                   [swatch(~extra=["cp-swatch-lg"], ())],

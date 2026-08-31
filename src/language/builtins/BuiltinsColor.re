@@ -13,10 +13,10 @@ open Fresh.Typ;
    ten points looks like the same step whatever the hue, which is what makes a
    derived dark scheme viable at all.
 
-   Colours that are not `Oklch` pass through unchanged rather than erroring:
-   `Hex` is an escape hatch whose components we do not know, and `Transparent`
-   has nothing to adjust. `Fade` is transformed through to its inner colour so
-   a faded colour still responds to lightening. */
+   `Transparent` passes through unchanged rather than erroring: it has nothing
+   to adjust. `Fade` is transformed through to its inner colour, so a faded
+   colour still responds to lightening. Every other form -- `Oklch` and `Rgb`
+   -- has components, so every other form responds. */
 module C = BuiltinsADT.Color;
 
 let ty = C.typ.term;
@@ -29,15 +29,43 @@ let wrap_hue = h => {
   r < 0. ? r +. 360. : r;
 };
 
+/* The OKLCH components of a colour, where they can be known -- THE one place
+   `Rgb` is resolved. Every operation below goes through this, so a palette
+   written in sRGB bytes ramps, mixes and reports its lightness exactly as an
+   OKLCH one does; miss a site and that operation quietly degrades instead of
+   failing. */
+let components = (c: C.t): option((float, float, float)) =>
+  switch (c) {
+  | Oklch(l, ch, h) => Some((l, ch, h))
+  | Rgb(r, g, b) => Some(C.oklch_of_rgb((r, g, b)))
+  | Fade(_)
+  | Transparent => None
+  };
+
 /* Apply a transformation to the Oklch components, recursing through Fade. */
 let rec map_oklch = (f, c: C.t): C.t =>
   switch (c) {
-  | Oklch(l, ch, h) =>
-    let (l, ch, h) = f((l, ch, h));
-    Oklch(clamp(0., 100., l), Float.max(0., ch), wrap_hue(h));
   | Fade(inner, a) => Fade(map_oklch(f, inner), a)
-  | Hex(_)
   | Transparent => c
+  | Oklch(_)
+  | Rgb(_) =>
+    switch (components(c)) {
+    | Some(t) =>
+      let (l, ch, h) = f(t);
+      Oklch(clamp(0., 100., l), Float.max(0., ch), wrap_hue(h));
+    | None => c
+    }
+  };
+
+/* Read the L axis back out. */
+let rec lightness = (c: C.t): float =>
+  switch (components(c)) {
+  | Some((l, _, _)) => l
+  | None =>
+    switch (c) {
+    | Fade(inner, _) => lightness(inner)
+    | _ => 0.
+    }
   };
 
 /* Shortest-path hue interpolation: going from 350 to 10 should cross 0, not
@@ -49,8 +77,8 @@ let mix_hue = (h1, h2, t) => {
 
 let mix = (c1: C.t, c2: C.t, t: float): C.t => {
   let t = clamp(0., 1., t);
-  switch (c1, c2) {
-  | (Oklch(l1, ch1, h1), Oklch(l2, ch2, h2)) =>
+  switch (components(c1), components(c2)) {
+  | (Some((l1, ch1, h1)), Some((l2, ch2, h2))) =>
     Oklch(
       l1 +. (l2 -. l1) *. t,
       ch1 +. (ch2 -. ch1) *. t,
@@ -111,6 +139,21 @@ let builtins: list(BuiltinsUtil.fn) = [
         | None => None
         };
       }),
+    custom_statics: None,
+  },
+  {
+    /* The only component a derivation actually needs to read: it is what lets a
+       program place a colour RELATIVE to a scheme's own background and text,
+       instead of against hardcoded lightnesses that only suit one polarity. */
+
+    name: "color_lightness",
+    arg: ty,
+    ret: Atom(Float),
+    imp: d =>
+      switch (C.of_exp(d)) {
+      | Some(c) => Some(Fresh.Exp.float(lightness(c)))
+      | None => None
+      },
     custom_statics: None,
   },
   {

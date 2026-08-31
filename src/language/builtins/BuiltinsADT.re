@@ -350,7 +350,7 @@ module Shortcut = {
    * mixing were a constructor instead, a role's value would be an unevaluated
    * tree and neither could do anything useful with it.
    *
-   * `Transparent` and `Hex` occupy fairly common constructor names. A user
+   * `Transparent` and `Rgb` occupy fairly common constructor names. A user
    * program that declares its own shadows these lexically, as usual. */
 module Color = {
   /* Self-reference: Fade wraps another colour. */
@@ -359,7 +359,7 @@ module Color = {
   /* type ColorValue =
      + Oklch((Float, Float, Float))   /* l 0..100, chroma, hue degrees */
      + Fade((ColorValue, Float))      /* alpha 0..100 */
-     + Hex(String)
+     + Rgb((Int, Int, Int))          /* sRGB bytes, 0..255 */
      + Transparent */
   let typ: Typ.t =
     rec_(
@@ -367,7 +367,7 @@ module Color = {
       sum_type([
         ("Oklch", Some(prod([float(), float(), float()]))),
         ("Fade", Some(prod([self, float()]))),
-        ("Hex", Some(string())),
+        ("Rgb", Some(prod([int(), int(), int()]))),
         ("Transparent", None),
       ]),
     );
@@ -383,7 +383,7 @@ module Color = {
   type t =
     | Oklch(float, float, float)
     | Fade(t, float)
-    | Hex(string)
+    | Rgb(int, int, int)
     | Transparent;
 
   /* Fresh per occurrence, never a module-level value — FreshGrammar mints the
@@ -395,11 +395,13 @@ module Color = {
   let rec exp_of: t => Exp.t =
     fun
     | Transparent => ctr("Transparent")
-    | Hex(s) =>
-      IdTagged.FreshGrammar.Exp.(ap(Forward, ctr("Hex"), string(s)))
     | Oklch(l, c, h) =>
       IdTagged.FreshGrammar.Exp.(
         ap(Forward, ctr("Oklch"), tuple([float(l), float(c), float(h)]))
+      )
+    | Rgb(r, g, b) =>
+      IdTagged.FreshGrammar.Exp.(
+        ap(Forward, ctr("Rgb"), tuple([int(r), int(g), int(b)]))
       )
     | Fade(inner, a) =>
       IdTagged.FreshGrammar.Exp.(
@@ -414,10 +416,30 @@ module Color = {
     switch (Unboxing.unbox(SumNoArg("Transparent"), v)) {
     | Matches () => Some(Transparent)
     | _ =>
-      switch (Unboxing.unbox(SumWithArg("Hex"), v)) {
+      switch (Unboxing.unbox(SumWithArg("Rgb"), v)) {
       | Matches(arg) =>
-        switch (Unboxing.unbox(Atom(String), arg)) {
-        | Matches(s) => Some(Hex(s))
+        switch (Unboxing.unbox(Tuple(3), arg)) {
+        | Matches([r, g, b]) =>
+          switch (
+            Unboxing.unbox(Atom(Int), r),
+            Unboxing.unbox(Atom(Int), g),
+            Unboxing.unbox(Atom(Int), b),
+          ) {
+          /* Hazel Ints are arbitrary-precision, so a byte has to come back
+             through `Bigint.to_int`; anything outside 0..255 is clamped
+             rather than rejected, since a picker drag can overshoot. */
+          | (Matches(r), Matches(g), Matches(b)) =>
+            let byte = v =>
+              switch (Bigint.to_int(v)) {
+              | Some(i) => Some(min(255, max(0, i)))
+              | None => None
+              };
+            switch (byte(r), byte(g), byte(b)) {
+            | (Some(r), Some(g), Some(b)) => Some(Rgb(r, g, b))
+            | _ => None
+            };
+          | _ => None
+          }
         | _ => None
         }
       | _ =>
@@ -477,15 +499,18 @@ module Color = {
       n > 0 && s.[n - 1] == '.' ? String.sub(s, 0, n - 1) : s;
     };
 
-  /* Alpha goes through color-mix so it composes with any inner colour,
-     including Hex, rather than only with the oklch() slash form. */
+  /* Alpha goes through color-mix so it composes with any inner colour rather
+     than only with the oklch() slash form. */
   let rec to_css: t => string =
     fun
     /* Not the `transparent` keyword: a keyword behaves differently as the
        origin of a relative colour, and variables.css uses `oklch(from …)`
        against palette entries. */
     | Transparent => "oklch(0 0 0 / 0)"
-    | Hex(s) => s
+    /* The author's own numbers, kept as written. Arithmetic resolves Rgb into
+       the OKLCH working space, so a value only stays Rgb when nothing touched
+       it -- and then echoing it back is the least surprising thing. */
+    | Rgb(r, g, b) => Printf.sprintf("rgb(%d, %d, %d)", r, g, b)
     | Oklch(l, c, h) =>
       "oklch(" ++ num(l) ++ "% " ++ num(c) ++ " " ++ num(h) ++ ")"
     | Fade(inner, a) =>
