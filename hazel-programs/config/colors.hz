@@ -139,96 +139,96 @@ let theme_of = fun (p, role) ->
       `info-strong` = p.`info-strong`
     )),
     roles = ^^fold((
-      ui = ^^fold((
-        `nut-menu` = role.`nut-menu`,
-        `menu-bkg` = role.`menu-bkg`,
-        `menu-item-hover-bkg` = role.`menu-item-hover-bkg`,
-        `menu-divider` = p.`CREASE`,
-        `menu-shadow` = p.`SHADOW`,
-        `ui-bkg` = role.`ui-bkg`,
-        `ui-header-text` = role.`ui-header-text`,
-        `df-hover-bg` = wash(p.`success`, 0.15, 0.35),
-        `context-meter-fill` = wash(p.`pattern`, 0.87, 1.)
+      # Menus, popovers and the command palette.                           #
+      menu = ^^fold((
+        `nut` = role.`nut-menu`,
+        `background` = role.`menu-bkg`,
+        `hover` = role.`menu-item-hover-bkg`,
+        `divider` = p.`CREASE`,
+        `shadow` = p.`SHADOW`
       )),
-      code = ^^fold((
-        `cell-active` = role.`cell-active`,
-        `main-scroll-thumb` = role.`main-scroll-thumb`,
-        `token-buffer` = role.`token-buffer`,
-        `token-drv` = wash(p.`success`, 0.82, 0.67)
+      # The frame around the editor: toolbars, sidebars, status.           #
+      chrome = ^^fold((
+        `background` = role.`ui-bkg`,
+        `heading` = role.`ui-header-text`,
+        `meter` = wash(p.`pattern`, 0.87, 1.),
+        `table-row-hover` = wash(p.`success`, 0.15, 0.35)
       )),
-      shard = ^^fold((
-        `shard-lines-exp` = role.`shard-lines-exp`,
-        `shard-caret-pat` = role.`shard-caret-pat`,
-        `shard-caret-typ` = role.`shard-caret-typ`,
-        `shard-caret-tpat` = role.`shard-caret-tpat`,
-        `shard-caret-drv` = wash(p.`success`, 0.04, 0.25),
-        `shard-caret-mod` = wash(p.`label`, 0.04, 0.25),
-        `shard-caret-sig` = wash(p.`type`, 0.04, 0.25),
-        `shard-caret-mpat` = wash(p.`pattern`, 0.04, 0.25)
+      # The editing surface itself.                                        #
+      editor = ^^fold((
+        `cell` = role.`cell-active`,
+        `scrollbar` = role.`main-scroll-thumb`,
+        `buffer` = role.`token-buffer`,
+        `derivation` = wash(p.`success`, 0.82, 0.67),
+        `locked-cell` = role.`cell-exercises-border`,
+        `backpack-outline` = role.`backpack-selection-outline`
       )),
+      # The plate behind whatever the cursor is on, one per sort.          #
+      cursor = ^^fold((
+        `connector` = role.`shard-lines-exp`,
+        `pattern` = role.`shard-caret-pat`,
+        `type` = role.`shard-caret-typ`,
+        `type-pattern` = role.`shard-caret-tpat`,
+        `derivation` = wash(p.`success`, 0.04, 0.25),
+        `module` = wash(p.`label`, 0.04, 0.25),
+        `signature` = wash(p.`type`, 0.04, 0.25),
+        `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
+      )),
+      # Holes in the program, and the boxes drawn round problems.          #
       hole = ^^fold((
-        `empty-hole-stroke` = role.`empty-hole-stroke`,
-        `empty-hole-fill` = role.`empty-hole-fill`,
-        `error-hole-fill` = p.`ERRHOLE`,
-        # The unused-variable box and its outline. #
-        `warning-hole-fill` = wash(p.`attention-3`, 0., 0.2),
-        `warning-hole-stroke` = wash(p.`attention-3`, 0.82, 1.5),
-        `hole-fill` = wash(p.`pattern`, 0.11, 0.2),
-        `hole-stroke` = wash(p.`pattern`, 0.82, 0.75),
-        `hole-active` = wash(p.`pattern`, 1.04, 1.)
+        `empty` = role.`empty-hole-fill`,
+        `empty-edge` = role.`empty-hole-stroke`,
+        `error` = p.`ERRHOLE`,
+        `warning` = wash(p.`attention-3`, 0., 0.2),
+        `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
       )),
-      backpack = ^^fold((
-        `backpack-selection-outline` = role.`backpack-selection-outline`
+      # Rows in the problems sidebar.                                      #
+      problems = ^^fold((
+        `row` = wash(p.`pattern`, 0.11, 0.2),
+        `row-edge` = wash(p.`pattern`, 0.82, 0.75),
+        `row-active` = wash(p.`pattern`, 1.04, 1.)
       )),
+      # Evaluation results and the incremental evaluator's tints.          #
+      results = ^^fold((
+        `divider` = role.`cell-result-border`,
+        `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
+        `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
+        `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.)
+      )),
+      # The cursor inspector along the bottom.                             #
+      inspector = ^^fold((
+        `badge` = role.`ci-icon-bkg`,
+        `text` = role.`ci-status-text`,
+        `separator` = role.`context-inspector-colon`
+      )),
+      # Probes: live values pinned to the program.                         #
+      probe = ^^fold((
+        `value` = p.`exp-base`,
+        `value-edge` = p.`exp-shadow`,
+        `pattern` = p.`pat-base`,
+        `pattern-edge` = p.`pat-shadow`,
+        `application` = p.`exp-ap`,
+        `timeline` = p.`pat-cell`,
+        `depth` = wash(p.`ink`, 0.49, 0.),
+        `caller` = wash(p.`doc-1`, 0.09, 0.86),
+        `caller-text` = wash(p.`doc-1`, 0.64, 1.71),
+        `caller-edge` = wash(p.`doc-1`, 0.27, 1.14),
+        `callee` = wash(p.`label`, 0.09, 0.15),
+        `callee-text` = wash(p.`label`, 0.47, 0.4),
+        `callee-edge` = wash(p.`label`, 0.38, 0.45),
+        `other` = wash(p.`success`, 0.06, 0.09),
+        `other-text` = wash(p.`success`, 1.01, 0.63),
+        `focus-text` = wash(p.`success`, 0.99, 0.87)
+      )),
+      # Inline widgets -- text areas, folds, the statics card.             #
       projector = ^^fold((
+        `statics-background` = p.`main-base`,
+        `statics-edge` = p.`main-shadow`,
         `textarea-text` = role.`textarea-text`,
-        `fold-bkg` = wash(p.`pattern`, 1.44, 0.17)
-      )),
-      dynamics = ^^fold((
-        `cell-result-border` = role.`cell-result-border`,
-        `incremental-frozen` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
-        `incremental-frozen-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
-        `incremental-active-sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.)
-      )),
-      ci = ^^fold((
-        `ci-icon-bkg` = role.`ci-icon-bkg`,
-        `ci-status-text` = role.`ci-status-text`,
-        `context-inspector-colon` = role.`context-inspector-colon`
-      )),
-      exercise = ^^fold((
-        `cell-exercises-border` = role.`cell-exercises-border`
-      )),
-      special = ^^fold((
-        `textarea-v-stripe` = p.`textarea-v-stripe`,
-        `textarea-h-stripe` = p.`textarea-h-stripe`,
-        `textarea-h-strip-selected` = p.`textarea-h-strip-selected`
-      )),
-      projector_extended = ^^fold((
-        `exp-ap` = p.`exp-ap`,
-        `exp-base` = p.`exp-base`,
-        `pat-base` = p.`pat-base`,
-        `exp-shadow` = p.`exp-shadow`,
-        `pat-shadow` = p.`pat-shadow`,
-        `pat-cell` = p.`pat-cell`,
-        `main-base` = p.`main-base`,
-        `main-shadow` = p.`main-shadow`,
-        `depth-shadow` = wash(p.`ink`, 0.49, 0.),
-        # Probe samples: above the cursor reads magenta, below reads    #
-        # cyan, each as a text/fill/shadow triple off one hue.          #
-        `sample-above-text` = wash(p.`doc-1`, 0.64, 1.71),
-        `sample-above-bg` = wash(p.`doc-1`, 0.09, 0.86),
-        `sample-above-shadow` = wash(p.`doc-1`, 0.27, 1.14),
-        `sample-below-text` = wash(p.`label`, 0.47, 0.4),
-        `sample-below-bg` = wash(p.`label`, 0.09, 0.15),
-        `sample-below-shadow` = wash(p.`label`, 0.38, 0.45),
-        # Samples with no call-stack relation, and the focused one. Green   #
-        # like the rest of the probe furniture, but placed on the axis so   #
-        # the text keeps its distance from the fill in every scheme -- the  #
-        # palette's own greens do not: G0 is 70 and G1 is 85 in light, so   #
-        # text-on-fill from those two would be nearly the same colour.      #
-        `sample-neutral-text` = wash(p.`success`, 1.01, 0.63),
-        `sample-neutral-bg` = wash(p.`success`, 0.06, 0.09),
-        `sample-focus-text` = wash(p.`success`, 0.99, 0.87)
+        `fold-background` = wash(p.`pattern`, 1.44, 0.17),
+        `textarea-margin` = p.`textarea-v-stripe`,
+        `textarea-rule` = p.`textarea-h-stripe`,
+        `textarea-rule-selected` = p.`textarea-h-strip-selected`
       ))
     ))
   )) in
