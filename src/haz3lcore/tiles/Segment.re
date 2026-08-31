@@ -922,6 +922,15 @@ and regrout_affix =
 let run_normal = (l: Nib.Shape.t, r: Nib.Shape.t, n_grout: int): bool =>
   Nib.Shape.fits(l, r) ? n_grout == 0 : n_grout == 1;
 
+/* a tile's deep normal-form verdict is a pure function of the tile
+   RECORD (children identity included), and clean tiles keep their
+   records across actions (the identity-preservation discipline) — so
+   memoize by id, validated by physical identity. Id collisions across
+   editors/tests only cause misses (the === check fails), never wrong
+   hits. Capped to bound growth across long sessions. */
+let stale_memo: Hashtbl.t(Id.t, (Tile.t, bool)) = Hashtbl.create(4096);
+let stale_memo_cap = 200_000;
+
 /* deep scan: any run in this closed (child) segment, or transitively
    in its tiles' children, violating plain normal form? Child
    segments are bounded concave on both sides (cf. inner_regrout). */
@@ -934,15 +943,24 @@ let rec stale_in_seg = (seg: t): bool => {
     | [Grout(_), ...tl] => go(bound, n_grout + 1, tl)
     | [Tile(t), ...tl] =>
       let (l, r) = Tile.shapes(t);
-      !run_normal(bound, l, n_grout)
-      || List.exists(stale_in_seg, t.children)
-      || go(r, 0, tl);
+      !run_normal(bound, l, n_grout) || tile_deep_stale(t) || go(r, 0, tl);
     | [Projector(pr), ...tl] =>
       let (l, r) = ProjectorCore.shapes(pr);
       !run_normal(bound, l, n_grout) || go(r, 0, tl);
     };
   go(conc, 0, seg);
-};
+}
+and tile_deep_stale = (t: Tile.t): bool =>
+  switch (Hashtbl.find_opt(stale_memo, t.id)) {
+  | Some((t', v)) when t' === t => v
+  | _ =>
+    let v = List.exists(stale_in_seg, t.children);
+    if (Hashtbl.length(stale_memo) > stale_memo_cap) {
+      Hashtbl.reset(stale_memo);
+    };
+    Hashtbl.replace(stale_memo, t.id, (t, v));
+    v;
+  };
 
 /* Read-only scan of a sibling affix for junction work that the
    remold diff cannot see: trim runs violating plain normal form —
@@ -1001,9 +1019,7 @@ let stale_affix_ids =
         let (l, r) = Tile.shapes(t);
         let acc =
           close(acc, bound, checking, gs, prev, ~l, ~next=Some(t.id));
-        let acc =
-          List.exists(stale_in_seg, t.children)
-            ? Id.Set.add(t.id, acc) : acc;
+        let acc = tile_deep_stale(t) ? Id.Set.add(t.id, acc) : acc;
         go(acc, r, true, [], Some(t.id), tl);
       | Projector(pr) =>
         let (l, r) = ProjectorCore.shapes(pr);
