@@ -74,6 +74,9 @@ let role_groups: list((string, list(string))) = [
       "derivation",
       "locked-cell",
       "backpack-outline",
+      "string",
+      "comment",
+      "selection",
     ],
   ),
   (
@@ -177,16 +180,7 @@ let aliases: list(((string, string), list(string))) = [
       "token-rul",
     ],
   ),
-  (
-    ("palette", "attention-2"),
-    [
-      "Y1",
-      "shard-selected",
-      "backpack-selection",
-      "backpack-joiner",
-      "backpack-genie",
-    ],
-  ),
+  (("palette", "attention-2"), ["Y1"]),
   (
     ("palette", "error-2"),
     [
@@ -225,10 +219,7 @@ let aliases: list(((string, string), list(string))) = [
     ("palette", "success"),
     ["G0", "primary-accent", "test-pass", "exp-indicated"],
   ),
-  (
-    ("palette", "attention-4"),
-    ["Y3", "token-string-lit", "token-incomplete"],
-  ),
+  (("palette", "attention-4"), ["Y3"]),
   (("palette", "type"), ["TYP", "token-typ", "main-indicated"]),
   (("palette", "pattern"), ["PAT", "token-pat", "pat-indicated"]),
   (("palette", "none"), ["NONE", "main-scroll-track"]),
@@ -237,7 +228,7 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "type-pattern"), ["TPAT", "token-tpat"]),
   (("palette", "label"), ["LABEL", "token-label"]),
   (("palette", "success-soft"), ["G1", "test-pass-active"]),
-  (("palette", "success-muted"), ["G2", "token-comment"]),
+  (("palette", "success-muted"), ["G2"]),
   (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
   (("menu", "divider"), ["menu-divider", "CREASE"]),
   (("menu", "shadow"), ["menu-shadow", "SHADOW"]),
@@ -308,6 +299,17 @@ let aliases: list(((string, string), list(string))) = [
   (("projector", "textarea-margin"), ["textarea-v-stripe"]),
   (("projector", "textarea-rule"), ["textarea-h-stripe"]),
   (("projector", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
+  (("editor", "string"), ["token-string-lit", "token-incomplete"]),
+  (("editor", "comment"), ["token-comment"]),
+  (
+    ("editor", "selection"),
+    [
+      "shard-selected",
+      "backpack-selection",
+      "backpack-joiner",
+      "backpack-genie",
+    ],
+  ),
 ];
 
 /* Every field a themer can set, as (group, name). The pair is the key: short

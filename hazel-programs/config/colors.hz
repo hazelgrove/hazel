@@ -161,7 +161,13 @@ let theme_of = fun (p, role) ->
         `buffer` = role.`token-buffer`,
         `derivation` = wash(p.`success`, 0.82, 0.67),
         `locked-cell` = role.`cell-exercises-border`,
-        `backpack-outline` = role.`backpack-selection-outline`
+        `backpack-outline` = role.`backpack-selection-outline`,
+        # Findable names for three colours a themer will go looking for by  #
+        # name rather than by ramp position. Each defaults to its place in  #
+        # the ramp, so it stays ONE decision until you want it to be two.   #
+        `string` = p.`attention-4`,
+        `comment` = p.`success-muted`,
+        `selection` = p.`attention-2`
       )),
       # The plate behind whatever the cursor is on, one per sort.          #
       cursor = ^^fold((
