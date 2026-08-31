@@ -438,7 +438,8 @@ let table_is_well_formed = () => {
     "no field expands to an empty target list",
     [],
     List.filter_map(
-      ((name, targets)) => targets == [] ? Some(name) : None,
+      (((group, name), targets)) =>
+        targets == [] ? Some(group ++ "." ++ name) : None,
       CC.aliases,
     ),
   );
@@ -455,8 +456,8 @@ let table_is_well_formed = () => {
     list(string),
     "every aliased field exists",
     [],
-    List.filter(((name, _)) => !List.mem(name, CC.field_names), CC.aliases)
-    |> List.map(fst),
+    List.filter(((key, _)) => !List.mem(key, CC.field_names), CC.aliases)
+    |> List.map((((group, name), _)) => group ++ "." ++ name),
   );
 };
 

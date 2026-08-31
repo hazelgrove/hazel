@@ -164,9 +164,9 @@ let role_groups: list((string, list(string))) = [
    CSS names -- `token-inconsistent`, `token-rul` and `token-exp` are three
    properties carrying one decision -- without the slide having to name all
    three. Empty for now: this commit changes no output. */
-let aliases: list((string, list(string))) = [
+let aliases: list(((string, string), list(string))) = [
   (
-    "surface-2",
+    ("palette", "surface-2"),
     [
       "T2",
       "shard_projector",
@@ -178,7 +178,7 @@ let aliases: list((string, list(string))) = [
     ],
   ),
   (
-    "error-1",
+    ("palette", "error-1"),
     [
       "R0",
       "shadow-selected",
@@ -189,7 +189,7 @@ let aliases: list((string, list(string))) = [
     ],
   ),
   (
-    "ink",
+    ("palette", "ink"),
     [
       "STONE",
       "menu-item-text",
@@ -199,7 +199,7 @@ let aliases: list((string, list(string))) = [
     ],
   ),
   (
-    "attention-2",
+    ("palette", "attention-2"),
     [
       "Y1",
       "shard-selected",
@@ -209,7 +209,7 @@ let aliases: list((string, list(string))) = [
     ],
   ),
   (
-    "error-2",
+    ("palette", "error-2"),
     [
       "R1",
       "cell-selected-accent",
@@ -219,54 +219,77 @@ let aliases: list((string, list(string))) = [
     ],
   ),
   (
-    "code-background",
+    ("palette", "code-background"),
     ["SAND", "toggle-knob", "textarea-indicated", "test-percent-text"],
   ),
   (
-    "frame-1",
+    ("palette", "frame-1"),
     ["BR1", "menu-scroll-track", "cell-result-hidden", "test-indet-active"],
   ),
-  ("frame-2", ["BR2", "menu-outline", "menu-scroll-thumb", "test-indet"]),
-  ("frame-4", ["BR4", "menu-icon", "menu-group-name", "cell-result-text"]),
-  ("surface-3", ["T3", "main-bkg", "cell-result", "live-env-bkg"]),
   (
-    "error-3",
+    ("palette", "frame-2"),
+    ["BR2", "menu-outline", "menu-scroll-thumb", "test-indet"],
+  ),
+  (
+    ("palette", "frame-4"),
+    ["BR4", "menu-icon", "menu-group-name", "cell-result-text"],
+  ),
+  (
+    ("palette", "surface-3"),
+    ["T3", "main-bkg", "cell-result", "live-env-bkg"],
+  ),
+  (
+    ("palette", "error-3"),
     ["R2", "token-any", "eval-exception-stroke", "ci-status-error-text"],
   ),
-  ("success", ["G0", "primary-accent", "test-pass", "exp-indicated"]),
-  ("attention-4", ["Y3", "token-string-lit", "token-incomplete"]),
-  ("type", ["TYP", "token-typ", "main-indicated"]),
-  ("pattern", ["PAT", "token-pat", "pat-indicated"]),
-  ("none", ["NONE", "main-scroll-track"]),
-  ("black", ["BLACK", "token-explicit-hole-shadow"]),
-  ("attention-3", ["Y2", "token-explicit-hole"]),
-  ("type-pattern", ["TPAT", "token-tpat"]),
-  ("label", ["LABEL", "token-label"]),
-  ("success-soft", ["G1", "test-pass-active"]),
-  ("success-muted", ["G2", "token-comment"]),
-  ("menu-bkg", ["menu-bkg", "test-panel-bkg"]),
-  ("menu-divider", ["menu-divider", "CREASE"]),
-  ("menu-shadow", ["menu-shadow", "SHADOW"]),
-  ("shard-lines-exp", ["shard-lines-exp", "shard-lines-rul"]),
-  ("shard-caret-pat", ["shard-caret-pat", "shard-pat"]),
-  ("shard-caret-typ", ["shard-caret-typ", "shard-typ"]),
-  ("shard-caret-tpat", ["shard-caret-tpat", "shard-tpat"]),
-  ("error-hole-fill", ["error-hole-fill", "ERRHOLE"]),
-  ("frame-3", ["BR3"]),
-  ("surface-1", ["T1"]),
-  ("surface-4", ["T4"]),
-  ("attention-1", ["Y0"]),
-  ("doc-1", ["highlight-a"]),
-  ("doc-2", ["highlight-b"]),
-  ("doc-3", ["highlight-c"]),
-  ("info", ["GB0"]),
-  ("info-strong", ["GB1"]),
+  (
+    ("palette", "success"),
+    ["G0", "primary-accent", "test-pass", "exp-indicated"],
+  ),
+  (
+    ("palette", "attention-4"),
+    ["Y3", "token-string-lit", "token-incomplete"],
+  ),
+  (("palette", "type"), ["TYP", "token-typ", "main-indicated"]),
+  (("palette", "pattern"), ["PAT", "token-pat", "pat-indicated"]),
+  (("palette", "none"), ["NONE", "main-scroll-track"]),
+  (("palette", "black"), ["BLACK", "token-explicit-hole-shadow"]),
+  (("palette", "attention-3"), ["Y2", "token-explicit-hole"]),
+  (("palette", "type-pattern"), ["TPAT", "token-tpat"]),
+  (("palette", "label"), ["LABEL", "token-label"]),
+  (("palette", "success-soft"), ["G1", "test-pass-active"]),
+  (("palette", "success-muted"), ["G2", "token-comment"]),
+  (("ui", "menu-bkg"), ["menu-bkg", "test-panel-bkg"]),
+  (("ui", "menu-divider"), ["menu-divider", "CREASE"]),
+  (("ui", "menu-shadow"), ["menu-shadow", "SHADOW"]),
+  (("shard", "shard-lines-exp"), ["shard-lines-exp", "shard-lines-rul"]),
+  (("shard", "shard-caret-pat"), ["shard-caret-pat", "shard-pat"]),
+  (("shard", "shard-caret-typ"), ["shard-caret-typ", "shard-typ"]),
+  (("shard", "shard-caret-tpat"), ["shard-caret-tpat", "shard-tpat"]),
+  (("hole", "error-hole-fill"), ["error-hole-fill", "ERRHOLE"]),
+  (("palette", "frame-3"), ["BR3"]),
+  (("palette", "surface-1"), ["T1"]),
+  (("palette", "surface-4"), ["T4"]),
+  (("palette", "attention-1"), ["Y0"]),
+  (("palette", "doc-1"), ["highlight-a"]),
+  (("palette", "doc-2"), ["highlight-b"]),
+  (("palette", "doc-3"), ["highlight-c"]),
+  (("palette", "info"), ["GB0"]),
+  (("palette", "info-strong"), ["GB1"]),
 ];
 
-let field_names: list(string) = palette @ List.concat_map(snd, role_groups);
+/* Every field a themer can set, as (group, name). The pair is the key: short
+   names are the point -- `menu.background` and `chrome.background` are two
+   different colours and should not have to be spelled apart. */
+let field_names: list((string, string)) =
+  List.map(n => ("palette", n), palette)
+  @ List.concat_map(
+      ((group, members)) => List.map(n => (group, n), members),
+      role_groups,
+    );
 
-let targets_of = (name: string): list(string) =>
-  switch (List.assoc_opt(name, aliases)) {
+let targets_of = (group: string, name: string): list(string) =>
+  switch (List.assoc_opt((group, name), aliases)) {
   | Some(targets) => targets
   | None => [name]
   };
@@ -274,7 +297,8 @@ let targets_of = (name: string): list(string) =>
 /* Every CSS custom property the slide is responsible for. This, not
    `field_names`, is the output contract: it is what the stylesheets consume,
    what the tests check against, and what `theme_key` must be salted with. */
-let all_targets: list(string) = List.concat_map(targets_of, field_names);
+let all_targets: list(string) =
+  List.concat_map(((g, n)) => targets_of(g, n), field_names);
 
 let expected_type =
   IdTagged.FreshGrammar.Typ.(
@@ -314,7 +338,8 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
 
 /* One pair per CSS property a labeled field is responsible for -- usually
    one, but a field standing in for a family sets several. */
-let colors_of_group = (group: Exp.t): list((string, string)) =>
+let colors_of_group =
+    (group_name: string, group: Exp.t): list((string, string)) =>
   List.concat_map(
     (entry: Exp.t) =>
       switch (entry.term) {
@@ -322,7 +347,7 @@ let colors_of_group = (group: Exp.t): list((string, string)) =>
         switch (l.term, C.of_exp(v)) {
         | (Label(name), Some(c)) =>
           let css = C.to_css(c);
-          List.map(t => (t, css), targets_of(name));
+          List.map(t => (t, css), targets_of(group_name, name));
         | _ => []
         }
       | _ => []
@@ -339,13 +364,14 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
       switch (section.term) {
       | TupLabel(l, body) =>
         switch (l.term) {
-        | Label("palette") => colors_of_group(body)
+        | Label("palette") => colors_of_group("palette", body)
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>
           List.concat_map(
             (g: Exp.t) =>
               switch (g.term) {
-              | TupLabel(_, members) => colors_of_group(members)
+              | TupLabel({term: Label(gname), _}, members) =>
+                colors_of_group(gname, members)
               | _ => []
               },
             entries_of(body),
