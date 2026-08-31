@@ -241,6 +241,10 @@ switch (JsUtil.Fragment.get_current()) {
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
   HazelDB.kv_load_all(_pairs => {
+    /* The user's theme, before the first frame and whatever mode they are
+       in. The inline script in index.html has already themed the loading
+       screen from the same cache; this validates it and fills a miss. */
+    ConfigurationMode.apply_theme_at_startup();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(

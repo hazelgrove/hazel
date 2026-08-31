@@ -77,37 +77,6 @@ module Model = {
     | Shortcuts => Some(ShortcutConfiguration.expected_type)
     };
 
-  /* Applied on every successful evaluation of a config slide.
-
-     Colors is a direct DOM effect: CSS variables live on the document, so
-     they outlive any re-render on their own. Shortcuts cannot do that — the
-     command palette is rebuilt from scratch on every cursor change — so it
-     records the override table in settings instead, where the palette build
-     reads it and persistence carries it across reloads. */
-  let perform_side_effect =
-      (
-        ~schedule_global: Globals.Update.t => unit,
-        config_type: config_type,
-        value: Language.Exp.t,
-      )
-      : unit => {
-    switch (config_type) {
-    | ColorScheme =>
-      List.iter(
-        ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
-        ColorConfiguration.css_vars_of_value(value),
-      )
-    | Shortcuts =>
-      schedule_global(
-        Set(
-          SetShortcutOverrides(
-            ShortcutConfiguration.overrides_of_value(value),
-          ),
-        ),
-      )
-    };
-  };
-
   let persist = (model: t): persistent => (
     model.current,
     List.map(
@@ -210,6 +179,147 @@ module StoreConfig =
     );
   });
 
+/* ── The colour theme, applied at startup ───────────────────────────────
+
+   HARD REQUIREMENT: the user's theme applies in EVERY mode. `Editors` loads
+   and calculates only the mode you are in, and the config side effect below
+   only fires while Config mode is open — so before this existed, setting dark
+   mode and switching to Scratch gave you back the light stylesheet defaults
+   on the next load. The theme therefore has to be established here, at
+   startup, with no reference to which mode is active.
+
+   Cached because the slide is a ~500-line Hazel program: parse, statics and
+   evaluate cost ~170ms, and in the app the colours normally arrive with the
+   Web Worker's evaluation result, well after the first frame. On a cache miss
+   the slide is evaluated synchronously instead of being left unthemed — once,
+   and only when the slide or the contract has changed.
+
+   The cache lives in localStorage, not the IndexedDB store, because an inline
+   <head> script reads it to theme the loading screen before the first paint;
+   IndexedDB only opens asynchronously, by which time the spinner has painted.
+
+   Format is newline-delimited — key, then name/value pairs — because a CSS
+   colour value cannot contain a newline, so nothing needs escaping and the
+   inline script stays three lines. */
+let theme_storage_key = "HAZEL_THEME";
+
+/* Which slide the colours come from: the user's if they have edited it, the
+   built-in source otherwise. One definition, used for both the cache key and
+   the fallback evaluation, so those two can never disagree about the source. */
+let colors_source = ((_, slides): Model.persistent): PersistentZipper.t =>
+  switch (List.assoc_opt(Model.persistence_key(ColorScheme), slides)) {
+  | Some(Some({editor: {zipper, _}, _}: CellEditor.Model.persistent)) => zipper
+  | Some(None)
+  | None => ColorConfiguration.source
+  };
+
+/* Keyed on the slide TEXT, plus the contract's variable names.
+
+   Text rather than the persisted slot because the two sides disagree on
+   shape: the store's `default()` carries the built-in source as `Some(..)`
+   while `Model.persist` collapses an untouched slide to `None`. Keying the
+   slot directly makes those hash differently, and since a stale key only
+   means "recompute", the cache would have silently never hit. The contract
+   goes in so a build that adds a variable does not serve a cache that never
+   defines it. */
+let theme_key = (persistent: Model.persistent): string =>
+  Printf.sprintf(
+    "%d:%d",
+    Hashtbl.hash(colors_source(persistent).backup_text),
+    /* Joined into one string on purpose: `Hashtbl.hash` samples only the
+       first few nodes of a list, so a name added at the end of a 142-entry
+       contract would not change the hash. */
+    Hashtbl.hash(
+      String.concat(
+        ",",
+        ColorConfiguration.palette
+        @ List.concat_map(snd, ColorConfiguration.role_groups),
+      ),
+    ),
+  );
+
+let apply_colors = (vars: list((string, string))): unit =>
+  List.iter(
+    ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
+    vars,
+  );
+
+/* Encode/decode kept pure and separate from storage: the inline <head>
+   script in index.html parses this same format, so an off-by-one or a
+   delimiter that turns up inside a value would quietly yield a partial
+   theme rather than an error. Test_ConfigurationMode round-trips it. */
+let encode_theme = (~key: string, vars: list((string, string))): string =>
+  String.concat(
+    "\n",
+    [key, ...List.concat_map(((n, v)) => [n, v], vars)],
+  );
+
+/* Names are stored bare; every reader adds the `--`, as `apply_colors` does. */
+let decode_theme =
+    (blob: string): option((string, list((string, string)))) =>
+  switch (String.split_on_char('\n', blob)) {
+  | [] => None
+  | [key, ...rest] =>
+    let rec pairs = (
+      fun
+      | [name, value, ...tl] => [(name, value), ...pairs(tl)]
+      | _ => []
+    );
+    Some((key, pairs(rest)));
+  };
+
+let write_theme_cache = (~key: string, vars: list((string, string))): unit =>
+  JsUtil.set_local_storage(theme_storage_key, encode_theme(~key, vars));
+
+let read_theme_cache = (): option((string, list((string, string)))) =>
+  JsUtil.get_local_storage(theme_storage_key)
+  |> Option.map(decode_theme)
+  |> Option.join;
+
+/* Called before the app starts, so the first frame is already themed. */
+let apply_theme_at_startup = (): unit => {
+  let persistent = StoreConfig.load();
+  let key = theme_key(persistent);
+  let vars =
+    switch (read_theme_cache()) {
+    | Some((cached_key, vars)) when cached_key == key && vars != [] => vars
+    | _ => ColorConfiguration.vars_of_source(colors_source(persistent))
+    };
+  apply_colors(vars);
+  write_theme_cache(~key, vars);
+};
+
+/* Applied on every successful evaluation of a config slide.
+
+   Colors is a direct DOM effect: CSS variables live on the document, so they
+   outlive any re-render on their own. Shortcuts cannot do that — the command
+   palette is rebuilt from scratch on every cursor change — so it records the
+   override table in settings instead, where the palette build reads it and
+   persistence carries it across reloads. */
+let perform_side_effect =
+    (
+      ~schedule_global: Globals.Update.t => unit,
+      model: Model.t,
+      config_type: Model.config_type,
+      value: Language.Exp.t,
+    )
+    : unit => {
+  switch (config_type) {
+  | ColorScheme =>
+    let vars = ColorConfiguration.css_vars_of_value(value);
+    apply_colors(vars);
+    write_theme_cache(~key=theme_key(Model.persist(model)), vars);
+  | Shortcuts =>
+    schedule_global(
+      Set(
+        SetShortcutOverrides(
+          ShortcutConfiguration.overrides_of_value(value),
+        ),
+      ),
+    )
+  };
+};
+
 module Update = {
   open Updated;
 
@@ -234,7 +344,7 @@ module Update = {
       switch (a) {
       | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _}))) =>
         let (config_type, _) = Model.get_current_config(model);
-        Model.perform_side_effect(~schedule_global, config_type, result);
+        perform_side_effect(~schedule_global, model, config_type, result);
       // Continue with normal cell update
       | _ => ()
       };

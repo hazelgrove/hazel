@@ -40,12 +40,7 @@ let analysis_is_engaged = () =>
 
 /* Evaluated once: statics is memoized but evaluation is not, and the slide is
    a 400-line program. */
-let evaluated =
-  lazy(
-    CC.css_vars_of_value(
-      ConfigSlideCheck.evaluate(~ana=CC.expected_type, CC.source),
-    )
-  );
+let evaluated = lazy(CC.vars_of_source(CC.source));
 let evaluated_vars = () => Lazy.force(evaluated);
 
 let declared_names = CC.palette @ List.concat_map(snd, CC.role_groups);
@@ -251,12 +246,8 @@ let schemes = [
   ("contrast_dark", true, true),
 ];
 
-let scheme_vars = ((_, dark_mode, high_contrast)) => {
-  let src = source_with_flags(~dark_mode, ~high_contrast);
-  CC.css_vars_of_value(
-    ConfigSlideCheck.evaluate(~ana=CC.expected_type, src),
-  );
-};
+let scheme_vars = ((_, dark_mode, high_contrast)) =>
+  CC.vars_of_source(source_with_flags(~dark_mode, ~high_contrast));
 
 let evaluated_schemes = lazy(List.map(s => (s, scheme_vars(s)), schemes));
 

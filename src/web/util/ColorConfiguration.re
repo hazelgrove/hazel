@@ -299,3 +299,29 @@ let css_vars_of_value = (value: Exp.t): list((string, string)) =>
       },
     entries_of(value),
   );
+
+/* The whole load path for a Colors slide: parse, analyze, evaluate, read
+   back. Product code rather than a test helper because the startup path
+   needs it too — and if the two ran different pipelines, the theme applied
+   on load could differ from the one the slide shows.
+
+   Total: any slide the user can save, including one that does not typecheck.
+   A broken slide yields no variables (the stylesheet defaults stand); it must
+   never take the app down on startup. */
+let vars_of_source =
+    (slide: Haz3lcore.PersistentZipper.t): list((string, string)) =>
+  try({
+    let zipper = Haz3lcore.PersistentZipper.unpersist(slide, ~root=Exp);
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let (_, elaborated) =
+      Statics.mk(
+        ~ana=expected_type,
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Int)),
+        term,
+      );
+    let (result, _) = Evaluator.evaluate(~env=Builtins.env_init, elaborated);
+    css_vars_of_value(result);
+  }) {
+  | _ => []
+  };
