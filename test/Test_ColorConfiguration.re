@@ -95,9 +95,11 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
+/* `hazel-color-scheme` carries polarity, not a colour: the one emitted
+   property this check does not apply to. */
 let unparseable = vars =>
   vars
-  |> List.filter(((_, v)) => !plausible(v))
+  |> List.filter(((n, v)) => n != CC.polarity_target && !plausible(v))
   |> List.map(((n, v)) => n ++ " = " ++ v);
 
 /* The applier writes these straight into a CSS custom property, where an

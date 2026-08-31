@@ -1,4 +1,7 @@
 :root {
+  /* Overwritten by the Colors slide, which declares its polarity. */
+  --hazel-color-scheme: light;
+
   /* Code and UI font */
 
   --line-height: 1.45;

@@ -14,6 +14,11 @@
    alias here — one edit instead of N call sites. */
 
 :root {
+  /* Without this, native controls -- scrollbars, <select> popups, the caret
+     in text inputs -- render light on a dark editor: a page only gets dark
+     form controls by saying so. */
+  color-scheme: var(--hazel-color-scheme);
+
   /* Foreground: text, icons, SVG fill */
   --text-accent:         var(--BR3);
   --text-black:          var(--BLACK);

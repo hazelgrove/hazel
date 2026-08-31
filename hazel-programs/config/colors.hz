@@ -236,7 +236,10 @@ let theme_of = fun (p, role) ->
         `textarea-rule` = p.`textarea-h-stripe`,
         `textarea-rule-selected` = p.`textarea-h-strip-selected`
       ))
-    ))
+    )),
+    # Declared, not inferred. A theme with low-contrast seeds could otherwise #
+    # flip polarity partway through a derivation.                            #
+    `is-dark` = role.`dark`
   )) in
 
 # ── Light scheme -- the seeds are the palette ───────────────────────── #
@@ -289,6 +292,7 @@ let light =
     )
   ) in
   theme_of(p, ^^fold((
+    `dark` = false,
     `nut-menu` = p.`info-strong`,
     `menu-bkg` = p.`attention-1`,
     `menu-item-hover-bkg` = p.`code-background`,
@@ -362,6 +366,7 @@ let dark =
     )
   ) in
   theme_of(p, ^^fold((
+    `dark` = true,
     `nut-menu` = p.`success-muted`,
     `menu-bkg` = p.`surface-1`,
     `menu-item-hover-bkg` = ^^color(Oklch(95., 0.015, 240.)),
@@ -435,6 +440,7 @@ let contrast_light =
     )
   ) in
   theme_of(p, ^^fold((
+    `dark` = false,
     `nut-menu` = p.`info-strong`,
     `menu-bkg` = p.`attention-1`,
     `menu-item-hover-bkg` = p.`code-background`,
@@ -512,6 +518,7 @@ let contrast_dark =
     )
   ) in
   theme_of(p, ^^fold((
+    `dark` = true,
     `nut-menu` = p.`success-muted`,
     `menu-bkg` = p.`surface-1`,
     `menu-item-hover-bkg` = ^^color(Oklch(22., 0., 240.)),

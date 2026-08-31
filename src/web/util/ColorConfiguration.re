@@ -328,11 +328,19 @@ let targets_of = (group: string, name: string): list(string) =>
   | None => [name]
   };
 
+/* Not a colour. The theme DECLARES whether it is dark rather than leaving it
+   to be inferred from the seeds, and the app forwards it to CSS so native
+   controls -- scrollbars, <select> popups, the caret in text inputs -- invert
+   with the theme instead of staying light on a dark editor. */
+let polarity_target = "hazel-color-scheme";
+
 /* Every CSS custom property the slide is responsible for. This, not
    `field_names`, is the output contract: it is what the stylesheets consume,
    what the tests check against, and what `theme_key` must be salted with. */
-let all_targets: list(string) =
-  List.concat_map(((g, n)) => targets_of(g, n), field_names);
+let all_targets: list(string) = [
+  polarity_target,
+  ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
+];
 
 let expected_type =
   IdTagged.FreshGrammar.Typ.(
@@ -361,6 +369,7 @@ let expected_type =
           ),
         ),
       ),
+      tup_label(label("is-dark"), bool()),
     ])
   );
 
@@ -399,6 +408,11 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
       | TupLabel(l, body) =>
         switch (l.term) {
         | Label("palette") => colors_of_group("palette", body)
+        | Label("is-dark") =>
+          switch (Unboxing.unbox(Atom(Bool), body)) {
+          | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+          | _ => []
+          }
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>
           List.concat_map(
