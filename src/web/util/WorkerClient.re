@@ -149,12 +149,20 @@ let get_worker = () =>
 let sync = (s: WorkerServer.SyncProgram.t): unit =>
   post_sync(get_worker(), s);
 
+/* a restart births a BLANK worker: all residency is gone, but the
+   client-side mirror still believes it's synced. The residency owner
+   (ShadowResidency) registers here to invalidate its mirror and
+   Full-sync the new worker BEFORE any retried eval posts (the hook
+   runs synchronously, so its sync wins the FIFO race). */
+let on_restart: ref(unit => unit) = ref(() => ());
+
 let restart_worker = (): unit => {
   switch (worker_ref.contents) {
   | Some(w) => w##terminate
   | None => ()
   };
   worker_ref.contents = Some(init_worker());
+  on_restart^();
 };
 
 /* Wall-clock cap for the whole request (including ACK wait). On expiry the

@@ -405,16 +405,28 @@ type resident =
 
 let resident_slot: ref(resident) = ref(None);
 
-/* resolve a Resident payload against the slot; the caller only sends
-   Resident after syncing (FIFO), so a miss is a protocol bug surfaced
-   as an eval error rather than silence */
+/* resolve a Resident payload against the slot, GENERATION included:
+   a rejected sync (roster mismatch, unknown item) retains the old
+   resident, and Sync(g)/Evaluate(Resident(g)) are FIFO — without the
+   generation gate the eval right after a rejected Sync(g) would run
+   the previous program and label its result generation g. A miss
+   surfaces as an eval error; the client's recovery resync makes the
+   next attempt servable. */
 let resolve_payload =
     (~key: key, payload: Request.payload)
     : result((Language.Exp.t, Language.EvalInfo.t), string) =>
   switch (payload) {
   | Ship({expr, eval_info_map}) => Ok((expr, eval_info_map))
-  | Resident({probe_all, _}) =>
+  | Resident({probe_all, generation}) =>
     switch (resident_slot^) {
+    | Some((k, _, rp)) when k == key && rp.generation != generation =>
+      Error(
+        Printf.sprintf(
+          "resident generation mismatch: have %d, want %d",
+          rp.generation,
+          generation,
+        ),
+      )
     | Some((k, settings, rp)) when k == key =>
       switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
       | None => Error("resident elaboration gap")

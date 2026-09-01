@@ -211,6 +211,16 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* worker summary grafts need a real recalculate pass to become
+       visible (they mutate the DefStatics caches, which nothing
+       re-reads until an action runs) */
+    ShadowResidency.schedule_recalc :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(Scratch(ScratchMode.Update.RefreshStatics)),
+          )
+      );
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),

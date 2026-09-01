@@ -1363,6 +1363,22 @@ let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
 let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
 
+/* bust EVERY cache calc_auto can read from — flip toggles must not
+   leave clamped chains reusable via the per-document table
+   (Test_PropagateClamp: a clamped chain cannot be caught up
+   incrementally) */
+let reset_caches = (): unit => {
+  slot := None;
+  Hashtbl.reset(slots);
+  slots_mru := [];
+};
+
+/* atomically update the keyed entry a graft rewrote: the next
+   calc_auto takes its prev from [slots], so a slot-only graft would
+   be silently reverted by the first ordinary recalculation */
+let replace_slot_entry = (t: t): unit =>
+  Hashtbl.replace(slots, Exp.rep_id(t.term), t);
+
 let calc_auto =
     (~settings, ~propagate=true, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* probe changes no longer bust the slot: calc's probe-aware dirtying

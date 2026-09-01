@@ -14,7 +14,12 @@ open Util;
  * (between Force frames the segment runs ahead of the debounced
  * statics, and shipping there would manufacture false mismatches). */
 
-let enabled: ref(bool) = ref(true);
+/* OFF by default: shadow mode duplicates statics derivation and adds
+   worker messaging on every master-statics update — it's a
+   development/benchmark diagnostic, not a passenger users should pay
+   for. Enable via __w2shadowToggle(true); __w2flip(true) implies it
+   (the flip consumes the residency the shadow sync maintains). */
+let enabled: ref(bool) = ref(false);
 
 /* the resident key must MATCH the eval-request key for the same
    editor, or Resident payloads resolve against nothing: ScratchMode
@@ -42,6 +47,26 @@ let mirror: ref(option(mirror)) = ref(None);
 let generation: ref(int) = ref(0);
 let last_ds: ref(option(Haz3lcore.DefStatics.t)) = ref(None);
 
+/* the latest AUTHORITATIVE program, cached so recovery (worker
+   restart, NeedResync) can re-ship Full immediately instead of
+   waiting for the user's next semantic edit — until then the worker
+   would be stale and any queued Resident eval unservable */
+type authoritative = {
+  a_key: string,
+  a_root: Haz3lcore.Sort.t,
+  a_settings: Language.CoreSettings.t,
+  a_seg: Haz3lcore.Segment.t,
+  a_probes: list(Id.t),
+};
+let last_auth: ref(option(authoritative)) = ref(None);
+/* piece ids of the last shipped program: the graft uses them to tell
+   piece-anchored ids (worker-refreshable) from synthetic ones (main-
+   only, must survive the graft) */
+let last_piece_ids: ref(Id.Set.t) = ref(Id.Set.empty);
+/* one recovery in flight at a time: a worker that NeedResyncs the
+   recovery itself (e.g. version skew) must not loop */
+let recovering: ref(bool) = ref(false);
+
 /* main summaries awaiting the worker's echo (bounded; superseded
    generations just never match and age out) */
 let pending: ref(list((int, Haz3lcore.ResidentProgram.Summary.t))) =
@@ -66,8 +91,14 @@ let flip_enabled: ref(bool) = ref(false);
 let set_flip = (b: bool): unit =>
   if (b != flip_enabled^) {
     flip_enabled := b;
+    if (b) {
+      enabled := true; /* the flip consumes the residency sync */
+    };
     Haz3lcore.DefStatics.clamp := b;
-    Haz3lcore.DefStatics.slot := None; /* fresh baseline either way */
+    /* fresh baseline either way — and EVERY cache calc_auto reads:
+       clearing only the active slot left clamped chains in the
+       per-document table, reusable after toggle-off */
+    Haz3lcore.DefStatics.reset_caches();
     print_endline("[w2-shadow] flip " ++ (b ? "ON" : "OFF"));
   };
 
@@ -107,11 +138,33 @@ let () =
 
 let log = msg => print_endline("[w2-shadow] " ++ msg);
 
+let item_key = (slice: Haz3lcore.Segment.t): option(Id.t) =>
+  Haz3lcore.ResidentProgram.item_id(slice);
+
+let full_roster = (slices: list(Haz3lcore.Segment.t)) =>
+  slices
+  |> List.filter_map(slice =>
+       switch (item_key(slice)) {
+       | None => None
+       | Some(id) => Some((id, Haz3lcore.ResidentProgram.fingerprint(slice)))
+       }
+     );
+
+/* dispatched after a graft so a real recalculate pass runs and the
+   view rebuilds its error/warning ids — a bare cache mutation is
+   invisible until the user's next edit. Registered by Main. */
+let schedule_recalc: ref(unit => unit) = ref(() => ());
+
 /* FLIP mode: the worker's per-item error/warning ids are the truth
-   for cross-item display — graft them into the main slot's items (the
-   next calculate pass rebuilds the view's error_ids from the slot).
-   Superseded generations are dropped. Synthetic-node ids cannot cross
-   (derivation-local); stale items keep their old synthetic ids. */
+   for cross-item display. Grafting must be DURABLE and OBSERVABLE:
+   both DefStatics caches update (the active slot AND the per-document
+   keyed entry — else the next calc_auto rebuilds from the ungrafted
+   entry and silently reverts), and a recalculate is scheduled so the
+   ids actually reach the rendered view. Superseded generations are
+   dropped. Piece-anchored ids refresh from the worker; synthetic ids
+   (derivation-local, filtered out of summaries) survive from main's
+   own analysis. Known limitation: summaries carry ids only, so
+   in-editor markers for cross-item errors still need main statics. */
 let graft_summary =
     (
       msg: WorkerServer.ServerMessage.summary_msg,
@@ -122,6 +175,8 @@ let graft_summary =
     switch (Haz3lcore.DefStatics.slot^) {
     | None => ()
     | Some(t) =>
+      let synthetic = ids =>
+        List.filter(id => !Id.Set.mem(id, last_piece_ids^), ids);
       let items =
         t.items
         |> List.map((it: Haz3lcore.DefStatics.item) =>
@@ -134,30 +189,72 @@ let graft_summary =
              ) {
              | Some(si) => {
                  ...it,
-                 d_error_ids: si.s_errors,
-                 d_warning_ids: si.s_warnings,
+                 d_error_ids: si.s_errors @ synthetic(it.d_error_ids),
+                 d_warning_ids: si.s_warnings @ synthetic(it.d_warning_ids),
                }
              | None => it
              }
            );
-      Haz3lcore.DefStatics.slot :=
-        Some({
-          ...t,
-          items,
-        });
+      let t' = {
+        ...t,
+        Haz3lcore.DefStatics.items,
+      };
+      Haz3lcore.DefStatics.slot := Some(t');
+      Haz3lcore.DefStatics.replace_slot_entry(t');
+      schedule_recalc^();
     };
   };
+
+/* recovery: re-ship the cached authoritative program as Full, under
+   the CURRENT generation (same content, not a new program state) so
+   an already-queued Resident eval for that generation resolves after
+   the sync lands (postMessage FIFO). One recovery in flight at a
+   time; SyncOk clears the latch. */
+let resync_now = (reason: string): unit => {
+  mirror := None;
+  last_ds := None; /* an unchanged doc must still re-ship */
+  switch (last_auth^) {
+  | Some(a) when enabled^ && ! recovering^ =>
+    recovering := true;
+    incr(resyncs);
+    incr(full_ships);
+    log("recovery full sync (" ++ reason ++ ")");
+    let slices = Haz3lcore.MakeTerm.Incr.slices(a.a_seg);
+    mirror :=
+      Some({
+        m_key: a.a_key,
+        m_root: a.a_root,
+        m_settings: a.a_settings,
+        m_slices: slices,
+        m_roster: full_roster(slices),
+        m_probes: a.a_probes,
+      });
+    WorkerClient.sync({
+      version: WorkerServer.w2_protocol_version,
+      key: a.a_key,
+      generation: generation^,
+      probe_ids: a.a_probes,
+      payload: Full(a.a_root, a.a_settings, a.a_seg),
+    });
+  | _ => ()
+  };
+};
 
 let on_summary = (msg: WorkerServer.ServerMessage.summary_msg): unit =>
   switch (msg.verdict) {
   | NeedResync(reason) =>
-    incr(resyncs);
-    mirror := None; /* next statics update ships Full */
     log("worker demands resync: " ++ reason);
+    /* recover NOW from the cached authoritative program — waiting for
+       the next semantic edit leaves the worker stale indefinitely and
+       any queued Resident eval unservable. The latch stops a resync
+       loop when the recovery itself is rejected (version skew). */
+    resync_now(reason);
   | SyncOk(theirs) when flip_enabled^ =>
+    recovering := false;
     incr(oks);
     graft_summary(msg, theirs);
   | SyncOk(theirs) =>
+    recovering := false;
     switch (List.assoc_opt(msg.generation, pending^)) {
     | None => () /* superseded generation */
     | Some(ours) =>
@@ -206,11 +303,8 @@ let on_summary = (msg: WorkerServer.ServerMessage.summary_msg): unit =>
              );
         };
       };
-    }
+    };
   };
-
-let item_key = (slice: Haz3lcore.Segment.t): option(Id.t) =>
-  Haz3lcore.ResidentProgram.item_id(slice);
 
 /* diff current slices against the mirror by pointer identity; returns
    (changed, roster) or None when the shape changed (restructure class
@@ -242,15 +336,6 @@ let diff_items = (m: mirror, slices: list(Haz3lcore.Segment.t)) =>
     Some((List.rev(changed), List.rev(roster)));
   };
 
-let full_roster = (slices: list(Haz3lcore.Segment.t)) =>
-  slices
-  |> List.filter_map(slice =>
-       switch (item_key(slice)) {
-       | None => None
-       | Some(id) => Some((id, Haz3lcore.ResidentProgram.fingerprint(slice)))
-       }
-     );
-
 let on_master_statics =
     (
       ~key: string,
@@ -268,9 +353,20 @@ let on_master_statics =
       let probes =
         Id.Map.bindings(ds.Haz3lcore.DefStatics.probe_ids) |> List.map(fst);
       let slices = Haz3lcore.MakeTerm.Incr.slices(seg);
+      /* recovery inputs: every authoritative pass refreshes them,
+         shipped or not */
+      last_auth :=
+        Some({
+          a_key: key,
+          a_root: root,
+          a_settings: settings,
+          a_seg: seg,
+          a_probes: probes,
+        });
       let ship = payload => {
         incr(generation);
         let g = generation^;
+        last_piece_ids := Haz3lcore.ResidentProgram.piece_ids(seg);
         pending :=
           [
             (
@@ -353,3 +449,8 @@ let on_master_statics =
       };
     };
   };
+
+/* a worker restart drops all residency while the mirror survives —
+   without this hook an unchanged document never re-syncs and flipped
+   evals fail with "no resident program" forever */
+let () = WorkerClient.on_restart := (() => resync_now("worker-restart"));

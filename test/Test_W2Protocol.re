@@ -42,6 +42,12 @@ let expect_ok = (msg): ResidentProgram.Summary.t =>
   | NeedResync(r) => Alcotest.fail("unexpected NeedResync: " ++ r)
   };
 
+let has_substr = (needle: string, hay: string): bool =>
+  switch (Str.search_forward(Str.regexp_string(needle), hay, 0)) {
+  | _ => true
+  | exception Not_found => false
+  };
+
 let expect_resync = (name, expected_reason, msg) =>
   switch (verdict_of(msg)) {
   | NeedResync(r) => check(string, name, expected_reason, r)
@@ -198,6 +204,143 @@ let tests = [
             | _ => false
             },
           );
+        },
+      ),
+      test_case(
+        "rejected delta: eval for its generation must not run the old program",
+        `Quick,
+        () => {
+          /* production shape (codex review, #2480 P0-1): Full(g1) ok,
+             Items(g2) rejected (roster mismatch) — Sync/Evaluate are
+             FIFO, so the eval for g2 arrives next and must ERROR, not
+             silently evaluate g1's program under g2's label */
+          let seg = parse(src);
+          let (resident, _) =
+            WorkerServer.handle_sync(None, full_sync(seg));
+          let (resident', msg) =
+            WorkerServer.handle_sync(
+              resident,
+              {
+                version: WorkerServer.w2_protocol_version,
+                key: "k",
+                generation: 2,
+                probe_ids: [],
+                payload: Items([], [(Id.mk(), 0)]),
+              },
+            );
+          expect_resync("rejected delta", "roster-mismatch", msg);
+          WorkerServer.resident_slot := resident';
+          let resolve = g =>
+            WorkerServer.resolve_payload(
+              ~key="k",
+              Resident({
+                generation: g,
+                probe_all: false,
+              }),
+            );
+          switch (resolve(2)) {
+          | Error(e) =>
+            check(
+              bool,
+              "g2 errors with a generation mismatch",
+              true,
+              has_substr("generation mismatch", e),
+            )
+          | Ok(_) => Alcotest.fail("stale program evaluated as g2")
+          };
+          check(
+            bool,
+            "g1 still resolvable",
+            true,
+            Result.is_ok(resolve(1)),
+          );
+          WorkerServer.resident_slot := None;
+          switch (resolve(1)) {
+          | Error(e) =>
+            check(
+              bool,
+              "blank worker (restart class) errors",
+              true,
+              has_substr("no resident program", e),
+            )
+          | Ok(_) => Alcotest.fail("resolved against an empty slot")
+          };
+        },
+      ),
+      test_case(
+        "reset_caches busts the per-document slots table",
+        `Quick,
+        () => {
+          /* codex review #2480 P1-4: set_flip cleared only the active
+             slot while calc_auto reads the keyed table — a clamped
+             chain survived toggle-off */
+          let whole = MakeTerm.go(parse(src)).term;
+          let _ = DefStatics.calc_auto(~settings, whole);
+          let _ = DefStatics.calc_auto(~settings, whole);
+          check(int, "second pass is warm", 0, DefStatics.last_analyzed^);
+          DefStatics.reset_caches();
+          let _ = DefStatics.calc_auto(~settings, whole);
+          check(
+            bool,
+            "post-reset pass is cold (keyed entry really gone)",
+            true,
+            DefStatics.last_analyzed^ > 0,
+          );
+        },
+      ),
+      test_case(
+        "grafted summary survives a warm calc_auto",
+        `Quick,
+        () => {
+          /* codex review #2480 P1-5: a slot-only graft was reverted by
+             the next ordinary calc_auto, whose prev comes from the
+             keyed table */
+          let seg = parse(src);
+          let whole = MakeTerm.go(seg).term;
+          let t = DefStatics.calc_auto(~settings, whole);
+          let first =
+            switch (t.items) {
+            | [it, ..._] => it
+            | [] => Alcotest.fail("no items")
+            };
+          let fake_err = Id.mk();
+          let theirs =
+            ResidentProgram.Summary.{
+              s_generation: 5,
+              s_items: [
+                {
+                  s_id: first.d_id,
+                  s_errors: [fake_err],
+                  s_warnings: [],
+                  s_synth_errors: 0,
+                  s_synth_warnings: 0,
+                },
+              ],
+            };
+          Web.ShadowResidency.generation := 5;
+          Web.ShadowResidency.last_piece_ids := ResidentProgram.piece_ids(seg);
+          Web.ShadowResidency.graft_summary(
+            {
+              version: WorkerServer.w2_protocol_version,
+              key: "",
+              generation: 5,
+              verdict: SyncOk(theirs),
+            },
+            theirs,
+          );
+          let has_fake = (t: DefStatics.t) =>
+            List.exists(
+              (it: DefStatics.item) => List.mem(fake_err, it.d_error_ids),
+              t.items,
+            );
+          switch (DefStatics.current()) {
+          | Some(t) =>
+            check(bool, "graft visible in slot", true, has_fake(t))
+          | None => Alcotest.fail("no slot after graft")
+          };
+          let t' = DefStatics.calc_auto(~settings, whole);
+          check(int, "recalc is warm", 0, DefStatics.last_analyzed^);
+          check(bool, "graft survives the warm recalc", true, has_fake(t'));
         },
       ),
     ],
