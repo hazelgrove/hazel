@@ -1867,8 +1867,13 @@ let clippable_guard_tests = {
         "coverage",
         /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
            Pat mold. Re-decided, not repinned blindly: 9/88 is still
-           real signal, so clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+           real signal, so clippable_sort stands.
+           Typ 14 -> 15, TPat 2 -> 4: #2448's symbolic delimiter-prefix
+           backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
+           the InfixDelimiterPrefix atomic, which molds at all four
+           sorts. Re-decided: both frontiers stay far from vacuous, so
+           clippable_sort stands. */
+        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
         table,
       )
     ),
