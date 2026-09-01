@@ -150,17 +150,28 @@ let check_family_uniqueness = (): unit =>
    remold candidate when one fits the sort (storing that sort), and
    otherwise falls back to stored-sort Any with the Any-fallback mold
    (Parens: op wrapping one child; bin for operator-shaped tokens, op
-   otherwise). It never emits TokInfix. */
+   otherwise). It emits TokInfix only where nothing else fits. */
 let check_classify = (sort: Sort.t, label: Label.t): unit => {
   let name = case_name(sort, label);
   let (id, stored) = Form.classify_label(sort, label);
   check(label_testable, "label: " ++ name, label, Form.label_of(id));
+  /* TokInfix is a backup mold, so it is classified only where the token
+     has no form of its own at the sort. Var-shaped delimiter prefixes
+     never reach it (Var/TyVar/TyVarP cover all four IDP sorts), but the
+     symbolic prefixes `-` and `=` have operator forms at only some
+     sorts, so e.g. `-` at Typ does classify as TokInfix. */
   check(
     bool,
-    "classify never emits TokInfix: " ++ name,
+    "classify emits TokInfix only as a backup: " ++ name,
     true,
     switch (id) {
-    | Form.TokInfix(_) => false
+    | Form.TokInfix(_) =>
+      Form.remold_candidates(label, sort)
+      |> List.for_all(
+           fun
+           | (Form.TokInfix(_), _) => true
+           | _ => false,
+         )
     | _ => true
     },
   );
@@ -203,7 +214,9 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
 
 /* remold_candidates: every candidate carries the queried sort, fits
    it, and spells the label; candidates are Compound/Tok/TokInfix
-   only, atoms (single tokens) before compounds; the compound
+   only, in three phases — Tok atoms, then compounds, then the
+   TokInfix backups, which come last so that a symbolic prefix like
+   `-` remolds to its real operator forms first; the compound
    candidates are the families of the label's matching rows (order
    pinned separately in check_same_label_order); TokInfix candidates
    appear exactly for InfixDelimiterPrefix tokens at its four sorts,
@@ -248,18 +261,18 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     List.sort(compare, expected_compounds),
     List.sort(compare, actual_compounds),
   );
-  let rec atoms_then_compounds = (cands, seen_compound) =>
+  let rec phases_ok = (cands, phase) =>
     switch (cands) {
     | [] => true
-    | [(Form.Compound(_), _), ...tl] => atoms_then_compounds(tl, true)
-    | [(Form.Tok(_) | Form.TokInfix(_), _), ...tl] =>
-      !seen_compound && atoms_then_compounds(tl, seen_compound)
+    | [(Form.Tok(_), _), ...tl] => phase <= 0 && phases_ok(tl, 0)
+    | [(Form.Compound(_), _), ...tl] => phase <= 1 && phases_ok(tl, 1)
+    | [(Form.TokInfix(_), _), ...tl] => phases_ok(tl, 2)
     };
   check(
     bool,
-    "atoms precede compounds: " ++ name,
+    "atoms, then compounds, then backups: " ++ name,
     true,
-    atoms_then_compounds(cands, false),
+    phases_ok(cands, 0),
   );
   let expected_tok_infix =
     switch (label) {
@@ -277,7 +290,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
        );
   check(
     bool,
-    "TokInfix candidate iff keyword-prefix at an IDP sort: " ++ name,
+    "TokInfix candidate iff delimiter-prefix at an IDP sort: " ++ name,
     expected_tok_infix,
     tok_infix != [],
   );

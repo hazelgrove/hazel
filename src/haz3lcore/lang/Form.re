@@ -669,15 +669,27 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
   label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
 };
 
-/* Compound candidates precede atomic ones: candidate order breaks ties
- * among junction-fitting molds during remolding, and a token like `-`
- * carries both real operator forms and an InfixDelimiterPrefix backup
- * that must not shadow them. */
+/* Candidate order breaks ties among junction-fitting molds during
+ * remolding and picks the classified form, so the InfixDelimiterPrefix
+ * backups go LAST: a symbolic prefix like `-` is also a real operator
+ * (Minus/UnaryMinus), and the backup must not shadow it. The other
+ * atomic classes stay ahead of compounds — they are forms in their own
+ * right, and e.g. `()` must keep classifying as the empty-tuple operand
+ * rather than as postfix ApEmpty. */
 let base_candidates = (label: Label.t): list((t, Mold.t)) => {
   let compounds =
     compound_defs(label) |> List.map(((fam, m)) => (Compound(fam), m));
   switch (label) {
-  | [t] => compounds @ atomic_candidates(t)
+  | [t] =>
+    let is_backup = ((id, _): (t, Mold.t)) =>
+      switch (id) {
+      | TokInfix(_) => true
+      | Compound(_)
+      | Tok(_) => false
+      };
+    let (backups, atomics) =
+      List.partition(is_backup, atomic_candidates(t));
+    atomics @ compounds @ backups;
   | _ => compounds
   };
 };
@@ -759,12 +771,11 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
 
 /* Classify a label at a sort: the (form, sort) pair to store on the
  * tile, chosen so that mold_of(form, sort) yields the classified
- * mold. First base candidate whose mold fits the sort (compounds
- * before atomics, candidate order — so TokInfix only wins for tokens
- * with no form of their own: var-shaped prefixes lose to the Var
- * class, and symbolic prefixes like `-` lose to their operator
- * forms); no fit => the first compound (or Tok) with stored sort
- * Any. */
+ * mold. First base candidate whose mold fits the sort (candidate
+ * order — so TokInfix only wins for tokens with no form of their own
+ * at that sort: var-shaped prefixes lose to the Var class, symbolic
+ * prefixes like `-` to their operator forms); no fit => the first
+ * compound (or Tok) with stored sort Any. */
 let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
   let fits = ((_, m): (t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
