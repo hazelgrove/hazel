@@ -2196,6 +2196,25 @@ let rescan_tests = [
       @ [Destruct(Left)], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
   ),
+  /* #2446: completing `use _ in` remolds the following `-` from infix
+   * back to prefix; the convex grout inserted for the infix reading must
+   * not survive (it left a malformed grout-prefix junction whose tiles
+   * MakeTerm dropped from the terms map, crashing the view). */
+  test_complete(
+    ~name="Regrout: use-in typed before -5 leaves no stale grout",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦-5|},
+  ),
+  test_complete(
+    ~name="Regrout: use-in typed before prefix-only op",
+    ~acts=mk({|¦!true|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦!true|},
+  ),
+  test_complete(
+    ~name="Regrout: let-in typed before -5",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("let x = 1 in "),
+    ~goal={|let x = 1 in ¦-5|},
+  ),
 ];
 
 /* ===== PASTE CORRECTNESS TESTS =====
@@ -5199,7 +5218,67 @@ let grapheme_tests = [
   ),
 ];
 
+/* Prints only — for transient states where incomplete tiles are expected
+ * (e.g. a fun awaiting its ->). */
+let test_print = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+    },
+  );
+
+/* A symbolic delimiter prefix in operator position holds a backup infix
+ * mold (Form.symbolic_delim_prefixes) rather than molding prefix and
+ * drawing junction grout: `fun x -` reads as a pending `->`, not as
+ * unary minus applied to a missing operand. */
+let pending_delim_tests = [
+  test_print(
+    ~name="Pat: minus after complete pattern holds infix pending ->",
+    ~acts=mk({|fun x -¦|}),
+    ~goal={|fun x -¦?|},
+  ),
+  test_print(
+    ~name="Pat: minus completes to -> normally",
+    ~acts=mk({|fun x -¦|}) @ string_to_ltr_actions("> x"),
+    ~goal={|fun x -> x¦|},
+  ),
+  test_complete(
+    ~name="Pat: negative literal pattern still molds prefix",
+    ~acts=mk({|fun -5 -> p¦|}),
+    ~goal={|fun -5 -> p¦|},
+  ),
+  test_print(
+    ~name="Exp: infix minus unaffected",
+    ~acts=mk({|1 - 2¦|}),
+    ~goal={|1 - 2¦|},
+  ),
+  test_print(
+    ~name="Exp: unary minus unaffected",
+    ~acts=mk({|(-5)¦|}),
+    ~goal={|(-5)¦|},
+  ),
+  test_print(
+    ~name="Typ: minus pending arrow",
+    ~acts=mk({|type T = Int -¦|}),
+    ~goal={|type T = Int -¦?|},
+  ),
+  test_print(
+    ~name="Rul: = after pattern holds infix pending =>",
+    ~acts=mk({|case 1 | 1 =¦|}),
+    ~goal={|case 1 | 1 =¦?|},
+  ),
+];
+
 let tests = [
+  ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),
