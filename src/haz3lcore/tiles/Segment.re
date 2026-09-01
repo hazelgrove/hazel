@@ -763,6 +763,16 @@ module Trim = {
     List.(map(Piece.secondary, concat(wss) @ extra));
   };
 
+  /* Like ws, but keeps the result a trim (for re-adding grout). */
+  let strip_grout = ((wss, gs): t): t => {
+    let extra =
+      switch (Grout.redeem_space_from(gs)) {
+      | Some(w) => [w]
+      | None => []
+      };
+    Aba.mk([List.concat(wss) @ extra], []);
+  };
+
   // postcond: result is either <ws> or <ws,g,ws'>
   let merge = ((wss, gs): t): t => {
     switch (Grout.merge(gs)) {
