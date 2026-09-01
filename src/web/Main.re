@@ -63,6 +63,8 @@ let apply =
     );
   };
   if (updated.scroll_active) {
+    // print_endline("scroll_to_caret: true");
+    // print_endline("action: " ++ Page.Update.show(action));
     scroll_to_caret := true;
   };
   model';
@@ -116,8 +118,8 @@ let start = default_model => {
       () => JsUtil.get_elem_by_id("font-specimen"),
       ~default=
         BonsaiUtil.SizeObserver.Size.{
-          width: 10.,
-          height: 10.,
+          width: Util.font_metrics_init.col_width,
+          height: Util.font_metrics_init.row_height,
         },
     );
   let%sub () =
@@ -129,18 +131,16 @@ let start = default_model => {
       ~callback=
         app_inject
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
+             font_metrics :=
+               {
+                 row_height: rect.height,
+                 col_width: rect.width,
+               };
              JsUtil.set_css_custom_property(
                "--row-height-px",
                Printf.sprintf("%fpx", rect.height),
              );
-             i(
-               Page.Update.Globals(
-                 SetFontMetrics({
-                   row_height: rect.height,
-                   col_width: rect.width,
-                 }),
-               ),
-             );
+             i(Page.Update.Globals(SetFontMetrics(font_metrics^)));
            }),
     );
 
@@ -151,6 +151,7 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
+    Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,

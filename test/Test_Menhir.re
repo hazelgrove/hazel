@@ -88,7 +88,7 @@ let print_exp = exp =>
     ~holes="?",
     Haz3lcore.ExpToSegment.(
       exp_to_segment(
-        ~settings=Settings.editable(~inline=true),
+        ~settings=Settings.editable(~inline=Inline),
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp),
       )
     ),
@@ -137,7 +137,10 @@ let qcheck_menhir_maketerm_equivalent_test =
     core_exp => {
       let segment =
         Haz3lcore.ExpToSegment.(
-          exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
+          exp_to_segment(
+            ~settings=Settings.editable(~inline=Inline),
+            core_exp,
+          )
         );
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
@@ -205,7 +208,7 @@ let qcheck_menhir_serialized_equivalent_test =
             secondary: AutoFormat,
             parenthesization: Defensive,
             label_format: QuoteWhenNecessary,
-            inline: true,
+            inline: Inline,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,
             show_ascriptions: true,

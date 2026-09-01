@@ -241,8 +241,8 @@ module SyntaxTerm = {
 
   let put = (info, syntax): option(Base.segment) =>
     info.utility.lift_syntax(
-      ~inline=true,
       _ => syntax_to_any(syntax),
+      Inline.Block,
       info.syntax,
     );
 

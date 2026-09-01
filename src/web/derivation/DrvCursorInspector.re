@@ -17,7 +17,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
           secondary: AutoFormat,
           parenthesization: Defensive,
           label_format: QuoteWhenNecessary,
-          inline: true,
+          inline: Inline,
           fold_case_clauses: false,
           fold_fn_bodies: `NoFold,
           hide_fixpoints: false,

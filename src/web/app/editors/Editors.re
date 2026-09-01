@@ -48,7 +48,7 @@ module StoreMode = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Model.mode;
   let key_string = Store.key_to_string(Store.Mode);
-  let default = (): Model.mode => Scratch;
+  let default = (): Model.mode => Documentation;
 
   let serialize = (data: t) => data |> sexp_of_t |> Sexplib.Sexp.to_string;
 

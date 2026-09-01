@@ -141,7 +141,7 @@ let shrink_failing =
 let show_exp = exp =>
   exp
   |> Haz3lcore.ExpToSegment.exp_to_segment(
-       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=Inline),
        _,
      )
   |> Haz3lcore.Printer.of_segment(~holes="?", _);
@@ -151,7 +151,7 @@ let show_typ = typ =>
   |> Haz3lcore.ExpToSegment.typ_to_segment(
        ~settings=
          Haz3lcore.ExpToSegment.Settings.of_core(
-           ~inline=true,
+           ~inline=Inline,
            CoreSettings.off,
          ),
        _,

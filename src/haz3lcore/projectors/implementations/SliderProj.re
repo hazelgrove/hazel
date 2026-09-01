@@ -31,7 +31,6 @@ module M: Projector = {
   let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
-        ~inline=true,
         fun
         | Exp(t) =>
           Exp({
@@ -39,6 +38,7 @@ module M: Projector = {
             term: Atom(Int(Bigint.of_string(v))),
           })
         | _ => failwith("Slider: Put: not integer literal"),
+        Inline.Block,
         info.syntax,
       )
     ) {

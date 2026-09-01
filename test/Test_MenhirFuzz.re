@@ -10,7 +10,7 @@ open Language;
 let print_core = (exp: Exp.t): string =>
   exp
   |> ExpToSegment.exp_to_segment(
-       ~settings=ExpToSegment.Settings.editable(~inline=true),
+       ~settings=ExpToSegment.Settings.editable(~inline=Inline.Inline),
        _,
      )
   |> Printer.of_segment(~holes="?", ~refractors=[]);
