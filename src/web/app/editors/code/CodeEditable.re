@@ -506,7 +506,16 @@ module View = {
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) =>
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
     [
       CaretDec.view(
         ~measured=syntax.measured,
@@ -519,6 +528,7 @@ module View = {
             Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
         ~font_metrics=globals.font_metrics,
         ~syntax,
+        ~completion,
         z,
       ),
       (
@@ -549,7 +559,7 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
+            ~engine_seg=Lazy.force(engine_seg),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -574,6 +584,7 @@ module View = {
           [];
         }
     );
+  };
 
   let view =
       (
@@ -703,6 +714,7 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
+              ~completion=Arms.lazy_completion(model.editor.state.zipper),
               ~dynamics,
               model.editor.state.zipper,
             ),
