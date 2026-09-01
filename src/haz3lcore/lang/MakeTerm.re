@@ -13,20 +13,48 @@
 open Util;
 open Language;
 
-// TODO make less hacky
-let tokens =
+/* The dispatch payload of a root piece is its stored form id, with
+ * TokInfix collapsed to Tok: the backup-infix bit is mold-only, the
+ * token means the same thing. Compound identity is trusted as
+ * spelled at edit time; a Tok's meaning is re-derived from its token
+ * by the Token.is_* guards below, since a tile's stored sort can be
+ * stale. Incomplete tiles match no compound arm (too few kids for
+ * the arm's kid pattern) and parse as holes. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type head =
+  | F(Form.t) /* tile */
+  | ProjWrap /* projector: in-effect acts as a convex wrapping form */
+  | Sec; /* secondary: no tokens */
+
+let head: Piece.t => head =
   Piece.get(
-    _ => [],
-    _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
-    _ =>
-      /* Hack: These act as temporary wrappers for projectors,
-       * given that they in-effect act as a convex wrapping form */
-      ["PROJ_WRAP", "PROJ_WRAP"],
+    _ => Sec,
+    /* grout: no tile can carry token " ", so Tok(" ") is
+     * collision-free and parses as hole via is_hole_label below */
+    _ => F(Tok(" ")),
+    (t: Tile.t) =>
+      F(
+        switch (t.form) {
+        | TokInfix(tok) => Tok(tok)
+        | f => f
+        },
+      ),
+    _ => ProjWrap,
   );
 
+/* "()" is spelled both by the empty-tuple token (convex position)
+ * and by the nullary-ap families (postfix); the two storages must
+ * parse identically in each shape position, so every "()" arm
+ * accepts both. */
+let is_empty_tuple_form: Form.t => bool =
+  fun
+  | Tok(t)
+  | TokInfix(t) => Token.is_empty_tuple(t)
+  | Compound(ApEmpty) => true
+  | Compound(_) => false;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tile = (Id.t, Aba.t(Token.t, Any.t));
+type tile = (Id.t, (head, list(Any.t)));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, Any.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -45,21 +73,45 @@ type t = {
 };
 
 let is_nary =
-    (is_sort: Any.t => option('sort), delim: Token.t, (delims, kids): tiles)
+    (
+      is_sort: Any.t => option('sort),
+      is_delim: Form.t => bool,
+      (delims, kids): tiles,
+    )
     : option(list('sort)) =>
-  if (delims |> List.map(snd) |> List.for_all((==)(([delim], [])))) {
+  if (delims
+      |> List.map(snd)
+      |> List.for_all(
+           fun
+           | (F(f), []) => is_delim(f)
+           | _ => false,
+         )) {
     kids |> List.map(is_sort) |> OptUtil.sequence;
   } else {
     None;
   };
 
-let is_tuple_exp = is_nary(Any.is_exp, ",");
-let is_tuple_pat = is_nary(Any.is_pat, ",");
-let is_tuple_typ = is_nary(Any.is_typ, ",");
-let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
-let is_typ_bsum = is_nary(Any.is_typ, "+");
-let is_mod_seq = is_nary(Any.is_mod, ";");
-let is_sig_seq = is_nary(Any.is_sig, ";");
+/* the n-ary delimiter families (all arity 1) */
+let is_comma_form: Form.t => bool =
+  fun
+  | Compound(Comma) => true
+  | _ => false;
+let is_plus_form: Form.t => bool =
+  fun
+  | Compound(Plus) => true
+  | _ => false;
+let is_semi_form: Form.t => bool =
+  fun
+  | Compound(CellJoin) => true
+  | _ => false;
+
+let is_tuple_exp = is_nary(Any.is_exp, is_comma_form);
+let is_tuple_pat = is_nary(Any.is_pat, is_comma_form);
+let is_tuple_typ = is_nary(Any.is_typ, is_comma_form);
+let is_tuple_drv_exp = is_nary(Any.is_drv_exp, is_comma_form);
+let is_typ_bsum = is_nary(Any.is_typ, is_plus_form);
+let is_mod_seq = is_nary(Any.is_mod, is_semi_form);
+let is_sig_seq = is_nary(Any.is_sig, is_semi_form);
 
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
@@ -111,7 +163,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
     (ts: list(tile))
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
+         | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
          | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
@@ -131,7 +183,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
     ts
     |> List.map(
          fun
-         | (_, (["|", "=>"], [Grammar.Drv(Pat(p))])) => Some(p)
+         | (_, (F(Compound(Rule)), [Grammar.Drv(Pat(p))])) => Some(p)
          | _ => None,
        )
     |> OptUtil.sequence
@@ -154,7 +206,7 @@ let ids =
   | Post(_, tiles)
   | Bin(_, tiles, _) => ids_of_tiles(tiles);
 
-let kids_of_tile = ((_id, (_tokens, kids)): tile) => kids;
+let kids_of_tile = ((_id, (_head, kids)): tile) => kids;
 let kids_of_tiles = (tiles: tiles) =>
   tiles
   |> Aba.map_a(kids_of_tile)
@@ -350,7 +402,10 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   fun
   | Op(([(_id, t)], [])) as tm =>
     switch (t) {
-    | ([t], []) =>
+    /* "()" must mean Triv under both its storages; this is the
+     * nullary-ap one, Tok("()") hits is_empty_tuple below */
+    | (F(Compound(ApEmpty)), []) => ret(Triv)
+    | (F(Tok(t)), []) =>
       switch (t) {
       | "Truth" => ret(Truth)
       | "Falsity" => ret(Falsity)
@@ -369,45 +424,45 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
       }
-    | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
-    | (["valid", "end"], [Drv(Typ(t))]) => ret(Type(t))
-    | (["[", "]"], [Drv(Exp(body))]) =>
+    | (F(Compound(Val)), [Drv(Exp(e))]) => ret(Val(e))
+    | (F(Compound(Valid)), [Drv(Typ(t))]) => ret(Type(t))
+    | (F(Compound(ListLit)), [Drv(Exp(body))]) =>
       switch (body.term) {
       | Tuple(es) => (Ctx(es), IdTagged.ids(body))
       | Pair(e1, e2) => (Ctx([e1, e2]), IdTagged.ids(body))
       | _ => ret(Ctx([body]))
       }
-    | (["(", ")"], [Drv(Exp(body))]) =>
+    | (F(Compound(Parens)), [Drv(Exp(body))]) =>
       switch (body.term) {
       /* A standard Drv pair is parenthesised, so here we collapse
          [Parens(Tuple(e1, e2))] into [Pair(e1, e2)]. */
       | Tuple([e1, e2]) => (Pair(e1, e2), IdTagged.ids(body))
       | _ => ret(Parens(body))
       }
-    | (["case", "end"], [Drv(Exp(body))]) =>
+    | (F(Compound(Case)), [Drv(Exp(body))]) =>
       switch (body.term) {
       | Case(_) as term => (term, IdTagged.ids(body))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
     }
-  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
-    switch (t) {
-    | "\\=/" => ret(Eval(l, r))
-    | "|-" => ret(Entail(l, r))
-    | "," => ret(Tuple([l, r]))
-    | "::" => ret(Cons(l, r))
-    | "@" => ret(Concat(l, r))
-    | "/\\" => ret(And(l, r))
-    | "\\/" => ret(Or(l, r))
-    | "==>" => ret(Impl(l, r))
-    | "+" => ret(BinOp(Plus, l, r))
-    | "-" => ret(BinOp(Minus, l, r))
-    | "*" => ret(BinOp(Times, l, r))
-    | "==" => ret(BinOp(Eq, l, r))
-    | "<" => ret(BinOp(Lt, l, r))
-    | ">" => ret(BinOp(Gt, l, r))
-    | "." =>
+  | Bin(Drv(Exp(l)), ([(_id, (F(op), []))], []), Drv(Exp(r))) as tm =>
+    switch (op) {
+    | Compound(Eval) => ret(Eval(l, r))
+    | Compound(Entail) => ret(Entail(l, r))
+    | Compound(Comma) => ret(Tuple([l, r]))
+    | Compound(Cons) => ret(Cons(l, r))
+    | Compound(ListConcat) => ret(Concat(l, r))
+    | Compound(And) => ret(And(l, r))
+    | Compound(LogicalOrLegacy) => ret(Or(l, r))
+    | Compound(Impl) => ret(Impl(l, r))
+    | Compound(Plus) => ret(BinOp(Plus, l, r))
+    | Compound(Minus) => ret(BinOp(Minus, l, r))
+    | Compound(Times) => ret(BinOp(Times, l, r))
+    | Compound(Equals) => ret(BinOp(Eq, l, r))
+    | Compound(Lt) => ret(BinOp(Lt, l, r))
+    | Compound(Gt) => ret(BinOp(Gt, l, r))
+    | Compound(Dot) =>
       switch (r.term) {
       | Var("fst") => (PrjL(l), IdTagged.ids(r))
       | Var("snd") => (PrjR(l), IdTagged.ids(r))
@@ -425,37 +480,38 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
-    switch (t) {
-    | ":" => ret(HasType(l, r))
-    | "=>" => ret(Syn(l, r))
-    | "<=" => ret(Ana(l, r))
+  | Bin(Drv(Exp(l)), ([(_id, (F(op), []))], []), Drv(Typ(r))) as tm =>
+    switch (op) {
+    | Compound(TypeAsc) => ret(HasType(l, r))
+    | Compound(Syn) => ret(Syn(l, r))
+    | Compound(Lte) => ret(Ana(l, r))
     | _ => ret(hole(tm))
     }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
     switch (t) {
-    | (["-"], []) => ret(Neg(r))
-    | (["!"], []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
-    | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
-    | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
+    | (F(Compound(UnaryMinus)), []) => ret(Neg(r))
+    | (F(Compound(Not)), []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
+    | (F(Compound(UnaryEntail)), []) =>
+      ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
+    | (F(Compound(If)), [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
       ret(If(cond, conseq, r))
-    | (["let", "=", "in"], [Drv(Pat(pat)), Drv(Exp(def))]) =>
+    | (F(Compound(Let)), [Drv(Pat(pat)), Drv(Exp(def))]) =>
       ret(Let(pat, def, r))
-    | (["fix", "->"], [Drv(Pat(pat))]) => ret(Fix(pat, r))
-    | (["fun", "->"], [Drv(Pat(pat))]) => ret(Fun(pat, r))
+    | (F(Compound(Fix)), [Drv(Pat(pat))]) => ret(Fix(pat, r))
+    | (F(Compound(Fun)), [Drv(Pat(pat))]) => ret(Fun(pat, r))
     | _ => ret(hole(tm))
     }
-  | Pre(([(_id, (labels, [Drv(Typ(l))]))], []), Drv(Typ(r))) as tm =>
-    switch (labels) {
-    | ["consistent", "~"] => ret(Consistent(l, r))
-    | ["matched_arrow", "with"] => ret(MatchedArrow(l, r))
-    | ["matched_prod", "with"] => ret(MatchedProd(l, r))
-    | ["matched_sum", "with"] => ret(MatchedSum(l, r))
+  | Pre(([(_id, (hd, [Drv(Typ(l))]))], []), Drv(Typ(r))) as tm =>
+    switch (hd) {
+    | F(Compound(Consistent)) => ret(Consistent(l, r))
+    | F(Compound(MatchedArrow)) => ret(MatchedArrow(l, r))
+    | F(Compound(MatchedProd)) => ret(MatchedProd(l, r))
+    | F(Compound(MatchedSum)) => ret(MatchedSum(l, r))
     | _ => ret(hole(tm))
     }
   | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
     switch (t) {
-    | (["(", ")"], [Drv(Exp(r))]) =>
+    | (F(Compound(Ap)), [Drv(Exp(r))]) =>
       switch (l.term) {
       | Var("L") => (InjL(r), IdTagged.ids(l))
       | Var("R") => (InjR(r), IdTagged.ids(l))
@@ -484,7 +540,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let hole: unsorted => DrvTermBase.pat_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
-  | Op(([(_id, ([t], []))], [])) as tm =>
+  | Op(([(_id, (F(Tok(t)), []))], [])) as tm =>
     switch (t) {
     | _
         when
@@ -495,17 +551,25 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
     }
-  | Op(([(_id, (["(", ")"], [Drv(Pat(body))]))], [])) =>
+  | Op(([(_id, (F(Compound(Parens)), [Drv(Pat(body))]))], [])) =>
     ret(Parens(body))
-  | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) as tm =>
+  | Post(Drv(Pat(l)), ([(_id, (F(Compound(Ap)), [Drv(Pat(r))]))], [])) as tm =>
     switch (l.term) {
     | Var("L") => (InjL(r), IdTagged.ids(l))
     | Var("R") => (InjR(r), IdTagged.ids(l))
     | _ => ret(hole(tm))
     }
-  | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>
+  | Bin(
+      Drv(Pat(l)),
+      ([(_id, (F(Compound(TypeAsc)), []))], []),
+      Drv(Typ(r)),
+    ) =>
     ret(Cast(l, r))
-  | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
+  | Bin(
+      Drv(Pat(l)),
+      ([(_id, (F(Compound(Comma)), []))], []),
+      Drv(Pat(r)),
+    ) =>
     ret(Pair(l, r))
   | _ as tm => ret(hole(tm));
 }
@@ -527,7 +591,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let hole: unsorted => DrvTermBase.typ_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
-  | Op(([(_id, ([t], []))], [])) as tm =>
+  | Op(([(_id, (F(Tok(t)), []))], [])) as tm =>
     switch (t) {
     | "Num" => ret(Num)
     | "Bool" => ret(Bool)
@@ -544,15 +608,18 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
     }
-  | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
+  | Op(([(_id, (F(Compound(Parens)), [Drv(Typ(body))]))], [])) =>
     ret(Parens(body))
-  | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
+  | Pre(
+      ([(_id, (F(Compound(Rec)), [Drv(TPat(p))]))], []),
+      Drv(Typ(t)),
+    ) =>
     ret(Rec(p, t))
-  | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
-    switch (t) {
-    | "->" => ret(Arrow(l, r))
-    | "*" => ret(Prod(l, r))
-    | "+" => ret(Sum(l, r))
+  | Bin(Drv(Typ(l)), ([(_id, (F(op), []))], []), Drv(Typ(r))) as tm =>
+    switch (op) {
+    | Compound(TypeArrow) => ret(Arrow(l, r))
+    | Compound(Times) => ret(Prod(l, r))
+    | Compound(Plus) => ret(Sum(l, r))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -575,13 +642,13 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let hole: unsorted => DrvTermBase.tpat_term =
     unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
   fun
-  | Op(([(_id, ([t], []))], []))
+  | Op(([(_id, (F(Tok(t)), []))], []))
       when
         Token.is_var(t)
         && String.length(t) > 1
         && String.sub(t, 0, 1) == "$" =>
     ret(Quote(t))
-  | Op(([(_id, ([t], []))], [])) when Token.is_typ_var(t) =>
+  | Op(([(_id, (F(Tok(t)), []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
   | _ as tm => ret(hole(tm));
 }
@@ -625,26 +692,26 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
-      | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
-      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Token.is_empty_module(t) => ret(Module([]))
-      | ([t], []) when Token.is_bool(t) =>
+      | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
+      | (F(Tok(t)), []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
+      | (F(Tok(t)), []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | (F(Tok(t)), []) when Token.is_empty_module(t) => ret(Module([]))
+      | (F(Tok(t)), []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
-      | ([t], []) when Token.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Token.is_int(t) =>
+      | (F(Tok(t)), []) when Token.is_undefined(t) => ret(Undefined)
+      | (F(Tok(t)), []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Token.is_string(t) =>
+      | (F(Tok(t)), []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
-      | ([t], []) when Token.is_quoted_label(t) =>
+      | (F(Tok(t)), []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
-      | ([t], []) when Token.is_float(t) =>
+      | (F(Tok(t)), []) when Token.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
-      | ([t], []) when Token.is_livelit(t) =>
+      | (F(Tok(t)), []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
-      | ([t], []) when Token.is_var(t) => ret(Var(t))
-      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
-      | (["{", "}"], [Mod(body)]) =>
+      | (F(Tok(t)), []) when Token.is_var(t) => ret(Var(t))
+      | (F(Tok(t)), []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (F(Compound(ModBody)), [Mod(body)]) =>
         /* ModBody absorption: inner Mod's semicolon IDs become part of Module.
            With flat Skel (ModSeq is chainable), body.annotation.ids contains
            ALL semicolon IDs when body is MultiHole. These are absorbed so the
@@ -658,10 +725,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           (Module(flatten_mod(body)), ids);
         | _ => ret(Module(flatten_mod(body)))
         }
-      | (["{", "}"], [Exp(body)])
-      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
-      | (["[", "]"], [Exp(body)]) =>
+      | (F(Compound(ModBody)), [Exp(body)]) => ret(Parens(body))
+      | (F(Compound(Parens)), [Exp(body)]) => ret(Parens(body))
+      | (ProjWrap, [Exp(body)]) => ret(body.term)
+      | (F(Compound(ListLit)), [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
@@ -688,12 +755,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           );
         | term => ret(ListLit([term]))
         }
-      | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["proof_object", "end"], [Exp(proof)]) =>
+      | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
+      | (F(Compound(ProofObject)), [Exp(proof)]) =>
         ret(ProofObject(proof))
-      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+      | (F(Compound(HintedTest)), [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
-      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+      | (F(Compound(Case)), [Rul({term, annotation: {ids, _}})]) =>
         /* Match absorption: inner Rules' |/=> IDs become part of Match.
            ID order: [case_end_id] @ rule_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty Match case,
@@ -708,21 +775,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         }
       /* The [of_*] / [end] delimiters lift a Drv term back up to sort Exp
          by wrapping it in a [DrvQuote] node tagged with its derivation sort. */
-      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
+      | (F(Compound(OfJdmt)), [Drv(Exp(j))]) =>
         ret(DrvQuote(Exp(j), Jdmt))
-      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvQuote(Exp(c), Ctx))
-      | (["of_prop", "end"], [Drv(Exp(p))]) =>
+      | (F(Compound(OfCtx)), [Drv(Exp(c))]) =>
+        ret(DrvQuote(Exp(c), Ctx))
+      | (F(Compound(OfProp)), [Drv(Exp(p))]) =>
         ret(DrvQuote(Exp(p), Prop))
-      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+      | (F(Compound(OfAlfaExp)), [Drv(Exp(e))]) =>
         ret(DrvQuote(Exp(e), Exp))
-      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+      | (F(Compound(OfAlfaTyp)), [Drv(Typ(t))]) =>
         ret(DrvQuote(Typ(t), Typ))
-      | (["of_alfa_pat", "end"], [Drv(Pat(p))]) =>
+      | (F(Compound(OfAlfaPat)), [Drv(Pat(p))]) =>
         ret(DrvQuote(Pat(p), Pat))
-      | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
+      | (F(Compound(OfAlfaTPat)), [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
+      | (F(Tok(t)), []) when is_hole_label(t) => ret(hole(tm))
+      | (F(Tok(t)), []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -733,18 +801,18 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["-"], []) => UnOp(Int(Minus), r)
-        | (["!"], []) => UnOp(Bool(Not), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
-        | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
-        | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
-        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
-        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
+        | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
+        | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
+        | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
+        | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
+        | (F(Compound(Fix)), [Pat(pat)]) => FixF(pat, r, None)
+        | (F(Compound(TypFun)), [TPat(tpat)]) => TypFun(tpat, r, None)
+        | (F(Compound(Let)), [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (F(Compound(ModuleExp)), [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
-        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
+        | (F(Compound(Theorem)), [Pat(pat), Exp(thm)]) =>
           Theorem(pat, thm, r)
-        | (["hide", "in"], [Exp(filter)]) =>
+        | (F(Compound(FilterHide)), [Exp(filter)]) =>
           Filter(
             Filter({
               act: (Eval, One),
@@ -752,7 +820,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
-        | (["eval", "in"], [Exp(filter)]) =>
+        | (F(Compound(FilterEval)), [Exp(filter)]) =>
           Filter(
             Filter({
               act: (Eval, All),
@@ -760,7 +828,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
-        | (["pause", "in"], [Exp(filter)]) =>
+        | (F(Compound(FilterPause)), [Exp(filter)]) =>
           Filter(
             Filter({
               act: (Step, One),
@@ -768,7 +836,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
-        | (["debug", "in"], [Exp(filter)]) =>
+        | (F(Compound(FilterDebug)), [Exp(filter)]) =>
           Filter(
             Filter({
               act: (Step, All),
@@ -776,10 +844,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }),
             r,
           )
-        | (["use", "in"], [Typ(ty)]) => Use(ty, r)
-        | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
+        | (F(Compound(Use)), [Typ(ty)]) => Use(ty, r)
+        | (F(Compound(TypeAlias)), [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
-        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+        | (F(Compound(If)), [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
         },
@@ -790,7 +858,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) =>
+      | (F(f), []) when is_empty_tuple_form(f) =>
         ret(
           Ap(
             Forward,
@@ -805,7 +873,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             },
           ),
         )
-      | (["(", ")"], [Exp(arg)]) =>
+      | (F(Compound(Ap)), [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
           let deferral_ids = IdTagged.ids(arg);
           {
@@ -831,14 +899,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           )
         | _ => ret(Ap(Forward, l, arg))
         };
-      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
+      | (F(Compound(ApExpTyp)), [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Typ(r)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(Asc(l, r))
+    | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(l, r))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -860,38 +928,38 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, t)], []) =>
+      | ([(_id, (op, []))], []) =>
         ret(
-          switch (t) {
-          | (["+"], []) => BinOp(Int(Plus), l, r)
-          | (["-"], []) => BinOp(Int(Minus), l, r)
-          | (["*"], []) => BinOp(Int(Times), l, r)
-          | (["**"], []) => BinOp(Int(Power), l, r)
-          | (["/"], []) => BinOp(Int(Divide), l, r)
-          | (["<"], []) => BinOp(Int(LessThan), l, r)
-          | ([">"], []) => BinOp(Int(GreaterThan), l, r)
-          | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
-          | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Poly(Equals), l, r)
-          | (["!="], []) => BinOp(Poly(NotEquals), l, r)
-          | (["+."], []) => BinOp(Float(Plus), l, r)
-          | (["-."], []) => BinOp(Float(Minus), l, r)
-          | (["*."], []) => BinOp(Float(Times), l, r)
-          | (["/."], []) => BinOp(Float(Divide), l, r)
-          | (["**."], []) => BinOp(Float(Power), l, r)
-          | (["<."], []) => BinOp(Float(LessThan), l, r)
-          | ([">."], []) => BinOp(Float(GreaterThan), l, r)
-          | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
-          | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
-          | (["==."], []) => BinOp(Float(Equals), l, r)
-          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
-          | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
-          | (["::"], []) => Cons(l, r)
-          | ([";"], []) => Seq(l, r)
-          | (["++"], []) => BinOp(String(Concat), l, r)
-          | (["..."], []) => TupleExtension(l, r)
-          | (["="], []) =>
+          switch (op) {
+          | F(Compound(Plus)) => BinOp(Int(Plus), l, r)
+          | F(Compound(Minus)) => BinOp(Int(Minus), l, r)
+          | F(Compound(Times)) => BinOp(Int(Times), l, r)
+          | F(Compound(Power)) => BinOp(Int(Power), l, r)
+          | F(Compound(Divide)) => BinOp(Int(Divide), l, r)
+          | F(Compound(Lt)) => BinOp(Int(LessThan), l, r)
+          | F(Compound(Gt)) => BinOp(Int(GreaterThan), l, r)
+          | F(Compound(Lte)) => BinOp(Int(LessThanOrEqual), l, r)
+          | F(Compound(Gte)) => BinOp(Int(GreaterThanOrEqual), l, r)
+          | F(Compound(Equals)) => BinOp(Poly(Equals), l, r)
+          | F(Compound(NotEquals)) => BinOp(Poly(NotEquals), l, r)
+          | F(Compound(FPlus)) => BinOp(Float(Plus), l, r)
+          | F(Compound(FMinus)) => BinOp(Float(Minus), l, r)
+          | F(Compound(FTimes)) => BinOp(Float(Times), l, r)
+          | F(Compound(FDivide)) => BinOp(Float(Divide), l, r)
+          | F(Compound(FPower)) => BinOp(Float(Power), l, r)
+          | F(Compound(FLt)) => BinOp(Float(LessThan), l, r)
+          | F(Compound(FGt)) => BinOp(Float(GreaterThan), l, r)
+          | F(Compound(FLte)) => BinOp(Float(LessThanOrEqual), l, r)
+          | F(Compound(FGte)) => BinOp(Float(GreaterThanOrEqual), l, r)
+          | F(Compound(FEquals)) => BinOp(Float(Equals), l, r)
+          | F(Compound(FNotEquals)) => BinOp(Float(NotEquals), l, r)
+          | F(Compound(LogicalAnd)) => BinOp(Bool(And), l, r)
+          | F(Compound(LogicalOr)) => BinOp(Bool(Or), l, r)
+          | F(Compound(Cons)) => Cons(l, r)
+          | F(Compound(CellJoin)) => Seq(l, r)
+          | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
+          | F(Compound(TupleExtension)) => TupleExtension(l, r)
+          | F(Compound(TupleLabeled)) =>
             switch (l.term) {
             | Deferral(_) =>
               TupLabel(
@@ -920,7 +988,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 r,
               );
             }
-          | (["."], []) =>
+          | F(Compound(Dot)) =>
             switch (r.term) {
             | Var(name)
             | Constructor(name, _) =>
@@ -941,8 +1009,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
               );
             }
-          | (["|>"], []) => Ap(Reverse, r, l)
-          | (["@"], []) => ListConcat(l, r)
+          | F(Compound(Pipeline)) => Ap(Reverse, r, l)
+          | F(Compound(ListConcat)) => ListConcat(l, r)
           | _ => hole(tm)
           },
         )
@@ -970,24 +1038,24 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
-      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Token.is_bool(t) =>
+      | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
+      | (F(Tok(t)), []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | (F(Tok(t)), []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
-      | ([t], []) when Token.is_float(t) =>
+      | (F(Tok(t)), []) when Token.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
-      | ([t], []) when Token.is_int(t) =>
+      | (F(Tok(t)), []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Token.is_string(t) =>
+      | (F(Tok(t)), []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
-      | ([t], []) when Token.is_quoted_label(t) =>
+      | (F(Tok(t)), []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
-      | ([t], []) when Token.is_var(t) => ret(Var(t))
-      | ([t], []) when Token.is_wild(t) => ret(Wild)
-      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
-      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
-      | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
-      | (["[", "]"], [Pat(body)]) =>
+      | (F(Tok(t)), []) when Token.is_var(t) => ret(Var(t))
+      | (F(Tok(t)), []) when Token.is_wild(t) => ret(Wild)
+      | (F(Tok(t)), []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (F(Compound(Parens)), [Pat(body)]) => ret(Parens(body))
+      | (ProjWrap, [Pat(body)]) => ret(body.term)
+      | (F(Compound(ListLit)), [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
@@ -998,8 +1066,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           (ListLit(ps), ids);
         | term => ret(ListLit([term]))
         }
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) => ret(Invalid(t))
+      | (F(Tok(t)), []) when is_hole_label(t) => ret(hole(tm))
+      | (F(Tok(t)), []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1009,7 +1077,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["()"], []) =>
+        | (F(f), []) when is_empty_tuple_form(f) =>
           Ap(
             l,
             {
@@ -1020,7 +1088,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               term: Tuple([]),
             },
           )
-        | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
+        | (F(Compound(Ap)), [Pat(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },
       )
@@ -1028,7 +1096,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     }
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))
+    | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))
     | _ => ret(hole(tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
@@ -1047,7 +1115,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, (["="], []))], []) =>
+      | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
         switch (l.term) {
         | Wild =>
           ret(
@@ -1081,13 +1149,13 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
             ),
           );
         }
-      | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
     }
   | Pre(tiles, Pat(r)) as tm =>
     switch (tiles) {
-    | ([(_id, (["-"], []))], []) =>
+    | ([(_id, (F(Compound(UnaryMinus)), []))], []) =>
       /* Negative literal patterns: the pattern grammar has no unary ops,
          and a matched value is a plain negative atom, so fold the minus
          into the literal. The float fold is exact: IEEE negation only
@@ -1124,7 +1192,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, (["{", "}"], [Sig(body)]))], []) =>
+    | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
       | {term: EmptyHole, _} => ret(Sig([]))
@@ -1134,37 +1202,31 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | _ => ret(Sig(flatten_sig(body)))
       }
     | ([(_id, tile)], []) =>
-      ret(
+      /* Atomic type spellings (base atoms, Void, Drv quote types):
+       * table-driven via BaseAtom (see Language.BaseAtom.table) */
+      let base_atom =
         switch (tile) {
-        | ([t], []) when Token.is_empty_tuple(t) => Prod([])
-        | ([t], []) when Token.is_empty_module(t) => Sig([])
-        | (["Bool"], []) => Atom(Bool)
-        | (["Int"], []) => Atom(Int)
-        | (["SInt"], []) => Atom(SInt)
-        | (["Float"], []) => Atom(Float)
-        | (["String"], []) => Atom(String)
-        | (["Nat"], []) => Atom(Nat)
-        | (["Void"], []) => Sum([])
-        | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
-        | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
-        | (["DrvProp"], []) => DrvQuoteTy(Prop)
-        | (["ALFAExp"], []) => DrvQuoteTy(Exp)
-        | (["DrvPat"], []) => DrvQuoteTy(Pat)
-        | (["ALFATyp"], []) => DrvQuoteTy(Typ)
-        | (["DrvTPat"], []) => DrvQuoteTy(TPat)
-        | (["_"], []) => ExplicitNonlabel
-        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
-        | ([t], []) when Token.is_typ_var(t) => Var(t)
-        | ([t], []) when Token.is_quoted_label(t) =>
+        | (F(Tok(t)), []) => Language.BaseAtom.typ_term_of(t)
+        | _ => None
+        };
+      ret(
+        switch (base_atom, tile) {
+        | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (Some(term), _) => term
+        | (_, (F(Tok("_")), [])) => ExplicitNonlabel
+        | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
+        | (_, (F(Tok(t)), [])) when Token.is_typ_var(t) => Var(t)
+        | (_, (F(Tok(t)), [])) when Token.is_quoted_label(t) =>
           Label(Token.strip_quotes(~quote=Token.label_delim, t))
-        | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
-        | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Unknown(Hole(Invalid(t)))
+        | (_, (F(Compound(Parens)), [Typ(body)])) => Parens(body)
+        | (_, (ProjWrap, [Typ(body)])) => body.term
+        | (_, (F(Compound(ListLit)), [Typ(body)])) => List(body)
+        | (_, (F(Tok(t)), [])) when is_hole_label(t) => hole(tm)
+        | (_, (F(Tok(t)), [])) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
-      )
+      );
     | _ => ret(hole(tm))
     }
   | Post(Typ(_t), tiles) as tm =>
@@ -1175,21 +1237,22 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+  | Pre(([(_id, (F(Compound(Poly)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Poly(tpat, t))
-  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+  | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
+    | ([(_, (F(Compound(SumSingle)), []))], []) =>
       adopted_ids := ids @ adopted_ids^;
       (Sum(t0), ids);
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
+    | ([(_, (F(Compound(SumSingle)), []))], []) =>
+      ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
@@ -1215,8 +1278,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Prod(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
-      | ([(_id, (["="], []))], []) =>
+      | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
+      | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
         switch (l.term) {
         | Var(name) =>
           ret(
@@ -1230,7 +1293,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
-      | ([(_id, (["."], []))], []) =>
+      | ([(_id, (F(Compound(Dot)), []))], []) =>
         switch (r.term) {
         | Var(name) =>
           ret(
@@ -1244,7 +1307,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(ProdProjection(l, r))
         }
-      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
+      | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
+        ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -1264,10 +1328,10 @@ and tpat_term: unsorted => TPat.term = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Token.is_typ_var(t) => Var(t)
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Invalid(t)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
+        | (F(Tok(t)), []) when Token.is_typ_var(t) => Var(t)
+        | (F(Tok(t)), []) when is_hole_label(t) => hole(tm)
+        | (F(Tok(t)), []) => Invalid(t)
+        | (ProjWrap, [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )
@@ -1290,7 +1354,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | (F(Tok(t)), []) when is_hole_label(t) => ret(hole(tm))
       | _ =>
         /* Try parsing as expression and wrap as ModExp */
         let e = exp(Op(tiles));
@@ -1316,13 +1380,13 @@ and mod_term: unsorted => TermBase.Mod.term = {
     | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
     }
   /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
-  | Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
+  | Pre(([(_id, (F(Compound(ModLet)), [Pat(p)]))], []), Exp(e)) =>
     ret(ModLet(p, e))
   /* ModuleMod: module M = e - MPat inside tile, expression is the body */
-  | Pre(([(_id, (["module", "="], [MPat(mp)]))], []), Exp(e)) =>
+  | Pre(([(_id, (F(Compound(ModuleMod)), [MPat(mp)]))], []), Exp(e)) =>
     ret(ModuleMod(mp, e))
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
-  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+  | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
   /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
   | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
@@ -1343,8 +1407,8 @@ and sig_term: unsorted => TermBase.Sig.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) => ret(Invalid(t))
+      | (F(Tok(t)), []) when is_hole_label(t) => ret(hole(tm))
+      | (F(Tok(t)), []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1362,9 +1426,10 @@ and sig_term: unsorted => TermBase.Sig.term = {
     | None => ret(hole(Bin(Sig(s1), tiles, Sig(s2))))
     }
   /* SigLet: let p - the pattern is the body */
-  | Pre(([(_id, (["let"], []))], []), Pat(p)) => ret(SigLet(p))
+  | Pre(([(_id, (F(Compound(SigLet)), []))], []), Pat(p)) =>
+    ret(SigLet(p))
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
-  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+  | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
@@ -1379,15 +1444,17 @@ and mpat_term: unsorted => TermBase.MPat.term = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, ([t], []))], []) when Token.is_var(t) || Token.is_ctr(t) =>
+    | ([(_id, (F(Tok(t)), []))], [])
+        when Token.is_var(t) || Token.is_ctr(t) =>
       ret(Var(t))
-    | ([(_id, ([t], []))], []) when is_hole_label(t) => ret(hole(tm))
-    | ([(_id, ([t], []))], []) => ret(Invalid(t))
+    | ([(_id, (F(Tok(t)), []))], []) when is_hole_label(t) =>
+      ret(hole(tm))
+    | ([(_id, (F(Tok(t)), []))], []) => ret(Invalid(t))
     | _ => ret(hole(tm))
     }
   | Bin(MPat(mp), tiles, Typ(ty)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(Asc(mp, ty))
+    | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(mp, ty))
     | _ => ret(hole(tm))
     }
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
@@ -1456,10 +1523,10 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
         | _ => inner
         };
       [wrapped];
-    | Tile({mold, shards, children, _}) =>
+    | Tile({shards, children, _} as t) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           let s = l + 1 == r ? List.nth(Tile.mold(t).in_, l) : Sort.Any;
            go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };
@@ -1482,7 +1549,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
        })
     |> Aba.map_a(p
          // TODO throw proper exception
-         => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+         => (Piece.id(p), (head(p), tile_kids(p))));
 
   let (l_sort, r_sort) = {
     let p_l = Aba.first_a(root);

@@ -31,7 +31,7 @@ let tuple_example_labeled_3 = {
 
 let tuple_exp_id: form_id = TupleExp;
 let tuple_exp_comma = comma_exp();
-let tuple_exp_form = [exp("e1"), tuple_exp_comma, space(), exp("...")];
+let tuple_exp_form = [exp("e1"), tuple_exp_comma, space(), exp("…")];
 let tuple_exp_explanation = (~n: int): string =>
   Printf.sprintf("The tuple has %d elements.", n);
 let tuple_exp = (~n: int): form => {
@@ -41,7 +41,7 @@ let tuple_exp = (~n: int): form => {
   expandable_id:
     Some((
       Piece.id(tuple_exp_comma),
-      [exp("e1"), comma_exp(), exp("...")],
+      [exp("e1"), comma_exp(), exp("…")],
     )),
   explanation: tuple_exp_explanation(~n),
   examples: [

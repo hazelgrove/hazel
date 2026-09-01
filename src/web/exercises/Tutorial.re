@@ -121,6 +121,30 @@ let editor_positions = [YourImpl, HiddenTests];
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
 
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
+
+/* Counterpart to [export_transitionary_module] below: rebuild a spec from
+ * a transitionary (string-based) module at load time. */
+let transition: transitionary_spec => spec =
+  p => map(p, zipper_of_code, zipper_of_code);
+
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
+
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true

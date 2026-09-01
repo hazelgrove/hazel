@@ -5,7 +5,15 @@ let single: Simple.t = {
   group_id: ModLetDecl,
   form_id: ModLetDecl,
   abstract: (
-    [exp("let"), space(), pat("p"), space(), exp("="), space(), exp("e")],
+    [
+      exp("let"),
+      space(),
+      pat("p"),
+      space(),
+      operator(Exp, "="),
+      space(),
+      exp("e"),
+    ],
     [],
   ),
   explanation: "A let declaration in a module binds a value accessible as a field of the module.",

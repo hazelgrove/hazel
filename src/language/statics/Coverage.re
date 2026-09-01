@@ -23,8 +23,8 @@ module Constraint = {
   let nil = Ap("nil", None);
   let cons = (hd, tl) => Ap("cons", Some(Tuple([hd, tl])));
 
-  let true_ = Ap("true", None);
-  let false_ = Ap("false", None);
+  let true_ = Ap(Token.true_, None);
+  let false_ = Ap(Token.false_, None);
 
   /* A constraint that matches any value of its type: coverage checking
      (and the type normalization it requires) is skippable. */
@@ -76,8 +76,8 @@ module Ctr = {
   let tuple_ctr = n => mk("tuple", n);
   let nil_ctr = mk("nil", 0);
   let cons_ctr = mk("cons", 1);
-  let true_ctr = mk("true", 0);
-  let false_ctr = mk("false", 0);
+  let true_ctr = mk(Token.true_, 0);
+  let false_ctr = mk(Token.false_, 0);
 
   // used when not all constructors have been seen to handle the unseen cases when a wildcard appears
   let default_ctr = mk("_", 0);
@@ -372,8 +372,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Bool) =>
       let boolTyp =
         switch (ctr.ctr) {
-        | "true" => bool(true)
-        | "false" => bool(false)
+        | s when s == Token.true_ => bool(true)
+        | s when s == Token.false_ => bool(false)
         | _ => wild()
         };
       cons_pat_t(boolTyp, unseen_pattern);

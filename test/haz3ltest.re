@@ -31,6 +31,7 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,

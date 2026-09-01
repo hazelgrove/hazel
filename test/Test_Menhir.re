@@ -451,6 +451,10 @@ let tests =
         "[1, 2, 3]",
       ),
       menhir_only_test("Unit", tuple([]), "()"),
+      menhir_maketerm_equivalent_test(
+        "all base types parse (incl. SInt/Nat)",
+        "(1 : Int, 1 : SInt, 1 : Nat, 1.0 : Float, true : Bool, \"s\" : String)",
+      ),
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
         "Constructor ascription",

@@ -8,16 +8,21 @@ and piece =
   | Secondary(Secondary.t)
   | Projector(projector)
 and tile = {
-  // invariants:
-  // - length(mold.in_) + 1 == length(label)
-  // - length(shards) <= length(label)
+  // invariants (arity = length(Form.label_of(form))):
+  // - length(shards) <= arity
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
-  mold: Mold.t,
+  form: Form.t,
+  // the local sort guess cached at insertion classification / remold
+  // (the only writers); mold = Form.mold_of(form, sort)
+  [@sexp.default Sort.Exp] [@sexp_drop_default.sexp]
+  sort: Sort.t,
+  // the sexp defaults spell the complete arity-1 tile, the common case
+  [@sexp.default [0]] [@sexp_drop_default.sexp]
   shards: list(int),
+  [@sexp.default []] [@sexp_drop_default.sexp]
   children: list(segment),
 }
 and projector = ProjectorCore.t(piece);
@@ -38,15 +43,13 @@ let rec map_piece = (~f_piece, x: piece) => {
   x |> f_piece(rec_call);
 };
 /* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
+ * return a singleton segment consisting of the piece.
+ * The Parens family is op-shaped by construction; the concave-left
+ * Ap family shares the ["(",")"] label but is a distinct family,
+ * so it does not match here. */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) => seg
+  | Tile({form: Form.Compound(Parens), children: [seg], _}) => seg
   | _ => [piece]
   };
 
@@ -119,7 +122,7 @@ and tile_to_string =
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       List.nth(t.label),
+       List.nth(Form.label_of(t.form)),
        segment_to_string(
          ~holes,
          ~concave_holes,

@@ -5,7 +5,7 @@ type t = string;
 
 let equal = String.equal;
 
-/* Used for VarBstMap */
+/* Required by Map.Make(Var) / Set.Make(Var) */
 let compare = (x: t, y: t) => compare(x, y);
 
 let next_name = (x: t) => x ++ "'";

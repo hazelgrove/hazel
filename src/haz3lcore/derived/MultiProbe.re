@@ -365,14 +365,9 @@ let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
  * so the term-level candidate_allowed_by_rule won't catch them. */
 let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
-  | Some({label: ["|", "=>"], _}) => true
+  | Some(t) => Tile.is_case_rule(t)
   | _ => false
   };
-
-/* Keywords that introduce a "body" determining the form's value.
- * When an incomplete tile is missing a shard with one of these,
- * the form's value is hole-like (body not yet typed). */
-let body_introducing_keywords = ["in", "else", "end"];
 
 /* Check if an incomplete tile is missing a body-determining shard.
  * E.g., `let a = expr` (missing "in") - the body determines the value.
@@ -380,20 +375,7 @@ let body_introducing_keywords = ["in", "else", "end"];
 let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
   | Some(t) when !Tile.is_complete(t) =>
-    /* Check if any missing shard is a body-introducing keyword */
-    let missing_shards = Tile.missing_shards(t);
-    List.exists(
-      (shard: Tile.t) =>
-        switch (shard.shards) {
-        | [i] =>
-          switch (List.nth_opt(shard.label, i)) {
-          | Some(token) => List.mem(token, body_introducing_keywords)
-          | None => false
-          }
-        | _ => false
-        },
-      missing_shards,
-    );
+    List.exists(Tile.is_body_introducing_shard, Tile.missing_shards(t))
   | _ => false
   };
 
@@ -402,8 +384,9 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
  * of typing and should never be probed or count as alternatives. */
 let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
-  | Some({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | Some(t) when Tile.arity(t) == 1 =>
+    Mold.is_infix_op(Tile.mold(t))
+    && Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
   | _ => false
   };
 

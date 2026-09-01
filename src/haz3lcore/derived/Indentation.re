@@ -46,7 +46,7 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(List.length(t.label), i => i),
+          shards: List.init(Tile.arity(t), i => i),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),
@@ -113,25 +113,6 @@ let complete_segment = (seg: Segment.t): Segment.t => {
   };
 };
 
-let is_comma = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => t.label == [","]
-  | _ => false
-  };
-
-let is_case_rule = (p: Piece.t): bool =>
-  switch (p) {
-  //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-
-let ends_with_in = (t: Tile.t): bool =>
-  switch (t.label |> List.rev) {
-  | ["in", ..._] => true
-  | _ => false
-  };
-
 /* Linebreaks following these tiles should increment the indent. Basically
  * any non-infix-operator tiles which are concave on the right, except
  * for definition forms */
@@ -139,8 +120,8 @@ let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (Tile.shapes(t)) {
-    | _ when ends_with_in(t) => false
-    | (_, Concave(_)) when List.length(t.label) >= 2 => true
+    | _ when Tile.ends_with_in(t) => false
+    | (_, Concave(_)) when Tile.is_multidelimiter(t) => true
     | _ => false
     }
   | _ => false
@@ -155,14 +136,14 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let level =
             switch (prev_next) {
-            | (_, Some(next)) when is_comma(next) => base + 2
-            | (Some(prev), _) when is_comma(prev) => base + 2
+            | (_, Some(next)) when Piece.is_comma(next) => base + 2
+            | (Some(prev), _) when Piece.is_comma(prev) => base + 2
             | (Some(prev), _) when is_incrementor(prev) => level + 2
             | (None, _) when not_top => level + 2
-            | (_, Some(next)) when is_case_rule(next) => base
+            | (_, Some(next)) when Piece.is_case_rule(next) => base
             | (_, None) => base
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
-              /* Special case fof kw prefixes */
+              /* Special case for kw prefixes */
               base
             | (_, Some(_)) => level
             };

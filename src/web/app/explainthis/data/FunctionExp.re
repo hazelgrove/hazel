@@ -371,7 +371,7 @@ let function_listnil_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
     ),
   examples: [listnil_fun_ex],
 };
-let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
+let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("…")]]);
 let e = exp("e");
 let function_listlit_exp_coloring_ids =
   pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
@@ -382,7 +382,7 @@ let function_listlit_exp_form = [
   e,
 ];
 let function_listlit_exp_expandable =
-  mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+  mk_list_pat([[pat("p1"), comma_pat(), pat("…")]]);
 let function_listlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~n: int): form => {
   id: function_listlit_exp_id,
   syntactic_form: function_listlit_exp_form,
@@ -496,7 +496,7 @@ let function_tuple_exp_coloring_ids =
   pat_body_function_exp_coloring_ids(Piece.id(comma), Piece.id(e));
 let function_tuple_exp_id: form_id = FunctionExp(Tuple);
 let function_tuple_exp_form = [
-  mk_fun([[space(), pat("p1"), comma, space(), pat("..."), space()]]),
+  mk_fun([[space(), pat("p1"), comma, space(), pat("…"), space()]]),
   space(),
   e,
 ];
@@ -505,7 +505,7 @@ let function_tuple_exp = (~pat_id: Id.t, ~body_id: Id.t, ~n: int): form => {
   syntactic_form: function_tuple_exp_form,
   colorings: function_tuple_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id:
-    Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
+    Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("…")])),
   explanation:
     Printf.sprintf(
       "The only values that match the [*argument pattern*](%s) are %d-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",

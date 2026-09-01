@@ -56,9 +56,7 @@ let grade_derivation =
     )
     : report => {
   let zipper_spec: DerivationExercise.spec =
-    DerivationExercise.mapi(persistent_state, pos =>
-      PersistentZipper.unpersist(~root=DerivationExercise.root_of_pos(pos))
-    );
+    DerivationExercise.of_persistent(persistent_state);
   let editors: DerivationExercise.eds =
     DerivationExercise.mapi(zipper_spec, pos =>
       Editor.Model.mk(~root=DerivationExercise.root_of_pos(pos))

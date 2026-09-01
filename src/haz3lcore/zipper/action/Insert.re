@@ -12,14 +12,14 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Tile({label: ["case", "end"], shards: [0], _}) => true
+        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
         | _ => false
         },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some({label: ["case", "end"], _}) => true
+    | Some(a) when Form.has_label_of(a.form, Case) => true
     | _ => false
     };
   switch (t) {
@@ -36,9 +36,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
        an expression. Sort-specific expansion would fail to find | for Typ.
 
        This bypasses Form.Expansion.get entirely for | inside case expressions,
-       hardcoding the Rule form label. A more principled fix might register |
+       forcing the Rule form label. A more principled fix might register |
        for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
-    (["|", "=>"], Left)
+    (Form.label_of(Compound(Rule)), Left)
   | "|" =>
     /* Outside case: | has no meaning, don't expand */
     ([t], Left)
@@ -87,9 +87,9 @@ let insert_shard_core =
   } else {
     let sort = effective_sort(t, z, ~root);
     let (label, delim_d) = expansion(sort, t, z);
-    let mold = Form.Molds.get(sort, label);
+    let (form, sort) = Form.classify_label(sort, label);
     let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      Tile.split_shards(id, form, sort, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
     put_down([Tile(shard)], z);
   };
@@ -209,7 +209,7 @@ let parens_edge_case = (char: string, z: t): bool =>
  * make `inner`). */
 let has_complete_multishard_right_sibling = (z: t): bool =>
   switch (Siblings.neighbor(Right, z.relatives.siblings)) {
-  | Some(Tile(t)) => Tile.is_complete(t) && List.length(t.label) > 1
+  | Some(Tile(t)) => Tile.is_complete(t) && Tile.arity(t) > 1
   | _ => false
   };
 
@@ -405,15 +405,12 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
  * backtick, hash) serialize the selection to text and create a
  * token or secondary piece. */
 
-let is_opening_delimiter = (char: string): bool =>
-  char == "(" || char == "[" || char == "{";
+let is_opening_delimiter = Token.is_opening_bracket;
 
 let delimiter_label = (char: string): Label.t =>
-  switch (char) {
-  | "(" => ["(", ")"]
-  | "[" => ["[", "]"]
-  | "{" => ["{", "}"]
-  | _ => failwith("not a delimiter: " ++ char)
+  switch (Token.label_of_opening_bracket(char)) {
+  | Some(lbl) => lbl
+  | None => failwith("not a delimiter: " ++ char)
   };
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
@@ -432,11 +429,11 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
     right_rem @ right_sibs,
   );
   let label = delimiter_label(char);
-  let mold = Form.Molds.get(sort, label);
+  let (form, sort) = Form.classify_label(sort, label);
   let ancestor: Ancestor.t = {
     id: Id.mk(),
-    label,
-    mold,
+    form,
+    sort,
     shards: ([0], [1]),
     children: ([], []),
   };
@@ -557,11 +554,11 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
           Piece.mk_secondary(Id.mk(), token);
         } else {
           let sort = Relatives.sort(~root, z.relatives);
-          let mold = Form.Molds.get(sort, [token]);
+          let (form, sort) = Form.classify_label(sort, [token]);
           Piece.Tile({
             id: Id.mk(),
-            label: [token],
-            mold,
+            form,
+            sort,
             shards: [0],
             children: [],
           });

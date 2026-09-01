@@ -277,31 +277,27 @@ let weave =
     | None =>
       switch (seg) {
       | [] => []
-      | [Tile({label: ["+"], mold, _}), ...rest]
-          when mold.out == Sort.Typ && peek(0) != Some("+") =>
+      | [Tile(pt), ...rest]
+          when
+            Tile.has_label(pt, ["+"])
+            && Tile.mold(pt).out == Sort.Typ
+            && peek(0) != Some("+") =>
         /* the printer emits a leading + on sums; the source may not have
            one (both spellings read as the same Sum) — skip the piece */
         weave_seg(rest)
-      | [
-          Tile({
-            label: ["(", ")"],
-            children: [[Tile({label: ["()"], _}) as unit_tile]],
-            _,
-          }),
-          ...rest,
-        ]
-          when peek(0) == Some("()") =>
+      | [Tile({children: [[Tile(unit_tile)]], _} as ap_tile), ...rest]
+          when
+            Tile.is_paren_shaped(ap_tile)
+            && Tile.is_empty_tuple_shaped(unit_tile)
+            && peek(0) == Some("()") =>
         /* nullary ap: the term prints f(()) (the nullary flag id is lost
            to fresh annotations); the source spells f() — land the POSTFIX
            empty-ap tile (operand-molded unit would read as juxtaposition) */
         let (gap, _) = expect("()");
-        let form =
-          switch (unit_tile) {
-          | Tile({mold, _}) when mold.out == Sort.Pat => Form.get(ApPatEmpty)
-          | _ => Form.get(ApExpEmpty)
-          };
+        let sort = Tile.mold(unit_tile).out == Sort.Pat ? Sort.Pat : Sort.Exp;
         let tail = weave_seg(rest);
-        gap_pieces(gap) @ [Piece.mk_tile(form, []), ...tail];
+        gap_pieces(gap)
+        @ [Piece.mk_tile((Form.Compound(ApEmpty), sort), []), ...tail];
       | [p, ...rest] =>
         let head = weave_piece(p);
         head @ weave_seg(rest);
@@ -346,7 +342,7 @@ let weave =
       /* residual structural grout: either hole spelling is acceptable */
       let (gap, _) = expect_hole();
       gap_pieces(gap) @ [Piece.Grout(g)];
-    | Tile({label: ["?"], _} as t) =>
+    | Tile(t) when Tile.is_explicit_hole(t) =>
       /* source `?` keeps the explicit tile; `¿` means implicit Grout */
       let (gap, tok) = expect_hole();
       gap_pieces(gap)
@@ -360,10 +356,11 @@ let weave =
       ];
     | Projector(_) => raise(Mismatch)
     | Tile(t) =>
-      if (List.length(t.shards) != List.length(t.label)) {
+      if (!Tile.is_complete(t)) {
         raise(Mismatch);
       };
-      let (gap0, tok0) = expect(List.hd(t.label));
+      let label = Tile.label(t);
+      let (gap0, tok0) = expect(List.hd(label));
       let (children, label_rev) =
         List.fold_left2(
           ((children_acc, label_acc), label_tok, child_seg) => {
@@ -377,14 +374,24 @@ let weave =
             );
           },
           ([], [tok0]),
-          List.tl(t.label),
+          List.tl(label),
           t.children,
         );
+      /* expect's float/backtick equivalence can accept a source token
+         that differs from the reference tile's label; the source text
+         is what must land. Such mismatches arise only on single-token
+         atoms, where reclassifying the source token at the tile's
+         stored sort reproduces the tile's mold. */
+      let src_label = List.rev(label_rev);
+      let (form, sort) =
+        src_label == label
+          ? (t.form, t.sort) : Form.classify_label(t.sort, src_label);
       gap_pieces(gap0)
       @ [
         Piece.Tile({
           ...t,
-          label: List.rev(label_rev),
+          form,
+          sort,
           children,
         }),
       ];
@@ -489,8 +496,8 @@ let attempt =
    space+grout we appended. */
 let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
   switch (List.rev(seg)) {
-  | [Piece.Tile({label: ["?"], _}), Piece.Secondary(sp), ...rest]
-      when Secondary.is_space(sp) =>
+  | [Piece.Tile(qt), Piece.Secondary(sp), ...rest]
+      when Tile.is_explicit_hole(qt) && Secondary.is_space(sp) =>
     Some(List.rev(rest))
   | _ => None
   };
@@ -518,10 +525,8 @@ let parsed_of_text =
        spliced separators (leading/trailing ;) fail the wrap parse and
        fall back — they are small. */
     switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some({
-        segment: [Tile({label: ["{", "}"], children: [inner], _})],
-        refractors,
-      }) =>
+    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+        when Tile.has_label(bt, ["{", "}"]) =>
       Ok({
         segment: inner,
         refractors,

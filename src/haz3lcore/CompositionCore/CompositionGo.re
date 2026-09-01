@@ -207,7 +207,7 @@ module Local = {
           let* shard =
             d == Left
               ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
-          List.nth_opt(t.label, shard);
+          List.nth_opt(Tile.label(t), shard);
         };
       let outer_token = (d: Direction.t): option(Token.t) => {
         let (l_sibs, r_sibs) = z.relatives.siblings;
@@ -221,7 +221,7 @@ module Local = {
             d == Left
               ? ListUtil.last_opt(fst(a.shards))
               : ListUtil.hd_opt(snd(a.shards));
-          List.nth_opt(a.label, shard);
+          List.nth_opt(Ancestor.label(a), shard);
         };
       };
       let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
@@ -268,7 +268,7 @@ module Local = {
       };
     let is_binding_tile = (p: Piece.t): bool =>
       switch (p) {
-      | Tile(t) => ListUtil.last_opt(t.label) == Some("in")
+      | Tile(t) => Tile.ends_with_in(t)
       | _ => false
       };
     let linebreak = () =>
