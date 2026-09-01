@@ -482,6 +482,92 @@ let a_partial_theme_yields_nothing = () => {
   );
 };
 
+/* ── The CSS defaults block ────────────────────────────────────────────
+
+     `variables.css` carries a default for every colour the slide writes, for
+     the window before the theme is applied -- a first-ever load, or one whose
+     slide fails to evaluate. Those defaults used to be written by hand, in a
+     second idiom (`oklch(from var(--frame-1) 70% c h)`) that restated the
+     slide's derivations in CSS, and 23 of them had drifted into projector
+     stylesheets as `hsl()` colours from a palette that no longer exists.
+
+     Now the block is emitted from the light scheme, so the default a variable
+     holds before the theme lands is byte-for-byte the value the theme will give
+     it. Regenerate with:
+
+         make update-css-defaults
+   */
+let defaults_begin = "  /* BEGIN GENERATED DEFAULTS";
+let defaults_end = "  /* END GENERATED DEFAULTS */";
+
+let variables_css = () =>
+  switch (
+    List.find_opt(
+      Sys.file_exists,
+      List.map(
+        p => p ++ "src/web/www/style/variables.css",
+        ["", "../", "../../", "../../../", "../../../../"],
+      ),
+    )
+  ) {
+  | Some(p) => p
+  | None => failwith("cannot find src/web/www/style/variables.css")
+  };
+
+let render_css_defaults = (): string => {
+  let light = List.assoc(List.hd(schemes), Lazy.force(evaluated_schemes));
+  List.sort(compare, light)
+  |> List.map(((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
+  |> String.concat("");
+};
+
+/* Splice on the markers rather than rewriting the file: the z-index ladder,
+   the fonts, and the colours the slide does not own yet all live in the same
+   `:root` and are none of this generator's business. */
+let splice_defaults = (file: string, block: string): string => {
+  let i =
+    try(Str.search_forward(Str.regexp_string(defaults_begin), file, 0)) {
+    | Not_found => failwith("variables.css: " ++ defaults_begin ++ " missing")
+    };
+  let head_end =
+    switch (String.index_from_opt(file, i, '\n')) {
+    | Some(n) => n + 1
+    | None => failwith("variables.css: unterminated BEGIN marker")
+    };
+  let j =
+    try(Str.search_forward(Str.regexp_string(defaults_end), file, head_end)) {
+    | Not_found => failwith("variables.css: " ++ defaults_end ++ " missing")
+    };
+  String.sub(file, 0, head_end)
+  ++ block
+  ++ String.sub(file, j, String.length(file) - j);
+};
+
+let css_defaults_are_current = () => {
+  let path = variables_css();
+  let file = read_file(path);
+  let wanted = splice_defaults(file, render_css_defaults());
+  if (Sys.getenv_opt("UPDATE_CSS_DEFAULTS") != None) {
+    write_file(path, wanted);
+    check(bool, "defaults rewritten (" ++ path ++ ")", true, true);
+  } else {
+    let split = t => String.split_on_char('\n', t);
+    let (e, a) = (split(wanted), split(file));
+    check(
+      list(string),
+      "variables.css defaults are current (missing; run `make update-css-defaults`)",
+      [],
+      List.filter(l => !List.mem(l, a), e),
+    );
+    check(
+      list(string),
+      "variables.css defaults are current (stale)",
+      [],
+      List.filter(l => !List.mem(l, e), a),
+    );
+  };
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -510,6 +596,7 @@ let tests = [
         a_partial_theme_yields_nothing,
       ),
       test_case("colours match golden", `Quick, colours_match_golden),
+      test_case("css defaults are current", `Quick, css_defaults_are_current),
       test_case(
         "a non-theme yields no colours",
         `Quick,

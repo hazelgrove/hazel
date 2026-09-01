@@ -1,10 +1,5 @@
 /* PROJECTOR: FOLD */
 
-:root {
-  --fold-accent: var(--text-success);
-  --fold-bkg: #293445;
-}
-
 .projector.fold {
   cursor: pointer;
   font-family: var(--code-font);

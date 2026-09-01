@@ -1,254 +1,237 @@
+/* Defaults for every CSS custom property the app reads, in three parts.
+
+   The middle part is GENERATED from the Colors slide's light scheme. Those
+   are the colours the theme owns: it overwrites every one of them at startup,
+   so what is written here only shows on a first-ever load, or one whose slide
+   fails to evaluate -- and it is byte-identical to what the theme would have
+   set, so nothing shifts when the theme lands. What each name is for is
+   documented where it is decided, in hazel-programs/config/colors.hz.
+
+   Around it sit the two things the theme does not own: type and z-order,
+   which are not colours, and a shrinking list of colours the slide has no
+   field for. Those last ones are the gap -- an alias there follows the theme
+   second-hand, a literal does not follow it at all. */
 :root {
-  /* Overwritten by the Colors slide, which declares its polarity. */
-  --hazel-color-scheme: light;
-
-  /* Code and UI font */
-
+  /* ── Type and timing ──────────────────────────────────────────────── */
   --line-height: 1.45;
   --base-font-size: 13pt;
   --code-font: "Source Code Pro", monospace;
   --ui-font: "Helvetica Neue";
+  --eval-recalc-visual-delay: 180ms;
 
-  /* This palette pulls out most colors used across Hazel */
-
-  /* BASE */
-  --none: oklch(0% 0 0 / 0%); /* transparent */
-  --code-background: oklch(99% 0.012 90); /* code background */
-  --ink: oklch(52% 0.03 220); /* code text */
-  --black: oklch(0% 0 0); /* use sparingly */
-
-  /* SHALE - focal syntax and top level ui */
-  --frame-1: oklch(85% 0.07 90); /* caret shard, token buffer*/
-  --frame-2: oklch(from var(--frame-1) 70% c h); /* exp shard arms */
-  --frame-3: oklch(from var(--frame-1) 60% c h); /* top ui accent */
-  --frame-4: oklch(from var(--frame-1) 50% c h); /* top ui accent */
-
-  /* CLAY - peripheral syntax */
-  --surface-1: oklch(97% 0.025 90); /* buffer shards */
-  --surface-2: oklch(from var(--surface-1) 94% c h); /* projector shards */
-  --surface-3: oklch(from var(--surface-1) 91% c h); /* result background */
-  --surface-4: oklch(from var(--surface-1) 88% c h); /* darker background */
-
-  /* MOLTEN - under construction */
-  --attention-1: oklch(95% 0.05 90); /* menu fill */
-  --attention-2: oklch(91% 0.11 95); /* selections */
-  --attention-3: oklch(88% 0.2 95); /* explicit hole */
-  --attention-4: oklch(71% 0.2 95); /* incomplete shards */
-
-  /* WARNING HOLE DECO */
-
-  /* MAGMA - opportunities */
-  --error-1: oklch(85% 0.1 30); /* broken shard fill */
-  --error-2: oklch(60% 0.3 30); /* caret, error stroke */
-  --error-3: oklch(40% 0.3 30); /* error text, broken shard text */
-  --O1: oklch(60% 0.3 90); /* warning stroke */
-
-  /* GLASS - sorts */
+  /* BEGIN GENERATED DEFAULTS -- do not edit; run `make update-css-defaults` */
+  --CREASE: color-mix(in oklch, oklch(0% 0 0) 40%, transparent);
+  --ERRHOLE: oklch(96% 0.02 47);
+  --SHADOW: color-mix(in oklch, oklch(50% 0.1 90) 33%, transparent);
+  --attention-1: oklch(95% 0.05 90);
+  --attention-2: oklch(91% 0.11 95);
+  --attention-3: oklch(88% 0.2 95);
+  --attention-4: oklch(71% 0.2 95);
+  --backpack-genie: oklch(91% 0.11 95);
+  --backpack-joiner: oklch(91% 0.11 95);
+  --backpack-selection: oklch(91% 0.11 95);
+  --backpack-selection-outline: oklch(99% 0.012 90);
+  --black: oklch(0% 0 0);
+  --caret-color: oklch(60% 0.3 30);
+  --cell-active: oklch(99% 0.012 90);
+  --cell-exercises-border: oklch(70% 0.07 90);
+  --cell-result: oklch(91% 0.025 90);
+  --cell-result-border: oklch(85% 0.07 90);
+  --cell-result-hidden: oklch(85% 0.07 90);
+  --cell-result-text: oklch(50% 0.07 90);
+  --cell-selected-accent: oklch(60% 0.3 30);
+  --ci-icon-bkg: oklch(60% 0.07 90);
+  --ci-status-error-bkg: oklch(85% 0.1 30);
+  --ci-status-error-text: oklch(40% 0.3 30);
+  --ci-status-text: oklch(50% 0.07 90);
+  --code-background: oklch(99% 0.012 90);
+  --context-inspector-colon: oklch(70% 0.07 90);
+  --context-meter-fill: oklch(57.85% 0.2 225);
+  --depth-shadow: oklch(74.95% 0 220);
+  --df-hover-bg: oklch(90.25% 0.0525 150);
+  --doc-1: oklch(95% 0.07 360);
+  --doc-2: oklch(95% 0.07 240);
+  --doc-3: oklch(95% 0.07 120);
+  --empty-hole-fill: oklch(95% 0.05 90);
+  --empty-hole-stroke: oklch(85% 0.07 90);
+  --error-1: oklch(85% 0.1 30);
+  --error-2: oklch(60% 0.3 30);
+  --error-3: oklch(40% 0.3 30);
+  --error-hole-fill: oklch(96% 0.02 47);
+  --error-hole-stroke: oklch(60% 0.3 30);
+  --eval-exception: oklch(85% 0.1 30);
+  --eval-exception-stroke: oklch(40% 0.3 30);
+  --exp-ap: oklch(77.98377% 0.11156 303.02104);
+  --exp-base: oklch(90.06553% 0.05236 145.12433);
+  --exp-indicated: oklch(70% 0.15 150);
+  --exp-shadow: oklch(55% 0.15 150);
+  --fold-bkg: oklch(32.2% 0.034 225);
+  --frame-1: oklch(85% 0.07 90);
+  --frame-2: oklch(70% 0.07 90);
+  --frame-3: oklch(60% 0.07 90);
+  --frame-4: oklch(50% 0.07 90);
+  --hazel-color-scheme: light;
+  --hole-active: oklch(50.2% 0.2 225);
+  --hole-fill: oklch(92.05% 0.04 225);
+  --hole-stroke: oklch(60.1% 0.15 225);
+  --incremental-active-sweep: color-mix(in oklch, oklch(100% 0 220) 56%, transparent);
+  --incremental-frozen: color-mix(in oklch, oklch(91.15% 0.046 225) 55%, transparent);
+  --incremental-frozen-edge: color-mix(in oklch, oklch(78.55% 0.09 225) 55%, transparent);
+  --info: oklch(70% 0.05 120);
+  --info-strong: oklch(45% 0.05 120);
+  --ink: oklch(52% 0.03 220);
+  --label: oklch(60% 0.2 180);
+  --live-env-bkg: oklch(91% 0.025 90);
+  --main-base: oklch(94.8122% 0.03085 315.29055);
+  --main-bkg: oklch(91% 0.025 90);
+  --main-indicated: oklch(60% 0.2 300);
+  --main-scroll-thumb: oklch(85% 0.07 90);
+  --main-scroll-track: oklch(0 0 0 / 0);
+  --main-shadow: oklch(33.96448% 0.0941 314.00959);
+  --menu-bkg: oklch(95% 0.05 90);
+  --menu-divider: color-mix(in oklch, oklch(0% 0 0) 40%, transparent);
+  --menu-group-name: oklch(50% 0.07 90);
+  --menu-icon: oklch(50% 0.07 90);
+  --menu-item-hover-bkg: oklch(99% 0.012 90);
+  --menu-item-text: oklch(52% 0.03 220);
+  --menu-outline: oklch(70% 0.07 90);
+  --menu-scroll-thumb: oklch(70% 0.07 90);
+  --menu-scroll-track: oklch(85% 0.07 90);
+  --menu-shadow: color-mix(in oklch, oklch(50% 0.1 90) 33%, transparent);
+  --none: oklch(0 0 0 / 0);
+  --nut-menu: oklch(45% 0.05 120);
+  --pat-base: oklch(90.75194% 0.03285 184.47899);
+  --pat-cell: oklch(80.13895% 0.05096 177.90838);
+  --pat-indicated: oklch(60% 0.2 225);
+  --pat-shadow: oklch(50% 0.1 245);
+  --pattern: oklch(60% 0.2 225);
+  --primary-accent: oklch(70% 0.15 150);
+  --sample-above-bg: oklch(92.95% 0.0602 0);
+  --sample-above-shadow: oklch(84.85% 0.0798 0);
+  --sample-above-text: oklch(68.2% 0.1197 0);
+  --sample-below-bg: oklch(92.95% 0.03 180);
+  --sample-below-shadow: oklch(79.9% 0.09 180);
+  --sample-below-text: oklch(75.85% 0.08 180);
+  --sample-focus-text: oklch(52.45% 0.1305 150);
+  --sample-neutral-bg: oklch(94.3% 0.0135 150);
+  --sample-neutral-text: oklch(51.55% 0.0945 150);
+  --shadow-any: oklch(85% 0.1 30);
+  --shadow-selected: oklch(85% 0.1 30);
+  --shard-any: oklch(94% 0.025 90);
+  --shard-caret-drv: oklch(95.2% 0.0375 150);
+  --shard-caret-exp: oklch(94% 0.025 90);
+  --shard-caret-mod: oklch(95.2% 0.05 180);
+  --shard-caret-mpat: oklch(95.2% 0.05 225);
+  --shard-caret-pat: oklch(95% 0.05 225);
+  --shard-caret-sig: oklch(95.2% 0.05 300);
+  --shard-caret-tpat: oklch(95% 0.05 225);
+  --shard-caret-typ: oklch(95% 0.05 300);
+  --shard-exp: oklch(94% 0.025 90);
+  --shard-lines-exp: oklch(85% 0.07 90);
+  --shard-lines-rul: oklch(85% 0.07 90);
+  --shard-pat: oklch(95% 0.05 225);
+  --shard-rul: oklch(94% 0.025 90);
+  --shard-selected: oklch(91% 0.11 95);
+  --shard-tpat: oklch(95% 0.05 225);
+  --shard-typ: oklch(95% 0.05 300);
+  --shard_projector: oklch(94% 0.025 90);
+  --success: oklch(70% 0.15 150);
+  --success-muted: oklch(80% 0.05 150);
+  --success-soft: oklch(85% 0.15 150);
+  --surface-1: oklch(97% 0.025 90);
+  --surface-2: oklch(94% 0.025 90);
+  --surface-3: oklch(91% 0.025 90);
+  --surface-4: oklch(88% 0.025 90);
+  --test-fail: oklch(60% 0.3 30);
+  --test-fail-active: oklch(85% 0.1 30);
+  --test-indet: oklch(70% 0.07 90);
+  --test-indet-active: oklch(85% 0.07 90);
+  --test-panel-bkg: oklch(95% 0.05 90);
+  --test-pass: oklch(70% 0.15 150);
+  --test-pass-active: oklch(85% 0.15 150);
+  --test-percent-text: oklch(99% 0.012 90);
+  --textarea-h-strip-selected: color-mix(in oklch, oklch(68% 0.14 76) 30%, transparent);
+  --textarea-h-stripe: oklch(87% 0.07 246);
+  --textarea-indicated: oklch(99% 0.012 90);
+  --textarea-text: oklch(60% 0.07 90);
+  --textarea-v-stripe: color-mix(in oklch, oklch(78% 0.14 6) 55%, transparent);
+  --toggle-knob: oklch(99% 0.012 90);
+  --token-any: oklch(40% 0.3 30);
+  --token-buffer: oklch(85% 0.07 90);
+  --token-comment: oklch(80% 0.05 150);
+  --token-drv: oklch(60.1% 0.1005 150);
+  --token-exp: oklch(52% 0.03 220);
+  --token-explicit-hole: oklch(88% 0.2 95);
+  --token-explicit-hole-shadow: oklch(0% 0 0);
+  --token-incomplete: oklch(71% 0.2 95);
+  --token-inconsistent: oklch(52% 0.03 220);
+  --token-label: oklch(60% 0.2 180);
+  --token-pat: oklch(60% 0.2 225);
+  --token-rul: oklch(52% 0.03 220);
+  --token-secondary: oklch(94% 0.025 90);
+  --token-string-lit: oklch(71% 0.2 95);
+  --token-tpat: oklch(60% 0.2 225);
+  --token-typ: oklch(60% 0.2 300);
   --type: oklch(60% 0.2 300);
+  --type-pattern: oklch(60% 0.2 225);
+  --ui-bkg: oklch(97% 0.025 90);
+  --ui-header-text: oklch(60% 0.07 90);
+  --warning-hole-fill: oklch(97% 0.04 95);
+  --warning-hole-stroke: oklch(60.1% 0.3 95);
+  /* END GENERATED DEFAULTS */
+
+  /* ── Colours the slide does not own ───────────────────────────────────
+     An alias here follows the theme at one remove; a literal does not follow
+     it at all, and is a colour a user cannot change. Sorts (DRV, MOD, SIG,
+     MPAT) and the warning pair are the remaining literals. */
+  --O1: oklch(60% 0.3 90); /* warning stroke */
   --DRV: oklch(60% 0.1 126);
-  --pattern: oklch(from var(--type) l c calc(h - 1 * 75));
-  --type-pattern: var(--pattern);
   --MOD: var(--ink); /* Module sort oklch(0.65 0.05 165)  */
   --SIG: var(--type); /* Signature sort oklch(0.65 0.1 320); */
   --MPAT: var(--pattern); /* Module pattern sort oklch(60% 0.2 60)  */
-  --label: oklch(60% 0.2 180);
-
-  /* AURA - docs highlighting */
-  --doc-1: oklch(0.95 0.07 360);
-  --doc-2: oklch(from var(--doc-1) l c calc(h - 2 * 60));
-  --doc-3: oklch(from var(--doc-1) l c calc(h - 4 * 60));
   --doc-4: oklch(from var(--doc-1) l c calc(h - 1 * 60));
   --doc-5: oklch(from var(--doc-1) l c calc(h - 3 * 60));
   --doc-6: oklch(from var(--doc-1) l c calc(h - 5 * 60));
-
-
-  /* Incremental evaluator "frozen" tint: behind code reused from the
-   * previous evaluation run (cache hit), left as-is by the worker. */
-  --incremental-frozen: rgba(200, 230, 255, 0.55);
-  --incremental-frozen-edge: rgba(140, 190, 240, 0.55);
   --incremental-pending: oklch(from var(--ink) l c h / 11%);
   --incremental-pending-edge: oklch(from var(--ink) l c h / 16%);
-  --incremental-active-sweep: oklch(100% 0 0 / 56%);
-
-  /* Delay before evaluation-in-progress visuals appear, so fast
-   * re-evaluations don't flash. */
-  --eval-recalc-visual-delay: 180ms;
-
-  /* MOSS - affirmations */
-  --success: oklch(70% 0.15 150); /* page title, passing tests */
-  --success-soft: oklch(85% 0.15 150); /* ! passing tests hover */
-  --success-muted: oklch(80% 0.05 150); /* ! comments */
-  --info: oklch(70% 0.05 120); /* ! nut menu active */
-  --info-strong: oklch(45% 0.05 120); /* ! nut menu fill */
-
-  /* FREE PARKING - ??? */
-
-  --textarea-v-stripe: oklch(78% 0.14 6 / 55%);
-  --textarea-h-stripe: oklch(87% 0.07 246);
-  --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
-  --SHADOW: oklch(50% 0.1 90 / 33%);
-  --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
   --WARNHOLE: oklch(0.97 0.04 78.17);
-  --CREASE: oklch(0% 0 0 / 40%);
-
-  /* Agent chat — context meter (track = dark shale, fill = bright blue) */
   --context-meter-track: var(--frame-4);
-  --context-meter-fill: oklch(58% 0.2 250);
-
-  /* CODE BACKGROUND */
-
-  --main-bkg: var(--surface-3);
   --light-page-color: var(--menu-item-hover-bkg);
-  --cell-active: var(--code-background);
-  --main-scroll-thumb: var(--frame-1);
-  --main-scroll-track: var(--none);
-  --cell-selected-accent: var(--error-2);
-
-  /* CODE DECO */
-
-  --caret-color: var(--error-2);
-  --error-hole-stroke: var(--error-2);
-
-  /* CODE TOKENS */
-
-  --token-exp: var(--ink);
-  --token-pat: var(--pattern);
-  --token-typ: var(--type);
-  --token-drv: var(--DRV);
-  --token-tpat: var(--type-pattern);
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);
   --token-mpat: var(--MPAT);
-  --token-label: var(--label);
-  --token-string-lit: var(--attention-4);
-  --token-comment: var(--success-muted);
-  --token-incomplete: var(--attention-4);
-  --token-inconsistent: var(--token-exp);
-  --token-buffer: var(--frame-1);
-  --token-explicit-hole: var(--attention-3);
-  --token-explicit-hole-shadow: var(--black);
-  --token-secondary: var(--shard-exp);
-  --token-rul: var(--token-exp);
-  --token-any: var(--error-3);
-
-  /* CODE SHARDS */
-
-  --shard-caret-exp: var(--surface-2);
-  --shard-lines-exp: var(--frame-1);
-  --shard-exp: var(--surface-2);
-  --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
-  --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
-  --shard-caret-drv: oklch(from var(--token-drv) 95% calc(c/4) h);
-  --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
-  --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
-  --shard-caret-sig: oklch(from var(--token-sig) 95% calc(c/4) h);
-  --shard-caret-mpat: oklch(from var(--token-mpat) 95% calc(c/4) h);
-  --shard-pat: var(--shard-caret-pat);
-  --shard-typ: var(--shard-caret-typ);
   --shard-drv: var(--shard-caret-drv);
-  --shard-tpat: var(--shard-caret-tpat);
   --shard-mod: var(--shard-caret-mod);
   --shard-sig: var(--shard-caret-sig);
   --shard-mpat: var(--shard-caret-mpat);
-  --shard-selected: var(--attention-2);
   --shard-selected-expanded: var(--attention-1);
   --shard-buffer: var(--surface-1);
-  --shard_projector: var(--surface-2);
-  --shard-rul: var(--shard-exp);
-  --shard-lines-rul: var(--shard-lines-exp);
-  --shadow-selected: var(--error-1);
-  --shard-any: var(--shard-exp);
-  --shadow-any: var(--error-1);
-
-  /* EMPTY HOLE DECO */
-
-  --empty-hole-stroke: var(--frame-1);
-  --empty-hole-fill: var(--attention-1);
-
-  /* ERROR HOLE DECO */
-
-  --error-hole-fill: var(--ERRHOLE);
-
-  /* WARNING HOLE DECO */
-  --warning-hole-stroke: var(--O1);
-  --warning-hole-fill: var(--WARNHOLE);
-
-  /* EMPTY HOLE DECO (sidebar) */
-  --hole-stroke: oklch(60% 0.15 250);
-  --hole-fill: oklch(92% 0.04 250);
-  --hole-active: oklch(50% 0.2 250);
-
-  /* BACKPACK DECO */
-
-  --backpack-selection: var(--shard-selected);
-  --backpack-joiner: var(--backpack-selection);
-  --backpack-genie: var(--backpack-selection);
-  --backpack-selection-outline: var(--light-page-color);
   --backback-targets: var(--attention-4);
-
-  /* PROJECTORS */
-  --textarea-indicated: var(--code-background);
-  --textarea-text: var(--frame-3);
-
-  /* DYNAMICS UI */
-
-  --cell-result-text: var(--frame-4);
-  --cell-result-border: var(--frame-1);
-  --cell-result-hidden: var(--frame-1); /* ?? */
-  --eval-exception: var(--test-fail-active);
-  --eval-exception-stroke: var(--error-3);
   --step-hole-color: var(--success);
-
-  /* TOP-LEVEL UI */
-
   --select-text: var(--frame-4);
   --editor-mode-text: var(--frame-4);
-
-  --toggle-knob: var(--code-background);
-
-  --primary-accent: var(--success);
-  --nut-menu: var(--info-strong);
   --nut-menu-active: var(--info);
-
-  --menu-bkg: var(--attention-1);
-  --menu-item-hover-bkg: var(--code-background);
-  --menu-item-text: var(--ink);
-  --menu-outline: var(--frame-2);
-  --menu-icon: var(--frame-4);
-  --menu-group-name: var(--menu-icon);
-  --menu-scroll-thumb: var(--menu-outline);
-  --menu-scroll-track: var(--frame-1);
-  --menu-divider: var(--CREASE);
-  --menu-shadow: var(--SHADOW);
-
-  --ui-bkg: var(--surface-1);
-  --ci-icon-bkg: var(--frame-3);
-  --ci-status-text: var(--frame-4);
-  --ci-status-error-text: var(--error-3);
-  --ci-status-error-bkg: var(--test-fail-active);
   --ci-status-warning-text: var(--warning-hole-stroke);
   --ci-status-warning-bkg: var(--warning-hole-fill);
-  --context-inspector-colon: var(--frame-2);
-
-  --ui-header-text: var(--frame-3);
   --explain-this-expander: var(--frame-3);
-
-  /* EXERCISE MODE UI */
-
   --cell-caption: var(--frame-2);
-  --cell-result: var(--surface-3);
-  --cell-exercises-border: var(--frame-2);
-  --test-panel-bkg: var(--menu-bkg);
-  --test-percent-text: var(--code-background);
+  --df-bg: var(--code-background);
+  --table-header-bg: var(--shard-caret-exp);
+  --df-zebra-bg: var(--surface-2);
 
-  --test-pass: var(--success);
-  --test-pass-active: var(--success-soft);
-  --test-fail: var(--error-2);
-  --test-fail-active: var(--error-1);
-  --test-indet: var(--frame-2);
-  --test-indet-active: var(--frame-1);
+  /* Projector colours, which used to sit in the projector's own stylesheet:
+     a second `:root` block competing with this one, where load order decided
+     the winner. */
+  --code-text: var(--token-exp);
+  --exp-ap-indicated: var(--text-typ);
+  --exp-ap-shadow: oklch(0.5 0.1 300);
+  --exp-cell: hsl(115, 30%, 70%);
+  --fold-accent: var(--text-success);
+  --num-samples: var(--surface-highlight);
+  --num-samples-indicated: var(--surface-error);
+  --pat-ap: hsl(220, 75%, 80%);
 
-  /* Z-STACK */
+  /* ── Z-STACK ──────────────────────────────────────────────────────── */
 
   /* BELOW CODE LEVEL */
   --err-hole-arms-z: 1;
@@ -258,12 +241,6 @@
   --select-z: 4;
   --stepper-interactive-z: 5;
   --projector-underlay-z: 9;
-
-  /* TABLE PROJECTOR */
-  --df-bg: var(--code-background);
-  --table-header-bg: var(--shard-caret-exp);
-  --df-zebra-bg: var(--surface-2);
-  --df-hover-bg: hsl(120, 40%, 85%);
 
   /* AT CODE LEVEL */
   --code-text-z: 10;
@@ -289,4 +266,5 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
+}
 }

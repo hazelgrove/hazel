@@ -1,46 +1,4 @@
 /* Probe Projector */
-:root {
-  --code-text: var(--token-exp);
-  --live-env-bkg: var(--surface-sunken);
-
-  --num-samples: var(--surface-highlight);
-  --num-samples-indicated: var(--surface-error);
-
-  --exp-ap: hsl(265, 75%, 80%);
-  --pat-ap: hsl(220, 75%, 80%);
-
-  --exp-indicated: var(--text-success);
-  --pat-indicated: var(--text-pat);
-  --exp-ap-indicated: var(--text-typ);
-
-  --exp-base: hsl(120, 40%, 85%);
-  --pat-base: hsl(170, 40%, 85%);
-
-  --exp-shadow: oklch(0.55 0.15 150);
-  --pat-shadow: oklch(0.5 0.1 245);
-  --exp-ap-shadow: oklch(0.5 0.1 300);
-
-  --exp-cell: hsl(115, 30%, 70%);
-  --pat-cell: hsl(165, 30%, 70%);
-
-  /* Sample call stack position colors - shared between samples and closure cursor bar */
-  --sample-above-text: oklch(
-    0.68 0.12 343.53
-  ); /* pink for above/before cursor */
-  --sample-below-text: oklch(
-    0.76 0.08 193.44
-  ); /* blue for below/after cursor */
-  --sample-above-bg: oklch(0.93 0.06 -0.01);
-  --sample-below-bg: oklch(0.93 0.03 195);
-  --sample-above-shadow: oklch(0.85 0.08 355); /* pinkish/magenta */
-  /* Samples with no call-stack relation, and the focused one. Defaults only:
-     the Colors slide emits all three as roles and overrides these. */
-  --sample-neutral-bg: #e5efe8;
-  --sample-neutral-text: #437543;
-  --sample-focus-text: #247e3d;
-  --sample-below-shadow: oklch(0.8 0.09 230); /* blue */
-}
-
 /* Turn off caret when text projector is focused */
 /* TODO: Generalize this logic to other projectors */
 .code-deco:has(~ .refractors *:focus) #caret .caret-path {
