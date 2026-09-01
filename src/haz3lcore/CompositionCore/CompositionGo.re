@@ -384,14 +384,63 @@ module Local = {
        re-indents structurally on render), then parse to a segment and
        paste it. Safe: Hazel strings and comments are single-line, so
        no token can span a linebreak. */
+    /* A reserved binder no longer guarantees a parse FAILURE (backup
+       molds keep making the parser more total - dev's `=` symbolic
+       prefix turned `let eval = 1 in` from a parse error into silently
+       inserted garbage), so the rejection can't trigger on to_segment
+       returning None. Instead: the text scan names the misuse (a
+       reserved word in binder position) and the parsed segment must
+       corroborate it structurally - the word molded as a form-opener
+       tile instead of a variable. Completeness is no signal: the
+       stray form can steal delimiters from the enclosing form (`let
+       eval = 1 in` parses with a COMPLETE eval-in filter and the let
+       left broken). A reserved word mentioned in a string literal
+       never produces a tile; ordinary incomplete pastes (`let x = 1`)
+       never trip the scan. */
+    let reserved_binder_garbage = (code: string, segment): option(string) =>
+      switch (find_reserved_binder(code)) {
+      | None => None
+      | Some(w) =>
+        let rec has_opener = (sg: Segment.t): bool =>
+          sg
+          |> List.exists((p: Piece.t) =>
+               switch (p) {
+               | Tile(t) =>
+                 (
+                   switch (t.label, t.shards) {
+                   | ([tok, ..._], [0, ..._]) => tok == w
+                   | _ => false
+                   }
+                 )
+                 || List.exists(has_opener, t.children)
+               | _ => false
+               }
+             );
+        has_opener(segment) ? Some(w) : None;
+      };
+
     let introduce =
         (z: Zipper.t, code: string): result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
       switch (Parser.to_segment(code, ~root=Exp)) {
       | Some(segment) =>
-        Ok(
-          Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root=Exp),
-        )
+        switch (reserved_binder_garbage(code, segment)) {
+        | Some(_) =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Inserted code does not parse as intended."
+              ++ reserved_word_note(code),
+            ),
+          )
+        | None =>
+          Ok(
+            Zipper.insert_segment(
+              z,
+              pad_fusing_edges(z, segment),
+              ~root=Exp,
+            ),
+          )
+        }
       | None =>
         Error(
           Action.Failure.Composition_action_failure(

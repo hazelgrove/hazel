@@ -4405,6 +4405,20 @@ let paste_funnel_tests = (
       )
     }),
     test_case(
+      "reserved word inside a string literal is not rejected", `Quick, () => {
+      /* the binder text scan alone fires on `let eval` INSIDE the
+         string; the structural witness (an incomplete tile the word
+         actually leads) keeps legitimate code insertable */
+      check_rendered(
+        "insert_reserved_in_string",
+        "let a = 1 in let msg = \"let eval\" in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(After, "a", "let msg = \"let eval\" in"),
+        ),
+      )
+    }),
+    test_case(
       "keyword note absent when no reserved word is misused", `Quick, () => {
       switch (
         run_agent_action(
