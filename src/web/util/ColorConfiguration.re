@@ -25,9 +25,10 @@ module C = Language.BuiltinsADT.Color;
 let source: Haz3lcore.PersistentZipper.t =
   Haz3lcore.PersistentZipper.of_slide_text([%blob "../colors.hz"]);
 
-/* The palette layer, published under its own names. Stylesheets consume
-   roles (see style/roles.css), but the palette stays the theme-settable input
-   layer and saved user themes write these names inline. */
+/* The palette layer, published under its own names. It is the input the rest
+   of the theme is derived from, and the names a saved user theme writes; the
+   `aliases` rows below hang each role off the palette colour that decides it,
+   so component stylesheets never have to name a palette colour directly. */
 let palette: list(string) = [
   "none",
   "code-background",
@@ -164,6 +165,8 @@ let aliases: list(((string, string), list(string))) = [
       "shard-exp",
       "shard-rul",
       "shard-any",
+      "border-raised",
+      "surface-raised",
     ],
   ),
   (
@@ -175,11 +178,22 @@ let aliases: list(((string, string), list(string))) = [
       "eval-exception",
       "ci-status-error-bkg",
       "test-fail-active",
+      "shadow-error-soft",
+      "surface-error-soft",
     ],
   ),
   (
     ("palette", "ink"),
-    ["ink", "menu-item-text", "token-exp", "token-inconsistent", "token-rul"],
+    [
+      "ink",
+      "menu-item-text",
+      "token-exp",
+      "token-inconsistent",
+      "token-rul",
+      "surface-inverse",
+      "text-default",
+      "border-inverse",
+    ],
   ),
   (
     ("palette", "error-2"),
@@ -189,6 +203,10 @@ let aliases: list(((string, string), list(string))) = [
       "caret-color",
       "error-hole-stroke",
       "test-fail",
+      "border-error",
+      "shadow-error",
+      "surface-error",
+      "text-error",
     ],
   ),
   (
@@ -198,6 +216,9 @@ let aliases: list(((string, string), list(string))) = [
       "toggle-knob",
       "textarea-indicated",
       "test-percent-text",
+      "border-seam",
+      "surface-code",
+      "text-inverse",
     ],
   ),
   (
@@ -207,36 +228,126 @@ let aliases: list(((string, string), list(string))) = [
       "menu-scroll-track",
       "cell-result-hidden",
       "test-indet-active",
+      "border-soft",
+      "shadow-soft",
+      "surface-shard",
+      "text-faint",
     ],
   ),
   (
     ("palette", "frame-2"),
-    ["frame-2", "menu-outline", "menu-scroll-thumb", "test-indet"],
+    [
+      "frame-2",
+      "menu-outline",
+      "menu-scroll-thumb",
+      "test-indet",
+      "border-default",
+      "surface-shard-strong",
+      "text-muted",
+    ],
   ),
   (
     ("palette", "frame-4"),
-    ["frame-4", "menu-icon", "menu-group-name", "cell-result-text"],
+    [
+      "frame-4",
+      "menu-icon",
+      "menu-group-name",
+      "cell-result-text",
+      "border-stronger",
+      "surface-accent-strong",
+      "text-strong",
+    ],
   ),
   (
     ("palette", "surface-3"),
-    ["surface-3", "main-bkg", "cell-result", "live-env-bkg"],
+    [
+      "surface-3",
+      "main-bkg",
+      "cell-result",
+      "live-env-bkg",
+      "surface-sunken",
+      "text-sunken",
+      "border-sunken",
+    ],
   ),
   (
     ("palette", "error-3"),
-    ["error-3", "token-any", "eval-exception-stroke", "ci-status-error-text"],
+    [
+      "error-3",
+      "token-any",
+      "eval-exception-stroke",
+      "ci-status-error-text",
+      "border-error-strong",
+      "surface-error-strong",
+      "text-error-strong",
+    ],
   ),
   (
     ("palette", "success"),
-    ["success", "primary-accent", "test-pass", "exp-indicated"],
+    [
+      "success",
+      "primary-accent",
+      "test-pass",
+      "exp-indicated",
+      "border-success",
+      "shadow-success",
+      "surface-success",
+      "text-success",
+    ],
   ),
-  (("palette", "type"), ["type", "token-typ", "main-indicated"]),
-  (("palette", "pattern"), ["pattern", "token-pat", "pat-indicated"]),
-  (("palette", "none"), ["none", "main-scroll-track"]),
-  (("palette", "black"), ["black", "token-explicit-hole-shadow"]),
-  (("palette", "attention-3"), ["attention-3", "token-explicit-hole"]),
-  (("palette", "type-pattern"), ["type-pattern", "token-tpat"]),
-  (("palette", "label"), ["label", "token-label"]),
-  (("palette", "success-soft"), ["success-soft", "test-pass-active"]),
+  (
+    ("palette", "type"),
+    [
+      "type",
+      "token-typ",
+      "main-indicated",
+      "border-typ",
+      "shadow-typ",
+      "text-typ",
+    ],
+  ),
+  (
+    ("palette", "pattern"),
+    [
+      "pattern",
+      "token-pat",
+      "pat-indicated",
+      "shadow-pat",
+      "text-pat",
+      "surface-pat",
+    ],
+  ),
+  (
+    ("palette", "none"),
+    ["none", "main-scroll-track", "surface-none", "text-none"],
+  ),
+  (
+    ("palette", "black"),
+    ["black", "token-explicit-hole-shadow", "border-black", "text-black"],
+  ),
+  (
+    ("palette", "attention-3"),
+    [
+      "attention-3",
+      "token-explicit-hole",
+      "border-highlight-strong",
+      "surface-highlight-strong",
+    ],
+  ),
+  (
+    ("palette", "type-pattern"),
+    ["type-pattern", "token-tpat", "text-tpat"],
+  ),
+  (("palette", "label"), ["label", "token-label", "surface-label"]),
+  (
+    ("palette", "success-soft"),
+    [
+      "success-soft",
+      "test-pass-active",
+      "surface-success-soft",
+      "text-success-strong",
+    ],
+  ),
   (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
   (("menu", "divider"), ["menu-divider", "CREASE"]),
   (("menu", "shadow"), ["menu-shadow", "SHADOW"]),
@@ -308,6 +419,52 @@ let aliases: list(((string, string), list(string))) = [
       "backpack-genie",
     ],
   ),
+  (("palette", "attention-1"), ["attention-1", "surface-highlight-soft"]),
+  (
+    ("palette", "attention-2"),
+    [
+      "attention-2",
+      "border-highlight",
+      "shadow-highlight",
+      "surface-highlight",
+    ],
+  ),
+  (
+    ("palette", "attention-4"),
+    ["attention-4", "border-warning", "surface-warning", "text-warning"],
+  ),
+  (("palette", "doc-1"), ["doc-1", "surface-highlight-a", "text-doc-1"]),
+  (("palette", "doc-2"), ["doc-2", "surface-highlight-b", "text-doc-2"]),
+  (("palette", "doc-3"), ["doc-3", "surface-highlight-c", "text-doc-3"]),
+  (
+    ("palette", "frame-3"),
+    [
+      "frame-3",
+      "border-strong",
+      "shadow-strong",
+      "surface-accent",
+      "text-accent",
+    ],
+  ),
+  (("palette", "info"), ["info", "text-info"]),
+  (
+    ("palette", "info-strong"),
+    ["info-strong", "border-info", "text-info-strong"],
+  ),
+  (
+    ("palette", "success-muted"),
+    [
+      "success-muted",
+      "border-success-muted",
+      "shadow-success-muted",
+      "text-success-muted",
+    ],
+  ),
+  (
+    ("palette", "surface-1"),
+    ["surface-1", "border-surface", "surface-default", "text-surface"],
+  ),
+  (("palette", "surface-4"), ["surface-4", "surface-deep"]),
 ];
 
 /* Every field a themer can set, as (group, name). The pair is the key: short
@@ -397,8 +554,8 @@ let colors_of_group =
   );
 
 /* Read the evaluated slide back out as the CSS custom properties to write.
-   Both layers are emitted: stylesheets consume role names via roles.css, and
-   saved user themes plus roles.css itself still consume the palette. */
+   Both layers are emitted: stylesheets consume the role names, and the
+   palette is published too, because it is what a saved user theme writes. */
 let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
     (section: Exp.t) =>

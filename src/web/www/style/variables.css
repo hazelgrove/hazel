@@ -12,6 +12,11 @@
    field for. Those last ones are the gap -- an alias there follows the theme
    second-hand, a literal does not follow it at all. */
 :root {
+  /* Without this, native controls -- scrollbars, <select> popups, the caret
+     in text inputs -- render light on a dark editor: a page only gets dark
+     form controls by saying so. */
+  color-scheme: var(--hazel-color-scheme);
+
   /* ── Type and timing ──────────────────────────────────────────────── */
   --line-height: 1.45;
   --base-font-size: 13pt;
@@ -32,6 +37,25 @@
   --backpack-selection: oklch(91% 0.11 95);
   --backpack-selection-outline: oklch(99% 0.012 90);
   --black: oklch(0% 0 0);
+  --border-black: oklch(0% 0 0);
+  --border-default: oklch(70% 0.07 90);
+  --border-error: oklch(60% 0.3 30);
+  --border-error-strong: oklch(40% 0.3 30);
+  --border-highlight: oklch(91% 0.11 95);
+  --border-highlight-strong: oklch(88% 0.2 95);
+  --border-info: oklch(45% 0.05 120);
+  --border-inverse: oklch(52% 0.03 220);
+  --border-raised: oklch(94% 0.025 90);
+  --border-seam: oklch(99% 0.012 90);
+  --border-soft: oklch(85% 0.07 90);
+  --border-strong: oklch(60% 0.07 90);
+  --border-stronger: oklch(50% 0.07 90);
+  --border-success: oklch(70% 0.15 150);
+  --border-success-muted: oklch(80% 0.05 150);
+  --border-sunken: oklch(91% 0.025 90);
+  --border-surface: oklch(97% 0.025 90);
+  --border-typ: oklch(60% 0.2 300);
+  --border-warning: oklch(71% 0.2 95);
   --caret-color: oklch(60% 0.3 30);
   --cell-active: oklch(99% 0.012 90);
   --cell-exercises-border: oklch(70% 0.07 90);
@@ -116,7 +140,16 @@
   --sample-neutral-bg: oklch(94.3% 0.0135 150);
   --sample-neutral-text: oklch(51.55% 0.0945 150);
   --shadow-any: oklch(85% 0.1 30);
+  --shadow-error: oklch(60% 0.3 30);
+  --shadow-error-soft: oklch(85% 0.1 30);
+  --shadow-highlight: oklch(91% 0.11 95);
+  --shadow-pat: oklch(60% 0.2 225);
   --shadow-selected: oklch(85% 0.1 30);
+  --shadow-soft: oklch(85% 0.07 90);
+  --shadow-strong: oklch(60% 0.07 90);
+  --shadow-success: oklch(70% 0.15 150);
+  --shadow-success-muted: oklch(80% 0.05 150);
+  --shadow-typ: oklch(60% 0.2 300);
   --shard-any: oklch(94% 0.025 90);
   --shard-caret-drv: oklch(95.2% 0.0375 150);
   --shard-caret-exp: oklch(94% 0.025 90);
@@ -142,6 +175,31 @@
   --surface-2: oklch(94% 0.025 90);
   --surface-3: oklch(91% 0.025 90);
   --surface-4: oklch(88% 0.025 90);
+  --surface-accent: oklch(60% 0.07 90);
+  --surface-accent-strong: oklch(50% 0.07 90);
+  --surface-code: oklch(99% 0.012 90);
+  --surface-deep: oklch(88% 0.025 90);
+  --surface-default: oklch(97% 0.025 90);
+  --surface-error: oklch(60% 0.3 30);
+  --surface-error-soft: oklch(85% 0.1 30);
+  --surface-error-strong: oklch(40% 0.3 30);
+  --surface-highlight: oklch(91% 0.11 95);
+  --surface-highlight-a: oklch(95% 0.07 360);
+  --surface-highlight-b: oklch(95% 0.07 240);
+  --surface-highlight-c: oklch(95% 0.07 120);
+  --surface-highlight-soft: oklch(95% 0.05 90);
+  --surface-highlight-strong: oklch(88% 0.2 95);
+  --surface-inverse: oklch(52% 0.03 220);
+  --surface-label: oklch(60% 0.2 180);
+  --surface-none: oklch(0 0 0 / 0);
+  --surface-pat: oklch(60% 0.2 225);
+  --surface-raised: oklch(94% 0.025 90);
+  --surface-shard: oklch(85% 0.07 90);
+  --surface-shard-strong: oklch(70% 0.07 90);
+  --surface-success: oklch(70% 0.15 150);
+  --surface-success-soft: oklch(85% 0.15 150);
+  --surface-sunken: oklch(91% 0.025 90);
+  --surface-warning: oklch(71% 0.2 95);
   --test-fail: oklch(60% 0.3 30);
   --test-fail-active: oklch(85% 0.1 30);
   --test-indet: oklch(70% 0.07 90);
@@ -150,6 +208,30 @@
   --test-pass: oklch(70% 0.15 150);
   --test-pass-active: oklch(85% 0.15 150);
   --test-percent-text: oklch(99% 0.012 90);
+  --text-accent: oklch(60% 0.07 90);
+  --text-black: oklch(0% 0 0);
+  --text-default: oklch(52% 0.03 220);
+  --text-doc-1: oklch(95% 0.07 360);
+  --text-doc-2: oklch(95% 0.07 240);
+  --text-doc-3: oklch(95% 0.07 120);
+  --text-error: oklch(60% 0.3 30);
+  --text-error-strong: oklch(40% 0.3 30);
+  --text-faint: oklch(85% 0.07 90);
+  --text-info: oklch(70% 0.05 120);
+  --text-info-strong: oklch(45% 0.05 120);
+  --text-inverse: oklch(99% 0.012 90);
+  --text-muted: oklch(70% 0.07 90);
+  --text-none: oklch(0 0 0 / 0);
+  --text-pat: oklch(60% 0.2 225);
+  --text-strong: oklch(50% 0.07 90);
+  --text-success: oklch(70% 0.15 150);
+  --text-success-muted: oklch(80% 0.05 150);
+  --text-success-strong: oklch(85% 0.15 150);
+  --text-sunken: oklch(91% 0.025 90);
+  --text-surface: oklch(97% 0.025 90);
+  --text-tpat: oklch(60% 0.2 225);
+  --text-typ: oklch(60% 0.2 300);
+  --text-warning: oklch(71% 0.2 95);
   --textarea-h-strip-selected: color-mix(in oklch, oklch(68% 0.14 76) 30%, transparent);
   --textarea-h-stripe: oklch(87% 0.07 246);
   --textarea-indicated: oklch(99% 0.012 90);
