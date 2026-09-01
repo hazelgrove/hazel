@@ -394,6 +394,23 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.map(Token.prefixes)
   |> List.concat;
 
+/* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
+ * of compound forms (`-` en route to `->`, `=` en route to `=>`), so
+ * that e.g. the `-` of a nascent `fun x ->` holds an infix mold rather
+ * than molding as unary minus and drawing junction grout. Stricter than
+ * the alphanumeric set above: leading delimiters and the complete
+ * tokens themselves are excluded, since complete symbolic operators
+ * have real molds that must govern. */
+let symbolic_delim_prefixes: list(Token.t) =
+  forms
+  |> List.filter_map(((_, {label, _}: def)) =>
+       List.length(label) >= 2 ? Some(List.tl(label)) : None
+     )
+  |> List.concat
+  |> List.filter(Token.is_potential_operator)
+  |> List.sort_uniq(compare)
+  |> List.concat_map(t => List.filter((!=)(t), Token.prefixes(t)));
+
 /* Hot predicate: runs per atomic-form candidate on every molding query
    (so, superlinearly during text parsing), so membership is a hash set
    rather than a List.mem scan with polymorphic compare. The table is
@@ -403,6 +420,7 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
 let is_infix_delimiter_op_prefix: Token.t => bool = {
   let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
   List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
   t => Hashtbl.mem(tbl, t);
 };
 
@@ -651,11 +669,15 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
   label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
 };
 
+/* Compound candidates precede atomic ones: candidate order breaks ties
+ * among junction-fitting molds during remolding, and a token like `-`
+ * carries both real operator forms and an InfixDelimiterPrefix backup
+ * that must not shadow them. */
 let base_candidates = (label: Label.t): list((t, Mold.t)) => {
   let compounds =
     compound_defs(label) |> List.map(((fam, m)) => (Compound(fam), m));
   switch (label) {
-  | [t] => atomic_candidates(t) @ compounds
+  | [t] => compounds @ atomic_candidates(t)
   | _ => compounds
   };
 };
@@ -737,11 +759,12 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
 
 /* Classify a label at a sort: the (form, sort) pair to store on the
  * tile, chosen so that mold_of(form, sort) yields the classified
- * mold. First base candidate whose mold fits the sort (atomics
- * before compounds, candidate order — TokInfix never wins here:
- * every InfixDelimiterPrefix token is var-shaped, and the var
- * classes precede it); no fit => the first compound (or Tok) with
- * stored sort Any. */
+ * mold. First base candidate whose mold fits the sort (compounds
+ * before atomics, candidate order — so TokInfix only wins for tokens
+ * with no form of their own: var-shaped prefixes lose to the Var
+ * class, and symbolic prefixes like `-` lose to their operator
+ * forms); no fit => the first compound (or Tok) with stored sort
+ * Any. */
 let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
   let fits = ((_, m): (t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
