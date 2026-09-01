@@ -4,18 +4,26 @@ open QCheck;
 open MenhirParser;
 
 /**
+ * Render a core expression as editable syntax, for QCheck counterexamples and
+ * Alcotest failure output. `editable` rather than `of_core(_, CoreSettings.off)`
+ * deliberately: the latter hides ascriptions and folds function bodies, so two
+ * expressions that `Equality.semantic` counts as different can print
+ * identically. Reading this is a loss of information either way.
+ */
+let show_core_exp = exp =>
+  exp
+  |> ExpToSegment.exp_to_segment(
+       ~settings=ExpToSegment.Settings.editable(~inline=true),
+       _,
+     )
+  |> Printer.of_segment(~holes="?", _);
+
+/**
  * An arbitrary generator for expressions of type `Exp.t`.
  * This uses the generator from the menhirParser AST to produce random instances of `Exp.t`
  * for property-based testing.
  */
 let arb_exp = (~minimal_idents: bool, size: int) => {
-  let show_core_exp = exp =>
-    exp
-    |> ExpToSegment.exp_to_segment(
-         ~settings=ExpToSegment.Settings.editable(~inline=true),
-         _,
-       )
-    |> Printer.of_segment(~holes="?", _);
   let arb_exp =
     map(
       ~rev=

@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
@@ -47,19 +46,13 @@ let qcheck_evaluator_does_not_crash_test =
     }
   });
 
-let show_core_exp = exp =>
-  exp
-  |> ExpToSegment.exp_to_segment(
-       ~settings=
-         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-       _,
-     )
-  |> Printer.of_segment(~holes="?", _);
-
-/* Output is easier to view through ExpToSegment. This may result in a loss of
-   information. */
+/* Rendered by the same function that prints QCheck counterexamples, so a
+   failure here and a failure from the generator read alike. */
 let testable_core_exp =
-  testable(Fmt.using(show_core_exp, Fmt.string), Equality.semantic.exp);
+  testable(
+    Fmt.using(QCheck_Util.show_core_exp, Fmt.string),
+    Equality.semantic.exp,
+  );
 
 /* Elaborate `uexp`, reduce it with the evaluator and with the stepper, and
    `check` the two results against each other with `testable`: pass
@@ -193,8 +186,12 @@ let qcheck_pattern_equivalence_test =
             LimitedCompleted((first_exp, _)),
             LimitedCompleted((second_exp, _)),
           ) =>
-          print_endline("First expression: " ++ show_core_exp(first));
-          print_endline("Second expression: " ++ show_core_exp(second));
+          print_endline(
+            "First expression: " ++ QCheck_Util.show_core_exp(first),
+          );
+          print_endline(
+            "Second expression: " ++ QCheck_Util.show_core_exp(second),
+          );
           Alcotest.check(
             dhexp_typ,
             "Evaluated expressions are equal",
