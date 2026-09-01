@@ -3,49 +3,6 @@ open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
 
-/* The verdict on one case of a property. `Holds` and `Fails` are evidence;
-   `Vacuous` means the case was filtered out — a step limit, or one of the
-   raises these properties deliberately skip — and is neither. Producing a
-   verdict rather than a pair of results lets the property below and the
-   counterexample pinning its known bug share one function: the property
-   checks the verdict holds, the counterexample checks it still fails. */
-type verdict =
-  | Holds
-  | Fails(string) /* rendered disagreement, for the failure output */
-  | Vacuous;
-
-/* Read a verdict as a QCheck predicate: only real evidence of a failure fails
-   the property. */
-let holds = (verdict: verdict): bool =>
-  switch (verdict) {
-  | Holds
-  | Vacuous => true
-  | Fails(rendered) =>
-    print_endline(rendered);
-    false;
-  };
-
-/* Read a verdict as a counterexample pinning a known bug: the disagreement
-   must still be there, so this goes red once the bug is fixed and names the
-   property to re-enable. */
-let check_still_fails =
-    (~issue: string, ~property: string, verdict: verdict): unit =>
-  switch (verdict) {
-  | Fails(_) => ()
-  | Holds =>
-    failf(
-      "%s looks fixed: re-enable the `%s` property, delete this",
-      issue,
-      property,
-    )
-  | Vacuous =>
-    failf(
-      "this counterexample no longer reaches a result; re-minimize it against the `%s` property (%s)",
-      property,
-      issue,
-    )
-  };
-
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
@@ -99,10 +56,19 @@ let show_core_exp = exp =>
      )
   |> Printer.of_segment(~holes="?", _);
 
-/* Elaborate `uexp`, then reduce it with the evaluator and with the stepper:
-   the two must land on the same expression. Rendered through ExpToSegment,
-   which reads better but can lose information. */
-let evaluator_and_stepper_agree = (~step_limit: int, uexp: Exp.t): verdict =>
+/* Output is easier to view through ExpToSegment. This may result in a loss of
+   information. */
+let testable_core_exp =
+  testable(Fmt.using(show_core_exp, Fmt.string), Equality.semantic.exp);
+
+/* Elaborate `uexp`, reduce it with the evaluator and with the stepper, and
+   `check` the two results against each other with `testable`: pass
+   `testable_core_exp` to assert they agree, or `neg(testable_core_exp)` to
+   assert they still differ. Returns false when the case was filtered out — a
+   step limit, or a raise these properties skip — and nothing was compared. */
+let check_evaluator_against_stepper =
+    (~step_limit: int, ~testable: testable(Exp.t), ~msg: string, uexp: Exp.t)
+    : bool =>
   switch (
     {
       let (_, elab) =
@@ -120,28 +86,21 @@ let evaluator_and_stepper_agree = (~step_limit: int, uexp: Exp.t): verdict =>
       full_small_step_reduction(~step_limit, elaborated_exp),
     ) {
     | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
-      let smallstep_exp = fst(smallstep_exp);
-      Equality.semantic.exp(bigstep_exp, smallstep_exp)
-        ? Holds
-        : Fails(
-            "small step reduction and big step reduction differ:\n  small step: "
-            ++ show_core_exp(smallstep_exp)
-            ++ "\n  big step:   "
-            ++ show_core_exp(bigstep_exp),
-          );
+      check(testable, msg, fst(smallstep_exp), bigstep_exp);
+      true;
     | (_, StepLimitExceeded)
-    | (StepLimitExceeded, _) => Vacuous
+    | (StepLimitExceeded, _) => false
     | exception e =>
       print_endline(
         "Skipping evaluation failure: " ++ Printexc.to_string(e),
       );
-      Vacuous;
+      false;
     }
   | exception e =>
     print_endline(
       "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
     );
-    Vacuous;
+    false;
   };
 
 let qcheck_stepper_confluence =
@@ -149,8 +108,19 @@ let qcheck_stepper_confluence =
     ~name="Evaluator and stepper are consistent",
     ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
-    uexp =>
-    holds(evaluator_and_stepper_agree(~step_limit=100, uexp))
+    uexp => {
+      /* `check` raises on a disagreement; a filtered-out case is not a
+         failure, so the compared/not-compared answer is discarded here. */
+      ignore(
+        check_evaluator_against_stepper(
+          ~step_limit=100,
+          ~testable=testable_core_exp,
+          ~msg="Small step reduction and big step reduction are equal",
+          uexp,
+        ): bool,
+      );
+      true;
+    },
   );
 
 /* Disabled: fails on any seed that draws a duplicate binder, where one of the
@@ -173,11 +143,15 @@ let stepper_confluence_known_bug_test =
     "Known bug #2128: evaluator and stepper disagree on a duplicate binder",
     `Quick,
     () =>
-    check_still_fails(
-      ~issue="https://github.com/hazelgrove/hazel/issues/2128",
-      ~property="Evaluator and stepper are consistent",
-      evaluator_and_stepper_agree(
+    check(
+      bool,
+      "counterexample still reduces under both; re-minimize it otherwise",
+      true,
+      check_evaluator_against_stepper(
         ~step_limit=100,
+        ~testable=neg(testable_core_exp),
+        ~msg=
+          "#2128 looks fixed: re-enable `Evaluator and stepper are consistent`, delete this test",
         parse_exp("fun (x::x) -> x"),
       ),
     )
@@ -368,12 +342,22 @@ let eval_limited =
     elab,
   );
 
-/* Bump the int literal at `target_id` by one, then evaluate the edited program
-   two ways: incrementally, reusing the unedited run's cache, and from scratch.
-   Both must land on the same result. Both sides share one elaboration, so a
-   disagreement is a reuse / dirty-propagation bug rather than a semantic one. */
-let incremental_agrees_with_fresh_after_edit =
-    (~target_id: Id.t, ~old_value: Bigint.t, exp: Exp.t): verdict => {
+/* Bump the int literal at `target_id` by one, evaluate the edited program two
+   ways — incrementally, reusing the unedited run's cache, and from scratch —
+   and `check` the two against each other with `testable`: pass
+   `testable_core_exp` to assert they agree, or `neg(testable_core_exp)` to
+   assert they still differ. Both sides share one elaboration, so a
+   disagreement is a reuse / dirty-propagation bug rather than a semantic one.
+   Returns false when the case was filtered out and nothing was compared. */
+let check_incremental_against_fresh_after_edit =
+    (
+      ~target_id: Id.t,
+      ~old_value: Bigint.t,
+      ~testable: testable(Exp.t),
+      ~msg: string,
+      exp: Exp.t,
+    )
+    : bool => {
   /* Only swallow known-benign static/dynamic failures so real
    * incremental-eval disagreements surface as clean failures. */
   let try_eval = (~prev=?, eval_info, elab) =>
@@ -412,7 +396,7 @@ let incremental_agrees_with_fresh_after_edit =
      * the cache handed to the incremental run of the edited exp. */
     switch (try_eval(info_slice_orig, elab_orig)) {
     | None
-    | Some(StepLimitExceeded) => Vacuous
+    | Some(StepLimitExceeded) => false
     | Some(LimitedCompleted((_, state_before))) =>
       /* Edited evaluated two ways: incrementally (reusing the baseline's
        * cache) and from scratch (empty prev). These must agree. */
@@ -424,18 +408,12 @@ let incremental_agrees_with_fresh_after_edit =
           Some(LimitedCompleted((e_fresh, _))),
           Some(LimitedCompleted((e_incr, _))),
         ) =>
-        Equality.semantic.exp(e_fresh, e_incr)
-          ? Holds
-          : Fails(
-              "fresh and incremental eval differ:\n  fresh:       "
-              ++ show_core_exp(e_fresh)
-              ++ "\n  incremental: "
-              ++ show_core_exp(e_incr),
-            )
-      | _ => Vacuous
+        check(testable, msg, e_fresh, e_incr);
+        true;
+      | _ => false
       };
     };
-  | _ => Vacuous
+  | _ => false
   };
 };
 
@@ -453,9 +431,18 @@ let qcheck_incremental_matches_fresh_after_edit =
     | lits =>
       let (target_id, old_value) =
         List.nth(lits, seed mod List.length(lits));
-      holds(
-        incremental_agrees_with_fresh_after_edit(~target_id, ~old_value, exp),
+      /* `check` raises on a disagreement; a filtered-out case is not a
+         failure, so the compared/not-compared answer is discarded here. */
+      ignore(
+        check_incremental_against_fresh_after_edit(
+          ~target_id,
+          ~old_value,
+          ~testable=testable_core_exp,
+          ~msg="Incremental eval and fresh eval agree",
+          exp,
+        ): bool,
       );
+      true;
     }
   );
 
@@ -494,11 +481,18 @@ let incremental_literal_edit_known_bug_test =
             List.length(lits),
           )
         };
-      check_still_fails(
-        ~issue="https://github.com/hazelgrove/hazel/issues/2457",
-        ~property=
-          "Incremental eval agrees with fresh eval after a literal edit",
-        incremental_agrees_with_fresh_after_edit(~target_id, ~old_value, exp),
+      check(
+        bool,
+        "counterexample still evaluates both ways; re-minimize it otherwise",
+        true,
+        check_incremental_against_fresh_after_edit(
+          ~target_id,
+          ~old_value,
+          ~testable=neg(testable_core_exp),
+          ~msg=
+            "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
+          exp,
+        ),
       );
     },
   );
