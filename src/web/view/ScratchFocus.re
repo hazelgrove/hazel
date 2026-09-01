@@ -372,24 +372,71 @@ let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
     };
   };
 
+/* the first `test` tile's id within a span — module members are
+   repped by their test TILE (Mod.rep_id), while top-level statements
+   are repped by their `;` (Seq's rep), so run members carry both id
+   domains (harmless supersets: the sidebar/covering checks are
+   membership tests against outline ids) */
+let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
+  let rec go = i =>
+    i >= sp.sp_stop
+      ? None
+      : (
+        switch (arr[i]) {
+        | Piece.Tile(t) =>
+          switch (t.label) {
+          | ["test", ..._] => Some(t.id)
+          | _ => None
+          }
+        | _ => go(i + 1)
+        }
+      );
+  go(sp.sp_start);
+};
+
 /* the maximal run of adjacent test statements containing [fid]:
    (content start, content stop — before the LAST `;` + trivia,
-   which stay master-side like any statement's — member item ids) */
-let test_run = (fid: Id.t, seg: Segment.t): option((int, int, list(Id.t))) => {
+   which stay master-side like any statement's — member item ids).
+   [fid] may be a span's boundary id OR any id inside it (module
+   members are repped by their test tile, not the `;`). In a MODULE
+   body a final no-`;` member parses as the tail span but is an
+   ordinary member — no tail semantics — so it joins the run; in
+   expression blocks the tail is the block's value and never does. */
+let test_run =
+    (~module_body=false, fid: Id.t, seg: Segment.t)
+    : option((int, int, list(Id.t))) => {
   let arr = Array.of_list(seg);
   let spans = Array.of_list(item_spans(seg));
   let n = Array.length(spans);
+  let in_run = (sp: item_span): bool =>
+    switch (sp.sp_kind) {
+    | IStmt => span_is_test(arr, sp)
+    | ITail => module_body && span_test_tile_id(arr, sp) != None
+    | IDef => false
+    };
   let rec idx = j =>
-    j >= n ? None : spans[j].sp_id == Some(fid) ? Some(j) : idx(j + 1);
+    j >= n
+      ? None
+      : spans[j].sp_id == Some(fid)
+        || seg_contains_id(
+             fid,
+             slice(spans[j].sp_start, spans[j].sp_stop, seg),
+           )
+          ? Some(j) : idx(j + 1);
   switch (idx(0)) {
-  | Some(j) when span_is_test(arr, spans[j]) =>
-    let rec lo = j =>
-      j > 0 && span_is_test(arr, spans[j - 1]) ? lo(j - 1) : j;
-    let rec hi = j =>
-      j + 1 < n && span_is_test(arr, spans[j + 1]) ? hi(j + 1) : j;
+  | Some(j) when in_run(spans[j]) =>
+    let rec lo = j => j > 0 && in_run(spans[j - 1]) ? lo(j - 1) : j;
+    let rec hi = j => j + 1 < n && in_run(spans[j + 1]) ? hi(j + 1) : j;
     let (a, b) = (lo(j), hi(j));
     let members =
-      List.filter_map(k => spans[k].sp_id, List.init(b - a + 1, k => a + k));
+      List.concat_map(
+        k =>
+          List.filter_map(
+            x => x,
+            [span_test_tile_id(arr, spans[k]), spans[k].sp_id],
+          ),
+        List.init(b - a + 1, k => a + k),
+      );
     let start = spans[a].sp_start;
     let rec back = i =>
       i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
@@ -398,6 +445,65 @@ let test_run = (fid: Id.t, seg: Segment.t): option((int, int, list(Id.t))) => {
     Some((start, stop, members));
   | _ => None
   };
+};
+
+/* test runs at ANY block depth (module bodies, fn bodies), mirroring
+   the headless_deep pattern: try this level's span walk, then recurse
+   into tile children — the sidebar's tests container pins the same
+   one-cell run at every level */
+let rec test_run_deep_go =
+        (~module_body: bool, fid: Id.t, seg: Segment.t)
+        : option((Segment.t, list(Id.t))) =>
+  switch (test_run(~module_body, fid, seg)) {
+  | Some((start, stop, members)) => Some((slice(start, stop, seg), members))
+  | None =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          List.find_map(
+            test_run_deep_go(
+              ~module_body=List.mem(Sort.Mod, t.mold.in_),
+              fid,
+            ),
+            t.children,
+          )
+        | _ => None
+        },
+      seg,
+    )
+  };
+
+let test_run_deep = (fid: Id.t, seg: Segment.t) =>
+  test_run_deep_go(~module_body=false, fid, seg);
+
+/* splice a run cell home at any depth; identity-preserving off the
+   replacement path, like splice_headless_deep */
+let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
+  let rec go = (~module_body: bool, seg: Segment.t): Segment.t =>
+    switch (test_run(~module_body, fid, seg)) {
+    | Some((start, stop, _)) =>
+      let (pre, _, suf) = trim_ws(slice(start, stop, seg));
+      take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+    | None =>
+      map_sharing(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            tile_sharing(
+              p,
+              t,
+              map_sharing(
+                go(~module_body=List.mem(Sort.Mod, t.mold.in_)),
+                t.children,
+              ),
+            )
+          | _ => p
+          },
+        seg,
+      )
+    };
+  go(~module_body=false, seg);
 };
 
 /* The definition RHS for the item tile [fid]:
@@ -692,10 +798,10 @@ and mk_def_entry =
 let mk_run_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(Model.stack_entry) =>
-  switch (test_run(fid, master_seg)) {
+  switch (test_run_deep(fid, master_seg)) {
   | None => mk_entry(~info_map, fid, master_seg)
-  | Some((start, stop, members)) =>
-    let content = core_ws(slice(start, stop, master_seg));
+  | Some((run_slice, members)) =>
+    let content = core_ws(run_slice);
     let e_ctx =
       switch (captured_ctx(~info_map, fid, content)) {
       | Some(ctx) => ctx
@@ -721,12 +827,7 @@ let mk_run_entry =
 let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
   switch (e.e_sym) {
   | Some(_) when e.e_run =>
-    switch (test_run(e.e_id, seg)) {
-    | Some((start, stop, _)) =>
-      let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-      take(start, seg) @ pre @ zip_of_cell(e.e_body) @ suf @ drop(stop, seg);
-    | None => seg
-    }
+    splice_run_deep(e.e_id, zip_of_cell(e.e_body), seg)
   | Some(_) =>
     /* headerless: replace the item's content run in place (works at
        any block depth) */
@@ -746,9 +847,7 @@ let splice_entry = (e: Model.stack_entry, seg: Segment.t): Segment.t =>
 /* the cell-content slice for any entry kind (ctx recapture) */
 let cell_content = (e: Model.stack_entry, seg: Segment.t): option(Segment.t) =>
   switch (e.e_sym) {
-  | Some(_) when e.e_run =>
-    test_run(e.e_id, seg)
-    |> Option.map(((start, stop, _)) => slice(start, stop, seg))
+  | Some(_) when e.e_run => test_run_deep(e.e_id, seg) |> Option.map(fst)
   | Some(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
   | None => find_def(e.e_id, seg)
   };

@@ -148,7 +148,6 @@ let rec node_view =
           ~toggle_collapse: OutlineTree.path => Effect.t(unit),
           ~path: OutlineTree.path,
           ~occ: int, /* this node's occurrence among same-labeled siblings */
-          ~top_level: bool,
           ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
           ~focused_entries: list((Language.Id.t, option(string))),
@@ -322,23 +321,13 @@ let rec node_view =
                 Attr.on_click(_ =>
                   Effect.Many(
                     [Effect.Prevent_default, Effect.Stop_propagation]
+                    /* one cell spanning the whole run, at any depth
+                       (test_run_deep) */
                     @ (
-                      top_level
-                        /* one cell spanning the whole run */
-                        ? switch (kid_ids) {
-                          | [first, ..._] => [toggle_run(first)]
-                          | [] => []
-                          }
-                        /* nested runs: pin/unpin each test */
-                        : List.map(
-                            toggle,
-                            List.filter(
-                              id =>
-                                List.mem_assoc(id, focused_entries)
-                                == all_pinned,
-                              kid_ids,
-                            ),
-                          )
+                      switch (kid_ids) {
+                      | [first, ..._] => [toggle_run(first)]
+                      | [] => []
+                      }
                     ),
                   )
                 ),
@@ -419,7 +408,6 @@ let rec node_view =
                 ~toggle_collapse,
                 ~path=my_path,
                 ~occ=kocc,
-                ~top_level=false,
                 ~menu_open,
                 ~error_subtree,
                 ~focused_entries,
@@ -583,7 +571,6 @@ let view =
                     ~toggle_collapse,
                     ~path=[],
                     ~occ=rocc,
-                    ~top_level=true,
                     ~menu_open,
                     ~error_subtree,
                     ~focused_entries,
