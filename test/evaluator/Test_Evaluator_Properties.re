@@ -3,6 +3,49 @@ open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
 
+/* The verdict on one case of a property. `Holds` and `Fails` are evidence;
+   `Vacuous` means the case was filtered out — a step limit, or one of the
+   raises these properties deliberately skip — and is neither. Producing a
+   verdict rather than a pair of results lets the property below and the
+   counterexample pinning its known bug share one function: the property
+   checks the verdict holds, the counterexample checks it still fails. */
+type verdict =
+  | Holds
+  | Fails(string) /* rendered disagreement, for the failure output */
+  | Vacuous;
+
+/* Read a verdict as a QCheck predicate: only real evidence of a failure fails
+   the property. */
+let holds = (verdict: verdict): bool =>
+  switch (verdict) {
+  | Holds
+  | Vacuous => true
+  | Fails(rendered) =>
+    print_endline(rendered);
+    false;
+  };
+
+/* Read a verdict as a counterexample pinning a known bug: the disagreement
+   must still be there, so this goes red once the bug is fixed and names the
+   property to re-enable. */
+let check_still_fails =
+    (~issue: string, ~property: string, verdict: verdict): unit =>
+  switch (verdict) {
+  | Fails(_) => ()
+  | Holds =>
+    failf(
+      "%s looks fixed: re-enable the `%s` property, delete this",
+      issue,
+      property,
+    )
+  | Vacuous =>
+    failf(
+      "this counterexample no longer reaches a result; re-minimize it against the `%s` property (%s)",
+      property,
+      issue,
+    )
+  };
+
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
@@ -56,15 +99,10 @@ let show_core_exp = exp =>
      )
   |> Printer.of_segment(~holes="?", _);
 
-/* Elaborate `uexp` and reduce it with both engines, returning
- * `Some((bigstep, smallstep))` when both land on a result. `None` means the
- * case is vacuous — either engine hit the step limit, or statics/evaluation
- * raised (filtered the same way as the other evaluator QCheck tests here).
- *
- * Shared by the confluence property and by the deterministic #2128 pin, so
- * the two cannot drift apart. */
-let reduce_both_engines =
-    (~step_limit: int, uexp: Exp.t): option((Exp.t, Exp.t)) =>
+/* Elaborate `uexp`, then reduce it with the evaluator and with the stepper:
+   the two must land on the same expression. Rendered through ExpToSegment,
+   which reads better but can lose information. */
+let evaluator_and_stepper_agree = (~step_limit: int, uexp: Exp.t): verdict =>
   switch (
     {
       let (_, elab) =
@@ -82,26 +120,29 @@ let reduce_both_engines =
       full_small_step_reduction(~step_limit, elaborated_exp),
     ) {
     | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
-      Some((bigstep_exp, smallstep_exp |> fst))
+      let smallstep_exp = fst(smallstep_exp);
+      Equality.semantic.exp(bigstep_exp, smallstep_exp)
+        ? Holds
+        : Fails(
+            "small step reduction and big step reduction differ:\n  small step: "
+            ++ show_core_exp(smallstep_exp)
+            ++ "\n  big step:   "
+            ++ show_core_exp(bigstep_exp),
+          );
     | (_, StepLimitExceeded)
-    | (StepLimitExceeded, _) => None
+    | (StepLimitExceeded, _) => Vacuous
     | exception e =>
       print_endline(
         "Skipping evaluation failure: " ++ Printexc.to_string(e),
       );
-      None;
+      Vacuous;
     }
   | exception e =>
     print_endline(
       "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
     );
-    None;
+    Vacuous;
   };
-
-/* Output is easier to view through ExpToSegment. This may result in a loss of
-   information. */
-let testable_core_exp =
-  testable(Fmt.using(show_core_exp, Fmt.string), Equality.semantic.exp);
 
 let qcheck_stepper_confluence =
   QCheck.Test.make(
@@ -109,50 +150,37 @@ let qcheck_stepper_confluence =
     ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp =>
-    switch (reduce_both_engines(~step_limit=100, uexp)) {
-    | None => true
-    | Some((bigstep_exp, smallstep_exp)) =>
-      Alcotest.check(
-        testable_core_exp,
-        "Small step reduction and big step reduction are equal",
-        smallstep_exp,
-        bigstep_exp,
-      );
-      true;
-    }
+    holds(evaluator_and_stepper_agree(~step_limit=100, uexp))
   );
 
-/* The counterexample from #2128/#2372, driven directly instead of waited for
- * from the generator: a duplicate binder in a cons pattern. One engine
- * freshens the second `x` and the other does not, and `Equality.semantic.exp`
- * does not equate the two alpha-variants.
- *
- * This asserts the CURRENT, WRONG behaviour, so it goes red the day the
- * engines agree and tells us to re-enable `qcheck_stepper_confluence` above.
- * A plain `Alcotest.skip()` would stay silent forever instead. */
+/* Disabled: fails on any seed that draws a duplicate binder, where one of the
+   two freshens it and the other does not. Known bug
+   https://github.com/hazelgrove/hazel/issues/2128 (dup #2372). The test after
+   this one pins that counterexample and goes red once the bug is fixed, which
+   is the signal to re-enable this property. */
+let qcheck_stepper_confluence_disabled =
+  test_case(
+    "Evaluator and stepper are consistent (disabled, #2128)", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      ignore(QCheck_alcotest.to_alcotest(qcheck_stepper_confluence));
+    }
+  });
+
 let stepper_confluence_known_bug_test =
   test_case(
-    "Known Bug #2128: evaluator and stepper disagree on a duplicate binder",
+    "Known bug #2128: evaluator and stepper disagree on a duplicate binder",
     `Quick,
-    () => {
-      let uexp = parse_exp("fun (x::x) -> x");
-      switch (reduce_both_engines(~step_limit=100, uexp)) {
-      | None =>
-        fail(
-          "the #2128 counterexample no longer reduces under both engines; "
-          ++ "re-minimize it against the property before trusting this pin",
-        )
-      | Some((bigstep_exp, smallstep_exp)) =>
-        check(
-          bool,
-          "#2128/#2372 appear FIXED: re-enable the disabled "
-          ++ "`Evaluator and stepper are consistent` property and delete this "
-          ++ "expected-failure pin",
-          false,
-          Equality.semantic.exp(bigstep_exp, smallstep_exp),
-        )
-      };
-    },
+    () =>
+    check_still_fails(
+      ~issue="https://github.com/hazelgrove/hazel/issues/2128",
+      ~property="Evaluator and stepper are consistent",
+      evaluator_and_stepper_agree(
+        ~step_limit=100,
+        parse_exp("fun (x::x) -> x"),
+      ),
+    )
   );
 
 // Property that states let x : T = e in x is equivalent to e : T
@@ -340,17 +368,12 @@ let eval_limited =
     elab,
   );
 
-/* Run the one-literal-edit experiment on `exp`: bump the int literal at
- * `target_id` by one, then evaluate the edited program both incrementally
- * (against the cache from the unedited run) and from scratch. `None` means
- * the case is vacuous — a known-benign statics/dynamics failure or the step
- * limit — and callers should treat it as no evidence either way.
- *
- * Shared by the property below and by the deterministic #2457 pin, so the
- * two cannot drift apart. */
-let eval_after_literal_edit =
-    (~target_id: Id.t, ~old_value: Bigint.t, exp: Exp.t)
-    : option((Exp.t, Exp.t)) => {
+/* Bump the int literal at `target_id` by one, then evaluate the edited program
+   two ways: incrementally, reusing the unedited run's cache, and from scratch.
+   Both must land on the same result. Both sides share one elaboration, so a
+   disagreement is a reuse / dirty-propagation bug rather than a semantic one. */
+let incremental_agrees_with_fresh_after_edit =
+    (~target_id: Id.t, ~old_value: Bigint.t, exp: Exp.t): verdict => {
   /* Only swallow known-benign static/dynamic failures so real
    * incremental-eval disagreements surface as clean failures. */
   let try_eval = (~prev=?, eval_info, elab) =>
@@ -389,7 +412,7 @@ let eval_after_literal_edit =
      * the cache handed to the incremental run of the edited exp. */
     switch (try_eval(info_slice_orig, elab_orig)) {
     | None
-    | Some(StepLimitExceeded) => None
+    | Some(StepLimitExceeded) => Vacuous
     | Some(LimitedCompleted((_, state_before))) =>
       /* Edited evaluated two ways: incrementally (reusing the baseline's
        * cache) and from scratch (empty prev). These must agree. */
@@ -401,11 +424,18 @@ let eval_after_literal_edit =
           Some(LimitedCompleted((e_fresh, _))),
           Some(LimitedCompleted((e_incr, _))),
         ) =>
-        Some((e_fresh, e_incr))
-      | _ => None
+        Equality.semantic.exp(e_fresh, e_incr)
+          ? Holds
+          : Fails(
+              "fresh and incremental eval differ:\n  fresh:       "
+              ++ show_core_exp(e_fresh)
+              ++ "\n  incremental: "
+              ++ show_core_exp(e_incr),
+            )
+      | _ => Vacuous
       };
     };
-  | _ => None
+  | _ => Vacuous
   };
 };
 
@@ -417,33 +447,41 @@ let qcheck_incremental_matches_fresh_after_edit =
       QCheck.small_nat,
       QCheck_Util.arb_exp(~minimal_idents=true, 30),
     ),
-    ((seed, exp)) => {
+    ((seed, exp)) =>
     switch (collect_int_lits(exp)) {
     | [] => true /* Nothing to edit — the property is vacuously true. */
     | lits =>
       let (target_id, old_value) =
         List.nth(lits, seed mod List.length(lits));
-      switch (eval_after_literal_edit(~target_id, ~old_value, exp)) {
-      | None => true
-      | Some((e_fresh, e_incr)) => Equality.semantic.exp(e_fresh, e_incr)
-      };
+      holds(
+        incremental_agrees_with_fresh_after_edit(~target_id, ~old_value, exp),
+      );
+    }
+  );
+
+/* Disabled: fails on any seed that draws the shape below. Known bug
+   https://github.com/hazelgrove/hazel/issues/2457. The test after this one
+   pins that counterexample and goes red once the bug is fixed, which is the
+   signal to re-enable this property. */
+let qcheck_incremental_matches_fresh_after_edit_disabled =
+  test_case(
+    "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
+    `Quick,
+    () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      ignore(
+        QCheck_alcotest.to_alcotest(
+          qcheck_incremental_matches_fresh_after_edit,
+        ),
+      );
     }
   });
 
-/* The minimal counterexample from #2457, driven directly instead of waited
- * for from the generator. Every ingredient matters: a *named* binding that
- * survives into the residual, the edited literal bound to `_`, and
- * evaluation getting stuck *after* the literal via a failing pattern match.
- *
- * This asserts the CURRENT, WRONG behaviour — fresh eval substitutes `x`'s
- * value into the residual environment, incremental eval leaves `x` as a
- * variable. It is deliberately NOT an `Alcotest.skip()` like
- * `skip_known_bug` elsewhere in test/: a skipped test stays silent forever,
- * whereas this one goes red the day #2457 is fixed and tells us to re-enable
- * `qcheck_incremental_matches_fresh_after_edit` above. */
 let incremental_literal_edit_known_bug_test =
   test_case(
-    "Known Bug #2457: incremental eval disagrees with fresh after a literal edit",
+    "Known bug #2457: incremental eval disagrees with fresh after a literal edit",
     `Quick,
     () => {
       let exp = parse_exp("{ let x = (); let _ = 4; let true = A }");
@@ -456,22 +494,12 @@ let incremental_literal_edit_known_bug_test =
             List.length(lits),
           )
         };
-      switch (eval_after_literal_edit(~target_id, ~old_value, exp)) {
-      | None =>
-        fail(
-          "the #2457 counterexample no longer reaches a completed evaluation; "
-          ++ "re-minimize it against the property before trusting this pin",
-        )
-      | Some((e_fresh, e_incr)) =>
-        check(
-          bool,
-          "#2457 appears FIXED: re-enable the disabled "
-          ++ "`Incremental eval agrees with fresh eval after a literal edit` "
-          ++ "property and delete this expected-failure pin",
-          false,
-          Equality.semantic.exp(e_fresh, e_incr),
-        )
-      };
+      check_still_fails(
+        ~issue="https://github.com/hazelgrove/hazel/issues/2457",
+        ~property=
+          "Incremental eval agrees with fresh eval after a literal edit",
+        incremental_agrees_with_fresh_after_edit(~target_id, ~old_value, exp),
+      );
     },
   );
 
@@ -762,37 +790,10 @@ let tests = (
     yielding_streaming_current_state_test,
     yielding_streaming_current_id_invalid_race_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
-    /* Disabled: fails for any seed that generates a duplicate binder
-       (#2128/#2372), which has reddened Full tests on unrelated PRs. The
-       deterministic pin below keeps the bug covered. #2408 fixes a different
-       confluence cause, so it will not on its own make this safe to re-enable. */
-    test_case(
-      "Evaluator and stepper are consistent (disabled, #2128)", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        ignore(QCheck_alcotest.to_alcotest(qcheck_stepper_confluence));
-      }
-    }),
+    qcheck_stepper_confluence_disabled,
     stepper_confluence_known_bug_test,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
-    /* Disabled: fails for any seed that generates the #2457 shape, which has
-       reddened Full tests on unrelated PRs. The deterministic pin below keeps
-       the bug covered and will fail once #2457 is fixed. */
-    test_case(
-      "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
-      `Quick,
-      () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        ignore(
-          QCheck_alcotest.to_alcotest(
-            qcheck_incremental_matches_fresh_after_edit,
-          ),
-        );
-      }
-    }),
+    qcheck_incremental_matches_fresh_after_edit_disabled,
     incremental_literal_edit_known_bug_test,
     /* Preservation does not currently hold: stepping can produce a type that
        is not more precise than the original. */
