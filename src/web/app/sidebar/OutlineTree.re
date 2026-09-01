@@ -337,37 +337,71 @@ let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   go([], of_term(e)) |> Option.value(~default=[]);
 };
 
-/* durable NAME anchor for a row: outline labels root-to-node.
-   Text-backed persistence re-mints ids on every load, so pins save as
-   label paths and re-resolve against the loaded outline. */
-let label_path = (fid: Id.t, e: Exp.t): option(list(string)) => {
-  let rec go = (trail, ns: list(node)) =>
+/* durable NAME anchor for a row: outline labels root-to-node,
+   OCCURRENCE-qualified — labels alone are not unique (duplicate
+   definitions, two separated `tests` groups), and first-match
+   resolution crossed wires between them. Text-backed persistence
+   re-mints ids on every load, so pins save as these paths and
+   re-resolve against the loaded outline. */
+open Util;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type path_seg = {
+  s_label: string,
+  s_occ: int /* index among same-labeled siblings, in tree order */
+};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type path = list(path_seg);
+
+/* pair each node with its occurrence index — the ONE counting
+   discipline shared by label_path, resolve_path, and the sidebar's
+   collapse paths (diverging counters would cross wires again) */
+let with_occurrences = (ns: list(node)): list((node, int)) => {
+  let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
+  List.map(
+    n => {
+      let k = Hashtbl.find_opt(seen, n.o_label) |> Option.value(~default=0);
+      Hashtbl.replace(seen, n.o_label, k + 1);
+      (n, k);
+    },
+    ns,
+  );
+};
+
+let label_path = (fid: Id.t, e: Exp.t): option(path) => {
+  let rec go = (trail, ns: list((node, int))) =>
     List.fold_left(
-      (acc, n) =>
+      (acc, (n, occ)) => {
+        let seg = {
+          s_label: n.o_label,
+          s_occ: occ,
+        };
         switch (acc) {
         | Some(_) => acc
         | None =>
           n.o_id == Some(fid)
-            ? Some(List.rev([n.o_label, ...trail]))
-            : go([n.o_label, ...trail], n.o_children)
-        },
+            ? Some(List.rev([seg, ...trail]))
+            : go([seg, ...trail], with_occurrences(n.o_children))
+        };
+      },
       None,
       ns,
     );
-  go([], of_term(e));
+  go([], with_occurrences(of_term(e)));
 };
 
-let resolve_path = (path: list(string), e: Exp.t): option(Id.t) => {
+let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
+  let find = (seg: path_seg, ns: list(node)): option(node) =>
+    with_occurrences(ns)
+    |> List.find_opt(((n, occ)) =>
+         n.o_label == seg.s_label && occ == seg.s_occ
+       )
+    |> Option.map(fst);
   let rec go = (path, ns: list(node)) =>
     switch (path) {
     | [] => None
-    | [last] =>
-      switch (List.find_opt(n => n.o_label == last, ns)) {
-      | Some(n) => n.o_id
-      | None => None
-      }
+    | [last] => Option.bind(find(last, ns), n => n.o_id)
     | [hd, ...rest] =>
-      switch (List.find_opt(n => n.o_label == hd, ns)) {
+      switch (find(hd, ns)) {
       | Some(n) => go(rest, n.o_children)
       | None => None
       }

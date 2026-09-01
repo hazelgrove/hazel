@@ -144,9 +144,10 @@ let rec node_view =
           ~focus: Language.Id.t => Effect.t(unit),
           ~toggle: Language.Id.t => Effect.t(unit),
           ~toggle_run: Language.Id.t => Effect.t(unit),
-          ~is_collapsed: list(string) => bool,
-          ~toggle_collapse: list(string) => Effect.t(unit),
-          ~path: list(string),
+          ~is_collapsed: OutlineTree.path => bool,
+          ~toggle_collapse: OutlineTree.path => Effect.t(unit),
+          ~path: OutlineTree.path,
+          ~occ: int, /* this node's occurrence among same-labeled siblings */
           ~top_level: bool,
           ~menu_open: (Language.Id.t, bool, float, float) => Effect.t(unit),
           ~error_subtree: list(Language.Id.t),
@@ -372,7 +373,14 @@ let rec node_view =
   switch (n.o_children) {
   | [] => div(~attrs=[clss(["outline-leaf"])], [label])
   | kids =>
-    let my_path = path @ [n.o_label];
+    let my_path =
+      path
+      @ [
+        OutlineTree.{
+          s_label: n.o_label,
+          s_occ: occ,
+        },
+      ];
     create(
       "details",
       ~attrs=
@@ -401,22 +409,25 @@ let rec node_view =
         div(
           ~attrs=[clss(["outline-kids"])],
           List.map(
-            node_view(
-              ~jump,
-              ~focus,
-              ~toggle,
-              ~toggle_run,
-              ~is_collapsed,
-              ~toggle_collapse,
-              ~path=my_path,
-              ~top_level=false,
-              ~menu_open,
-              ~error_subtree,
-              ~focused_entries,
-              ~error_items,
-              ~test_status,
-            ),
-            kids,
+            ((kid, kocc)) =>
+              node_view(
+                ~jump,
+                ~focus,
+                ~toggle,
+                ~toggle_run,
+                ~is_collapsed,
+                ~toggle_collapse,
+                ~path=my_path,
+                ~occ=kocc,
+                ~top_level=false,
+                ~menu_open,
+                ~error_subtree,
+                ~focused_entries,
+                ~error_items,
+                ~test_status,
+                kid,
+              ),
+            OutlineTree.with_occurrences(kids),
           ),
         ),
       ],
@@ -511,8 +522,8 @@ let view =
       ~focus: Language.Id.t => Effect.t(unit),
       ~toggle: Language.Id.t => Effect.t(unit),
       ~toggle_run: Language.Id.t => Effect.t(unit),
-      ~is_collapsed: list(string) => bool,
-      ~toggle_collapse: list(string) => Effect.t(unit),
+      ~is_collapsed: OutlineTree.path => bool,
+      ~toggle_collapse: OutlineTree.path => Effect.t(unit),
       ~unfocus: Effect.t(unit),
       ~focused_entries: list((Language.Id.t, option(string))),
       ~error_items: list(Language.Id.t),
@@ -562,22 +573,25 @@ let view =
               ),
             ]
             : List.map(
-                node_view(
-                  ~jump,
-                  ~focus,
-                  ~toggle,
-                  ~toggle_run,
-                  ~is_collapsed,
-                  ~toggle_collapse,
-                  ~path=[],
-                  ~top_level=true,
-                  ~menu_open,
-                  ~error_subtree,
-                  ~focused_entries,
-                  ~error_items,
-                  ~test_status,
-                ),
-                roots,
+                ((root, rocc)) =>
+                  node_view(
+                    ~jump,
+                    ~focus,
+                    ~toggle,
+                    ~toggle_run,
+                    ~is_collapsed,
+                    ~toggle_collapse,
+                    ~path=[],
+                    ~occ=rocc,
+                    ~top_level=true,
+                    ~menu_open,
+                    ~error_subtree,
+                    ~focused_entries,
+                    ~error_items,
+                    ~test_status,
+                    root,
+                  ),
+                OutlineTree.with_occurrences(roots),
               )
         ),
       ),

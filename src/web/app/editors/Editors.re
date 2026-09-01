@@ -284,6 +284,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=false,
           m,
         ),
       )
@@ -294,6 +295,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=true,
           m,
         ),
       )

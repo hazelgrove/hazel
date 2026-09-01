@@ -191,7 +191,7 @@ module Update = {
     | FocusToggle(Haz3lcore.Id.t) /* add/remove a def in the stack */
     | FocusToggleRun(Haz3lcore.Id.t) /* one cell for a whole test run */
     | RestorePins /* deferred per-slide pin restore after slide load */
-    | OutlineCollapse(list(string)) /* toggle a branch's collapse */
+    | OutlineCollapse(OutlineTree.path) /* toggle a branch's collapse */
     | FocusEnsure(Haz3lcore.Id.t) /* add if absent (cross-cell jump) */
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
@@ -701,7 +701,18 @@ module Update = {
     | RestorePins =>
       switch (Persist.pending_pins^) {
       | None => model |> Updated.return_quiet
-      | Some(pins) =>
+      | Some((ck, _))
+          when
+            ck
+            != Persist.content_key(
+                 is_documentation ? "doc" : "scratch",
+                 List.nth(model.scratchpads, model.current).name,
+               ) =>
+        /* read for a different slide/mode: never resolve against
+           whatever document happens to be current now */
+        Persist.pending_pins := None;
+        model |> Updated.return_quiet;
+      | Some((_, pins)) =>
         let scratchpad = List.nth(model.scratchpads, model.current);
         switch (scratchpad.kind) {
         | Code({editor, _})
@@ -806,15 +817,17 @@ module Update = {
       outline_menu := m;
       model |> Updated.return_quiet;
     | OutlineCollapse(path) =>
+      let prefix = is_documentation ? "doc" : "scratch";
       let name = List.nth(model.scratchpads, model.current).name;
-      let cur = collapse_paths(name);
+      let ck = Persist.content_key(prefix, name);
+      let cur = collapse_paths(prefix, name);
       let next =
         List.mem(path, cur)
           ? List.filter(p => p != path, cur) : [path, ...cur];
       next == []
-        ? Hashtbl.remove(slide_collapse, name)
-        : Hashtbl.replace(slide_collapse, name, next);
-      Persist.write_collapse(is_documentation ? "doc" : "scratch", name);
+        ? Hashtbl.remove(slide_collapse, ck)
+        : Hashtbl.replace(slide_collapse, ck, next);
+      Persist.write_collapse(prefix, name);
       model |> Updated.return_quiet;
     | OutlineDefOp(op, fid) =>
       outline_menu := None;
@@ -1196,17 +1209,19 @@ module Update = {
     | SwitchSlide(i) =>
       {
         let name = List.nth(model.scratchpads, model.current).name;
+        let ck =
+          Persist.content_key(is_documentation ? "doc" : "scratch", name);
         switch (model.focus) {
         | Some(f) =>
           Hashtbl.replace(
             slide_pins,
-            name,
+            ck,
             List.map(
               (e: Model.stack_entry) => (e.e_id, e.e_run),
               f.f_entries,
             ),
           )
-        | None => Hashtbl.remove(slide_pins, name)
+        | None => Hashtbl.remove(slide_pins, ck)
         };
       };
       let model = commit_focus(model);
@@ -1237,7 +1252,9 @@ module Update = {
         /* restore this slide's pins (stale ids no-op in FocusToggle) */
 
         let name = List.nth(model.scratchpads, model.current).name;
-        switch (Hashtbl.find_opt(slide_pins, name)) {
+        let ck =
+          Persist.content_key(is_documentation ? "doc" : "scratch", name);
+        switch (Hashtbl.find_opt(slide_pins, ck)) {
         | Some(ids) when model.focus == None =>
           List.iter(
             ((id, run)) =>
@@ -1449,6 +1466,7 @@ module Update = {
         ~autoprobe_mode,
         ~schedule_action,
         ~is_edited,
+        ~is_documentation: bool,
         model: Model.t,
       )
       : Model.t => {
@@ -1458,18 +1476,28 @@ module Update = {
       );
 
     let scratchpad = List.nth(model.scratchpads, model.current);
+    /* pending restore state applies only to the slide it was read
+       for: the tag check keeps a hydration/mode-switch race from
+       moving some OTHER current editor */
+    let cur_ck =
+      Persist.content_key(
+        is_documentation ? "doc" : "scratch",
+        scratchpad.name,
+      );
     switch (scratchpad.kind) {
     | Code({editor, agent}) =>
       /* restore a loaded slide's saved caret: the Move runs as its own
          follow-up action, after this calculate builds measured */
       switch (Persist.pending_caret^) {
-      | Some(p) => schedule_action(RestoreCaret(p))
+      | Some((ck, p)) when ck == cur_ck => schedule_action(RestoreCaret(p))
+      | Some(_) => Persist.pending_caret := None /* stale: drop */
       | None => ()
       };
       switch (Persist.pending_pins^) {
-      | Some(_)
+      | Some((ck, _))
           when
-            model.focus == None
+            ck == cur_ck
+            && model.focus == None
             && List.exists(
                  (n: OutlineTree.node) => n.o_label != "",
                  OutlineTree.of_term(editor.editor.statics.term),
