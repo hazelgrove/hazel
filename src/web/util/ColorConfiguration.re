@@ -167,6 +167,8 @@ let aliases: list(((string, string), list(string))) = [
       "shard-any",
       "border-raised",
       "surface-raised",
+      "df-zebra-bg",
+      "table-header-bg",
     ],
   ),
   (
@@ -193,6 +195,8 @@ let aliases: list(((string, string), list(string))) = [
       "surface-inverse",
       "text-default",
       "border-inverse",
+      "code-text",
+      "token-mod",
     ],
   ),
   (
@@ -207,6 +211,7 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-error",
       "surface-error",
       "text-error",
+      "num-samples-indicated",
     ],
   ),
   (
@@ -219,6 +224,7 @@ let aliases: list(((string, string), list(string))) = [
       "border-seam",
       "surface-code",
       "text-inverse",
+      "df-bg",
     ],
   ),
   (
@@ -256,6 +262,9 @@ let aliases: list(((string, string), list(string))) = [
       "border-stronger",
       "surface-accent-strong",
       "text-strong",
+      "context-meter-track",
+      "editor-mode-text",
+      "select-text",
     ],
   ),
   (
@@ -293,6 +302,7 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-success",
       "surface-success",
       "text-success",
+      "fold-accent",
     ],
   ),
   (
@@ -304,6 +314,8 @@ let aliases: list(((string, string), list(string))) = [
       "border-typ",
       "shadow-typ",
       "text-typ",
+      "exp-ap-indicated",
+      "token-sig",
     ],
   ),
   (
@@ -315,6 +327,7 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-pat",
       "text-pat",
       "surface-pat",
+      "token-mpat",
     ],
   ),
   (
@@ -357,7 +370,7 @@ let aliases: list(((string, string), list(string))) = [
   (("cursor", "type-pattern"), ["shard-caret-tpat", "shard-tpat"]),
   (("hole", "error"), ["error-hole-fill", "ERRHOLE"]),
   (("menu", "nut"), ["nut-menu"]),
-  (("menu", "hover"), ["menu-item-hover-bkg"]),
+  (("menu", "hover"), ["menu-item-hover-bkg", "light-page-color"]),
   (("chrome", "background"), ["ui-bkg"]),
   (("chrome", "heading"), ["ui-header-text"]),
   (("chrome", "meter"), ["context-meter-fill"]),
@@ -368,14 +381,17 @@ let aliases: list(((string, string), list(string))) = [
   (("editor", "derivation"), ["token-drv"]),
   (("editor", "locked-cell"), ["cell-exercises-border"]),
   (("editor", "backpack-outline"), ["backpack-selection-outline"]),
-  (("cursor", "derivation"), ["shard-caret-drv"]),
-  (("cursor", "module"), ["shard-caret-mod"]),
-  (("cursor", "signature"), ["shard-caret-sig"]),
-  (("cursor", "module-pattern"), ["shard-caret-mpat"]),
+  (("cursor", "derivation"), ["shard-caret-drv", "shard-drv"]),
+  (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
+  (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
+  (("cursor", "module-pattern"), ["shard-caret-mpat", "shard-mpat"]),
   (("hole", "empty"), ["empty-hole-fill"]),
   (("hole", "empty-edge"), ["empty-hole-stroke"]),
-  (("hole", "warning"), ["warning-hole-fill"]),
-  (("hole", "warning-edge"), ["warning-hole-stroke"]),
+  (("hole", "warning"), ["warning-hole-fill", "ci-status-warning-bkg"]),
+  (
+    ("hole", "warning-edge"),
+    ["warning-hole-stroke", "ci-status-warning-text"],
+  ),
   (("problems", "row"), ["hole-fill"]),
   (("problems", "row-edge"), ["hole-stroke"]),
   (("problems", "row-active"), ["hole-active"]),
@@ -419,7 +435,10 @@ let aliases: list(((string, string), list(string))) = [
       "backpack-genie",
     ],
   ),
-  (("palette", "attention-1"), ["attention-1", "surface-highlight-soft"]),
+  (
+    ("palette", "attention-1"),
+    ["attention-1", "surface-highlight-soft", "shard-selected-expanded"],
+  ),
   (
     ("palette", "attention-2"),
     [
@@ -427,6 +446,7 @@ let aliases: list(((string, string), list(string))) = [
       "border-highlight",
       "shadow-highlight",
       "surface-highlight",
+      "num-samples",
     ],
   ),
   (
@@ -444,6 +464,7 @@ let aliases: list(((string, string), list(string))) = [
       "shadow-strong",
       "surface-accent",
       "text-accent",
+      "explain-this-expander",
     ],
   ),
   (("palette", "info"), ["info", "text-info"]),
