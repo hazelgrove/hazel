@@ -191,25 +191,25 @@
 }
 
 .highlight-d {
-  background-color: var(--doc-4);
+  background-color: var(--surface-highlight-d);
 }
 
 .highlight-code-d {
-  fill: var(--doc-4);
+  fill: var(--text-doc-4);
 }
 
 .highlight-e {
-  background-color: var(--doc-5);
+  background-color: var(--surface-highlight-e);
 }
 
 .highlight-code-e {
-  fill: var(--doc-5);
+  fill: var(--text-doc-5);
 }
 
 .highlight-f {
-  background-color: var(--doc-6);
+  background-color: var(--surface-highlight-f);
 }
 
 .highlight-code-f {
-  fill: var(--doc-6);
+  fill: var(--text-doc-6);
 }

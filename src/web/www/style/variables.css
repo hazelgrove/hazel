@@ -82,6 +82,9 @@
   --doc-1: oklch(95% 0.07 360);
   --doc-2: oklch(95% 0.07 240);
   --doc-3: oklch(95% 0.07 120);
+  --doc-4: oklch(95% 0.07 300);
+  --doc-5: oklch(95% 0.07 180);
+  --doc-6: oklch(95% 0.07 60);
   --editor-mode-text: oklch(50% 0.07 90);
   --empty-hole-fill: oklch(95% 0.05 90);
   --empty-hole-stroke: oklch(85% 0.07 90);
@@ -111,6 +114,8 @@
   --incremental-active-sweep: color-mix(in oklch, oklch(100% 0 220) 56%, transparent);
   --incremental-frozen: color-mix(in oklch, oklch(91.15% 0.046 225) 55%, transparent);
   --incremental-frozen-edge: color-mix(in oklch, oklch(78.55% 0.09 225) 55%, transparent);
+  --incremental-pending: color-mix(in oklch, oklch(52% 0.03 220) 11%, transparent);
+  --incremental-pending-edge: color-mix(in oklch, oklch(52% 0.03 220) 16%, transparent);
   --info: oklch(70% 0.05 120);
   --info-strong: oklch(45% 0.05 120);
   --ink: oklch(52% 0.03 220);
@@ -206,6 +211,9 @@
   --surface-highlight-a: oklch(95% 0.07 360);
   --surface-highlight-b: oklch(95% 0.07 240);
   --surface-highlight-c: oklch(95% 0.07 120);
+  --surface-highlight-d: oklch(95% 0.07 300);
+  --surface-highlight-e: oklch(95% 0.07 180);
+  --surface-highlight-f: oklch(95% 0.07 60);
   --surface-highlight-soft: oklch(95% 0.05 90);
   --surface-highlight-strong: oklch(88% 0.2 95);
   --surface-inverse: oklch(52% 0.03 220);
@@ -234,6 +242,9 @@
   --text-doc-1: oklch(95% 0.07 360);
   --text-doc-2: oklch(95% 0.07 240);
   --text-doc-3: oklch(95% 0.07 120);
+  --text-doc-4: oklch(95% 0.07 300);
+  --text-doc-5: oklch(95% 0.07 180);
+  --text-doc-6: oklch(95% 0.07 60);
   --text-error: oklch(60% 0.3 30);
   --text-error-strong: oklch(40% 0.3 30);
   --text-faint: oklch(85% 0.07 90);
@@ -284,16 +295,6 @@
   --warning-hole-fill: oklch(97% 0.04 95);
   --warning-hole-stroke: oklch(60.1% 0.3 95);
   /* END GENERATED DEFAULTS */
-
-  /* ── Colours the slide does not own ───────────────────────────────────
-     What is left of the gap: five colours CSS derives from a themed one with
-     relative-colour syntax. They follow the theme, but the derivation is
-     stated here rather than in the slide, so a themer cannot change it. */
-  --doc-4: oklch(from var(--doc-1) l c calc(h - 1 * 60));
-  --doc-5: oklch(from var(--doc-1) l c calc(h - 3 * 60));
-  --doc-6: oklch(from var(--doc-1) l c calc(h - 5 * 60));
-  --incremental-pending: oklch(from var(--ink) l c h / 11%);
-  --incremental-pending-edge: oklch(from var(--ink) l c h / 16%);
 
   /* ── Z-STACK ──────────────────────────────────────────────────────── */
 

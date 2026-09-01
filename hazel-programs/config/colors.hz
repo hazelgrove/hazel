@@ -72,8 +72,13 @@ let palette_of = fun (seed, step) ->
     `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
     `pattern` = pat,
     `type-pattern` = pat,
+    # Six evenly spaced hues off doc-1. The first three are the ones a  #
+    # document usually needs; 4-6 interleave for a longer highlight run. #
     `doc-2` = color_rotate(seed.`doc-1`, -120.),
-    `doc-3` = color_rotate(seed.`doc-1`, -240.)
+    `doc-3` = color_rotate(seed.`doc-1`, -240.),
+    `doc-4` = color_rotate(seed.`doc-1`, -60.),
+    `doc-5` = color_rotate(seed.`doc-1`, -180.),
+    `doc-6` = color_rotate(seed.`doc-1`, -300.)
   )) in
 
 # ── Colours and role overrides become the theme ─────────────────────── #
@@ -127,6 +132,9 @@ let theme_of = fun (p, role) ->
       `doc-1` = p.`doc-1`,
       `doc-2` = p.`doc-2`,
       `doc-3` = p.`doc-3`,
+      `doc-4` = p.`doc-4`,
+      `doc-5` = p.`doc-5`,
+      `doc-6` = p.`doc-6`,
       `success` = p.`success`,
       `success-soft` = p.`success-soft`,
       `success-muted` = p.`success-muted`,
@@ -194,7 +202,9 @@ let theme_of = fun (p, role) ->
         `divider` = role.`results-divider`,
         `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
         `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
-        `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.)
+        `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
+        `pending` = Fade(p.`ink`, 11.),
+        `pending-edge` = Fade(p.`ink`, 16.)
       )),
       # The cursor inspector along the bottom.                             #
       inspector = ^^fold((

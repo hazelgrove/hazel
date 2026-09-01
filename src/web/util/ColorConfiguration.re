@@ -56,6 +56,9 @@ let palette: list(string) = [
   "doc-1",
   "doc-2",
   "doc-3",
+  "doc-4",
+  "doc-5",
+  "doc-6",
   "success",
   "success-soft",
   "success-muted",
@@ -100,7 +103,10 @@ let role_groups: list((string, list(string))) = [
   ),
   ("hole", ["empty", "empty-edge", "error", "warning", "warning-edge"]),
   ("problems", ["row", "row-edge", "row-active"]),
-  ("results", ["divider", "reused", "reused-edge", "sweep"]),
+  (
+    "results",
+    ["divider", "reused", "reused-edge", "sweep", "pending", "pending-edge"],
+  ),
   ("inspector", ["badge", "text", "separator"]),
   (
     "probe",
@@ -399,6 +405,8 @@ let aliases: list(((string, string), list(string))) = [
   (("results", "reused"), ["incremental-frozen"]),
   (("results", "reused-edge"), ["incremental-frozen-edge"]),
   (("results", "sweep"), ["incremental-active-sweep"]),
+  (("results", "pending"), ["incremental-pending"]),
+  (("results", "pending-edge"), ["incremental-pending-edge"]),
   (("inspector", "badge"), ["ci-icon-bkg"]),
   (("inspector", "text"), ["ci-status-text"]),
   (("inspector", "separator"), ["context-inspector-colon"]),
@@ -456,6 +464,9 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "doc-1"), ["doc-1", "surface-highlight-a", "text-doc-1"]),
   (("palette", "doc-2"), ["doc-2", "surface-highlight-b", "text-doc-2"]),
   (("palette", "doc-3"), ["doc-3", "surface-highlight-c", "text-doc-3"]),
+  (("palette", "doc-6"), ["doc-6", "surface-highlight-f", "text-doc-6"]),
+  (("palette", "doc-5"), ["doc-5", "surface-highlight-e", "text-doc-5"]),
+  (("palette", "doc-4"), ["doc-4", "surface-highlight-d", "text-doc-4"]),
   (
     ("palette", "frame-3"),
     [
