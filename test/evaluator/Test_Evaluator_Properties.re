@@ -54,11 +54,22 @@ let testable_core_exp =
 
 /* Reduce `uexp` with the evaluator and with the stepper and `check` the two
    against each other: pass `testable_core_exp` to assert they agree, or
-   `neg(testable_core_exp)` to assert they still differ. False when the case was
-   filtered out and nothing was compared. */
+   `neg(testable_core_exp)` to assert they still differ.
+
+   A case that never reaches that comparison — reduction not terminating inside
+   `step_limit`, or statics/evaluation raising — is skipped when
+   `require_comparison` is false, which is what the property wants of a random
+   draw. A fixed counterexample passes true: reaching no comparison means it no
+   longer pins anything and needs re-minimizing, so say so rather than pass. */
 let check_evaluator_against_stepper =
-    (~step_limit: int, ~testable: testable(Exp.t), ~msg: string, uexp: Exp.t)
-    : bool =>
+    (
+      ~step_limit: int,
+      ~testable: testable(Exp.t),
+      ~msg: string,
+      ~require_comparison: bool,
+      uexp: Exp.t,
+    )
+    : unit =>
   switch (
     {
       let (_, elab) =
@@ -76,21 +87,38 @@ let check_evaluator_against_stepper =
       full_small_step_reduction(~step_limit, elaborated_exp),
     ) {
     | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
-      check(testable, msg, fst(smallstep_exp), bigstep_exp);
-      true;
+      check(testable, msg, fst(smallstep_exp), bigstep_exp)
     | (_, StepLimitExceeded)
-    | (StepLimitExceeded, _) => false
+    | (StepLimitExceeded, _) =>
+      if (require_comparison) {
+        failf(
+          "reduction did not terminate within %d steps, so nothing was compared; re-minimize the counterexample",
+          step_limit,
+        );
+      }
     | exception e =>
-      print_endline(
-        "Skipping evaluation failure: " ++ Printexc.to_string(e),
-      );
-      false;
+      if (require_comparison) {
+        failf(
+          "evaluation raised %s, so nothing was compared; re-minimize the counterexample",
+          Printexc.to_string(e),
+        );
+      } else {
+        print_endline(
+          "Skipping evaluation failure: " ++ Printexc.to_string(e),
+        );
+      }
     }
   | exception e =>
-    print_endline(
-      "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
-    );
-    false;
+    if (require_comparison) {
+      failf(
+        "statics/elaborate raised %s, so nothing was compared; re-minimize the counterexample",
+        Printexc.to_string(e),
+      );
+    } else {
+      print_endline(
+        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+      );
+    }
   };
 
 let qcheck_stepper_confluence =
@@ -99,14 +127,12 @@ let qcheck_stepper_confluence =
     ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp => {
-      /* Failure arrives as a raise from `check`; the bool is only vacuity. */
-      ignore(
-        check_evaluator_against_stepper(
-          ~step_limit=100,
-          ~testable=testable_core_exp,
-          ~msg="Small step reduction and big step reduction are equal",
-          uexp,
-        ): bool,
+      check_evaluator_against_stepper(
+        ~step_limit=100,
+        ~testable=testable_core_exp,
+        ~msg="Small step reduction and big step reduction are equal",
+        ~require_comparison=false,
+        uexp,
       );
       true;
     },
@@ -130,17 +156,13 @@ let stepper_confluence_known_bug_test =
     "Known bug #2128: evaluator and stepper disagree on a duplicate binder",
     `Quick,
     () =>
-    check(
-      bool,
-      "counterexample still reduces under both; re-minimize it otherwise",
-      true,
-      check_evaluator_against_stepper(
-        ~step_limit=100,
-        ~testable=neg(testable_core_exp),
-        ~msg=
-          "#2128 looks fixed: re-enable `Evaluator and stepper are consistent`, delete this test",
-        parse_exp("fun (x::x) -> x"),
-      ),
+    check_evaluator_against_stepper(
+      ~step_limit=100,
+      ~testable=neg(testable_core_exp),
+      ~msg=
+        "#2128 looks fixed: re-enable `Evaluator and stepper are consistent`, delete this test",
+      ~require_comparison=true,
+      parse_exp("fun (x::x) -> x"),
     )
   );
 
@@ -336,16 +358,26 @@ let eval_limited =
 /* Bump the int literal at `target_id` by one and `check` the edited program
    evaluated incrementally against it evaluated fresh: pass `testable_core_exp`
    to assert they agree, or `neg(testable_core_exp)` to assert they still
-   differ. False when the case was filtered out and nothing was compared. */
+   differ. `require_comparison` as in `check_evaluator_against_stepper`. */
 let check_incremental_against_fresh_after_edit =
     (
       ~target_id: Id.t,
       ~old_value: Bigint.t,
       ~testable: testable(Exp.t),
       ~msg: string,
+      ~require_comparison: bool,
       exp: Exp.t,
     )
-    : bool => {
+    : unit => {
+  /* Reaching no comparison is a skip for the property and a failure for the
+     fixed counterexample — see `check_evaluator_against_stepper`. */
+  let no_comparison = reason =>
+    if (require_comparison) {
+      failf(
+        "%s, so nothing was compared; re-minimize the counterexample",
+        reason,
+      );
+    };
   /* Only swallow known-benign static/dynamic failures so real
    * incremental-eval disagreements surface as clean failures. */
   let try_eval = (~prev=?, eval_info, elab) =>
@@ -384,7 +416,8 @@ let check_incremental_against_fresh_after_edit =
      * the cache handed to the incremental run of the edited exp. */
     switch (try_eval(info_slice_orig, elab_orig)) {
     | None
-    | Some(StepLimitExceeded) => false
+    | Some(StepLimitExceeded) =>
+      no_comparison("the unedited program did not evaluate to a result")
     | Some(LimitedCompleted((_, state_before))) =>
       /* Edited evaluated two ways: incrementally (reusing the baseline's
        * cache) and from scratch (empty prev). These must agree. */
@@ -396,12 +429,14 @@ let check_incremental_against_fresh_after_edit =
           Some(LimitedCompleted((e_fresh, _))),
           Some(LimitedCompleted((e_incr, _))),
         ) =>
-        check(testable, msg, e_fresh, e_incr);
-        true;
-      | _ => false
+        check(testable, msg, e_fresh, e_incr)
+      | _ =>
+        no_comparison(
+          "the edited program did not evaluate to a result both ways",
+        )
       };
     };
-  | _ => false
+  | _ => no_comparison("the program did not pass statics")
   };
 };
 
@@ -419,15 +454,13 @@ let qcheck_incremental_matches_fresh_after_edit =
     | lits =>
       let (target_id, old_value) =
         List.nth(lits, seed mod List.length(lits));
-      /* Failure arrives as a raise from `check`; the bool is only vacuity. */
-      ignore(
-        check_incremental_against_fresh_after_edit(
-          ~target_id,
-          ~old_value,
-          ~testable=testable_core_exp,
-          ~msg="Incremental eval and fresh eval agree",
-          exp,
-        ): bool,
+      check_incremental_against_fresh_after_edit(
+        ~target_id,
+        ~old_value,
+        ~testable=testable_core_exp,
+        ~msg="Incremental eval and fresh eval agree",
+        ~require_comparison=false,
+        exp,
       );
       true;
     }
@@ -467,18 +500,14 @@ let incremental_literal_edit_known_bug_test =
             List.length(lits),
           )
         };
-      check(
-        bool,
-        "counterexample still evaluates both ways; re-minimize it otherwise",
-        true,
-        check_incremental_against_fresh_after_edit(
-          ~target_id,
-          ~old_value,
-          ~testable=neg(testable_core_exp),
-          ~msg=
-            "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
-          exp,
-        ),
+      check_incremental_against_fresh_after_edit(
+        ~target_id,
+        ~old_value,
+        ~testable=neg(testable_core_exp),
+        ~msg=
+          "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
+        ~require_comparison=true,
+        exp,
       );
     },
   );
