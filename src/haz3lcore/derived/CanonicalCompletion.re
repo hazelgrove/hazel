@@ -2653,6 +2653,11 @@ let for_editor = (seg: Segment.t): completion_result => {
   };
 };
 
+/* Rendered per frame by every completion-aware decoration (quiver
+   chips, arm curtailing) and by tab dispatch — memoized on the
+   segment so one edit-state completes once. */
+let for_editor = Core.Memo.general(~cache_size_bound=64, for_editor);
+
 /* The obligation whose insertion zone contains the caret — the chip
    the caret is visually pinned to (chips pin coincidence-first, so a
    caret anywhere in the inter-content whitespace around an anchor
