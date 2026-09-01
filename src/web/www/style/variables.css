@@ -12,62 +12,62 @@
   /* This palette pulls out most colors used across Hazel */
 
   /* BASE */
-  --NONE: oklch(0% 0 0 / 0%); /* transparent */
-  --SAND: oklch(99% 0.012 90); /* code background */
-  --STONE: oklch(52% 0.03 220); /* code text */
-  --BLACK: oklch(0% 0 0); /* use sparingly */
+  --none: oklch(0% 0 0 / 0%); /* transparent */
+  --code-background: oklch(99% 0.012 90); /* code background */
+  --ink: oklch(52% 0.03 220); /* code text */
+  --black: oklch(0% 0 0); /* use sparingly */
 
   /* SHALE - focal syntax and top level ui */
-  --BR1: oklch(85% 0.07 90); /* caret shard, token buffer*/
-  --BR2: oklch(from var(--BR1) 70% c h); /* exp shard arms */
-  --BR3: oklch(from var(--BR1) 60% c h); /* top ui accent */
-  --BR4: oklch(from var(--BR1) 50% c h); /* top ui accent */
+  --frame-1: oklch(85% 0.07 90); /* caret shard, token buffer*/
+  --frame-2: oklch(from var(--frame-1) 70% c h); /* exp shard arms */
+  --frame-3: oklch(from var(--frame-1) 60% c h); /* top ui accent */
+  --frame-4: oklch(from var(--frame-1) 50% c h); /* top ui accent */
 
   /* CLAY - peripheral syntax */
-  --T1: oklch(97% 0.025 90); /* buffer shards */
-  --T2: oklch(from var(--T1) 94% c h); /* projector shards */
-  --T3: oklch(from var(--T1) 91% c h); /* result background */
-  --T4: oklch(from var(--T1) 88% c h); /* darker background */
+  --surface-1: oklch(97% 0.025 90); /* buffer shards */
+  --surface-2: oklch(from var(--surface-1) 94% c h); /* projector shards */
+  --surface-3: oklch(from var(--surface-1) 91% c h); /* result background */
+  --surface-4: oklch(from var(--surface-1) 88% c h); /* darker background */
 
   /* MOLTEN - under construction */
-  --Y0: oklch(95% 0.05 90); /* menu fill */
-  --Y1: oklch(91% 0.11 95); /* selections */
-  --Y2: oklch(88% 0.2 95); /* explicit hole */
-  --Y3: oklch(71% 0.2 95); /* incomplete shards */
+  --attention-1: oklch(95% 0.05 90); /* menu fill */
+  --attention-2: oklch(91% 0.11 95); /* selections */
+  --attention-3: oklch(88% 0.2 95); /* explicit hole */
+  --attention-4: oklch(71% 0.2 95); /* incomplete shards */
 
   /* WARNING HOLE DECO */
 
   /* MAGMA - opportunities */
-  --R0: oklch(85% 0.1 30); /* broken shard fill */
-  --R1: oklch(60% 0.3 30); /* caret, error stroke */
-  --R2: oklch(40% 0.3 30); /* error text, broken shard text */
+  --error-1: oklch(85% 0.1 30); /* broken shard fill */
+  --error-2: oklch(60% 0.3 30); /* caret, error stroke */
+  --error-3: oklch(40% 0.3 30); /* error text, broken shard text */
   --O1: oklch(60% 0.3 90); /* warning stroke */
 
   /* GLASS - sorts */
-  --TYP: oklch(60% 0.2 300);
+  --type: oklch(60% 0.2 300);
   --DRV: oklch(60% 0.1 126);
-  --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
-  --TPAT: var(--PAT);
-  --MOD: var(--STONE); /* Module sort oklch(0.65 0.05 165)  */
-  --SIG: var(--TYP); /* Signature sort oklch(0.65 0.1 320); */
-  --MPAT: var(--PAT); /* Module pattern sort oklch(60% 0.2 60)  */
-  --LABEL: oklch(60% 0.2 180);
+  --pattern: oklch(from var(--type) l c calc(h - 1 * 75));
+  --type-pattern: var(--pattern);
+  --MOD: var(--ink); /* Module sort oklch(0.65 0.05 165)  */
+  --SIG: var(--type); /* Signature sort oklch(0.65 0.1 320); */
+  --MPAT: var(--pattern); /* Module pattern sort oklch(60% 0.2 60)  */
+  --label: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
-  --highlight-a: oklch(0.95 0.07 360);
-  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 2 * 60));
-  --highlight-c: oklch(from var(--highlight-a) l c calc(h - 4 * 60));
-  --highlight-d: oklch(from var(--highlight-a) l c calc(h - 1 * 60));
-  --highlight-e: oklch(from var(--highlight-a) l c calc(h - 3 * 60));
-  --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
+  --doc-1: oklch(0.95 0.07 360);
+  --doc-2: oklch(from var(--doc-1) l c calc(h - 2 * 60));
+  --doc-3: oklch(from var(--doc-1) l c calc(h - 4 * 60));
+  --doc-4: oklch(from var(--doc-1) l c calc(h - 1 * 60));
+  --doc-5: oklch(from var(--doc-1) l c calc(h - 3 * 60));
+  --doc-6: oklch(from var(--doc-1) l c calc(h - 5 * 60));
 
 
   /* Incremental evaluator "frozen" tint: behind code reused from the
    * previous evaluation run (cache hit), left as-is by the worker. */
   --incremental-frozen: rgba(200, 230, 255, 0.55);
   --incremental-frozen-edge: rgba(140, 190, 240, 0.55);
-  --incremental-pending: oklch(from var(--STONE) l c h / 11%);
-  --incremental-pending-edge: oklch(from var(--STONE) l c h / 16%);
+  --incremental-pending: oklch(from var(--ink) l c h / 11%);
+  --incremental-pending-edge: oklch(from var(--ink) l c h / 16%);
   --incremental-active-sweep: oklch(100% 0 0 / 56%);
 
   /* Delay before evaluation-in-progress visuals appear, so fast
@@ -75,11 +75,11 @@
   --eval-recalc-visual-delay: 180ms;
 
   /* MOSS - affirmations */
-  --G0: oklch(70% 0.15 150); /* page title, passing tests */
-  --G1: oklch(85% 0.15 150); /* ! passing tests hover */
-  --G2: oklch(80% 0.05 150); /* ! comments */
-  --GB0: oklch(70% 0.05 120); /* ! nut menu active */
-  --GB1: oklch(45% 0.05 120); /* ! nut menu fill */
+  --success: oklch(70% 0.15 150); /* page title, passing tests */
+  --success-soft: oklch(85% 0.15 150); /* ! passing tests hover */
+  --success-muted: oklch(80% 0.05 150); /* ! comments */
+  --info: oklch(70% 0.05 120); /* ! nut menu active */
+  --info-strong: oklch(45% 0.05 120); /* ! nut menu fill */
 
   /* FREE PARKING - ??? */
 
@@ -92,50 +92,50 @@
   --CREASE: oklch(0% 0 0 / 40%);
 
   /* Agent chat — context meter (track = dark shale, fill = bright blue) */
-  --context-meter-track: var(--BR4);
+  --context-meter-track: var(--frame-4);
   --context-meter-fill: oklch(58% 0.2 250);
 
   /* CODE BACKGROUND */
 
-  --main-bkg: var(--T3);
+  --main-bkg: var(--surface-3);
   --light-page-color: var(--menu-item-hover-bkg);
-  --cell-active: var(--SAND);
-  --main-scroll-thumb: var(--BR1);
-  --main-scroll-track: var(--NONE);
-  --cell-selected-accent: var(--R1);
+  --cell-active: var(--code-background);
+  --main-scroll-thumb: var(--frame-1);
+  --main-scroll-track: var(--none);
+  --cell-selected-accent: var(--error-2);
 
   /* CODE DECO */
 
-  --caret-color: var(--R1);
-  --error-hole-stroke: var(--R1);
+  --caret-color: var(--error-2);
+  --error-hole-stroke: var(--error-2);
 
   /* CODE TOKENS */
 
-  --token-exp: var(--STONE);
-  --token-pat: var(--PAT);
-  --token-typ: var(--TYP);
+  --token-exp: var(--ink);
+  --token-pat: var(--pattern);
+  --token-typ: var(--type);
   --token-drv: var(--DRV);
-  --token-tpat: var(--TPAT);
+  --token-tpat: var(--type-pattern);
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);
   --token-mpat: var(--MPAT);
-  --token-label: var(--LABEL);
-  --token-string-lit: var(--Y3);
-  --token-comment: var(--G2);
-  --token-incomplete: var(--Y3);
+  --token-label: var(--label);
+  --token-string-lit: var(--attention-4);
+  --token-comment: var(--success-muted);
+  --token-incomplete: var(--attention-4);
   --token-inconsistent: var(--token-exp);
-  --token-buffer: var(--BR1);
-  --token-explicit-hole: var(--Y2);
-  --token-explicit-hole-shadow: var(--BLACK);
+  --token-buffer: var(--frame-1);
+  --token-explicit-hole: var(--attention-3);
+  --token-explicit-hole-shadow: var(--black);
   --token-secondary: var(--shard-exp);
   --token-rul: var(--token-exp);
-  --token-any: var(--R2);
+  --token-any: var(--error-3);
 
   /* CODE SHARDS */
 
-  --shard-caret-exp: var(--T2);
-  --shard-lines-exp: var(--BR1);
-  --shard-exp: var(--T2);
+  --shard-caret-exp: var(--surface-2);
+  --shard-lines-exp: var(--frame-1);
+  --shard-exp: var(--surface-2);
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
   --shard-caret-drv: oklch(from var(--token-drv) 95% calc(c/4) h);
@@ -150,20 +150,20 @@
   --shard-mod: var(--shard-caret-mod);
   --shard-sig: var(--shard-caret-sig);
   --shard-mpat: var(--shard-caret-mpat);
-  --shard-selected: var(--Y1);
-  --shard-selected-expanded: var(--Y0);
-  --shard-buffer: var(--T1);
-  --shard_projector: var(--T2);
+  --shard-selected: var(--attention-2);
+  --shard-selected-expanded: var(--attention-1);
+  --shard-buffer: var(--surface-1);
+  --shard_projector: var(--surface-2);
   --shard-rul: var(--shard-exp);
   --shard-lines-rul: var(--shard-lines-exp);
-  --shadow-selected: var(--R0);
+  --shadow-selected: var(--error-1);
   --shard-any: var(--shard-exp);
-  --shadow-any: var(--R0);
+  --shadow-any: var(--error-1);
 
   /* EMPTY HOLE DECO */
 
-  --empty-hole-stroke: var(--BR1);
-  --empty-hole-fill: var(--Y0);
+  --empty-hole-stroke: var(--frame-1);
+  --empty-hole-fill: var(--attention-1);
 
   /* ERROR HOLE DECO */
 
@@ -184,69 +184,69 @@
   --backpack-joiner: var(--backpack-selection);
   --backpack-genie: var(--backpack-selection);
   --backpack-selection-outline: var(--light-page-color);
-  --backback-targets: var(--Y3);
+  --backback-targets: var(--attention-4);
 
   /* PROJECTORS */
-  --textarea-indicated: var(--SAND);
-  --textarea-text: var(--BR3);
+  --textarea-indicated: var(--code-background);
+  --textarea-text: var(--frame-3);
 
   /* DYNAMICS UI */
 
-  --cell-result-text: var(--BR4);
-  --cell-result-border: var(--BR1);
-  --cell-result-hidden: var(--BR1); /* ?? */
+  --cell-result-text: var(--frame-4);
+  --cell-result-border: var(--frame-1);
+  --cell-result-hidden: var(--frame-1); /* ?? */
   --eval-exception: var(--test-fail-active);
-  --eval-exception-stroke: var(--R2);
-  --step-hole-color: var(--G0);
+  --eval-exception-stroke: var(--error-3);
+  --step-hole-color: var(--success);
 
   /* TOP-LEVEL UI */
 
-  --select-text: var(--BR4);
-  --editor-mode-text: var(--BR4);
+  --select-text: var(--frame-4);
+  --editor-mode-text: var(--frame-4);
 
-  --toggle-knob: var(--SAND);
+  --toggle-knob: var(--code-background);
 
-  --primary-accent: var(--G0);
-  --nut-menu: var(--GB1);
-  --nut-menu-active: var(--GB0);
+  --primary-accent: var(--success);
+  --nut-menu: var(--info-strong);
+  --nut-menu-active: var(--info);
 
-  --menu-bkg: var(--Y0);
-  --menu-item-hover-bkg: var(--SAND);
-  --menu-item-text: var(--STONE);
-  --menu-outline: var(--BR2);
-  --menu-icon: var(--BR4);
+  --menu-bkg: var(--attention-1);
+  --menu-item-hover-bkg: var(--code-background);
+  --menu-item-text: var(--ink);
+  --menu-outline: var(--frame-2);
+  --menu-icon: var(--frame-4);
   --menu-group-name: var(--menu-icon);
   --menu-scroll-thumb: var(--menu-outline);
-  --menu-scroll-track: var(--BR1);
+  --menu-scroll-track: var(--frame-1);
   --menu-divider: var(--CREASE);
   --menu-shadow: var(--SHADOW);
 
-  --ui-bkg: var(--T1);
-  --ci-icon-bkg: var(--BR3);
-  --ci-status-text: var(--BR4);
-  --ci-status-error-text: var(--R2);
+  --ui-bkg: var(--surface-1);
+  --ci-icon-bkg: var(--frame-3);
+  --ci-status-text: var(--frame-4);
+  --ci-status-error-text: var(--error-3);
   --ci-status-error-bkg: var(--test-fail-active);
   --ci-status-warning-text: var(--warning-hole-stroke);
   --ci-status-warning-bkg: var(--warning-hole-fill);
-  --context-inspector-colon: var(--BR2);
+  --context-inspector-colon: var(--frame-2);
 
-  --ui-header-text: var(--BR3);
-  --explain-this-expander: var(--BR3);
+  --ui-header-text: var(--frame-3);
+  --explain-this-expander: var(--frame-3);
 
   /* EXERCISE MODE UI */
 
-  --cell-caption: var(--BR2);
-  --cell-result: var(--T3);
-  --cell-exercises-border: var(--BR2);
+  --cell-caption: var(--frame-2);
+  --cell-result: var(--surface-3);
+  --cell-exercises-border: var(--frame-2);
   --test-panel-bkg: var(--menu-bkg);
-  --test-percent-text: var(--SAND);
+  --test-percent-text: var(--code-background);
 
-  --test-pass: var(--G0);
-  --test-pass-active: var(--G1);
-  --test-fail: var(--R1);
-  --test-fail-active: var(--R0);
-  --test-indet: var(--BR2);
-  --test-indet-active: var(--BR1);
+  --test-pass: var(--success);
+  --test-pass-active: var(--success-soft);
+  --test-fail: var(--error-2);
+  --test-fail-active: var(--error-1);
+  --test-indet: var(--frame-2);
+  --test-indet-active: var(--frame-1);
 
   /* Z-STACK */
 
@@ -260,9 +260,9 @@
   --projector-underlay-z: 9;
 
   /* TABLE PROJECTOR */
-  --df-bg: var(--SAND);
+  --df-bg: var(--code-background);
   --table-header-bg: var(--shard-caret-exp);
-  --df-zebra-bg: var(--T2);
+  --df-zebra-bg: var(--surface-2);
   --df-hover-bg: hsl(120, 40%, 85%);
 
   /* AT CODE LEVEL */

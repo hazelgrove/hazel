@@ -260,7 +260,7 @@
   color: var(--text-inverse);
 }
 /* .overlays .projector.probe.error:not(.selected) .num-samples {
-  --original-bg: var(--R1);
+  --original-bg: var(--error-2);
 } */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
@@ -628,7 +628,7 @@
 /* TOKENS */
 
 /* .live-offside .value.indet.focus .code-text .token {
-  color: var(--BR2) !important;
+  color: var(--frame-2) !important;
 } */
 
 .live-offside .value .token.explicit-hole {
@@ -724,7 +724,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  /* outline: 0.6px solid var(--BR4); */
+  /* outline: 0.6px solid var(--frame-4); */
   border-radius: 1em;
   width: fit-content;
   padding: 0 0.3em;

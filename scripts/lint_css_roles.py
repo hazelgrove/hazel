@@ -17,7 +17,7 @@ rejected here rather than in review.
 
 Run via `make lint-css`. Exits non-zero on a violation.
 """
-import os, re, sys, collections
+import io, os, re, sys, collections
 
 ROOT = 'src/web/www'
 STYLE = os.path.join(ROOT, 'style')
@@ -25,9 +25,21 @@ VARIABLES = os.path.join(STYLE, 'variables.css')
 ROLES = os.path.join(STYLE, 'roles.css')
 INPUT_LAYER = {VARIABLES, ROLES}
 
-PALETTE = set("""NONE SAND STONE BLACK BR1 BR2 BR3 BR4 T1 T2 T3 T4 Y0 Y1 Y2 Y3
-                 R0 R1 R2 TYP PAT TPAT LABEL highlight-a highlight-b highlight-c
-                 G0 G1 G2 GB0 GB1""".split())
+# Read the palette from the projection rather than restating it. The names
+# used to be spelled twice, and a rename here would silently pass the lint
+# while every role alias pointed at a variable nothing defined.
+CONFIG = 'src/web/util/ColorConfiguration.re'
+
+
+def _palette():
+    src = io.open(CONFIG, encoding='utf-8').read()
+    m = re.search(r'let palette: list\(string\) = \[(.*?)\];', src, re.S)
+    if not m:
+        sys.exit(f'lint_css_roles: cannot find the palette list in {CONFIG}')
+    return set(re.findall(r'"([^"]+)"', m.group(1)))
+
+
+PALETTE = _palette()
 
 # Pre-existing dangling references, inherited not introduced. Fixing one is a
 # VISUAL change (an invalid var() makes the whole declaration drop), so it
