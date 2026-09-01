@@ -351,13 +351,12 @@ let eval_limited =
     elab,
   );
 
-/* Check that incremental eval and fresh eval agree on `exp` with the int
-   literal at `target_id` bumped by one. Skips and `require_comparison` as
-   above. */
+/* Check that incremental eval and fresh eval agree on `exp` with one of its int
+   literals bumped by one — `literal_index`, taken modulo how many there are.
+   Skips and `require_comparison` as above. */
 let check_incremental_against_fresh_after_edit =
     (
-      ~target_id: Id.t,
-      ~old_value: Bigint.t,
+      ~literal_index: int,
       ~testable: testable(Exp.t),
       ~msg: string,
       ~require_comparison: bool,
@@ -387,49 +386,56 @@ let check_incremental_against_fresh_after_edit =
     try(Some(statics_and_elab(exp))) {
     | _ => None
     };
-  /* +1 keeps the type fixed, so the edit typechecks the same as the
-   * original while still changing the value at `target_id`. */
-  let new_value = Bigint.(old_value + of_int(1));
-  let edited = replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
-  switch (try_statics(exp), try_statics(edited)) {
-  | (Some((info_map_orig, elab_orig)), Some((info_map_edit, elab_edit))) =>
-    let info_slice_orig =
-      EvalInfo.of_info_map(
-        ~probe_all=CoreSettings.on.probe_all,
-        ~targets=Id.Map.empty,
-        info_map_orig,
-      );
-    let info_slice_edit =
-      EvalInfo.of_info_map(
-        ~probe_all=CoreSettings.on.probe_all,
-        ~targets=Id.Map.empty,
-        info_map_edit,
-      );
-    /* Baseline run (no prev) of the original — its incr_eval becomes
-     * the cache handed to the incremental run of the edited exp. */
-    switch (try_eval(info_slice_orig, elab_orig)) {
-    | None
-    | Some(StepLimitExceeded) =>
-      no_comparison("the unedited program did not evaluate to a result")
-    | Some(LimitedCompleted((_, state_before))) =>
-      /* Edited evaluated two ways: incrementally (reusing the baseline's
-       * cache) and from scratch (empty prev). These must agree. */
-      let fresh = try_eval(info_slice_edit, elab_edit);
-      let incr_eval_result =
-        try_eval(~prev=state_before.incr_eval, info_slice_edit, elab_edit);
-      switch (fresh, incr_eval_result) {
-      | (
-          Some(LimitedCompleted((e_fresh, _))),
-          Some(LimitedCompleted((e_incr, _))),
-        ) =>
-        check(testable, msg, e_fresh, e_incr)
-      | _ =>
-        no_comparison(
-          "the edited program did not evaluate to a result both ways",
-        )
+  switch (collect_int_lits(exp)) {
+  | [] => no_comparison("the program has no int literal to edit")
+  | lits =>
+    let (target_id, old_value) =
+      List.nth(lits, literal_index mod List.length(lits));
+    /* +1 keeps the type fixed, so the edit typechecks the same as the
+     * original while still changing the value at `target_id`. */
+    let new_value = Bigint.(old_value + of_int(1));
+    let edited =
+      replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
+    switch (try_statics(exp), try_statics(edited)) {
+    | (Some((info_map_orig, elab_orig)), Some((info_map_edit, elab_edit))) =>
+      let info_slice_orig =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map_orig,
+        );
+      let info_slice_edit =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map_edit,
+        );
+      /* Baseline run (no prev) of the original — its incr_eval becomes
+       * the cache handed to the incremental run of the edited exp. */
+      switch (try_eval(info_slice_orig, elab_orig)) {
+      | None
+      | Some(StepLimitExceeded) =>
+        no_comparison("the unedited program did not evaluate to a result")
+      | Some(LimitedCompleted((_, state_before))) =>
+        /* Edited evaluated two ways: incrementally (reusing the baseline's
+         * cache) and from scratch (empty prev). These must agree. */
+        let fresh = try_eval(info_slice_edit, elab_edit);
+        let incr_eval_result =
+          try_eval(~prev=state_before.incr_eval, info_slice_edit, elab_edit);
+        switch (fresh, incr_eval_result) {
+        | (
+            Some(LimitedCompleted((e_fresh, _))),
+            Some(LimitedCompleted((e_incr, _))),
+          ) =>
+          check(testable, msg, e_fresh, e_incr)
+        | _ =>
+          no_comparison(
+            "the edited program did not evaluate to a result both ways",
+          )
+        };
       };
+    | _ => no_comparison("the program did not pass statics")
     };
-  | _ => no_comparison("the program did not pass statics")
   };
 };
 
@@ -454,22 +460,16 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
               QCheck.small_nat,
               QCheck_Util.arb_exp(~minimal_idents=true, 30),
             ),
-            ((seed, exp)) =>
-            switch (collect_int_lits(exp)) {
-            | [] => true /* Nothing to edit — the property is vacuously true. */
-            | lits =>
-              let (target_id, old_value) =
-                List.nth(lits, seed mod List.length(lits));
+            ((seed, exp)) => {
               check_incremental_against_fresh_after_edit(
-                ~target_id,
-                ~old_value,
+                ~literal_index=seed,
                 ~testable=testable_core_exp,
                 ~msg="Incremental eval and fresh eval agree",
                 ~require_comparison=false,
                 exp,
               );
               true;
-            }
+            },
           ),
         ),
       );
@@ -480,27 +480,15 @@ let incremental_literal_edit_known_bug_test =
   test_case(
     "Known bug #2457: incremental eval disagrees with fresh after a literal edit",
     `Quick,
-    () => {
-      let exp = parse_exp("{ let x = (); let _ = 4; let true = A }");
-      let (target_id, old_value) =
-        switch (collect_int_lits(exp)) {
-        | [lit] => lit
-        | lits =>
-          failf(
-            "expected exactly one int literal to edit, found %d",
-            List.length(lits),
-          )
-        };
-      check_incremental_against_fresh_after_edit(
-        ~target_id,
-        ~old_value,
-        ~testable=neg(testable_core_exp),
-        ~msg=
-          "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
-        ~require_comparison=true,
-        exp,
-      );
-    },
+    () =>
+    check_incremental_against_fresh_after_edit(
+      ~literal_index=0,
+      ~testable=neg(testable_core_exp),
+      ~msg=
+        "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
+      ~require_comparison=true,
+      parse_exp("{ let x = (); let _ = 4; let true = A }"),
+    )
   );
 
 let rec finish_yielding = (~remaining_slices: int, evaluation) => {
