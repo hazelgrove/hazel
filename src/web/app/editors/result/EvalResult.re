@@ -331,8 +331,20 @@ module Update = {
              NOT ship prev (it dominated the payload; see
              WorkerServer.Request.prev_source) */
           queue_worker({
-            expr: elab,
-            eval_info_map: Lazy.force(eval_info_map),
+            /* W2b flip: the worker elaborates from its resident
+               program (synced by ShadowResidency; FIFO puts the sync
+               ahead of this request) — nothing ships. Otherwise ship
+               the elaboration as always. */
+            payload:
+              ShadowResidency.flip_enabled^
+                ? Resident({
+                    generation: ShadowResidency.generation^,
+                    probe_all: settings.probe_all,
+                  })
+                : Ship({
+                    expr: elab,
+                    eval_info_map: Lazy.force(eval_info_map),
+                  }),
             prev: UseResident,
             /* highlight off ⇒ stream only effect-bearing entries
                (tests/probes); husk chunks cost a main-thread render
@@ -344,8 +356,11 @@ module Update = {
         | None =>
           switch (
             WorkerServer.evaluate_sync({
-              expr: elab,
-              eval_info_map: Lazy.force(eval_info_map),
+              payload:
+                Ship({
+                  expr: elab,
+                  eval_info_map: Lazy.force(eval_info_map),
+                }),
               prev: Seed(prev_incr),
               stream: Full /* sync path: nothing streams */
             })
