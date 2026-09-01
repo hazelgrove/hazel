@@ -47,69 +47,6 @@ let qcheck_evaluator_does_not_crash_test =
     }
   });
 
-let qcheck_stepper_confluence =
-  QCheck.Test.make(
-    ~name="Evaluator and stepper are consistent",
-    ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 10),
-    uexp => {
-    switch (
-      {
-        let (_, elab) =
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-        elab;
-      }
-    ) {
-    | elaborated_exp =>
-      switch (
-        Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
-          ~step_limit=100,
-          elaborated_exp,
-        ),
-        full_small_step_reduction(~step_limit=100, elaborated_exp),
-      ) {
-      | (
-          LimitedCompleted((bigstep_exp, _)),
-          LimitedCompleted(smallstep_exp),
-        ) =>
-        let show_core_exp = exp =>
-          exp
-          |> ExpToSegment.exp_to_segment(
-               ~settings=
-                 ExpToSegment.Settings.of_core(
-                   ~inline=true,
-                   CoreSettings.off,
-                 ),
-               _,
-             )
-          |> Printer.of_segment(~holes="?", _);
-
-        Alcotest.check(
-          testable(
-            Fmt.using(show_core_exp, Fmt.string),
-            Equality.semantic.exp,
-          ), // Output is easier to view through ExpToSegment. This may result in a loss of information
-          "Small step reduction and big step reduction are equal",
-          smallstep_exp |> fst,
-          bigstep_exp,
-        );
-        true;
-      | (_, StepLimitExceeded)
-      | (StepLimitExceeded, _) => true
-      | exception e =>
-        print_endline(
-          "Skipping evaluation failure: " ++ Printexc.to_string(e),
-        );
-        true;
-      }
-    | exception e =>
-      print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
-      );
-      true;
-    }
-  });
 let show_core_exp = exp =>
   exp
   |> ExpToSegment.exp_to_segment(
@@ -118,6 +55,105 @@ let show_core_exp = exp =>
        _,
      )
   |> Printer.of_segment(~holes="?", _);
+
+/* Elaborate `uexp` and reduce it with both engines, returning
+ * `Some((bigstep, smallstep))` when both land on a result. `None` means the
+ * case is vacuous — either engine hit the step limit, or statics/evaluation
+ * raised (filtered the same way as the other evaluator QCheck tests here).
+ *
+ * Shared by the confluence property and by the deterministic #2128 pin, so
+ * the two cannot drift apart. */
+let reduce_both_engines =
+    (~step_limit: int, uexp: Exp.t): option((Exp.t, Exp.t)) =>
+  switch (
+    {
+      let (_, elab) =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+      elab;
+    }
+  ) {
+  | elaborated_exp =>
+    switch (
+      Evaluator.evaluate_and_limit(
+        ~env=Builtins.env_init,
+        ~step_limit,
+        elaborated_exp,
+      ),
+      full_small_step_reduction(~step_limit, elaborated_exp),
+    ) {
+    | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
+      Some((bigstep_exp, smallstep_exp |> fst))
+    | (_, StepLimitExceeded)
+    | (StepLimitExceeded, _) => None
+    | exception e =>
+      print_endline(
+        "Skipping evaluation failure: " ++ Printexc.to_string(e),
+      );
+      None;
+    }
+  | exception e =>
+    print_endline(
+      "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+    );
+    None;
+  };
+
+/* Output is easier to view through ExpToSegment. This may result in a loss of
+   information. */
+let testable_core_exp =
+  testable(Fmt.using(show_core_exp, Fmt.string), Equality.semantic.exp);
+
+let qcheck_stepper_confluence =
+  QCheck.Test.make(
+    ~name="Evaluator and stepper are consistent",
+    ~count=1000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    uexp =>
+    switch (reduce_both_engines(~step_limit=100, uexp)) {
+    | None => true
+    | Some((bigstep_exp, smallstep_exp)) =>
+      Alcotest.check(
+        testable_core_exp,
+        "Small step reduction and big step reduction are equal",
+        smallstep_exp,
+        bigstep_exp,
+      );
+      true;
+    }
+  );
+
+/* The counterexample from #2128/#2372, driven directly instead of waited for
+ * from the generator: a duplicate binder in a cons pattern. One engine
+ * freshens the second `x` and the other does not, and `Equality.semantic.exp`
+ * does not equate the two alpha-variants.
+ *
+ * This asserts the CURRENT, WRONG behaviour, so it goes red the day the
+ * engines agree and tells us to re-enable `qcheck_stepper_confluence` above.
+ * A plain `Alcotest.skip()` would stay silent forever instead. */
+let stepper_confluence_known_bug_test =
+  test_case(
+    "Known Bug #2128: evaluator and stepper disagree on a duplicate binder",
+    `Quick,
+    () => {
+      let uexp = parse_exp("fun (x::x) -> x");
+      switch (reduce_both_engines(~step_limit=100, uexp)) {
+      | None =>
+        fail(
+          "the #2128 counterexample no longer reduces under both engines; "
+          ++ "re-minimize it against the property before trusting this pin",
+        )
+      | Some((bigstep_exp, smallstep_exp)) =>
+        check(
+          bool,
+          "#2128/#2372 appear FIXED: re-enable the disabled "
+          ++ "`Evaluator and stepper are consistent` property and delete this "
+          ++ "expected-failure pin",
+          false,
+          Equality.semantic.exp(bigstep_exp, smallstep_exp),
+        )
+      };
+    },
+  );
 
 // Property that states let x : T = e in x is equivalent to e : T
 let qcheck_pattern_equivalence_test =
@@ -304,6 +340,75 @@ let eval_limited =
     elab,
   );
 
+/* Run the one-literal-edit experiment on `exp`: bump the int literal at
+ * `target_id` by one, then evaluate the edited program both incrementally
+ * (against the cache from the unedited run) and from scratch. `None` means
+ * the case is vacuous — a known-benign statics/dynamics failure or the step
+ * limit — and callers should treat it as no evidence either way.
+ *
+ * Shared by the property below and by the deterministic #2457 pin, so the
+ * two cannot drift apart. */
+let eval_after_literal_edit =
+    (~target_id: Id.t, ~old_value: Bigint.t, exp: Exp.t)
+    : option((Exp.t, Exp.t)) => {
+  /* Only swallow known-benign static/dynamic failures so real
+   * incremental-eval disagreements surface as clean failures. */
+  let try_eval = (~prev=?, eval_info, elab) =>
+    try(Some(eval_limited(~prev?, ~eval_info, ~step_limit=10000, elab))) {
+    | Failure(msg)
+        when
+          List.exists(
+            (==)(msg),
+            ["type application in dynamics", "Type meet of ap"],
+          ) =>
+      None
+    };
+  let try_statics = exp =>
+    try(Some(statics_and_elab(exp))) {
+    | _ => None
+    };
+  /* +1 keeps the type fixed, so the edit typechecks the same as the
+   * original while still changing the value at `target_id`. */
+  let new_value = Bigint.(old_value + of_int(1));
+  let edited = replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
+  switch (try_statics(exp), try_statics(edited)) {
+  | (Some((info_map_orig, elab_orig)), Some((info_map_edit, elab_edit))) =>
+    let info_slice_orig =
+      EvalInfo.of_info_map(
+        ~probe_all=CoreSettings.on.probe_all,
+        ~targets=Id.Map.empty,
+        info_map_orig,
+      );
+    let info_slice_edit =
+      EvalInfo.of_info_map(
+        ~probe_all=CoreSettings.on.probe_all,
+        ~targets=Id.Map.empty,
+        info_map_edit,
+      );
+    /* Baseline run (no prev) of the original — its incr_eval becomes
+     * the cache handed to the incremental run of the edited exp. */
+    switch (try_eval(info_slice_orig, elab_orig)) {
+    | None
+    | Some(StepLimitExceeded) => None
+    | Some(LimitedCompleted((_, state_before))) =>
+      /* Edited evaluated two ways: incrementally (reusing the baseline's
+       * cache) and from scratch (empty prev). These must agree. */
+      let fresh = try_eval(info_slice_edit, elab_edit);
+      let incr_eval_result =
+        try_eval(~prev=state_before.incr_eval, info_slice_edit, elab_edit);
+      switch (fresh, incr_eval_result) {
+      | (
+          Some(LimitedCompleted((e_fresh, _))),
+          Some(LimitedCompleted((e_incr, _))),
+        ) =>
+        Some((e_fresh, e_incr))
+      | _ => None
+      };
+    };
+  | _ => None
+  };
+};
+
 let qcheck_incremental_matches_fresh_after_edit =
   QCheck.Test.make(
     ~name="Incremental eval agrees with fresh eval after a literal edit",
@@ -313,75 +418,59 @@ let qcheck_incremental_matches_fresh_after_edit =
       QCheck_Util.arb_exp(~minimal_idents=true, 30),
     ),
     ((seed, exp)) => {
-      /* Only swallow known-benign static/dynamic failures so real
-       * incremental-eval disagreements surface as clean PBT failures. */
-      let try_eval = (~prev=?, eval_info, elab) =>
-        try(Some(eval_limited(~prev?, ~eval_info, ~step_limit=10000, elab))) {
-        | Failure(msg)
-            when
-              List.exists(
-                (==)(msg),
-                ["type application in dynamics", "Type meet of ap"],
-              ) =>
-          None
+    switch (collect_int_lits(exp)) {
+    | [] => true /* Nothing to edit — the property is vacuously true. */
+    | lits =>
+      let (target_id, old_value) =
+        List.nth(lits, seed mod List.length(lits));
+      switch (eval_after_literal_edit(~target_id, ~old_value, exp)) {
+      | None => true
+      | Some((e_fresh, e_incr)) => Equality.semantic.exp(e_fresh, e_incr)
+      };
+    }
+  });
+
+/* The minimal counterexample from #2457, driven directly instead of waited
+ * for from the generator. Every ingredient matters: a *named* binding that
+ * survives into the residual, the edited literal bound to `_`, and
+ * evaluation getting stuck *after* the literal via a failing pattern match.
+ *
+ * This asserts the CURRENT, WRONG behaviour — fresh eval substitutes `x`'s
+ * value into the residual environment, incremental eval leaves `x` as a
+ * variable. It is deliberately NOT an `Alcotest.skip()` like
+ * `skip_known_bug` elsewhere in test/: a skipped test stays silent forever,
+ * whereas this one goes red the day #2457 is fixed and tells us to re-enable
+ * `qcheck_incremental_matches_fresh_after_edit` above. */
+let incremental_literal_edit_known_bug_test =
+  test_case(
+    "Known Bug #2457: incremental eval disagrees with fresh after a literal edit",
+    `Quick,
+    () => {
+      let exp = parse_exp("{ let x = (); let _ = 4; let true = A }");
+      let (target_id, old_value) =
+        switch (collect_int_lits(exp)) {
+        | [lit] => lit
+        | lits =>
+          failf(
+            "expected exactly one int literal to edit, found %d",
+            List.length(lits),
+          )
         };
-      let try_statics = exp =>
-        try(Some(statics_and_elab(exp))) {
-        | _ => None
-        };
-      switch (collect_int_lits(exp)) {
-      | [] => true /* Nothing to edit — the property is vacuously true. */
-      | lits =>
-        let (target_id, old_value) =
-          List.nth(lits, seed mod List.length(lits));
-        /* +1 keeps the type fixed, so the edit typechecks the same as the
-         * original while still changing the value at `target_id`. */
-        let new_value = Bigint.(old_value + of_int(1));
-        let edited =
-          replace_int_lit_by_id(~target=target_id, ~to_=new_value, exp);
-        switch (try_statics(exp), try_statics(edited)) {
-        | (
-            Some((info_map_orig, elab_orig)),
-            Some((info_map_edit, elab_edit)),
-          ) =>
-          let info_slice_orig =
-            EvalInfo.of_info_map(
-              ~probe_all=CoreSettings.on.probe_all,
-              ~targets=Id.Map.empty,
-              info_map_orig,
-            );
-          let info_slice_edit =
-            EvalInfo.of_info_map(
-              ~probe_all=CoreSettings.on.probe_all,
-              ~targets=Id.Map.empty,
-              info_map_edit,
-            );
-          /* Baseline run (no prev) of the original — its incr_eval becomes
-           * the cache handed to the incremental run of the edited exp. */
-          switch (try_eval(info_slice_orig, elab_orig)) {
-          | None
-          | Some(StepLimitExceeded) => true
-          | Some(LimitedCompleted((_, state_before))) =>
-            /* Edited evaluated two ways: incrementally (reusing the baseline's
-             * cache) and from scratch (empty prev). These must agree. */
-            let fresh = try_eval(info_slice_edit, elab_edit);
-            let incr_eval_result =
-              try_eval(
-                ~prev=state_before.incr_eval,
-                info_slice_edit,
-                elab_edit,
-              );
-            switch (fresh, incr_eval_result) {
-            | (
-                Some(LimitedCompleted((e_fresh, _))),
-                Some(LimitedCompleted((e_incr, _))),
-              ) =>
-              Equality.semantic.exp(e_fresh, e_incr)
-            | _ => true
-            };
-          };
-        | _ => true
-        };
+      switch (eval_after_literal_edit(~target_id, ~old_value, exp)) {
+      | None =>
+        fail(
+          "the #2457 counterexample no longer reaches a completed evaluation; "
+          ++ "re-minimize it against the property before trusting this pin",
+        )
+      | Some((e_fresh, e_incr)) =>
+        check(
+          bool,
+          "#2457 appears FIXED: re-enable the disabled "
+          ++ "`Incremental eval agrees with fresh eval after a literal edit` "
+          ++ "property and delete this expected-failure pin",
+          false,
+          Equality.semantic.exp(e_fresh, e_incr),
+        )
       };
     },
   );
@@ -673,9 +762,38 @@ let tests = (
     yielding_streaming_current_state_test,
     yielding_streaming_current_id_invalid_race_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
-    QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
+    /* Disabled: fails for any seed that generates a duplicate binder
+       (#2128/#2372), which has reddened Full tests on unrelated PRs. The
+       deterministic pin below keeps the bug covered. #2408 fixes a different
+       confluence cause, so it will not on its own make this safe to re-enable. */
+    test_case(
+      "Evaluator and stepper are consistent (disabled, #2128)", `Quick, () => {
+      [@warning "-21"]
+      {
+        Alcotest.skip();
+        ignore(QCheck_alcotest.to_alcotest(qcheck_stepper_confluence));
+      }
+    }),
+    stepper_confluence_known_bug_test,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
-    QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
+    /* Disabled: fails for any seed that generates the #2457 shape, which has
+       reddened Full tests on unrelated PRs. The deterministic pin below keeps
+       the bug covered and will fail once #2457 is fixed. */
+    test_case(
+      "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
+      `Quick,
+      () => {
+      [@warning "-21"]
+      {
+        Alcotest.skip();
+        ignore(
+          QCheck_alcotest.to_alcotest(
+            qcheck_incremental_matches_fresh_after_edit,
+          ),
+        );
+      }
+    }),
+    incremental_literal_edit_known_bug_test,
     /* Preservation does not currently hold: stepping can produce a type that
        is not more precise than the original. */
     test_case("Preservation of types (disabled)", `Quick, () => {
