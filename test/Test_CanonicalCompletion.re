@@ -1358,8 +1358,9 @@ let probe_tests = [
       "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
   ),
 ];
-/* Hole-minimizing append: a closer stops before a span-final
-   trailing operator when that is strictly fewer holes. */
+/* Hole-minimizing append, semi-only (2026-09 round): a closer stops
+   before a span-final trailing SEQUENCE SEPARATOR when content
+   follows — the semi legitimately binds across the boundary. */
 let probe2_tests = [
   edit_case(
     ~name="deleted test-end stops before the semicolon",
@@ -1886,7 +1887,56 @@ let clippable_guard_tests = {
   ];
 };
 
+/* === Closer-severance round (2026-09-01, PR #2374 review) ===
+ * The hole-min back-over must not sever non-separator material.
+ * Cyrus's premature `end in` (a completed if-form counted as a
+ * span-final "trailing operator" and was backed over, landing the
+ * end after the rule arrow) and the `)`-before-`:` annotation flip
+ * are the same overfiring. Content at column 0 below is load-bearing
+ * in every input: it arms the content-follows gate. */
+let severance_tests = [
+  test(
+    ~name="end+in stay after the rule-body if (case-def)",
+    ~input="let f =\n    case 0\n    | 0 =>\n        if \n1",
+    ~expected=
+      "let f =\n    case 0\n    | 0 =>\n        if?then?else? endin\n1",
+  ),
+  test(
+    ~name="end+in stay after the rule-body if (Cyrus partition_at)",
+    ~input=
+      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if \n1",
+    ~expected=
+      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if?then?else? endin\n1",
+  ),
+  test(
+    ~name="end stays after the rule-body if (standalone case)",
+    ~input="case 0\n| 0 =>\n    if \n1",
+    ~expected="case 0\n| 0 =>\n    if?then?else? end~\n1",
+  ),
+  test(
+    ~name="ap-pattern closer stays after the annotation colon",
+    ~input=
+      "let qsort(xs :\ntest qsort([5, 4, 8, 9, 3, 2, 7]) == [2, 3, 4, 5, 7, 8, 9] end",
+    ~expected=
+      "let qsort(xs :?)=?in\ntest qsort([5, 4, 8, 9, 3, 2, 7]) == [2, 3, 4, 5, 7, 8, 9] end",
+  ),
+  test(
+    ~name="paren closer stays after a trailing colon",
+    ~input="(x :\nf(3)",
+    ~expected="(x :?)~\nf(3)",
+  ),
+  test(
+    ~name="paren closer keeps a trailing + when in interposes",
+    ~input="let x = (1 +\nf(3)",
+    ~expected="let x = (1 +?)in\nf(3)",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  (
+    "CanonicalCompletion: closer-severance",
+    run_completion_tests(severance_tests),
+  ),
   ("CanonicalCompletion: head-restoration", head_restoration_tests),
   ("CanonicalCompletion: reassociation-guards", probe_tests),
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),

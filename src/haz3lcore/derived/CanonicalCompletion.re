@@ -1655,6 +1655,13 @@ let place_trailing_shards =
                     switch (p) {
                     | Tile(tt) =>
                       Tile.is_complete(tt)
+                      /* only sequence separators are severable: a
+                         statement semi legitimately binds across the
+                         partition boundary; expression operators and
+                         whole forms (a completed if) do not — backing
+                         over them severs material for no hole gain
+                         (2026-09 round: premature end-in, `)` vs `:`) */
+                      && tt.label == [";"]
                       /* rules are case-content, never severable:
                          mid-entry `case foo |` keeps its end after
                          the growing rule */
