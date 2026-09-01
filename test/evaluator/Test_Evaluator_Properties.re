@@ -52,16 +52,11 @@ let testable_core_exp =
     Equality.semantic.exp,
   );
 
-/* Reduce `uexp` with the evaluator and with the stepper and `check` the two
-   against each other: pass `testable_core_exp` to assert they agree, or
-   `neg(testable_core_exp)` to assert they still differ.
-
-   A case that never reaches that comparison — reduction not terminating inside
-   `step_limit`, or statics/evaluation raising — is skipped when
-   `require_comparison` is false, which is what the property wants of a random
-   draw. A fixed counterexample passes true: reaching no comparison means it no
-   longer pins anything and needs re-minimizing, so say so rather than pass. */
-let check_evaluator_against_stepper =
+/* Check that the evaluator and the stepper are consistent on `uexp`. The step
+   limit and known issues that raise are skipped — or, with
+   `require_comparison`, failed, so a fixed counterexample that stops reaching
+   the comparison says so instead of passing. */
+let check_evaluator_stepper_consistent =
     (
       ~step_limit: int,
       ~testable: testable(Exp.t),
@@ -121,23 +116,6 @@ let check_evaluator_against_stepper =
     }
   };
 
-let qcheck_stepper_confluence =
-  QCheck.Test.make(
-    ~name="Evaluator and stepper are consistent",
-    ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 10),
-    uexp => {
-      check_evaluator_against_stepper(
-        ~step_limit=100,
-        ~testable=testable_core_exp,
-        ~msg="Small step reduction and big step reduction are equal",
-        ~require_comparison=false,
-        uexp,
-      );
-      true;
-    },
-  );
-
 /* Disabled: fails on any seed that draws a duplicate binder — known bug
    https://github.com/hazelgrove/hazel/issues/2128 (dup #2372). The test below
    pins that counterexample and goes red once it is fixed. */
@@ -147,7 +125,25 @@ let qcheck_stepper_confluence_disabled =
     [@warning "-21"]
     {
       Alcotest.skip();
-      ignore(QCheck_alcotest.to_alcotest(qcheck_stepper_confluence));
+      ignore(
+        QCheck_alcotest.to_alcotest(
+          QCheck.Test.make(
+            ~name="Evaluator and stepper are consistent",
+            ~count=1000,
+            QCheck_Util.arb_exp(~minimal_idents=true, 10),
+            uexp => {
+              check_evaluator_stepper_consistent(
+                ~step_limit=100,
+                ~testable=testable_core_exp,
+                ~msg="Small step reduction and big step reduction are equal",
+                ~require_comparison=false,
+                uexp,
+              );
+              true;
+            },
+          ),
+        ),
+      );
     }
   });
 
@@ -156,7 +152,7 @@ let stepper_confluence_known_bug_test =
     "Known bug #2128: evaluator and stepper disagree on a duplicate binder",
     `Quick,
     () =>
-    check_evaluator_against_stepper(
+    check_evaluator_stepper_consistent(
       ~step_limit=100,
       ~testable=neg(testable_core_exp),
       ~msg=
@@ -355,10 +351,9 @@ let eval_limited =
     elab,
   );
 
-/* Bump the int literal at `target_id` by one and `check` the edited program
-   evaluated incrementally against it evaluated fresh: pass `testable_core_exp`
-   to assert they agree, or `neg(testable_core_exp)` to assert they still
-   differ. `require_comparison` as in `check_evaluator_against_stepper`. */
+/* Check that incremental eval and fresh eval agree on `exp` with the int
+   literal at `target_id` bumped by one. Skips and `require_comparison` as
+   above. */
 let check_incremental_against_fresh_after_edit =
     (
       ~target_id: Id.t,
@@ -369,8 +364,6 @@ let check_incremental_against_fresh_after_edit =
       exp: Exp.t,
     )
     : unit => {
-  /* Reaching no comparison is a skip for the property and a failure for the
-     fixed counterexample — see `check_evaluator_against_stepper`. */
   let no_comparison = reason =>
     if (require_comparison) {
       failf(
@@ -440,32 +433,6 @@ let check_incremental_against_fresh_after_edit =
   };
 };
 
-let qcheck_incremental_matches_fresh_after_edit =
-  QCheck.Test.make(
-    ~name="Incremental eval agrees with fresh eval after a literal edit",
-    ~count=2000,
-    QCheck.pair(
-      QCheck.small_nat,
-      QCheck_Util.arb_exp(~minimal_idents=true, 30),
-    ),
-    ((seed, exp)) =>
-    switch (collect_int_lits(exp)) {
-    | [] => true /* Nothing to edit — the property is vacuously true. */
-    | lits =>
-      let (target_id, old_value) =
-        List.nth(lits, seed mod List.length(lits));
-      check_incremental_against_fresh_after_edit(
-        ~target_id,
-        ~old_value,
-        ~testable=testable_core_exp,
-        ~msg="Incremental eval and fresh eval agree",
-        ~require_comparison=false,
-        exp,
-      );
-      true;
-    }
-  );
-
 /* Disabled: fails on any seed that draws the shape below — known bug
    https://github.com/hazelgrove/hazel/issues/2457. The test below pins that
    counterexample and goes red once it is fixed. */
@@ -479,7 +446,31 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
       Alcotest.skip();
       ignore(
         QCheck_alcotest.to_alcotest(
-          qcheck_incremental_matches_fresh_after_edit,
+          QCheck.Test.make(
+            ~name=
+              "Incremental eval agrees with fresh eval after a literal edit",
+            ~count=2000,
+            QCheck.pair(
+              QCheck.small_nat,
+              QCheck_Util.arb_exp(~minimal_idents=true, 30),
+            ),
+            ((seed, exp)) =>
+            switch (collect_int_lits(exp)) {
+            | [] => true /* Nothing to edit — the property is vacuously true. */
+            | lits =>
+              let (target_id, old_value) =
+                List.nth(lits, seed mod List.length(lits));
+              check_incremental_against_fresh_after_edit(
+                ~target_id,
+                ~old_value,
+                ~testable=testable_core_exp,
+                ~msg="Incremental eval and fresh eval agree",
+                ~require_comparison=false,
+                exp,
+              );
+              true;
+            }
+          ),
         ),
       );
     }
