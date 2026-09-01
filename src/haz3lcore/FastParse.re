@@ -283,7 +283,8 @@ let weave =
            one (both spellings read as the same Sum) — skip the piece */
         weave_seg(rest)
       | [Tile({label, mold, _}), ..._] as seg
-          when mold.out == Sort.Typ && label != ["+"] && peek(0) == Some("+") =>
+          when
+            mold.out == Sort.Typ && label != ["+"] && peek(0) == Some("+") =>
         /* the mirror case: the source spells the optional leading + on a
            sum the printer omitted (menhir terms lose the leading-plus id
            evidence this branch's printer reads) — land the prefix tile
