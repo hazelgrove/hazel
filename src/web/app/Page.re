@@ -732,7 +732,7 @@ type outline_memo_key = {
   ok_focused: list((Haz3lcore.Id.t, option(string))),
   ok_is_scratch: bool,
   ok_name: string,
-  ok_collapsed: list(list(string)),
+  ok_collapsed: list(OutlineTree.path),
   ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
   ok_results: option(Language.TestResults.t),
 };
@@ -1005,17 +1005,26 @@ module View = {
         | Documentation(_) => true
         | _ => false
         };
-      let slide_name =
+      let (slide_prefix, slide_name) =
         switch (model.editors) {
-        | Scratch(m)
-        | Documentation(m) =>
-          switch (List.nth_opt(m.scratchpads, m.current)) {
-          | Some(sp) => sp.name
-          | None => ""
-          }
-        | _ => ""
+        | Scratch(m) => (
+            "scratch",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | Documentation(m) => (
+            "doc",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | _ => ("", "")
         };
-      let collapsed_paths = ScratchMode.collapse_paths(slide_name);
+      let collapsed_paths =
+        ScratchMode.collapse_paths(slide_prefix, slide_name);
       let menu = is_scratch ? ScratchMode.outline_menu^ : None;
       let test_results =
         switch (model.editors) {

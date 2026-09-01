@@ -14,11 +14,18 @@ module Focus = ScratchFocus;
      <prefix>:<name>        → CellEditor.Model.persistent
      <prefix>:<name>:agent  → Agent.Persistent.t */
 
+/* every per-slide table and pending ref below is keyed/tagged by the
+   CONTENT KEY (prefix:name), never the bare name: Scratch and
+   Documentation slides may share a name, and name-keyed state bled
+   between them */
+let content_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name;
+
 /* per-slide pin retention (andrew): switching slides splices the
-   stack home; coming back re-opens the same cells. Keyed by slide
-   NAME; ids stay valid in-session because hydrated slides keep their
-   models (a dormant slide re-parses with fresh ids, but you can't
-   have pinned on a slide you haven't visited). Transient by design —
+   stack home; coming back re-opens the same cells. Ids stay valid
+   in-session because hydrated slides keep their models (a dormant
+   slide re-parses with fresh ids, but you can't have pinned on a
+   slide you haven't visited). Transient by design —
    text-backed reload re-mints ids (name-anchored persistence is
    docketed with the outline-generality spec). */
 let slide_pins: Hashtbl.t(string, list((Haz3lcore.Id.t, bool))) =
@@ -26,14 +33,15 @@ let slide_pins: Hashtbl.t(string, list((Haz3lcore.Id.t, bool))) =
 
 /* modeled outline collapse (andrew: DOM-owned <details> state bled
    across slides positionally and reset whenever a structural edit
-   made the vdom recreate elements). Per-slide sets of label paths;
-   the summary click dispatches OutlineCollapse; the open attr renders
-   from this. Persisted per slide (a ":collapse" side key). */
-let slide_collapse: Hashtbl.t(string, list(list(string))) =
+   made the vdom recreate elements). Per-slide sets of occurrence-
+   qualified label paths; the summary click dispatches
+   OutlineCollapse; the open attr renders from this. Persisted per
+   slide (a ":collapse" side key). */
+let slide_collapse: Hashtbl.t(string, list(OutlineTree.path)) =
   Hashtbl.create(8);
 
-let collapse_paths = (name: string): list(list(string)) =>
-  switch (Hashtbl.find_opt(slide_collapse, name)) {
+let collapse_paths = (prefix: string, name: string): list(OutlineTree.path) =>
+  switch (Hashtbl.find_opt(slide_collapse, content_key(prefix, name))) {
   | Some(ps) => ps
   | None => []
   };
@@ -62,85 +70,133 @@ let pins_key = (prefix: string, name: string): string =>
 let collapse_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":collapse";
 
-/* set when a loaded slide has a saved caret; the next calculate
-   schedules the Move(Point) (measured exists by then) */
-let pending_caret: ref(option(Point.t)) = ref(None);
+/* pending restoration state is TAGGED with the content key it was
+   read for, and consumers verify the tag against the current slide
+   before applying: these are module-global refs, and an untagged
+   value could ride a hydration/mode-switch race onto the wrong
+   editor. Every read_* call SETS its ref (None on missing/malformed)
+   so a previous slide's leftovers can't survive a failed read. */
+let pending_caret: ref(option((string, Point.t))) = ref(None);
+let pending_pins: ref(option((string, list((OutlineTree.path, bool))))) =
+  ref(None);
 
-/* saved pins are NAME-anchored (text-backed persistence re-mints
-   ids on every load): one line per pin, "0|1 <outline/label/path>";
-   resolved against the loaded slide's outline on RestorePins */
-let pending_pins: ref(option(list((list(string), bool)))) = ref(None);
+/* pins/collapse store as sexps: outline labels are arbitrary program
+   text, so the old space-/-newline-delimited lines silently dropped
+   any pin whose label contained a delimiter (e.g. a backticked name
+   with a space). The legacy decoder remains as a read fallback,
+   mapping bare labels to occurrence 0. */
+[@deriving sexp]
+type pin_rec = {
+  pin_path: OutlineTree.path,
+  pin_run: bool,
+};
+[@deriving sexp]
+type pins_file = list(pin_rec);
+[@deriving sexp]
+type collapse_file = list(OutlineTree.path);
 
-let read_pins = (prefix: string, name: string): unit =>
-  switch (HazelDB.kv_get(pins_key(prefix, name))) {
-  | Some(txt) =>
-    let pins =
+let legacy_path = (p: string): OutlineTree.path =>
+  String.split_on_char('/', p)
+  |> List.map(l =>
+       OutlineTree.{
+         s_label: l,
+         s_occ: 0,
+       }
+     );
+
+let read_pins = (prefix: string, name: string): unit => {
+  let decode = (txt: string): list((OutlineTree.path, bool)) =>
+    switch (pins_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
+    | pins => List.map(p => (p.pin_path, p.pin_run), pins)
+    | exception _ =>
       String.split_on_char('\n', txt)
       |> List.filter_map(line =>
            switch (String.split_on_char(' ', String.trim(line))) {
            | [flag, path] when path != "" =>
-             Some((String.split_on_char('/', path), flag == "1"))
+             Some((legacy_path(path), flag == "1"))
            | _ => None
            }
-         );
-    pending_pins := pins == [] ? None : Some(pins);
-  | None => pending_pins := None
-  };
+         )
+    };
+  pending_pins :=
+    (
+      switch (HazelDB.kv_get(pins_key(prefix, name))) {
+      | Some(txt) =>
+        switch (decode(txt)) {
+        | [] => None
+        | pins => Some((content_key(prefix, name), pins))
+        }
+      | None => None
+      }
+    );
+};
 
-let read_collapse = (prefix: string, name: string): unit =>
-  switch (HazelDB.kv_get(collapse_key(prefix, name))) {
-  | Some(txt) =>
-    let paths =
+let read_collapse = (prefix: string, name: string): unit => {
+  let ck = content_key(prefix, name);
+  let decode = (txt: string): list(OutlineTree.path) =>
+    switch (collapse_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
+    | paths => paths
+    | exception _ =>
       String.split_on_char('\n', txt)
       |> List.filter_map(line => {
            let line = String.trim(line);
-           line == "" ? None : Some(String.split_on_char('/', line));
-         });
-    paths == []
-      ? Hashtbl.remove(slide_collapse, name)
-      : Hashtbl.replace(slide_collapse, name, paths);
-  | None => ()
+           line == "" ? None : Some(legacy_path(line));
+         })
+    };
+  switch (HazelDB.kv_get(collapse_key(prefix, name)) |> Option.map(decode)) {
+  | Some([]) => Hashtbl.remove(slide_collapse, ck)
+  | Some(paths) => Hashtbl.replace(slide_collapse, ck, paths)
+  | None => Hashtbl.remove(slide_collapse, ck)
   };
+};
 
 let write_collapse = (prefix: string, name: string): unit =>
   HazelDB.kv_save(
     collapse_key(prefix, name),
-    collapse_paths(name)
-    |> List.map(String.concat("/"))
-    |> String.concat("\n"),
+    collapse_paths(prefix, name)
+    |> sexp_of_collapse_file
+    |> Sexplib.Sexp.to_string,
   );
 
 let write_pins =
-    (prefix: string, name: string, pins: list((list(string), bool))): unit =>
+    (prefix: string, name: string, pins: list((OutlineTree.path, bool)))
+    : unit =>
   HazelDB.kv_save(
     pins_key(prefix, name),
     pins
-    |> List.map(((path, run)) =>
-         (run ? "1 " : "0 ") ++ String.concat("/", path)
+    |> List.map(((pin_path, pin_run)) =>
+         {
+           pin_path,
+           pin_run,
+         }
        )
-    |> String.concat("\n"),
+    |> sexp_of_pins_file
+    |> Sexplib.Sexp.to_string,
   );
 
 let read_caret = (prefix: string, name: string): unit =>
-  switch (HazelDB.kv_get(caret_key(prefix, name))) {
-  | Some(txt) =>
-    switch (String.split_on_char(' ', String.trim(txt))) {
-    | [r, c] =>
-      switch (int_of_string_opt(r), int_of_string_opt(c)) {
-      | (Some(row), Some(col)) =>
-        pending_caret :=
-          Some(
-            Point.{
-              row,
-              col,
-            },
-          )
-      | _ => ()
+  pending_caret :=
+    (
+      switch (HazelDB.kv_get(caret_key(prefix, name))) {
+      | Some(txt) =>
+        switch (String.split_on_char(' ', String.trim(txt))) {
+        | [r, c] =>
+          switch (int_of_string_opt(r), int_of_string_opt(c)) {
+          | (Some(row), Some(col)) =>
+            Some((
+              content_key(prefix, name),
+              Point.{
+                row,
+                col,
+              },
+            ))
+          | _ => None
+          }
+        | _ => None
+        }
+      | None => None
       }
-    | _ => ()
-    }
-  | None => ()
-  };
+    );
 
 let save_meta = (prefix: string, m: slide_meta): unit => {
   let key = meta_key(prefix);

@@ -25,6 +25,13 @@ let heal_tolerance_px = 2.;
 
 type geom = {
   container: Js.t(Dom_html.element),
+  /* the caret node the anchor was read against: only the selected
+     editor renders a caret, and moving the selection to another
+     cell/header mints a fresh node — so anchor validity for a burst
+     reveal is caret-node identity (published rows are editor-relative;
+     pairing a new cell's row with the old cell's editor_top scrolls
+     wrong until the heal) */
+  caret_el: Js.t(Dom_html.element),
   /* content-space y of the active editor's row 0 */
   mutable editor_top: float,
   mutable height: float,
@@ -89,18 +96,46 @@ let set_scroll_top = (g: geom, v: float): unit => {
   g.scroll_top = float_of_int(g.container##.scrollTop);
 };
 
-let attach_scroll_listener = (g: geom): unit => {
-  let handler =
+/* ONE stable handler that reads the current geom, attached to at most
+   one container at a time: attaching a fresh closure per cold anchor
+   would accumulate a handler (each retaining its dead geom) on every
+   post-pause action for the session's lifetime */
+let scroll_handler: Js.Unsafe.any =
+  Js.Unsafe.inject(
     Js.wrap_callback(_ =>
-      g.scroll_top = float_of_int(g.container##.scrollTop)
-    );
-  let _ =
-    Js.Unsafe.meth_call(
-      g.container,
-      "addEventListener",
-      [|Js.Unsafe.inject(Js.string("scroll")), Js.Unsafe.inject(handler)|],
-    );
-  ();
+      switch (geom^) {
+      | Some(g) => g.scroll_top = float_of_int(g.container##.scrollTop)
+      | None => ()
+      }
+    ),
+  );
+let listened: ref(option(Js.t(Dom_html.element))) = ref(None);
+let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit => {
+  let already =
+    switch (listened^) {
+    | Some(c) => c === container
+    | None => false
+    };
+  if (!already) {
+    switch (listened^) {
+    | Some(old) =>
+      let _ =
+        Js.Unsafe.meth_call(
+          old,
+          "removeEventListener",
+          [|Js.Unsafe.inject(Js.string("scroll")), scroll_handler|],
+        );
+      ();
+    | None => ()
+    };
+    let _ =
+      Js.Unsafe.meth_call(
+        container,
+        "addEventListener",
+        [|Js.Unsafe.inject(Js.string("scroll")), scroll_handler|],
+      );
+    listened := Some(container);
+  };
 };
 
 /* the reveal decision from mirrored geometry: scroll delta to keep
@@ -134,7 +169,10 @@ let schedule_verify = (): unit =>
           incr(n_verified);
           switch (geom^, published^, JsUtil.get_elem_by_id_opt("caret")) {
           | (Some(g), Some((row, rh)), Some(caret))
-              when connected(g.container) && !animating(caret) =>
+              when
+                caret === g.caret_el
+                && connected(g.container)
+                && !animating(caret) =>
             /* reading here costs the frame's own layout, not an
                extra mid-task flush */
             let caret_r = caret##getBoundingClientRect;
@@ -215,6 +253,7 @@ let schedule_cold = (): unit =>
               } else {
                 let g = {
                   container,
+                  caret_el: caret,
                   editor_top:
                     caret_r##.top
                     -.
@@ -225,7 +264,7 @@ let schedule_cold = (): unit =>
                   height,
                   scroll_top: float_of_int(container##.scrollTop),
                 };
-                attach_scroll_listener(g);
+                ensure_scroll_listener(container);
                 geom := Some(g);
               };
             }
@@ -274,8 +313,12 @@ let reveal = (): unit => {
   switch (published^) {
   | None => JsUtil.scroll_cursor_into_view_if_needed()
   | Some((row, rh)) =>
-    switch (geom^) {
-    | Some(g) when burst && connected(g.container) =>
+    /* getElementById is a lookup, not a layout read — the burst path
+       stays read-free in the forced-layout sense */
+    let caret_now = JsUtil.get_elem_by_id_opt("caret");
+    switch (geom^, caret_now) {
+    | (Some(g), Some(caret))
+        when burst && caret === g.caret_el && connected(g.container) =>
       /* synchronous on purpose: under long-task holds the rAF can
          lag behind keystrokes; the write keeps the caret pinned */
       incr(n_arith);
@@ -286,6 +329,6 @@ let reveal = (): unit => {
       };
       schedule_verify();
     | _ => schedule_cold()
-    }
+    };
   };
 };
