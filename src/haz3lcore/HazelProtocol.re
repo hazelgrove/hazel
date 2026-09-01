@@ -98,8 +98,8 @@ let parse_to_hazel_message = (data: Js.t(_)): option(to_hazel_message) =>
       None;
     }
   | None =>
-    prerr_endline("parse_to_hazel_message: missing id or wrong id format");
-    None;
+    //prerr_endline("parse_to_hazel_message: missing id or wrong id format");
+    None
   };
 
 /* Convert from_hazel_message to JavaScript object */
