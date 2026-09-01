@@ -5,10 +5,9 @@ open MenhirParser;
 
 /**
  * Render a core expression as editable syntax, for QCheck counterexamples and
- * Alcotest failure output. `editable` rather than `of_core(_, CoreSettings.off)`
- * deliberately: the latter hides ascriptions and folds function bodies, so two
- * expressions that `Equality.semantic` counts as different can print
- * identically. Reading this is a loss of information either way.
+ * Alcotest failure output. Not `of_core(_, CoreSettings.off)`: that hides
+ * ascriptions and folds function bodies, so expressions `Equality.semantic`
+ * counts as different can print identically.
  */
 let show_core_exp = exp =>
   exp
