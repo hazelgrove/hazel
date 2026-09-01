@@ -46,19 +46,16 @@ let qcheck_evaluator_does_not_crash_test =
     }
   });
 
-/* Rendered by the same function that prints QCheck counterexamples, so a
-   failure here and a failure from the generator read alike. */
 let testable_core_exp =
   testable(
     Fmt.using(QCheck_Util.show_core_exp, Fmt.string),
     Equality.semantic.exp,
   );
 
-/* Elaborate `uexp`, reduce it with the evaluator and with the stepper, and
-   `check` the two results against each other with `testable`: pass
-   `testable_core_exp` to assert they agree, or `neg(testable_core_exp)` to
-   assert they still differ. Returns false when the case was filtered out — a
-   step limit, or a raise these properties skip — and nothing was compared. */
+/* Reduce `uexp` with the evaluator and with the stepper and `check` the two
+   against each other: pass `testable_core_exp` to assert they agree, or
+   `neg(testable_core_exp)` to assert they still differ. False when the case was
+   filtered out and nothing was compared. */
 let check_evaluator_against_stepper =
     (~step_limit: int, ~testable: testable(Exp.t), ~msg: string, uexp: Exp.t)
     : bool =>
@@ -102,8 +99,7 @@ let qcheck_stepper_confluence =
     ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp => {
-      /* `check` raises on a disagreement; a filtered-out case is not a
-         failure, so the compared/not-compared answer is discarded here. */
+      /* Failure arrives as a raise from `check`; the bool is only vacuity. */
       ignore(
         check_evaluator_against_stepper(
           ~step_limit=100,
@@ -116,11 +112,9 @@ let qcheck_stepper_confluence =
     },
   );
 
-/* Disabled: fails on any seed that draws a duplicate binder, where one of the
-   two freshens it and the other does not. Known bug
-   https://github.com/hazelgrove/hazel/issues/2128 (dup #2372). The test after
-   this one pins that counterexample and goes red once the bug is fixed, which
-   is the signal to re-enable this property. */
+/* Disabled: fails on any seed that draws a duplicate binder — known bug
+   https://github.com/hazelgrove/hazel/issues/2128 (dup #2372). The test below
+   pins that counterexample and goes red once it is fixed. */
 let qcheck_stepper_confluence_disabled =
   test_case(
     "Evaluator and stepper are consistent (disabled, #2128)", `Quick, () => {
@@ -285,8 +279,8 @@ let qcheck_preservation_test =
  * reuse_check path at all; if we regenerated the tree from source the
  * id spaces would be disjoint and nothing would match prev.
  *
- * Known skips below (return `true`): expressions with no int literal to
- * edit (nothing to test), anything that hits the step limit, and anything
+ * Known skips (the property still passes): expressions with no int literal
+ * to edit (nothing to test), anything that hits the step limit, and anything
  * that raises from statics/evaluation (filtered the same way as the
  * other evaluator QCheck tests in this file). */
 
@@ -339,13 +333,10 @@ let eval_limited =
     elab,
   );
 
-/* Bump the int literal at `target_id` by one, evaluate the edited program two
-   ways — incrementally, reusing the unedited run's cache, and from scratch —
-   and `check` the two against each other with `testable`: pass
-   `testable_core_exp` to assert they agree, or `neg(testable_core_exp)` to
-   assert they still differ. Both sides share one elaboration, so a
-   disagreement is a reuse / dirty-propagation bug rather than a semantic one.
-   Returns false when the case was filtered out and nothing was compared. */
+/* Bump the int literal at `target_id` by one and `check` the edited program
+   evaluated incrementally against it evaluated fresh: pass `testable_core_exp`
+   to assert they agree, or `neg(testable_core_exp)` to assert they still
+   differ. False when the case was filtered out and nothing was compared. */
 let check_incremental_against_fresh_after_edit =
     (
       ~target_id: Id.t,
@@ -428,8 +419,7 @@ let qcheck_incremental_matches_fresh_after_edit =
     | lits =>
       let (target_id, old_value) =
         List.nth(lits, seed mod List.length(lits));
-      /* `check` raises on a disagreement; a filtered-out case is not a
-         failure, so the compared/not-compared answer is discarded here. */
+      /* Failure arrives as a raise from `check`; the bool is only vacuity. */
       ignore(
         check_incremental_against_fresh_after_edit(
           ~target_id,
@@ -443,10 +433,9 @@ let qcheck_incremental_matches_fresh_after_edit =
     }
   );
 
-/* Disabled: fails on any seed that draws the shape below. Known bug
-   https://github.com/hazelgrove/hazel/issues/2457. The test after this one
-   pins that counterexample and goes red once the bug is fixed, which is the
-   signal to re-enable this property. */
+/* Disabled: fails on any seed that draws the shape below — known bug
+   https://github.com/hazelgrove/hazel/issues/2457. The test below pins that
+   counterexample and goes red once it is fixed. */
 let qcheck_incremental_matches_fresh_after_edit_disabled =
   test_case(
     "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
