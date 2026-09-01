@@ -224,6 +224,35 @@ let tests = (
       }
     }),
     test_case(
+      "fragment load regrouts: pins reprint, save is a fixed point (#2450)",
+      `Quick,
+      () => {
+        let text = "let f = fun x -> x + 1 in\n^^probe(f(1));\n^^probe(f(2));";
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(int, "two manual pins", 2, List.length(z.refractors.manuals));
+        let out = String.trim(MarkerParse.to_text(z));
+        check(
+          bool,
+          "reprint ends with the materialized hole marker",
+          true,
+          String.ends_with(~suffix="\xc2\xbf", out),
+        );
+        let z2 = PersistentZipper.from_backup_text(out, ~root=Exp);
+        check(
+          int,
+          "pins survive reload",
+          2,
+          List.length(z2.refractors.manuals),
+        );
+        check(
+          string,
+          "fixed point",
+          out,
+          String.trim(MarkerParse.to_text(z2)),
+        );
+      },
+    ),
+    test_case(
       "refractor pins collected and reprinted",
       `Quick,
       () => {
@@ -241,6 +270,63 @@ let tests = (
         check(
           string,
           "pin reprints as its trigger",
+          text,
+          String.trim(MarkerParse.to_text(z)),
+        );
+      },
+    ),
+    test_case(
+      "nested triggers: refractor pinned on a projector",
+      `Quick,
+      () => {
+        let text = "let a = ^^probe(^^slider(50)) in a";
+        /* the fast path itself must handle the nest, not the fallback */
+        let parsed: FastParse.parsed =
+          switch (
+            FastParse.parsed_of_text(
+              ~materialize=Triggers.invoked_projector,
+              ~collect_refractors=true,
+              ~root=Exp,
+              text,
+            )
+          ) {
+          | Ok(p) => p
+          | Error(why) => failwith("nested trigger bailed fast path: " ++ why)
+          };
+        check(
+          int,
+          "one refractor collected",
+          1,
+          List.length(parsed.refractors),
+        );
+        check(
+          bool,
+          "wrapped projector materialized",
+          true,
+          List.exists(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile({children, _}) =>
+                List.exists(
+                  List.exists((p: Piece.t) =>
+                    switch (p) {
+                    | Projector({kind: Slider, _}) => true
+                    | _ => false
+                    }
+                  ),
+                  children,
+                )
+              | _ => false
+              },
+            parsed.segment,
+          ),
+        );
+        /* end-to-end: the load path pins the probe and reprints verbatim */
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(int, "one manual pin", 1, List.length(z.refractors.manuals));
+        check(
+          string,
+          "nest reprints as written",
           text,
           String.trim(MarkerParse.to_text(z)),
         );
