@@ -486,6 +486,14 @@ let tests = [
   (
     "ColorConfiguration",
     [
+      /* First on purpose: every case below parses the slide, so if the fast
+         path is lost they all take the quadratic one and the suite runs for
+         minutes before anything says why. */
+      test_case(
+        "takes the fast parse path",
+        `Quick,
+        slide_takes_the_fast_parse_path,
+      ),
       test_case(
         "built-in source satisfies expected type",
         `Quick,
@@ -516,11 +524,6 @@ let tests = [
         "schemes are pairwise distinct",
         `Quick,
         schemes_are_pairwise_distinct,
-      ),
-      test_case(
-        "takes the fast parse path",
-        `Quick,
-        slide_takes_the_fast_parse_path,
       ),
     ],
   ),

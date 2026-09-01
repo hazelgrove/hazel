@@ -78,17 +78,6 @@ let palette_of = fun (seed, step) ->
 
 # ── Colours and role overrides become the theme ─────────────────────── #
 let theme_of = fun (p, role) ->
-  # Roles that other roles refer to. #
-  let menu_outline = p.`frame-2` in
-  let menu_icon = p.`frame-4` in
-  let token_exp = p.`ink` in
-  let token_pat = p.`pattern` in
-  let token_typ = p.`type` in
-  let token_tpat = p.`type-pattern` in
-  let shard_exp = p.`surface-2` in
-  let shard_selected = p.`attention-2` in
-  let backpack_selection = shard_selected in
-  let test_fail_active = p.`error-1` in
   # Roles below are placed on the palette's OWN contrast axis instead of   #
   # being given a number per scheme: at(c, 0.) sits at the page            #
   # background's lightness and at(c, 1.) at the body text's, so one        #
