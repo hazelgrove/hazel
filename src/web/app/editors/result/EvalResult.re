@@ -118,6 +118,18 @@ module Model = {
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
+
+  /* The evaluated value, however the model came to hold it. `UpdateResult`
+     announces a FRESH evaluation, which is the right signal for work that
+     should happen once per evaluation; anything that has to track the value
+     itself must read it here instead, because a model restored by undo
+     carries a result no `UpdateResult` will ever be sent for. */
+  let get_value = (model: t): option(Exp.t) =>
+    switch (Calc.get_value(model.result)) {
+    | ProgramResult.ResultOk({result, _}) => Some(result)
+    | ProgramResult.ResultFail(_)
+    | ProgramResult.ResultPending(_) => None
+    };
 };
 
 module Update = {

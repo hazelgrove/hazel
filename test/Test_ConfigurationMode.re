@@ -184,6 +184,48 @@ let startup_theme_is_complete = () => {
   );
 };
 
+/* ── The theme follows the model, not the event ────────────────────────
+
+   `perform_side_effect` paints the theme when an evaluation ARRIVES. Undo
+   installs a whole `Page.Model.t` from the history stack and never replays the
+   actions that produced it, so no `UpdateResult` is sent and nothing repaints
+   -- the buffer and the printed result went back while the document kept the
+   colours of a future that had been undone. `Update.calculate` reconciles
+   against the model instead, and it reads the value through
+   `EvalResult.Model.get_value`.
+
+   That accessor is the hinge. If it ever stops returning what `UpdateResult`
+   carried -- a `Calc` change, a different result wrapper -- the reconcile
+   turns into a no-op and undo silently stops repainting again, with nothing
+   failing. So pin the two against each other. */
+let evaluated = (result: Language.Exp.t): Web.EvalResult.Model.t => {
+  let updated =
+    Web.EvalResult.Update.update(
+      ~settings=Web.Settings.Model.init,
+      UpdateResult(
+        ResultOk({
+          result,
+          state: Language.EvaluatorState.empty,
+        }),
+      ),
+      Web.EvalResult.Model.init,
+    );
+  updated.model;
+};
+
+let value_read_back_matches_the_event = () => {
+  let result = Language.Exp.fresh(EmptyHole);
+  check(
+    bool,
+    "get_value returns the very value UpdateResult carried",
+    true,
+    switch (Web.EvalResult.Model.get_value(evaluated(result))) {
+    | Some(v) => v === result
+    | None => false
+    },
+  );
+};
+
 let tests = [
   (
     "ConfigurationMode.default_source",
@@ -213,6 +255,16 @@ let tests = [
         "startup theme is complete",
         `Quick,
         startup_theme_is_complete,
+      ),
+    ],
+  ),
+  (
+    "ConfigurationMode.reconcile",
+    [
+      test_case(
+        "value read back matches the event",
+        `Quick,
+        value_read_back_matches_the_event,
       ),
     ],
   ),

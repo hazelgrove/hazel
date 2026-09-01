@@ -312,6 +312,20 @@ let apply_theme_at_startup = (): unit => {
    palette is rebuilt from scratch on every cursor change — so it records the
    override table in settings instead, where the palette build reads it and
    persistence carries it across reloads. */
+/* What is currently painted on the document, so `reconcile_colors` can tell
+   whether anything needs doing. Physical equality is the right test: the
+   evaluated value is shared, so an unchanged result is the same object, and
+   the worst a false negative costs is an idempotent rewrite of 269 CSS
+   variables. */
+let applied_theme: ref(option(Language.Exp.t)) = ref(None);
+
+let apply_color_theme = (model: Model.t, value: Language.Exp.t): unit => {
+  let vars = ColorConfiguration.css_vars_of_value(value);
+  apply_colors(vars);
+  write_theme_cache(~key=theme_key(Model.persist(model)), vars);
+  applied_theme := Some(value);
+};
+
 let perform_side_effect =
     (
       ~schedule_global: Globals.Update.t => unit,
@@ -321,10 +335,7 @@ let perform_side_effect =
     )
     : unit => {
   switch (config_type) {
-  | ColorScheme =>
-    let vars = ColorConfiguration.css_vars_of_value(value);
-    apply_colors(vars);
-    write_theme_cache(~key=theme_key(Model.persist(model)), vars);
+  | ColorScheme => apply_color_theme(model, value)
   | Shortcuts =>
     schedule_global(
       Set(
@@ -403,6 +414,20 @@ module Update = {
       model |> Updated.return_quiet(~recalculate=true);
     };
   };
+  let reconcile_colors =
+      (config_type: Model.config_type, model: Model.t, ed: CellEditor.Model.t)
+      : unit =>
+    switch (
+      config_type,
+      EvalResult.Model.get_value(ed.result),
+      applied_theme^,
+    ) {
+    | (ColorScheme, Some(value), Some(painted)) when value === painted => ()
+    | (ColorScheme, Some(value), _) => apply_color_theme(model, value)
+    | (ColorScheme, None, _)
+    | (Shortcuts, _, _) => ()
+    };
+
   let calculate =
       (
         ~settings,
@@ -447,7 +472,7 @@ module Update = {
           dispatch(key, UpdateResult(ResultFail(Timeout)))
         ),
     );
-    {
+    let model = {
       ...model,
       configs:
         ListUtil.put_nth(
@@ -456,6 +481,15 @@ module Update = {
           model.configs,
         ),
     };
+    /* The painted theme is DOM state, so unlike a rendered view it does not
+       follow the model on its own -- something has to put it back. Applying it
+       when an evaluation ARRIVES is not enough: undo installs a whole snapshot
+       and never replays the actions that built it, so the buffer and the
+       printed result go back while the document keeps the colours of a future
+       that was undone. Reconciling here, against whatever model is current,
+       covers undo and every other path that swaps a model in wholesale. */
+    reconcile_colors(config_type, model, new_ed);
+    model;
   };
 };
 module Selection = {
