@@ -91,13 +91,24 @@ let theme_of = fun (p, role) ->
   # pinned at 97% lightness is right in light and invisible in dark.       #
   let bg_l = color_lightness(p.`surface-1`) in
   let text_l = color_lightness(p.`ink`) in
-  let at = fun (c, t) -> color_with_lightness(c, bg_l +. (text_l -. bg_l) *. t) in
+  let toward =
+    fun (base, c, t) -> color_with_lightness(c, base +. (text_l -. base) *. t) in
+  let at = fun (c, t) -> toward(bg_l, c, t) in
   # ...and its chroma, because placing a colour on the axis says nothing  #
   # about how saturated it should be there. A fill wants a wash of its    #
   # hue; an accent wants the whole thing. The factors below are the ones  #
   # that reproduce the literals these roles replaced, so light is left    #
   # exactly as it was and the other three schemes finally follow it.      #
   let wash = fun (c, t, sat) -> at(color_saturate(c, sat), t) in
+  # A fill has to be placed against the surface it actually sits ON, and    #
+  # not every surface is the page. A table's rows sit on the CODE           #
+  # background, which is ten points of lightness away from the page in     #
+  # dark -- so a row highlight placed on the page's axis landed one point  #
+  # from the table it was highlighting, and vanished. Same span, same ink,  #
+  # different origin.                                                      #
+  let code_l = color_lightness(p.`code-background`) in
+  let on_code =
+    fun (c, t, sat) -> toward(code_l, color_saturate(c, sat), t) in
   # The plate behind an indicated tile: the sort's own hue, desaturated and  #
   # pinned to one lightness. All three sorts share the pair, because they    #
   # were three copies of one decision written out per scheme.                #
@@ -155,7 +166,12 @@ let theme_of = fun (p, role) ->
         `background` = role.`chrome-background`,
         `heading` = role.`chrome-heading`,
         `meter` = wash(p.`pattern`, 0.87, 1.),
-        `table-row-hover` = wash(p.`success`, 0.15, 0.35)
+        # 0.19 leaves the light scheme where it already was; the other     #
+        # three follow from the axis rather than a number per scheme. The   #
+        # zebra stripe is NOT on this axis -- see `surface-2` -- because a  #
+        # fraction of a longer axis is a bigger step, which is what a hover #
+        # wants and a stripe does not.                                      #
+        `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
       )),
       # The editing surface itself.                                        #
       editor = ^^fold((

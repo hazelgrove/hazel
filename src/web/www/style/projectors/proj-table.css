@@ -26,6 +26,15 @@ table.table {
     font-weight: normal;
 }
 
+/* A floor, so a header can never fall back to whatever colour it inherits --
+ * that is how it ended up in the muted code colour, barely off its own fill.
+ * Safe to set on the <th> because the column menu nested inside it sets its
+ * own colour (nut-menu.css); the rest of the typography must not be, hence
+ * the wrapper below. */
+.table th {
+    color: var(--text-strong);
+}
+
 /* Typography lives on the label wrapper so it doesn't inherit into
  * nested children (e.g. the column menu sitting inside the <th>). */
 .table th .column-label {
@@ -52,6 +61,34 @@ table.table {
  * cursor moves across other column headers in the same row). */
 .table tbody tr:hover {
     background-color: var(--df-hover-bg);
+}
+
+/* In high contrast a difference in fill is not enough on its own -- some
+   users cannot see it at all -- and the zebra step is deliberately gentle,
+   since a fraction of the page-to-ink axis is a bigger step when that axis is
+   longer. So the grid gets a stroke instead of a heavier fill.
+
+   `--hazel-contrast` is published by the Colours slide for exactly this (see
+   ../README.md), and `--border-inverse` is the ink end of the axis, so these
+   rules read against the table in either polarity without knowing which
+   scheme is up: black on the light high-contrast scheme, white on the dark
+   one. */
+@container style(--hazel-contrast: high) {
+    .table tbody tr {
+        border-bottom: 1px solid var(--border-inverse);
+    }
+
+    .table th {
+        border-bottom: 2px solid var(--border-inverse);
+    }
+
+    /* The hovered row has to be unmistakable rather than merely different, so
+       it takes a stroke on all four sides. Inset, because an outline outside
+       the row would be clipped by the scroll container. */
+    .table tbody tr:hover {
+        outline: 2px solid var(--border-inverse);
+        outline-offset: -2px;
+    }
 }
 
 /* Threshold of 10 rows must stay in sync with scroll_threshold_rows
