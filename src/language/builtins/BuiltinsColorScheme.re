@@ -25,11 +25,11 @@ open Fresh.Typ;
 
    It is written here, decomposed and named, because the names are registered
    in the builtin type context -- so the slide can annotate with them.
-   `palette_of` takes `(seed: ColorSeeds, step: ColorRamp)`, `theme_of` a
-   `role: ColorOverrides`, and its body is ascribed `: ColorScheme`. That puts
-   each check on the record the mistake would be in, rather than leaving the
-   whole-program analysis to report it as one inconsistency between two
-   hundred-field products at the final `case`.
+   `palette_of` takes a `seed: ColorSeeds` and returns a `ColorPalette`, and
+   `theme_of` returns a `ColorScheme`. That puts each check on the record the
+   mistake would be in, rather than leaving the whole-program analysis to
+   report it as one inconsistency between two hundred-field products at the
+   final `case`.
 
    Only the CONTRACT is here. Which CSS property carries which field is a web
    concern and stays in Web.ColorConfiguration. */
@@ -45,6 +45,12 @@ let colors = (names: list(string)): Typ.t =>
   record(List.map(n => (n, color()), names));
 
 /* ── What a scheme states ──────────────────────────────────────────────── */
+
+/* Two more records a scheme states -- the six ramp lightnesses and the roles
+   it points somewhere itself -- are NOT here. They are seams between the
+   slide's own two functions, not part of the theme it produces, so the slide
+   declares them itself with `type ColorRamp = ...`. Nothing outside
+   colors.hz has any business knowing their shape. */
 
 /* The colours a scheme gives outright, before anything is derived from them. */
 let seeds: list(string) = [
@@ -83,44 +89,6 @@ let seeds: list(string) = [
   "probe-timeline",
   "statics-background",
   "statics-edge",
-];
-
-/* Where each ramp step sits on the L axis. Lightnesses, so Float -- and they
-   invert between light and dark, which is the whole reason they are given per
-   scheme rather than derived. */
-let ramp: list(string) = [
-  "frame-2",
-  "frame-3",
-  "frame-4",
-  "surface-2",
-  "surface-3",
-  "surface-4",
-];
-
-/* The roles a scheme points somewhere other than where the shared derivation
-   would put them, plus the two flags it declares and the two numbers the
-   cursor plate is pinned with. */
-let overrides: list((string, Typ.t)) = [
-  ("dark", bool()),
-  ("contrast", bool()),
-  /* One ramp step, read by every role that wants that line weight -- these
-     were seven fields carrying three decisions, and the seven always agreed. */
-  ("frame-mark", color()),
-  ("frame-seam", color()),
-  ("frame-border", color()),
-  ("menu-nut", color()),
-  ("menu-background", color()),
-  ("menu-hover", color()),
-  ("chrome-background", color()),
-  ("chrome-heading", color()),
-  ("editor-cell", color()),
-  ("cursor-tint", float()),
-  ("cursor-level", float()),
-  ("hole-empty", color()),
-  ("editor-backpack-outline", color()),
-  ("projector-textarea-text", color()),
-  ("inspector-badge", color()),
-  ("inspector-text", color()),
 ];
 
 /* What the slide derives from the seeds: the ramps step off frame-1 and
@@ -236,8 +204,6 @@ let scheme: list((string, Typ.t)) = [
    on the field, it just does not have a name to print. */
 let type_aliases: list((string, Typ.t)) = [
   ("ColorSeeds", colors(seeds)),
-  ("ColorRamp", record(List.map(n => (n, float()), ramp))),
-  ("ColorOverrides", record(overrides)),
   ("ColorPalette", colors(palette)),
   (
     "ColorRoles",

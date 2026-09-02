@@ -4,12 +4,42 @@
 #   theme_of    palette + role overrides -> the theme the app reads #
 #   four schemes, then one case on (dark_mode, high_contrast) #
 # The flags COMPOSE, and all four schemes share those two functions, so #
-# each derivation is written once. ColorSeeds / ColorRamp / #
-# ColorOverrides / ColorScheme are builtin: a field a scheme misspells #
-# or omits is reported on that record. #
+# each derivation is written once. ColorSeeds, ColorPalette and #
+# ColorScheme are builtin -- they are the theme's shape, shared with #
+# the app; ColorRamp and ColorOverrides are declared below, because #
+# they are only ever passed between the two functions here. Either #
+# way, a field a scheme misspells or omits is reported on its record. #
 
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
+
+# ── the two records this program passes to its own functions ── #
+# Not part of the theme, so they are declared here rather than being #
+# builtin: nothing outside this file has business knowing their shape. #
+type ColorRamp = (
+  `frame-2` = Float, `frame-3` = Float, `frame-4` = Float,
+  `surface-2` = Float, `surface-3` = Float, `surface-4` = Float
+) in
+type ColorOverrides = (
+  `dark` = Bool, `contrast` = Bool,
+  # one ramp step each, read by every role that wants that line weight #
+  `frame-mark` = ColorValue,
+  `frame-seam` = ColorValue,
+  `frame-border` = ColorValue,
+  `menu-nut` = ColorValue,
+  `menu-background` = ColorValue,
+  `menu-hover` = ColorValue,
+  `chrome-background` = ColorValue,
+  `chrome-heading` = ColorValue,
+  `editor-cell` = ColorValue,
+  # the sort plate's chroma factor, and the lightness it is pinned to #
+  `cursor-tint` = Float, `cursor-level` = Float,
+  `hole-empty` = ColorValue,
+  `editor-backpack-outline` = ColorValue,
+  `projector-textarea-text` = ColorValue,
+  `inspector-badge` = ColorValue,
+  `inspector-text` = ColorValue
+) in
 
 # ── seeds + ramp lightnesses -> colours ── #
 let palette_of(seed : ColorSeeds, step : ColorRamp): ColorPalette =

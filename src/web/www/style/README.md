@@ -17,9 +17,9 @@ hazel-programs/config/colors.hz            the Colours configuration slide.
   │  analysed against ColorScheme, then evaluated
   ▼
 src/language/builtins/BuiltinsColorScheme  the SHAPE of a theme, as named
-  │                                        Hazel types: ColorSeeds, ColorRamp,
-  │                                        ColorOverrides, ColorPalette,
-  │                                        ColorRoles, ColorScheme.
+  │                                        Hazel types: ColorSeeds,
+  │                                        ColorPalette, ColorRoles,
+  │                                        ColorScheme.
   ▼
 src/web/util/ColorConfiguration.re         the CSS side: a fan-out table
   │                                        mapping each field to the
@@ -105,8 +105,9 @@ palette name rather than merely being told not to. The palette is still a
 first-class layer in the slide and a type in `BuiltinsColorScheme`; it is just
 not a CSS namespace.
 
-Two smaller notes on what lives where. `ColorOverrides` is the record a scheme
-uses to point a role somewhere itself, and it is deliberately small — 18 fields,
+Two smaller notes on what lives where. `ColorOverrides` — declared in the
+slide, not the builtins — is the record a scheme uses to point a role somewhere
+itself, and it is deliberately small: 18 fields,
 of which two are the flags and two are the numbers the cursor plate is pinned
 with. Most of what is left is genuinely per-polarity (`menu.nut` is
 `info-strong` in light and `success-muted` in dark, and no axis expression
@@ -129,6 +130,15 @@ let palette_of(seed: ColorSeeds, step: ColorRamp): ColorPalette = …
 let theme_of(p: ColorPalette, role: ColorOverrides): ColorScheme = …
 let light_roles(p: ColorPalette): ColorOverrides = …
 ```
+
+Only four of those are builtin — `ColorSeeds`, `ColorPalette`, `ColorRoles`,
+`ColorScheme` — because only those describe the theme, which the app has to
+agree with. `ColorRamp` and `ColorOverrides` are seams between the slide's own
+two functions and never leave the file, so the slide declares them itself with
+`type ColorRamp = (…) in`. They check exactly as well either way; it is about
+where the definition belongs, and it keeps two records the app has no interest
+in out of the builtin type namespace (where every name also shows up in type
+completion in every Hazel program).
 
 `ColorPalette` is one type doing one job: `palette_of` produces it, the theme
 publishes it unchanged (`palette = p`), and `ColorConfiguration.palette` is
