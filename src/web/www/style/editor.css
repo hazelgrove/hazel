@@ -594,10 +594,10 @@ svg:has(.child-line) {
 
 
 
-/* typed prefix cut-out white on every scheme; remainder takes the
-   scheme's opposite pole */
+/* typed prefix stands out from the remainder in every scheme (white
+   was too low-contrast on the pale live backing — andrew 2026-09-01) */
 .quiver-chip .chip-frac-typed {
-  color: white;
+  color: var(--BR4);
 }
 
 .quiver-chip:not(.chip-live) .chip-frac-rest {
