@@ -1,41 +1,105 @@
-/* CanonicalCompletion
+/* CanonicalCompletion — the completion engine.
  *
- * Completes a segment's incomplete tiles into a single canonical
- * reading — the segment semantic terms are built from — recording
- * provenance (shard_records: per-tile mask of originally-present
- * shards + absorbed prefix tokens) so consumers (MakeTerm incomplete
- * masks, quiver chips, Tab dispatch) can tell synthesized material
- * from the user's.
+ * A buffer mid-edit contains INCOMPLETE TILES: multi-shard forms with
+ * delimiters missing (`let x = 1` missing `in`; `(1 + 2` missing `)`).
+ * This module completes a segment's incomplete tiles into ONE
+ * canonical reading — the one semantics (statics, evaluation) are
+ * computed from — recording provenance (per-tile masks of the
+ * originally-present shards + absorbed prefix tokens) so printing can
+ * strip the synthesized material back out (roundtrip) and the display
+ * (quiver chips, tab) can tell synthesized from user-typed.
  *
- * Process:
- * 1. PARTITION by indentation heuristics: a blank line always splits;
- *    after a linebreak, content indented at-or-left-of the partition's
- *    first incomplete tile splits, unless it reads as a continuation
- *    line (naked rule, concave-left start, delimiter-prefix token).
- * 2. Per partition, SEQUENTIAL MATERIALIZATION: complete ONE tile per
- *    pass — strongest evidence first (prefix-token witness > junction
- *    drop > plain placement; weak ties innermost) — then recurse on
- *    the regrouted/reassembled/remolded result until nothing is
- *    incomplete. The pass trace doubles as the suggestion set, so
- *    applying all suggestions reproduces the joint result.
- * 3. Per chosen tile: interior gaps fill IN PLACE (fresh slots get
- *    holes; a unique junction/witness splits the displaced child);
- *    leading openers splice at the start of their closer's
- *    left-operand span in the skel (opener_schedule), clamped by
- *    unmatched openers, rule/line walls, and sort fit; trailing
- *    shards land at witness/junction sites, else clip at the sort
- *    frontier or a rule wall, else append at partition end.
- * 4. Complete rule tiles outside any case wrap in a synthesized
- *    case/end (printing strips the wrap back out).
+ * The goal, in order: FEEDBACK PRESERVATION (types/errors/probe values
+ * away from the break match the unbroken program), then intent-
+ * matching at the break itself — "usually exact, never surprising".
+ * Deletion is the unit test: deleting a delimiter and completing
+ * should usually restore the original program exactly.
  *
- * Invariants: caret-independent; deterministic (synthesized ids
- * derive from tile ids, so reparses are stable across keystrokes);
- * each placement heuristic degrades to the status-quo fallback when
- * its evidence is absent, never to a guess.
+ * EVIDENCE HIERARCHY (ordinal; every rule degrades to the previous
+ * behavior when its signal is absent, never to a guess):
+ *   witness > junction > sort frontier > wall > partition > append
  *
- * Perf: for_editor is memoized on the segment; a segment with no
- * incomplete tiles takes a regrout-only fast path, and callers can
- * skip entirely when CachedSyntax.missing_shards is empty. */
+ * PIPELINE
+ * 1. PARTITION by layout. A blank line always splits; a line indented
+ *    at-or-left-of the partition's first incomplete tile starts a new
+ *    partition:  `let x = 1 ⏎ f(3)` — `in` completes on line one and
+ *    f(3) is the let's BODY, not its definition. Continuation
+ *    exceptions (none can occur in healthy code): a naked rule line
+ *    (`| p => 2` under a broken case), a line starting concave-left
+ *    (`+ 2` needs a left operand), a bare token prefixing a delimiter
+ *    the partition still expects (`en` under a case missing `end`).
+ * 2. SEQUENTIAL MATERIALIZATION, per partition: complete ONE tile per
+ *    pass — strongest evidence first, weak ties innermost (the old
+ *    backpack's stack order) — recursing on the regrouted result.
+ *    This makes the suggestions jointly satisfiable: deleting BOTH
+ *    `end` and `in` from `let f = case x | 1 => 2 end in f` restores
+ *    exactly, instead of the `in` severing rules the `end` still owns.
+ *
+ * PLACEMENT HEURISTICS, per chosen tile
+ * - PREFIX WITNESS: a typed token that proper-prefixes a delimiter an
+ *   incomplete tile still EXPECTS marks where it lands (a position
+ *   witness, not a form witness):  `let x = 1 i 2` -> the `i` becomes
+ *   `in` (chip renders i bold, n faded). Three routes: interior
+ *   operator-in-progress mold (`1 the 2` -> `then`); leading
+ *   expectation, uniqueness-gated over the whole span (`le` mid-
+ *   program under a broken let — but a scrutinee named `c` under a
+ *   broken `case` is NOT eaten); symbolic sort-elimination (`fun x -
+ *   1`: `-` has no infix Pat mold, so after a pattern it can only be
+ *   a broken `->`; a genuine body minus lives at Exp, never taken).
+ * - JUNCTION DROP: a deleted delimiter leaves concave grout where it
+ *   sat; a shard whose SHAPE fills that operator hole drops back in
+ *   when the junction is unique and sort-legal:  `let x 1 in x` ->
+ *   `let x = 1 in x`;  `if true 1 else 2` -> `then` at the grout.
+ *   Two legal junctions (`let x y 1 in`) = ambiguous: fall through.
+ * - SORT-FRONTIER CLIP (Pat/TPat/Typ slots only — every label has an
+ *   Exp mold, so an Exp frontier is vacuous): a trailing shard lands
+ *   where its slot's sort stops being continuable, judged from the
+ *   form TABLE (edit-stable), not current molds; the possible-sort
+ *   set only grows (`x : Mod.My` continues as Typ past `:`), so
+ *   over-absorption degrades to no-clip:  `fun x` above an indented
+ *   let-body -> `fun x -> let ...` (the `->` stops before the body).
+ * - OPENER PLACEMENT (leading shards): a synthesized opener splices
+ *   at the start of its closer's left-operand span in the partition
+ *   skel — maximal absorption, which closer semantics require:
+ *   `let a = 1, 2]` -> `[1, 2]`. Clamped by LINE WALLS (never hoist
+ *   above a line opening with a complete statement-shaped form:
+ *   deleting the second `let` of a chain must not absorb the first
+ *   definition), a SORT CLAMP (a clippable interior slot shrinks to
+ *   a fitting span: `let a = 1 in let b = 2 in b` with the second
+ *   `let` deleted restores at `b`), and unmatched-opener crossing.
+ * - RULE MACHINERY (the variadic-emulation family — dissolves if
+ *   case ever becomes one n-ary form): a NAKED rule tile only exists
+ *   once a case is broken, so rules wall placement for shards whose
+ *   slot isn't Rul-sorted (`)` deleted from a scrutinee call restores
+ *   in place instead of wrapping the arms), while case's own `end`
+ *   absorbs rules as content; orphaned COMPLETE rules wrap in a
+ *   synthesized case/end so they get statics (printing strips it).
+ * - SEPARATOR-AWARE APPEND (hole-min): at the append rung a closer
+ *   backs over a span-final SEQUENCE SEPARATOR when content follows:
+ *   `test 1 == 1 ;` in a test cluster restores `end` BEFORE the semi,
+ *   which then reconnects the cluster. Semis only — severing a
+ *   trailing `+`/`:`/if-form saves nothing (the sort may not fit
+ *   what follows, and a severed form can steal delimiters).
+ * - MULTILINE GLUE: a single-line form's closer must not land alone
+ *   past a trailing linebreak (`let x = 1 ⏎ body` glues `in` to the
+ *   definition line); a MULTILINE form takes its closer on its own
+ *   line (a broken multiline case-def restores end+in on the closer
+ *   line, not glued to the last rule).
+ * - MIDDLE FILL: interior missing shards fill IN PLACE — content
+ *   keeps its opening-shard slot, fresh slots get holes (`let x in 2`
+ *   -> `let x = ? in 2`) — unless a unique junction/witness splits
+ *   the displaced child.
+ * - APPEND: otherwise partition end, backing over trailing
+ *   whitespace and junction debris.
+ *
+ * INVARIANTS: caret-independent; deterministic across recomputation
+ * (synthesized ids derive from tile ids, stable across keystrokes);
+ * deeply complete (no incomplete tile survives); print∘parse closes
+ * (ExpToSegment strips exactly the synthesized shards via the masks).
+ * Perf: for_editor memoizes on the segment; no-incomplete segments
+ * take a regrout-only fast path. Zipper-facing queries (chip/tab)
+ * live in CompletionQuery; insertion-record derivation for the
+ * display sits at the bottom of this file. */
 
 open Util;
 
