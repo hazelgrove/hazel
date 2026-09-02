@@ -121,12 +121,12 @@ module Update = {
             /* caret pinned to a quiver chip: Tab dispatches that
                obligation, whether or not an inline buffer is showing
                (buffers only appear on edits; the chip is always live) */
-            switch (CanonicalCompletion.chip_at_caret(z)) {
+            switch (CompletionQuery.chip_at_caret(z)) {
             | Some(ins) =>
               /* Tab = "type it for me": one chunk through the normal
                  pipeline — spacing and caret land exactly as if the
                  user typed it; the chip re-derives */
-              switch (CanonicalCompletion.tab_text(z, ins)) {
+              switch (CompletionQuery.tab_text(z, ins)) {
               | Some(text) => Paste(text)
               | None =>
                 Zipper.can_put_down(z)

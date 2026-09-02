@@ -1533,9 +1533,9 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  switch (CanonicalCompletion.chip_at_caret(z)) {
+  switch (CompletionQuery.chip_at_caret(z)) {
   | Some(ins) =>
-    switch (CanonicalCompletion.tab_text(z, ins)) {
+    switch (CompletionQuery.tab_text(z, ins)) {
     | Some(text) => Some(Test_Editing.perform(z, [Paste(text)]))
     | None => None
     }
