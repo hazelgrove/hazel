@@ -250,14 +250,16 @@ let start = default_model => {
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
         RefractorShift.update(
+          ~editor_key=
+            Editors.Model.editor_key(model.model.current.current.editors),
           ~font_metrics,
           ~refractor_rows=editor.syntax.refractor_rows,
           ~measured,
           zipper,
         );
         /* stagger multi-row offside displays clear of code and of each
-           other (top-down priority, first-fit) */
-        ProbeStagger.update(~measured, ~font_metrics);
+           other (top-down priority, first-fit), per code container */
+        ProbeStagger.update(~font_metrics);
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle

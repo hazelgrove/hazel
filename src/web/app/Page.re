@@ -347,16 +347,17 @@ module Update = {
           action,
           model.editors,
         );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
+      /* A different editor (mode/slide/exercise switch) invalidates the
+       * culling range: stale bounds would hide its projectors until the next
+       * scroll. Main.seed_visible_rows re-seeds where culling applies. */
       let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
+        Editors.Model.editor_key(editors)
+        != Editors.Model.editor_key(model.editors)
+          ? {
             ...model.globals,
             visible_rows: None,
           }
-        | _ => model.globals
-        };
+          : model.globals;
       {
         ...model,
         editors,
@@ -834,9 +835,18 @@ module View = {
         ~log_count,
         ~cursor,
       );
+    /* culling bounds apply only where the mode supports them (one
+       cull-scope cell); elsewhere every cell renders unculled */
+    let editors_globals =
+      Editors.Model.supports_viewport_culling(model.editors)
+        ? globals
+        : {
+          ...globals,
+          visible_rows: None,
+        };
     let editors_view =
       Editors.View.view(
-        ~globals,
+        ~globals=editors_globals,
         ~signal=
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),

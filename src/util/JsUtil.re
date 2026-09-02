@@ -310,7 +310,8 @@ let find_scroll_container =
 /* Viewport-culling geometry for the active code editor: (scroll_top,
  * client_height), scroll_top measured from the editor's OWN row 0 (feed into
  * VisibleRows.compute) so it's correct however the editor is nested. None if
- * not mounted / no scroll container. Single active code editor only. */
+ * not mounted / no scroll container. Measures the first cell that has not
+ * opted out of culling (CodeWithStatics `cull-scope`, CellEditor ~cull). */
 let code_viewport_geometry = (): option((float, float)) => {
   let rect_prop = (el, prop): float =>
     Js.Unsafe.get(
@@ -319,7 +320,9 @@ let code_viewport_geometry = (): option((float, float)) => {
     );
   switch (
     Js.Opt.to_option(
-      Dom_html.document##querySelector(Js.string(".code-container")),
+      Dom_html.document##querySelector(
+        Js.string(".code-container.cull-scope"),
+      ),
     )
   ) {
   | None => None

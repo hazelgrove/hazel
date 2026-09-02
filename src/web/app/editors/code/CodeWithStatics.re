@@ -212,7 +212,8 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
     let {
       editor:
         {
@@ -267,9 +268,16 @@ module View = {
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
     Node.div(
-      ~attrs=[Attr.classes(container_classes)],
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
       // errors after warnings to prioritize errors over warnings
       [code_text_view, warning_decos, error_decos] @ overlays,
     );
