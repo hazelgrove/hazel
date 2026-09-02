@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Lint the CSS colour layering.
+"""Lint the CSS color layering.
 
 Two layers now, and the direction of reference between them is the invariant:
 
-    the Colors slide   decides every colour and, through the fan-out table in
+    the Colors slide   decides every color and, through the fan-out table in
                        ColorConfiguration.re, writes it onto `:root` at startup
 
     theme-generated.css  the same names again as DEFAULTS, wholly generated,
@@ -14,19 +14,19 @@ Two layers now, and the direction of reference between them is the invariant:
 
     *.css              component stylesheets consume the slide's ROLE names,
                        never the palette -- which is now structural: a palette
-                       colour is published only under the semantic names the
+                       color is published only under the semantic names the
                        fan-out gives it, so there is no --ink to consume
 
 There used to be a third layer, roles.css, a hand-written alias from role to
 palette. It is gone: the theme writes those names itself, so the alias was a
-second definition of a colour the slide had already decided, and it capped
-what a themer could reach -- its 77 roles resolved to only 31 palette colours.
+second definition of a color the slide had already decided, and it capped
+what a themer could reach -- its 77 roles resolved to only 31 palette colors.
 
 The rules below are what is left to enforce mechanically. Component CSS reads
 role names, because a role names a PURPOSE and so is the unit a themer can
 move on its own; a palette entry is a bundle, fanned out to several properties
-that often share nothing but their colour. And no component stylesheet
-declares a colour the theme owns, because two `:root` blocks setting the same
+that often share nothing but their color. And no component stylesheet
+declares a color the theme owns, because two `:root` blocks setting the same
 name is a race decided by @import order -- which is exactly how 23 defaults
 drifted into the projector stylesheets.
 
@@ -125,7 +125,7 @@ def main():
                     f'{os.path.relpath(f, ROOT)}: consumes palette '
                     f'--{m.group(1)} directly; use a role the slide writes')
 
-        # 2. Only variables.css declares a theme-owned colour on :root.
+        # 2. Only variables.css declares a theme-owned color on :root.
         if f != GENERATED:
             for n in root_declarations(strip(raw)):
                 if n in OWNED:

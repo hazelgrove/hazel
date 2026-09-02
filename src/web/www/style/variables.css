@@ -1,10 +1,10 @@
 /* Hand-written defaults: the things the theme does NOT own.
 
-   Type, timing and the z-index ladder are not colours, so the Colors slide has
-   no say in them. Every colour default lives in theme-generated.css instead --
+   Type, timing and the z-index ladder are not colors, so the Colors slide has
+   no say in them. Every color default lives in theme-generated.css instead --
    see README.md for why they are separate files.
 
-   The one colour-adjacent line here is `color-scheme`, which is a real CSS
+   The one color-adjacent line here is `color-scheme`, which is a real CSS
    property rather than a custom one, so it has to be *used* somewhere; the
    value it reads is generated. */
 :root {

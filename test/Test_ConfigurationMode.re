@@ -65,7 +65,7 @@ let well_formed = (config_type, ()) => {
   check(int, name ++ ": no duplicated piece ids", 0, duplicate_ids(seg));
 };
 
-/* ── Colour theme cache ────────────────────────────────────────────────
+/* ── Color theme cache ────────────────────────────────────────────────
 
    The cache is only ever read when the key computed at startup, from the
    store, equals the key written at evaluation time, from the live model. So
@@ -146,7 +146,7 @@ let edited_key_differs = () =>
 
 /* The inline <head> script in index.html parses this format too, so the
    values that actually occur — parens, commas, spaces, percent, hash — have
-   to survive it. Newline is the delimiter precisely because no CSS colour
+   to survive it. Newline is the delimiter precisely because no CSS color
    value can contain one. */
 let theme_cache_round_trips = () => {
   let vars = [
@@ -176,7 +176,7 @@ let startup_theme_is_complete = () => {
   let declared = Web.ColorConfiguration.all_targets;
   check(
     list(string),
-    "the startup theme defines every declared colour",
+    "the startup theme defines every declared color",
     [],
     List.filter(n => !List.mem(n, produced), declared),
   );
@@ -188,7 +188,7 @@ let startup_theme_is_complete = () => {
    installs a whole `Page.Model.t` from the history stack and never replays the
    actions that produced it, so no `UpdateResult` is sent and nothing repaints
    -- the buffer and the printed result went back while the document kept the
-   colours of a future that had been undone. `Update.calculate` reconciles
+   colors of a future that had been undone. `Update.calculate` reconciles
    against the model instead, and it reads the value through
    `EvalResult.Model.get_value`.
 

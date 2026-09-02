@@ -1,19 +1,19 @@
-# Colours in Hazel's stylesheets
+# Colors in Hazel's stylesheets
 
-Hazel's colours are not written in CSS. They are computed by a **Hazel
+Hazel's colors are not written in CSS. They are computed by a **Hazel
 program** that the user can edit inside the editor, and pushed onto the
 document as CSS custom properties at startup. A stylesheet's job is to say
-*which role* an element takes, never what colour it is.
+*which role* an element takes, never what color it is.
 
 If you are about to write `color: #4a90d9` in a stylesheet here, stop — see
-[Adding a colour](#adding-a-colour).
+[Adding a color](#adding-a-color).
 
 ## The dataflow
 
 ```
-hazel-programs/config/colors.hz            the Colours configuration slide.
+hazel-programs/config/colors.hz            the Colors configuration slide.
   │                                        A Hazel program: two checkboxes,
-  │                                        seed colours, and derivations.
+  │                                        seed colors, and derivations.
   │  analysed against ColorScheme, then evaluated
   ▼
 src/language/builtins/BuiltinsColorScheme  the SHAPE of a theme, as named
@@ -47,24 +47,24 @@ Two things run before that pipeline can:
 
 | | |
 |---|---|
-| `theme-generated.css` | **Generated.** Every colour the theme owns. Do not edit; run `make update-css-defaults`. |
-| `variables.css` | Hand-written, and deliberately colour-free: type, timing, the z-index ladder. Plus `color-scheme`, which is a real property and so must be *used* somewhere. |
-| everything else | Component stylesheets. They consume role names and define no colours. |
+| `theme-generated.css` | **Generated.** Every color the theme owns. Do not edit; run `make update-css-defaults`. |
+| `variables.css` | Hand-written, and deliberately color-free: type, timing, the z-index ladder. Plus `color-scheme`, which is a real property and so must be *used* somewhere. |
+| everything else | Component stylesheets. They consume role names and define no colors. |
 | `palette.html` | A standalone swatch page with its own hardcoded `:root`. It does not read the theme, so it drifts; regenerate it by hand if you care. |
 
 ## The two layers
 
 The slide's value has two sections, and the difference between them is
-**reuse, not how the colour was arrived at**.
+**reuse, not how the color was arrived at**.
 
-- a **palette** of 48 colours — the colours the theme is built *out of*. Named
+- a **palette** of 48 colors — the colors the theme is built *out of*. Named
   for what they are (`frame-1`, `attention-3`, `error-2`), reused widely, and
   each one fanned out to several CSS properties at once. `palette.ink` alone
   drives `--text-default`, `--border-inverse`, `--code-text`, `--token-exp` and
   five more.
 - **roles** in ten groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
   `problems`, `results`, `inspector`, `probe`, `projector`. One field per
-  decision, named for what the colour is *for* (`cursor.pattern`,
+  decision, named for what the color is *for* (`cursor.pattern`,
   `hole.warning-edge`, `chrome.table-row-hover`), and usually carrying a single
   property.
 
@@ -88,15 +88,15 @@ out is a two-file change (a new field in `BuiltinsColorScheme`, a row in
 
 That bundling is a deliberate readability compromise, and it is the least
 principled part of the design: `palette.ink`'s nine properties are body text,
-an inverted border, code text, three token colours, an inverted surface and a
-menu item — several purposes that happen to share a colour today, which is
+an inverted border, code text, three token colors, an inverted surface and a
+menu item — several purposes that happen to share a color today, which is
 exactly the accidental grouping the role layer exists to avoid. One field per
 property would be ~240 fields; the ~100 we have was judged easier for a themer
 to read. The constraint has not bitten yet, and the fix when it does is to
 promote the property you need into a role field of its own rather than to
 split every bundle pre-emptively.
 
-**There is no `--ink`.** A palette colour reaches CSS only under the semantic
+**There is no `--ink`.** A palette color reaches CSS only under the semantic
 names the fan-out gives it. The 34 bare palette names used to be published too
 and were read by nothing — no stylesheet, no OCaml, no script, and the only
 references left in the tree were commented out. Dropping them took the output
@@ -111,11 +111,11 @@ itself, and it is deliberately small: 18 fields,
 of which two are the flags and two are the numbers the cursor plate is pinned
 with. Most of what is left is genuinely per-polarity (`menu.nut` is
 `info-strong` in light and `success-muted` in dark, and no axis expression
-reproduces both), so shrinking it further means moving a colour rather than
+reproduces both), so shrinking it further means moving a color rather than
 rewriting one; three of its fields (`frame-mark`, `frame-seam`, `frame-border`)
 are a single ramp step each, read by every role that wants that line weight.
-And a role that only forwarded a stated colour was doing no work: eleven of
-those — the probe fills, the projector island and text-area colours — are
+And a role that only forwarded a stated color was doing no work: eleven of
+those — the probe fills, the projector island and text-area colors — are
 palette entries instead, named for what they are for (`probe-value`,
 `statics-background`, `textarea-margin`), with the fan-out still writing the
 legacy CSS names they always wrote.
@@ -179,13 +179,13 @@ and a separate high-contrast one. All four run through the same derivations, so
 a rule like "this fill sits a third of the way from page to ink" is written
 once and cannot drift between them.
 
-Two of the emitted properties are flags rather than colours, because some
+Two of the emitted properties are flags rather than colors, because some
 things cannot be read back off the palette:
 
 | property | values | why |
 |---|---|---|
 | `--hazel-color-scheme` | `light` \| `dark` | Feeds the standard `color-scheme` property, so native scrollbars, `<select>` popups and text carets invert with the theme. |
-| `--hazel-contrast` | `normal` \| `high` | Nothing in the colours tells you high contrast was *asked for*. Declared so a stylesheet can respond to it. |
+| `--hazel-contrast` | `normal` \| `high` | Nothing in the colors tells you high contrast was *asked for*. Declared so a stylesheet can respond to it. |
 
 Both are declared by the theme rather than inferred — low-contrast seeds could
 otherwise flip polarity partway through a derivation.
@@ -198,11 +198,11 @@ To branch on either from CSS, use a style query:
 }
 ```
 
-## Adding a colour
+## Adding a color
 
 1. Add a field to the appropriate role group in `colors.hz`. Deriving it from
    the palette is the convention rather than a rule — `at`/`wash` place a
-   colour on the page→ink axis, which is what makes one definition correct in
+   color on the page→ink axis, which is what makes one definition correct in
    all four schemes, where a per-scheme literal has to be got right four
    times.
 2. Add it to `role_groups` in `BuiltinsColorScheme.re`, and a row to
@@ -219,7 +219,7 @@ To branch on either from CSS, use a style query:
 - component stylesheets may not consume palette names directly (belt and
   braces now that those names are not published — a `var(--ink)` would also
   trip the dangling check below, but with a worse message);
-- only `theme-generated.css` may declare a theme-owned colour on `:root` —
+- only `theme-generated.css` may declare a theme-owned color on `:root` —
   two `:root` blocks setting one name is a race decided by `@import` order,
   which is how defaults once drifted into projector stylesheets;
 - no new dangling `var()` references (there is a ratchet list of inherited
@@ -229,10 +229,10 @@ To branch on either from CSS, use a style query:
 type-checks against the contract, that every scheme defines every property and
 renders as valid CSS, that the four schemes are pairwise distinct, that
 `theme-generated.css` is current, and — via `test/goldens/colors.tsv`, every
-property × every scheme — that no colour has changed value.
+property × every scheme — that no color has changed value.
 
 **Not** enforced: nothing stops a new stylesheet rule hardcoding a literal
-colour. That is a gap; the lint above catches the `:root` case only.
+color. That is a gap; the lint above catches the `:root` case only.
 
 ## Gotchas
 
@@ -250,6 +250,6 @@ colour. That is a gap; the lint above catches the `:root` case only.
   `theme-generated.css` they check: `theme_css_path()` walks up from the cwd,
   and dune's runtest rule finds the `_build` copy. After
   `make update-css-defaults`, build before trusting that check.
-- Colours are OKLCH. Lightness runs 0–100, chroma is unbounded in principle,
-  and the palette is deliberately not gamut-limited, so some colours are
+- Colors are OKLCH. Lightness runs 0–100, chroma is unbounded in principle,
+  and the palette is deliberately not gamut-limited, so some colors are
   outside sRGB and clamp when converted.

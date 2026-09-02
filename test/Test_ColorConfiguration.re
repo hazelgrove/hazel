@@ -8,7 +8,7 @@ module CC = Web.ColorConfiguration;
    (ColorConfiguration.re): the CSS custom properties the app expects it to
    define, and the type it is analyzed against. Because those live apart from
    the program, they can drift from it, and nothing at runtime would say so —
-   a colour the slide stops defining just keeps its stylesheet default, which
+   a color the slide stops defining just keeps its stylesheet default, which
    is invisible in light mode and broken in dark.
 
    So the tests pin the join. The slide must satisfy its analyzed type with no
@@ -53,7 +53,7 @@ let slide_matches_contract = () => {
   let produced = List.map(fst, evaluated_vars());
   check(
     list(string),
-    "every declared colour is produced by the slide",
+    "every declared color is produced by the slide",
     [],
     List.filter(n => !List.mem(n, produced), declared_names),
   );
@@ -95,7 +95,7 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
-/* Two emitted properties carry flags rather than colours, and are the only
+/* Two emitted properties carry flags rather than colors, and are the only
    ones this check does not apply to. */
 let flags = [CC.polarity_target, CC.contrast_target];
 
@@ -109,7 +109,7 @@ let unparseable = vars =>
 let every_value_is_css = () => {
   check(
     list(string),
-    "no colour renders to something CSS cannot parse",
+    "no color renders to something CSS cannot parse",
     [],
     unparseable(evaluated_vars()),
   );
@@ -119,8 +119,8 @@ let every_value_is_css = () => {
    bottom and NOWHERE else: everything above is written once and reused by all
    four schemes. This is the property the slide was restructured to get, and
    it is what makes adding a scheme cost one line instead of one conditional
-   per colour — the previous shape tested `dark_mode` at all 50-odd places a
-   colour differed. Comments are stripped first, since the header prose names
+   per color — the previous shape tested `dark_mode` at all 50-odd places a
+   color differed. Comments are stripped first, since the header prose names
    the flags. */
 let strip_comments = (text: string) => {
   let buf = Buffer.create(String.length(text));
@@ -267,13 +267,13 @@ let every_scheme_is_complete_and_css = () =>
       let produced = List.map(fst, vars);
       check(
         list(string),
-        label ++ ": every declared colour is produced",
+        label ++ ": every declared color is produced",
         [],
         List.filter(n => !List.mem(n, produced), declared_names),
       );
       check(
         list(string),
-        label ++ ": no colour renders to something CSS cannot parse",
+        label ++ ": no color renders to something CSS cannot parse",
         [],
         unparseable(vars),
       );
@@ -301,17 +301,17 @@ let schemes_are_pairwise_distinct = () => {
 };
 
 /* The startup path rests on this: a slide that does not satisfy the contract
-   must yield NO colours -- not a partial theme, and not an exception.
+   must yield NO colors -- not a partial theme, and not an exception.
    `apply_theme_at_startup` reads `[]` as "change nothing", which keeps the
    last theme up while the user repairs the slide. A partial theme would
    half-apply instead, and an exception would take the app down before Bonsai
    starts. */
-let a_non_theme_yields_no_colours = () =>
+let a_non_theme_yields_no_colors = () =>
   List.iter(
     ((label, text)) =>
       check(
         list(pair(string, string)),
-        label ++ ": produces no colours",
+        label ++ ": produces no colors",
         [],
         CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(text)),
       ),
@@ -328,7 +328,7 @@ let a_non_theme_yields_no_colours = () =>
 /* ── Golden: every variable, every scheme ──────────────────────────────
 
       The slide is 165 variables across four schemes, and the interesting
-      failure is not "it errored" but "a colour moved". Nothing above would
+      failure is not "it errored" but "a color moved". Nothing above would
       notice: the contract check only asks WHICH names appear, and the CSS check
       only asks whether each value parses. So the values themselves are pinned
       here, and a diff is the review.
@@ -399,7 +399,7 @@ let write_file = (path: string, s: string): unit => {
   close_out(oc);
 };
 
-let colours_match_golden = () => {
+let colors_match_golden = () => {
   let path = golden_path();
   let actual = render_golden();
   if (Sys.getenv_opt("UPDATE_COLOR_GOLDEN") != None) {
@@ -422,11 +422,11 @@ let colours_match_golden = () => {
     let extra = List.filter(l => !List.mem(l, e), a);
     check(
       list(string),
-      "no colour changed value (was, per the golden)",
+      "no color changed value (was, per the golden)",
       [],
       missing,
     );
-    check(list(string), "no colour appeared or moved (is, now)", [], extra);
+    check(list(string), "no color appeared or moved (is, now)", [], extra);
   };
 };
 
@@ -469,7 +469,7 @@ let table_is_well_formed = () => {
    half-applied theme. */
 let a_partial_theme_yields_nothing = () => {
   let text = CC.source.backup_text;
-  /* Drop one leaf by breaking its colour, leaving the shape intact. */
+  /* Drop one leaf by breaking its color, leaving the shape intact. */
   let broken =
     /* Break one leaf while leaving the shape intact. Anchored on the value,
        not on a field name, so a rename does not silently turn this test into
@@ -478,7 +478,7 @@ let a_partial_theme_yields_nothing = () => {
   check(bool, "the edit applied", true, broken != text);
   check(
     list(pair(string, string)),
-    "one undecodable colour yields no theme at all",
+    "one undecodable color yields no theme at all",
     [],
     CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(broken)),
   );
@@ -486,12 +486,12 @@ let a_partial_theme_yields_nothing = () => {
 
 /* ── The generated stylesheet ──────────────────────────────────────────
 
-     Every colour the theme writes also needs a default, for the window before
+     Every color the theme writes also needs a default, for the window before
      the theme is applied -- a first-ever load, or one whose slide fails to
      evaluate. Those defaults used to be hand-written, in a second idiom
      (`oklch(from var(--frame-1) 70% c h)`) that restated the slide's
      derivations in CSS, and some had drifted into projector stylesheets as
-     `hsl()` colours from a palette that no longer existed.
+     `hsl()` colors from a palette that no longer existed.
 
      `style/theme-generated.css` is emitted from the light scheme instead, so a
      default is byte-for-byte the value the theme will set and nothing shifts
@@ -597,16 +597,16 @@ let tests = [
         `Quick,
         a_partial_theme_yields_nothing,
       ),
-      test_case("colours match golden", `Quick, colours_match_golden),
+      test_case("colors match golden", `Quick, colors_match_golden),
       test_case(
         "generated stylesheet is current",
         `Quick,
         theme_css_is_current,
       ),
       test_case(
-        "a non-theme yields no colours",
+        "a non-theme yields no colors",
         `Quick,
-        a_non_theme_yields_no_colours,
+        a_non_theme_yields_no_colors,
       ),
       test_case(
         "every scheme is complete and valid CSS",

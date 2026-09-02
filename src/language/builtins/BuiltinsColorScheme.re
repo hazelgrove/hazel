@@ -1,12 +1,12 @@
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
 
-/* The colour-scheme contract, as Hazel types.
+/* The color-scheme contract, as Hazel types.
 
-   Two layers, and the difference is REUSE, not how the colour was arrived at.
-   A PALETTE entry is a colour the theme is built out of: reused widely, named
+   Two layers, and the difference is REUSE, not how the color was arrived at.
+   A PALETTE entry is a color the theme is built out of: reused widely, named
    for what it is (`frame-1`, `attention-3`), and fanned out to several CSS
-   properties at once. A ROLE is one specific job a colour is put to, named for
+   properties at once. A ROLE is one specific job a color is put to, named for
    what it is for (`cursor.pattern`, `hole.warning-edge`) and usually carrying
    one property. So the roles are the layer a themer can move independently;
    a palette entry moves all of its properties together.
@@ -52,7 +52,7 @@ let colors = (names: list(string)): Typ.t =>
    declares them itself with `type ColorRamp = ...`. Nothing outside
    colors.hz has any business knowing their shape. */
 
-/* The colours a scheme gives outright, before anything is derived from them. */
+/* The colors a scheme gives outright, before anything is derived from them. */
 let seeds: list(string) = [
   "none",
   "code-background",
@@ -112,19 +112,19 @@ let derived: list(string) = [
 
 /* ── What the app reads back ───────────────────────────────────────────── */
 
-/* The palette layer: every colour a role can draw on, which is exactly what
+/* The palette layer: every color a role can draw on, which is exactly what
    `palette_of` produces. Stated, then derived -- the order `palette_of` builds
    them in, so the slide's `palette = p` needs no rearranging.
 
-   These are FIELD names, not CSS names. A palette colour reaches CSS only
+   These are FIELD names, not CSS names. A palette color reaches CSS only
    under the semantic names ColorConfiguration.aliases gives it; the bare
    `--ink` and its 33 siblings are not published, because nothing read them. */
 let palette: list(string) = seeds @ derived;
 
 /* Semantic roles, grouped by the part of the UI they dress. One field per
-   decision a themer can make independently, named for what the colour is for
+   decision a themer can make independently, named for what the color is for
    rather than where it happens to be plumbed. A role that only forwarded a
-   stated colour was doing no work -- eleven of those are palette entries
+   stated color was doing no work -- eleven of those are palette entries
    instead. */
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
@@ -182,7 +182,7 @@ let role_groups: list((string, list(string))) = [
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity
-   partway through a derivation, and no amount of looking at the colours tells
+   partway through a derivation, and no amount of looking at the colors tells
    you whether high contrast was ASKED for. */
 let polarity_field = "is-dark";
 let contrast_field = "is-high-contrast";

@@ -38,8 +38,8 @@ let table =
   table_view(
     /* Same shape as TableRenderer's headers, `.column-label` included: the
        stylesheet hangs header typography off that class, so a bare <th> gets
-       whatever colour it happens to inherit -- which in dark was the muted
-       code colour, 22 points of lightness off the header's own fill. */
+       whatever color it happens to inherit -- which in dark was the muted
+       code color, 22 points of lightness off the header's own fill. */
     ~header_cells=
       List.map(
         h =>

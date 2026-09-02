@@ -26,10 +26,10 @@ table.table {
     font-weight: normal;
 }
 
-/* A floor, so a header can never fall back to whatever colour it inherits --
- * that is how it ended up in the muted code colour, barely off its own fill.
+/* A floor, so a header can never fall back to whatever color it inherits --
+ * that is how it ended up in the muted code color, barely off its own fill.
  * Safe to set on the <th> because the column menu nested inside it sets its
- * own colour (nut-menu.css); the rest of the typography must not be, hence
+ * own color (nut-menu.css); the rest of the typography must not be, hence
  * the wrapper below. */
 .table th {
     color: var(--text-strong);
@@ -68,7 +68,7 @@ table.table {
    since a fraction of the page-to-ink axis is a bigger step when that axis is
    longer. So the grid gets a stroke instead of a heavier fill.
 
-   `--hazel-contrast` is published by the Colours slide for exactly this (see
+   `--hazel-contrast` is published by the Colors slide for exactly this (see
    ../README.md), and `--border-inverse` is the ink end of the axis, so these
    rules read against the table in either polarity without knowing which
    scheme is up: black on the light high-contrast scheme, white on the dark

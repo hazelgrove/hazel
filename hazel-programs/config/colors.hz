@@ -1,4 +1,4 @@
-# ══ Colour scheme ══ Every colour in the editor is decided here. ══ #
+# ══ Color scheme ══ Every color in the editor is decided here. ══ #
 
 # Turn on dark mode, or high contrast, or both -- they compose, so both #
 # gives a high-contrast dark scheme. #
@@ -165,7 +165,7 @@ let sort_plate(c) =
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #
-  # partway through a derivation, and nothing in the colours says #
+  # partway through a derivation, and nothing in the colors says #
   # whether high contrast was ASKED for. #
   `is-dark` = role.`dark`,
   `is-high-contrast` = role.`contrast`

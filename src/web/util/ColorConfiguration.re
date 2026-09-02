@@ -355,7 +355,7 @@ let aliases: list(((string, string), list(string))) = [
 
 /* Every field a themer can set, as (group, name). The pair is the key: short
    names are the point -- `menu.background` and `chrome.background` are two
-   different colours and should not have to be spelled apart. */
+   different colors and should not have to be spelled apart. */
 let field_names: list((string, string)) =
   List.map(n => ("palette", n), CS.palette)
   @ List.concat_map(
@@ -369,7 +369,7 @@ let targets_of = (group: string, name: string): list(string) =>
   | None => [name]
   };
 
-/* Not colours: the two flags the theme declares (see BuiltinsColorScheme).
+/* Not colors: the two flags the theme declares (see BuiltinsColorScheme).
 
    Polarity is forwarded to the standard `color-scheme` property, so native
    controls -- scrollbars, <select> popups, the caret in text inputs -- invert
@@ -457,7 +457,7 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
 /* All of the properties, or none of them.
 
    A slide that yields most of a theme is worse than one that yields none: the
-   editor ends up half in the user's colours and half in the stylesheet
+   editor ends up half in the user's colors and half in the stylesheet
    defaults, with no indication which is which. `apply_theme_at_startup`
    already reads `[]` as "leave the last theme up", so the empty list is the
    honest answer to a slide that cannot fill the contract. */
