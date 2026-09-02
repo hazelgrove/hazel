@@ -30,7 +30,7 @@ src/web/view/ConfigurationMode.re          applies them with
   │                                        JsUtil.set_css_variable, and caches
   │                                        the result in localStorage.
   ▼
-:root { --editor-cell: oklch(…); … }       270 custom properties, inline on
+:root { --editor-cell: oklch(…); … }       236 custom properties, inline on
                                            the document element.
 ```
 
@@ -52,54 +52,72 @@ Two things run before that pipeline can:
 | everything else | Component stylesheets. They consume role names and define no colours. |
 | `palette.html` | A standalone swatch page with its own hardcoded `:root`. It does not read the theme, so it drifts; regenerate it by hand if you care. |
 
-## The role vocabulary
+## The two layers
 
-The slide defines two layers:
+The slide's value has two sections, and the difference between them is
+**reuse, not how the colour was arrived at**.
 
-- a **palette** of 48 colours: what a scheme states outright, plus what the
-  slide derives mechanically from that (`frame-2..4` off `frame-1`, `doc-2..6`
-  as rotations of `doc-1`).
+- a **palette** of 48 colours — the colours the theme is built *out of*. Named
+  for what they are (`frame-1`, `attention-3`, `error-2`), reused widely, and
+  each one fanned out to several CSS properties at once. `palette.ink` alone
+  drives `--text-default`, `--border-inverse`, `--code-text`, `--token-exp` and
+  five more.
 - **roles** in ten groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
-  `problems`, `results`, `inspector`, `probe`, `projector` — each *derived*
-  from the palette by the shared axis functions, or pointed at a palette entry
-  per scheme.
+  `problems`, `results`, `inspector`, `probe`, `projector`. One field per
+  decision, named for what the colour is *for* (`cursor.pattern`,
+  `hole.warning-edge`, `chrome.table-row-hover`), and usually carrying a single
+  property.
+
+Between them they write 236 properties: 163 off the palette, 71 off the roles,
+plus two flags.
+
+**What the split is not:** stated versus computed. Every role in the committed
+slide happens to be derived — `wash(p.pattern, 0.11, 0.2)` and friends — but
+that is how this slide is written, not what the contract requires. A user is
+free to delete the axis functions and give every role a literal; it will still
+typecheck and still evaluate to a theme. The contract fixes only which fields
+exist and what type each holds.
+
+**What the split does mean, practically:** the roles are the layer you can move
+independently. A user editing the slide can set any single role and affect
+exactly the properties that role carries. A palette entry is a bundle — set
+`palette.ink` and all nine of its properties move together, and there is no way
+from the slide to make `--code-text` differ from `--text-default`. Splitting one
+out is a two-file change (a new field in `BuiltinsColorScheme`, a row in
+`ColorConfiguration.aliases`) and a recompile, not a slide edit.
+
+That bundling is a deliberate readability compromise, and it is the least
+principled part of the design: `palette.ink`'s nine properties are body text,
+an inverted border, code text, three token colours, an inverted surface and a
+menu item — several purposes that happen to share a colour today, which is
+exactly the accidental grouping the role layer exists to avoid. One field per
+property would be ~240 fields; the ~100 we have was judged easier for a themer
+to read. The constraint has not bitten yet, and the fix when it does is to
+promote the property you need into a role field of its own rather than to
+split every bundle pre-emptively.
 
 **There is no `--ink`.** A palette colour reaches CSS only under the semantic
-names the fan-out table gives it — `--text-default`, `--border-inverse`,
-`--code-text` and seven more all carry `palette.ink`. The 34 bare palette
-names used to be published too, and were read by nothing: no stylesheet, no
-OCaml, no script, and the only references left in the tree were commented out.
-Dropping them took the output from 270 properties to 236 and made "components
-consume roles, not the palette" true by construction. The palette is still a
+names the fan-out gives it. The 34 bare palette names used to be published too
+and were read by nothing — no stylesheet, no OCaml, no script, and the only
+references left in the tree were commented out. Dropping them took the output
+from 270 properties to 236 and means component stylesheets *cannot* consume a
+palette name rather than merely being told not to. The palette is still a
 first-class layer in the slide and a type in `BuiltinsColorScheme`; it is just
 not a CSS namespace.
 
-Between them the two layers write 236 properties: 163 off the palette layer,
-71 off the roles, plus the two flags.
-
-A colour belongs in the palette if a scheme states or mechanically derives it,
-and in a role if the shared derivation decides it. `ColorOverrides` is what is
-left: the roles a scheme points somewhere itself, and it is deliberately small
-(18 fields, of which two are the flags and two are the numbers the cursor plate
-is pinned with). Most of what is left is genuinely per-polarity — `menu.nut` is
+Two smaller notes on what lives where. `ColorOverrides` is the record a scheme
+uses to point a role somewhere itself, and it is deliberately small — 18 fields,
+of which two are the flags and two are the numbers the cursor plate is pinned
+with. Most of what is left is genuinely per-polarity (`menu.nut` is
 `info-strong` in light and `success-muted` in dark, and no axis expression
-reproduces both — so shrinking it further means moving a colour, not just
-rewriting it. Three fields (`frame-mark`, `frame-seam`, `frame-border`) are one
-ramp step each, read by every role that wants that line weight. A role that only forwarded a
-stated colour was doing no work: eleven of those (the probe fills, the
-projector island and text-area colours) are palette entries instead, named for
-what they are for — `probe-value`, `statics-background`, `textarea-margin` —
-with the fan-out table still writing the legacy CSS names they always wrote.
-
-Component stylesheets read roles, not the palette. The distinction matters:
-change `--frame-1` and everything that means "the faintest rule" moves
-together, which is not the same set as everything that happens to be that
-colour today.
-
-One role can carry several CSS properties. `ColorConfiguration.aliases` is the
-fan-out table, and its rows exist because several properties often carry a
-single *decision* — the slide states the decision once. Splitting one later is
-a one-line change: give it its own field.
+reproduces both), so shrinking it further means moving a colour rather than
+rewriting one; three of its fields (`frame-mark`, `frame-seam`, `frame-border`)
+are a single ramp step each, read by every role that wants that line weight.
+And a role that only forwarded a stated colour was doing no work: eleven of
+those — the probe fills, the projector island and text-area colours — are
+palette entries instead, named for what they are for (`probe-value`,
+`statics-background`, `textarea-margin`), with the fan-out still writing the
+legacy CSS names they always wrote.
 
 ## The types are named, and the slide annotates with them
 
@@ -140,7 +158,7 @@ The slide also leans on tuple extension (`...`) to avoid restating records:
 `palette_of` is `seed ... (the derivations)` rather than 35 lines of
 `x = seed.x`, and each polarity has one role map that its high-contrast variant
 extends with only what it changes. Together with dropping the nested folds that
-is worth ~630 segment pieces, an ninth of the slide, and about a fifth off the
+is worth ~630 segment pieces, a ninth of the slide, and about a fifth off the
 time it takes to parse.
 
 ## Four schemes from two booleans
@@ -172,9 +190,11 @@ To branch on either from CSS, use a style query:
 
 ## Adding a colour
 
-1. Add a field to the appropriate role group in `colors.hz`, derived from the
-   palette (`at`/`wash` place a colour on the page→ink axis, which is what
-   makes one definition correct in all four schemes).
+1. Add a field to the appropriate role group in `colors.hz`. Deriving it from
+   the palette is the convention rather than a rule — `at`/`wash` place a
+   colour on the page→ink axis, which is what makes one definition correct in
+   all four schemes, where a per-scheme literal has to be got right four
+   times.
 2. Add it to `role_groups` in `BuiltinsColorScheme.re`, and a row to
    `ColorConfiguration.aliases` if it should write CSS properties under
    different names.
@@ -186,7 +206,9 @@ To branch on either from CSS, use a style query:
 
 `make lint-css` (`scripts/lint_css_roles.py`):
 
-- component stylesheets may not consume palette names directly;
+- component stylesheets may not consume palette names directly (belt and
+  braces now that those names are not published — a `var(--ink)` would also
+  trip the dangling check below, but with a worse message);
 - only `theme-generated.css` may declare a theme-owned colour on `:root` —
   two `:root` blocks setting one name is a race decided by `@import` order,
   which is how defaults once drifted into projector stylesheets;
@@ -210,7 +232,14 @@ colour. That is a gap; the lint above catches the `:root` case only.
   not survive the print/parse round trip and will cost you that.
 - A user's edited slide is persisted, and shadows the built-in one. When
   testing theme changes in the browser, clear `HAZEL_THEME` from localStorage
-  and the `hazel` IndexedDB first, or you are looking at their copy.
+  and the `hazel` IndexedDB first, or you are looking at their copy. To avoid
+  destroying someone's saved slide, serve the same build on a second port —
+  storage is per origin, so a fresh port loads the built-in slide and leaves
+  theirs alone.
+- `make test-quick` and `./run_tests` disagree about which
+  `theme-generated.css` they check: `theme_css_path()` walks up from the cwd,
+  and dune's runtest rule finds the `_build` copy. After
+  `make update-css-defaults`, build before trusting that check.
 - Colours are OKLCH. Lightness runs 0–100, chroma is unbounded in principle,
   and the palette is deliberately not gamut-limited, so some colours are
   outside sRGB and clamp when converted.

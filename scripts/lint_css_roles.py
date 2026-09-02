@@ -23,11 +23,12 @@ second definition of a colour the slide had already decided, and it capped
 what a themer could reach -- its 77 roles resolved to only 31 palette colours.
 
 The rules below are what is left to enforce mechanically. Component CSS reads
-roles, not the palette, so a themer changing `--frame-1` moves the things that
-mean "faint", not everything that happens to be that colour. And no component
-stylesheet declares a colour the theme owns, because two `:root` blocks
-setting the same name is a race decided by @import order -- which is exactly
-how 23 defaults drifted into the projector stylesheets.
+role names, because a role names a PURPOSE and so is the unit a themer can
+move on its own; a palette entry is a bundle, fanned out to several properties
+that often share nothing but their colour. And no component stylesheet
+declares a colour the theme owns, because two `:root` blocks setting the same
+name is a race decided by @import order -- which is exactly how 23 defaults
+drifted into the projector stylesheets.
 
 Run via `make lint-css`. Exits non-zero on a violation.
 """

@@ -3,12 +3,19 @@ open Fresh.Typ;
 
 /* The colour-scheme contract, as Hazel types.
 
-   Two layers. The PALETTE is every colour a scheme states outright plus what
-   the slide derives mechanically from those, published under its own names.
-   The ROLES are what the shared derivation decides -- a fill placed on the
-   page-to-ink axis, a plate behind a cursor -- plus the handful a scheme
-   points at a palette entry. A role that only forwarded a stated colour was
-   doing no work and is a palette entry instead.
+   Two layers, and the difference is REUSE, not how the colour was arrived at.
+   A PALETTE entry is a colour the theme is built out of: reused widely, named
+   for what it is (`frame-1`, `attention-3`), and fanned out to several CSS
+   properties at once. A ROLE is one specific job a colour is put to, named for
+   what it is for (`cursor.pattern`, `hole.warning-edge`) and usually carrying
+   one property. So the roles are the layer a themer can move independently;
+   a palette entry moves all of its properties together.
+
+   NOT the difference: whether the value is stated or computed. Every role in
+   the committed slide happens to come off the shared axis functions, but that
+   is the slide's style and nothing here requires it -- a user may replace any
+   of them with a literal and the contract is still satisfied. What the
+   contract fixes is only which fields exist and what type each holds.
 
    The Colors config slide (hazel-programs/config/colors.hz) is a Hazel
    program whose VALUE is the editor's theme, so the shape of that value is an
@@ -137,15 +144,20 @@ let derived: list(string) = [
 
 /* ── What the app reads back ───────────────────────────────────────────── */
 
-/* The palette layer, published under these names: every colour a role can
-   draw on, which is exactly what `palette_of` produces. Stated, then derived
-   -- the order `palette_of` builds them in, so the slide's `palette = p`
-   needs no rearranging. */
+/* The palette layer: every colour a role can draw on, which is exactly what
+   `palette_of` produces. Stated, then derived -- the order `palette_of` builds
+   them in, so the slide's `palette = p` needs no rearranging.
+
+   These are FIELD names, not CSS names. A palette colour reaches CSS only
+   under the semantic names ColorConfiguration.aliases gives it; the bare
+   `--ink` and its 33 siblings are not published, because nothing read them. */
 let palette: list(string) = seeds @ derived;
 
-/* Semantic roles, grouped by the part of the UI they dress. These are the
-   names a themer meets, so they say what a colour is for rather than where it
-   happens to be plumbed. */
+/* Semantic roles, grouped by the part of the UI they dress. One field per
+   decision a themer can make independently, named for what the colour is for
+   rather than where it happens to be plumbed. A role that only forwarded a
+   stated colour was doing no work -- eleven of those are palette entries
+   instead. */
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   ("chrome", ["background", "heading", "meter", "table-row-hover"]),
