@@ -33,6 +33,11 @@
   box-sizing: border-box;
 }
 
+#page,
+#page * {
+  overscroll-behavior-x: contain;
+}
+
 svg {
   overflow: visible;
   box-sizing: content-box;
@@ -434,7 +439,7 @@ select {
   width: 1em;
   height: 1em;
   border-radius: 1em;
-  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;

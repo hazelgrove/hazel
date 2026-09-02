@@ -75,3 +75,7 @@ AGENTS.md
 # Python bytecode (scripts/ helpers get imported by ad-hoc tooling)
 __pycache__/
 *.pyc
+
+# `./hazel tutorial-decode` scratch output (a sibling of hazel-programs/tutorial
+# so it is not picked up as slide sources)
+hazel-programs/tutorial-imported/

@@ -123,66 +123,6 @@ let editor_positions = [YourImpl, HiddenTests];
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
 
-let pos_of_idx = (idx: int) =>
-  switch (idx) {
-  | 0 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx == 1) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
-  };
-
-/* Fast-first: FastParse with pin collection; the fallback inside
-   from_backup_text logs itself (SLOW PARSE ...). */
-let zipper_of_code = code =>
-  PersistentZipper.from_backup_text(code, ~root=Exp);
-
-let eds_of_spec =
-    (
-      {
-        id,
-        title,
-        version,
-        module_name,
-        prompt,
-        your_impl,
-        display_hint,
-        task_reference,
-        hidden_tests,
-        wrapper,
-        show_report,
-      },
-      ~settings as _: Language.CoreSettings.t,
-    ) => {
-  let editor_of_serialization = Editor.Model.mk;
-  let your_impl = editor_of_serialization(your_impl);
-  let hidden_tests = {
-    let {tests, hints} = hidden_tests;
-    let tests = editor_of_serialization(tests);
-    {
-      tests,
-      hints,
-    };
-  };
-  {
-    id,
-    title,
-    version,
-    module_name,
-    prompt,
-    display_hint,
-    task_reference,
-    your_impl,
-    hidden_tests,
-    wrapper,
-    show_report,
-  };
-};
-
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true

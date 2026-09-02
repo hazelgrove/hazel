@@ -1,0 +1,63 @@
+@title
+Partial Application
+
+@flags
+show_report version=9 id=a0000008-0008-0008-0008-000000000008
+
+@prompt
+Hazel does NOT support currying, but it does support partial application via explicit deferred function arguments using `_`. So writing:
+```hazelnostatics
+f(1, _, 2, _)
+```
+is equivalent to:
+```hazelnostatics
+fun (x, y) -> f(1, x, 2, y)
+```
+
+This lets you create new functions from existing ones:
+```hazel
+let keep_small = filter(_, fun x -> x < 4) in
+keep_small([1, 2, 3, 4, 5])
+```
+
+# Task
+
+Using the provided `max` function and partial application, implement a function `non_negative` that takes a number `n` and:
+- returns `0` if `n` is negative.
+- returns `n` otherwise.
+
+@hint
+The function should be the max of 0 and its other input
+
+@reference
+### Multi-argument functions
+```hazel
+let sum =
+fun (x, y) -> x + y
+in
+sum(1, 2)
+```
+
+### Partial Application
+Use `_` to defer arguments:
+```hazel
+let double =
+map(_, fun x -> x * 2)
+in
+double([1, 2, 3])
+```
+
+@hints
+non_negative(1) should be 1
+non_negative(-1) should be 0
+non_negative(5) should be 5
+
+@code
+let max = fun (a : Int, b : Int) -> if a > b then a else b in
+let non_negative : Int -> Int = ¿ in
+non_negative(5)
+
+@test
+test non_negative(1) == 1 end;
+test non_negative(-1) == 0 end;
+test non_negative(5) == 5 end

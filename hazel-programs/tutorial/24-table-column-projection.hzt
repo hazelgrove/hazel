@@ -1,0 +1,86 @@
+@title
+Table Column Projection
+
+@flags
+show_report version=1 id=b1000001-0001-0001-0001-000000000001
+
+@prompt
+**Column projection** broadcasts `.label` over a list, extracting that column from every row:
+
+```hazel
+let fruits = [
+(fruit="Apple", color="Red", qty=5),
+(fruit="Banana", color="Yellow", qty=3)
+] in
+fruits.color
+```
+
+## Task
+
+A book collection is stored as a table:
+
+```hazelnostatics
+Book : (title=String, author=String, year=Int)
+```
+
+Implement the function
+
+```hazelnostatics
+get_authors : [Book] -> [String]
+```
+
+that extracts the list of authors from a book collection.
+
+Example:
+```hazelnostatics
+get_authors(^^table([(title="Dune", author="Herbert", year=1965),
+             (title="Neuromancer", author="Gibson", year=1984)]))
+  == ["Herbert", "Gibson"]
+```
+
+@hint
+Use dot-projection on the list parameter to extract the author column
+
+@reference
+### Function Definition
+```hazel
+fun n -> n + 1 # Increments n by 1 #
+```
+
+### Column Projection
+Access a column of a table with `.`, just like a single labeled tuple. The
+projection broadcasts over the list, giving one value per row:
+```hazel
+let scores = [
+(name="A", score=90),
+(name="B", score=80)
+] in
+scores.score
+```
+
+
+### Table Construction
+A table is a list of labeled tuples — one tuple per row, one label per column:
+```hazel
+[
+(name="A", score=90),
+(name="B", score=80)
+]
+```
+
+Wrap a literal table in `^^table(...)` — or right-click it and choose
+**Add Table** — to see it as a table in the editor.
+
+
+@hints
+Use column projection (.author) on the books list
+Remember to use dot-projection on the function parameter
+
+@code
+type Book = (title=String, author=String, year=Int) in
+let get_authors : [Book] -> [String] =¿  in
+get_authors(^^table([(title="Dune", author="Herbert", year=1965), (title="Neuromancer", author="Gibson", year=1984)]))
+
+@test
+test get_authors([(title="Dune", author="Herbert", year=1965), (title="Neuromancer", author="Gibson", year=1984)]) == ["Herbert", "Gibson"] end;
+test get_authors([(title="Foundation", author="Asimov", year=1951)]) == ["Asimov"] end
