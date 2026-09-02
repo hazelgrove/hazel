@@ -299,6 +299,75 @@ let hex_parses = () => {
   check(bool, "garbage rejected", true, C.oklch_of_css("nope") == None);
 };
 
+/* --- HSV ---------------------------------------------------------------
+
+   Unlike the OKLCH round trip above, this one has no excuse to lose anything:
+   both ends are the same 8-bit cube, so it must be exact. */
+let show_rgb = ((r, g, b): (int, int, int)): string =>
+  Printf.sprintf("(%d,%d,%d)", r, g, b);
+
+let hsv_roundtrips_exactly = () => {
+  let grey = (0., 0., 0.);
+  /* Every corner and edge midpoint of the cube, plus a stride across it: the
+     sector arithmetic changes branch at each face, and an off-by-one in
+     `mod 6` only shows at a boundary. */
+  let edges = [0, 1, 127, 128, 254, 255];
+  let cube =
+    List.concat_map(
+      r => List.concat_map(g => List.map(b => (r, g, b), edges), edges),
+      edges,
+    )
+    @ List.init(52, i => (i * 5, 255 - i * 5, i * 37 mod 256));
+  let bad =
+    List.filter_map(
+      rgb => {
+        let back = C.rgb_of_hsv(C.hsv_of_rgb(~like=grey, rgb));
+        back == rgb
+          ? None : Some(show_rgb(rgb) ++ " -> " ++ show_rgb(back));
+      },
+      cube,
+    );
+  check(list(string), "every rgb survives a trip through hsv", [], bad);
+};
+
+/* Why `hsv_of_rgb` takes `~like`: a grey has no hue and black no saturation,
+   and inventing zero is what makes a picker's hue jump home the moment value
+   reaches the bottom. These pin that the caller's angle comes back. */
+let degenerate_colours_keep_their_handles = () => {
+  let like = (200., 0.6, 0.5);
+  let hs = (what, expected, rgb) => {
+    let (h, s, _) = C.hsv_of_rgb(~like, rgb);
+    check(
+      bool,
+      Printf.sprintf("%s: h %.1f s %.2f", what, h, s),
+      true,
+      (h, s) == expected,
+    );
+  };
+  hs("black keeps hue and saturation", (200., 0.6), (0, 0, 0));
+  hs("grey keeps hue", (200., 0.), (128, 128, 128));
+  hs("white keeps hue", (200., 0.), (255, 255, 255));
+  /* A real colour ignores `like` entirely. */
+  hs("red overrides both", (0., 1.), (255, 0, 0));
+};
+
+let hsv_hits_the_primaries = () => {
+  let eq = (what, expected, hsv) => {
+    let got = C.rgb_of_hsv(hsv);
+    check(bool, what ++ " -> " ++ show_rgb(got), true, got == expected);
+  };
+  eq("red", (255, 0, 0), (0., 1., 1.));
+  eq("green", (0, 255, 0), (120., 1., 1.));
+  eq("blue", (0, 0, 255), (240., 1., 1.));
+  eq("hue wraps at 360", (255, 0, 0), (360., 1., 1.));
+  eq("negative hue wraps", (0, 0, 255), ((-120.), 1., 1.));
+  eq("white", (255, 255, 255), (0., 0., 1.));
+  eq("black", (0, 0, 0), (0., 1., 0.));
+  /* Out of range clamps rather than wrapping or overshooting. */
+  eq("saturation clamps", (255, 0, 0), (0., 4., 1.));
+  eq("value clamps", (0, 0, 0), (0., 1., (-1.)));
+};
+
 let tests = [
   (
     "Color.roundtrip",
@@ -324,5 +393,17 @@ let tests = [
       srgb_colors,
     )
     @ [test_case("hex and rgb parsing", `Quick, hex_parses)],
+  ),
+  (
+    "Color.hsv",
+    [
+      test_case("rgb round-trips exactly", `Quick, hsv_roundtrips_exactly),
+      test_case(
+        "degenerate colours keep their handles",
+        `Quick,
+        degenerate_colours_keep_their_handles,
+      ),
+      test_case("primaries and clamping", `Quick, hsv_hits_the_primaries),
+    ],
   ),
 ];

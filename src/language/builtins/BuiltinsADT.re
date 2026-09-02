@@ -572,13 +572,84 @@ module Color = {
     (ll *. 100., sqrt(a *. a +. bb *. bb), h < 0. ? h +. 360. : h);
   };
 
+  /* --- sRGB <-> HSV ---------------------------------------------------
+
+     Not a space the language knows about; it exists because a saturation x
+     value square under a hue strip is how people expect to pick an sRGB
+     colour, and neither stored representation lays out that way. Here rather
+     than in the picker so it is tested beside the conversions it resembles.
+
+     h 0..360 wrapping, s and v 0..1. Every triple is inside the sRGB cube --
+     the whole difference from OKLCH, which has a region to clamp. */
+
+  let rgb_of_hsv = ((h, s, v): (float, float, float)): (int, int, int) => {
+    let h = Float.rem(Float.rem(h, 360.) +. 360., 360.);
+    let s = Float.min(1., Float.max(0., s));
+    let v = Float.min(1., Float.max(0., v));
+    let sector = h /. 60.;
+    let i = int_of_float(Float.floor(sector));
+    let f = sector -. Float.floor(sector);
+    let (p, q, t) = (
+      v *. (1. -. s),
+      v *. (1. -. s *. f),
+      v *. (1. -. s *. (1. -. f)),
+    );
+    let (r, g, b) =
+      switch (i mod 6) {
+      | 0 => (v, t, p)
+      | 1 => (q, v, p)
+      | 2 => (p, v, t)
+      | 3 => (p, q, v)
+      | 4 => (t, p, v)
+      | _ => (v, p, q)
+      };
+    let byte = x => int_of_float(Float.round(x *. 255.));
+    (byte(r), byte(g), byte(b));
+  };
+
+  /* Grey has no hue and black has no saturation either, so a bare conversion
+     invents them -- and inventing zero is what makes a picker's hue jump home
+     when value hits the bottom. `~like` is handed back in those cases. */
+  let hsv_of_rgb =
+      (
+        ~like as (h0, s0, _): (float, float, float),
+        (r, g, b): (int, int, int),
+      )
+      : (float, float, float) => {
+    let (rf, gf, bf) = (
+      float_of_int(r) /. 255.,
+      float_of_int(g) /. 255.,
+      float_of_int(b) /. 255.,
+    );
+    let mx = Float.max(rf, Float.max(gf, bf));
+    let mn = Float.min(rf, Float.min(gf, bf));
+    let d = mx -. mn;
+    let h =
+      if (d == 0.) {
+        h0;
+      } else {
+        let h =
+          if (mx == rf) {
+            60. *. Float.rem((gf -. bf) /. d, 6.);
+          } else if (mx == gf) {
+            60. *. ((bf -. rf) /. d +. 2.);
+          } else {
+            60. *. ((rf -. gf) /. d +. 4.);
+          };
+        h < 0. ? h +. 360. : h;
+      };
+    (h, mx == 0. ? s0 : d /. mx, mx);
+  };
+
   let hex_of_oklch = (t: (float, float, float)): string => {
     let (r, g, b) = rgb_of_oklch(t);
     Printf.sprintf("#%02x%02x%02x", r, g, b);
   };
 
-  /* Accepts #rgb, #rrggbb, and rgb(r, g, b), with or without the hash. */
-  let oklch_of_css = (s: string): option((float, float, float)) => {
+  /* Accepts #rgb, #rrggbb, and rgb(r, g, b), with or without the hash. Yields
+     the bytes as written, so pasting a hex into an `Rgb` literal lands exactly
+     rather than detouring through OKLCH and returning a step off. */
+  let rgb_of_css = (s: string): option((int, int, int)) => {
     let s = String.trim(String.lowercase_ascii(s));
     let hex_digit = c =>
       switch (c) {
@@ -601,7 +672,7 @@ module Color = {
           | _ => None
           };
         switch (pair(0), pair(w), pair(2 * w)) {
-        | (Some(r), Some(g), Some(b)) => Some(oklch_of_rgb((r, g, b)))
+        | (Some(r), Some(g), Some(b)) => Some((r, g, b))
         | _ => None
         };
       };
@@ -621,13 +692,19 @@ module Color = {
           String.split_on_char(',', rest)
           |> List.map(x => int_of_string_opt(String.trim(x)))
         ) {
-        | [Some(r), Some(g), Some(b)] => Some(oklch_of_rgb((r, g, b)))
+        | [Some(r), Some(g), Some(b)] => Some((r, g, b))
         | _ => None
         };
       | _ => of_hex(s)
       }
     };
   };
+
+  let oklch_of_css = (s: string): option((float, float, float)) =>
+    switch (rgb_of_css(s)) {
+    | Some(rgb) => Some(oklch_of_rgb(rgb))
+    | None => None
+    };
 };
 
 // List of type aliases to add to the context
