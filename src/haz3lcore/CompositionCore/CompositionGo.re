@@ -384,19 +384,14 @@ module Local = {
        re-indents structurally on render), then parse to a segment and
        paste it. Safe: Hazel strings and comments are single-line, so
        no token can span a linebreak. */
-    /* A reserved binder no longer guarantees a parse FAILURE (backup
-       molds keep making the parser more total - dev's `=` symbolic
-       prefix turned `let eval = 1 in` from a parse error into silently
-       inserted garbage), so the rejection can't trigger on to_segment
-       returning None. Instead: the text scan names the misuse (a
-       reserved word in binder position) and the parsed segment must
-       corroborate it structurally - the word molded as a form-opener
-       tile instead of a variable. Completeness is no signal: the
-       stray form can steal delimiters from the enclosing form (`let
-       eval = 1 in` parses with a COMPLETE eval-in filter and the let
-       left broken). A reserved word mentioned in a string literal
-       never produces a tile; ordinary incomplete pastes (`let x = 1`)
-       never trip the scan. */
+    /* Backup molds keep the parser total, so a reserved binder no
+       longer guarantees parse failure; the rejection can't key on
+       to_segment returning None. Two-part gate: the text scan names
+       the misuse (reserved word in binder position) AND the segment
+       shows the word molded as a form-opener tile, not a variable.
+       Completeness is no signal: the stray form can steal delimiters
+       from the enclosing form. A reserved word inside a string
+       literal never produces a tile. */
     let reserved_binder_garbage = (code: string, segment): option(string) =>
       switch (find_reserved_binder(code)) {
       | None => None

@@ -1101,18 +1101,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | ([op], []) when op != " " =>
-            /* Unknown infix operator: kids survive as a MultiHole; the
-               operator token survives as its lexeme (printed back by
-               ExpToSegment; elaborated as a stuck application). Covers
-               both operator-shaped tokens (@@) and operand-shaped
-               keyword prefixes bin-molded in operator position (the
-               transitional `1 l 2` en route to `let`). The guard
-               matters: grout arrives here as the pseudo-token " ", and
-               plain juxtaposition must NOT carry a lexeme — the
+            /* Unknown infix operator: kids survive as a MultiHole and
+               the operator token as its lexeme (printed back by
+               ExpToSegment; elaborated as a stuck application). The
+               guard matters: grout arrives as the pseudo-token " ",
+               and juxtaposition must NOT carry a lexeme — the
                elaborator uses its presence to distinguish stuck
-               applications from transient juxtaposition (which keeps
-               eval-to-last semantics). A first-class UnboundOp node can
-               supersede this later. */
+               applications from transient juxtaposition. */
             set_lexeme(op);
             hole(tm);
           | _ => hole(tm)

@@ -1,30 +1,10 @@
-/* Indentation Calculation
- * ========================
+/* Computes indentation levels for linebreaks in a segment. Main entry
+ * point is `level_map`: a map from linebreak IDs to indent (spaces).
  *
- * This module computes indentation levels for linebreaks in a segment.
- * The main entry point is `level_map` which returns a map from linebreak
- * IDs to their indentation level (number of spaces).
- *
- * CONTINUATION LINE DESIGN DECISION:
- * ----------------------------------
- * When content starts on the same line as an indentation-creating construct
- * (e.g., `let z = 4` vs `let z =\n4`), and continues on subsequent lines,
- * we face an ambiguity at typing time: we don't know if what follows the
- * linebreak will be continuation content (`+ 4`) or a completing keyword (`in`).
- *
- * - KNOWN CASE: Linebreak immediately after `=` (prev=None in child context)
- *   We know subsequent content is in the child, so we indent immediately.
- *
- * - AMBIGUOUS CASE: Content before linebreak (prev=Some(_), next=None)
- *   At typing time, next is unknown. We use conservative behavior (no indent).
- *   After Format (Cmd+S), when next is known, we indent if next=Some(_).
- *
- * This is implemented via the rule:
- *   `(_, Some(_)) when not_top => base + 2`
- * which only fires when there IS content after the linebreak (known structure).
- *
- * See Test_Indentation.re for comprehensive examples of both behaviors.
- */
+ * Continuation lines (content both before and after a linebreak inside
+ * a child) are ambiguous at typing time — the next line could continue
+ * the child or complete the form — so indentation is conservative while
+ * typing and corrected on Format, when following content is known. */
 
 /* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
@@ -35,14 +15,11 @@ let trim_non_content: Segment.t => Segment.t =
     | p => Some(p),
   );
 
-/* Compute context (effective_prev, next, effective_next) for each piece in one pass.
- * - effective_prev: skips linebreaks to find the last contentful piece.
- *   Convex grout COUNTS as content (an atom, like a literal): a hole
- *   filling a branch must anchor the next line's indentation exactly
- *   as a literal would, else the incrementor/child rules re-fire and
- *   every hole-bearing line drifts deeper (empty if/then branches).
- * - next: immediate next piece (raw)
- * - effective_next: skips linebreaks to find next contentful piece */
+/* Context (effective_prev, next, effective_next) per piece, one pass;
+ * the effective_* fields skip linebreaks. Convex grout counts as
+ * content: a hole filling a branch must anchor the next line's indent
+ * exactly as a literal would, else the incrementor/child rules re-fire
+ * and every hole-bearing line drifts deeper. */
 let compute_context =
     (seg: Segment.t)
     : list((option(Piece.t), option(Piece.t), option(Piece.t))) => {
@@ -299,14 +276,12 @@ let rec go =
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
               /* Special case for kw prefixes */
               base
-            /* Continuation lines in children: when in child context with
-             * content before and after the linebreak, use child indentation.
-             * Note: This only works after Format, not during auto-indent,
-             * because at typing time next is unknown. An incrementor
-             * earlier in the child (fun ->) may have RAISED the running
-             * level; sibling lines inherit it — base+2 alone flattened
-             * every let-chain line after the first back to the child's
-             * opening level (only the first body line sat indented). */
+            /* Continuation lines in children: with content before and
+             * after the linebreak, use child indentation. Only fires
+             * after Format (at typing time next is unknown). max, not
+             * base + 2: an incrementor earlier in the child (fun ->)
+             * may have raised the running level, which sibling lines
+             * must inherit. */
             | (_, Some(_)) when not_top => max(level, base + 2)
             | (_, Some(_)) => level
             };
@@ -350,20 +325,16 @@ let rec go =
   map;
 };
 
-/* ONE PARTITIONER (2026-07-27, andrew; ported from artifact-grout
-   cc4339373d): the walk consumes the CANONICAL COMPLETION'S
-   PARTITIONER — the same layout-intent reading that decides what the
-   surfaced completion absorbs — so indent suggestions agree with the
-   completion about which lines belong to an unclosed construct.
-   Lines WITH content partition by their actual layout (flush-written
-   lines under an unclosed let are siblings — no additive staircase);
-   a CONTENTLESS line is no evidence at all (~absorb_empty_lines):
-   the fresh line Enter just made stays inside the open construct,
-   where typing will land. Within a partition the walk keeps its
-   shallow absorb-reading rather than the completed GEOMETRY: owed
-   closers anchor at end-of-typed-content for display/Tab, but a
-   delimiter obligation's position is flexible, so an owed closer is
-   not a wall for next-line typing. */
+/* The walk consumes the canonical completion's partitioner — the same
+   layout-intent reading that decides what the surfaced completion
+   absorbs — so indent suggestions agree with the completion about
+   which lines belong to an unclosed construct. Lines with content
+   partition by their actual layout; a contentless line is no evidence
+   (~absorb_empty_lines): the fresh line Enter just made stays inside
+   the open construct, where typing will land. Within a partition the
+   walk keeps its shallow absorb-reading rather than the completed
+   geometry: an owed closer's position is flexible, so it is not a
+   wall for next-line typing. */
 let partitions = (seg: Segment.t): list(Segment.t) =>
   CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
   |> List.map(fst);
