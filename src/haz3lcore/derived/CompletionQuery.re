@@ -5,7 +5,6 @@
 
 open Util;
 
-
 /* The obligation whose insertion zone contains the caret — the chip
    the caret is visually pinned to (chips pin coincidence-first, so a
    caret anywhere in the inter-content whitespace around an anchor
@@ -19,7 +18,9 @@ let chip_at_caret = (z: Zipper.t): option(CanonicalCompletion.insertion) =>
   | Outer =>
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     let result = CanonicalCompletion.for_editor(seg);
-    let find = (id: Id.t, sides: list(Direction.t)): option(CanonicalCompletion.insertion) =>
+    let find =
+        (id: Id.t, sides: list(Direction.t))
+        : option(CanonicalCompletion.insertion) =>
       result.insertions
       |> List.find_opt((ins: CanonicalCompletion.insertion) =>
            Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
@@ -65,7 +66,8 @@ let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
    into the typed prefix exactly as typing would); a plain delimiter
    gets a leading space when it would jam against an alphanumeric
    left neighbor and a trailing space when wordish. */
-let tab_text = (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) => {
+let tab_text =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) => {
   let alnum = Token.is_wordish_char;
   switch (ins.delimiters) {
   | [] => None
@@ -86,4 +88,3 @@ let tab_text = (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string)
     }
   };
 };
-

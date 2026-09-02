@@ -9,10 +9,6 @@ module IdTag = {
 
   let empty_secondary: secondary_runs = ([], []);
 
-  /* Shard provenance for canonical completion: for each tile of this term
-     that was completed, the shard indices physically present in the visible
-     segment (missing shards were synthesized). Empty for fully-typed terms.
-     Printing emits only the listed shards; see ExpToSegment. */
   /* A partially-typed shard: the user's token witnesses the first
      `len` chars of the shard's text (`i` for `in`); token_id is the
      original token piece's id so printing reconstructs that exact
@@ -29,6 +25,10 @@ module IdTag = {
     debris: option(Id.t),
   };
 
+  /* Shard provenance for canonical completion: for each tile of this term
+     that was completed, the shard indices physically present in the visible
+     segment (missing shards were synthesized). Empty for fully-typed terms.
+     Printing emits only the listed shards; see ExpToSegment. */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type incomplete_mask = {
     present: list(int),

@@ -80,7 +80,7 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
    keystroke then removes the whole indentation AND its linebreak.
    The consumer gates on the run being no wider than the line's
    AUTO-INDENT level: spaces the user typed beyond the indent are
-   real material, deleted one per press (andrew 2026-07-22). */
+   real material, deleted one per press. */
 let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
   if (z.caret != Outer || z.selection.content != []) {
     None;
@@ -337,9 +337,10 @@ let rec go =
     )
     |> return(CantReparse);
   | Format(Pretty) =>
-    /* SpaceNormalize first: a repair no-op on parsed buffers (they
-       can't contain bare glom junctions) but totalizes synthesized
-       segments (agent/structural edits). */
+    /* SpaceNormalize first: a no-op on parsed buffers (they can't
+       contain bare glom junctions) but repairs the glom junctions in
+       synthesized segments (agent/structural edits) so prettify is
+       safe to run on them. */
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
@@ -500,9 +501,7 @@ let rec go =
       | Local(Left, ByChar) when settings.indentation_ux =>
         switch (indent_join_run(z)) {
         | Some((n, lb_id)) =>
-          /* the one-keystroke join covers AUTO-INDENT width only:
-             a run wider than the line's indent level means typed
-             spaces beyond it — those delete one per press */
+          /* width gate: see indent_join_run */
           let level =
             Indentation.level_of(
               ~target_id=lb_id,
@@ -515,11 +514,10 @@ let rec go =
       };
     switch (join) {
     | Some(_) =>
-      /* backspace inverts enter: delete indentation + linebreak as a
-         single action (one undo step). Adaptive: destruct's own
-         whitespace cleanup can consume more than one piece per call,
-         so re-inspect the left neighbor each step instead of
-         counting. */
+      /* indentation + linebreak go in one action (one undo step).
+         Adaptive: destruct's own whitespace cleanup can consume more
+         than one piece per call, so re-inspect the left neighbor each
+         step instead of counting. */
       let left_neighbor = (z: Zipper.t) =>
         switch (fst(z.relatives.siblings) |> List.rev) {
         | [Piece.Secondary(w), ..._] =>

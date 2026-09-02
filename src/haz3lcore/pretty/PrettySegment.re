@@ -1449,7 +1449,7 @@ let format_segment = (~settings: settings, seg: Segment.t): Segment.t => {
   | [] => []
   | _ =>
     let doc = Group(segment_to_doc(settings, content));
-    /* Step 3: Layout (start at indent 0, Breaking mode) */
+    /* Step 3: Layout */
     let outputs = layout(settings.width, 0, [(0, Breaking, doc)]);
     /* Step 4: Post-process (tight application) */
     let outputs = tighten_applications(outputs);

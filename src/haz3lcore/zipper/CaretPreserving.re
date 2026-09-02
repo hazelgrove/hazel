@@ -10,14 +10,14 @@ type selection_anchor_info = {
   anchor_shards: option(list(int)) /* Some for Tile, None for others */,
 };
 
-/* Extract selection anchor info for restoration after transform.
-   Returns None if selection is empty or is a Buffer (not Normal mode).
-
-   Note: Due to how cursor repositioning works (id_init captures the piece
-   outside the selection on the right), after transform + reposition, the cursor
-   ends up at the RIGHT edge of the original selection regardless of focus.
-   So we always track the LEFTMOST piece of the selection (first of content)
-   as our target, and always grow leftward to find it. */
+/* Selection anchor for restoration after transform. None for empty or
+   Buffer selections. id_init captures the piece just right of the
+   selection, so transform + reposition normally lands the cursor at
+   the RIGHT edge of the original selection — we track the LEFTMOST
+   selected piece and grow leftward to find it. When the selection
+   abuts buffer end there is no right piece: reposition falls back to
+   the LEFT edge, leftward growth can't reach the anchor, and
+   restore_selection safe-fails to unselect. */
 let get_selection_anchor_info = (z: Zipper.t): option(selection_anchor_info) =>
   switch (z.selection) {
   | {content: [], _} => None
@@ -38,8 +38,8 @@ let get_selection_anchor_info = (z: Zipper.t): option(selection_anchor_info) =>
     });
   };
 
-/* Check if a piece matches the anchor specification.
-   For Tiles, we check both ID and shards to handle fragmented multi-delimiter forms. */
+/* Tiles must match both ID and shards: multi-delimiter forms may be
+   fragmented into several pieces sharing one ID. */
 let piece_matches_anchor =
     (p: Piece.t, anchor_id: Id.t, anchor_shards: option(list(int))): bool =>
   Piece.id(p) == anchor_id
@@ -60,10 +60,8 @@ let get_selection_edge_piece =
   | (Right, content) => ListUtil.last_opt(content)
   };
 
-/* Restore selection by growing leftward from current cursor position.
-   After transform + cursor repositioning, the cursor ends up at the RIGHT edge
-   of where the selection was. So we grow leftward until we find the leftmost
-   piece of the original selection. */
+/* Grow leftward from the cursor (at the selection's former right edge;
+   see get_selection_anchor_info) until the anchor piece is reached. */
 let restore_selection =
     (z: Zipper.t, anchor_info: selection_anchor_info): Zipper.t => {
   let {focus: focus_init, anchor_id, anchor_shards} = anchor_info;
@@ -90,9 +88,8 @@ let rec move_to_start = (z: t): t =>
   | None => z
   };
 
-/* Collect IDs of pieces that are "same-segment predecessors" of the cursor.
-   These are pieces in fst(siblings) at current level, plus pieces in
-   fst(generation.siblings) for each ancestor level. */
+/* IDs of the cursor's "same-segment predecessors": left siblings at the
+   current level and at each ancestor level. */
 let collect_predecessor_ids = (z: t): Id.Map.t(unit) => {
   let current_preds = z.relatives.siblings |> fst |> List.map(Piece.id);
   let ancestor_preds =
@@ -260,7 +257,6 @@ let reposition_cursor =
    Saves cursor state, unzips to segment, applies the transform,
    re-zips, and repositions the cursor using layered fallback. */
 let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
-  /* Save cursor position info */
   let (id_init, d_init: Direction.t) =
     switch (z.relatives.siblings, z.selection.content) {
     | ((_, [p, ..._]), _) => (Piece.id(p), Right)
@@ -286,18 +282,15 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
        );
   let selection_anchor = get_selection_anchor_info(z);
 
-  /* Flatten, transform, unflatten */
   let current_seg = Zipper.unselect_and_zip(z);
   let new_seg = f(current_seg);
   let z = Zipper.unzip(~direction=Left, new_seg);
 
-  /* Restore refractors */
   let z = {
     ...z,
     refractors,
   };
 
-  /* Reposition cursor */
   let (z, found_exact) =
     reposition_cursor(
       z,
@@ -308,7 +301,6 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
       ~caret_init,
     );
 
-  /* Restore selection if we found the exact cursor position */
   switch (selection_anchor) {
   | Some(anchor_info) when found_exact => restore_selection(z, anchor_info)
   | _ => z

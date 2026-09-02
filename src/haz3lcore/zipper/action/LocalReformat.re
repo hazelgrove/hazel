@@ -1,16 +1,7 @@
 /* Completion-triggered local re-indentation (plans/local-reformat.md,
- * gated by CoreSettings.auto_reindent).
- *
- * When an edit completes a tile (a shard gloms onto its form, via typed
- * delimiter or put-down), the content it absorbed as children gets
- * re-indented, per child:
- * - deeply settled child (no incomplete tiles): canonical indentation
- *   is unambiguous — recompute every line (also repairs enter-indent's
- *   type-time ambiguity on continuation lines);
- * - unsettled child: its whitespace is load-bearing for canonical
- *   completion, so only translate uniformly (preserving the relative
- *   comparisons completion reads), and not at all if the shift would
- *   clamp a line at column 0 (uniformity would break). */
+ * gated by CoreSettings.auto_reindent). When an edit completes a tile
+ * (a shard gloms onto its form, via typed delimiter or put-down), the
+ * children it absorbed are re-indented per the child_plan policy below. */
 
 let incomplete_ids = (seg: Segment.t): Id.Map.t(unit) =>
   Segment.incomplete_tiles_deep(seg)
@@ -171,10 +162,9 @@ let apply_plans =
 /* === Region re-indent (paste-like insertions) ===
    Trigger: linebreaks present after the action but absent before —
    the inserted material's own lines (copied pieces re-mint ids on
-   paste; text paste mints fresh ids). Policy unchanged from the
-   completion trigger: buffer settled -> exact canonical per new
-   line; unsettled -> uniform clamp-guarded shift anchored at the
-   first new line (whitespace stays load-bearing for completion).
+   paste; text paste mints fresh ids). Same policy as the completion
+   trigger: settled -> exact canonical per new line; unsettled ->
+   uniform clamp-guarded shift anchored at the first new line.
    Caveat: a caret sitting inside a new line's indentation run splits
    it across zipper sub-segments; the remainder is left alone. */
 
