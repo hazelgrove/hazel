@@ -1566,6 +1566,15 @@ let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
 
 let tab_dispatch_tests = [
   tab_case(
+    /* the left neighbor is a case TILE whose effective last token is
+       `end`: the junction predicate must see it (tab pasted "in " and
+       produced endin) */
+    ~name="chip after a multi-token tile spaces the junction",
+    ~acts=Test_Editing.mk("let x = case y | _ => 1 end¦"),
+    ~expected="let x = case y | _ => 1 end in ¦?",
+    (),
+  ),
+  tab_case(
     ~name="tab after 4: space, in, caret past",
     ~acts=Test_Editing.mk("let a = 4¦"),
     ~expected="let a = 4 in ¦?",
@@ -1587,7 +1596,7 @@ let tab_dispatch_tests = [
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) =?in ¦?",
+    ~expected="let _: (Int, Bool) =? in ¦?",
     (),
   ),
   tab_case(
@@ -1937,7 +1946,38 @@ let severance_tests = [
   ),
 ];
 
+/* Completion recurses while the incomplete count strictly decreases —
+   no fixed pass ceiling. 30 obligations (the old fuel of 24 left 5). */
+let depth_tests = [
+  test(
+    ~name="30 nested openers complete fully",
+    ~input=String.make(30, '(') ++ "1",
+    ~expected=String.make(30, '(') ++ "1" ++ String.make(30, ')'),
+  ),
+];
+let depth_count_tests = [
+  test_case(
+    "30 nested let prefixes leave nothing incomplete",
+    `Quick,
+    () => {
+      let seg =
+        must_parse(String.concat("", List.init(30, _ => "let x = ")) ++ "1");
+      let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      check(
+        Alcotest.int,
+        "incomplete",
+        0,
+        count_incomplete_deep(r.completed_seg),
+      );
+    },
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  (
+    "CanonicalCompletion: depth",
+    run_completion_tests(depth_tests) @ depth_count_tests,
+  ),
   (
     "CanonicalCompletion: closer-severance",
     run_completion_tests(severance_tests),

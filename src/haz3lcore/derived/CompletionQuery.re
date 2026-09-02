@@ -77,11 +77,17 @@ let tab_text =
       Some(String.sub(d.text, n, String.length(d.text) - n))
     | Some(_) => None
     | None =>
+      /* same junction predicate as put_down and materialize: the left
+         neighbor's EFFECTIVE last token (a case tile's `end`, not just
+         single-token tiles) against the delimiter */
       let jam_left =
         switch (z.relatives.siblings |> fst |> List.rev) {
-        | [Tile({label: [tok], _}), ..._] when Token.length(tok) > 0 =>
-          alnum(tok.[Token.length(tok) - 1]) && alnum(d.text.[0])
-        | _ => false
+        | [p, ..._] =>
+          switch (SpaceNormalize.last_token(p)) {
+          | Some(tok) => SpaceNormalize.needs_space(tok, d.text)
+          | None => false
+          }
+        | [] => false
         };
       let wordish_last = alnum(d.text.[String.length(d.text) - 1]);
       Some((jam_left ? " " : "") ++ d.text ++ (wordish_last ? " " : ""));

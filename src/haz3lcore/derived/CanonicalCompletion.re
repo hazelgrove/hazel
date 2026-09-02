@@ -1838,17 +1838,17 @@ let verify_holes =
    pass — strongest evidence first (witness > junction > fallback),
    weak ties innermost-first — then recurse on the result. The
    suggestion set is the trace, so joint application reproduces the
-   computed result by construction; fuel never binds (the incomplete
-   count strictly decreases). */
+   computed result by construction. Each pass strictly reduces the
+   incomplete-tile count; recursion continues exactly while it does. */
 let rec complete_segment =
         (
           ~use_indent_heuristic=true,
-          ~fuel=24,
           ~only_tile: option(Id.t)=None,
           sort: Sort.t,
           seg: Segment.t,
         )
         : completion_result => {
+  let n_incomplete_in = List.length(Segment.incomplete_tiles_deep(seg));
   let partitioned = partition_segment(~use_indent_heuristic, seg);
   /* boundary sanitation only matters once a split actually happened */
   let partitioned =
@@ -2154,16 +2154,12 @@ let rec complete_segment =
       verify_holes(~input=seg, ~completed=completed_seg, insertions);
     /* materialization can capture still-broken remnants into the new
        tile's children; recurse until nothing incomplete remains */
+    let remaining = Segment.incomplete_tiles_deep(completed_seg);
     if (only_tile == None
-        && fuel > 0
-        && Segment.incomplete_tiles_deep(completed_seg) != []) {
+        && remaining != []
+        && List.length(remaining) < n_incomplete_in) {
       let rest =
-        complete_segment_deep(
-          ~use_indent_heuristic,
-          ~fuel=fuel - 1,
-          ~sort,
-          completed_seg,
-        );
+        complete_segment_deep(~use_indent_heuristic, ~sort, completed_seg);
       /* later-pass anchors reference intermediate material the buffer
          can't measure: project onto the nearest measurable piece
          (post-order backward for Right, pre-order forward for Left) */
@@ -2287,7 +2283,6 @@ let rec complete_segment =
 and complete_segment_deep =
     (
       ~use_indent_heuristic=true,
-      ~fuel=24,
       ~only_tile: option(Id.t)=None,
       ~sort,
       seg: Segment.t,
@@ -2301,7 +2296,6 @@ and complete_segment_deep =
            let result =
              complete_segment_deep(
                ~use_indent_heuristic,
-               ~fuel,
                ~only_tile,
                ~sort=child_sort,
                child,
@@ -2342,7 +2336,6 @@ and complete_segment_deep =
   let top_result =
     complete_segment(
       ~use_indent_heuristic,
-      ~fuel,
       ~only_tile,
       sort,
       seg_with_completed_children,
