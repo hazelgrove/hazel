@@ -1,4 +1,4 @@
-/* Auto-probe target selection (ProbePerform.toplevel_def_body_id). Input
+/* Auto-probe target selection (AutoProbePerform.toplevel_def_body_id). Input
  * carries a `¦` caret marker; each test checks the probed expression's text
  * ("<none>" if no probe is placed). */
 open Alcotest;
@@ -59,7 +59,7 @@ let probed_str = (z: Zipper.t): string => {
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  switch (ProbePerform.current_toplevel_def(info_map, z)) {
+  switch (AutoProbePerform.current_toplevel_def(info_map, z)) {
   | None => "<none>"
   | Some(id) =>
     let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
@@ -91,7 +91,7 @@ let param_anchor_str = (z: Zipper.t): string => {
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  switch (ProbePerform.current_toplevel_def(info_map, z)) {
+  switch (AutoProbePerform.current_toplevel_def(info_map, z)) {
   | None => "<no def>"
   | Some(def_id) =>
     switch (ProbePerform.function_sugar_param_anchor(info_map, def_id)) {
@@ -196,7 +196,7 @@ let bare_expression_tests = [
 
 /* fn-def sugar reuses the surface Let's id, duplicating it in the ancestor
  * chain — used to mis-target the fn body. Guards the dedup_adjacent workaround
- * in ProbePerform.toplevel_def_body_id. */
+ * in AutoProbePerform.toplevel_def_body_id. */
 let function_sugar_tests = [
   auto(
     ~name="sugar: cursor in let body probes let body (not the function body)",
@@ -380,10 +380,10 @@ let all_probed_strs = (program: string): list(string) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
-  switch (ProbePerform.program_root_id(syntax)) {
+  switch (AutoProbePerform.program_root_id(syntax)) {
   | None => []
   | Some(root_id) =>
-    ProbePerform.ids_from_term(~syntax, ~info_map, root_id)
+    ProbeTargets.ids_from_term(~syntax, ~info_map, root_id)
     |> List.filter_map(id =>
          switch (TermData.segment(id, syntax.term_data)) {
          | Some(seg) =>
