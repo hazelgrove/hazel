@@ -42,6 +42,10 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 let empty = {menu_state: None};
 let init = (_: v) => empty;
 
+/* Never auto-selected: any list of tuples parses as a table, and the
+   rendering is much larger than the text it would replace. */
+let auto_applies = (_: value): bool => false;
+
 /* Header + data rows; each table row is one line-height tall (proj-table.css
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
