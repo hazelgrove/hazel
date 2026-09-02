@@ -96,26 +96,24 @@ let ramp: list(string) = [
 let overrides: list((string, Typ.t)) = [
   ("dark", bool()),
   ("contrast", bool()),
+  /* One ramp step, read by every role that wants that line weight -- these
+     were seven fields carrying three decisions, and the seven always agreed. */
+  ("frame-mark", color()),
+  ("frame-seam", color()),
+  ("frame-border", color()),
   ("menu-nut", color()),
   ("menu-background", color()),
   ("menu-hover", color()),
   ("chrome-background", color()),
   ("chrome-heading", color()),
   ("editor-cell", color()),
-  ("editor-scrollbar", color()),
-  ("editor-buffer", color()),
-  ("cursor-connector", color()),
   ("cursor-tint", float()),
   ("cursor-level", float()),
-  ("hole-empty-edge", color()),
   ("hole-empty", color()),
   ("editor-backpack-outline", color()),
   ("projector-textarea-text", color()),
-  ("results-divider", color()),
   ("inspector-badge", color()),
   ("inspector-text", color()),
-  ("inspector-separator", color()),
-  ("editor-locked-cell", color()),
 ];
 
 /* What the slide derives from the seeds: the ramps step off frame-1 and

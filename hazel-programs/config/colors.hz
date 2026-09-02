@@ -84,10 +84,10 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
       ),
       editor = (
         `cell` = role.`editor-cell`,
-        `scrollbar` = role.`editor-scrollbar`,
-        `buffer` = role.`editor-buffer`,
+        `scrollbar` = role.`frame-mark`,
+        `buffer` = role.`frame-mark`,
         `derivation` = wash(p.`success`, 0.82, 0.67),
-        `locked-cell` = role.`editor-locked-cell`,
+        `locked-cell` = role.`frame-border`,
         `backpack-outline` = role.`editor-backpack-outline`,
         # findable aliases; each defaults to its place in the ramp #
         `string` = p.`attention-4`,
@@ -96,7 +96,7 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
       ),
       # the plate behind whatever the cursor is on, one per sort #
       cursor = (
-        `connector` = role.`cursor-connector`,
+        `connector` = role.`frame-seam`,
         `pattern` = sort_plate(p.`pattern`),
         `type` = sort_plate(p.`type`),
         `type-pattern` = sort_plate(p.`type-pattern`),
@@ -107,7 +107,7 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
       ),
       hole = (
         `empty` = role.`hole-empty`,
-        `empty-edge` = role.`hole-empty-edge`,
+        `empty-edge` = role.`frame-mark`,
         `error` = p.`error-hole`,
         `warning` = wash(p.`attention-3`, 0., 0.2),
         `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
@@ -120,7 +120,7 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
       ),
       # results, and the incremental evaluator's tints #
       results = (
-        `divider` = role.`results-divider`,
+        `divider` = role.`frame-seam`,
         `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
         `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
         `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
@@ -130,7 +130,7 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
       inspector = (
         `badge` = role.`inspector-badge`,
         `text` = role.`inspector-text`,
-        `separator` = role.`inspector-separator`
+        `separator` = role.`frame-border`
       ),
       # probes: live values pinned to the program #
       probe = (
@@ -162,26 +162,23 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
 let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `dark` = false,
   `contrast` = false,
+  # one ramp step, read by every role that wants that line weight #
+  `frame-mark` = p.`frame-1`,
+  `frame-seam` = p.`frame-1`,
+  `frame-border` = p.`frame-2`,
   `menu-nut` = p.`info-strong`,
   `menu-background` = p.`attention-1`,
   `menu-hover` = p.`code-background`,
   `chrome-background` = p.`surface-1`,
   `chrome-heading` = p.`frame-3`,
   `editor-cell` = p.`code-background`,
-  `editor-scrollbar` = p.`frame-1`,
-  `editor-buffer` = p.`frame-1`,
-  `cursor-connector` = p.`frame-1`,
   `cursor-tint` = 0.25,
   `cursor-level` = 95.,
-  `hole-empty-edge` = p.`frame-1`,
   `hole-empty` = p.`attention-1`,
   `editor-backpack-outline` = p.`code-background`,
   `projector-textarea-text` = p.`frame-3`,
-  `results-divider` = p.`frame-1`,
   `inspector-badge` = p.`frame-3`,
-  `inspector-text` = p.`frame-4`,
-  `inspector-separator` = p.`frame-2`,
-  `editor-locked-cell` = p.`frame-2`
+  `inspector-text` = p.`frame-4`
 )) in
 
 let light =
@@ -238,6 +235,10 @@ let light =
 let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `dark` = true,
   `contrast` = false,
+  # one ramp step, read by every role that wants that line weight #
+  `frame-mark` = p.`frame-3`,
+  `frame-seam` = p.`frame-2`,
+  `frame-border` = p.`frame-3`,
   `menu-nut` = p.`success-muted`,
   `menu-background` = p.`surface-1`,
   `menu-hover` = color_with_lightness(p.`code-background`, 95.),
@@ -245,20 +246,13 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `chrome-heading` = p.`frame-4`,
   `editor-cell` =
     color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
-  `editor-scrollbar` = p.`frame-3`,
-  `editor-buffer` = p.`frame-3`,
-  `cursor-connector` = p.`frame-2`,
   `cursor-tint` = 0.3333,
   `cursor-level` = 40.,
-  `hole-empty-edge` = p.`frame-3`,
   `hole-empty` = p.`surface-2`,
   `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
   `projector-textarea-text` = p.`ink`,
-  `results-divider` = p.`frame-2`,
   `inspector-badge` = p.`frame-2`,
-  `inspector-text` = p.`ink`,
-  `inspector-separator` = p.`frame-3`,
-  `editor-locked-cell` = p.`frame-3`
+  `inspector-text` = p.`ink`
 )) in
 
 let dark =

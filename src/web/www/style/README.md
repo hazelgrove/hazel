@@ -64,7 +64,14 @@ The slide defines two layers, and both are published as CSS properties:
   per scheme.
 
 A colour belongs in the palette if a scheme states or mechanically derives it,
-and in a role if the shared derivation decides it. A role that only forwarded a
+and in a role if the shared derivation decides it. `ColorOverrides` is what is
+left: the roles a scheme points somewhere itself, and it is deliberately small
+(18 fields, of which two are the flags and two are the numbers the cursor plate
+is pinned with). Most of what is left is genuinely per-polarity — `menu.nut` is
+`info-strong` in light and `success-muted` in dark, and no axis expression
+reproduces both — so shrinking it further means moving a colour, not just
+rewriting it. Three fields (`frame-mark`, `frame-seam`, `frame-border`) are one
+ramp step each, read by every role that wants that line weight. A role that only forwarded a
 stated colour was doing no work: eleven of those (the probe fills, the
 projector island and text-area colours) are palette entries instead, named for
 what they are for — `probe-value`, `statics-background`, `textarea-margin` —
