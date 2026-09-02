@@ -2,6 +2,7 @@ type Graph = ([(Int, Int)], [(Int, Int)]) in
 let ^graph = {
   type Model = ([(Int, Int)], [(Int, Int)], Int, Int, Bool);
   type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up + Clear;
+  type Expansion = Graph;
   let init : Model = ([(40, 40), (150, 40), (95, 115)], [(0, 1), (1, 2)], -1, -1, false);
   let len : [(Int, Int)] -> Int = fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
   let near : ([(Int, Int)], Int, Int, Int) -> Int =

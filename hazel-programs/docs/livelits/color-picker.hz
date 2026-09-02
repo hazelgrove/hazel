@@ -8,6 +8,7 @@
 let ^hwb = {
   type Model = (Int, Int, Int);
   type Action = Model;
+  type Expansion = String;
 
   let css = fun (h, w, b) : Model ->
     "hwb(" ++ string_of_int(h) ++ " "

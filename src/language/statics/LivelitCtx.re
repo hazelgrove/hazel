@@ -26,9 +26,10 @@ type raw_livelit = {
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
   shape: ProjectorShape.t,
-  /* User-defined livelits only: the elaborated definition record
-     (init, update, view, expand). The projector evaluates it at render
-     time; `update`/`view` above are unused placeholders in that case. */
+  /* User-defined livelits only: the elaborated definition module, whose
+     members are init, update, view, expand (plus helpers). The projector
+     evaluates it at render time; `update`/`view` above are unused
+     placeholders in that case. */
   user_def: option(TermBase.Exp.t),
 };
 

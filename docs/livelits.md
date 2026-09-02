@@ -23,6 +23,7 @@ A Hazel program can define a livelit by binding a livelit name to a module:
 let ^pct = {
   type Model = Int;
   type Action = Int;
+  type Expansion = Int;
   let init : Model = 50;
   let update = fun (m, a) : (Model, Action) -> a;
   let view = fun m : Model -> ...;
@@ -35,10 +36,34 @@ with `update: (Model, Action) => Model`, `view: Model => HTML` (handlers emit
 Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
 An optional member `shape = Inline(width) | Block(width, height) |
 Tab(width, height)` (a `LivelitShape`) sets the projector's footprint in
-character cells. Type members are accepted but not yet semantically
-load-bearing. Helpers are ordinary additional members. Since modules are
-sugar for labeled tuples, a positional `(init, update, view, expand[, shape])`
-tuple is accepted as the equivalent form.
+character cells. Helpers are ordinary additional members.
+
+All three type members are required, and they are the livelit's interface.
+`Model` types each use's argument, `Action` types what the view emits, and
+`Expansion` is what clients type against. There is no tuple form: a tuple
+has nowhere to declare the types.
+
+## Type-Checking the Expansion
+
+A use of `^pct` synthesizes the declared `Expansion` — not the type of
+whatever code `expand` produced. That is the abstract reasoning principle
+of the paper: a client reads the livelit's declared type and never the
+expansion. The obligation it creates is discharged at each use, where
+statics types the expansion (in synthetic mode, on a throwaway info map)
+and compares the result with the declaration. An inconsistency is reported
+on the use as `BadLivelitExpansion` — "Livelit expands to type Int, but
+declares Expansion = String" — locating the fault in the livelit rather
+than in the client's surrounding code.
+
+Consistency, not equality, is the test, as everywhere else in the language:
+an expansion that synthesizes `Unknown` (an unannotated `expand` whose body
+gives statics nothing to go on, or a builtin livelit generating a hole)
+stays gradual and is not marked. What the declaration buys in that case is
+still real — clients type against a known type instead of `Unknown`.
+
+The expansion typed is the one built from the *surface* model, since statics
+traverses surface syntax only; the elaborated model, which a user-defined
+livelit's expansion embeds, is what actually evaluates.
 
 Each use elaborates to `^name.expand(model)` through the runtime `^name`
 binding, so shadowing and scoping behave like ordinary lets, and each use's
