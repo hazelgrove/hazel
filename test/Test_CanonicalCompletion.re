@@ -1688,7 +1688,7 @@ let materialize_tests = [
       check(
         string_testable,
         "all",
-        "let x = 1in?",
+        "let x = 1 in?",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
       );
     },
@@ -1711,7 +1711,7 @@ let materialize_tests = [
       check(
         string_testable,
         "one",
-        "(case x | 1 => 2end",
+        "(case x | 1 => 2 end",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
       );
     },
