@@ -1,26 +1,19 @@
-# ══ Colour scheme ══ Double-click a fold (⋱) to open it. ══ #
-# Design notes: src/web/www/style/README.md #
-#   palette_of  seeds + ramp lightnesses -> every derived colour #
-#   theme_of    palette + role overrides -> the theme the app reads #
-#   four schemes, then one case on (dark_mode, high_contrast) #
-# The flags COMPOSE, and all four schemes share those two functions, so #
-# each derivation is written once. ColorSeeds, ColorPalette and #
-# ColorScheme are builtin -- they are the theme's shape, shared with #
-# the app; ColorRamp and ColorOverrides are declared below, because #
-# they are only ever passed between the two functions here. Either #
-# way, a field a scheme misspells or omits is reported on its record. #
+# ══ Colour scheme ══ Every colour in the editor is decided here. ══ #
 
+# Turn on dark mode, or high contrast, or both -- they compose, so both #
+# gives a high-contrast dark scheme. #
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
 
-# ── the two records this program passes to its own functions ── #
-# Not part of the theme, so they are declared here rather than being #
-# builtin: nothing outside this file has business knowing their shape. #
-type ColorRamp = (
+# How far up the lightness scale each ramp step sits. Given per scheme #
+# because a light scheme's steps run darker and a dark scheme's lighter. #
+type ColorRamp = ^^fold((
   `frame-2` = Float, `frame-3` = Float, `frame-4` = Float,
   `surface-2` = Float, `surface-3` = Float, `surface-4` = Float
-) in
-type ColorOverrides = (
+)) in
+# What a scheme decides for itself, where the shared derivation below #
+# is not the right answer -- plus the two flags it declares. #
+type ColorOverrides = ^^fold((
   `dark` = Bool, `contrast` = Bool,
   # one ramp step each, read by every role that wants that line weight #
   `frame-mark` = ColorValue,
@@ -39,156 +32,146 @@ type ColorOverrides = (
   `projector-textarea-text` = ColorValue,
   `inspector-badge` = ColorValue,
   `inspector-text` = ColorValue
-) in
+)) in
 
-# ── seeds + ramp lightnesses -> colours ── #
-let palette_of(seed : ColorSeeds, step : ColorRamp): ColorPalette =
-  # a tuple cannot refer to its own fields, so pat is bound first #
-  let pat = color_rotate(seed.`type`, -75.) in
-  # every seed passes through unchanged, so `...` extends it with the #
-  # derivations rather than restating all 35 by hand #
-  ^^fold(seed ... (
-    # frame-2..4 step off frame-1, surface-2..4 off surface-1; the #
-    # lightnesses come from `step` and INVERT between schemes -- in #
-    # dark, more contrast means lighter. #
-    `frame-2` = color_with_lightness(seed.`frame-1`, step.`frame-2`),
-    `frame-3` = color_with_lightness(seed.`frame-1`, step.`frame-3`),
-    `frame-4` = color_with_lightness(seed.`frame-1`, step.`frame-4`),
-    `surface-2` = color_with_lightness(seed.`surface-1`, step.`surface-2`),
-    `surface-3` = color_with_lightness(seed.`surface-1`, step.`surface-3`),
-    `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
-    `pattern` = pat,
-    `type-pattern` = pat,
-    # even rotations off doc-1; 4-6 interleave for a longer run #
-    `doc-2` = color_rotate(seed.`doc-1`, -120.),
-    `doc-3` = color_rotate(seed.`doc-1`, -240.),
-    `doc-4` = color_rotate(seed.`doc-1`, -60.),
-    `doc-5` = color_rotate(seed.`doc-1`, -180.),
-    `doc-6` = color_rotate(seed.`doc-1`, -300.)
-  )) in
+let palette_of(seed : ColorSeeds, step : ColorRamp): ColorPalette = ^^fold(let pat = color_rotate(seed.`type`, -75.) in
+seed ... (
+  `frame-2` = color_with_lightness(seed.`frame-1`, step.`frame-2`),
+  `frame-3` = color_with_lightness(seed.`frame-1`, step.`frame-3`),
+  `frame-4` = color_with_lightness(seed.`frame-1`, step.`frame-4`),
+  `surface-2` = color_with_lightness(seed.`surface-1`, step.`surface-2`),
+  `surface-3` = color_with_lightness(seed.`surface-1`, step.`surface-3`),
+  `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
+  `pattern` = pat,
+  `type-pattern` = pat,
+  # 4-6 interleave with 1-3, for a longer run of distinct highlights #
+  `doc-2` = color_rotate(seed.`doc-1`, -120.),
+  `doc-3` = color_rotate(seed.`doc-1`, -240.),
+  `doc-4` = color_rotate(seed.`doc-1`, -60.),
+  `doc-5` = color_rotate(seed.`doc-1`, -180.),
+  `doc-6` = color_rotate(seed.`doc-1`, -300.)
+)) in
 
-# ── colours + role overrides -> the theme ── #
-let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
-  # at(c, t) places c on the palette's OWN contrast axis: t = 0. is the #
-  # page background's lightness, t = 1. the body text's. That is why one #
-  # definition is correct in all four schemes, where a hardcoded #
-  # lightness is right in light and invisible in dark. #
-  let bg_l = color_lightness(p.`surface-1`) in
-  let text_l = color_lightness(p.`ink`) in
-  let toward(base, c, t) =
-    color_with_lightness(c, base +. (text_l -. base) *. t) in
-  let at(c, t) = toward(bg_l, c, t) in
-  # wash scales chroma too: a fill wants a wash of its hue, an accent #
-  # the whole thing. The factors reproduce the literals they replaced. #
-  let wash(c, t, sat) = at(color_saturate(c, sat), t) in
-  # a fill must be placed against the surface it actually sits ON, and #
-  # not every surface is the page: table rows sit on the code background, #
-  # ten lightness points off the page in dark. Same span, same ink. #
-  let code_l = color_lightness(p.`code-background`) in
-  let on_code(c, t, sat) =
-    toward(code_l, color_saturate(c, sat), t) in
-  # the plate behind an indicated tile: the sort's own hue, desaturated #
-  # and pinned to one lightness. All three sorts share the pair. #
-  let sort_plate(c) =
-    color_with_lightness(
-      color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
-  ^^fold((
-    palette = p,
-    roles = (
-      menu = (
-        `nut` = role.`menu-nut`,
-        `background` = role.`menu-background`,
-        `hover` = role.`menu-hover`,
-        `divider` = p.`divider`,
-        `shadow` = p.`overlay-shadow`
-      ),
-      # the frame round the editor: toolbars, sidebars, status #
-      chrome = (
-        `background` = role.`chrome-background`,
-        `heading` = role.`chrome-heading`,
-        `meter` = wash(p.`pattern`, 0.87, 1.),
-        # the zebra stripe deliberately stays on `surface-2`: a fraction #
-        # of a longer axis is a bigger step, right for a hover and wrong #
-        # for a stripe. #
-        `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
-      ),
-      editor = (
-        `cell` = role.`editor-cell`,
-        `scrollbar` = role.`frame-mark`,
-        `buffer` = role.`frame-mark`,
-        `derivation` = wash(p.`success`, 0.82, 0.67),
-        `locked-cell` = role.`frame-border`,
-        `backpack-outline` = role.`editor-backpack-outline`,
-        # findable aliases; each defaults to its place in the ramp #
-        `string` = p.`attention-4`,
-        `comment` = p.`success-muted`,
-        `selection` = p.`attention-2`
-      ),
-      # the plate behind whatever the cursor is on, one per sort #
-      cursor = (
-        `connector` = role.`frame-seam`,
-        `pattern` = sort_plate(p.`pattern`),
-        `type` = sort_plate(p.`type`),
-        `type-pattern` = sort_plate(p.`type-pattern`),
-        `derivation` = wash(p.`success`, 0.04, 0.25),
-        `module` = wash(p.`label`, 0.04, 0.25),
-        `signature` = wash(p.`type`, 0.04, 0.25),
-        `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
-      ),
-      hole = (
-        `empty` = role.`hole-empty`,
-        `empty-edge` = role.`frame-mark`,
-        `error` = p.`error-hole`,
-        `warning` = wash(p.`attention-3`, 0., 0.2),
-        `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
-      ),
-      # rows in the problems sidebar #
-      problems = (
-        `row` = wash(p.`pattern`, 0.11, 0.2),
-        `row-edge` = wash(p.`pattern`, 0.82, 0.75),
-        `row-active` = wash(p.`pattern`, 1.04, 1.)
-      ),
-      # results, and the incremental evaluator's tints #
-      results = (
-        `divider` = role.`frame-seam`,
-        `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
-        `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
-        `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
-        `pending` = Fade(p.`ink`, 11.),
-        `pending-edge` = Fade(p.`ink`, 16.)
-      ),
-      inspector = (
-        `badge` = role.`inspector-badge`,
-        `text` = role.`inspector-text`,
-        `separator` = role.`frame-border`
-      ),
-      # probes: live values pinned to the program #
-      probe = (
-        `depth` = wash(p.`ink`, 0.49, 0.),
-        `caller` = wash(p.`doc-1`, 0.09, 0.86),
-        `caller-text` = wash(p.`doc-1`, 0.64, 1.71),
-        `caller-edge` = wash(p.`doc-1`, 0.27, 1.14),
-        `callee` = wash(p.`label`, 0.09, 0.15),
-        `callee-text` = wash(p.`label`, 0.47, 0.4),
-        `callee-edge` = wash(p.`label`, 0.38, 0.45),
-        `other` = wash(p.`success`, 0.06, 0.09),
-        `other-text` = wash(p.`success`, 1.01, 0.63),
-        `focus-text` = wash(p.`success`, 0.99, 0.87)
-      ),
-      # inline widgets: text areas, folds, the statics card #
-      projector = (
-        `textarea-text` = role.`projector-textarea-text`,
-        `fold-background` = wash(p.`pattern`, 1.44, 0.17)
-      )
+let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme = ^^fold(let bg_l = color_lightness(p.`surface-1`) in
+let text_l = color_lightness(p.`ink`) in
+let toward(base, c, t) =
+  color_with_lightness(c, base +. (text_l -. base) *. t) in
+# at(c, t) places c on this scheme's OWN contrast axis: t = 0. is the #
+# page background's lightness, t = 1. the body text's. That is why one #
+# definition is correct in all four schemes, where a fixed lightness is #
+# right in light and invisible in dark. #
+let at(c, t) = toward(bg_l, c, t) in
+# wash scales chroma too: a fill wants a wash of its hue, an accent #
+# the whole thing. #
+let wash(c, t, sat) = at(color_saturate(c, sat), t) in
+# a fill must be placed against the surface it actually sits ON, and #
+# not every surface is the page: table rows sit on the code background, #
+# ten lightness points off the page in dark. Same span, same ink. #
+let code_l = color_lightness(p.`code-background`) in
+let on_code(c, t, sat) =
+  toward(code_l, color_saturate(c, sat), t) in
+# the plate behind an indicated tile: the sort's own hue, desaturated #
+# and pinned to one lightness. All three sorts share the pair. #
+let sort_plate(c) =
+  color_with_lightness(
+    color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
+(
+  palette = p,
+  roles = (
+    menu = (
+      `nut` = role.`menu-nut`,
+      `background` = role.`menu-background`,
+      `hover` = role.`menu-hover`,
+      `divider` = p.`divider`,
+      `shadow` = p.`overlay-shadow`
     ),
-    # declared, not inferred -- low-contrast seeds could flip polarity #
-    # partway through a derivation, and nothing in the colours says #
-    # whether high contrast was ASKED for. CSS reads both. #
-    `is-dark` = role.`dark`,
-    `is-high-contrast` = role.`contrast`
-  )) in
+    # the frame round the editor: toolbars, sidebars, status #
+    chrome = (
+      `background` = role.`chrome-background`,
+      `heading` = role.`chrome-heading`,
+      `meter` = wash(p.`pattern`, 0.87, 1.),
+      # the zebra stripe deliberately stays on `surface-2`: a fraction #
+      # of a longer axis is a bigger step, right for a hover and wrong #
+      # for a stripe. #
+      `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
+    ),
+    editor = (
+      `cell` = role.`editor-cell`,
+      `scrollbar` = role.`frame-mark`,
+      `buffer` = role.`frame-mark`,
+      `derivation` = wash(p.`success`, 0.82, 0.67),
+      `locked-cell` = role.`frame-border`,
+      `backpack-outline` = role.`editor-backpack-outline`,
+      # findable aliases; each defaults to its place in the ramp #
+      `string` = p.`attention-4`,
+      `comment` = p.`success-muted`,
+      `selection` = p.`attention-2`
+    ),
+    # the plate behind whatever the cursor is on, one per sort #
+    cursor = (
+      `connector` = role.`frame-seam`,
+      `pattern` = sort_plate(p.`pattern`),
+      `type` = sort_plate(p.`type`),
+      `type-pattern` = sort_plate(p.`type-pattern`),
+      `derivation` = wash(p.`success`, 0.04, 0.25),
+      `module` = wash(p.`label`, 0.04, 0.25),
+      `signature` = wash(p.`type`, 0.04, 0.25),
+      `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
+    ),
+    hole = (
+      `empty` = role.`hole-empty`,
+      `empty-edge` = role.`frame-mark`,
+      `error` = p.`error-hole`,
+      `warning` = wash(p.`attention-3`, 0., 0.2),
+      `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
+    ),
+    # rows in the problems sidebar #
+    problems = (
+      `row` = wash(p.`pattern`, 0.11, 0.2),
+      `row-edge` = wash(p.`pattern`, 0.82, 0.75),
+      `row-active` = wash(p.`pattern`, 1.04, 1.)
+    ),
+    # results, and the incremental evaluator's tints #
+    results = (
+      `divider` = role.`frame-seam`,
+      `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
+      `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
+      `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
+      `pending` = Fade(p.`ink`, 11.),
+      `pending-edge` = Fade(p.`ink`, 16.)
+    ),
+    inspector = (
+      `badge` = role.`inspector-badge`,
+      `text` = role.`inspector-text`,
+      `separator` = role.`frame-border`
+    ),
+    # probes: live values pinned to the program #
+    probe = (
+      `depth` = wash(p.`ink`, 0.49, 0.),
+      `caller` = wash(p.`doc-1`, 0.09, 0.86),
+      `caller-text` = wash(p.`doc-1`, 0.64, 1.71),
+      `caller-edge` = wash(p.`doc-1`, 0.27, 1.14),
+      `callee` = wash(p.`label`, 0.09, 0.15),
+      `callee-text` = wash(p.`label`, 0.47, 0.4),
+      `callee-edge` = wash(p.`label`, 0.38, 0.45),
+      `other` = wash(p.`success`, 0.06, 0.09),
+      `other-text` = wash(p.`success`, 1.01, 0.63),
+      `focus-text` = wash(p.`success`, 0.99, 0.87)
+    ),
+    # inline widgets: text areas, folds, the statics card #
+    projector = (
+      `textarea-text` = role.`projector-textarea-text`,
+      `fold-background` = wash(p.`pattern`, 1.44, 0.17)
+    )
+  ),
+  # declared, not inferred -- low-contrast seeds could flip polarity #
+  # partway through a derivation, and nothing in the colours says #
+  # whether high contrast was ASKED for. #
+  `is-dark` = role.`dark`,
+  `is-high-contrast` = role.`contrast`
+)) in
 
-# ── light ── the seeds are the palette ── #
+# ── light ── #
 let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `dark` = false,
   `contrast` = false,
@@ -275,7 +258,7 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `chrome-background` = p.`surface-2`,
   `chrome-heading` = p.`frame-4`,
   `editor-cell` =
-    color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
+  color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
   `cursor-tint` = 0.3333,
   `cursor-level` = 40.,
   `hole-empty` = p.`surface-2`,
@@ -285,9 +268,8 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `inspector-text` = p.`ink`
 )) in
 
-let dark =
-  let p = palette_of(
-    ^^fold((
+let dark = ^^fold(let p = palette_of(
+    (
       `none` = Transparent,
       `code-background` = ^^color(Oklch(25., 0.015, 240.)),
       `ink` = ^^color(Oklch(75., 0.03, 250.)),
@@ -323,7 +305,7 @@ let dark =
       `probe-timeline` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
       `statics-background` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
       `statics-edge` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
-    )),
+    ),
     (
       `frame-2` = 40.,
       `frame-3` = 55.,
@@ -333,13 +315,11 @@ let dark =
       `surface-4` = 26.
     )
   ) in
-  theme_of(p, dark_roles(p)) in
+  theme_of(p, dark_roles(p))) in
 
-# ── high contrast ── for accessibility. The role map is light's; only #
-# the seeds and the ramp really differ, so `...` states just the flag #
-let contrast_light =
-  let p = palette_of(
-    ^^fold((
+# ── high contrast ── for accessibility ── #
+let contrast_light = ^^fold(let p = palette_of(
+    (
       `none` = Transparent,
       `code-background` = ^^color(Oklch(100., 0., 90.)),
       `ink` = ^^color(Oklch(0., 0., 220.)),
@@ -375,7 +355,7 @@ let contrast_light =
       `probe-timeline` = ^^color(Oklch(90., 0.06, 177.90838)),
       `statics-background` = ^^color(Oklch(96., 0.04, 315.29055)),
       `statics-edge` = ^^color(Oklch(25., 0.12, 314.00959))
-    )),
+    ),
     (
       `frame-2` = 25.,
       `frame-3` = 15.,
@@ -385,14 +365,11 @@ let contrast_light =
       `surface-4` = 91.
     )
   ) in
-  theme_of(p, light_roles(p) ... (`contrast` = true)) in
+  theme_of(p, light_roles(p) ... (`contrast` = true))) in
 
-# ── high contrast, dark ── the pushes INVERT: text toward white and #
-# more chroma, page surfaces toward black; projector fills keep dark's #
-# polarity (lighter fill, darker edge) and only widen. #
-let contrast_dark =
-  let p = palette_of(
-    ^^fold((
+# ── high contrast, dark ── #
+let contrast_dark = ^^fold(let p = palette_of(
+    (
       `none` = Transparent,
       `code-background` = ^^color(Oklch(12., 0., 240.)),
       `ink` = ^^color(Oklch(100., 0., 250.)),
@@ -428,7 +405,7 @@ let contrast_dark =
       `probe-timeline` = ^^color(Oklch(57., 0.08, 283.45785)),
       `statics-background` = ^^color(Oklch(32., 0.06, 290.34169)),
       `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116))
-    )),
+    ),
     (
       `frame-2` = 75.,
       `frame-3` = 85.,
@@ -445,10 +422,8 @@ let contrast_dark =
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
     `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.)
-  )) in
+  ))) in
 
-# the program branches HERE and nowhere else: each flag is read once, #
-# so a scheme costs one line and not one test per colour. #
 case (dark_mode, high_contrast)
 | (false, false) => light
 | (false, true) => contrast_light
