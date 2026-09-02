@@ -13,6 +13,9 @@ type t = Base.segment;
 /* ~mold_sorts=false is the canonical quotient (see the sort-quotient
    decision in plans/completion-provenance.md): form identity is
    derived, spelling is retained. */
+/* TEST-ONLY quotient (no src consumers): equivalence modulo grout,
+ * used by the roundtrip fuzzer and print tests to compare parses.
+ * Lives here because it is Segment structure through and through. */
 let rec equiv_mod_grout = (~mold_sorts=true, a: t, b: t): bool => {
   let strip =
     List.filter((p: Piece.t) =>
@@ -1188,6 +1191,101 @@ let unparenthesize = (seg: t): t =>
   | [piece] => Piece.unparenthesize(piece)
   | _ => seg
   };
+
+/* Split the leading run of space secondaries (not linebreaks) */
+let split_space_run = (seg: t): (list(Piece.t), t) => {
+  let rec go = (acc, seg: t) =>
+    switch (seg) {
+    | [p, ...rest] when Piece.is_space(p) => go([p, ...acc], rest)
+    | _ => (List.rev(acc), seg)
+    };
+  go([], seg);
+};
+
+/* Deep search for the piece with the given id: its containing segment,
+   its index within that segment, and the piece itself */
+let rec find_ctx = (seg: t, id: Id.t): option((t, int, Piece.t)) => {
+  let rec go = (i, ps: t): option((t, int, Piece.t)) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...rest] =>
+      if (Id.equal(Piece.id(p), id)) {
+        Some((seg, i, p));
+      } else {
+        let deeper =
+          switch ((p: Piece.t)) {
+          | Tile(t) =>
+            List.fold_left(
+              (acc, ch) =>
+                switch (acc) {
+                | Some(_) => acc
+                | None => find_ctx(ch, id)
+                },
+              None,
+              t.children,
+            )
+          | _ => None
+          };
+        switch (deeper) {
+        | Some(r) => Some(r)
+        | None => go(i + 1, rest)
+        };
+      }
+    };
+  go(0, seg);
+};
+
+/* Apply a segment-level transform top-down, recursing into the tile
+   children of the transformed result */
+let rec map_deep = (f: t => t, seg: t): t =>
+  f(seg)
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Piece.Tile({
+           ...t,
+           children: List.map(map_deep(f), t.children),
+         })
+       | p => p
+       }
+     );
+
+/* what a positional scan may step over — the choice is load-bearing */
+let skip_space = (p: Piece.t): bool => Piece.is_space(p);
+let skip_secondary = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(_) => true
+  | _ => false
+  };
+let skip_secondary_and_grout = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(_)
+  | Grout(_) => true
+  | _ => false
+  };
+
+/* First non-skipped piece at index >= i */
+let next_content =
+    (~skip: Piece.t => bool, seg: t, i: int): option((int, Piece.t)) => {
+  let rec go = (j, ps: t) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...rest] => j < i || skip(p) ? go(j + 1, rest) : Some((j, p))
+    };
+  go(0, seg);
+};
+
+/* Last non-skipped piece at index < i */
+let prev_content =
+    (~skip: Piece.t => bool, seg: t, i: int): option((int, Piece.t)) => {
+  let rec go = (j, best, ps: t) =>
+    switch (ps) {
+    | [] => best
+    | [p, ...rest] =>
+      j >= i ? best : go(j + 1, skip(p) ? best : Some((j, p)), rest)
+    };
+  go(0, None, seg);
+};
 
 let rec take_while_secondary = (seg: t): (t, t) =>
   switch (seg) {

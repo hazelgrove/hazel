@@ -90,6 +90,17 @@ type insertion = {
   delimiters: list(delimiter_info) /* The delimiter tokens with hole info */
 };
 
+/* The point an insertion's viz anchors at: the end of its adjacent
+   piece on the anchored side */
+let anchor_point = (measured: Measured.t, ins: insertion): option(Point.t) =>
+  Measured.find_by_id(ins.adjacent_id, measured)
+  |> Option.map((m: Measured.measurement) =>
+       switch (ins.side) {
+       | Right => m.last
+       | Left => m.origin
+       }
+     );
+
 /* Result of completing a segment */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion_result = {
@@ -226,22 +237,6 @@ let rec operand_to_left = (seg: Segment.t, j: int): bool =>
  * can only be a broken `->`; label-precedence molds don't block. The
  * tile independently EXPECTS the delimiter; the token only witnesses
  * WHERE. */
-let is_symbolic_token = (tok: Token.t): bool => {
-  let n = String.length(tok);
-  let rec go = k =>
-    k >= n
-    || (
-      switch (tok.[k]) {
-      | 'a' .. 'z'
-      | 'A' .. 'Z'
-      | '0' .. '9'
-      | '_' => false
-      | _ => go(k + 1)
-      }
-    );
-  n > 0 && go(0);
-};
-
 let is_prefix_witness =
     (~slot: Sort.t, ~operand_left: bool, p: Piece.t, shard_text: Token.t)
     : bool =>
@@ -251,7 +246,7 @@ let is_prefix_witness =
     && String.sub(shard_text, 0, Token.length(tok)) == tok
     && (
       Piece.is_infix_delimiter_op_prefix(p)
-      || is_symbolic_token(tok)
+      || Token.is_symbolic(tok)
       && !
            List.exists(
              (m: Mold.t) =>
@@ -315,12 +310,12 @@ let middle_split_plan =
       ) => {
   let lo = Tile.l_shard(t);
   let hi = Tile.r_shard(t);
+  /* lo/hi are always present, so interior = all missing within (lo, hi) */
   let missing =
-    List.init(max(hi - lo + 1, 0), i => lo + i)
-    |> List.filter(i => !List.mem(i, t.shards));
+    Tile.missing_shard_indices(t) |> List.filter(i => lo < i && i < hi);
   switch (missing) {
   | [m] when m > lo && m < hi =>
-    let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
+    let k = Tile.child_index_before(t, m);
     switch (List.nth_opt(t.children, k)) {
     | None => None
     | Some(child) =>
@@ -739,21 +734,13 @@ let opener_schedule =
            Accepted trade (pinned in tests): whole-form deletion where
            the slot held a multihole CONTAINING a var named like the
            prefix eats the var. */
-        let corroborated = (j: int) => {
-          let rec next_content = k =>
-            k >= idx
-              ? None
-              : (
-                switch (List.nth(subseg, k)) {
-                | Piece.Secondary(_) => next_content(k + 1)
-                | pc => Some(pc)
-                }
-              );
-          switch (next_content(j + 1)) {
-          | Some(Piece.Grout(_)) => true
+        let corroborated = (j: int) =>
+          switch (
+            Segment.next_content(~skip=Segment.skip_secondary, subseg, j + 1)
+          ) {
+          | Some((k, Piece.Grout(_))) when k < idx => true
           | _ => false
           };
-        };
         let matches =
           candidates
           |> List.filter_map(((j, pc)) =>
@@ -926,8 +913,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
        let hi = Tile.r_shard(t);
        let plan = middle_split_plan(t);
        let interior =
-         List.init(hi - lo + 1, i => lo + i)
-         |> List.filter(i => !List.mem(i, t.shards));
+         Tile.missing_shard_indices(t) |> List.filter(i => lo < i && i < hi);
        interior
        |> List.filter_map(m => {
             switch (plan) {
@@ -970,7 +956,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                    }
                  );
             | _ =>
-              let k = List.length(List.filter(sh => sh < m, t.shards)) - 1;
+              let k = Tile.child_index_before(t, m);
               switch (List.nth_opt(t.children, k)) {
               | Some(child) =>
                 ListUtil.last_opt(child)
@@ -994,15 +980,8 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
           });
      });
 
-let count_leading_spaces = (seg: Segment.t): int => {
-  let rec count = (seg, n) =>
-    switch (seg) {
-    | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
-      count(rest, n + 1)
-    | _ => n
-    };
-  count(seg, 0);
-};
+let count_leading_spaces = (seg: Segment.t): int =>
+  List.length(fst(Segment.split_space_run(seg)));
 
 /* Single-pass partitioning; returns (subsegment, its incomplete tiles)
  * pairs. Splits (only after an incomplete tile) on: (1) a blank line
@@ -1020,13 +999,9 @@ let count_leading_spaces = (seg: Segment.t): int => {
    this partition still expects (`en` under a case missing its end,
    `els` under an if missing its else) continues the partition. */
 let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool => {
-  let rec first_content = (sg: Segment.t) =>
-    switch (sg) {
-    | [Piece.Secondary(s), ...tl] when Secondary.is_space(s) =>
-      first_content(tl)
-    | [p, ..._] => Some(p)
-    | [] => None
-    };
+  /* skips spaces only: a linebreak IS the line's first content here */
+  let first_content = (sg: Segment.t) =>
+    Segment.next_content(~skip=Segment.skip_space, sg, 0) |> Option.map(snd);
   switch (first_content(rest)) {
   | Some(Tile(t)) when t.mold.out == Sort.Rul => true
   /* (c) a line opening with a concave-LEFT piece — an infix or
@@ -1045,9 +1020,7 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
     incomplete_acc
     |> List.exists((it: Tile.t) => {
          let missing =
-           List.init(List.length(it.label), i => i)
-           |> List.filter(i => !List.mem(i, it.shards))
-           |> List.map(List.nth(it.label));
+           Tile.missing_shard_indices(it) |> List.map(List.nth(it.label));
          missing
          |> List.exists(dt =>
               Token.length(tok) < Token.length(dt)
@@ -1755,39 +1728,16 @@ let verify_holes =
     : list(insertion) => {
   let input_ids = Segment.ids(input);
   let fresh = id => !List.exists(Id.equal(id), input_ids);
-  let rec find = (sg: Segment.t, id: Id.t): option((Segment.t, int, Tile.t)) => {
-    let rec go = (i, ps) =>
-      switch (ps) {
-      | [] => None
-      | [Piece.Tile(t), ...rest] =>
-        if (Id.equal(t.id, id)) {
-          Some((sg, i, t));
-        } else {
-          let in_children =
-            List.fold_left(
-              (acc, ch) =>
-                switch (acc) {
-                | Some(_) => acc
-                | None => find(ch, id)
-                },
-              None,
-              t.children,
-            );
-          switch (in_children) {
-          | Some(r) => Some(r)
-          | None => go(i + 1, rest)
-          };
-        }
-      | [_, ...rest] => go(i + 1, rest)
-      };
-    go(0, sg);
-  };
-  let rec first_content = (ps: list(Piece.t)) =>
-    switch (ps) {
-    | [] => None
-    | [Piece.Secondary(_), ...rest] => first_content(rest)
-    | [p, ..._] => Some(p)
+  let find = (sg: Segment.t, id: Id.t): option((Segment.t, int, Tile.t)) =>
+    switch (Segment.find_ctx(sg, id)) {
+    | Some((sg, i, Piece.Tile(t))) => Some((sg, i, t))
+    | _ => None
     };
+  /* skips ALL secondary (linebreaks included), unlike the space-only
+     scan in continuation_line */
+  let first_content = (ps: list(Piece.t)) =>
+    Segment.next_content(~skip=Segment.skip_secondary, ps, 0)
+    |> Option.map(snd);
   let hole_after = (tid: Id.t, k: int): bool =>
     switch (find(completed, tid)) {
     | None => false
@@ -2673,14 +2623,7 @@ let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
    gets a leading space when it would jam against an alphanumeric
    left neighbor and a trailing space when wordish. */
 let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
-  let alnum = c =>
-    switch (c) {
-    | 'a' .. 'z'
-    | 'A' .. 'Z'
-    | '0' .. '9'
-    | '_' => true
-    | _ => false
-    };
+  let alnum = Token.is_wordish_char;
   switch (ins.delimiters) {
   | [] => None
   | [d, ..._] =>

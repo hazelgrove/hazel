@@ -371,12 +371,8 @@ let level_of = (~target_id: Id.t, seg: Segment.t): int =>
 /* === Helper functions for user-managed indentation === */
 
 /* Drop leading space pieces from a segment */
-let rec drop_leading_spaces = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
-    drop_leading_spaces(rest)
-  | _ => seg
-  };
+let drop_leading_spaces = (seg: Segment.t): Segment.t =>
+  snd(Segment.split_space_run(seg));
 
 /* Drop trailing space pieces from a segment (spaces at the end, before linebreak) */
 let drop_trailing_spaces = (seg: Segment.t): Segment.t => {
@@ -391,67 +387,63 @@ let drop_trailing_spaces = (seg: Segment.t): Segment.t => {
 
 /* Strip trailing spaces before each linebreak in a segment.
    Also processes tile children recursively. */
-let rec strip_trailing_whitespace = (seg: Segment.t): Segment.t => {
-  let rec go = (acc: Segment.t, seg: Segment.t): Segment.t =>
+let strip_trailing_whitespace = (seg: Segment.t): Segment.t => {
+  let level = (seg: Segment.t): Segment.t => {
+    let rec go = (acc: Segment.t, seg: Segment.t): Segment.t =>
+      switch (seg) {
+      | [] => List.rev(acc)
+      | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
+        /* Before emitting linebreak, strip trailing spaces from accumulated */
+        let acc_stripped = drop_trailing_spaces(List.rev(acc));
+        go([p, ...List.rev(acc_stripped)], rest);
+      | [p, ...rest] => go([p, ...acc], rest)
+      };
+    go([], seg);
+  };
+  Segment.map_deep(level, seg);
+};
+
+/* For each linebreak (recursively), remove following spaces and insert
+   the count the indent map assigns. */
+let fix_leading_indentation =
+    (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t => {
+  let rec level = (seg: Segment.t): Segment.t =>
     switch (seg) {
-    | [] => List.rev(acc)
-    | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
-      /* Before emitting linebreak, strip trailing spaces from accumulated */
-      let acc_stripped = drop_trailing_spaces(List.rev(acc));
-      go([p, ...List.rev(acc_stripped)], rest);
-    | [Piece.Tile(t), ...rest] =>
-      /* Process children recursively */
-      let children = List.map(strip_trailing_whitespace, t.children);
-      go(
-        [
-          Piece.Tile({
-            ...t,
-            children,
-          }),
-          ...acc,
-        ],
-        rest,
-      );
-    | [p, ...rest] => go([p, ...acc], rest)
+    | [] => []
+    | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+      let indent =
+        Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
+      let rest_without_leading_spaces = drop_leading_spaces(rest);
+      let spaces =
+        List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+      [Piece.Secondary(w), ...spaces] @ level(rest_without_leading_spaces);
+    | [p, ...rest] => [p, ...level(rest)]
     };
-  go([], seg);
+  Segment.map_deep(level, seg);
 };
 
 /* Fix indentation in a segment using the provided indent map.
-   For each linebreak, removes following spaces and inserts the
-   correct number based on the indent map.
    Also strips trailing spaces before linebreaks. */
-let rec fix_indentation_in_segment =
-        (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t => {
-  /* First strip trailing whitespace, then fix leading indentation */
-  let seg = strip_trailing_whitespace(seg);
-  fix_leading_indentation(indent_map, seg);
-}
-and fix_leading_indentation =
+let fix_indentation_in_segment =
     (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
-    let indent =
-      Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
-    let rest_without_leading_spaces = drop_leading_spaces(rest);
-    let spaces =
-      List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
-    [Piece.Secondary(w), ...spaces]
-    @ fix_leading_indentation(indent_map, rest_without_leading_spaces);
-  | [Piece.Tile(t), ...rest] =>
-    let children =
-      List.map(fix_indentation_in_segment(indent_map), t.children);
-    [
-      Piece.Tile({
-        ...t,
-        children,
-      }),
-      ...fix_leading_indentation(indent_map, rest),
-    ];
-  | [p, ...rest] => [p, ...fix_leading_indentation(indent_map, rest)]
-  };
+  seg |> strip_trailing_whitespace |> fix_leading_indentation(indent_map);
 
 /* Create space pieces for a given indent level */
 let make_indent_spaces = (indent_level: int): Segment.t =>
   List.init(indent_level, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+
+/* Whole-buffer re-indentation (the Format(Indent) action; also runs
+ * before spacing normalization in Format(Spacing)). Rewrites only the
+ * leading space runs after linebreaks — never linebreaks themselves.
+ * TODO(andrew): once the pretty printer is fixed (it incorporates
+ * level_map but has remaining issues), rip out the Format Action.t in
+ * favor of an indentation-incorporating PrettyPrint as the single
+ * reformat action; related cleanup: the Format/PrettyPrint menu +
+ * keybinding split. */
+let reindent_segment = (seg: Segment.t): Segment.t =>
+  fix_indentation_in_segment(level_map(seg), seg);
+
+let reindent_zipper = (z: Zipper.t): Zipper.t => {
+  let indent_map = level_map(Zipper.unselect_and_zip(z));
+  ZipperBase.MapSegment.go(fix_indentation_in_segment(indent_map), z);
+};

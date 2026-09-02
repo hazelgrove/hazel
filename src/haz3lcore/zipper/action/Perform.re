@@ -190,25 +190,18 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
         };
       drop(2, seg);
     };
-  let rec walk = (seg: Segment.t): Segment.t =>
+  let rec level = (seg: Segment.t): Segment.t =>
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w) as p, ...rest]
         when Secondary.is_linebreak(w) && Id.Set.mem(w.id, affected) => [
         p,
-        ...walk(adjust_run(rest)),
+        ...level(adjust_run(rest)),
       ]
-    | [Piece.Tile(t), ...rest] => [
-        Piece.Tile({
-          ...t,
-          children: List.map(walk, t.children),
-        }),
-        ...walk(rest),
-      ]
-    | [p, ...rest] => [p, ...walk(rest)]
+    | [p, ...rest] => [p, ...level(rest)]
     };
   CaretPreserving.transform(z, seg =>
-    (line0 ? adjust_run(seg) : seg) |> walk
+    (line0 ? adjust_run(seg) : seg) |> Segment.map_deep(level)
   );
 };
 
@@ -277,10 +270,10 @@ let rec go =
        Deletion can COMPLETE a tile (removing junk between split
        shards lets reassembly merge them), so the completion trigger
        applies; ordinary un-settling deletions leave it silent. */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Destruct.go(Local(Left, ByChar), z, ~root)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_destruct);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Destruct.go(Local(Left, ByChar), z, ~root)
+    )
+    |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -338,7 +331,7 @@ let rec go =
   | Format(Spacing) =>
     /* Re-indent, then canonicalize within-line spacing. Linebreaks
        and comments untouched; caret restored as in Format(Pretty). */
-    let z = AutoFormat.zipper(z);
+    let z = Indentation.reindent_zipper(z);
     Some(
       CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
@@ -352,13 +345,9 @@ let rec go =
   | Buffer(a) =>
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    switch (
+    LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
       Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
-    ) {
-    | Ok(z) => Ok(LocalReformat.go(~before, z))
-    | Error(_) as e => e
-    };
+    )
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
@@ -506,7 +495,6 @@ let rec go =
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
     /* see Cut: fires only on completion-by-deletion */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let join =
       switch (d) {
       | Local(Left, ByChar) when settings.indentation_ux =>
@@ -550,43 +538,43 @@ let rec go =
             | `Other => Some(z)
             }
           );
-      del_run(z)
-      |> Option.map(maybe_reassoc)
-      |> Option.map(LocalReformat.go(~before))
+      LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+        del_run(z) |> Option.map(maybe_reassoc)
+      )
       |> return(Cant_destruct);
     | None =>
-      Destruct.go(d, z, ~root)
-      |> Option.map(maybe_reassoc)
-      |> Option.map(LocalReformat.go(~before))
+      LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+        Destruct.go(d, z, ~root) |> Option.map(maybe_reassoc)
+      )
       |> return(Cant_destruct)
     };
   | Insert(char) =>
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
-    |> Option.map(maybe_reassoc)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_insert);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      z
+      |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
+      |> Option.map(maybe_reassoc)
+    )
+    |> return(Cant_insert)
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | Put_down =>
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Zipper.put_down(z, ~root)
-    |> Option.map(space_put_down_boundary)
-    |> Option.map(maybe_reassoc)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_put_down);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Zipper.put_down(z, ~root)
+      |> Option.map(space_put_down_boundary)
+      |> Option.map(maybe_reassoc)
+    )
+    |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Format(Indent) => Ok(AutoFormat.zipper(z))
+  | Format(Indent) => Ok(Indentation.reindent_zipper(z))
   | ToggleLineComment =>
     /* uncommenting can restore delimiters that complete enclosing
        forms; the comment-out direction leaves the trigger silent */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Comment.go(z, ~root)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_destruct);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Comment.go(z, ~root)
+    )
+    |> return(Cant_destruct)
   | Structural(a) =>
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */

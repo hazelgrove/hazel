@@ -16,24 +16,12 @@
 let tight_after = ["(", "[", "^^", "@<", "."];
 let tight_before = [")", "]", ",", ";", ">", "."];
 
-let is_wordish = (t: Token.t): bool =>
-  Token.length(t) > 0
-  && (
-    switch (t.[0]) {
-    | 'a' .. 'z'
-    | 'A' .. 'Z'
-    | '0' .. '9'
-    | '_' => true
-    | _ => false
-    }
-  );
-
 /* Self-delimiting punctuation: adjacency without spacing is normal in
  * user code (`(a)(b)`, `f(x)`), so never treat it as synthesized */
 let self_delim = ["(", ")", "[", "]", ",", ";", "{", "}"];
 
 let is_symbolic = (t: Token.t): bool =>
-  !is_wordish(t) && !List.mem(t, self_delim);
+  !Token.is_wordish(t) && !List.mem(t, self_delim);
 
 /* Tokens that always deserve surrounding space when synthesized next
  * to something (keyword forms, rule delimiters) */
@@ -111,7 +99,7 @@ let needs_space = (prev: Token.t, next: Token.t): bool =>
     false;
   } else if (spaced(prev) || spaced(next)) {
     true;
-  } else if (is_wordish(prev) && is_wordish(next)) {
+  } else if (Token.is_wordish(prev) && Token.is_wordish(next)) {
     true;
         /* would lex as one token */
   } else if (is_symbolic(prev) && is_symbolic(next)) {
@@ -122,16 +110,6 @@ let needs_space = (prev: Token.t, next: Token.t): bool =>
   };
 
 let space = () => Piece.secondary(Secondary.mk_space(Id.mk()));
-
-/* Maximal prefix of space pieces (no linebreaks, no comments) */
-let split_space_run = (seg: Segment.t): (Segment.t, Segment.t) => {
-  let rec loop = (acc, seg) =>
-    switch (seg) {
-    | [p, ...rest] when Piece.is_space(p) => loop([p, ...acc], rest)
-    | _ => (List.rev(acc), seg)
-    };
-  loop([], seg);
-};
 
 /* Last/first token of a piece, textually */
 let last_token = (p: Piece.t): option(Token.t) =>
@@ -162,7 +140,8 @@ let rec go = (~canonicalize=false, seg: Segment.t): Segment.t =>
   | [p] => [normalize_piece(~canonicalize, p)]
   | [p1, ...rest] =>
     let p1 = normalize_piece(~canonicalize, p1);
-    let (run, rest) = canonicalize ? split_space_run(rest) : ([], rest);
+    let (run, rest) =
+      canonicalize ? Segment.split_space_run(rest) : ([], rest);
     switch (last_token(p1), rest) {
     | (Some(a), [p2, ..._]) =>
       switch (first_token(p2)) {
@@ -204,7 +183,7 @@ and normalize_piece = (~canonicalize=false, p: Piece.t): Piece.t =>
            let child =
              if (canonicalize) {
                /* collapse a leading space run against the left shard */
-               switch (split_space_run(child), left) {
+               switch (Segment.split_space_run(child), left) {
                | (([_, ..._], [Piece.Tile(_) as hd, ...tl]), Some(l)) =>
                  switch (first_token(hd)) {
                  | Some(b) =>
@@ -228,7 +207,7 @@ and normalize_piece = (~canonicalize=false, p: Piece.t): Piece.t =>
            let child =
              if (canonicalize) {
                /* collapse a trailing space run against the right shard */
-               switch (split_space_run(List.rev(child)), right) {
+               switch (Segment.split_space_run(List.rev(child)), right) {
                | (
                    ([_, ..._], [Piece.Tile(_) as lastp, ...revrest]),
                    Some(r),

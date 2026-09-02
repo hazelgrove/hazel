@@ -85,12 +85,20 @@ let right_missing_shards = (t: t): list(t) =>
   List.init(List.length(t.label) - r_shard(t) - 1, i => r_shard(t) + i + 1)
   |> split_shards(t.id, t.label, t.mold);
 
-let missing_shards = (t: t): list(t) =>
+/* Label indices not covered by this tile's shards */
+let missing_shard_indices = (t: t): list(int) =>
   List.filter(
     i => !List.mem(i, t.shards),
     List.init(List.length(t.label), Fun.id),
-  )
-  |> split_shards(t.id, t.label, t.mold);
+  );
+
+let missing_shards = (t: t): list(t) =>
+  missing_shard_indices(t) |> split_shards(t.id, t.label, t.mold);
+
+/* Index into t.children of the child preceding missing shard m
+   (count of present shards < m, minus 1) */
+let child_index_before = (t: t, m: int): int =>
+  List.length(List.filter(sh => sh < m, t.shards)) - 1;
 
 let effective_label = (t: t): list(string) =>
   List.map(List.nth(t.label), t.shards);

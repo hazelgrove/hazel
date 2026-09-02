@@ -171,10 +171,6 @@ let kids_of_unsorted =
 // not just the ones recognized in Statics.
 // TODO unhack
 let map: ref(TermMap.t) = ref(Id.Map.empty);
-let return = (wrap, ids, tm) => {
-  map := TermMap.add_all(ids, wrap(tm), map^);
-  tm;
-};
 
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
 let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
@@ -207,8 +203,11 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
 
 /* Shard provenance from canonical completion: tile id -> shard mask
  * (physically present indices + partially-typed prefixes). Empty
- * unless parsing a canonically completed segment (see go_impl /
- * from_zip_for_sem). */
+ * unless parsing a canonically completed segment. OWNERSHIP: only
+ * go_impl / from_zip_for_sem may write it (set before the descent,
+ * reset after); everything else reads via get_incomplete. Not
+ * exception-safe: a raise mid-descent leaks the mask into the next
+ * parse, like the file's other accumulator refs. */
 let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
   ref(Id.Map.empty);
 
@@ -234,6 +233,24 @@ let take_lexeme = (): option(string) => {
   let l = pending_lexeme^;
   pending_lexeme := None;
   l;
+};
+
+/* Register the wrapped term under every id and build its annotation
+ * from those same ids (present-shard masks, outer secondary, optional
+ * surface lexeme). Callers take_lexeme() BEFORE calling, never inside:
+ * exp's Drv-reparse branch relies on the top-of-exp take to discard a
+ * lexeme set by a discarded unknown-op parse. */
+let return = (wrap, ~lexeme=None, ids, term) => {
+  let tm =
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ~lexeme,
+      ids,
+      get_secondary(ids),
+      term,
+    );
+  map := TermMap.add_all(ids, wrap(tm), map^);
+  tm;
 };
 
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
@@ -415,19 +432,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
 and drv_exp = unsorted => {
   let (term, inner_ids) = drv_exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(
-    e => Drv(Exp(e)),
-    ids,
-    {
-      annotation:
-        IdTagged.IdTag.mk(
-          ~incomplete=get_incomplete(ids),
-          ids,
-          get_secondary(ids),
-        ),
-      term,
-    },
-  );
+  return(e => Drv(Exp(e)), ids, term);
 }
 and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   let ret = (tm: Drv.Exp.term) => (tm, []);
@@ -556,19 +561,7 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
 and drv_pat = unsorted => {
   let (term, inner_ids) = drv_pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(
-    p => Drv(Pat(p)),
-    ids,
-    {
-      annotation:
-        IdTagged.IdTag.mk(
-          ~incomplete=get_incomplete(ids),
-          ids,
-          get_secondary(ids),
-        ),
-      term,
-    },
-  );
+  return(p => Drv(Pat(p)), ids, term);
 }
 and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
   let ret = (tm: Drv.Pat.term) => (tm, []);
@@ -604,19 +597,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
 and drv_typ = unsorted => {
   let (term, inner_ids) = drv_typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(
-    ty => Drv(Typ(ty)),
-    ids,
-    {
-      annotation:
-        IdTagged.IdTag.mk(
-          ~incomplete=get_incomplete(ids),
-          ids,
-          get_secondary(ids),
-        ),
-      term,
-    },
-  );
+  return(ty => Drv(Typ(ty)), ids, term);
 }
 and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
   let ret = (tm: Drv.Typ.term) => (tm, []);
@@ -657,19 +638,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
 and drv_tpat = unsorted => {
   let (term, inner_ids) = drv_tpat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(
-    tpat => Drv(TPat(tpat)),
-    ids,
-    {
-      annotation:
-        IdTagged.IdTag.mk(
-          ~incomplete=get_incomplete(ids),
-          ids,
-          get_secondary(ids),
-        ),
-      term,
-    },
-  );
+  return(tpat => Drv(TPat(tpat)), ids, term);
 }
 and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   let ret = (tm: Drv.TPat.term) => (tm, []);
@@ -698,32 +667,11 @@ and exp = unsorted => {
   | MultiHole([Drv(_), ..._]) =>
     let (term, inner_ids) = drv_exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
-    let exp =
-      return(
-        e => Drv(Exp(e)),
-        ids,
-        IdTagged.mk(
-          ~incomplete=get_incomplete(ids),
-          ids,
-          get_secondary(ids),
-          term,
-        ),
-      );
+    let exp = return(e => Drv(Exp(e)), ids, term);
     Grammar.DrvQuote(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
-    let e: TermBase.exp_t =
-      return(
-        e => Exp(e),
-        ids,
-        IdTagged.mk(
-          ~incomplete=get_incomplete(ids),
-          ~lexeme,
-          ids,
-          get_secondary(ids),
-          term,
-        ),
-      );
+    let e: TermBase.exp_t = return(e => Exp(e), ~lexeme, ids, term);
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
@@ -784,23 +732,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* Cross-sort parens (orphan-closer completion): the kid parses
            at the tile's sort, not Exp; hole() would drop the tile and
            strand its shard mask. */
-        ret(
-          Parens({
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Exp.hole([kid]),
-          }),
-        )
+        ret(Parens(IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [kid]) when !is_exp_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(
-          ListLit([
-            {
-              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-              term: Exp.hole([kid]),
-            },
-          ]),
-        )
+        ret(ListLit([IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))]))
       | (["[", "]"], [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1137,18 +1073,7 @@ and pat = unsorted => {
   let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
 
-  let p =
-    return(
-      p => Pat(p),
-      ids,
-      IdTagged.mk(
-        ~incomplete=get_incomplete(ids),
-        ~lexeme,
-        ids,
-        get_secondary(ids),
-        term,
-      ),
-    );
+  let p = return(p => Pat(p), ~lexeme, ids, term);
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -1186,23 +1111,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | (["(", ")"], [Pat(body)]) => ret(Parens(body))
       | (["(", ")"], [kid]) =>
         /* Cross-sort parens (see the exp case) */
-        ret(
-          Parens({
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Pat.hole([kid]),
-          }),
-        )
+        ret(Parens(IdTagged.mk_internal([Id.mk()], Pat.hole([kid]))))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
       | (["[", "]"], [kid]) when !is_pat_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(
-          ListLit([
-            {
-              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-              term: Pat.hole([kid]),
-            },
-          ]),
-        )
+        ret(ListLit([IdTagged.mk_internal([Id.mk()], Pat.hole([kid]))]))
       | (["[", "]"], [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1365,18 +1278,7 @@ and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
-  let t =
-    return(
-      ty => Typ(ty),
-      ids,
-      IdTagged.mk(
-        ~incomplete=get_incomplete(ids),
-        ~lexeme,
-        ids,
-        get_secondary(ids),
-        term,
-      ),
-    );
+  let t = return(ty => Typ(ty), ~lexeme, ids, term);
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -1430,18 +1332,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["(", ")"], [kid]) =>
           /* Cross-sort parens (see the exp case) */
-          Parens({
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Typ.hole([kid]),
-          })
+          Parens(IdTagged.mk_internal([Id.mk()], Typ.hole([kid])))
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | (["[", "]"], [kid]) =>
           /* Cross-sort list brackets (see the cross-sort parens case) */
-          List({
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Typ.hole([kid]),
-          })
+          List(IdTagged.mk_internal([Id.mk()], Typ.hole([kid])))
         | ([t], []) when is_hole_label(t) =>
           set_lexeme(t);
           hole(tm);
@@ -1464,19 +1360,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       let t =
         switch (l) {
         | Typ(t) => t
-        | _ => {
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Typ.hole([l]),
-          }
+        | _ => IdTagged.mk_internal([Id.mk()], Typ.hole([l]))
         };
 
       let arg =
         switch (kid) {
         | Typ(arg) => arg
-        | _ => {
-            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
-            term: Typ.hole([kid]),
-          }
+        | _ => IdTagged.mk_internal([Id.mk()], Typ.hole([kid]))
         };
       ret(
         Unknown(
@@ -1596,17 +1486,7 @@ and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(
-    ty => TPat(ty),
-    ids,
-    IdTagged.mk(
-      ~incomplete=get_incomplete(ids),
-      ~lexeme,
-      ids,
-      get_secondary(ids),
-      term,
-    ),
-  );
+  return(ty => TPat(ty), ~lexeme, ids, term);
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -1636,17 +1516,7 @@ and mod_ = unsorted => {
   let term = mod_term(unsorted);
   let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(
-    m => Mod(m),
-    ids,
-    IdTagged.mk(
-      ~incomplete=get_incomplete(ids),
-      ~lexeme,
-      ids,
-      get_secondary(ids),
-      term,
-    ),
-  );
+  return(m => Mod(m), ~lexeme, ids, term);
 }
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
@@ -1702,17 +1572,7 @@ and sig_ = unsorted => {
   let term = sig_term(unsorted);
   let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(
-    s => Sig(s),
-    ids,
-    IdTagged.mk(
-      ~incomplete=get_incomplete(ids),
-      ~lexeme,
-      ids,
-      get_secondary(ids),
-      term,
-    ),
-  );
+  return(s => Sig(s), ~lexeme, ids, term);
 }
 and sig_term: unsorted => TermBase.Sig.term = {
   let ret = (term: TermBase.Sig.term) => term;
@@ -1753,17 +1613,7 @@ and mpat = unsorted => {
   let term = mpat_term(unsorted);
   let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(
-    mp => MPat(mp),
-    ids,
-    IdTagged.mk(
-      ~incomplete=get_incomplete(ids),
-      ~lexeme,
-      ids,
-      get_secondary(ids),
-      term,
-    ),
-  );
+  return(mp => MPat(mp), ~lexeme, ids, term);
 }
 and mpat_term: unsorted => TermBase.MPat.term = {
   let ret = (term: TermBase.MPat.term) => term;

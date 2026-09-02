@@ -426,14 +426,9 @@ let completion_clip =
         switch (List.find_opt(has_shard, result.insertions)) {
         | None => None
         | Some(ins) =>
-          switch (Measured.find_by_id(ins.adjacent_id, syntax.measured)) {
+          switch (CanonicalCompletion.anchor_point(syntax.measured, ins)) {
           | None => None
-          | Some(m) =>
-            let p =
-              switch (ins.side) {
-              | Right => m.last
-              | Left => m.origin
-              };
+          | Some(p) =>
             /* the viz anchor walks left past same-tile pieces, so it
                can sit before the tile's own shards; the extent never
                shrinks inside the tile's present material */

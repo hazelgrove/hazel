@@ -48,39 +48,6 @@ let matches_droppable =
        )
   };
 
-/* Find a piece by id along with its containing segment and index */
-let rec find_piece_ctx =
-        (sg: Segment.t, id: Id.t): option((Segment.t, int, Piece.t)) => {
-  let rec go = (i, ps): option((Segment.t, int, Piece.t)) =>
-    switch (ps) {
-    | [] => None
-    | [p, ...rest] =>
-      if (Id.equal(Piece.id(p), id)) {
-        Some((sg, i, p));
-      } else {
-        let deeper =
-          switch ((p: Piece.t)) {
-          | Tile(t) =>
-            List.fold_left(
-              (acc, ch) =>
-                switch (acc) {
-                | Some(_) => acc
-                | None => find_piece_ctx(ch, id)
-                },
-              None,
-              t.children,
-            )
-          | _ => None
-          };
-        switch (deeper) {
-        | Some(r) => Some(r)
-        | None => go(i + 1, rest)
-        };
-      }
-    };
-  go(0, sg);
-};
-
 /* Coincidence-first placement: a pin's position within its
    inter-content whitespace region (linebreaks included) is
    semantically free, so it FOLLOWS the caret inside that zone and
@@ -94,22 +61,13 @@ let resolve_position =
       ins: CanonicalCompletion.insertion,
     )
     : option(positioned_insertion) =>
-  switch (Measured.find_by_id(ins.adjacent_id, measured)) {
+  switch (CanonicalCompletion.anchor_point(measured, ins)) {
   | None => None
-  | Some(m) =>
-    let (row, col) =
-      switch (ins.side) {
-      | Right => (m.last.row, m.last.col)
-      | Left => (m.origin.row, m.origin.col)
-      };
-    let is_free = (p: Piece.t) =>
-      switch (p) {
-      | Grout(_)
-      | Secondary(_) => true
-      | _ => false
-      };
+  | Some(anchor) =>
+    let (row, col) = (anchor.row, anchor.col);
+    let is_free = Segment.skip_secondary_and_grout;
     let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
-    switch (find_piece_ctx(seg, ins.adjacent_id)) {
+    switch (Segment.find_ctx(seg, ins.adjacent_id)) {
     | None =>
       Some({
         idx,
@@ -119,25 +77,10 @@ let resolve_position =
         delimiters: ins.delimiters,
       })
     | Some((sg, i, p)) =>
-      let rec prev_content = (j: int): option(Piece.t) =>
-        j <= 0
-          ? None
-          : (
-            switch (List.nth(sg, j - 1)) {
-            | q when is_free(q) => prev_content(j - 1)
-            | q => Some(q)
-            }
-          );
-      let n = List.length(sg);
-      let rec next_content = (j: int): option(Piece.t) =>
-        j >= n
-          ? None
-          : (
-            switch (List.nth(sg, j)) {
-            | q when is_free(q) => next_content(j + 1)
-            | q => Some(q)
-            }
-          );
+      let prev_content = (j: int): option(Piece.t) =>
+        Segment.prev_content(~skip=is_free, sg, j) |> Option.map(snd);
+      let next_content = (j: int): option(Piece.t) =>
+        Segment.next_content(~skip=is_free, sg, j) |> Option.map(snd);
       let measure_last = (q: Piece.t) =>
         Measured.find_by_id(Piece.id(q), measured)
         |> Option.map((qm: Measured.measurement) =>

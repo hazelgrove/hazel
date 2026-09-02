@@ -26,20 +26,14 @@ type positioned_insertion = {
 let resolve_position =
     (measured: Measured.t, ins: CanonicalCompletion.insertion)
     : option(positioned_insertion) =>
-  switch (Measured.find_by_id(ins.adjacent_id, measured)) {
-  | None => None
-  | Some(m) =>
-    let (row, col) =
-      switch (ins.side) {
-      | Right => (m.last.row, m.last.col)
-      | Left => (m.origin.row, m.origin.col)
-      };
-    Some({
-      row,
-      col,
-      delimiters: ins.delimiters,
-    });
-  };
+  CanonicalCompletion.anchor_point(measured, ins)
+  |> Option.map((anchor: Point.t) =>
+       {
+         row: anchor.row,
+         col: anchor.col,
+         delimiters: ins.delimiters,
+       }
+     );
 
 /* Compute display text for delimiters with their holes */
 let format_delimiters =
