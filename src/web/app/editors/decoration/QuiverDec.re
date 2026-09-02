@@ -14,8 +14,12 @@ open Haz3lcore;
 open Util;
 
 /* An insertion with its resolved position; shape = the caret shape
-   at the pin (the pole is a ghost caret). */
+   at the pin (the pole is a ghost caret). idx = the record's index in
+   the engine's insertion list, which is landing-site order in the
+   COMPLETED program (the order tab applies) - display decisions that
+   need an order between chips use it, never pixel positions. */
 type positioned_insertion = {
+  idx: int,
   row: int,
   col: int,
   shape: option(Util.Direction.t),
@@ -86,6 +90,7 @@ let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
    RESTS at the engine's spot otherwise. */
 let resolve_position =
     (
+      ~idx: int,
       ~seg: Segment.t,
       ~caret_pos: option((int, int)),
       measured: Measured.t,
@@ -110,6 +115,7 @@ let resolve_position =
     switch (find_piece_ctx(seg, ins.adjacent_id)) {
     | None =>
       Some({
+        idx,
         row,
         col,
         shape: None,
@@ -191,6 +197,7 @@ let resolve_position =
         };
       };
       Some({
+        idx,
         row,
         col,
         shape,
@@ -359,8 +366,15 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Overlapping same-row chips coalesce into the earlier one — only
-   the first position survives its own application anyway. */
+/* Overlapping same-row chips coalesce into ONE bubble. Overlap is
+   judged left-to-right on pin positions (chips arrive sorted), but
+   the merged bubble is DRAWN at the engine-first member's pin - the
+   next-applied delimiter's position, the only one that survives its
+   own application - with delimiters in engine order (landing-site
+   order in the completed program, the order tab applies). Pixel
+   order must never decide bubble text: a wandering pin would flip it
+   (typing the = of => made the end chip's pin rest BEHIND the typed
+   prefix and the bubble read "end =>"). */
 let coalesce_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
     : list(positioned_insertion) => {
@@ -368,28 +382,47 @@ let coalesce_overlaps =
     float_of_int(delimiters_len(c.delimiters) + 2)
     *. font_metrics.col_width
     *. chip_font_scale;
+  /* groups carry (geometry rep, members): the rep keeps today's
+     leftmost-anchored extent for overlap scanning; members finalize
+     into the drawn bubble */
   let rec go = (acc, rest) =>
     switch (acc, rest) {
     | (_, []) => List.rev(acc)
-    | ([], [c, ...tl]) => go([c], tl)
-    | ([prev, ...acc_tl], [c, ...tl]) =>
+    | ([], [c, ...tl]) => go([(c, [c])], tl)
+    | ([(prev, members), ...acc_tl], [c, ...tl]) =>
       let prev_right =
         float_of_int(prev.col) *. font_metrics.col_width +. chip_w(prev);
       let c_left = float_of_int(c.col) *. font_metrics.col_width;
       prev.row == c.row && c_left < prev_right +. 4.
         ? go(
             [
-              {
-                ...prev,
-                delimiters: prev.delimiters @ c.delimiters,
-              },
+              (
+                {
+                  ...prev,
+                  delimiters: prev.delimiters @ c.delimiters,
+                },
+                [c, ...members],
+              ),
               ...acc_tl,
             ],
             tl,
           )
-        : go([c, ...acc], tl);
+        : go([(c, [c]), ...acc], tl);
     };
-  go([], chips);
+  go([], chips)
+  |> List.map(((_, members)) => {
+       let members =
+         List.sort(
+           (a: positioned_insertion, b: positioned_insertion) =>
+             Int.compare(a.idx, b.idx),
+           members,
+         );
+       let head = List.hd(members);
+       {
+         ...head,
+         delimiters: List.concat_map(m => m.delimiters, members),
+       };
+     });
 };
 
 /* Main view function: renders quiver decorations for a segment */
@@ -426,10 +459,11 @@ let view =
     div([]);
   } else {
     let positioned =
-      List.filter_map(
-        resolve_position(~seg, ~caret_pos, measured),
-        insertions,
-      );
+      insertions
+      |> List.mapi((idx, ins) =>
+           resolve_position(~idx, ~seg, ~caret_pos, measured, ins)
+         )
+      |> List.filter_map(x => x);
     let sorted =
       List.sort(
         (a, b) => {
