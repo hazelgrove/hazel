@@ -1,69 +1,26 @@
-# ══ Colour scheme ═══════════════════════════════════════════════════ #
-# The light seeds are open below; everything else is folded (⋱).      #
-# Double-click a fold to open it.                                      #
-#                                                                     #
-# The whole program is four definitions and a switch:                  #
-#                                                                     #
-#   palette_of   seeds + ramp lightnesses -> every derived colour      #
-#   theme_of     colours + role overrides -> the theme the app reads   #
-#   light / dark / contrast_light / contrast_dark                      #
-#                            four schemes, each built by those two     #
-#   last line    picks one, per (dark_mode, high_contrast)              #
-#                                                                     #
-# All four schemes run through the SAME two functions, so derivation   #
-# -- how frame-2 comes off frame-1, how pattern comes off type, which  #
-# colour each role gets -- is written once and cannot drift. Only      #
-# three things differ per scheme: the seeds, six ramp lightnesses,     #
-# and the handful of roles that point somewhere else in the dark       #
-# schemes. The two flags COMPOSE: high contrast has a dark variant.    #
+# ══ Colour scheme ══ Double-click a fold (⋱) to open it. ══ #
+# Design notes: src/web/www/style/README.md #
+#   palette_of  seeds + ramp lightnesses -> every derived colour #
+#   theme_of    palette + role overrides -> the theme the app reads #
+#   four schemes, then one case on (dark_mode, high_contrast) #
+# The flags COMPOSE, and all four schemes share those two functions, so #
+# each derivation is written once. ColorSeeds / ColorRamp / #
+# ColorOverrides / ColorScheme are builtin: a field a scheme misspells #
+# or omits is reported on that record. #
 
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
 
-# ── Seeds and ramp lightnesses become colours ───────────────────────── #
-let palette_of = fun (seed, step) ->
-  # PAT is needed twice (TPAT aliases it) and a tuple cannot refer to  #
-  # its own fields, so it is bound first.                              #
+# ── seeds + ramp lightnesses -> colours ── #
+let palette_of(seed : ColorSeeds, step : ColorRamp): ColorPalette =
+  # a tuple cannot refer to its own fields, so pat is bound first #
   let pat = color_rotate(seed.`type`, -75.) in
-  ^^fold((
-    `none` = seed.`none`,
-    `code-background` = seed.`code-background`,
-    `ink` = seed.`ink`,
-    `black` = seed.`black`,
-    `frame-1` = seed.`frame-1`,
-    `surface-1` = seed.`surface-1`,
-    `attention-1` = seed.`attention-1`,
-    `attention-2` = seed.`attention-2`,
-    `attention-3` = seed.`attention-3`,
-    `attention-4` = seed.`attention-4`,
-    `error-1` = seed.`error-1`,
-    `error-2` = seed.`error-2`,
-    `error-3` = seed.`error-3`,
-    `type` = seed.`type`,
-    `label` = seed.`label`,
-    `doc-1` = seed.`doc-1`,
-    `success` = seed.`success`,
-    `success-soft` = seed.`success-soft`,
-    `success-muted` = seed.`success-muted`,
-    `info` = seed.`info`,
-    `info-strong` = seed.`info-strong`,
-    `textarea-v-stripe` = seed.`textarea-v-stripe`,
-    `textarea-h-stripe` = seed.`textarea-h-stripe`,
-    `textarea-h-strip-selected` = seed.`textarea-h-strip-selected`,
-    `SHADOW` = seed.`SHADOW`,
-    `ERRHOLE` = seed.`ERRHOLE`,
-    `CREASE` = seed.`CREASE`,
-    `exp-ap` = seed.`exp-ap`,
-    `exp-base` = seed.`exp-base`,
-    `pat-base` = seed.`pat-base`,
-    `exp-shadow` = seed.`exp-shadow`,
-    `pat-shadow` = seed.`pat-shadow`,
-    `pat-cell` = seed.`pat-cell`,
-    `main-base` = seed.`main-base`,
-    `main-shadow` = seed.`main-shadow`,
-    # Ramps: BR2-4 step off BR1, T2-4 off T1. The lightnesses come     #
-    # from `step` and INVERT between schemes -- in dark, more          #
-    # contrast means lighter.                                          #
+  # every seed passes through unchanged, so `...` extends it with the #
+  # derivations rather than restating all 35 by hand #
+  ^^fold(seed ... (
+    # frame-2..4 step off frame-1, surface-2..4 off surface-1; the #
+    # lightnesses come from `step` and INVERT between schemes -- in #
+    # dark, more contrast means lighter. #
     `frame-2` = color_with_lightness(seed.`frame-1`, step.`frame-2`),
     `frame-3` = color_with_lightness(seed.`frame-1`, step.`frame-3`),
     `frame-4` = color_with_lightness(seed.`frame-1`, step.`frame-4`),
@@ -72,8 +29,7 @@ let palette_of = fun (seed, step) ->
     `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
     `pattern` = pat,
     `type-pattern` = pat,
-    # Six evenly spaced hues off doc-1. The first three are the ones a  #
-    # document usually needs; 4-6 interleave for a longer highlight run. #
+    # even rotations off doc-1; 4-6 interleave for a longer run #
     `doc-2` = color_rotate(seed.`doc-1`, -120.),
     `doc-3` = color_rotate(seed.`doc-1`, -240.),
     `doc-4` = color_rotate(seed.`doc-1`, -60.),
@@ -81,115 +37,65 @@ let palette_of = fun (seed, step) ->
     `doc-6` = color_rotate(seed.`doc-1`, -300.)
   )) in
 
-# ── Colours and role overrides become the theme ─────────────────────── #
-let theme_of = fun (p, role) ->
-  # Roles below are placed on the palette's OWN contrast axis instead of   #
-  # being given a number per scheme: at(c, 0.) sits at the page            #
-  # background's lightness and at(c, 1.) at the body text's, so one        #
-  # definition is correct in all four schemes. This is exactly what the    #
-  # hardcoded literals in variables.css could not do -- a warning fill     #
-  # pinned at 97% lightness is right in light and invisible in dark.       #
+# ── colours + role overrides -> the theme ── #
+let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme =
+  # at(c, t) places c on the palette's OWN contrast axis: t = 0. is the #
+  # page background's lightness, t = 1. the body text's. That is why one #
+  # definition is correct in all four schemes, where a hardcoded #
+  # lightness is right in light and invisible in dark. #
   let bg_l = color_lightness(p.`surface-1`) in
   let text_l = color_lightness(p.`ink`) in
-  let toward =
-    fun (base, c, t) -> color_with_lightness(c, base +. (text_l -. base) *. t) in
-  let at = fun (c, t) -> toward(bg_l, c, t) in
-  # ...and its chroma, because placing a colour on the axis says nothing  #
-  # about how saturated it should be there. A fill wants a wash of its    #
-  # hue; an accent wants the whole thing. The factors below are the ones  #
-  # that reproduce the literals these roles replaced, so light is left    #
-  # exactly as it was and the other three schemes finally follow it.      #
-  let wash = fun (c, t, sat) -> at(color_saturate(c, sat), t) in
-  # A fill has to be placed against the surface it actually sits ON, and    #
-  # not every surface is the page. A table's rows sit on the CODE           #
-  # background, which is ten points of lightness away from the page in     #
-  # dark -- so a row highlight placed on the page's axis landed one point  #
-  # from the table it was highlighting, and vanished. Same span, same ink,  #
-  # different origin.                                                      #
+  let toward(base, c, t) =
+    color_with_lightness(c, base +. (text_l -. base) *. t) in
+  let at(c, t) = toward(bg_l, c, t) in
+  # wash scales chroma too: a fill wants a wash of its hue, an accent #
+  # the whole thing. The factors reproduce the literals they replaced. #
+  let wash(c, t, sat) = at(color_saturate(c, sat), t) in
+  # a fill must be placed against the surface it actually sits ON, and #
+  # not every surface is the page: table rows sit on the code background, #
+  # ten lightness points off the page in dark. Same span, same ink. #
   let code_l = color_lightness(p.`code-background`) in
-  let on_code =
-    fun (c, t, sat) -> toward(code_l, color_saturate(c, sat), t) in
-  # The plate behind an indicated tile: the sort's own hue, desaturated and  #
-  # pinned to one lightness. All three sorts share the pair, because they    #
-  # were three copies of one decision written out per scheme.                #
-  let sort_plate = fun c ->
+  let on_code(c, t, sat) =
+    toward(code_l, color_saturate(c, sat), t) in
+  # the plate behind an indicated tile: the sort's own hue, desaturated #
+  # and pinned to one lightness. All three sorts share the pair. #
+  let sort_plate(c) =
     color_with_lightness(
       color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
   ^^fold((
-    palette = ^^fold((
-      `none` = p.`none`,
-      `code-background` = p.`code-background`,
-      `ink` = p.`ink`,
-      `black` = p.`black`,
-      `frame-1` = p.`frame-1`,
-      `frame-2` = p.`frame-2`,
-      `frame-3` = p.`frame-3`,
-      `frame-4` = p.`frame-4`,
-      `surface-1` = p.`surface-1`,
-      `surface-2` = p.`surface-2`,
-      `surface-3` = p.`surface-3`,
-      `surface-4` = p.`surface-4`,
-      `attention-1` = p.`attention-1`,
-      `attention-2` = p.`attention-2`,
-      `attention-3` = p.`attention-3`,
-      `attention-4` = p.`attention-4`,
-      `error-1` = p.`error-1`,
-      `error-2` = p.`error-2`,
-      `error-3` = p.`error-3`,
-      `type` = p.`type`,
-      `pattern` = p.`pattern`,
-      `type-pattern` = p.`type-pattern`,
-      `label` = p.`label`,
-      `doc-1` = p.`doc-1`,
-      `doc-2` = p.`doc-2`,
-      `doc-3` = p.`doc-3`,
-      `doc-4` = p.`doc-4`,
-      `doc-5` = p.`doc-5`,
-      `doc-6` = p.`doc-6`,
-      `success` = p.`success`,
-      `success-soft` = p.`success-soft`,
-      `success-muted` = p.`success-muted`,
-      `info` = p.`info`,
-      `info-strong` = p.`info-strong`
-    )),
-    roles = ^^fold((
-      # Menus, popovers and the command palette.                           #
-      menu = ^^fold((
+    palette = p,
+    roles = (
+      menu = (
         `nut` = role.`menu-nut`,
         `background` = role.`menu-background`,
         `hover` = role.`menu-hover`,
-        `divider` = p.`CREASE`,
-        `shadow` = p.`SHADOW`
-      )),
-      # The frame around the editor: toolbars, sidebars, status.           #
-      chrome = ^^fold((
+        `divider` = p.`divider`,
+        `shadow` = p.`overlay-shadow`
+      ),
+      # the frame round the editor: toolbars, sidebars, status #
+      chrome = (
         `background` = role.`chrome-background`,
         `heading` = role.`chrome-heading`,
         `meter` = wash(p.`pattern`, 0.87, 1.),
-        # 0.19 leaves the light scheme where it already was; the other     #
-        # three follow from the axis rather than a number per scheme. The   #
-        # zebra stripe is NOT on this axis -- see `surface-2` -- because a  #
-        # fraction of a longer axis is a bigger step, which is what a hover #
-        # wants and a stripe does not.                                      #
+        # the zebra stripe deliberately stays on `surface-2`: a fraction #
+        # of a longer axis is a bigger step, right for a hover and wrong #
+        # for a stripe. #
         `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
-      )),
-      # The editing surface itself.                                        #
-      editor = ^^fold((
+      ),
+      editor = (
         `cell` = role.`editor-cell`,
         `scrollbar` = role.`editor-scrollbar`,
         `buffer` = role.`editor-buffer`,
         `derivation` = wash(p.`success`, 0.82, 0.67),
         `locked-cell` = role.`editor-locked-cell`,
         `backpack-outline` = role.`editor-backpack-outline`,
-        # Findable names for three colours a themer will go looking for by  #
-        # name rather than by ramp position. Each defaults to its place in  #
-        # the ramp, so it stays ONE decision until you want it to be two.   #
+        # findable aliases; each defaults to its place in the ramp #
         `string` = p.`attention-4`,
         `comment` = p.`success-muted`,
         `selection` = p.`attention-2`
-      )),
-      # The plate behind whatever the cursor is on, one per sort.          #
-      cursor = ^^fold((
+      ),
+      # the plate behind whatever the cursor is on, one per sort #
+      cursor = (
         `connector` = role.`cursor-connector`,
         `pattern` = sort_plate(p.`pattern`),
         `type` = sort_plate(p.`type`),
@@ -198,44 +104,36 @@ let theme_of = fun (p, role) ->
         `module` = wash(p.`label`, 0.04, 0.25),
         `signature` = wash(p.`type`, 0.04, 0.25),
         `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
-      )),
-      # Holes in the program, and the boxes drawn round problems.          #
-      hole = ^^fold((
+      ),
+      hole = (
         `empty` = role.`hole-empty`,
         `empty-edge` = role.`hole-empty-edge`,
-        `error` = p.`ERRHOLE`,
+        `error` = p.`error-hole`,
         `warning` = wash(p.`attention-3`, 0., 0.2),
         `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
-      )),
-      # Rows in the problems sidebar.                                      #
-      problems = ^^fold((
+      ),
+      # rows in the problems sidebar #
+      problems = (
         `row` = wash(p.`pattern`, 0.11, 0.2),
         `row-edge` = wash(p.`pattern`, 0.82, 0.75),
         `row-active` = wash(p.`pattern`, 1.04, 1.)
-      )),
-      # Evaluation results and the incremental evaluator's tints.          #
-      results = ^^fold((
+      ),
+      # results, and the incremental evaluator's tints #
+      results = (
         `divider` = role.`results-divider`,
         `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
         `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
         `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
         `pending` = Fade(p.`ink`, 11.),
         `pending-edge` = Fade(p.`ink`, 16.)
-      )),
-      # The cursor inspector along the bottom.                             #
-      inspector = ^^fold((
+      ),
+      inspector = (
         `badge` = role.`inspector-badge`,
         `text` = role.`inspector-text`,
         `separator` = role.`inspector-separator`
-      )),
-      # Probes: live values pinned to the program.                         #
-      probe = ^^fold((
-        `value` = p.`exp-base`,
-        `value-edge` = p.`exp-shadow`,
-        `pattern` = p.`pat-base`,
-        `pattern-edge` = p.`pat-shadow`,
-        `application` = p.`exp-ap`,
-        `timeline` = p.`pat-cell`,
+      ),
+      # probes: live values pinned to the program #
+      probe = (
         `depth` = wash(p.`ink`, 0.49, 0.),
         `caller` = wash(p.`doc-1`, 0.09, 0.86),
         `caller-text` = wash(p.`doc-1`, 0.64, 1.71),
@@ -246,27 +144,46 @@ let theme_of = fun (p, role) ->
         `other` = wash(p.`success`, 0.06, 0.09),
         `other-text` = wash(p.`success`, 1.01, 0.63),
         `focus-text` = wash(p.`success`, 0.99, 0.87)
-      )),
-      # Inline widgets -- text areas, folds, the statics card.             #
-      projector = ^^fold((
-        `statics-background` = p.`main-base`,
-        `statics-edge` = p.`main-shadow`,
+      ),
+      # inline widgets: text areas, folds, the statics card #
+      projector = (
         `textarea-text` = role.`projector-textarea-text`,
-        `fold-background` = wash(p.`pattern`, 1.44, 0.17),
-        `textarea-margin` = p.`textarea-v-stripe`,
-        `textarea-rule` = p.`textarea-h-stripe`,
-        `textarea-rule-selected` = p.`textarea-h-strip-selected`
-      ))
-    )),
-    # Declared, not inferred: a theme with low-contrast seeds could otherwise #
-    # flip polarity partway through a derivation, and no amount of looking at #
-    # the colours tells you whether high contrast was ASKED for. CSS reads    #
-    # both -- see src/web/www/style/README.md.                                #
+        `fold-background` = wash(p.`pattern`, 1.44, 0.17)
+      )
+    ),
+    # declared, not inferred -- low-contrast seeds could flip polarity #
+    # partway through a derivation, and nothing in the colours says #
+    # whether high contrast was ASKED for. CSS reads both. #
     `is-dark` = role.`dark`,
     `is-high-contrast` = role.`contrast`
   )) in
 
-# ── Light scheme -- the seeds are the palette ───────────────────────── #
+# ── light ── the seeds are the palette ── #
+let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
+  `dark` = false,
+  `contrast` = false,
+  `menu-nut` = p.`info-strong`,
+  `menu-background` = p.`attention-1`,
+  `menu-hover` = p.`code-background`,
+  `chrome-background` = p.`surface-1`,
+  `chrome-heading` = p.`frame-3`,
+  `editor-cell` = p.`code-background`,
+  `editor-scrollbar` = p.`frame-1`,
+  `editor-buffer` = p.`frame-1`,
+  `cursor-connector` = p.`frame-1`,
+  `cursor-tint` = 0.25,
+  `cursor-level` = 95.,
+  `hole-empty-edge` = p.`frame-1`,
+  `hole-empty` = p.`attention-1`,
+  `editor-backpack-outline` = p.`code-background`,
+  `projector-textarea-text` = p.`frame-3`,
+  `results-divider` = p.`frame-1`,
+  `inspector-badge` = p.`frame-3`,
+  `inspector-text` = p.`frame-4`,
+  `inspector-separator` = p.`frame-2`,
+  `editor-locked-cell` = p.`frame-2`
+)) in
+
 let light =
   let p = palette_of(
     (
@@ -291,20 +208,20 @@ let light =
       `success-muted` = ^^color(Oklch(80., 0.05, 150.)),
       `info` = ^^color(Oklch(70., 0.05, 120.)),
       `info-strong` = ^^color(Oklch(45., 0.05, 120.)),
-      `textarea-v-stripe` = Fade(^^color(Oklch(78., 0.14, 6.)), 55.),
-      `textarea-h-stripe` = ^^color(Oklch(87., 0.07, 246.)),
-      `textarea-h-strip-selected` = Fade(^^color(Oklch(68., 0.14, 76.)), 30.),
-      `SHADOW` = Fade(^^color(Oklch(50., 0.1, 90.)), 33.),
-      `ERRHOLE` = ^^color(Oklch(96., 0.02, 47.)),
-      `CREASE` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
-      `exp-ap` = ^^color(Oklch(77.98377, 0.11156, 303.02104)),
-      `exp-base` = ^^color(Oklch(90.06553, 0.05236, 145.12433)),
-      `pat-base` = ^^color(Oklch(90.75194, 0.03285, 184.47899)),
-      `exp-shadow` = ^^color(Oklch(55., 0.15, 150.)),
-      `pat-shadow` = ^^color(Oklch(50., 0.1, 245.)),
-      `pat-cell` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
-      `main-base` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
-      `main-shadow` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
+      `textarea-margin` = Fade(^^color(Oklch(78., 0.14, 6.)), 55.),
+      `textarea-rule` = ^^color(Oklch(87., 0.07, 246.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(68., 0.14, 76.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(50., 0.1, 90.)), 33.),
+      `error-hole` = ^^color(Oklch(96., 0.02, 47.)),
+      `divider` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `probe-application` = ^^color(Oklch(77.98377, 0.11156, 303.02104)),
+      `probe-value` = ^^color(Oklch(90.06553, 0.05236, 145.12433)),
+      `probe-pattern` = ^^color(Oklch(90.75194, 0.03285, 184.47899)),
+      `probe-value-edge` = ^^color(Oklch(55., 0.15, 150.)),
+      `probe-pattern-edge` = ^^color(Oklch(50., 0.1, 245.)),
+      `probe-timeline` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
+      `statics-background` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
+      `statics-edge` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
     ),
     (
       `frame-2` = 70.,
@@ -315,32 +232,35 @@ let light =
       `surface-4` = 88.
     )
   ) in
-  theme_of(p, ^^fold((
-    `dark` = false,
-    `contrast` = false,
-    `menu-nut` = p.`info-strong`,
-    `menu-background` = p.`attention-1`,
-    `menu-hover` = p.`code-background`,
-    `chrome-background` = p.`surface-1`,
-    `chrome-heading` = p.`frame-3`,
-    `editor-cell` = p.`code-background`,
-    `editor-scrollbar` = p.`frame-1`,
-    `editor-buffer` = p.`frame-1`,
-    `cursor-connector` = p.`frame-1`,
-    `cursor-tint` = 0.25,
-    `cursor-level` = 95.,
-    `hole-empty-edge` = p.`frame-1`,
-    `hole-empty` = p.`attention-1`,
-    `editor-backpack-outline` = p.`code-background`,
-    `projector-textarea-text` = p.`frame-3`,
-    `results-divider` = p.`frame-1`,
-    `inspector-badge` = p.`frame-3`,
-    `inspector-text` = p.`frame-4`,
-    `inspector-separator` = p.`frame-2`,
-    `editor-locked-cell` = p.`frame-2`
-  ))) in
+  theme_of(p, light_roles(p)) in
 
-# ── Dark scheme ─────────────────────────────────────────────────────── #
+# ── dark ── #
+let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
+  `dark` = true,
+  `contrast` = false,
+  `menu-nut` = p.`success-muted`,
+  `menu-background` = p.`surface-1`,
+  `menu-hover` = color_with_lightness(p.`code-background`, 95.),
+  `chrome-background` = p.`surface-2`,
+  `chrome-heading` = p.`frame-4`,
+  `editor-cell` =
+    color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
+  `editor-scrollbar` = p.`frame-3`,
+  `editor-buffer` = p.`frame-3`,
+  `cursor-connector` = p.`frame-2`,
+  `cursor-tint` = 0.3333,
+  `cursor-level` = 40.,
+  `hole-empty-edge` = p.`frame-3`,
+  `hole-empty` = p.`surface-2`,
+  `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
+  `projector-textarea-text` = p.`ink`,
+  `results-divider` = p.`frame-2`,
+  `inspector-badge` = p.`frame-2`,
+  `inspector-text` = p.`ink`,
+  `inspector-separator` = p.`frame-3`,
+  `editor-locked-cell` = p.`frame-3`
+)) in
+
 let dark =
   let p = palette_of(
     ^^fold((
@@ -365,20 +285,20 @@ let dark =
       `success-muted` = ^^color(Oklch(60., 0.05, 150.)),
       `info` = ^^color(Oklch(60., 0.05, 200.)),
       `info-strong` = ^^color(Oklch(35., 0.05, 200.)),
-      `textarea-v-stripe` = Fade(^^color(Oklch(35., 0.14, 230.)), 55.),
-      `textarea-h-stripe` = ^^color(Oklch(30., 0.07, 240.)),
-      `textarea-h-strip-selected` = Fade(^^color(Oklch(45., 0.14, 230.)), 30.),
-      `SHADOW` = Fade(^^color(Oklch(10., 0.08, 250.)), 50.),
-      `ERRHOLE` = ^^color(Oklch(40., 0.02, 47.)),
-      `CREASE` = Fade(^^color(Oklch(100., 0., 0.)), 25.),
-      `exp-ap` = ^^color(Oklch(49.30911, 0.25288, 292.96451)),
-      `exp-base` = ^^color(Oklch(45.7018, 0.03667, 248.63699)),
-      `pat-base` = ^^color(Oklch(42.87573, 0.04998, 275.36018)),
-      `exp-shadow` = ^^color(Oklch(30., 0.1, 230.)),
-      `pat-shadow` = ^^color(Oklch(25., 0.1, 260.)),
-      `pat-cell` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
-      `main-base` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
-      `main-shadow` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
+      `textarea-margin` = Fade(^^color(Oklch(35., 0.14, 230.)), 55.),
+      `textarea-rule` = ^^color(Oklch(30., 0.07, 240.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(45., 0.14, 230.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(10., 0.08, 250.)), 50.),
+      `error-hole` = ^^color(Oklch(40., 0.02, 47.)),
+      `divider` = Fade(^^color(Oklch(100., 0., 0.)), 25.),
+      `probe-application` = ^^color(Oklch(49.30911, 0.25288, 292.96451)),
+      `probe-value` = ^^color(Oklch(45.7018, 0.03667, 248.63699)),
+      `probe-pattern` = ^^color(Oklch(42.87573, 0.04998, 275.36018)),
+      `probe-value-edge` = ^^color(Oklch(30., 0.1, 230.)),
+      `probe-pattern-edge` = ^^color(Oklch(25., 0.1, 260.)),
+      `probe-timeline` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
+      `statics-background` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
+      `statics-edge` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
     )),
     (
       `frame-2` = 40.,
@@ -389,33 +309,10 @@ let dark =
       `surface-4` = 26.
     )
   ) in
-  theme_of(p, ^^fold((
-    `dark` = true,
-    `contrast` = false,
-    `menu-nut` = p.`success-muted`,
-    `menu-background` = p.`surface-1`,
-    `menu-hover` = color_with_lightness(p.`code-background`, 95.),
-    `chrome-background` = p.`surface-2`,
-    `chrome-heading` = p.`frame-4`,
-    `editor-cell` =
-      color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
-    `editor-scrollbar` = p.`frame-3`,
-    `editor-buffer` = p.`frame-3`,
-    `cursor-connector` = p.`frame-2`,
-    `cursor-tint` = 0.3333,
-    `cursor-level` = 40.,
-    `hole-empty-edge` = p.`frame-3`,
-    `hole-empty` = p.`surface-2`,
-    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
-    `projector-textarea-text` = p.`ink`,
-    `results-divider` = p.`frame-2`,
-    `inspector-badge` = p.`frame-2`,
-    `inspector-text` = p.`ink`,
-    `inspector-separator` = p.`frame-3`,
-    `editor-locked-cell` = p.`frame-3`
-  ))) in
+  theme_of(p, dark_roles(p)) in
 
-# ── High contrast -- for accessibility ──────────────────────────────── #
+# ── high contrast ── for accessibility. The role map is light's; only #
+# the seeds and the ramp really differ, so `...` states just the flag #
 let contrast_light =
   let p = palette_of(
     ^^fold((
@@ -440,20 +337,20 @@ let contrast_light =
       `success-muted` = ^^color(Oklch(40.5, 0.12, 150.)),
       `info` = ^^color(Oklch(41.5, 0.1, 120.)),
       `info-strong` = ^^color(Oklch(30., 0.1, 120.)),
-      `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 6.)), 55.),
-      `textarea-h-stripe` = ^^color(Oklch(70., 0.12, 246.)),
-      `textarea-h-strip-selected` = Fade(^^color(Oklch(55., 0.2, 76.)), 30.),
-      `SHADOW` = Fade(^^color(Oklch(0., 0., 90.)), 33.),
-      `ERRHOLE` = ^^color(Oklch(95., 0.06, 47.)),
-      `CREASE` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
-      `exp-ap` = ^^color(Oklch(88., 0.1, 303.02104)),
-      `exp-base` = ^^color(Oklch(94., 0.06, 145.12433)),
-      `pat-base` = ^^color(Oklch(94., 0.05, 184.47899)),
-      `exp-shadow` = ^^color(Oklch(35., 0.18, 150.)),
-      `pat-shadow` = ^^color(Oklch(35., 0.14, 245.)),
-      `pat-cell` = ^^color(Oklch(90., 0.06, 177.90838)),
-      `main-base` = ^^color(Oklch(96., 0.04, 315.29055)),
-      `main-shadow` = ^^color(Oklch(25., 0.12, 314.00959))
+      `textarea-margin` = Fade(^^color(Oklch(55., 0.2, 6.)), 55.),
+      `textarea-rule` = ^^color(Oklch(70., 0.12, 246.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(55., 0.2, 76.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(0., 0., 90.)), 33.),
+      `error-hole` = ^^color(Oklch(95., 0.06, 47.)),
+      `divider` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `probe-application` = ^^color(Oklch(88., 0.1, 303.02104)),
+      `probe-value` = ^^color(Oklch(94., 0.06, 145.12433)),
+      `probe-pattern` = ^^color(Oklch(94., 0.05, 184.47899)),
+      `probe-value-edge` = ^^color(Oklch(35., 0.18, 150.)),
+      `probe-pattern-edge` = ^^color(Oklch(35., 0.14, 245.)),
+      `probe-timeline` = ^^color(Oklch(90., 0.06, 177.90838)),
+      `statics-background` = ^^color(Oklch(96., 0.04, 315.29055)),
+      `statics-edge` = ^^color(Oklch(25., 0.12, 314.00959))
     )),
     (
       `frame-2` = 25.,
@@ -464,36 +361,11 @@ let contrast_light =
       `surface-4` = 91.
     )
   ) in
-  theme_of(p, ^^fold((
-    `dark` = false,
-    `contrast` = true,
-    `menu-nut` = p.`info-strong`,
-    `menu-background` = p.`attention-1`,
-    `menu-hover` = p.`code-background`,
-    `chrome-background` = p.`surface-1`,
-    `chrome-heading` = p.`frame-3`,
-    `editor-cell` = p.`code-background`,
-    `editor-scrollbar` = p.`frame-1`,
-    `editor-buffer` = p.`frame-1`,
-    `cursor-connector` = p.`frame-1`,
-    `cursor-tint` = 0.25,
-    `cursor-level` = 95.,
-    `hole-empty-edge` = p.`frame-1`,
-    `hole-empty` = p.`attention-1`,
-    `editor-backpack-outline` = p.`code-background`,
-    `projector-textarea-text` = p.`frame-3`,
-    `results-divider` = p.`frame-1`,
-    `inspector-badge` = p.`frame-3`,
-    `inspector-text` = p.`frame-4`,
-    `inspector-separator` = p.`frame-2`,
-    `editor-locked-cell` = p.`frame-2`
-  ))) in
+  theme_of(p, light_roles(p) ... (`contrast` = true)) in
 
-# ── High contrast, dark -- accessibility on a near-black ground ─────── #
-# Derived from `dark` the way `contrast_light` is derived from `light`,  #
-# but the pushes INVERT: text and tokens go toward white and gain       #
-# chroma, page surfaces go toward black. Projector island fills keep    #
-# dark's polarity (lighter fill, darker edge) and only widen.           #
+# ── high contrast, dark ── the pushes INVERT: text toward white and #
+# more chroma, page surfaces toward black; projector fills keep dark's #
+# polarity (lighter fill, darker edge) and only widen. #
 let contrast_dark =
   let p = palette_of(
     ^^fold((
@@ -518,20 +390,20 @@ let contrast_dark =
       `success-muted` = ^^color(Oklch(78., 0.12, 150.)),
       `info` = ^^color(Oklch(78., 0.1, 200.)),
       `info-strong` = ^^color(Oklch(55., 0.1, 200.)),
-      `textarea-v-stripe` = Fade(^^color(Oklch(55., 0.2, 230.)), 55.),
-      `textarea-h-stripe` = ^^color(Oklch(45., 0.12, 240.)),
-      `textarea-h-strip-selected` = Fade(^^color(Oklch(65., 0.2, 230.)), 30.),
-      `SHADOW` = Fade(^^color(Oklch(0., 0., 250.)), 66.),
-      `ERRHOLE` = ^^color(Oklch(28., 0.06, 47.)),
-      `CREASE` = Fade(^^color(Oklch(100., 0., 0.)), 55.),
-      `exp-ap` = ^^color(Oklch(58., 0.24, 292.96451)),
-      `exp-base` = ^^color(Oklch(58., 0.05, 248.63699)),
-      `pat-base` = ^^color(Oklch(55., 0.07, 275.36018)),
-      `exp-shadow` = ^^color(Oklch(18., 0.12, 230.)),
-      `pat-shadow` = ^^color(Oklch(15., 0.12, 260.)),
-      `pat-cell` = ^^color(Oklch(57., 0.08, 283.45785)),
-      `main-base` = ^^color(Oklch(32., 0.06, 290.34169)),
-      `main-shadow` = ^^color(Oklch(6., 0.02, 292.02116))
+      `textarea-margin` = Fade(^^color(Oklch(55., 0.2, 230.)), 55.),
+      `textarea-rule` = ^^color(Oklch(45., 0.12, 240.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(65., 0.2, 230.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(0., 0., 250.)), 66.),
+      `error-hole` = ^^color(Oklch(28., 0.06, 47.)),
+      `divider` = Fade(^^color(Oklch(100., 0., 0.)), 55.),
+      `probe-application` = ^^color(Oklch(58., 0.24, 292.96451)),
+      `probe-value` = ^^color(Oklch(58., 0.05, 248.63699)),
+      `probe-pattern` = ^^color(Oklch(55., 0.07, 275.36018)),
+      `probe-value-edge` = ^^color(Oklch(18., 0.12, 230.)),
+      `probe-pattern-edge` = ^^color(Oklch(15., 0.12, 260.)),
+      `probe-timeline` = ^^color(Oklch(57., 0.08, 283.45785)),
+      `statics-background` = ^^color(Oklch(32., 0.06, 290.34169)),
+      `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116))
     )),
     (
       `frame-2` = 75.,
@@ -542,34 +414,17 @@ let contrast_dark =
       `surface-4` = 12.
     )
   ) in
-  theme_of(p, ^^fold((
-    `dark` = true,
+  theme_of(p, dark_roles(p) ... (
     `contrast` = true,
-    `menu-nut` = p.`success-muted`,
-    `menu-background` = p.`surface-1`,
     `menu-hover` = color_with_lightness(p.`code-background`, 22.),
-    `chrome-background` = p.`surface-2`,
-    `chrome-heading` = p.`frame-4`,
     `editor-cell` = color_with_lightness(p.`code-background`, 14.),
-    `editor-scrollbar` = p.`frame-3`,
-    `editor-buffer` = p.`frame-3`,
-    `cursor-connector` = p.`frame-2`,
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
-    `hole-empty-edge` = p.`frame-3`,
-    `hole-empty` = p.`surface-2`,
-    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.),
-    `projector-textarea-text` = p.`ink`,
-    `results-divider` = p.`frame-2`,
-    `inspector-badge` = p.`frame-2`,
-    `inspector-text` = p.`ink`,
-    `inspector-separator` = p.`frame-3`,
-    `editor-locked-cell` = p.`frame-3`
-  ))) in
+    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.)
+  )) in
 
-# The whole program branches HERE and nowhere else: each flag is read  #
-# exactly once, so adding a scheme costs one line, not one test per    #
-# colour. The flags are independent -- either, both, or neither.       #
+# the program branches HERE and nowhere else: each flag is read once, #
+# so a scheme costs one line and not one test per colour. #
 case (dark_mode, high_contrast)
 | (false, false) => light
 | (false, true) => contrast_light

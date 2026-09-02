@@ -35,7 +35,7 @@ ROOT = 'src/web/www'
 STYLE = os.path.join(ROOT, 'style')
 VARIABLES = os.path.join(STYLE, 'variables.css')
 GENERATED = os.path.join(STYLE, 'theme-generated.css')
-CONFIG = 'src/web/util/ColorConfiguration.re'
+CONFIG = 'src/language/builtins/BuiltinsColorScheme.re'
 
 # Pre-existing dangling references, inherited not introduced. Fixing one is a
 # VISUAL change (an invalid var() makes the whole declaration drop), so it
@@ -53,12 +53,18 @@ strip = lambda s: re.sub(r'/\*.*?\*/', '', s, flags=re.S)
 def palette():
     """The palette layer, read from the projection rather than restated. The
     names used to be spelled twice here, and a rename would have passed the
-    lint while every reference pointed at a variable nothing defined."""
+    lint while every reference pointed at a variable nothing defined.
+
+    It is `seeds @ derived` on the OCaml side -- what a scheme states, plus
+    what the slide derives from that -- so both lists are read and unioned."""
     src = io.open(CONFIG, encoding='utf-8').read()
-    m = re.search(r'let palette: list\(string\) = \[(.*?)\];', src, re.S)
-    if not m:
-        sys.exit(f'lint_css_roles: cannot find the palette list in {CONFIG}')
-    return set(re.findall(r'"([^"]+)"', m.group(1)))
+    names = set()
+    for which in ('seeds', 'derived'):
+        m = re.search(r'let %s: list\(string\) = \[(.*?)\];' % which, src, re.S)
+        if not m:
+            sys.exit(f'lint_css_roles: cannot find the {which} list in {CONFIG}')
+        names |= set(re.findall(r'"([^"]+)"', m.group(1)))
+    return names
 
 
 def theme_owned():

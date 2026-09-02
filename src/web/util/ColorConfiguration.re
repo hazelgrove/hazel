@@ -1,6 +1,7 @@
 open Language;
 
 module C = Language.BuiltinsADT.Color;
+module CS = Language.BuiltinsColorScheme;
 
 /* The Colors config slide.
 
@@ -9,144 +10,20 @@ module C = Language.BuiltinsADT.Color;
    documentation slides are. It is not generated: a generator cannot emit
    comments, and the layering is much easier to read stated directly.
 
-   This module is only the CONTRACT around that text, and it has two levels.
-   The slide names ROLES -- what a colour is for, in the user's terms. The
-   `aliases` table below fans each role out to the CSS custom properties that
-   carry it. So `expected_type` is built from the role names, `all_targets` is
-   the list of properties the stylesheets actually read, and the read-back
-   walks the evaluated slide from one to the other.
+   The SHAPE of the theme that program produces lives in
+   Language.BuiltinsColorScheme, decomposed into named types the slide can
+   annotate with. This module is the CSS side of the same contract: the
+   `aliases` table below fans each of those fields out to the custom
+   properties the stylesheets actually read, `all_targets` is that output list,
+   and the read-back walks the evaluated slide from one to the other.
 
-   Keeping the names here rather than scraping them from the .hz is deliberate.
-   They are what the stylesheets consume, so they are an interface, and
-   Test_ColorConfiguration pins that the slide and this list agree -- both that
-   the slide type-checks against `expected_type` with no static errors, and
-   that evaluating it yields exactly these variables. */
+   Test_ColorConfiguration pins the join -- both that the slide type-checks
+   against the contract with no static errors, and that evaluating it yields
+   exactly these variables. */
 
 let source: Haz3lcore.PersistentZipper.t =
   Haz3lcore.PersistentZipper.of_slide_text([%blob "../colors.hz"]);
 
-/* The palette layer, published under its own names. It is the input the rest
-   of the theme is derived from, and the names a saved user theme writes; the
-   `aliases` rows below hang each role off the palette colour that decides it,
-   so component stylesheets never have to name a palette colour directly. */
-let palette: list(string) = [
-  "none",
-  "code-background",
-  "ink",
-  "black",
-  "frame-1",
-  "frame-2",
-  "frame-3",
-  "frame-4",
-  "surface-1",
-  "surface-2",
-  "surface-3",
-  "surface-4",
-  "attention-1",
-  "attention-2",
-  "attention-3",
-  "attention-4",
-  "error-1",
-  "error-2",
-  "error-3",
-  "type",
-  "pattern",
-  "type-pattern",
-  "label",
-  "doc-1",
-  "doc-2",
-  "doc-3",
-  "doc-4",
-  "doc-5",
-  "doc-6",
-  "success",
-  "success-soft",
-  "success-muted",
-  "info",
-  "info-strong",
-];
-
-/* Semantic roles, grouped by the part of the UI they dress. These are the
-   names a themer meets, so they say what a colour is for rather than where it
-   happens to be plumbed; `aliases` maps them onto the CSS properties. Groups
-   are for reading -- the decoder matches them with a wildcard -- but they must
-   agree with `aliases`, which is keyed by (group, name). */
-let role_groups: list((string, list(string))) = [
-  ("menu", ["nut", "background", "hover", "divider", "shadow"]),
-  ("chrome", ["background", "heading", "meter", "table-row-hover"]),
-  (
-    "editor",
-    [
-      "cell",
-      "scrollbar",
-      "buffer",
-      "derivation",
-      "locked-cell",
-      "backpack-outline",
-      "string",
-      "comment",
-      "selection",
-    ],
-  ),
-  (
-    "cursor",
-    [
-      "connector",
-      "pattern",
-      "type",
-      "type-pattern",
-      "derivation",
-      "module",
-      "signature",
-      "module-pattern",
-    ],
-  ),
-  ("hole", ["empty", "empty-edge", "error", "warning", "warning-edge"]),
-  ("problems", ["row", "row-edge", "row-active"]),
-  (
-    "results",
-    ["divider", "reused", "reused-edge", "sweep", "pending", "pending-edge"],
-  ),
-  ("inspector", ["badge", "text", "separator"]),
-  (
-    "probe",
-    [
-      "value",
-      "value-edge",
-      "pattern",
-      "pattern-edge",
-      "application",
-      "timeline",
-      "depth",
-      "caller",
-      "caller-text",
-      "caller-edge",
-      "callee",
-      "callee-text",
-      "callee-edge",
-      "other",
-      "other-text",
-      "focus-text",
-    ],
-  ),
-  (
-    "projector",
-    [
-      "statics-background",
-      "statics-edge",
-      "textarea-text",
-      "fold-background",
-      "textarea-margin",
-      "textarea-rule",
-      "textarea-rule-selected",
-    ],
-  ),
-];
-
-/* The analyzed type: a labeled tuple of `palette` and `roles`, every leaf a
-   `ColorValue`. `ColorValue` lives in the builtin context, so the slide needs
-   no type declaration of its own. The editor threads this in as `~ana`, so a
-   slide that stops matching it goes red in the buffer. */
 /* ── Hazel field -> CSS custom properties ───────────────────────────────
 
    The slide's field names and the CSS variable names used to be the same
@@ -368,13 +245,16 @@ let aliases: list(((string, string), list(string))) = [
     ],
   ),
   (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
-  (("menu", "divider"), ["menu-divider", "CREASE"]),
-  (("menu", "shadow"), ["menu-shadow", "SHADOW"]),
+  (("menu", "divider"), ["menu-divider"]),
+  (("palette", "divider"), ["CREASE"]),
+  (("menu", "shadow"), ["menu-shadow"]),
+  (("palette", "overlay-shadow"), ["SHADOW"]),
   (("cursor", "connector"), ["shard-lines-exp", "shard-lines-rul"]),
   (("cursor", "pattern"), ["shard-caret-pat", "shard-pat"]),
   (("cursor", "type"), ["shard-caret-typ", "shard-typ"]),
   (("cursor", "type-pattern"), ["shard-caret-tpat", "shard-tpat"]),
-  (("hole", "error"), ["error-hole-fill", "ERRHOLE"]),
+  (("hole", "error"), ["error-hole-fill"]),
+  (("palette", "error-hole"), ["ERRHOLE"]),
   (("menu", "nut"), ["nut-menu"]),
   (("menu", "hover"), ["menu-item-hover-bkg", "light-page-color"]),
   (("chrome", "background"), ["ui-bkg"]),
@@ -410,12 +290,12 @@ let aliases: list(((string, string), list(string))) = [
   (("inspector", "badge"), ["ci-icon-bkg"]),
   (("inspector", "text"), ["ci-status-text"]),
   (("inspector", "separator"), ["context-inspector-colon"]),
-  (("probe", "value"), ["exp-base"]),
-  (("probe", "value-edge"), ["exp-shadow"]),
-  (("probe", "pattern"), ["pat-base"]),
-  (("probe", "pattern-edge"), ["pat-shadow"]),
-  (("probe", "application"), ["exp-ap"]),
-  (("probe", "timeline"), ["pat-cell"]),
+  (("palette", "probe-value"), ["exp-base"]),
+  (("palette", "probe-value-edge"), ["exp-shadow"]),
+  (("palette", "probe-pattern"), ["pat-base"]),
+  (("palette", "probe-pattern-edge"), ["pat-shadow"]),
+  (("palette", "probe-application"), ["exp-ap"]),
+  (("palette", "probe-timeline"), ["pat-cell"]),
   (("probe", "depth"), ["depth-shadow"]),
   (("probe", "caller"), ["sample-above-bg"]),
   (("probe", "caller-text"), ["sample-above-text"]),
@@ -426,12 +306,12 @@ let aliases: list(((string, string), list(string))) = [
   (("probe", "other"), ["sample-neutral-bg"]),
   (("probe", "other-text"), ["sample-neutral-text"]),
   (("probe", "focus-text"), ["sample-focus-text"]),
-  (("projector", "statics-background"), ["main-base"]),
-  (("projector", "statics-edge"), ["main-shadow"]),
+  (("palette", "statics-background"), ["main-base"]),
+  (("palette", "statics-edge"), ["main-shadow"]),
   (("projector", "fold-background"), ["fold-bkg"]),
-  (("projector", "textarea-margin"), ["textarea-v-stripe"]),
-  (("projector", "textarea-rule"), ["textarea-h-stripe"]),
-  (("projector", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
+  (("palette", "textarea-margin"), ["textarea-v-stripe"]),
+  (("palette", "textarea-rule"), ["textarea-h-stripe"]),
+  (("palette", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
   (("editor", "string"), ["token-string-lit", "token-incomplete"]),
   (("editor", "comment"), ["token-comment"]),
   (
@@ -503,10 +383,10 @@ let aliases: list(((string, string), list(string))) = [
    names are the point -- `menu.background` and `chrome.background` are two
    different colours and should not have to be spelled apart. */
 let field_names: list((string, string)) =
-  List.map(n => ("palette", n), palette)
+  List.map(n => ("palette", n), CS.palette)
   @ List.concat_map(
       ((group, members)) => List.map(n => (group, n), members),
-      role_groups,
+      CS.role_groups,
     );
 
 let targets_of = (group: string, name: string): list(string) =>
@@ -515,10 +395,7 @@ let targets_of = (group: string, name: string): list(string) =>
   | None => [name]
   };
 
-/* Not colours. The theme DECLARES these rather than leaving them to be
-   inferred from the seeds: polarity because low-contrast seeds could otherwise
-   flip it partway through a derivation, and contrast because no amount of
-   looking at the colours tells you whether it was asked for.
+/* Not colours: the two flags the theme declares (see BuiltinsColorScheme).
 
    Polarity is forwarded to the standard `color-scheme` property, so native
    controls -- scrollbars, <select> popups, the caret in text inputs -- invert
@@ -536,37 +413,9 @@ let all_targets: list(string) = [
   ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
 ];
 
-let expected_type =
-  IdTagged.FreshGrammar.Typ.(
-    prod([
-      tup_label(
-        label("palette"),
-        prod(
-          List.map(n => tup_label(label(n), var("ColorValue")), palette),
-        ),
-      ),
-      tup_label(
-        label("roles"),
-        prod(
-          List.map(
-            ((group, members)) =>
-              tup_label(
-                label(group),
-                prod(
-                  List.map(
-                    n => tup_label(label(n), var("ColorValue")),
-                    members,
-                  ),
-                ),
-              ),
-            role_groups,
-          ),
-        ),
-      ),
-      tup_label(label("is-dark"), bool()),
-      tup_label(label("is-high-contrast"), bool()),
-    ])
-  );
+/* The type the editor threads in as `~ana`, so a slide that stops matching
+   the contract goes red in the buffer. */
+let expected_type = CS.typ;
 
 let entries_of = (v: Exp.t): list(Exp.t) =>
   switch (v.term) {
@@ -603,12 +452,12 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
       | TupLabel(l, body) =>
         switch (l.term) {
         | Label("palette") => colors_of_group("palette", body)
-        | Label("is-dark") =>
+        | Label(l) when l == CS.polarity_field =>
           switch (Unboxing.unbox(Atom(Bool), body)) {
           | Matches(b) => [(polarity_target, b ? "dark" : "light")]
           | _ => []
           }
-        | Label("is-high-contrast") =>
+        | Label(l) when l == CS.contrast_field =>
           switch (Unboxing.unbox(Atom(Bool), body)) {
           | Matches(b) => [(contrast_target, b ? "high" : "normal")]
           | _ => []
