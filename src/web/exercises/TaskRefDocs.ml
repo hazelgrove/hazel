@@ -126,6 +126,33 @@ pet ... (age=8, breed="Pug")
 ```
 |md}
 
+let column_projection =
+  {md|### Column Projection
+Access a column of a table with `.`, just like a single labeled tuple. The
+projection broadcasts over the list, giving one value per row:
+```hazel
+let scores = [
+(name="A", score=90),
+(name="B", score=80)
+] in
+scores.score
+```
+|md}
+
+let table_construction =
+  {md|### Table Construction
+A table is a list of labeled tuples — one tuple per row, one label per column:
+```hazel
+[
+(name="A", score=90),
+(name="B", score=80)
+]
+```
+
+Wrap a literal table in `^^table(...)` — or right-click it and choose
+**Add Table** — to see it as a table in the editor.
+|md}
+
 let let_expression =
   {md|### Let Expression
 ```hazel
@@ -336,6 +363,20 @@ let comparison_operators =
 let adding_a_probe =
   {md|### Adding a Probe
 Right-click an expression and choose **"Add probe"**, or press **Cmd+E** / **Ctrl+E**.|md}
+
+let rich_probe_table =
+  {md|### Rich Probe Table Interface
+When a probe's value is a table, click its **probe sample** to open the sample
+menu, then choose **View as table**.
+
+Each column header carries a **⋮** menu: **Transform** (convert the column's
+type), **Sort**, **Filter**, **Group By**, **Rename**, **Move** and **Drop
+Column**. The **+** at the right of the header row adds a new column.
+
+Column actions **rewrite the underlying textual syntax**, so a new column
+arrives as holes for its label and its value — fill those in the source code
+and the table updates live.
+|md}
 
 (* The "Task Reference" header is rendered by the sidebar itself, so the
    composed body is just the sections joined together. *)
