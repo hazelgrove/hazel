@@ -13,6 +13,14 @@ let int_exp = value => Exp.fresh(Atom(Int(Bigint.of_int(value))));
 let var_exp = name => Exp.fresh(Var(name));
 let app_exp = (name, arg) =>
   Exp.fresh(Ap(Operators.Forward, var_exp(name), arg));
+let trig_app_exp = (~real_math, name, arg) =>
+  app_exp(
+    TrigRewrite.function_name_with_style(
+      real_math ? TrigRewrite.RealMath : TrigRewrite.IntegerMath,
+      name,
+    ),
+    arg,
+  );
 let tuple_exp = entries => Exp.fresh(Tuple(entries));
 let plus_exp = (left, right) =>
   Exp.fresh(BinOp(Operators.Int(Operators.Plus), left, right));
@@ -341,7 +349,10 @@ let applicable_at_root_with_context =
           make(
             "calc.diff_chain_sin",
             "sine chain rule",
-            times(app_exp("cos", inner), make_diff(inner, variable)),
+            times(
+              trig_app_exp(~real_math, "cos", inner),
+              make_diff(inner, variable),
+            ),
           )
         | Ap(Operators.Forward, fn, inner)
             when function_name(fn) == Some("cos") =>
@@ -349,7 +360,7 @@ let applicable_at_root_with_context =
             "calc.diff_chain_cos",
             "cosine chain rule",
             times(
-              negate(app_exp("sin", inner)),
+              negate(trig_app_exp(~real_math, "sin", inner)),
               make_diff(inner, variable),
             ),
           )

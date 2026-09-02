@@ -218,18 +218,20 @@ let dedup_strings = strings => {
      );
 };
 
-let forall_string_for_domain = (~domain, expressions) => {
+let forall_string_for_domain_excluding = (~domain, ~excluded, expressions) => {
   let functions =
     expressions
     |> List.map(unique_unary_function_vars_in_ast)
     |> List.flatten
-    |> dedup_strings;
+    |> dedup_strings
+    |> List.filter(name => !List.mem(name, excluded));
   let scalars =
     expressions
     |> List.map(unique_vars_in_ast)
     |> List.flatten
     |> dedup_strings
-    |> List.filter(name => !List.mem(name, functions));
+    |> List.filter(name => !List.mem(name, functions))
+    |> List.filter(name => !List.mem(name, excluded));
   let scalar_type =
     switch (domain) {
     | Reals => "R"
@@ -250,6 +252,9 @@ let forall_string_for_domain = (~domain, expressions) => {
     "forall " ++ String.concat(" ", function_binders @ scalar_binders) ++ ",";
   };
 };
+
+let forall_string_for_domain = (~domain, expressions) =>
+  forall_string_for_domain_excluding(~domain, ~excluded=[], expressions);
 
 // Count all occurrences of an integer v in the AST v
 let rec index_of_like_terms_helper_dhexp =

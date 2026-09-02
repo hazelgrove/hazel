@@ -147,6 +147,39 @@ let rec binop_count = (exp: Exp.t): int =>
   | _ => 0
   };
 
+/* A visual suffix [b - c] in [(a + b) - c] crosses the parser's
+ * left-associated boundary.  Make that range a real subtree without changing
+ * its value.  Natural and floating subtraction are intentionally excluded:
+ * the former is not associative with addition, and the latter is not exact. */
+let replace_selected_plus_minus_suffix =
+    (selected_ids: list(Id.t), exp: Exp.t): option(result) => {
+  let contains_selected_id = exp =>
+    IdTagged.ids(exp) |> List.exists(id => List.mem(id, selected_ids));
+  let compatible = (minus_op, plus_op) =>
+    switch (minus_op, plus_op) {
+    | (Operators.Int(Minus), Operators.Int(Plus))
+    | (Operators.SInt(Minus), Operators.SInt(Plus))
+    | (Operators.Real(Minus), Operators.Real(Plus)) => true
+    | _ => false
+    };
+  switch (exp.term) {
+  | BinOp(minus_op, {term: BinOp(plus_op, a, b), _}, c)
+      when
+        compatible(minus_op, plus_op)
+        && List.mem(Exp.rep_id(exp), selected_ids)
+        && contains_selected_id(b)
+        && contains_selected_id(c)
+        && !contains_selected_id(a) =>
+    let selected = Exp.fresh(BinOp(minus_op, b, c));
+    Some({
+      exp: Exp.fresh(BinOp(plus_op, a, selected)),
+      selected_id: Exp.rep_id(selected),
+      selected_is_single_binop: true,
+    });
+  | _ => None
+  };
+};
+
 /* Restructure exp so the visual selection at selected_id becomes a proper
       sub-term.
 
@@ -494,49 +527,61 @@ let rec reparenthesize_selection =
   if (List.mem(Exp.rep_id(exp), whole_selected_ids)) {
     None;
   } else {
-    switch (replace_selected_additive_suffix(selected_ids, exp)) {
+    switch (replace_selected_plus_minus_suffix(selected_ids, exp)) {
     | Some(_) as result => result
     | None =>
-      switch (replace_selected_subtraction_suffix(selected_ids, exp)) {
+      switch (replace_selected_additive_suffix(selected_ids, exp)) {
       | Some(_) as result => result
       | None =>
-        switch (replace_selected_chain(selected_ids, exp)) {
+        switch (replace_selected_subtraction_suffix(selected_ids, exp)) {
         | Some(_) as result => result
         | None =>
-          switch (exp.term) {
-          | BinOp(op, l, r) =>
-            switch (
-              reparenthesize_selection(~whole_selected_ids, ~selected_ids, l)
-            ) {
-            | Some({exp: l', _} as result) =>
-              Some({
-                ...result,
-                exp: Exp.fresh(BinOp(op, l', r)),
-              })
-            | None =>
+          switch (replace_selected_chain(selected_ids, exp)) {
+          | Some(_) as result => result
+          | None =>
+            switch (exp.term) {
+            | BinOp(op, l, r) =>
               switch (
                 reparenthesize_selection(
                   ~whole_selected_ids,
                   ~selected_ids,
-                  r,
+                  l,
                 )
               ) {
-              | Some({exp: r', _} as result) =>
+              | Some({exp: l', _} as result) =>
                 Some({
                   ...result,
-                  exp: Exp.fresh(BinOp(op, l, r')),
+                  exp: Exp.fresh(BinOp(op, l', r)),
                 })
-              | None => None
+              | None =>
+                switch (
+                  reparenthesize_selection(
+                    ~whole_selected_ids,
+                    ~selected_ids,
+                    r,
+                  )
+                ) {
+                | Some({exp: r', _} as result) =>
+                  Some({
+                    ...result,
+                    exp: Exp.fresh(BinOp(op, l, r')),
+                  })
+                | None => None
+                }
               }
+            | Parens(e) =>
+              let* {exp: e', _} as result =
+                reparenthesize_selection(
+                  ~whole_selected_ids,
+                  ~selected_ids,
+                  e,
+                );
+              Some({
+                ...result,
+                exp: Exp.fresh(Parens(e')),
+              });
+            | _ => None
             }
-          | Parens(e) =>
-            let* {exp: e', _} as result =
-              reparenthesize_selection(~whole_selected_ids, ~selected_ids, e);
-            Some({
-              ...result,
-              exp: Exp.fresh(Parens(e')),
-            });
-          | _ => None
           }
         }
       }

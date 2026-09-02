@@ -187,6 +187,13 @@ module Update = {
       {
         ...model,
         display: Stepper(stepper),
+        theorems:
+          StepperView.Update.changes_math_configuration(a)
+            ? Theorems.Model.with_math_configuration(
+                ~source=stepper,
+                model.theorems,
+              )
+            : model.theorems,
       };
     | (StepperAction(_), _) => model |> Updated.raise_invalid_action
     | (
@@ -202,8 +209,20 @@ module Update = {
     | (TheoremsAction(action), _) =>
       let* theorems =
         Theorems.Update.update(~settings, action, model.theorems);
+      let display =
+        switch (
+          model.display,
+          Theorems.Update.math_configuration_source(action, theorems),
+        ) {
+        | (Model.Stepper(stepper), Some(source)) =>
+          Model.Stepper(
+            StepperView.Model.with_math_configuration_from(~source, stepper),
+          )
+        | (display, _) => display
+        };
       {
         ...model,
+        display,
         theorems,
       };
     | (UpdateResult(result), _) =>

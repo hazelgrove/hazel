@@ -917,11 +917,39 @@ let sample_linear_let_export_chain = () => {
   );
 };
 
+let sample_free_variable_let_export_chain = () => {
+  let x = Exp.var("x");
+  let body_source = plus(plus(x, Exp.int(1)), Exp.int(2));
+  let body_target = plus(x, Exp.int(3));
+  let initial = simple_let_program([("a", Exp.int(0))], body_source);
+  let after_body = simple_let_program([("a", Exp.int(0))], body_target);
+  let terminal =
+    step_model(
+      ~expr=after_body,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  written_program_step(
+    ~program=initial,
+    ~next_program=after_body,
+    ~local_source=body_source,
+    ~local_target=body_target,
+    ~trace=
+      required_profile_trace(
+        ~profile=Axioms.math_profile(Arithmetic),
+        body_source,
+        body_target,
+      ),
+    ~next_step=terminal,
+  );
+};
+
 let sample_derivative_let_export_chain =
     (
       ~drop_power_rule=false,
       ~atomic_f2_finish=false,
       ~drop_atomic_scalar_rule=false,
+      ~partial_f2=false,
       (),
     ) => {
   let x = Exp.var("x");
@@ -939,7 +967,18 @@ let sample_derivative_let_export_chain =
       None,
       None,
     );
-  let f2 = Exp.fn(Pat.var("x"), times(Exp.int(6), x), None, None);
+  let f2 =
+    partial_f2
+      ? Exp.fn(
+          Pat.var("x"),
+          expression_derivative(
+            plus(times(Exp.int(3), power(x, Exp.int(2))), Exp.int(2)),
+            x,
+          ),
+          None,
+          None,
+        )
+      : Exp.fn(Pat.var("x"), times(Exp.int(6), x), None, None);
   let f1_source = function_derivative(Exp.var("f"));
   let f2_source = function_derivative(Exp.var("f1"));
   let body = Language.Exp.fresh(Ap(Forward, Exp.var("f2"), Exp.int(2)));
@@ -996,12 +1035,18 @@ let sample_derivative_let_export_chain =
       }
       : f1_trace;
   let f2_trace =
-    Web.RewriteChecker.calculus_check_result_trace_for_profile(
-      ~profile=calculus,
-      function_derivative(f1),
-      f2,
-    )
-    |> Option.get;
+    partial_f2
+      ? required_profile_trace(
+          ~profile=calculus,
+          function_derivative(f1),
+          f2,
+        )
+      : Web.RewriteChecker.calculus_check_result_trace_for_profile(
+          ~profile=calculus,
+          function_derivative(f1),
+          f2,
+        )
+        |> Option.get;
   let f2_trace =
     if (atomic_f2_finish) {
       let scalar_source =
@@ -2604,6 +2649,64 @@ let tests = (
           false,
           accepts(without_sine_chain, trig_body, trig_derivative),
         );
+        let real_cos_body = builtin_app("cos_real", x);
+        let real_cos_derivative =
+          Exp.un_op(Operators.Real(Operators.Minus), app("sin_real", x));
+        let real_cos_source = function_diff(function_(real_cos_body));
+        let real_cos_normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=
+              rule_id =>
+                Axioms.visible_rule_enabled(profile.step_policy, rule_id),
+            real_cos_source,
+          );
+        let real_cos_cleaned =
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled=
+              capability =>
+                List.mem(capability, profile.step_policy.default_cleanup),
+            real_cos_normalized.exp,
+          );
+        check_exp_equal(
+          "Real cosine normalization preserves its signed Real result",
+          function_(real_cos_derivative),
+          real_cos_cleaned,
+        );
+        check(
+          bool,
+          "Real cosine derivative keeps the negative sign and Real alias",
+          true,
+          accepts(profile, real_cos_body, real_cos_derivative),
+        );
+        check(
+          bool,
+          "positive Real sine is rejected as the cosine derivative",
+          false,
+          accepts(profile, real_cos_body, app("sin_real", x)),
+        );
+        let real_sin_body = builtin_app("sin_real", power(x, Exp.int(2)));
+        let real_sin_derivative =
+          real_times(
+            app("cos_real", power(x, Exp.int(2))),
+            real_times(real(2), x),
+          );
+        check(
+          bool,
+          "Real sine chain derivative keeps the Real cosine alias",
+          true,
+          accepts(profile, real_sin_body, real_sin_derivative),
+        );
+        let without_cosine_chain =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_chain_cos",
+            profile,
+          );
+        check(
+          bool,
+          "disabled cosine chain rule rejects the Real cosine derivative",
+          false,
+          accepts(without_cosine_chain, real_cos_body, real_cos_derivative),
+        );
         let denominator = plus(x, Exp.int(1));
         let quotient_body = divide(Exp.int(1), denominator);
         let quotient_derivative =
@@ -3052,6 +3155,76 @@ let tests = (
             "Hazel profile-directed derivative certificate",
             product_coq,
           ),
+        );
+        let real_cos_source = diff(builtin_app("cos_real", x), x);
+        let real_cos_target =
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            real_cos_source,
+          )
+          |> Option.value(~default=Exp.int(0));
+        check_exp_equal(
+          "Real cosine auto simplify preserves its sign and alias",
+          Exp.un_op(Operators.Real(Operators.Minus), app("sin_real", x)),
+          real_cos_target,
+        );
+        let real_cos_coq = auto_program(real_cos_source, real_cos_target);
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_real_cos_auto_simplify.v",
+          real_cos_coq,
+        );
+        check(
+          bool,
+          "Real cosine auto result gets a derivative certificate",
+          true,
+          string_contains(
+            "Hazel profile-directed derivative certificate",
+            real_cos_coq,
+          ),
+        );
+        let real_sin_source =
+          diff(builtin_app("sin_real", real_power(x, real(2))), x);
+        let real_sin_target =
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            real_sin_source,
+          )
+          |> Option.value(~default=Exp.int(0));
+        let real_sin_coq = auto_program(real_sin_source, real_sin_target);
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_real_sin_auto_simplify.v",
+          real_sin_coq,
+        );
+        check(
+          bool,
+          "nested Real sine auto result gets a derivative certificate",
+          true,
+          string_contains(
+            "Hazel profile-directed derivative certificate",
+            real_sin_coq,
+          ),
+        );
+        let without_cosine =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_chain_cos",
+            profile,
+          );
+        check_raises(
+          "disabled Real cosine rule remains rejected",
+          Failure(
+            "the active calculus profile cannot certify this derivative candidate",
+          ),
+          () =>
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=without_cosine,
+            ~purpose=AutoSimplify,
+            request(real_cos_source, real_cos_target),
+          )
+          |> ignore
         );
         let without_power =
           Web.ProfileBoard.profile_without_visible_rule(
@@ -3798,7 +3971,7 @@ let tests = (
           check(
             list(string),
             "real affine certificate comes from the catalog",
-            ["lra"],
+            ["lra", "try unfold Rsqr; field"],
             switch (rule.rocq_backend) {
             | Some(backend) =>
               Axioms.rocq_tactics_for_domain(
@@ -10849,6 +11022,68 @@ let tests = (
       },
     ),
     test_case(
+      "single arithmetic step folds constants across elaborated numeric modes",
+      `Quick,
+      () => {
+        let sint = value => Language.Exp.fresh(Atom(SInt(value)));
+        let sint_minus = (left, right) =>
+          Exp.bin_op(Operators.SInt(Operators.Minus), left, right);
+        let float_target = Exp.float(14.0);
+        [
+          (sint_minus(sint(16), sint(2)), sint(14)),
+          (real_minus(real(16), real(2)), real(14)),
+          (float_minus(float(16.0), float(2.0)), float_target),
+        ]
+        |> List.iter(((source, target)) =>
+             check(
+               bool,
+               "one constant operation is accepted in its elaborated mode",
+               true,
+               Web.RewriteChecker.check_single_step_trace_at_level(
+                 ~level=Arithmetic,
+                 ~settings,
+                 ~env,
+                 source,
+                 target,
+               )
+               |> Option.is_some,
+             )
+           );
+        check(
+          bool,
+          "an incorrect folded result remains invalid",
+          true,
+          Web.RewriteChecker.check_single_step_trace_at_level(
+            ~level=Arithmetic,
+            ~settings,
+            ~env,
+            sint_minus(sint(16), sint(2)),
+            sint(13),
+          )
+          |> Option.is_none,
+        );
+        let profile =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="arith.const_fold",
+            Axioms.math_profile(Arithmetic),
+          );
+        check(
+          bool,
+          "profile-disabled constant folding remains invalid",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_stage_plan(
+            ~profile,
+            ~plan=Axioms.stage_plan_for_profile(profile, Axioms.Manual),
+            ~settings,
+            ~env,
+            sint_minus(sint(16), sint(2)),
+            sint(14),
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
       "single arithmetic step folds middle adjacent constants", `Quick, () =>
       check(
         bool,
@@ -15255,6 +15490,60 @@ let tests = (
       },
     ),
     test_case(
+      "let-development Rocq export quantifies free final-body variables",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_free_variable_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a free-variable let-development export")
+          };
+        write_text_file("/tmp/hazel_free_variable_let_export.v", export);
+        check(
+          bool,
+          "step lemma quantifies x",
+          true,
+          string_contains(
+            "Lemma hazel_final_value_step_1 : forall x : R,",
+            export,
+          ),
+        );
+        check(
+          bool,
+          "final theorem quantifies x",
+          true,
+          string_contains(
+            "Theorem hazel_final_value : forall x : R,",
+            export,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "let-development Rocq export omits terminal completed-result true",
+      `Quick,
+      () => {
+        let ordinary =
+          Web.StepperBase.Stepper.export_coq(
+            sample_free_variable_let_export_chain(),
+          );
+        let completed =
+          Web.StepperBase.Stepper.export_coq(
+            sample_free_variable_let_export_chain() |> append_terminal_true,
+          );
+        check(
+          option(string),
+          "terminal UI truth value is not part of a let development",
+          ordinary,
+          completed,
+        );
+      },
+    ),
+    test_case(
       "Rocq export composes named first and second derivative bindings",
       `Quick,
       () => {
@@ -15337,6 +15626,41 @@ let tests = (
           true,
           string_contains("Theorem hazel_final_value : f2 (2) = 12", export)
           && !string_contains("Function literal", export),
+        );
+      },
+    ),
+    test_case(
+      "Rocq export lowers a recorded partial let-bound derivative",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_derivative_let_export_chain(~partial_f2=true, ()),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a partial derivative let export")
+          };
+        write_text_file(
+          "/tmp/hazel_partial_derivative_let_development.v",
+          export,
+        );
+        check(
+          bool,
+          "emits a semantic definition and certificate for partial f2",
+          true,
+          string_contains("Definition f2 (x : R)", export)
+          && string_contains(
+               "Theorem hazel_f2_correct : derivative_of f2 f1",
+               export,
+             )
+          && string_contains("hazel_f2_derivative_certificate", export)
+          && !
+               string_contains(
+                 Language.DerivativeOperator.expression_internal_name,
+                 export,
+               ),
         );
       },
     ),
@@ -18373,6 +18697,153 @@ let tests = (
                cubic_derivative,
              )
           |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
+      "partial calculus steps export across rule families",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let base_profile = Axioms.math_profile(Calculus);
+        let profile =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              base_profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.DerivativeBasics
+                 ),
+            base_profile,
+          );
+        let cases = [
+          (
+            "sum",
+            "calc.diff_sum",
+            diff(plus(power(x, Exp.int(2)), builtin_sin(x)), x),
+          ),
+          (
+            "product",
+            "calc.diff_product",
+            diff(times(plus(x, Exp.int(1)), builtin_sin(x)), x),
+          ),
+          (
+            "sine_chain",
+            "calc.diff_chain_sin",
+            diff(builtin_sin(power(x, Exp.int(2))), x),
+          ),
+          (
+            "quotient",
+            "calc.diff_quotient",
+            diff(divide(x, plus(x, Exp.int(1))), x),
+          ),
+        ];
+        let authorize = (~profile, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Manual,
+            candidate_origin: Web.ProfileProofPlan.DisplayedSuggestion,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 2,
+            max_states: 120,
+          });
+        cases
+        |> List.iter(((label, rule_id, source)) => {
+             let action =
+               Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+               |> List.find_opt((action: Web.TrigRewrite.rewrite) =>
+                    action.rule_id == rule_id
+                  )
+               |> Option.get;
+             check(
+               bool,
+               label ++ " remains an actual partial derivative",
+               true,
+               Web.DifferentiationRewrite.contains_diff(action.after_exp),
+             );
+             switch (authorize(~profile, source, action.after_exp)) {
+             | Authorized(plan) =>
+               let request =
+                 Web.ProofSearchBackend.{
+                   backend: JSCoqTacticSearch,
+                   level: Calculus,
+                   max_depth: 2,
+                   max_states: 120,
+                   source,
+                   target: action.after_exp,
+                 };
+               let program =
+                 Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+                   ~profile,
+                   request,
+                   plan,
+                 );
+               write_text_file(
+                 "/tmp/hazel_partial_derivative_" ++ label ++ ".v",
+                 program,
+               );
+               check(
+                 bool,
+                 label ++ " lowers internal derivative syntax for Rocq",
+                 true,
+                 string_contains(
+                   "Hazel profile-directed derivative certificate",
+                   program,
+                 )
+                 && !
+                      string_contains(
+                        Language.DerivativeOperator.expression_internal_name,
+                        program,
+                      ),
+               );
+               if (label == "quotient") {
+                 check(
+                   bool,
+                   "partial quotient retains its side condition",
+                   true,
+                   string_contains("(x + 1) <> 0 ->", program),
+                 );
+               };
+             | Rejected(rejection) =>
+               fail(Web.ProfileProofPlan.rejection_message(rejection))
+             };
+             let disabled_profile =
+               Web.ProfileBoard.profile_without_visible_rule(
+                 ~rule_id,
+                 profile,
+               );
+             check(
+               bool,
+               label ++ " is not export-authorized when its rule is disabled",
+               true,
+               switch (
+                 authorize(
+                   ~profile=disabled_profile,
+                   source,
+                   action.after_exp,
+                 )
+               ) {
+               | Rejected(_) => true
+               | Authorized(_) => false
+               },
+             );
+           });
+        let (label, _, source) = List.hd(cases);
+        let action =
+          Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+          |> List.hd;
+        check(
+          bool,
+          label ++ " rejects a nearby but incorrect partial target",
+          true,
+          switch (
+            authorize(~profile, source, plus(action.after_exp, Exp.int(1)))
+          ) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
         );
       },
     ),

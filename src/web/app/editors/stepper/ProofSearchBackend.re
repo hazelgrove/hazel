@@ -622,6 +622,8 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
       let name = DifferentiationRewrite.function_name(fn);
       switch (name, derivative_certificate_for_expression(~variable, inner)) {
       | (Some("sin"), Some(inner_proof)) =>
+        let real_math =
+          TrigRewrite.uses_real_math(fn) || TrigRewrite.uses_real_math(inner);
         let inner_at =
           CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, inner);
         let inner_derivative =
@@ -631,7 +633,7 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
           );
         let raw_derivative =
           DifferentiationRewrite.times_exp(
-            DifferentiationRewrite.app_exp("cos", inner),
+            DifferentiationRewrite.trig_app_exp(~real_math, "cos", inner),
             inner_proof.raw_derivative,
           );
         let raw_derivative_string =
@@ -663,6 +665,8 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
           nonzero_denominators: inner_proof.nonzero_denominators,
         });
       | (Some("cos"), Some(inner_proof)) =>
+        let real_math =
+          TrigRewrite.uses_real_math(fn) || TrigRewrite.uses_real_math(inner);
         let inner_at =
           CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, inner);
         let inner_derivative =
@@ -673,7 +677,7 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
         let raw_derivative =
           DifferentiationRewrite.times_exp(
             DifferentiationRewrite.neg_exp(
-              DifferentiationRewrite.app_exp("sin", inner),
+              DifferentiationRewrite.trig_app_exp(~real_math, "sin", inner),
             ),
             inner_proof.raw_derivative,
           );
@@ -723,75 +727,98 @@ type derivative_semantics = {
    transition; it is semantic lowering for Rocq, not an extra rewrite path. */
 let rec derivative_semantics_for_certificate = exp => {
   let exp = DifferentiationRewrite.strip(exp);
-  switch (DifferentiationRewrite.diff_parts(exp)) {
-  | Some((expression, variable)) =>
-    switch (DifferentiationRewrite.variable_name(variable)) {
-    | Some(variable) =>
-      derivative_certificate_for_expression(~variable, expression)
-      |> Option.map(certificate =>
-           {
-             exp: certificate.raw_derivative,
-             nonzero_denominators: certificate.nonzero_denominators,
-           }
-         )
-    | None => None
+  switch (DifferentiationRewrite.function_diff_argument(exp)) {
+  | Some(function_exp) =>
+    switch (DifferentiationRewrite.strip(function_exp).term) {
+    | Fun(pattern, body, return_typ, name) =>
+      switch (DifferentiationRewrite.function_parameter_name(pattern)) {
+      | Some(variable) =>
+        derivative_certificate_for_expression(~variable, body)
+        |> Option.map(certificate =>
+             {
+               exp:
+                 Exp.fresh(
+                   Fun(pattern, certificate.raw_derivative, return_typ, name),
+                 ),
+               nonzero_denominators: certificate.nonzero_denominators,
+             }
+           )
+      | None => None
+      }
+    | _ => None
     }
   | None =>
-    let unary = (inner, rebuild) =>
-      derivative_semantics_for_certificate(inner)
-      |> Option.map(interpreted =>
-           {
-             ...interpreted,
-             exp: rebuild(interpreted.exp),
-           }
-         );
-    let binary = (left, right, rebuild) =>
-      switch (
-        derivative_semantics_for_certificate(left),
-        derivative_semantics_for_certificate(right),
-      ) {
-      | (Some(left), Some(right)) =>
+    switch (DifferentiationRewrite.diff_parts(exp)) {
+    | Some((expression, variable)) =>
+      switch (DifferentiationRewrite.variable_name(variable)) {
+      | Some(variable) =>
+        derivative_certificate_for_expression(~variable, expression)
+        |> Option.map(certificate =>
+             {
+               exp: certificate.raw_derivative,
+               nonzero_denominators: certificate.nonzero_denominators,
+             }
+           )
+      | None => None
+      }
+    | None =>
+      let unary = (inner, rebuild) =>
+        derivative_semantics_for_certificate(inner)
+        |> Option.map(interpreted =>
+             {
+               ...interpreted,
+               exp: rebuild(interpreted.exp),
+             }
+           );
+      let binary = (left, right, rebuild) =>
+        switch (
+          derivative_semantics_for_certificate(left),
+          derivative_semantics_for_certificate(right),
+        ) {
+        | (Some(left), Some(right)) =>
+          Some({
+            exp: rebuild(left.exp, right.exp),
+            nonzero_denominators:
+              left.nonzero_denominators @ right.nonzero_denominators,
+          })
+        | _ => None
+        };
+      let entries = (entries, rebuild) =>
+        entries
+        |> List.map(derivative_semantics_for_certificate)
+        |> OptUtil.sequence
+        |> Option.map(entries =>
+             {
+               exp: rebuild(entries |> List.map(entry => entry.exp)),
+               nonzero_denominators:
+                 entries
+                 |> List.concat_map(entry => entry.nonzero_denominators),
+             }
+           );
+      switch (exp.term) {
+      | BinOp(op, left, right) =>
+        binary(left, right, (left, right) =>
+          Exp.fresh(BinOp(op, left, right))
+        )
+      | Ap(direction, fn, arg) =>
+        binary(fn, arg, (fn, arg) => Exp.fresh(Ap(direction, fn, arg)))
+      | UnOp(op, inner) => unary(inner, inner => Exp.fresh(UnOp(op, inner)))
+      | Parens(inner) => unary(inner, inner => Exp.fresh(Parens(inner)))
+      | Asc(inner, typ) => unary(inner, inner => Exp.fresh(Asc(inner, typ)))
+      | Projector(label, inner) =>
+        unary(inner, inner => Exp.fresh(Projector(label, inner)))
+      | Tuple(values) => entries(values, values => Exp.fresh(Tuple(values)))
+      | ListLit(values) =>
+        entries(values, values => Exp.fresh(ListLit(values)))
+      | Fun(pattern, body, return_typ, name) =>
+        unary(body, body => Exp.fresh(Fun(pattern, body, return_typ, name)))
+      | _ =>
         Some({
-          exp: rebuild(left.exp, right.exp),
-          nonzero_denominators:
-            left.nonzero_denominators @ right.nonzero_denominators,
+          exp,
+          nonzero_denominators: [],
         })
-      | _ => None
       };
-    let entries = (entries, rebuild) =>
-      entries
-      |> List.map(derivative_semantics_for_certificate)
-      |> OptUtil.sequence
-      |> Option.map(entries =>
-           {
-             exp: rebuild(entries |> List.map(entry => entry.exp)),
-             nonzero_denominators:
-               entries |> List.concat_map(entry => entry.nonzero_denominators),
-           }
-         );
-    switch (exp.term) {
-    | BinOp(op, left, right) =>
-      binary(left, right, (left, right) =>
-        Exp.fresh(BinOp(op, left, right))
-      )
-    | Ap(direction, fn, arg) =>
-      binary(fn, arg, (fn, arg) => Exp.fresh(Ap(direction, fn, arg)))
-    | UnOp(op, inner) => unary(inner, inner => Exp.fresh(UnOp(op, inner)))
-    | Parens(inner) => unary(inner, inner => Exp.fresh(Parens(inner)))
-    | Asc(inner, typ) => unary(inner, inner => Exp.fresh(Asc(inner, typ)))
-    | Projector(label, inner) =>
-      unary(inner, inner => Exp.fresh(Projector(label, inner)))
-    | Tuple(values) => entries(values, values => Exp.fresh(Tuple(values)))
-    | ListLit(values) =>
-      entries(values, values => Exp.fresh(ListLit(values)))
-    | Fun(pattern, body, return_typ, name) =>
-      unary(body, body => Exp.fresh(Fun(pattern, body, return_typ, name)))
-    | _ =>
-      Some({
-        exp,
-        nonzero_denominators: [],
-      })
-    };
+    }
   };
 };
 
@@ -1263,6 +1290,7 @@ let calculus_export_program_for_profile =
       ~theorem_name="hazel_derivative",
       ~recorded_cleanup=[],
       ~recorded_rule_ids=[],
+      ~interpret_authorized_target=false,
       source,
       target,
     ) => {
@@ -1279,6 +1307,7 @@ let calculus_export_program_for_profile =
     ~theorem_name,
     ~recorded_cleanup,
     ~recorded_rule_ids,
+    ~interpret_authorized_target,
     request,
   );
 };

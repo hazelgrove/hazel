@@ -4111,7 +4111,8 @@ let check_single_arithmetic_rule_result_for_profile =
   | Some(group) =>
     let exact_rational_fold =
       switch (ArithmeticNormalization.fold_rational_constant(from_)) {
-      | Some(folded) => Exp.fast_equal(folded, to_)
+      | Some(folded) =>
+        folded |> inherit_numeric_mode(~source=from_) |> same_math_exp(to_)
       | None => false
       };
     switch (flatten_addition(from_), flatten_addition(to_)) {

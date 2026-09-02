@@ -92,7 +92,7 @@ type math_rule_direction =
   | BothDirections;
 
 /* A deliberately non-certificate-backed rewrite.  These definitions live in
-   the in-memory Math Mode Builder model and are carried on the effective
+   the in-memory Custom Math Profile model and are carried on the effective
    profile only so the manual suggestion/checking surfaces can see them.
    Stage planning and Rocq planning ignore them. */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -2375,7 +2375,11 @@ let catalog_rule =
 
 let math_rule_catalog = {
   let affine_normalization_backend =
-    rocq_rule_backend(~tactic="lia", ~integers=["lia"], ~reals=["lra"]);
+    rocq_rule_backend(
+      ~tactic="lia",
+      ~integers=["lia"],
+      ~reals=["lra", "try unfold Rsqr; field"],
+    );
   let affine_normalization_rule = {
     id: "arith.affine_normalize",
     metadata:

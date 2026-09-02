@@ -325,7 +325,27 @@ let virtual_selection =
     let+ exp =
       switch (semantic_exp) {
       | Some(exp) => Some(exp)
-      | None => exp_of_segment(segment)
+      | None =>
+        /* A cropped rendered segment can retain the enclosing tile's full
+         * semantic payload.  Derive the checker expression from the same
+         * structural reparenthesization used by replacement, so a virtual
+         * range such as [16 - 2] in [(3 + 16) - 2] does not silently carry
+         * the unselected [3 +] prefix into One Step validation. */
+        switch (Language.Statics.Map.lookup(container_id, info_map)) {
+        | Some(InfoExp({user_term, _})) =>
+          switch (
+            Language.Reparenthesize.reparenthesize_selection(
+              ~selected_ids=Segment.ids(segment),
+              user_term,
+            )
+            |> Option.bind(_, Language.Reparenthesize.selected_exp)
+          ) {
+          | Some(_) as selected => selected
+          | None => exp_of_segment(segment)
+          }
+        | Some(_)
+        | None => exp_of_segment(segment)
+        }
       };
     {
       segment,

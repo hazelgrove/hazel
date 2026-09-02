@@ -100,6 +100,18 @@ module Model = {
     | _ => true
     };
 
+  let with_math_configuration_from = (~source: t, target: t): t =>
+    switch (target.math_policy) {
+    | Some(_) => target
+    | None => {
+        ...target,
+        rewrite_level: source.rewrite_level,
+        automation_stage: source.automation_stage,
+        profile_board: source.profile_board,
+        math_mode_builder: source.math_mode_builder,
+      }
+    };
+
   let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 
   let terminal_exp = (m: t) => StepperBase.Stepper.terminal_exp(m.root);
@@ -116,6 +128,17 @@ module Update = {
     | MathModeBuilderAction(MathModeBuilder.Update.t)
     | SelectRewriteLevel(Axioms.rewrite_level)
     | SelectAutomationStage(Axioms.automation_stage);
+
+  let changes_math_configuration =
+    fun
+    | ProfileBoardAction(_)
+    | MathModeBuilderAction(_)
+    | SelectRewriteLevel(_)
+    | SelectAutomationStage(_) => true
+    | StepperAction(_)
+    | ToggleAutomationSettings
+    | ToggleProfilePanel
+    | ToggleMathModeBuilderPanel => false;
 
   let update = (~settings, action, model: Model.t) => {
     Updated.(
@@ -353,6 +376,8 @@ module View = {
       | Some({lock_automation_stage, _}) => lock_automation_stage
       | None => false
       };
+    let show_math_automation_controls =
+      Model.shows_math_automation_controls(model);
     let custom_mode_active =
       model.math_policy == None && model.math_mode_builder.active;
     let custom_mode_label =
@@ -411,73 +436,117 @@ module View = {
           ],
         )
       };
-    let automation_choices = [
-      active_profile_status,
-      Node.div(
-        ~attrs=[Attr.class_("math-automation-control")],
-        [
-          Node.div(
-            ~attrs=[Attr.class_("math-automation-control-label")],
-            [Node.text("Math level")],
-          ),
-          Node.div(
-            ~attrs=[Attr.class_("math-automation-options")],
-            Axioms.selectable_rewrite_levels
-            |> List.map(level => {
-                 let enabled =
-                   !profile_locked
-                   && !custom_mode_active
-                   && Axioms.rewrite_level_enabled(level);
-                 control_option(
-                   ~active=!custom_mode_active && model.rewrite_level == level,
-                   ~enabled,
-                   ~label=
-                     switch (level) {
-                     | Trigonometry => "Trig"
-                     | _ => Axioms.rewrite_level_label(level)
-                     },
-                   ~detail=
-                     switch (level) {
-                     | Arithmetic => "constants & affine"
-                     | Algebra => "distribution & factoring"
-                     | Trigonometry => "identities & angles"
-                     | Calculus => "derivatives"
-                     | FunctionsAndLists => "functions & lists"
-                     },
-                   ~callback=inject(SelectRewriteLevel(level)),
-                 );
-               }),
-          ),
-        ],
-      ),
-      Node.div(
-        ~attrs=[Attr.class_("math-automation-control")],
-        [
-          Node.div(
-            ~attrs=[Attr.class_("math-automation-control-label")],
-            [Node.text("Automation")],
-          ),
-          Node.div(
-            ~attrs=[Attr.class_("math-automation-options")],
-            Axioms.automation_stages
-            |> List.map(stage =>
-                 control_option(
-                   ~active=model.automation_stage == stage,
-                   ~enabled=!automation_locked,
-                   ~label=Axioms.automation_stage_label(stage),
-                   ~detail=
-                     switch (stage) {
-                     | Manual => "one visible step"
-                     | MultiStepCheck => "check a result"
-                     | AutoEval => "prefill the target"
-                     },
-                   ~callback=inject(SelectAutomationStage(stage)),
-                 )
-               ),
-          ),
-        ],
-      ),
-    ];
+    let automation_choices =
+      [
+        active_profile_status,
+        Node.div(
+          ~attrs=[Attr.class_("math-automation-control")],
+          [
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-control-label")],
+              [Node.text("Math level")],
+            ),
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-options")],
+              Axioms.selectable_rewrite_levels
+              |> List.map(level => {
+                   let enabled =
+                     !profile_locked
+                     && !custom_mode_active
+                     && Axioms.rewrite_level_enabled(level);
+                   control_option(
+                     ~active=
+                       !custom_mode_active && model.rewrite_level == level,
+                     ~enabled,
+                     ~label=
+                       switch (level) {
+                       | Trigonometry => "Trig"
+                       | _ => Axioms.rewrite_level_label(level)
+                       },
+                     ~detail=
+                       switch (level) {
+                       | Arithmetic => "constants & affine"
+                       | Algebra => "distribution & factoring"
+                       | Trigonometry => "identities & angles"
+                       | Calculus => "derivatives"
+                       | FunctionsAndLists => "functions & lists"
+                       },
+                     ~callback=inject(SelectRewriteLevel(level)),
+                   );
+                 }),
+            ),
+          ],
+        ),
+        Node.div(
+          ~attrs=[Attr.class_("math-automation-control")],
+          [
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-control-label")],
+              [Node.text("Automation")],
+            ),
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-options")],
+              Axioms.automation_stages
+              |> List.map(stage =>
+                   control_option(
+                     ~active=model.automation_stage == stage,
+                     ~enabled=!automation_locked,
+                     ~label=Axioms.automation_stage_label(stage),
+                     ~detail=
+                       switch (stage) {
+                       | Manual => "one visible step"
+                       | MultiStepCheck => "check a result"
+                       | AutoEval => "prefill the target"
+                       },
+                     ~callback=inject(SelectAutomationStage(stage)),
+                   )
+                 ),
+            ),
+          ],
+        ),
+      ]
+      @ (
+        profile_locked
+          ? []
+          : [
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-control")],
+              [
+                Node.div(
+                  ~attrs=[Attr.class_("math-automation-control-label")],
+                  [Node.text("Profile settings")],
+                ),
+                Node.div(
+                  ~attrs=[Attr.class_("math-automation-options")],
+                  [
+                    control_option(
+                      ~active=false,
+                      ~enabled=true,
+                      ~label="Current Profile",
+                      ~detail="inspect enabled rules",
+                      ~callback=
+                        Ui_effect.Many([
+                          inject(ToggleAutomationSettings),
+                          inject(ToggleProfilePanel),
+                        ]),
+                    ),
+                    control_option(
+                      ~active=false,
+                      ~enabled=true,
+                      ~label="Custom Math Profile",
+                      ~detail="create or edit a profile",
+                      ~callback=
+                        Ui_effect.Many([
+                          inject(ToggleAutomationSettings),
+                          inject(ToggleMathModeBuilderPanel),
+                        ]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ]
+      );
 
     let automation_summary =
       (
@@ -485,7 +554,7 @@ module View = {
           ? "Custom: " ++ custom_mode_label
           : Axioms.rewrite_level_label(model.rewrite_level)
       )
-      ++ " / "
+      ++ " · "
       ++ Axioms.automation_stage_label(model.automation_stage);
 
     let automation_controls =
@@ -494,7 +563,7 @@ module View = {
         [
           Node.div(
             ~attrs=[
-              Attr.class_("settings-action"),
+              Attr.classes(["proof-button", "math-automation-summary"]),
               Attr.on_pointerdown(_ =>
                 Ui_effect.Many([
                   inject(ToggleAutomationSettings),
@@ -503,20 +572,11 @@ module View = {
               ),
             ],
             [
-              Widgets.toggle(
-                ~tooltip="choose math automation",
-                "∑",
-                model.automation_settings_open,
-                _ =>
-                Ui_effect.Ignore
+              Node.text(automation_summary),
+              Node.span(
+                ~attrs=[Attr.class_("math-automation-summary-icon")],
+                [Node.text(model.automation_settings_open ? "▲" : "⚙")],
               ),
-              Node.div([
-                Node.text("math automation"),
-                Node.div(
-                  ~attrs=[Attr.class_("settings-action-detail")],
-                  [Node.text(automation_summary)],
-                ),
-              ]),
             ],
           ),
         ]
@@ -532,43 +592,19 @@ module View = {
         ),
       );
 
-    let math_mode_button = (~callback, label) =>
-      Node.div(
-        ~attrs=[
-          Attr.class_("proof-button"),
-          Attr.on_click(_ =>
-            Ui_effect.Many([
-              callback,
-              Virtual_dom.Vdom.Effect.Stop_propagation,
-            ])
-          ),
-        ],
-        [Node.text(label)],
-      );
-
-    let derivation_math_mode_toolbar =
-      profile_locked
-        ? []
-        : [
+    let derivation_math_mode_toolbar = {
+      let controls =
+        show_math_automation_controls ? [automation_controls] : [];
+      switch (controls) {
+      | [] => []
+      | controls => [
           Node.div(
             ~attrs=[Attr.class_("derivation-math-mode-toolbar")],
-            [
-              math_mode_button(
-                ~callback=inject(ToggleMathModeBuilderPanel),
-                "Math Mode Builder "
-                ++ (
-                  model.math_mode_panel == MathModeBuilderPanelOpen
-                    ? "▲" : "▼"
-                ),
-              ),
-              math_mode_button(
-                ~callback=inject(ToggleProfilePanel),
-                "Profile "
-                ++ (model.math_mode_panel == ProfilePanelOpen ? "▲" : "▼"),
-              ),
-            ],
+            controls,
           ),
-        ];
+        ]
+      };
+    };
 
     let active_profile = Model.active_profile(model);
     let show_next_step_hints =
@@ -637,21 +673,15 @@ module View = {
         };
       };
 
-    let show_math_automation_controls =
-      Model.shows_math_automation_controls(model);
     let settings_modal =
       is_toplevel && globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
             ~inject=u => globals.inject_global(Set(u)),
-            ~extra=show_math_automation_controls ? [automation_controls] : [],
+            ~extra=[],
             globals.settings.core.evaluation,
           )
         : [];
-    let inline_automation_controls =
-      is_toplevel || !show_math_automation_controls
-        ? [] : [automation_controls];
     derivation_math_mode_toolbar
-    @ inline_automation_controls
     @ StepperBase.Stepper.view_with_automation(
         ~globals,
         ~take_focus=f => signal(MakeActive(f)),

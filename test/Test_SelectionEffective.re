@@ -497,6 +497,47 @@ let tests = (
       ~input={|3 + 16 §-¦ 2|},
       ~expected={|16 - 2|},
     ),
+    test_case(
+      "order-of-operations virtual subtraction is a valid arithmetic step",
+      `Quick,
+      () => {
+        let z = Test_Editing.mk_zipper("3 + 16 §-¦ 2");
+        let (term, statics, syntax) = setup(z);
+        let selection =
+          SelectionEffective.effective_selection(
+            ~info_map=statics.info_map,
+            ~measured=syntax.measured,
+            ~term_data=syntax.term_data,
+            z,
+          );
+        let source =
+          SelectionEffective.selected_exp(~full_exp=term, selection)
+          |> Option.get;
+        let target =
+          Test_Editing.mk_zipper("¦14")
+          |> MakeTerm.from_zip_for_sem(~root=Exp)
+          |> (result => result.term);
+        let (source, target) =
+          Web.MissingStep.proof_request_expressions(
+            ~info_map=statics.info_map,
+            ~source,
+            ~target,
+          );
+        check(
+          bool,
+          "virtual subtraction checker",
+          true,
+          Web.RewriteChecker.check_single_step_trace_at_level(
+            ~level=Language.Axioms.Arithmetic,
+            ~settings=Test_Editing.default_settings,
+            ~env=Language.Environment.empty,
+            source,
+            target,
+          )
+          |> Option.is_some,
+        );
+      },
+    ),
     test_replacement(
       ~name="order-of-operations subtraction replacement keeps its prefix",
       ~input={|3 + 16 §-¦ 2|},

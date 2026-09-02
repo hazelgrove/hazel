@@ -1026,6 +1026,19 @@ and Stepper: {
     | _ => false
     };
 
+  let rec is_terminal_proof_value = exp =>
+    switch (Exp.term_of(exp)) {
+    | Parens(inner)
+    | Asc(inner, _)
+    | Tuple([inner]) => is_terminal_proof_value(inner)
+    | Atom(Bool(true)) => true
+    | _ => false
+    };
+
+  let is_terminal_proof_transition = (next_step: step_model) =>
+    next_step.next_step == None
+    && is_terminal_proof_value(next_step.expr |> Calc.get_saved_exc);
+
   let single_step_export = (ind, step: step_model, forall_str, domain) => {
     switch (step.next_step) {
     | Some(next) =>
@@ -1062,20 +1075,17 @@ and Stepper: {
     switch (step.next_step) {
     | None => []
     | Some(next_step) =>
-      switch (
-        Calc.get_saved_exc(next_step.expr) |> Exp.term_of,
-        next_step.next_step,
-      ) {
-      /* Completing an equality evaluates the final reflexive proposition to
-         Hazel's UI value [true].  That value is administrative proof state,
-         not another proposition in the Rocq development. */
-      | (Atom(Bool(true)), None) => []
-      | _ =>
-        switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
-        | Fun(_, _, _, _) => coq_export_steps(next_step)
-        | _ => [step, ...coq_export_steps(next_step)]
-        }
-      }
+      is_terminal_proof_transition(next_step)
+        /* Completing an equality evaluates the final reflexive proposition to
+           Hazel's UI value [true].  That value is administrative proof state,
+           not another proposition in the Rocq development. */
+        ? []
+        : (
+          switch (Calc.get_saved_exc(step.expr) |> Exp.term_of) {
+          | Fun(_, _, _, _) => coq_export_steps(next_step)
+          | _ => [step, ...coq_export_steps(next_step)]
+          }
+        )
     };
 
   /* Rocq development export intentionally supports only a simple, ordered
@@ -1151,6 +1161,7 @@ and Stepper: {
       simple_let_spine(step.expr |> Calc.get_saved_exc);
     switch (step.next_step) {
     | None => plan
+    | Some(next) when is_terminal_proof_transition(next) => plan
     | Some(next) =>
       let (after_bindings, after_body) =
         simple_let_spine(next.expr |> Calc.get_saved_exc);
@@ -1261,7 +1272,7 @@ and Stepper: {
     | names => "unfold " ++ String.concat(", ", names) ++ ".\n"
     };
 
-  let equality_statement = (~before_rhs, ~after_rhs) =>
+  let equality_statement = (~known_names, ~before_rhs, ~after_rhs) =>
     switch (simple_function_rhs(before_rhs), simple_function_rhs(after_rhs)) {
     | (
         Some((before_parameter, before_body)),
@@ -1276,7 +1287,11 @@ and Stepper: {
         ),
       )
     | (None, None) => (
-        "",
+        CoqExport.forall_string_for_domain_excluding(
+          ~domain=CoqExport.Reals,
+          ~excluded=known_names,
+          [before_rhs, after_rhs],
+        ),
         CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, after_rhs),
         CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, before_rhs),
       )
@@ -1297,7 +1312,11 @@ and Stepper: {
            ) {
            | (Some(before_rhs), Some(after_rhs)) =>
              let (forall_str, after_string, before_string) =
-               equality_statement(~before_rhs, ~after_rhs);
+               equality_statement(
+                 ~known_names=earlier_names,
+                 ~before_rhs,
+                 ~after_rhs,
+               );
              let lemma_name =
                "hazel_"
                ++ binding.name
@@ -1362,6 +1381,7 @@ and Stepper: {
              simple_let_spine(next.expr |> Calc.get_saved_exc);
            let (forall_str, after_string, before_string) =
              equality_statement(
+               ~known_names=earlier_names,
                ~before_rhs=before_body,
                ~after_rhs=after_body,
              );
@@ -1543,19 +1563,39 @@ and Stepper: {
         calculus_profile_for_recorded_steps(recorded_steps);
       let certificate_name =
         "hazel_" ++ binding.name ++ "_derivative_certificate";
+      let has_symbolic_derivative =
+        DifferentiationRewrite.contains_diff(binding.final_rhs);
+      let export_rhs =
+        has_symbolic_derivative
+          ? ProofSearchBackend.derivative_semantics_for_certificate(
+              binding.final_rhs,
+            )
+            |> Option.map(
+                 (semantics: ProofSearchBackend.derivative_semantics) =>
+                 semantics.exp
+               )
+          : Some(binding.final_rhs);
       switch (
+        export_rhs,
         ProofSearchBackend.calculus_export_program_for_profile(
           ~profile,
           ~theorem_name=certificate_name,
           ~recorded_cleanup,
           ~recorded_rule_ids=trace_rule_ids_for_steps(recorded_steps),
+          ~interpret_authorized_target=has_symbolic_derivative,
           expanded_source,
           binding.final_rhs,
-        )
+        ),
       ) {
-      | Some(certificate) =>
+      | (Some(export_rhs), Some(certificate)) =>
+        let export_binding = {
+          ...binding,
+          final_rhs: export_rhs,
+        };
         Some(
-          (source_definition == "" ? "" : source_definition ++ "\n\n")
+          rocq_definition(export_binding)
+          ++ "\n\n"
+          ++ (source_definition == "" ? "" : source_definition ++ "\n\n")
           ++ certificate
           ++ "\n\nTheorem hazel_"
           ++ binding.name
@@ -1573,8 +1613,8 @@ and Stepper: {
           ++ "apply "
           ++ certificate_name
           ++ ".\nQed.",
-        )
-      | None =>
+        );
+      | _ =>
         failwith(
           "the recorded calculus profile cannot certify let-bound derivative "
           ++ binding.name,
@@ -1611,9 +1651,16 @@ and Stepper: {
     | step_lemmas =>
       let lemma_names = step_lemmas |> List.map(((name, _)) => name);
       let lemmas = step_lemmas |> List.map(((_, lemma)) => lemma);
+      let forall_str =
+        CoqExport.forall_string_for_domain_excluding(
+          ~domain=CoqExport.Reals,
+          ~excluded=binding_names,
+          [plan.initial_body, plan.final_body],
+        );
       "\n\n"
       ++ String.concat("\n\n", lemmas)
       ++ "\n\nTheorem hazel_final_value : "
+      ++ forall_str
       ++ CoqExport.string_of_d_for_domain(
            ~domain=CoqExport.Reals,
            plan.initial_body,
@@ -1623,7 +1670,9 @@ and Stepper: {
            ~domain=CoqExport.Reals,
            plan.final_body,
          )
-      ++ ".\nProof.\nsymmetry.\n"
+      ++ ".\nProof.\n"
+      ++ (forall_str == "" ? "" : "intros.\n")
+      ++ "symmetry.\n"
       ++ unfold_tactic(binding_names)
       ++ (
         lemma_names
@@ -1655,8 +1704,7 @@ and Stepper: {
           switch (
             derivative_binding_export(~earlier_bindings=earlier, binding)
           ) {
-          | Some(derivative) =>
-            rocq_definition(binding) ++ "\n\n" ++ derivative
+          | Some(derivative) => derivative
           | None => ordinary_binding_export(~earlier_names, binding)
           };
         [emitted, ...emit_bindings(earlier @ [binding], rest)];

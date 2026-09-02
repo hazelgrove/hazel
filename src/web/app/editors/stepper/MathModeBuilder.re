@@ -1546,7 +1546,7 @@ module View = {
                   [
                     div_c(
                       "profile-board-modal-title",
-                      [Node.text("Math Mode Builder")],
+                      [Node.text("Custom Math Profile")],
                     ),
                     div_c(
                       "profile-board-detail",
@@ -1561,7 +1561,7 @@ module View = {
                 Widgets.button(
                   ~clss=["profile-board-close"],
                   Node.text("Close"),
-                  ~tooltip="close Math Mode Builder",
+                  ~tooltip="close Custom Math Profile",
                   _ =>
                   on_close
                 ),

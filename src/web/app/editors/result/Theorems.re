@@ -132,6 +132,34 @@ module Model = {
   let empty_with_math_policy = math_policy =>
     init |> with_math_policy(math_policy);
 
+  let with_math_configuration = (~source, model: t): t => {
+    ...model,
+    thm_map:
+      model.thm_map
+      |> Id.Map.map((stepper: stepper) =>
+           {
+             ...stepper,
+             stepper_view:
+               StepperView.Model.with_math_configuration_from(
+                 ~source,
+                 stepper.stepper_view,
+               ),
+           }
+         ),
+    explore_map:
+      model.explore_map
+      |> Id.Map.map((stepper: stepper) =>
+           {
+             ...stepper,
+             stepper_view:
+               StepperView.Model.with_math_configuration_from(
+                 ~source,
+                 stepper.stepper_view,
+               ),
+           }
+         ),
+  };
+
   let persist = (model: t): persistent => {
     thm_map:
       Id.Map.map(
@@ -282,6 +310,20 @@ module Update = {
     | None => false
     };
 
+  let math_configuration_source = (action, model: Model.t) =>
+    switch (action) {
+    | TheoremUpdate(id, stepper_action)
+        when StepperView.Update.changes_math_configuration(stepper_action) =>
+      Id.Map.find_opt(id, model.thm_map)
+      |> Option.map((stepper: Model.stepper) => stepper.stepper_view)
+    | ExploreUpdate(id, stepper_action)
+        when StepperView.Update.changes_math_configuration(stepper_action) =>
+      Id.Map.find_opt(id, model.explore_map)
+      |> Option.map((stepper: Model.stepper) => stepper.stepper_view)
+    | TheoremUpdate(_, _)
+    | ExploreUpdate(_, _) => None
+    };
+
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     let settings = proof_settings(settings);
     switch (action) {
@@ -290,10 +332,14 @@ module Update = {
       | Some(thm) =>
         let* thm = update_stepper(~settings, ~action, thm);
         let thm_map = Id.Map.add(id, thm, model.thm_map);
-        Model.{
-          ...model,
-          thm_map,
-        };
+        let updated =
+          Model.{
+            ...model,
+            thm_map,
+          };
+        StepperView.Update.changes_math_configuration(action)
+          ? Model.with_math_configuration(~source=thm.stepper_view, updated)
+          : updated;
       | None => model |> Updated.raise_invalid_action
       }
     | ExploreUpdate(id, action) =>
@@ -301,10 +347,17 @@ module Update = {
       | Some(explore) =>
         let* explore = update_stepper(~settings, ~action, explore);
         let explore_map = Id.Map.add(id, explore, model.explore_map);
-        Model.{
-          ...model,
-          explore_map,
-        };
+        let updated =
+          Model.{
+            ...model,
+            explore_map,
+          };
+        StepperView.Update.changes_math_configuration(action)
+          ? Model.with_math_configuration(
+              ~source=explore.stepper_view,
+              updated,
+            )
+          : updated;
       | None => model |> Updated.raise_invalid_action
       }
     };

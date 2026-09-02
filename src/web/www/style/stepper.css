@@ -178,8 +178,11 @@
 }
 
 .derivation-math-mode-toolbar {
+  position: relative;
   display: flex;
   flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5em;
   margin: 0.4em 0 0.4em 2em;
   color: var(--BR4);
@@ -193,9 +196,21 @@
 }
 
 .math-automation-settings {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.35em;
+}
+
+.math-automation-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.math-automation-summary-icon {
+  color: inherit;
+  font-size: 0.82em;
 }
 
 .settings-action {
@@ -214,11 +229,15 @@
 }
 
 .math-automation-popover {
+  position: absolute;
+  top: calc(100% + 0.4em);
+  left: 0;
+  z-index: var(--context-inspector-z);
   display: flex;
   flex-direction: column;
   gap: 0.4em;
-  margin-left: 3.75em;
-  max-width: calc(100% - 4.25em);
+  width: min(34rem, calc(100vw - 4rem));
+  box-sizing: border-box;
   padding: 0.45em;
   border: 1px solid var(--menu-outline);
   border-radius: 0.25em;

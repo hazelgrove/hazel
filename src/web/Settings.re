@@ -49,7 +49,7 @@ module Model = {
         show_stepper_filters: true,
         stepper_history: true,
         show_settings: false,
-        show_hidden_steps: true,
+        show_hidden_steps: false,
         write_out_steps: false,
         enable_proof: true,
         suggest_rewrites: true,

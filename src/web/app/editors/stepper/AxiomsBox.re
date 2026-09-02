@@ -559,7 +559,7 @@ module View = {
       ) {
       | [] => []
       | action_views => [
-          div_c("assumption-box", [Node.text("Calculus cleanup")]),
+          div_c("assumption-box", [Node.text("Cleanup")]),
           ...action_views,
         ]
       };
