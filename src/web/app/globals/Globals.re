@@ -68,6 +68,16 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
+    // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
+    | InitAppView(
+        Haz3lcore.Id.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+      )
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -82,6 +92,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    // MVU apps, keyed by app-projector syntax id; not persisted
+    apps: AppStore.t,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -107,6 +119,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),

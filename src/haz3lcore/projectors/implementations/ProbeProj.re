@@ -1500,7 +1500,15 @@ module M: Projector = {
 
   let focusable =
     Focusable.{
-      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
+      /* Absent when culled from the viewport */
+      pointer:
+        Some(
+          id =>
+            switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+            | None => ()
+            | Some(el) => el##focus
+            },
+        ),
       keyboard: None,
     };
 

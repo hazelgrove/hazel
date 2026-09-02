@@ -23,6 +23,15 @@ module ViewCache = {
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
+    /* The MVU app store lives in the web model, out of reach here; app
+     * projectors read it through AppBridge, so its counter is the cache's
+     * only handle on "the app state changed". Zero for kinds that don't
+     * read the store, so a ticking app doesn't invalidate every projector. */
+    app_version: int,
+    /* Views close over the cell size (view_seg renders code with it, and
+     * projectors that resize themselves convert pixels with it), so a zoom
+     * or font-size change has to expire the entry. */
+    font_metrics: FontMetrics.t,
     status: View.status,
     model: string,
     view: View.t,
@@ -39,6 +48,8 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~app_version,
+        ~font_metrics,
       )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
@@ -50,6 +61,8 @@ module ViewCache = {
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
+          && e.app_version == app_version
+          && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
       Some(e.view)
@@ -66,6 +79,8 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~app_version,
+        ~font_metrics,
         ~view,
       ) =>
     Hashtbl.replace(
@@ -78,6 +93,8 @@ module ViewCache = {
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
+        app_version,
+        font_metrics,
         status,
         model,
         view,
@@ -175,6 +192,7 @@ module Model = {
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
+    placement: p.placement,
   };
 
   let mk =
@@ -243,9 +261,13 @@ let backing_deco =
 let projector_clss =
     (
       ~view_error: bool=false,
-      {kind, sort, indication, selected, error, warning}: Model.status,
+      /* Docked: the div holds a chip, not the projector's own UI, so CSS
+       * can neutralize this kind's styling and make every chip look alike */
+      ~chipped: bool=false,
+      {kind, sort, indication, selected, error, warning, _}: Model.status,
     ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
+  @ (chipped ? ["chipped"] : [])
   @ (selected ? ["selected"] : [])
   @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])
@@ -267,13 +289,14 @@ let view_wrapper =
       ~measurement: Measured.measurement,
       ~status: Model.status,
       ~view_error: bool=false,
+      ~chipped: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
     ~attrs=[
-      Attr.classes(projector_clss(~view_error, status)),
+      Attr.classes(projector_clss(~view_error, ~chipped, status)),
       /* Stopping propagation here stops the base editor's
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
@@ -407,6 +430,30 @@ let flex_code =
         segment,
       );
 
+/* Abbreviated read-only rendering of a projector's underlying syntax,
+ * shown in the sidebar card header. */
+let chip_syntax = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
+  flex_code(
+    ~font_metrics,
+    ~single_line=true,
+    ~text_only=true,
+    Language.Sort.Exp,
+    ProjectorChip.segment(p),
+  );
+
+/* What a sidebar-docked projector leaves behind at the code site: one
+ * fixed glyph, identical for every kind, drawn in the space reserved by
+ * ProjectorChip.shape. Clicking it reveals the projector's card. */
+let chip = (~open_panel: Ui_effect.t(unit)): Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["proj-chip"]),
+      Attr.title("Show in the Projectors panel"),
+      Attr.on_click(_ => open_panel),
+    ],
+    [text(ProjectorChip.glyph)],
+  );
+
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
@@ -425,7 +472,10 @@ let mk_view =
       }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t =>
+    : View.t => {
+  /* Only the app projector reads the AppStore, so only its cache entry
+     has to expire when the store changes. */
+  let app_version = p.kind == ProjectorCore.Kind.HTML ? AppBridge.version^ : 0;
   switch (
     ViewCache.lookup(
       p.id,
@@ -436,6 +486,8 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~app_version,
+      ~font_metrics,
     )
   ) {
   | Some(view) =>
@@ -452,6 +504,10 @@ let mk_view =
         local: a => {
           let new_model = P.update(p.model, info, a);
           inject(Project(SetModel(idx, p.kind, new_model)));
+        },
+        local_quiet: a => {
+          let new_model = P.update(p.model, info, a);
+          inject(Project(SetModelQuiet(idx, p.kind, new_model)));
         },
         parent: a =>
           switch (a) {
@@ -476,6 +532,8 @@ let mk_view =
           ),
         status,
         core_settings,
+        col_width: font_metrics.col_width,
+        row_height: font_metrics.row_height,
       });
     ViewCache.store(
       p.id,
@@ -486,10 +544,13 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~app_version,
+      ~font_metrics,
       ~view,
     );
     view;
   };
+};
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
@@ -500,11 +561,16 @@ let split_views =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
+      /* What clicking a chip does; supplied by the code editor, which is
+       * the only caller that can render one */
+      ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let chipped =
+    !skip_inline && ProjectorCore.Placement.is_sidebar(p.placement);
   let views =
     mk_view(
       inject,
@@ -521,6 +587,7 @@ let split_views =
       ~measurement,
       ~status,
       ~view_error=views.error,
+      ~chipped,
       ~idx,
       ~kind=p.kind,
     );
@@ -529,8 +596,13 @@ let split_views =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
+    /* A docked projector shows a chip here; its primary UI is rendered by
+     * ProjectorPanel instead. Overlay and offside layers are unaffected by
+     * placement. Refractors (skip_inline) never occupy the inline slot. */
+    let inline_view =
+      skip_inline ? [] : chipped ? [chip(~open_panel)] : [views.inline];
     wrapper(
-      (skip_inline ? [] : [views.inline])
+      inline_view
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,
     );
@@ -551,6 +623,8 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
+      /* Reveals the Projectors panel; what a chip click does */
+      ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
@@ -572,6 +646,7 @@ let all =
          split_views(
            ~skip_inline=false,
            ~core_settings,
+           ~open_panel,
            inject,
            make_active,
            font_metrics,
@@ -587,6 +662,77 @@ let all =
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];
+};
+
+/* Primary views of the projectors docked to the sidebar, ordered as they
+ * read on screen. The chip at the code site and the view
+ * returned here are the two halves of a docked projector; `mk_view` is
+ * placement-agnostic, so this is the same node the inline placement would
+ * have shown. Viewport culling is deliberately not applied: the panel
+ * shows docked projectors whether or not they're scrolled into view. */
+let sidebar_views =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
+      projector_data: list(Model.projector_data),
+      projector_list: list(Id.t),
+    )
+    : list((Base.projector, Node.t)) => {
+  /* Order cards the way they read on screen. Deliberately NOT by position
+   * in projector_list: MakeTerm logs projectors during a skel-driven
+   * descent, so that list's order follows the traversal, not the source.
+   * The measured origin is unambiguous. */
+  let syntax_order = (d: Model.projector_data) => (
+    d.measurement.origin.row,
+    d.measurement.origin.col,
+  );
+  /* In the panel there is no absolutely-positioned box from the code
+   * editor, so projectors that size themselves against it (height: 100%,
+   * e.g. TextArea) would collapse to nothing. Give them the same number
+   * of rows the inline placement would have reserved.
+   *
+   * HTML is the exception: an app in the panel sizes to its own content
+   * (see proj-html.css), so imposing a height here would either clip it or
+   * leave dead space. That also keeps a docked app's height out of the
+   * projector model, which matters because model state has no textual
+   * form and so cannot survive a backup_text round-trip. */
+  let docked_style = (d: Model.projector_data): string =>
+    switch (d.p.kind) {
+    | HTML => ""
+    | _ =>
+      let (module P) = ProjectorInit.to_module(d.p.kind);
+      let rows =
+        switch (P.placeholder(d.p.model, d.info)) {
+        | {vertical: Inline, _} => 1
+        | {vertical: Tab(n) | Block(n), _} => n + 1
+        };
+      Printf.sprintf(
+        "height: %fpx;",
+        float_of_int(rows) *. font_metrics.row_height,
+      );
+    };
+  projector_data
+  |> List.filter((d: Model.projector_data) =>
+       ProjectorCore.Placement.is_sidebar(d.p.placement)
+     )
+  |> List.sort((d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
+  |> List.map((d: Model.projector_data) => {
+       let views =
+         mk_view(inject, font_metrics, ~core_settings, d, projector_list);
+       /* Same class list the code-site wrapper applies, so per-kind CSS
+        * still matches; the panel overrides the absolute positioning. */
+       (
+         d.p,
+         div(
+           ~attrs=[
+             Attr.classes(projector_clss(~view_error=views.error, d.status)),
+             Attr.create("style", docked_style(d)),
+           ],
+           [views.inline],
+         ),
+       );
+     });
 };
 
 let move_dir = (key: Key.t): option(Direction.t) =>
@@ -615,6 +761,9 @@ let key_handoff =
     Siblings.neighbors(editor.state.zipper.relatives.siblings),
   ) {
   | _ when z.caret != Outer => None
+  /* A docked projector has no UI at the code site to hand off to */
+  | (Some(Left), (Some(Projector({placement: Sidebar, _})), _))
+  | (Some(Right), (_, Some(Projector({placement: Sidebar, _})))) => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;

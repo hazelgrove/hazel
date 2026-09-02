@@ -121,5 +121,23 @@ let tests = (
         ),
       )
     ),
+    test_case("atan2 is quadrant-correct", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|atan2(0., 0. -. 1.) ==. pi|})
+    ),
+    test_case("atan2 diagonal", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|atan2(1., 1.) ==. pi /. 4.|})
+    ),
+    test_case("round half away from zero", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|round(2.5) ==. 3.|})
+    ),
+    test_case("round down", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|round(0.4) ==. 0.|})
+    ),
+    test_case("to_fixed truncates float noise", `Quick, () =>
+      parse_and_evaluate_test({|"0.30"|}, {|to_fixed(0.1 +. 0.2, 2)|})
+    ),
+    test_case("to_fixed zero digits", `Quick, () =>
+      parse_and_evaluate_test({|"3"|}, {|to_fixed(3.14159, 0)|})
+    ),
   ],
 );

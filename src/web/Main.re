@@ -49,7 +49,7 @@ let apply =
       updated.model,
     );
 
-  if (updated.is_edit) {
+  if (updated.save) {
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),

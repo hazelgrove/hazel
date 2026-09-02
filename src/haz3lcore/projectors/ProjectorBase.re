@@ -126,7 +126,11 @@ module View = {
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
     error: bool, /* Is there an error mark on the projector? */
-    warning: bool /* Is there a warning mark on the projector? */
+    warning: bool, /* Is there a warning mark on the projector? */
+    /* Inline (in-place) or Sidebar (docked). Read by projectors whose UI
+       differs between the two — a docked panel owns its own width, so
+       width-resize affordances make no sense there. */
+    placement: ProjectorCore.Placement.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -146,6 +150,10 @@ module View = {
     info,
     /* A callback for the projector's own actions */
     local: 'action => Ui_effect.t(unit),
+    /* `local` without an undo entry (Action.SetModelQuiet). For drags: send
+       the first tick via `local` so undo restores the pre-gesture state, the
+       rest via this. */
+    local_quiet: 'action => Ui_effect.t(unit),
     /* A callback for parent editor actions */
     parent: external_action => Ui_effect.t(unit),
     /* Creates a non-interactive embedded syntax view,
@@ -155,6 +163,11 @@ module View = {
     status,
     /* Core settings for feature flags */
     core_settings: Language.CoreSettings.t,
+    /* The editor's cell size in CSS pixels (from web-side FontMetrics, hence
+       passed as two floats). Placeholders are measured in cells, so these
+       convert pixel gestures to model dimensions. */
+    col_width: float,
+    row_height: float,
   };
 
   let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
@@ -270,10 +283,13 @@ module Cook = (C: Projector) : Cooked => {
       model: deserialize_m(args.model),
       info: args.info,
       local: a => args.local(serialize_a(a)),
+      local_quiet: a => args.local_quiet(serialize_a(a)),
       parent: args.parent,
       view_seg: args.view_seg,
       status: args.status,
       core_settings: args.core_settings,
+      col_width: args.col_width,
+      row_height: args.row_height,
     });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;

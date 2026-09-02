@@ -92,6 +92,7 @@ let handle_llm_response =
         {
           model: step.model,
           is_edit: acc.is_edit || step.is_edit,
+          save: acc.save || step.save,
           recalculate: acc.recalculate || step.recalculate,
           scroll_active: acc.scroll_active || step.scroll_active,
           logged: acc.logged || step.logged,

@@ -90,25 +90,99 @@ let free_variables = (f, m) =>
      )
   |> List.flatten;
 
-/* computes all three regions of a venn diagram of two sets represented as lists */
+/* Extract constructor name from a variant, if it has one */
+let constructor_key =
+  fun
+  | Variant(ctr, _, _) => Some(ctr)
+  | BadEntry(_) => None;
+
+/* computes all three regions of a venn diagram of two sets represented as lists.
+
+   Variants are matched by constructor name through an index (so this stays
+   linear in the size of the maps); BadEntries fall back to a linear scan with
+   `f`. Sums may contain repeated constructor names, so the pairing order is
+   load-bearing: we pair the FIRST xs entry with the FIRST ys entry of a given
+   name and drop the later duplicates. Using Hashtbl.add/find_opt/remove as a
+   multi-binding stack instead pairs duplicates up in reverse, which makes a
+   sum compare unequal to a structural copy of itself. */
 let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
-  let rec go = (xs, ys, seen_xs, acc, left, right) =>
-    switch (xs) {
-    | [] => (acc |> List.rev, left |> List.rev, List.rev_append(right, ys))
-    | [x, ...xs] =>
-      switch (List.partition(f(x, _), ys)) {
-      | ([], _) =>
-        switch (List.partition(f(x, _), seen_xs)) {
-        | ([], _) => go(xs, ys, [x, ...seen_xs], acc, [x, ...left], right)
-        | (_, _) => go(xs, ys, seen_xs, acc, left, right)
+  /* First ys entry per constructor name, plus the positions of ys BadEntries */
+  let ys_first: Hashtbl.t(string, 'a) = Hashtbl.create(List.length(ys));
+  let ys_bad = ref([]);
+  List.iteri(
+    (i, y) =>
+      switch (constructor_key(y)) {
+      | Some(key) =>
+        if (!Hashtbl.mem(ys_first, key)) {
+          Hashtbl.add(ys_first, key, y);
         }
-      | ([y, ..._], ys') =>
-        go(xs, ys', [x, ...seen_xs], [(x, y), ...acc], left, right)
-      }
-    };
-  go(xs, ys, [], [], [], []);
+      | None => ys_bad := [(i, y), ...ys_bad^]
+      },
+    ys,
+  );
+  let ys_bad = List.rev(ys_bad^);
+  /* Constructor names consumed by some x. A match consumes *every* ys entry
+     sharing that name, so those never reach `right`. */
+  let matched_keys: Hashtbl.t(string, unit) =
+    Hashtbl.create(List.length(ys));
+  /* Positions (in ys) of BadEntries consumed by some x */
+  let bad_consumed: Hashtbl.t(int, unit) =
+    Hashtbl.create(List.length(ys_bad));
+  /* Constructor names of xs already processed; later duplicates are dropped */
+  let seen_keys: Hashtbl.t(string, unit) = Hashtbl.create(List.length(xs));
+  /* BadEntry xs already processed, for the same dedup on payloads */
+  let seen_bad = ref([]);
+  let acc = ref([]);
+  let left = ref([]);
+  List.iter(
+    x =>
+      switch (constructor_key(x)) {
+      | Some(key) =>
+        if (!Hashtbl.mem(seen_keys, key)) {
+          Hashtbl.replace(seen_keys, key, ());
+          switch (Hashtbl.find_opt(ys_first, key)) {
+          | Some(y) =>
+            Hashtbl.replace(matched_keys, key, ());
+            acc := [(x, y), ...acc^];
+          | None => left := [x, ...left^]
+          };
+        }
+      | None =>
+        let first_match = ref(None);
+        List.iter(
+          ((i, y)) =>
+            if (!Hashtbl.mem(bad_consumed, i) && f(x, y)) {
+              Hashtbl.replace(bad_consumed, i, ());
+              if (Option.is_none(first_match^)) {
+                first_match := Some(y);
+              };
+            },
+          ys_bad,
+        );
+        switch (first_match^) {
+        | Some(y) => acc := [(x, y), ...acc^]
+        | None =>
+          if (!List.exists(f(x, _), seen_bad^)) {
+            left := [x, ...left^];
+          }
+        };
+        seen_bad := [x, ...seen_bad^];
+      },
+    xs,
+  );
+  /* Whatever of ys nothing in xs consumed, in the original order */
+  let right =
+    List.filteri(
+      (i, y) =>
+        switch (constructor_key(y)) {
+        | Some(key) => !Hashtbl.mem(matched_keys, key)
+        | None => !Hashtbl.mem(bad_consumed, i)
+        },
+      ys,
+    );
+  (acc^ |> List.rev, left^ |> List.rev, right);
 };
 
 let meet_entry =
@@ -133,26 +207,30 @@ let meet =
       m1: t('a),
       m2: t('a),
     )
-    : option(t('a)) => {
-  let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let meet_entries = List.filter_map(meet_entry(meet), inter);
-  if (List.length(meet_entries) == List.length(inter)) {
-    switch (
-      has_good_entry(left),
-      has_bad_entry(m1),
-      has_good_entry(right),
-      has_bad_entry(m2),
-    ) {
-    | (_, true, _, true) => Some(meet_entries @ left @ right)
-    | (false, true, _, _) => Some(meet_entries @ right)
-    | (_, _, false, true) => Some(meet_entries @ left)
-    | _ when left == [] && right == [] => Some(meet_entries)
-    | _ => None
-    };
+    : option(t('a)) =>
+  /* Short-circuit: physical equality - meet of identical maps is that map */
+  if (m1 === m2) {
+    Some(m1);
   } else {
-    None;
+    let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
+    let meet_entries = List.filter_map(meet_entry(meet), inter);
+    if (List.length(meet_entries) == List.length(inter)) {
+      switch (
+        has_good_entry(left),
+        has_bad_entry(m1),
+        has_good_entry(right),
+        has_bad_entry(m2),
+      ) {
+      | (_, true, _, true) => Some(meet_entries @ left @ right)
+      | (false, true, _, _) => Some(meet_entries @ right)
+      | (_, _, false, true) => Some(meet_entries @ left)
+      | _ when left == [] && right == [] => Some(meet_entries)
+      | _ => None
+      };
+    } else {
+      None;
+    };
   };
-};
 
 let match_synswitch =
     (
@@ -161,44 +239,70 @@ let match_synswitch =
       m1: t('a),
       m2: t('a),
     )
-    : t('a) => {
-  let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
-  let inter' =
-    List.map(
-      fun
-      | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
-        Variant(ctr, ids, Some(match_synswitch(value1, value2)))
-      | (v, _) => v,
-      inter,
-    );
-  inter' @ left;
-};
-
-let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
-  switch (venn_regions(same_constructor(eq), m1, m2)) {
-  | (inter, [], []) =>
-    List.for_all(
-      ((x, y)) =>
-        switch (x, y) {
-        | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
-          eq(value1, value2)
-        | (Variant(_, _, None), Variant(_, _, None)) => true
-        | (BadEntry(x), BadEntry(y)) => eq(x, y)
-        | _ => false
-        },
-      inter,
-    )
-  | _ => false
+    : t('a) =>
+  /* Short-circuit: physical equality */
+  if (m1 === m2) {
+    m1;
+  } else {
+    let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
+    let inter' =
+      List.map(
+        fun
+        | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+          Variant(ctr, ids, Some(match_synswitch(value1, value2)))
+        | (v, _) => v,
+        inter,
+      );
+    inter' @ left;
   };
-};
+
+let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) =>
+  /* Short-circuit: physical equality */
+  if (m1 === m2) {
+    true;
+  } else if (List.length(m1) != List.length(m2)) {
+    false;
+         /* Short-circuit: length mismatch means not equal */
+  } else {
+    switch (venn_regions(same_constructor(eq), m1, m2)) {
+    | (inter, [], []) =>
+      List.for_all(
+        ((x, y)) =>
+          switch (x, y) {
+          | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
+            eq(value1, value2)
+          | (Variant(_, _, None), Variant(_, _, None)) => true
+          | (BadEntry(x), BadEntry(y)) => eq(x, y)
+          | _ => false
+          },
+        inter,
+      )
+    | _ => false
+    };
+  };
 
 let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
-  List.map(
-    fun
-    | Variant(ctr, args, value) => Variant(ctr, args, f(value))
-    | BadEntry(value) => BadEntry(value),
-    m,
-  );
+  let changed = ref(false);
+  let result =
+    List.map(
+      variant => {
+        switch (variant) {
+        | Variant(ctr, args, value) =>
+          let value' = f(value);
+          if (value' !== value) {
+            changed := true;
+          };
+          Variant(ctr, args, value');
+        | BadEntry(value) => BadEntry(value)
+        }
+      },
+      m,
+    );
+  if (changed^) {
+    result;
+  } else {
+    m;
+  };
 };
 
 let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {

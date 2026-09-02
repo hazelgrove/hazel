@@ -24,9 +24,9 @@ module IdTag = {
     secondary: empty_secondary,
   };
 
-  /* Create annotation with invalid id and empty secondary (for temporary terms) */
-  let temp = (): t => {
-    //TODO(andrew): understand why this is thunked
+  /* Constant annotation with invalid id and empty secondary (for temporary terms).
+     Not thunked — returns the same physical object every call, enabling === checks. */
+  let temp: t = {
     ids: [Id.invalid],
     secondary: empty_secondary,
   };

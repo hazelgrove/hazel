@@ -143,6 +143,24 @@ module Update = {
         action: Globals.Update.t,
         model: Model.t,
       ) => {
+    // AppStore effect context: msgs re-enter through AppViewMsg; cmds run
+    // through CmdRunner.
+    let schedule_app_msg = (id, m) =>
+      schedule_action(Globals(AppViewMsg(id, m)));
+    let run_app_cmd = (ctx: Haz3lcore.CmdRunner.context, cmd) =>
+      Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(ctx, cmd));
+    /* The store is an input to projector views that their memo cache can't
+       see (ProjectorView.ViewCache); the counter is how it participates. */
+    let with_apps = (model: Model.t, apps): Model.t => {
+      Haz3lcore.AppBridge.bump();
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          apps,
+        },
+      };
+    };
     switch (action) {
     | SetFontMetrics(fm) =>
       {
@@ -232,6 +250,39 @@ module Update = {
           visible_rows: Some(visible_rows),
         },
       }
+      |> return_quiet
+    | AppViewMsg(id, msg) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.dispatch(
+             ~schedule_msg=schedule_app_msg,
+             ~run_cmd=run_app_cmd,
+             id,
+             msg,
+             model.globals.apps,
+           ),
+         )
+      |> return_quiet
+    /* Init doubles as rebind: memos re-derive from the incoming closures;
+       the model survives when the new view accepts it (live-edit keeps app
+       state). See AppStore.init. */
+    | InitAppView(id, source_result, init_model, update_fn, view_fn, subs_fn) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.init(
+             ~schedule_msg=schedule_app_msg,
+             id,
+             ~source_result,
+             ~init_model,
+             ~update_fn,
+             ~view_fn,
+             ~subs_fn=Some(subs_fn),
+             ~checkpoint=AppBridgeInstall.take_checkpoint(id),
+             model.globals.apps,
+           ),
+         )
       |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
@@ -370,6 +421,8 @@ module Update = {
         explain_this,
       };
     | MakeActive(selection) =>
+      // TODO(gc): run AppStore.gc against the live syntax ids here once they
+      // are cheap to obtain; nothing reclaims store entries today.
       {
         ...model,
         selection,
@@ -627,6 +680,16 @@ module View = {
       let meta_effects =
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+      /* Skip page-level shortcuts when the user is typing in a form
+         element (e.g. an <input>/<textarea>/<select> rendered by a
+         HazelDOM sidebar app). The clipboard shim is a textarea but
+         needs page handling, so it carves out by id. */
+      let target_is_input =
+        switch (key.target_tag) {
+        | Some("INPUT" | "TEXTAREA" | "SELECT") =>
+          key.target_id != Some(JsUtil.clipboard_shim_id)
+        | _ => false
+        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -707,12 +770,12 @@ module View = {
         };
       Effect.(
         switch (page_action) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
+        | Some(action) when !target_is_input =>
           Many(
             [Prevent_default, Stop_propagation, inject(action)]
             @ meta_effects,
           )
+        | _ => meta_effects == [] ? Ignore : Many(meta_effects)
         }
       );
     };
@@ -815,6 +878,9 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
+    /* Point the core-side app bridge at this frame's store + inject, so
+       inline app projectors (HTMLProj) can reach the AppStore. */
+    AppBridgeInstall.install(~globals);
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(

@@ -121,6 +121,7 @@ let view_any = (~globals, any: Any.t) =>
 
 let view_type = (~globals, typ: Typ.t) =>
   typ
+  |> Typ.abstract_rec_types
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 

@@ -1,0 +1,395 @@
+# Harvest Ledger #
+
+# Track your harvest under the stars. Consecutive harvests of the same #
+# quality tier build a streak bonus. #
+
+# Quality tiers from the moonlit fields, in ascending value #
+type Quality =
+  + Bronze
+  + Silver
+  + Gold
+  + Starlight
+in
+
+# Crops that grow under the night sky #
+type Crop =
+  + Moonmelon
+  + Starfruit
+  + Nightshade
+  + Glowpumpkin
+  + Duskwheat
+in
+
+# A single harvest from the garden #
+type Harvest = (
+  crop = Crop,
+  quality = Quality,
+  quantity = Int
+) in
+
+# The harvest ledger tracks all harvests and bonuses #
+type Model = (
+  harvests = [Harvest],
+  totalValue = Int,
+  streakBonus = Int,
+  lastQuality = Quality
+) in
+
+# Actions the farmer can take: log a harvest, or bank the streak bonus #
+type Action =
+  + RecordHarvest(Harvest)
+  + ClaimBonus
+in
+
+let cropValue(c: Crop): Int =
+  case c
+  | Moonmelon => 15
+  | Starfruit => 20
+  | Nightshade => 20
+  | Glowpumpkin => 12
+  | Duskwheat => 10
+  end
+in
+
+let qualityMultiplier(q: Quality): Int =
+  case q
+  | Bronze => 1
+  | Silver => 2
+  | Gold => 3
+  | Starlight => 5
+  end
+in
+
+let harvestValue(h: Harvest): Int =
+  cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity
+in
+
+let init: Model = (
+  harvests = [],
+  totalValue = 0,
+  streakBonus = 0,
+  lastQuality = Bronze
+) in
+
+# A streak continues when consecutive harvests share a quality tier #
+let processHarvest(ledger: Model, h: Harvest): Model =
+  let value = harvestValue(h) in
+  let isFirst = length(ledger.harvests) == 0 in
+  let continues = !isFirst && h.quality == ledger.lastQuality in
+  let newStreak = if continues then ledger.streakBonus + 5 else 0 in
+  (
+    harvests = h :: ledger.harvests,
+    totalValue = ledger.totalValue + value + newStreak,
+    streakBonus = newStreak,
+    lastQuality = h.quality
+  )
+in
+
+let claimBonus(ledger: Model): Model =
+  (
+    harvests = ledger.harvests,
+    totalValue = ledger.totalValue + ledger.streakBonus,
+    streakBonus = 0,
+    lastQuality = ledger.lastQuality
+  )
+in
+
+let update(model: Model, action: Action): Model =
+  case action
+  | RecordHarvest(h) => processHarvest(model, h)
+  | ClaimBonus => claimBonus(model)
+  end
+in
+
+# ===== VIEW HELPERS ===== #
+
+let cropName(c: Crop): String =
+  case c
+  | Moonmelon => "Moonmelon"
+  | Starfruit => "Starfruit"
+  | Nightshade => "Nightshade"
+  | Glowpumpkin => "Glowpumpkin"
+  | Duskwheat => "Duskwheat"
+  end
+in
+
+let qualityLabel(q: Quality): String =
+  case q
+  | Bronze => "Bronze"
+  | Silver => "Silver"
+  | Gold => "Gold"
+  | Starlight => "Starlight"
+  end
+in
+
+let qualityEmoji(q: Quality): String =
+  case q
+  | Bronze => "🥉"
+  | Silver => "🥈"
+  | Gold => "🥇"
+  | Starlight => "⭐"
+  end
+in
+
+# Tier colors, in the same oklch space as the editor's own palette #
+let qualityColor(q: Quality): String =
+  case q
+  | Bronze => "oklch(58% 0.09 60)"
+  | Silver => "oklch(60% 0.02 250)"
+  | Gold => "oklch(64% 0.14 90)"
+  | Starlight => "var(--TYP)"
+  end
+in
+
+# ===== VIEW ===== #
+
+# One typeface (--code-font, inherited from the root) and a four-step size #
+# scale: 0.75em labels, 0.85em body, 1.2em title, 1.5em display numbers. #
+# Sections carry their own side padding so the rules between them run the #
+# full width of the card, as Hazel's own panels do. #
+let sidePad: String = "0.7em 1em" in
+
+# Outer table columns pad to 1em so the rules align with the sections #
+let cellFirst: String = "0.35em 0.5em 0.35em 1em" in
+let cell: String = "0.35em 0.5em" in
+let cellLast: String = "0.35em 1em 0.35em 0.5em" in
+
+# Uniform width in a two-column grid; the grid stretches each button #
+let harvestButton(h: Harvest): HTML =
+  Button(
+    [OnClick(RecordHarvest(h)),
+     Style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
+            ("color", qualityColor(h.quality)), ("border", "1px solid var(--BR1)"),
+            ("border-radius", "3px"), ("cursor", "pointer"),
+            ("font-family", "inherit"), ("font-size", "0.85em"),
+            ("text-align", "left"), ("white-space", "nowrap")])],
+    [Text(qualityEmoji(h.quality) ++ " " ++ cropName(h.crop) ++ " x" ++ string_of_int(h.quantity))]
+  )
+in
+
+let headerCell(label: String, pad: String, align: String): HTML =
+  Th([Style([("padding", pad), ("text-align", align), ("color", "var(--BR3)"),
+             ("font-size", "0.75em"), ("font-weight", "bold"),
+             ("text-transform", "uppercase")])],
+     [Text(label)])
+in
+
+let statBlock(label: String, color: String, value: String): HTML =
+  Div(
+    [Style([("text-align", "center")])],
+    [
+      Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+                  ("text-transform", "uppercase")])],
+          [Text(label)]),
+      Div([Style([("font-size", "1.5em"), ("color", color), ("font-weight", "bold")])],
+          [Text(value)])
+    ]
+  )
+in
+
+# Only the rows depend on the model, so only they stay inside view #
+let view(model: Model): HTML =
+  let harvestRows: [HTML] =
+    let ordered: [Harvest] = reverse(model.harvests) in
+    mapi(ordered, fun (i, h) ->
+      Tr(
+        [Style([("border-top", "1px solid var(--BR1)")])],
+        [
+          Td(
+            [Style([("padding", cellFirst), ("color", "var(--BR3)")])],
+            [Text(string_of_int(i + 1))]
+          ),
+          Td(
+            [Style([("padding", cell)])],
+            [Text(cropName(h.crop))]
+          ),
+          Td(
+            [Style([("padding", cell), ("color", qualityColor(h.quality)),
+                    ("white-space", "nowrap")])],
+            [Text(qualityEmoji(h.quality) ++ " " ++ qualityLabel(h.quality))]
+          ),
+          Td(
+            [Style([("padding", cell), ("text-align", "right")])],
+            [Text(string_of_int(h.quantity))]
+          ),
+          Td(
+            [Style([("padding", cellLast), ("color", "var(--BR4)"),
+                    ("text-align", "right"), ("font-weight", "bold")])],
+            [Text(string_of_int(harvestValue(h)))]
+          )
+        ]
+      )
+    )
+  in
+  Div(
+    [Style([
+      # MVU-render is height:100%, so a vertical margin here would overflow #
+      # the projector box and leave a permanent scrollbar. Use padding. #
+      ("max-width", "600px"), ("margin", "0 auto"),
+      ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+      ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+      ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+      ("overflow", "hidden")
+    ])],
+    [
+      Div(
+        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
+        [
+          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Text("🌙 Harvest Ledger")]),
+          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Text("Track your night garden harvests")])
+        ]
+      ),
+
+      # Summary stats, banded full width against the rounded outer frame #
+      Div(
+        [Style([("display", "flex"), ("justify-content", "space-around"),
+                ("padding", sidePad), ("background", "var(--T2)"),
+                ("border-top", "1px solid var(--BR1)"),
+                ("border-bottom", "1px solid var(--BR1)")])],
+        [
+          statBlock("Total Value", "var(--BR4)", string_of_int(model.totalValue)),
+          statBlock("Streak Bonus",
+                    if model.streakBonus > 0 then "var(--G0)" else "var(--BR3)",
+                    "+" ++ string_of_int(model.streakBonus)),
+          statBlock("Last Quality", qualityColor(model.lastQuality), qualityEmoji(model.lastQuality))
+        ]
+      ),
+
+      Table(
+        [Style([("width", "100%"), ("border-collapse", "collapse")])],
+        [
+          Thead(
+            [],
+            [
+              Tr(
+                [],
+                [
+                  headerCell("#", cellFirst, "left"),
+                  headerCell("Crop", cell, "left"),
+                  headerCell("Quality", cell, "left"),
+                  headerCell("Qty", cell, "right"),
+                  headerCell("Value", cellLast, "right")
+                ]
+              )
+            ]
+          ),
+          Tbody(
+            [],
+            if length(model.harvests) == 0
+            then [
+              Tr([Style([("border-top", "1px solid var(--BR1)")])], [
+                Td(
+                  [ColSpan(5),
+                   Style([("padding", "1.2em 1em"), ("text-align", "center"),
+                          ("color", "var(--BR3)")])],
+                  [Text("No harvests yet... the garden awaits")]
+                )
+              ])
+            ]
+            else harvestRows
+          )
+        ]
+      ),
+
+      Div(
+        [Style([("padding", sidePad), ("border-top", "1px solid var(--BR1)")])],
+        [
+          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+                      ("text-transform", "uppercase"), ("margin-bottom", "0.5em")])],
+              [Text("Record Harvest")]),
+          Div(
+            [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
+                    ("gap", "0.4em")])],
+            [
+              harvestButton((crop = Moonmelon, quality = Bronze, quantity = 2)),
+              harvestButton((crop = Starfruit, quality = Silver, quantity = 1)),
+              harvestButton((crop = Nightshade, quality = Gold, quantity = 1)),
+              harvestButton((crop = Glowpumpkin, quality = Gold, quantity = 3)),
+              harvestButton((crop = Duskwheat, quality = Bronze, quantity = 4)),
+              harvestButton((crop = Moonmelon, quality = Starlight, quantity = 1))
+            ]
+          ),
+          Button(
+            [OnClick(ClaimBonus),
+             Style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
+                    ("background", "var(--G0)"), ("color", "var(--SAND)"),
+                    ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
+                    ("cursor", "pointer"), ("font-family", "inherit"),
+                    ("font-size", "0.85em")])],
+            [Text("💰 Claim Bonus")]
+          )
+        ]
+      ),
+
+      Div(
+        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+                ("font-size", "0.75em"), ("color", "var(--BR3)"),
+                ("border-top", "1px solid var(--BR1)")])],
+        [Text("🌱 " ++ string_of_int(length(model.harvests)) ++ " harvests logged")]
+      )
+    ]
+  )
+in
+
+let subs(_model: Model): Sub = SubNone in
+
+# ===== TESTS ===== #
+
+# With (model, action) order, `update` already has fold_left's shape #
+let run(ledger: Model, actions: [Action]): Model =
+  fold_left(actions, update, ledger)
+in
+
+hint "recording a harvest banks crop value x quality x quantity"
+test
+  let h: Harvest = (crop = Moonmelon, quality = Bronze, quantity = 2) in
+  let ledger = update(init, RecordHarvest(h)) in
+  # Moonmelon(15) * Bronze(1) * 2 = 30, no streak bonus on the first #
+  ledger.totalValue == 30 && length(ledger.harvests) == 1
+end;
+
+hint "crop and quality set the base take"
+test
+  qualityMultiplier(Bronze) == 1
+    && qualityMultiplier(Starlight) == 5
+    && cropValue(Starfruit) == cropValue(Nightshade)
+    && harvestValue((crop = Nightshade, quality = Starlight, quantity = 1)) == 100
+end;
+
+hint "consecutive harvests of one quality build a streak"
+test
+  let h1: Harvest = (crop = Moonmelon, quality = Silver, quantity = 1) in
+  let h2: Harvest = (crop = Starfruit, quality = Silver, quantity = 1) in
+  let h3: Harvest = (crop = Nightshade, quality = Silver, quantity = 1) in
+  let ledger = run(init, [RecordHarvest(h1), RecordHarvest(h2), RecordHarvest(h3)]) in
+  ledger.streakBonus == 10 && ledger.lastQuality == Silver
+end;
+
+hint "changing quality resets the streak"
+test
+  let h1: Harvest = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let h2: Harvest = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = run(init, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  ledger.streakBonus == 0
+end;
+
+hint "claiming banks the bonus and clears it"
+test
+  let h1: Harvest = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2: Harvest = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let earned = run(init, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  let ledger = run(earned, [ClaimBonus]) in
+  ledger.streakBonus == 0
+    && ledger.totalValue == earned.totalValue + 5
+end;
+
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+^^html_sidebar((init, noCmd(update), view, subs))

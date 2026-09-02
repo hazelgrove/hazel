@@ -190,6 +190,42 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     custom_statics: None,
   },
   {
+    name: "atan2",
+    arg: Prod([float(), float()]),
+    ret: Atom(Float),
+    imp:
+      binary((d1, d2) => {
+        let-unbox y = (Atom(Float), d1);
+        let-unbox x = (Atom(Float), d2);
+        Some(Exp.float(Float.atan2(y, x)));
+      }),
+    custom_statics: None,
+  },
+  {
+    name: "round",
+    arg: Atom(Float),
+    ret: Atom(Float),
+    imp: float_op(Float.round),
+    custom_statics: None,
+  },
+  {
+    name: "to_fixed",
+    arg: Prod([float(), int()]),
+    ret: Atom(String),
+    imp:
+      binary((d1, d2) => {
+        let-unbox f = (Atom(Float), d1);
+        let-unbox n = (Atom(Int), d2);
+        let digits =
+          switch (Bigint.to_int(n)) {
+          | Some(n) => min(max(n, 0), 20)
+          | None => 20
+          };
+        Some(Exp.string(Printf.sprintf("%.*f", digits, f)));
+      }),
+    custom_statics: None,
+  },
+  {
     name: "monus",
     arg: Prod([nat(), nat()]),
     ret: Atom(Nat),

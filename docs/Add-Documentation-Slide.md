@@ -12,9 +12,11 @@ To add or update a slide:
    current buffer in committed-`.hz` form.
 2. Put the file under `hazel-programs/docs/<category>/`
    (`reference/` for general docs, `b2t2/` for the table benchmark).
+   The MVU example apps live in `hazel-programs/mvu/` instead, since
+   they are also runnable from the CLI.
 3. Add a `(title, [%blob "file.hz"])` entry to the matching slides
-   module: `src/docslides/Slides.re` or `src/b2t2/Slides.re`. List
-   order is slide order.
+   module: `src/docslides/Slides.re`, `src/b2t2/Slides.re` or
+   `src/mvu/Slides.re`. List order is slide order.
 
 Leading indentation in the file is display-only (flattened at load and
 recomputed by layout); the file ends with exactly one final newline.

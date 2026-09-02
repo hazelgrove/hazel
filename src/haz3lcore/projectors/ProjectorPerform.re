@@ -36,6 +36,7 @@ let seg_root_id = (seg: Base.segment): option(Id.t) =>
 let init =
     (
       kind: ProjectorCore.Kind.t,
+      ~placement=ProjectorCore.Placement.Inline,
       seg: Base.segment,
       ~elaborated: Language.Exp.t,
     )
@@ -46,13 +47,18 @@ let init =
 
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
      elaborated form keyed by the term's id. */
-  switch (Option.bind(any, ProjectorInit.init(kind, orig_piece, _)), any) {
+  switch (
+    Option.bind(any, ProjectorInit.init(kind, orig_piece, ~placement, _)),
+    any,
+  ) {
   | (Some(_) as result, _) => result
   | (None, Some(Exp(exp))) when P.elaborate_syntax =>
     let* elab_exp =
       Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
     let+ model_str = P.init(Exp(elab_exp));
-    Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str));
+    Base.Projector(
+      ProjectorCore.mk(~placement, kind, orig_piece, model_str),
+    );
   | (None, _) => None
   };
 };
@@ -186,7 +192,30 @@ let go =
     };
   };
 
+  /* The indicated projector, if any. Unlike remove_indicated this doesn't
+   * disturb the selection: placement is a display-only change, so the caret
+   * should stay exactly where it was. */
+  let indicated_projector = (z: Zipper.t): option(Base.projector) =>
+    switch (Indicated.for_index(z)) {
+    | Some({piece: Projector(pr), _}) => Some(pr)
+    | _ =>
+      switch (z.selection.content) {
+      | [Projector(pr)] => Some(pr)
+      | _ => None
+      }
+    };
+
+  let toggle_placement = (z: Zipper.t): option(Zipper.t) => {
+    let+ pr = indicated_projector(z);
+    update(ProjectorCore.toggle_placement, pr.id, z);
+  };
+
   switch (a) {
+  | TogglePlacement =>
+    switch (toggle_placement(z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {
     | Some(z) => Ok(z)
@@ -266,7 +295,8 @@ let go =
         ),
       );
     };
-  | SetModel(idx, kind, new_model) =>
+  | SetModel(idx, kind, new_model)
+  | SetModelQuiet(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {

@@ -179,7 +179,12 @@ module Update = {
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
      * the rest of statics stays valid. */
     let statics =
-      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
+      CachedStatics.with_targets(
+        ~settings,
+        ~projectors=editor.syntax.projectors,
+        editor.state.zipper,
+        statics,
+      );
     {
       editor,
       statics,

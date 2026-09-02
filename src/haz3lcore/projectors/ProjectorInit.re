@@ -15,17 +15,24 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
+  | HTML => (module Cook(HTMLProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t)
+    (
+      kind: ProjectorCore.Kind.t,
+      syntax: syntax,
+      ~placement=ProjectorCore.Placement.Inline,
+      any: Language.Any.t,
+    )
     : option(syntax) => {
   let (module P) = to_module(kind);
   switch (P.init(any)) {
   | None => None
-  | Some(model) => Some(Projector(ProjectorCore.mk(kind, syntax, model)))
+  | Some(model) =>
+    Some(Projector(ProjectorCore.mk(~placement, kind, syntax, model)))
   };
 };
 

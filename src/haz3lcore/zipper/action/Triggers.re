@@ -16,9 +16,17 @@ let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
   ProjectorCore.Kind.of_name_opt(name)
   |> OptUtil.filter(ProjectorCore.Kind.is_refractor);
 
-/* Same, for a whole trigger token; None when it is not a trigger at all. */
+/* Same, for a whole trigger token; None when it is not a trigger at all.
+   A `_sidebar` placement suffix names a DOCKED PROJECTOR PIECE — refractor
+   entries carry no placement — so those belong to expand_projector's
+   projector arm and answer None here. */
 let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
-  Option.bind(Token.of_projector_invoke_base(s), refractor_kind_of_name);
+  switch (Token.of_projector_invoke_parts(s)) {
+  | Some((body, Inline)) =>
+    refractor_kind_of_name(fst(Token.split_invoke_opt(body)))
+  | Some((_, Sidebar))
+  | None => None
+  };
 
 /* Is this whole token a refractor trigger (e.g. "^^statics", "^^probe")?
    "^^probe" / "^^probe_table" ==> true
@@ -55,9 +63,14 @@ let refractor_of_invoke_token =
     (token: string): option((ProjectorCore.Kind.t, option(string))) => {
   /* one strip-and-split for both halves, rather than re-parsing the
      token once for the kind and again for the option */
-  let* body = Token.of_projector_invoke(token);
+  let* (body, placement) = Token.of_projector_invoke_parts(token);
   let (name, opt) = Token.split_invoke_opt(body);
-  let+ kind = refractor_kind_of_name(name);
+  let+ kind =
+    switch (placement) {
+    | Inline => refractor_kind_of_name(name)
+    /* docked: a projector piece, not a refractor (see refractor_kind_of_token) */
+    | Sidebar => None
+    };
   (kind, Option.bind(opt, refractor_model_of_opt(kind)));
 };
 
@@ -68,7 +81,7 @@ let exp_to_seg =
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
-  let* name = Token.of_projector_invoke(name);
+  let* (name, placement) = Token.of_projector_invoke_parts(name);
   let kind = ProjectorCore.Kind.of_name(name);
   /* Statics haven't run yet at trigger time, so we pass the empty
    * elaborated expression. This means elaborate_syntax projectors
@@ -77,6 +90,7 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   ProjectorPerform.init(
     kind,
     syntax,
+    ~placement,
     ~elaborated=CachedStatics.empty.elaborated,
   );
 };
@@ -144,16 +158,20 @@ let expand_projector = (z: t): option(t) => {
 };
 
 let refractor_to_invoke =
-    (~model: option(string)=?, kind: ProjectorCore.Kind.t, seg: Segment.t)
+    (
+      ~model: option(string)=?,
+      ~placement=ProjectorCore.Placement.Inline,
+      kind: ProjectorCore.Kind.t,
+      seg: Segment.t,
+    )
     : Segment.t => {
-  let opt_suffix =
-    switch (Option.bind(model, refractor_opt_of_model(kind))) {
-    | Some(opt) => "_" ++ opt
-    | None => ""
-    };
+  let opt = Option.bind(model, refractor_opt_of_model(kind));
   [
     Piece.mk_tile(
-      Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind) ++ opt_suffix),
+      Form.mk_atom_op(
+        Exp,
+        Token.mk_projector_invoke(~opt?, ~placement, kind),
+      ),
       [],
     ),
     Piece.mk_tile(Form.get(ApExp), [seg]),
@@ -172,7 +190,11 @@ let refractor_to_invoke_text =
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke(
+    ~placement=pr.placement,
+    pr.kind,
+    Piece.unparenthesize(pr.syntax),
+  );
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
