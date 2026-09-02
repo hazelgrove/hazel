@@ -559,7 +559,6 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            ~engine_seg=Lazy.force(engine_seg),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -574,7 +573,7 @@ module View = {
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
-            syntax.segment,
+            Lazy.force(engine_seg),
           ),
         ]
         /* quiver off: clear stale claims so probes don't stack

@@ -1,0 +1,6 @@
+(executables
+ (names probe probe2)
+ (libraries haz3lcore web)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx ppx_deriving.show ppx_sexp_conv)))

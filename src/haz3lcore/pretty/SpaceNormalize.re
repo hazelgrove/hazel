@@ -123,17 +123,11 @@ let needs_space = (prev: Token.t, next: Token.t): bool =>
 
 let space = () => Piece.secondary(Secondary.mk_space(Id.mk()));
 
-let is_space_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_space(s)
-  | _ => false
-  };
-
 /* Maximal prefix of space pieces (no linebreaks, no comments) */
 let split_space_run = (seg: Segment.t): (Segment.t, Segment.t) => {
   let rec loop = (acc, seg) =>
     switch (seg) {
-    | [p, ...rest] when is_space_piece(p) => loop([p, ...acc], rest)
+    | [p, ...rest] when Piece.is_space(p) => loop([p, ...acc], rest)
     | _ => (List.rev(acc), seg)
     };
   loop([], seg);

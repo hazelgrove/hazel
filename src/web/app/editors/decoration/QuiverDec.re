@@ -81,9 +81,6 @@ let rec find_piece_ctx =
   go(0, sg);
 };
 
-let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
-  find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
-
 /* Coincidence-first placement: a pin's position within its
    inter-content whitespace region (linebreaks included) is
    semantically free, so it FOLLOWS the caret inside that zone and
@@ -440,13 +437,13 @@ let view =
          start while a ghost completes Bo -> Bool). Anchor pieces
          exist in both segments, so engine insertions resolve fine
          against the display's measured map. */
-      ~engine_seg: Segment.t,
+      /* the engine segment, not CachedSyntax's display segment: the
+         display still contains the suggestion-buffer ghost, which
+         perturbs placement. Anchor pieces exist in both, so engine
+         insertions resolve fine against the display's measured map. */
       seg: Segment.t,
     )
     : Node.t => {
-  ignore(seg);
-  let seg = engine_seg;
-  /* Get completion result with insertions */
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
 

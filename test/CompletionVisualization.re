@@ -8,6 +8,8 @@
  *   let x = 1·    // in ?
  */
 
+open Haz3lcore;
+
 open Util;
 
 /* Middle dot character for marking insertion points */

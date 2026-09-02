@@ -12,22 +12,15 @@
  *   comparisons completion reads), and not at all if the shift would
  *   clamp a line at column 0 (uniformity would break). */
 
-let rec incomplete_ids = (acc: Id.Map.t(unit), seg: Segment.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        let acc = Tile.is_complete(t) ? acc : Id.Map.add(t.id, (), acc);
-        List.fold_left(incomplete_ids, acc, t.children);
-      | _ => acc
-      },
-    acc,
-    seg,
-  );
+let incomplete_ids = (seg: Segment.t): Id.Map.t(unit) =>
+  Segment.incomplete_tiles_deep(seg)
+  |> List.fold_left(
+       (acc, t: Tile.t) => Id.Map.add(t.id, (), acc),
+       Id.Map.empty,
+     );
 
 let snapshot = (~enabled: bool, z: Zipper.t): option(Id.Map.t(unit)) =>
-  enabled
-    ? Some(incomplete_ids(Id.Map.empty, Zipper.unselect_and_zip(z))) : None;
+  enabled ? Some(incomplete_ids(Zipper.unselect_and_zip(z))) : None;
 
 /* Split the leading run of space pieces off a segment */
 let split_spaces = (seg: Segment.t): (list(Piece.t), Segment.t) => {
@@ -126,7 +119,7 @@ let plan_tile = (full: Segment.t, t: Tile.t): list(child_plan) =>
        switch (first_linebreak(child)) {
        | None => Leave
        | Some((lb_id, current)) =>
-         if (Id.Map.is_empty(incomplete_ids(Id.Map.empty, child))) {
+         if (Id.Map.is_empty(incomplete_ids(child))) {
            Fix;
          } else {
            let canonical = Indentation.level_of(~target_id=lb_id, full);
@@ -200,21 +193,12 @@ let apply_plans =
    Caveat: a caret sitting inside a new line's indentation run splits
    it across zipper sub-segments; the remainder is left alone. */
 
-let rec all_piece_ids = (acc: Id.Map.t(unit), seg: Segment.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        List.fold_left(all_piece_ids, Id.Map.add(t.id, (), acc), t.children)
-      | p => Id.Map.add(Piece.id(p), (), acc)
-      },
-    acc,
-    seg,
-  );
+let all_piece_ids = (seg: Segment.t): Id.Map.t(unit) =>
+  Segment.ids(seg)
+  |> List.fold_left((acc, id) => Id.Map.add(id, (), acc), Id.Map.empty);
 
 let snapshot_pieces = (~enabled: bool, z: Zipper.t): option(Id.Map.t(unit)) =>
-  enabled
-    ? Some(all_piece_ids(Id.Map.empty, Zipper.unselect_and_zip(z))) : None;
+  enabled ? Some(all_piece_ids(Zipper.unselect_and_zip(z))) : None;
 
 let rec collect_lb_indents = (seg: Segment.t): list((Id.t, int)) =>
   switch (seg) {
@@ -268,7 +252,7 @@ let go_region =
     | [] => z
     | [(first_id, first_cur), ..._] =>
       let indent_map = Indentation.level_map(full);
-      let settled = Id.Map.is_empty(incomplete_ids(Id.Map.empty, full));
+      let settled = Id.Map.is_empty(incomplete_ids(full));
       let targets =
         settled
           ? new_lbs
@@ -298,7 +282,7 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
   | None => z
   | Some(before) =>
     let full = Zipper.unselect_and_zip(z);
-    let after = incomplete_ids(Id.Map.empty, full);
+    let after = incomplete_ids(full);
     let completed =
       Id.Map.filter((id, _) => !Id.Map.mem(id, after), before);
     if (Id.Map.is_empty(completed)) {

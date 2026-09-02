@@ -28,24 +28,6 @@ let capture = (z): t => {
   z;
 };
 
-/* Check if a piece is a space (not linebreak, not comment) */
-let is_space_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_space(s)
-  | _ => false
-  };
-
-/* Check if a piece is a linebreak */
-let is_linebreak_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_linebreak(s)
-  | _ => false
-  };
-
-/* Check if a piece is whitespace (space or linebreak, not comment) */
-let is_whitespace_piece = (p: Piece.t): bool =>
-  is_space_piece(p) || is_linebreak_piece(p);
-
 /* Check if cursor is in "leading whitespace" position:
    - No selection
    - Cursor is Outer
@@ -61,8 +43,8 @@ let leading_whitespace_context = (z: t): option((int, Id.t)) =>
     let rec count_spaces = (sibs, n) =>
       switch (sibs) {
       | [] => None /* Start of segment is not a line start */
-      | [p, ...rest] when is_space_piece(p) => count_spaces(rest, n + 1)
-      | [Piece.Secondary(w), ..._] when is_linebreak_piece(Secondary(w)) =>
+      | [p, ...rest] when Piece.is_space(p) => count_spaces(rest, n + 1)
+      | [Piece.Secondary(w), ..._] when Piece.is_linebreak(Secondary(w)) =>
         Some((n, w.id)) /* Found linebreak */
       | _ => None /* Found non-whitespace content */
       };
@@ -72,7 +54,7 @@ let leading_whitespace_context = (z: t): option((int, Id.t)) =>
 /* Check if the left neighbor is whitespace (space or linebreak) */
 let left_neighbor_is_whitespace = (z: t): bool =>
   switch (Zipper.generalized_neighbor(Left, z)) {
-  | Some(p) => is_whitespace_piece(p)
+  | Some(p) => Piece.is_whitespace(p)
   | None => false
   };
 
@@ -174,11 +156,11 @@ let rec delete_spaces = (n: int, z: t): option(t) =>
    after consuming one linebreak. */
 let rec hungry_delete = (z: t, seen_linebreak: bool): option(t) =>
   switch (Zipper.generalized_neighbor(Left, z)) {
-  | Some(p) when is_space_piece(p) =>
+  | Some(p) when Piece.is_space(p) =>
     /* Delete space and continue */
     let* z = delete(Left, z);
     hungry_delete(z, seen_linebreak);
-  | Some(p) when is_linebreak_piece(p) && !seen_linebreak =>
+  | Some(p) when Piece.is_linebreak(p) && !seen_linebreak =>
     /* Delete linebreak (first one only) and continue */
     let* z = delete(Left, z);
     hungry_delete(z, true);

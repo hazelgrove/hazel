@@ -1192,11 +1192,6 @@ let partition_segment =
   go(seg, [], [], false, 0, false, None);
 };
 
-/* Aggregate-append viz anchor: the partition's last piece (the
- * trailing linebreak for blank-line partitions). */
-let last_piece_for_insertion = (seg: Segment.t): option(Piece.t) =>
-  ListUtil.last_opt(seg);
-
 /* === Orphaned rule chains ===
  * Complete `| p => e` rule tiles appearing outside any case (Exp/Any
  * sort context) are wrapped in a synthesized case/end tile so the rules
@@ -1206,8 +1201,6 @@ let last_piece_for_insertion = (seg: Segment.t): option(Piece.t) =>
  * id derives deterministically from the first rule tile so reparses are
  * stable across keystrokes. Incomplete rule tiles (missing =>) are not
  * wrapped in v1: wrap detection runs before trailing completion. */
-let rule_label = ["|", "=>"];
-
 /* Rule-chain nodes anywhere in the partition skel: nodes whose root
  * pieces are complete ["|","=>"] rule tiles. Each yields the index span
  * (leftmost..rightmost, kids included: scrutinee + clauses) to wrap in a
@@ -1232,7 +1225,7 @@ let rule_chain_spans =
         ps
         |> List.for_all((p: Piece.t) =>
              switch (p) {
-             | Tile(t) => t.label == rule_label && Tile.is_complete(t)
+             | Tile(t) => t.label == Skel.rule_label && Tile.is_complete(t)
              | _ => false
              }
            );
@@ -1756,20 +1749,11 @@ let place_trailing_shards =
 /* A delimiter's hole displays only if completion actually leaves a
    SYNTHESIZED hole after that shard — verified against the completed
    segment, not predicted from nib shapes. */
-let rec segment_ids_deep = (sg: Segment.t): list(Id.t) =>
-  List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) => [t.id, ...List.concat_map(segment_ids_deep, t.children)]
-      | p => [Piece.id(p)]
-      },
-    sg,
-  );
 
 let verify_holes =
     (~input: Segment.t, ~completed: Segment.t, ins: list(insertion))
     : list(insertion) => {
-  let input_ids = segment_ids_deep(input);
+  let input_ids = Segment.ids(input);
   let fresh = id => !List.exists(Id.equal(id), input_ids);
   let rec find = (sg: Segment.t, id: Id.t): option((Segment.t, int, Tile.t)) => {
     let rec go = (i, ps) =>
@@ -2045,7 +2029,9 @@ let rec complete_segment =
              )
              @ middle_insertions(chosen)
              @ wrap_ins;
-           let aggregate_anchor = last_piece_for_insertion(subseg);
+           /* aggregate-append viz anchor: the partition's last piece (the
+              trailing linebreak for blank-line partitions) */
+           let aggregate_anchor = ListUtil.last_opt(subseg);
            let wrap_inserts =
              wraps
              |> List.concat_map(((l_idx, r_idx, id)) => {
