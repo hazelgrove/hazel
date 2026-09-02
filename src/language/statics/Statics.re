@@ -1674,7 +1674,8 @@ and uexp_to_info_map =
           let model_for_expand =
             Option.is_some(user_def) ? arg_elab : arg.user_term;
 
-          /* Type the expansion. The DECLARED expansion type is still what
+          /* Type the expansion — the paper's per-invocation-site validation
+             (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
              the use synthesizes — clients reason against the livelit's
              interface, not against whatever code came out of expand — so
              this pass runs in syn mode and throws its map away; its one

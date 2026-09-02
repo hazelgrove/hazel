@@ -20,6 +20,15 @@ open Util;
    obligation that buys it is discharged at each use, where statics types
    the expansion and marks the use with BadLivelitExpansion if its type is
    inconsistent with the declared one (the LivelitName case of Statics.re).
+   Checking per use rather than once per definition is the paper's own
+   strategy (PLDI 2021, S3.2.5), not an approximation of it: the expansion
+   is validated at each invocation site, with errors reported to the client.
+
+   Splices are the part of the paper still absent. When they arrive as a
+   SpliceRef type with operations over it, `expand` extends to return a
+   pair whose second component is the list of SpliceRefs, and the check
+   here becomes a check of that pair's parameterized first component. With
+   the splice list empty it degenerates to what this file does.
 
    Optional member `shape = Inline(w) | Block(w, h) | Tab(w, h)` (a
    LivelitShape) sets the projector's footprint in character cells. Helpers

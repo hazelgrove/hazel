@@ -7,6 +7,21 @@ Hazel implements a version of the live literals (livelits) mechanism described i
 - No parameters
 - No splices
 
+Splices are the remaining gap, and they will arrive as a `SpliceRef` primitive type with
+operations over it (`new_splice`, `set_splice`, `eval_splice`, in the paper's `UpdateCmd`
+and `ViewCmd` monads). When they land, `expand` extends to return a pair with the list of
+`SpliceRef`s, as in Fig. 3 of the paper:
+
+```
+expand : Model -> (Exp, List(SpliceRef))
+```
+
+The pair is there because the expansion must treat splices parametrically: the first
+component takes one argument per listed `SpliceRef` and returns the expansion type.
+`expand` itself stays pure — splices bring the monads, but not to `expand`. Until then the
+splice list is empty, so `expand : Model -> Expansion` is an equivalent encoding of the
+paper's closed expansion rather than a deviation from it.
+
 ## Overview
 
 A livelit is a live GUI widget which can be inserted into expressions and generates code by expansion to an expression of some given type. To invoke a livelit, insert the name of the livelit (always prefixed with ^) then press space.
@@ -45,21 +60,30 @@ has nowhere to declare the types.
 
 ## Type-Checking the Expansion
 
-A use of `^pct` synthesizes the declared `Expansion` — not the type of
-whatever code `expand` produced. That is the abstract reasoning principle
-of the paper: a client reads the livelit's declared type and never the
-expansion. The obligation it creates is discharged at each use, where
-statics types the expansion (in synthetic mode, on a throwaway info map)
-and compares the result with the declaration. An inconsistency is reported
-on the use as `BadLivelitExpansion` — "Livelit expands to type Int, but
-declares Expansion = String" — locating the fault in the livelit rather
+A use of `^pct` synthesizes the declared `Expansion`, not the type of whatever
+code `expand` produced. The check that earns this is performed for each
+expansion, on its output: statics types the expansion (in synthetic mode, on a
+throwaway info map) and compares the result with the declaration, marking the
+use `BadLivelitExpansion` on an inconsistency — "Livelit expands to type Int,
+but declares Expansion = String". The fault is located in the livelit rather
 than in the client's surrounding code.
 
-Consistency, not equality, is the test, as everywhere else in the language:
-an expansion that synthesizes `Unknown` (an unannotated `expand` whose body
-gives statics nothing to go on, or a builtin livelit generating a hole)
-stays gradual and is not marked. What the declaration buys in that case is
-still real — clients type against a known type instead of `Unknown`.
+Checking at the use site is the PLDI 2021 paper's own strategy rather than a
+deviation from it. §3.2.5 records that Hazel does not statically check
+`expand`'s definition, and that the parameterized expansion is instead
+"validated at each livelit invocation site, with errors reported to the
+client". With no splices that expansion takes no arguments, so validating it
+degenerates to checking the expansion at the expansion type, which is what
+happens here. The paper names definition-site verification via "a typed
+quotation system as in, e.g., MetaOCaml" as the alternative, awkward because
+"the type of the quotation depends on the type of each splice in the splice
+list".
+
+Consistency, not equality, is the test, as everywhere else in the language: an
+expansion that synthesizes `Unknown` (an unannotated `expand` whose body gives
+statics nothing to go on, or a builtin livelit generating a hole) stays gradual
+and is not marked. What the declaration buys in that case is still real —
+clients type against a known type instead of `Unknown`.
 
 The expansion typed is the one built from the *surface* model, since statics
 traverses surface syntax only; the elaborated model, which a user-defined
