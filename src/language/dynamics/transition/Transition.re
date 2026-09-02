@@ -132,6 +132,61 @@ type step_kind =
   | RemoveUse
   | RemoveParens;
 
+/* Whether a step interprets the user's program (Proper) or performs
+   implementation bookkeeping that the surface semantics treats as
+   invisible (Administrative). Administrative steps with `may_delegate`
+   can rebuild a redex under its own id (rewrap here; fast_copy in
+   Ascriptions), re-evaluating user syntax as a CONTINUATION of its
+   enclosing observation span rather than a fresh event — see the
+   delegation law in Evaluator.eval_3_record_probe_sample and
+   plans/observation-trace.md.
+
+   Distinct from should_hide_step_kind below: that is a display
+   preference (e.g. Conditional is hideable but Proper); provenance is
+   semantics. Kind granularity: a kind can cover several rules, so
+   may_delegate marks kinds ANY of whose rules can produce same-id
+   re-evaluation. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type provenance =
+  | Proper
+  | Administrative({may_delegate: bool});
+
+let provenance_of_kind: step_kind => provenance =
+  fun
+  | InvalidStep
+  | VarLookup
+  | Seq
+  | LetBind(_)
+  | TheoremBind
+  | UpdateTest
+  | TypFunAp
+  | FunAp
+  | DeferredAp
+  | BuiltinAp(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Dot
+  | Conditional(_)
+  | Projection
+  | TupleExtension
+  | ListCons
+  | ListConcat
+  | CaseApply
+  | FixUnwrap
+  | RemoveTypeAlias
+  | RemoveUse => Proper
+  | WrapClosure
+  | FixClosure
+  | CompleteClosure
+  | CompleteFilter
+  | BuiltinWrap
+  | MarkIncomparable
+  | RecordTheorem
+  | RemoveParens => Administrative({may_delegate: false})
+  | Ascription
+  | AscriptionTypAp
+  | AscriptionAp => Administrative({may_delegate: true});
+
 type rule =
   | Step({
       expr: DHExp.t,
@@ -208,25 +263,27 @@ module Transition = (EV: EV_MODE) => {
 
   /* Extract function name from a function expression (including closures).
      Used to record the name in the call stack for better debugging. */
-  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+  let rec get_fn_name_from_expr = (d: DHExp.t): option(string) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_name(e)
+    | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
     | TypFun(_, _, name) => name
+    | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
-    | _ => None
+    | _ => Exp.get_fn_name(d)
     };
 
   /* Extract the definition-site ID from a function expression (including closures).
      Used to enable jump-to-definition from the closure cursor bar even when the
      app_id comes from built-in internal code (not in user's info_map). */
-  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+  let rec get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
     | TypFun(_) => Some(DHExp.rep_id(d))
+    | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
-    | _ => None
+    | _ => Exp.get_fn_def_id(d)
     };
 
   /* Transition for derivation terms is much narrower than for Hazel
@@ -670,10 +727,12 @@ module Transition = (EV: EV_MODE) => {
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
+          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
+             keeps identity through the cast — probes/step-into still resolve */
           expr:
             generated(
               Asc(
-                generated(Ap(Forward, d1'', generated(Asc(d2', t1)))),
+                Ap(Forward, d1'', generated(Asc(d2', t1))) |> rewrap,
                 t2,
               ),
             ),
@@ -811,7 +870,9 @@ module Transition = (EV: EV_MODE) => {
                 | _ => tuple(new_args)
                 },
               ),
-            side_effects: [],
+            /* record a call frame (carries fn_def_id) so a probe on a
+               partial-app call still gets args/step-into/jump-to-def */
+            side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
           });

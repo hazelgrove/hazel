@@ -69,7 +69,7 @@ let set_focus_index = (~globals: Globals.t, i: int, _) =>
 /* Remove a pin by toggling it off */
 let unpin = (~globals: Globals.t, pinned_stack: CallStack.t, _) =>
   globals.inject_global(
-    ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
+    ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack, None)))),
   );
 
 /* Walk up the call stack from a given index to find the nearest frame
@@ -309,14 +309,21 @@ let key_handler =
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
+    /* stash screen-y before dispatch for reflow compensation; only on an
+       actual index change (else an arrow at the clamp re-snaps the viewport) */
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("ArrowRight") =>
     /* Move to deeper level (toward innermost call) */
     let new_index = min(max_index, index + 1);
+    if (new_index != index) {
+      SampleAnchor.capture();
+    };
     Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
   | D("Enter") =>
-    /* Jump to call site of current entry, then refocus main editor. */
-    JsUtil.focus_clipboard_shim();
+    FocusEffect.schedule_editor();
     if (index >= 0 && index < List.length(call_stack)) {
       let target = get_call_site_target(~info_map, ~call_stack, ~index);
       switch (target) {
@@ -342,22 +349,32 @@ let view =
     : Node.t =>
   /* Hide when call stack is empty, unless auto-probe mode keeps bar visible */
   if (refractors.sample_focus.call_stack == []
-      && !globals.settings.autoprobe_mode) {
+      && globals.settings.autoprobe_mode == AutoProbe.Off) {
     div(~attrs=[Attr.id("sample-focus-bar"), Attr.class_("hidden")], []);
   } else {
     let sample_focus = refractors.sample_focus;
     let call_stack = sample_focus.call_stack |> List.rev;
     let index = sample_focus.index;
 
-    /* Check if there's a pinned stack and get the head app_id */
+    /* The pin icon marks the head (innermost call) of the pinned stack.
+     * It belongs at exactly one breadcrumb position — and only when the
+     * pinned stack is a suffix of the raw focus stack (both are in
+     * innermost-first order, so "pinned is a suffix" = "pinned path is
+     * a tail of the current focus path"). Comparing by id alone would
+     * produce duplicates in recursive functions. */
     let pinned_stack = sample_focus.pinned_stack;
-    let pinned_head_id =
-      Option.bind(pinned_stack, stack =>
-        Option.map(
-          (f: CallStack.frame) => f.id,
-          Util.ListUtil.hd_opt(stack),
-        )
-      );
+    let pinned_breadcrumb_index: option(int) =
+      switch (pinned_stack) {
+      | Some(ps)
+          when
+            ListUtil.is_suffix_of(
+              ~eq=CallStack.equal_frame,
+              ps,
+              sample_focus.call_stack,
+            ) =>
+        Some(List.length(ps) - 1)
+      | _ => None
+      };
 
     /* Top-level entry (always present when bar is shown)
      * Clicking resets cursor to top level (index -1) */
@@ -407,7 +424,9 @@ let view =
         @ (is_unknown ? ["unknown"] : [])
         @ (position_class != "" ? [position_class] : []);
 
-      let on_entry_click = evt =>
+      let on_entry_click = evt => {
+        /* clicking focuses the bar; restore editor focus so the caret stays visible */
+        FocusEffect.schedule_editor();
         switch (call_site_target) {
         | Some(target_id) =>
           Effect.Many([
@@ -416,8 +435,9 @@ let view =
           ])
         | None => set_focus_index(~globals, i, evt)
         };
+      };
 
-      let is_pinned = Some(app_id) == pinned_head_id;
+      let is_pinned = Some(i) == pinned_breadcrumb_index;
       let pin_icon =
         switch (is_pinned, pinned_stack) {
         | (true, Some(ps)) => [
@@ -533,7 +553,10 @@ let view =
           };
         switch (def_target) {
         | Some(target_id) =>
-          let on_body_click = evt => jump_to(~globals, target_id, evt);
+          let on_body_click = evt => {
+            FocusEffect.schedule_editor();
+            jump_to(~globals, target_id, evt);
+          };
           let body_sep_ghost = max_index > index;
           let body_sep_classes =
             ["breadcrumb-separator"] @ (body_sep_ghost ? ["ghost"] : []);
@@ -561,9 +584,15 @@ let view =
         ~attrs=[
           Attr.classes(["clear-all"]),
           Attr.title("Remove all probes"),
-          Attr.on_pointerdown(_ =>
-            globals.inject_global(ActiveEditor(Probe(RemoveAll)))
-          ),
+          Attr.on_pointerdown(_
+            /* also switch auto-probe off, else the auto system repopulates
+               the probes we just cleared */
+            =>
+              Effect.Many([
+                globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
+                globals.inject_global(ActiveEditor(Probe(RemoveAll))),
+              ])
+            ),
         ],
         [text("Clear all")],
       );
@@ -582,7 +611,7 @@ let view =
             Attr.class_("title"),
             Attr.title("Call stack of the focused probe sample"),
           ],
-          [text("probe focus")],
+          [text("stack focus")],
         ),
         div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
         clear_all_button,

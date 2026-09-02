@@ -2,72 +2,16 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
-module FocusEffect = {
-  /* Scheduled focus for probe or editor elements after step-into.
-   * This ref is set when step-into resolves and cleared when focus is executed.
-   * We use a ref (not model state) because DOM focus must happen AFTER render,
-   * and we can't dispatch actions from after_display without causing loops. */
-  type target =
-    | Editor
-    | Cell
-    | Probe(Id.t);
-
-  let scheduled: ref(option(target)) = ref(None);
-
-  /* Schedule DOM focus on a probe element (called from resolve_pending_focus) */
-  let schedule = (probe_id: Id.t): unit => {
-    scheduled := Some(Probe(probe_id));
-  };
-
-  /* Schedule DOM focus on the main editor (called from step_into_sample) */
-  let schedule_editor = (): unit => {
-    scheduled := Some(Editor);
-  };
-
-  /* Schedule DOM focus on the active code-editor cell (called after a
-     sidebar jump, which moves the model selection to a different cell
-     without moving DOM focus). */
-  let schedule_cell = (): unit => {
-    scheduled := Some(Cell);
-  };
-
-  /* Execute any scheduled focus (called from Main.re after_display).
-   * Returns whether focus was executed. */
-  let execute = (): bool =>
-    switch (scheduled^) {
-    | Some(Editor) =>
-      scheduled := None;
-      JsUtil.focus_clipboard_shim();
-      true;
-    | Some(Cell) =>
-      scheduled := None;
-      JsUtil.focus_active_cell();
-    | Some(Probe(probe_id)) =>
-      scheduled := None;
-      let elem_id = Id.cls(probe_id);
-      switch (JsUtil.get_elem_by_id_opt(elem_id)) {
-      | Some(elem) =>
-        elem##focus;
-        true;
-      | None => false
-      };
-    | None => false
-    };
-};
-
-let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
+let rec target_subterm_ids =
+        (~drill_let=true, id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
-  /* If we're trying to probe a function literal,
-     put probes on parameters and body instead */
   | Some(InfoExp({user_term: {term: Fun(pat, body, _, _), _}, _})) => [
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({user_term: {term: Let(_pat, def, _), _} as let_term, _})) =>
-    /* If trying to probe a let, probe the definition instead.
-       Exception: if the let is the body of a test, probe the let itself
-       (so we see the test result, not just the definition value).
-       Recurse so that if def is a fun literal, the above case will get it */
+  | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _}))
+      when drill_let =>
+    /* Probe the def (drill_let=false: a nested let chain anchors whole); a test-body let probes itself to show the test result. */
     let is_test_body =
       switch (
         Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
@@ -75,26 +19,26 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       | Some(Exp({term: Test(_) | HintedTest(_, _), _})) => true
       | _ => false
       };
-    is_test_body
-      ? [IdTagged.rep_id(let_term)]
-      : target_subterm_ids(IdTagged.rep_id(def), info_map);
+    if (is_test_body) {
+      [IdTagged.rep_id(let_term)];
+    } else {
+      let def_targets =
+        target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
+      /* Function-sugar keeps params in the binder, so anchor the args pattern too. */
+      switch (FunctionSugar.detect(pat)) {
+      | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
+      | None => def_targets
+      };
+    };
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
-    /* If trying to probe a module expression, probe the definition.
-       Recurse so fun literals get drilled into. */
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
-    /* If we're trying to probe variable in function position for an
-       application, probe the whole application instead */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
     | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
         IdTagged.rep_id(ap),
       ]
     | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
-      /* If we're trying to probe a variable in function position in a partially
-         applied function, itself in function position of an application,
-         in particular but not limited to a reverse application chain,
-         probe the whole application instead */
       switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
       | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
           IdTagged.rep_id(ap),
@@ -104,57 +48,48 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
     | _ => [id]
     }
   | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
-    /* If we're trying to probe a partially applied function in function
-       position of an application, in particular but not limited to a reverse
-       application chain, probe the whole application instead */
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
     | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
         IdTagged.rep_id(ap),
       ]
     | _ => [id]
     }
-  /* Filter out terms that can't meaningfully be probed */
   | info when !Info.is_typable_term(info) => []
-  /* Default: use rep_id for expressions and patterns to handle multi-tile forms
-     (tuples, list literals, case expressions) where non-representative tile IDs
-     would otherwise cause probe_map/evaluator ID mismatch */
+  /* rep_id: multi-tile forms (tuples, lists, case) must match between probe_map and the evaluator. */
   | Some(InfoExp({user_term, _})) => [IdTagged.rep_id(user_term)]
   | Some(InfoPat({user_term, _})) => [Pat.rep_id(user_term)]
   | _ => [id]
   };
 
 type probe_status =
-  | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
-  | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
+  | Manual(list(Id.t))
+  | Statics(list(Id.t))
   | Multi
-  | Ephemeral(list(Id.t)) /* target IDs present in ephemerals map */
-  | Suppressed(list(Id.t)) /* target IDs present in suppressed map */
+  | Ephemeral(list(Id.t))
+  | Suppressed(list(Id.t))
   | Non;
 
 let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
   let target_ids = target_subterm_ids(id, info_map);
-  /* For manual/statics: check if ALL target IDs have manual entries */
-  if (List.for_all(
-        id => List.assoc_opt(id, refractors.manuals) != None,
-        target_ids,
-      )
-      && target_ids != []) {
-    /* Distinguish between probe and statics by checking kind */
+  /* ANY (not ALL) target id: else a cleaned-up sibling target (remove_colliding_probes dropping a single-line fun's pat probe) makes the toggle re-add forever instead of removing. */
+  let manual_entries =
+    List.filter_map(
+      id => List.assoc_opt(id, refractors.manuals),
+      target_ids,
+    );
+  if (manual_entries != []) {
     let all_statics =
       List.for_all(
-        id =>
-          switch (List.assoc_opt(id, refractors.manuals)) {
-          | Some(entry: Refractors.entry) => entry.kind == Statics
-          | None => false
-          },
-        target_ids,
+        (entry: Refractors.entry) => entry.kind == Statics,
+        manual_entries,
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
-  } else if
-    /* For Multi: check if ANY target ID is a multi probe anchor */
-    (List.exists(id => Id.Map.mem(id, refractors.multis.ids), target_ids)) {
+  } else if (List.exists(
+               id => Id.Map.mem(id, refractors.multis.ids),
+               target_ids,
+             )) {
     Multi;
   } else {
     let ephemeral_ids =
@@ -179,21 +114,51 @@ let probe_status =
   };
 };
 
-let ids_from_term =
-    (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) =>
-  MultiProbe.ids_to_multiprobe(
-    id,
-    syntax.term_data,
-    syntax.terms,
-    syntax.measured,
-    info_map,
-  )
-  |> Option.to_list
-  |> List.flatten
-  |> List.filter_map(Fun.id);
+/* Memoize the O(program) per-row multi-probe expansion. It's a pure function
+ * of the immutable syntax/statics snapshots + anchor id, so we key on physical
+ * identity of those refs (O(1)) and drop the table when any ref changes — a
+ * stable-syntax run (pure caret moves) serves every anchor from cache. Single
+ * global entry, so multiple editors invalidate each other (correct). */
+let expansion_inputs:
+  ref(option((TermData.t, TermMap.t, Measured.t, Statics.Map.t))) =
+  ref(None);
+let expansion_results: ref(list((Id.t, list(Id.t)))) = ref([]);
 
-/* Sort IDs by lexical position (earliest first).
- * Uses the start position of each term to determine order. */
+let ids_from_term =
+    (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) => {
+  let inputs_stable =
+    switch (expansion_inputs^) {
+    | Some((term_data, terms, measured, prev_info_map)) =>
+      term_data === syntax.term_data
+      && terms === syntax.terms
+      && measured === syntax.measured
+      && prev_info_map === info_map
+    | None => false
+    };
+  if (!inputs_stable) {
+    expansion_inputs :=
+      Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
+    expansion_results := [];
+  };
+  switch (List.assoc_opt(id, expansion_results^)) {
+  | Some(result) => result
+  | None =>
+    let result =
+      MultiProbe.ids_to_multiprobe(
+        id,
+        syntax.term_data,
+        syntax.terms,
+        syntax.measured,
+        info_map,
+      )
+      |> Option.to_list
+      |> List.flatten
+      |> List.filter_map(Fun.id);
+    expansion_results := [(id, result), ...expansion_results^];
+    result;
+  };
+};
+
 let sort_ids_lexically =
     (~syntax: CachedSyntax.t, ids: list(Id.t)): list(Id.t) => {
   let with_positions =
@@ -219,7 +184,6 @@ let sort_ids_lexically =
   List.map(((id, _, _)) => id, sorted);
 };
 
-/* Set pending_probe_cursor so sample focus aligns when dynamics arrive. */
 let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
   Zipper.update_refractors(z, r =>
     {
@@ -229,49 +193,24 @@ let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
   );
 };
 
-/* ─────────────────────────────────────────────────────────────────────
- * Dynamic focus: auto vs manual mode
- *
- * The "dynamic focus" is the selected sample whose call stack determines
- * which samples light up across all probes. It changes via two kinds
- * of paths:
- *
- *   USER-DRIVEN (always honored):
- *     - click a sample                (ProbeProj)
- *     - toggle pin                    (ProbeProj)
- *     - step into                     (ProbeProj)
- *     - breadcrumb bar (← →, click)   (SampleFocusBar)
- *     - reset                         (SampleFocusBar)
- *
- *   AUTOMATIC (only honored in auto mode — gated on `auto_focus`):
- *     - capture on new ephemeral probe    (add_ids_from_multi_term)
- *     - spatial alignment after edit      (align_to_indicated_probe)
- *     - stale-cursor fallback             (resolve_pending_probe_cursor;
- *         after an edit invalidates the focus's call_stack frame IDs,
- *         try to find a replacement sample at the "most aligned" position.
- *         Internal recovery mechanism, invisible to the user when working.)
- *
- * Pinning a sample switches the focus into MANUAL mode: the user has
- * said "I care about this execution context, don't move me." In manual
- * mode, automatic realignment is suppressed; the focus only changes in
- * response to explicit user actions.
- *
- * Note on auto-probe cursor following: when `update_autoprobe` moves
- * auto-probe targets to track the cursor across top-level definitions,
- * its set_pending_cursor flag is also gated on auto_focus. So pinning a
- * sample in `f` and navigating to `g` will NOT jump focus to g's newly
- * added probes — consistent with the "stay here" semantics of manual mode.
- *
- * If you add a new path that can change the dynamic focus automatically,
- * gate it on `auto_focus(z)` and add it to the list above.
- * ───────────────────────────────────────────────────────────────────── */
+/* Automatic focus paths (ephemeral capture, post-edit alignment, stale-cursor
+ * fallback) are honored only in auto mode; pinning switches to manual and
+ * suppresses them. New automatic paths MUST gate on `auto_focus(z)`. */
 let auto_focus = (z: Zipper.t): bool =>
   z.refractors.sample_focus.pinned_stack == None;
 
-/* Check if id has either manual or ephemeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   List.assoc_opt(id, z.refractors.manuals) != None
   || Id.Map.mem(id, z.refractors.multis.ephemerals);
+
+/* Carry over the ephemeral entry's model; a fresh default would visibly reset
+ * the probe once the ephemeral is filtered out on the next rebuild. */
+let promote_to_manual = (id: Id.t, z: Zipper.t): Zipper.t => {
+  let model =
+    Id.Map.find_opt(id, z.refractors.multis.ephemerals)
+    |> Option.map((e: Refractors.entry) => e.model);
+  Zipper.add_manual(~model?, id, Probe, z);
+};
 
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   z =>
@@ -284,14 +223,10 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
       }
     );
 
-/* Check if there are no probes (manual or auto) remaining */
 let has_no_probes = (z: Zipper.t): bool =>
   List.is_empty(z.refractors.manuals)
   && Id.Map.is_empty(z.refractors.multis.ids);
 
-/* Reset the sample focus if no probes remain.
- * This prevents stale sample focus state from showing in the sidebar
- * when all probes have been removed. */
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
@@ -305,8 +240,7 @@ let rm_multi =
       z: Zipper.t,
     )
     : Zipper.t => {
-  /* Remove all target IDs from multis, like rm_manual does for manuals.
-     When drill=false, remove just the ID directly (must match how it was added). */
+  /* drill=false removes the id directly (must match how it was added). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   let z =
     Zipper.update_refractors(z, refractors =>
@@ -331,13 +265,10 @@ let rm_multi =
         },
       }
     )
-    /* We need to check if any of the probed ids are pinned; if so
-       we'll need to remove that pin when we remove the auto */
     |> maybe_rm_pin(
          List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
        );
-  /* Reset sample focus if no probes remain (skipped when reset=false,
-     e.g. during clear_autoprobe to avoid style flash) */
+  /* skip reset when reset=false (clear_autoprobe), to avoid a style flash */
   reset ? maybe_reset_cursor(z) : z;
 };
 
@@ -346,16 +277,11 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
     map => List.filter(((id, _)) => !List.mem(id, ids), map),
     z,
   )
-  /* If the probe has a pin we'll need to remove that too */
   |> maybe_rm_pin(ids)
-  /* Reset sample focus if no probes remain */
   |> maybe_reset_cursor;
 
-/* Remove colliding manual probes when two end up on the same line.
- * This is called after code edits to clean up probes that were pushed
- * onto the same line due to text reflow. Keeps the rightmost probe. */
+/* After edits, probes can reflow onto the same line; keep the rightmost, drop the rest. */
 let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
-  /* 1. Build a map: end_row -> list of (probe_id, col) */
   let row_to_probes =
     List.fold_right(
       ((probe_id, _), acc) =>
@@ -380,15 +306,13 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
       IntMap.empty,
     );
 
-  /* 2. For rows with multiple probes, keep rightmost, remove others */
   let ids_to_remove =
     IntMap.fold(
       (_, probes, acc) =>
         switch (probes) {
         | []
-        | [_] => acc /* No collision */
+        | [_] => acc
         | _ =>
-          /* Keep rightmost probe (highest col), remove others */
           let sorted =
             List.sort(((_, a), (_, b)) => compare(b, a), probes);
           let to_remove = List.tl(sorted) |> List.map(fst);
@@ -402,11 +326,8 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
   rm_manual(ids_to_remove, z);
 };
 
-let add_manual =
-    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
-    : Zipper.t => {
-  let target_ids = target_subterm_ids(id, info_map);
-
+let add_manual_targets =
+    (~syntax: CachedSyntax.t, target_ids: list(Id.t), z: Zipper.t): Zipper.t => {
   /* Get ending rows for all new probe targets */
   let target_end_rows =
     target_ids
@@ -415,7 +336,6 @@ let add_manual =
          |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
        );
 
-  /* Find existing manual probes ending on those rows */
   let conflicting_ids =
     List.fold_right(
       ((probe_id, _), acc) =>
@@ -436,7 +356,6 @@ let add_manual =
       [],
     );
 
-  /* Remove conflicts, then add new probes */
   let z = rm_manual(conflicting_ids, z);
   let z =
     List.fold_left(
@@ -445,10 +364,19 @@ let add_manual =
       target_ids,
     );
 
-  /* Set pending_probe_cursor so sample focus updates when eval returns */
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
   set_pending_probe(sorted_ids, z);
 };
+
+let add_manual =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  switch (target_subterm_ids(id, info_map)) {
+  | [] =>
+    /* Not probeable: a pending_probe_cursor that never resolves would suppress alignment and force CellEditor's double-calculate pass. */
+    z
+  | target_ids => add_manual_targets(~syntax, target_ids, z)
+  };
 
 let toggle_manual =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
@@ -456,12 +384,8 @@ let toggle_manual =
   switch (probe_status(id, info_map, z.refractors)) {
   | Multi =>
     rm_multi(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
-  | Statics(ids) =>
-    /* Switch from statics to manual probe */
-    rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
-  | Manual(ids) =>
-    /* Remove manual probe */
-    rm_manual(ids, z)
+  | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+  | Manual(ids) => rm_manual(ids, z)
   | Ephemeral(_)
   | Suppressed(_)
   | Non => add_manual(~syntax, id, info_map, z)
@@ -484,14 +408,12 @@ let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
   let all_ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
-  /* Clean up suppressed: only keep IDs that are still in the would-be set */
   let z =
     Zipper.update_suppressed(
       suppressed =>
         Id.Map.filter((id, _) => List.mem(id, all_ids), suppressed),
       z,
     );
-  /* Filter out IDs that have manual probes or are suppressed */
   let manual_ids = List.map(fst, z.refractors.manuals);
   let ids =
     List.filter(
@@ -500,7 +422,6 @@ let add_ids_from_multi_term =
         && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
-  /* Filter out ephemerals that would render on the same line as a manual */
   let manual_end_rows =
     List.filter_map(
       ((id, _)) =>
@@ -524,16 +445,29 @@ let add_ids_from_multi_term =
       ids,
     );
   let old_ephemerals = z.refractors.multis.ephemerals;
+  /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
     List.fold_left(
-      (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
+      (map, id) =>
+        switch (Id.Map.find_opt(id, old_ephemerals)) {
+        | Some(existing) => Id.Map.add(id, existing, map)
+        | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+        },
       Id.Map.empty,
       ids,
     );
-  let z = Zipper.update_ephemerals(_ => new_ephemeral_map, z);
-  /* If there are genuinely new ephemeral IDs, set pending_probe_cursor
-     so the sample focus aligns when evaluation results arrive.
-     Gated on auto_focus: in manual focus mode, don't auto-capture. */
+  /* Keep the previous ephemerals ref when unchanged: a fresh map makes CachedSyntax rebuild Measured (O(program)) every frame (gates on `multis.ephemerals !==`). */
+  let z =
+    if (Id.Map.equal(
+          Refractors.equal_entry,
+          new_ephemeral_map,
+          old_ephemerals,
+        )) {
+      z;
+    } else {
+      Zipper.update_ephemerals(_ => new_ephemeral_map, z);
+    };
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
   let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
   switch (new_ids) {
   | [] => z
@@ -543,10 +477,6 @@ let add_ids_from_multi_term =
     set_pending_probe(sorted, z);
   };
 };
-
-/* Whether to update sample focus when auto probe moves probes.
- * Set to false to disable cursor following for auto probe. */
-let autoprobe_updates_cursor = true;
 
 let add_multi =
     (
@@ -558,9 +488,7 @@ let add_multi =
       z: Zipper.t,
     )
     : Zipper.t => {
-  /* Add all target IDs to multis, like add_manual does for manuals.
-     When drill=false, probe the ID directly without drilling into subterms
-     (used for auto probe to stay on top-level definition). */
+  /* drill=false probes the id directly, no subterm drilling (auto probe stays on the top-level def). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   let z =
     Zipper.update_refractors(z, refractors =>
@@ -579,10 +507,8 @@ let add_multi =
     )
     |> add_ids_from_multi_term(~syntax, ~info_map);
 
-  /* Set pending_probe_cursor so sample focus updates when eval returns */
   if (set_pending_cursor) {
-    /* Use the same target_ids that go into multis.ids, so the ephemeral IDs
-       match what add_ids_from_multi_term computes for sample lookup. */
+    /* same target_ids as multis.ids, so ephemeral ids match for sample lookup */
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
@@ -610,10 +536,7 @@ let toggle_multi =
     }
   };
 
-/* Check if the indicated term is a definition form (Let or Test/HintedTest).
-   When true, the unified probe action adds a multi probe instead of manual.
-   This is because definition bodies benefit from multi probe's per-line
-   expansion, while specific expressions are better served by manual probes. */
+/* Definition forms (Let/Test): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
   | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
@@ -655,95 +578,71 @@ let toggle_probe =
     };
   };
 
-/* STEP-INTO: Sample-Level Navigation Through Execution Traces
- *
- * Step-into operates at the SAMPLE level, not the syntax level. When f(x) is
- * called 5 times during evaluation, stepping into from a specific sample takes
- * you to the function body while maintaining your position in that particular
- * execution trace - you see the body's evaluation for THAT invocation, not all
- * invocations blended together.
- *
- * This is why step-into lives in the sample context menu (environment dropdown)
- * rather than the syntax context menu - being in that dropdown means you've
- * already selected a specific sample, so step-into uses that sample's exact
- * call_stack to maintain execution context.
- *
- * WHY THIS IS COMPLEX:
- *
- * 1. CALL STACK SEMANTICS: When stepping into ap_id from a sample with
- *    call_stack=[a,b,c], the new stack is [ap_id,a,b,c]. This matches what
- *    samples inside the function body will have (the evaluator adds ap_id
- *    when RecordStackFrame is processed).
- *
- * 2. TIMING: Even when samples are available (probe_all on), the projector
- *    DOM element won't exist until after a view cycle. Both probe_all on/off
- *    cases need deferred focus - the difference is just whether we're also
- *    waiting for the worker to return samples.
- *
- * 3. TWO-PASS CALCULATION: In CellEditor.calculate, Editor.calculate runs
- *    BEFORE EvalResult.calculate. The second pass (when pending_focus is set)
- *    ensures resolve_pending_focus sees fresh dynamics after worker results.
- *
- * 4. SAMPLE ID VS JUMP TARGET: For function literals, we distinguish between:
- *    - jump_target (pattern ID): where cursor goes for UX
- *    - sample_probe_id (inner body ID): where samples are stored in dynamics
- *    target_subterm_ids(Fun) returns [inner_body, pattern], and samples are
- *    stored under inner_body. pending_focus uses sample_probe_id for lookup.
- *
- * STEP-INTO FLOW:
- * 1. User clicks "Step Into" on a sample in ProbeProj context menu
- * 2. ProbeProj dispatches Probe(StepInto(sample, ap_id))
- * 3. step_into_sample (below) sets pending_focus with probe_id and target_stack
- * 4. If probe_all enabled, an ephemeral probe is added at target, triggering eval
- * 5. CellEditor.calculate runs:
- *    a. First pass: Editor.calculate → resolve_pending_focus (may have stale dynamics)
- *    b. EvalResult.calculate processes worker results, updating dynamics
- *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
- * 6. When resolve_pending_focus finds a matching sample:
- *    a. SampleFocusPerform.resolve_pending_focus updates sample_focus, clears pending_focus
- *    b. FocusEffect.schedule(probe_id) schedules DOM focus
- * 7. Main.re's after_display hook calls FocusEffect.execute()
- * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
- *
- * KEY FILES:
- * - ProbeProj.re: UI, step_into_sample action dispatch
- * - ProbePerform.re: step_into_sample, resolve_pending_focus, FocusEffect
- * - SampleFocusPerform.re: cursor update operations (sample matching)
- * - CellEditor.re: Two-pass calculation for timing
- * - Sample.re: pending_focus type in Cursor.t
- * - Main.re: after_display calls FocusEffect.execute()
- */
+/* For function-sugar (`let f(args) = body`), params live in the surface binder
+   outside the body's rows, so return their pattern id to anchor separately.
+   Climb to the enclosing Let (not parent_term_of: desugaring inserts a Fun parent). */
+let function_sugar_param_anchor =
+    (info_map: Statics.Map.t, def_id: Id.t): option(Id.t) => {
+  let* ci = Statics.Map.lookup(def_id, info_map);
+  let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+    switch (ancs) {
+    | [] => None
+    | [anc_id, ...rest] =>
+      switch (Statics.Map.lookup(anc_id, info_map)) {
+      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+        /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
+        if (Id.equal(def_id, IdTagged.rep_id(def))) {
+          switch (FunctionSugar.detect(pat)) {
+          | Some((_, args, _)) => Some(Pat.rep_id(args))
+          | None => None
+          };
+        } else {
+          None;
+        }
+      | _ => climb(rest)
+      }
+    };
+  climb(Info.ancestors_of(ci));
+};
 
-/* Step into from a specific sample, using the sample's call_stack
-   instead of the current sample_focus's effective_stack. This ensures
-   we maintain the exact execution context of the selected sample. */
+/* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
+ * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
+ * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
 let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
       ~call_stack: CallStack.t,
-      ~ap_id: Id.t,
+      ~frame: CallStack.frame,
       info_map: Statics.Map.t,
       z: Zipper.t,
     )
     : option(Zipper.t) => {
-  /* Look up the function being called from the application */
-  let* ci_ap = Statics.Map.lookup(ap_id, info_map);
-  let* binding_id =
-    switch (ci_ap) {
-    | InfoExp({
-        user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
-        _,
-      }) =>
-      let* ci_var = Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
-      Info.get_binding_site(ci_var);
-    | _ => None
-    };
-  let* body_id =
+  let ap_id = frame.id;
+  /* Tier 1 (static): resolve the fn via its name's let-binding (fn position is a let-bound var). */
+  let static_body_id = {
+    let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+    let* binding_id =
+      switch (ci_ap) {
+      | InfoExp({
+          user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+          _,
+        }) =>
+        let* ci_var =
+          Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
+        Info.get_binding_site(ci_var);
+      | _ => None
+      };
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
+  };
+  /* Tier 2 (dynamic): fall back to the frame's recorded fn_def_id, for higher-order calls where the static binding site is only a parameter. */
+  let* body_id =
+    switch (static_body_id) {
+    | Some(id) => Some(id)
+    | None => frame.fn_def_id
+    };
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
-  /* Ensure a manual probe on the source expression (ap_id) before jumping.
-     If there's only a multi probe, promote it to manual so it persists. */
+  /* Promote any multi probe on ap_id to manual so it persists across the jump. */
   let z =
     switch (probe_status(ap_id, info_map, z.refractors)) {
     | Manual(_)
@@ -751,10 +650,9 @@ let step_into_call_stack =
     | Multi
     | Ephemeral(_)
     | Suppressed(_)
-    | Non => Zipper.add_manual(ap_id, Probe, z)
+    | Non => promote_to_manual(ap_id, z)
     };
 
-  /* Add multi probe on function body if not already probed */
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
     | Multi
@@ -765,30 +663,38 @@ let step_into_call_stack =
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
-  /* Set pin and dyn cursor using the call_stack */
-  let new_stack = CallStack.extend(ap_id, call_stack);
+  /* Function-sugar params live in the surface binder, not under body_id; anchor the param pattern too. */
+  let param_anchor = function_sugar_param_anchor(info_map, body_id);
+  let z =
+    switch (param_anchor) {
+    | None => z
+    | Some(args_id) =>
+      switch (probe_status(args_id, info_map, z.refractors)) {
+      | Multi
+      | Manual(_)
+      | Statics(_)
+      | Ephemeral(_) => z
+      | Suppressed(_)
+      | Non => add_multi(args_id, ~syntax, ~info_map, z)
+      }
+    };
 
-  /* Determine where to jump and where to look for samples.
-   * For function literals:
-   * - jump_target = pattern (cursor goes to parameters for UX)
-   * - sample_probe_id = inner body (where samples are stored in dynamics)
-   * target_subterm_ids transforms Fun to [inner_body, pattern]. */
+  /* Use the real captured frame (name + dynamic fn_def_id), not a synthesized id-only one, so the pin/focus is precise. */
+  let new_stack: CallStack.t = [frame, ...call_stack];
+
+  /* jump_target = params (cursor for UX); samples live under body_id. */
   let (jump_target, _sample_probe_id) =
-    switch (ci_body) {
-    | InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
+    switch (param_anchor, ci_body) {
+    | (Some(args_id), _) => (args_id, body_id)
+    | (
+        None,
+        InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}),
+      ) =>
       let pat_id = IdTagged.rep_id(pat);
       let inner_body_id = IdTagged.rep_id(inner_body);
       (pat_id, inner_body_id);
-    | _ => (body_id, body_id)
+    | (None, _) => (body_id, body_id)
     };
-
-  // NOTE(andrew): disabling this for now as it doesn't work right
-  /* Set pending_focus using sample_probe_id (inner body), since that's where
-   * the samples are stored in the dynamics map. */
-  // let pending_focus: Sample.Focus.pending_focus = {
-  //   probe_id: sample_probe_id,
-  //   target_stack: new_stack,
-  // };
 
   let z =
     SampleFocusPerform.update(z, _ => {
@@ -797,7 +703,9 @@ let step_into_call_stack =
         call_stack: new_stack,
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
-        pending_focus: None //Some(pending_focus),
+        pending_focus: None,
+        anchor: None,
+        pinned_span: None,
       }
     });
 
@@ -807,12 +715,10 @@ let step_into_call_stack =
   Move.jump_to_id_indicated(z, jump_target);
 };
 
-/* Check if type annotation is allowed for the given id. */
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
   Info.is_typable_term(Statics.Map.lookup(id, info_map));
 
-/* Toggle type annotation on the indicated term.
-   Unlike probes, type annotations don't support auto mode or pins. */
+/* Type annotations don't support auto mode or pins. */
 let toggle_statics =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
@@ -827,20 +733,12 @@ let toggle_statics =
         target_ids,
       );
     switch (probe_status(id, info_map, z.refractors)) {
-    | Statics(ids) =>
-      /* Remove statics */
-      rm_manual(ids, z)
-    | Manual(ids) =>
-      /* Switch from manual probe to statics */
-      rm_manual(ids, z) |> add_statics
-    | Multi =>
-      /* Switch from multi probe to statics */
-      rm_multi(~syntax, ~info_map, id, z) |> add_statics
+    | Statics(ids) => rm_manual(ids, z)
+    | Manual(ids) => rm_manual(ids, z) |> add_statics
+    | Multi => rm_multi(~syntax, ~info_map, id, z) |> add_statics
     | Ephemeral(_)
     | Suppressed(_)
-    | Non =>
-      /* Add statics */
-      add_statics(z)
+    | Non => add_statics(z)
     };
   };
 
@@ -923,14 +821,13 @@ let go =
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }
-  | StepInto(call_stack, ap_id) =>
-    switch (step_into_call_stack(~syntax, ~call_stack, ~ap_id, info_map, z)) {
+  | StepInto(call_stack, frame) =>
+    switch (step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)) {
     | Some(z) => z
     | None => z
     }
   | Pin(call_stack, ap_id) =>
-    /* Promote multi probe to manual so it persists across cursor movement,
-       then toggle the pin on this call stack */
+    /* Promote any multi probe to manual so the pin persists across cursor movement. */
     let z =
       switch (probe_status(ap_id, info_map, z.refractors)) {
       | Manual(_)
@@ -938,9 +835,11 @@ let go =
       | Multi
       | Ephemeral(_)
       | Suppressed(_)
-      | Non => Zipper.add_manual(ap_id, Probe, z)
+      | Non => promote_to_manual(ap_id, z)
       };
-    SampleFocusPerform.toggle_pin_call(z, call_stack);
+    /* Pin actions carry no sample (the pinned CALL may not itself be
+     * probed); the span ref comes from stack decomposition, opened=None. */
+    SampleFocusPerform.toggle_pin_call(z, call_stack, None);
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])
@@ -957,9 +856,6 @@ let go =
     |> SampleFocusPerform.reset
   };
 
-/* Note: has_probe is defined earlier (above maybe_rm_pin) */
-
-/* Get the kind of refractor at the given id, if any */
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
   switch (List.assoc_opt(id, z.refractors.manuals)) {
   | Some(entry: Refractors.entry) => Some(entry.kind)
@@ -971,14 +867,9 @@ let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
   };
 };
 
-/* Check if probing is allowed for the given id.
-   Used by ContextMenu to determine whether to show probe options. */
 let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
   target_subterm_ids(id, info_map) != [];
 
-/* Resolve pending focus from step-into by looking up samples in dynamics
-   and focusing the one that matches target_stack. Called from Editor.calculate
-   after dynamics are updated. See FocusEffect module comment for full flow. */
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
   switch (z.refractors.sample_focus.pending_focus) {
   | None => z
@@ -988,7 +879,6 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
     | Some(samples) =>
       let z' =
         SampleFocusPerform.resolve_pending_focus(z, samples, target_stack);
-      /* If pending_focus was cleared, schedule DOM focus on the probe */
       if (z'.refractors.sample_focus.pending_focus == None) {
         FocusEffect.schedule(probe_id);
       };
@@ -996,14 +886,11 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
     }
   };
 
-/* Check whether the cursor is aligned with any probe's samples.
- * Returns true if the cursor has an empty call_stack (never captured)
- * or if at least one probe has a sample matching the cursor via
- * most_aligned_index. */
-let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+let cursor_is_aligned_uncached =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let cursor = z.refractors.sample_focus;
   if (cursor.call_stack == []) {
-    true; /* Empty cursor is trivially aligned */
+    true;
   } else {
     let all_probe_ids =
       List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
@@ -1021,9 +908,35 @@ let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   };
 };
 
-/* Find the caret-nearest ephemeral probe ID. Uses the same strategies
- * as align_to_indicated_probe: direct match via Indicated.index,
- * then spatial proximity on the same row. */
+/* Memoize the O(probes x samples) verdict on physical identity (runs every Editor.calculate incl. caret moves; inputs ref-stable). */
+let cia_key:
+  ref(
+    option(
+      (
+        Dynamics.Map.t,
+        Id.Map.t(Refractors.entry),
+        list((Id.t, Refractors.entry)),
+        Sample.Focus.t,
+        bool,
+      ),
+    ),
+  ) =
+  ref(None);
+
+let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
+  let cursor = z.refractors.sample_focus;
+  let ephemerals = z.refractors.multis.ephemerals;
+  let manuals = z.refractors.manuals;
+  switch (cia_key^) {
+  | Some((d, e, m, c, verdict))
+      when d === dynamics && e === ephemerals && m === manuals && c == cursor => verdict
+  | _ =>
+    let verdict = cursor_is_aligned_uncached(~dynamics, z);
+    cia_key := Some((dynamics, ephemerals, manuals, cursor, verdict));
+    verdict;
+  };
+};
+
 let caret_nearest_ephemeral =
     (~syntax: CachedSyntax.t, z: Zipper.t): option(Id.t) => {
   switch (Indicated.index(z)) {
@@ -1049,23 +962,9 @@ let caret_nearest_ephemeral =
   };
 };
 
-/* Ensure the sample focus is aligned with current dynamics.
- *
- * Handles two cases uniformly:
- * 1. pending_probe_cursor is set (probe set changed via add_ids_from_multi_term
- *    or align_to_indicated_probe): resolve by finding the first pending ID
- *    with samples and capturing from it.
- * 2. pending is None but cursor is stale (structural edit changed application
- *    site tile IDs, so the cursor's call_stack frame IDs no longer match any
- *    sample in the new dynamics): detect via cursor_is_aligned, then build
- *    a target list from all probes.
- *
- * In both cases, the caret-nearest probe is prioritized to avoid capturing
- * from a probe in a different case branch or distant expression.
- *
- * When a pin is active, skip the stale-cursor fallback (case 2) so that
- * the pinned context is preserved. Explicit pending cursors (case 1)
- * still resolve, since those represent intentional navigation. */
+/* Case 1: a pending cursor → first pending id with samples. Case 2: no pending
+ * but the cursor went stale (structural edit) → caret-nearest probe. A pin skips
+ * case 2 (preserve pinned context) but still resolves case 1. */
 let resolve_pending_probe_cursor =
     (
       ~dynamics: Dynamics.Map.t,
@@ -1074,7 +973,18 @@ let resolve_pending_probe_cursor =
       z: Zipper.t,
     )
     : Zipper.t => {
-  /* Determine which IDs to try */
+  /* A pending cursor whose ids no longer name a live probe can never resolve; clear it, else it wedges (suppresses alignment, forces the double-calculate pass every action). */
+  let z =
+    switch (z.refractors.pending_probe_cursor) {
+    | Some(ids) when !List.exists(id => has_probe(id, z), ids) =>
+      Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          pending_probe_cursor: None,
+        }
+      )
+    | _ => z
+    };
   let (target_ids, is_pending) =
     switch (z.refractors.pending_probe_cursor) {
     | Some(ids) => (Some(ids), true)
@@ -1082,7 +992,6 @@ let resolve_pending_probe_cursor =
       if (cursor_is_aligned(~dynamics, z) || !auto_focus(z)) {
         (None, false);
       } else {
-        /* Cursor is stale — treat all probes as candidates */
         let all_ids =
           List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
           @ List.map(fst, z.refractors.manuals);
@@ -1107,7 +1016,6 @@ let resolve_pending_probe_cursor =
       | None => ids
       };
 
-    /* Find first ID that has samples */
     let first_with_samples =
       List.find_map(
         id =>
@@ -1120,8 +1028,6 @@ let resolve_pending_probe_cursor =
       );
     switch (first_with_samples) {
     | Some((probe_id, samples)) =>
-      /* Compute ap_id from the probe's statics so indicated_call
-         is set correctly for both click and keyboard navigation */
       let ap_id =
         switch (Statics.Map.lookup(probe_id, info_map)) {
         | Some(statics) => Sample.Focus.cur_var_ap(statics)
@@ -1155,23 +1061,15 @@ let resolve_pending_probe_cursor =
           }
         )
       };
-    | None =>
-      /* No samples yet — keep pending if it was pending, otherwise noop */
-      if (is_pending) {z} else {z}
+    | None => if (is_pending) {z} else {z}
     };
   };
 };
 
-/* After an edit, if the new-ID diff in add_ids_from_multi_term didn't set
- * pending_probe_cursor (e.g., because grout ID preservation kept the same ID
- * despite structural changes), align the sample focus to an ephemeral probe
- * at or near the caret. This handles cases like completing `then` where the
- * hole moves from top-level sibling to then-branch without changing ID.
- *
- * Note: Indicated.index returns a piece ID, but ephemerals are keyed by term
- * IDs from MultiProbe. These usually match for simple cases (grout holes) but
- * may differ when the caret is on a delimiter or shard of a multi-piece term.
- * We try a direct match first, then fall back to spatial proximity. */
+/* When grout ID preservation keeps the same id across a structural edit,
+ * add_ids_from_multi_term won't set pending_probe_cursor; align to the
+ * caret-nearest ephemeral instead. Indicated.index gives a piece id, ephemerals
+ * key on term ids — try a direct match, then fall back to spatial proximity. */
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   if (!is_edited
@@ -1179,52 +1077,39 @@ let align_to_indicated_probe =
       || !auto_focus(z)) {
     z;
   } else {
-    /* Strategy 1: Direct match — indicated piece is an ephemeral probe */
-    let direct_match =
-      switch (Indicated.index(z)) {
-      | None => None
-      | Some(piece_id) =>
-        if (Id.Map.mem(piece_id, z.refractors.multis.ephemerals)) {
-          Some(piece_id);
-        } else {
-          None;
-        }
-      };
-    /* Strategy 2: Spatial proximity — find ephemeral probe on same row
-     * whose measured range contains the caret position */
-    let spatial_match = () => {
-      let caret_pt = Zipper.Caret.point(syntax.measured, z);
-      let ephemerals = Id.Map.bindings(z.refractors.multis.ephemerals);
-      List.find_map(
-        ((id, _)) =>
-          switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-          ) {
-          | Some((start_pt, end_pt))
-              when
-                start_pt.row == caret_pt.row
-                && caret_pt.col >= start_pt.col
-                && caret_pt.col <= end_pt.col
-                + 1 =>
-            Some(id)
-          | _ => None
-          },
-        ephemerals,
-      );
-    };
-    switch (direct_match) {
+    switch (caret_nearest_ephemeral(~syntax, z)) {
     | Some(id) => set_pending_probe([id], z)
-    | None =>
-      switch (spatial_match()) {
-      | Some(id) => set_pending_probe([id], z)
-      | None => z
-      }
+    | None => z
     };
   };
 
-/* Post-calculation probe effects: cleanup, multi-probe regeneration,
- * step-into focus resolution, pending probe cursor resolution, and cursor reset.
- * Called from Editor.calculate after syntax and statics are updated. */
+/* Drop a pinned call stack once no sample matches it (call site deleted/
+ * unreached) — a dead pin darkens every probe (⍟), since recovery is gated on
+ * auto_focus. Checked against eval RESULTS, not statics: pinned stacks contain
+ * builtin/worker-minted ids absent from UI statics, and samples+pins both come
+ * from the worker (process-consistent). Skipped on empty dynamics. */
+let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
+  SampleFocusPerform.update_pinned_call(z, p =>
+    switch (p) {
+    | Some(stack) when !Id.Map.is_empty(dynamics) =>
+      let pinned_ids = CallStack.ids_of_stack(stack);
+      let (head_id, tail_ids) =
+        switch (pinned_ids) {
+        | [hd, ...tl] => (Some(hd), tl)
+        | [] => (None, [])
+        };
+      let alive = (s: Sample.t) => {
+        let s_ids = CallStack.ids_of_stack(s.call_stack);
+        ListUtil.is_suffix_of(pinned_ids, s_ids)
+        || Some(s.syntax_id) == head_id
+        && s_ids == tail_ids;
+      };
+      Id.Map.exists((_, samples) => List.exists(alive, samples), dynamics)
+        ? Some(stack) : None;
+    | x => x
+    }
+  );
+
 let editor_effects =
     (
       ~is_edited: bool,
@@ -1236,205 +1121,303 @@ let editor_effects =
     : Zipper.t =>
   z
   |> remove_colliding_probes(~syntax)
+  |> drop_dead_pin(~dynamics)
   |> add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
   |> resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map)
   |> maybe_reset_cursor;
 
-/* AUTO PROBE: automatically place a multi probe on the top-level
- * definition body that the cursor is currently inside. When the cursor
- * moves to a different definition, the probe follows. */
-
-/* Determines what expression to probe based on cursor position (for auto probe).
- *
- * Walk ancestors from outermost to innermost. For each:
- * - Test: return test body (done)
- * - Let: check if child-toward-cursor is the body
- *   - If child == body: skip (cursor is in body, this let doesn't apply)
- *   - Otherwise: return this let's def (cursor is in def/pattern/on-delimiter)
- *
- * The key insight: the ONLY way to not probe a let's def is if the cursor
- * is in its body. Being on the let delimiter, pattern, or def all qualify.
- */
+/* AUTO PROBE: walk ancestors outermost-to-innermost, picking the def of the
+ * enclosing Let / first component of a Seq / the bare expression at the cursor
+ * (types aren't probeable); fall back to the cursor's own piece. A Test target
+ * is rewritten to its body (unwrap_test) to probe the boolean condition. */
 let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) => {
   open Language;
 
-  /* Walk from outermost to innermost ancestor.
-   * At each step, `child_id` is the next item toward the cursor.
-   * ancestors is innermost-first, so we walk from the end. */
+  let unwrap_test = (id: Id.t): Id.t =>
+    switch (Statics.Map.lookup(id, statics)) {
+    | Some(
+        InfoExp({
+          user_term: {term: Test(body) | HintedTest(body, _), _},
+          _,
+        }),
+      ) =>
+      IdTagged.rep_id(body)
+    | _ => id
+    };
+
+  let probe_for_piece = (id: Id.t): option(Id.t) =>
+    switch (Statics.Map.lookup(id, statics)) {
+    | Some(InfoExp({user_term: {term: Let(_, def, _), _}, _})) =>
+      Some(IdTagged.rep_id(def))
+    | Some(InfoExp({user_term: {term: Seq(e1, _), _}, _})) =>
+      Some(IdTagged.rep_id(e1))
+    | Some(InfoExp({user_term: {term: TyAlias(_), _}, _})) => None
+    | Some(InfoExp({user_term, _})) => Some(IdTagged.rep_id(user_term))
+    | _ => None
+    };
+
   let find_target = (starting_id: Id.t, ancestors: list(Id.t)): option(Id.t) => {
     let len = List.length(ancestors);
-
     let rec walk = (idx: int): option(Id.t) =>
       if (idx < 0) {
         None;
       } else {
         let anc_id = List.nth(ancestors, idx);
-        /* Child is the next ancestor toward cursor, or starting_id if innermost */
         let child_id =
           if (idx == 0) {
             starting_id;
           } else {
             List.nth(ancestors, idx - 1);
           };
-
         switch (Statics.Map.lookup(anc_id, statics)) {
-        | Some(
-            InfoExp({
-              user_term: {term: Test(body) | HintedTest(body, _), _},
-              _,
-            }),
-          ) =>
-          /* Test: return its body */
-          Some(IdTagged.rep_id(body))
-
         | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
-          let body_id = IdTagged.rep_id(body);
-          if (Id.equal(child_id, body_id)) {
-            /* Child is body → cursor is in body → skip, continue inward */
-            walk(
-              idx - 1,
-            );
+          if (Id.equal(child_id, IdTagged.rep_id(body))) {
+            walk(idx - 1);
           } else {
-            /* Child is def/pattern/or this is the cursor → return def */
-            Some(
-              IdTagged.rep_id(def),
-            );
+            Some(IdTagged.rep_id(def));
+          }
+        | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
+          let e1_id = IdTagged.rep_id(e1);
+          let e2_id = IdTagged.rep_id(e2);
+          if (Id.equal(child_id, e1_id) || Id.equal(child_id, e2_id)) {
+            walk(idx - 1);
+          } else {
+            Some(e1_id);
           };
-
-        | _ =>
-          /* Not a let or test, continue inward */
-          walk(idx - 1)
+        | Some(InfoExp({user_term: {term: TyAlias(_, _, body), _}, _})) =>
+          if (Id.equal(child_id, IdTagged.rep_id(body))) {
+            walk(idx - 1);
+          } else {
+            None;
+          }
+        | _ => Some(anc_id)
         };
       };
-
     walk(len - 1);
   };
 
-  switch (Statics.Map.lookup(id, statics)) {
-  | Some(
-      InfoExp({user_term: {term: Test(body) | HintedTest(body, _), _}, _}),
-    ) =>
-    /* Starting point IS a test → return its body */
-    Some(IdTagged.rep_id(body))
-
-  | Some(info) =>
-    let ancestors = Info.ancestors_of(info);
-    switch (find_target(id, ancestors)) {
-    | Some(def_id) => Some(def_id)
-    | None =>
-      /* No outer let found where we're in def.
-         Check if starting_id itself is a top-level let → return its def */
-      switch (info) {
-      | InfoExp({user_term: {term: Let(_, def, _), _}, _}) =>
-        Some(IdTagged.rep_id(def))
-      | _ => None
-      }
+  /* WORKAROUND: function-sugar reuses the surface Let's id, so it appears twice
+   * in `ancestors`; the positional walk would then misread a cursor in the let
+   * body as being in the def. Dedup adjacent ids. Remove once fixed in statics. */
+  let rec dedup_adjacent = (ids: list(Id.t)): list(Id.t) =>
+    switch (ids) {
+    | []
+    | [_] => ids
+    | [x, y, ...rest] =>
+      Id.equal(x, y)
+        ? dedup_adjacent([y, ...rest])
+        : [x, ...dedup_adjacent([y, ...rest])]
     };
 
+  switch (Statics.Map.lookup(id, statics)) {
+  | Some(info) =>
+    let ancestors = dedup_adjacent(Info.ancestors_of(info));
+    let target =
+      switch (find_target(id, ancestors)) {
+      | Some(_) as result => result
+      | None => probe_for_piece(id)
+      };
+    Option.map(unwrap_test, target);
   | None => None
   };
 };
 
-/* Remove the auto probe's multi probe if present */
 let clear_autoprobe =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (z.refractors.autoprobe_target) {
-  | None => z
-  | Some(old_id) =>
-    /* Skip cursor reset here: the syntax cache still has the old probes
-     * (since this isn't an edit, CachedSyntax won't recalculate until
-     * the next is_edited cycle). If we reset the cursor now, the stale
-     * probes render one last frame with a reset cursor, causing a brief
-     * color flash before they disappear. By preserving the cursor, the
-     * departing probes render with their original colors. The cursor
-     * will be reset on the next editor_effects call when the probes
-     * are actually gone from the syntax cache. */
-    rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z)
+  | [] => z
+  | old_ids =>
+    /* Skip the cursor reset: this isn't an edit, so the stale probes render one
+     * more frame; resetting now would flash them a reset color. editor_effects
+     * resets once they're gone from the syntax cache. */
+    List.fold_left(
+      (z, old_id) =>
+        rm_multi(~drill=false, ~reset=false, ~syntax, ~info_map, old_id, z),
+      z,
+      old_ids,
+    )
     |> Zipper.update_refractors(_, r =>
          {
            ...r,
-           autoprobe_target: None,
+           autoprobe_target: [],
          }
        )
   };
 
-/* Get the top-level definition body ID that the cursor is currently inside.
- * When the cursor is on whitespace/comments (secondaries), we fall back to
- * using the nearest ancestor tile's ID, since secondaries don't have statics. */
+/* Pick the id to base autoprobe placement on: (1) Indicated.index for the usual
+ * cursor-on-tile case; (2) left-bias fallback past secondaries (keeps the probe
+ * sticky after a trailing space); (3) the enclosing tile (cursor on a blank line). */
 let current_toplevel_def =
     (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let try_id = id => toplevel_def_body_id(~statics=info_map, ~id);
 
-  /* First try the indicated piece */
-  let from_indicated =
+  let from_indicated = () =>
     switch (Indicated.index(z)) {
     | None => None
     | Some(cursor_id) => try_id(cursor_id)
     };
 
-  /* If that failed (e.g., cursor on whitespace), try the zipper ancestor */
-  switch (from_indicated) {
-  | Some(_) => from_indicated
-  | None =>
+  let from_left = () => {
+    let (l_sibs, _) = ZipperBase.sibs_with_sel(z);
+    /* trim right-end secondaries, then take the last piece (nearest non-secondary on the left). */
+    let trimmed = Segment.trim_secondary(Right, l_sibs);
+    switch (ListUtil.split_last_opt(trimmed)) {
+    | Some((_, last)) => try_id(Piece.id(last))
+    | None => None
+    };
+  };
+
+  let from_right = () => {
+    let (_, r_sibs) = ZipperBase.sibs_with_sel(z);
+    let trimmed = Segment.trim_secondary(Left, r_sibs);
+    switch (trimmed) {
+    | [first, ..._] => try_id(Piece.id(first))
+    | [] => None
+    };
+  };
+
+  let from_ancestor = () =>
     switch (z.relatives.ancestors) {
     | [] => None
     | [(ancestor, _), ..._] => try_id(ancestor.id)
-    }
+    };
+
+  [from_indicated, from_right, from_left, from_ancestor]
+  |> List.fold_left((acc, f) => acc == None ? f() : acc, None);
+};
+
+/* Program root id: the single `All`-mode anchor (expands to one probe per row).
+ * Memoized on physical identity of `syntax.segment`, since Segment.skel parses
+ * the whole program and update_autoprobe calls this every All-mode frame. */
+let root_id_segment: ref(option(Segment.t)) = ref(None);
+let root_id_result: ref(option(Id.t)) = ref(None);
+
+let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
+  let stable =
+    switch (root_id_segment^) {
+    | Some(seg) => seg === syntax.segment
+    | None => false
+    };
+  if (stable) {
+    root_id_result^;
+  } else {
+    let result =
+      switch (syntax.segment) {
+      | [] => None
+      | seg =>
+        switch (Segment.root_id(Segment.skel(seg), seg)) {
+        | id => Some(id)
+        | exception _ => None
+        }
+      };
+    root_id_segment := Some(syntax.segment);
+    root_id_result := result;
+    result;
   };
 };
 
-/* Update the auto probe based on current cursor position.
- * Only reconstitutes the probe when the cursor moves to a different
- * top-level definition. */
+/* Caret: anchor on the top-level def the cursor is in (reconstitutes on crossing
+ * into another def). All: anchor on the program root (constant). Off: unreached
+ * (Editor.calculate clears instead); empty anchors here for totality. */
 let update_autoprobe =
-    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let current_def = current_toplevel_def(info_map, z);
-  let prev_def = z.refractors.autoprobe_target;
-  /* If same definition, no change needed */
-  if (Option.equal(Id.equal, current_def, prev_def)) {
+    (
+      ~mode: AutoProbe.t,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t => {
+  /* drill=false so the anchor itself is multi-probed (expanded by row), not drilled into subterms. */
+  let (current_anchors, add_new) =
+    switch (mode) {
+    | Off => ([], (z => z))
+    | All =>
+      switch (program_root_id(syntax)) {
+      | None => ([], (z => z))
+      | Some(root_id) => (
+          [root_id],
+          (
+            z =>
+              add_multi(
+                root_id,
+                ~drill=false,
+                ~set_pending_cursor=auto_focus(z),
+                ~syntax,
+                ~info_map,
+                z,
+              )
+          ),
+        )
+      }
+    | Caret =>
+      let current_def = current_toplevel_def(info_map, z);
+      /* Function-sugar: also anchor the param pattern so params are probed on the header line(s). */
+      let current_param =
+        switch (current_def) {
+        | Some(def_id) => function_sugar_param_anchor(info_map, def_id)
+        | None => None
+        };
+      let anchors =
+        Option.to_list(current_def) @ Option.to_list(current_param);
+      /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
+      let add = z =>
+        switch (current_def) {
+        | None => z
+        | Some(def_id) =>
+          let z =
+            add_multi(
+              def_id,
+              ~drill=false,
+              ~set_pending_cursor=auto_focus(z),
+              ~syntax,
+              ~info_map,
+              z,
+            );
+          switch (current_param) {
+          | Some(param_id) =>
+            add_multi(
+              param_id,
+              ~drill=false,
+              ~set_pending_cursor=false,
+              ~syntax,
+              ~info_map,
+              z,
+            )
+          | None => z
+          };
+        };
+      (anchors, add);
+    };
+  let prev_anchors = z.refractors.autoprobe_target;
+  /* Anchors can be removed from multis.ids while autoprobe_target still lists
+     them (RemoveAll, or Cmd+E on a term that is an anchor); without this check
+     the same-anchors short-circuit would be a permanent no-op. Self-heal. */
+  let anchors_intact =
+    List.for_all(
+      id => Id.Map.mem(id, z.refractors.multis.ids),
+      current_anchors,
+    );
+  if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {
     z;
   } else {
-    /* Remove old multi probe if exists.
-       Use ~drill=false to match how it was added. */
+    /* drill=false to match how they were added. */
     let z =
-      switch (prev_def) {
-      | Some(old_id) => rm_multi(~drill=false, ~syntax, ~info_map, old_id, z)
-      | None => z
-      };
+      List.fold_left(
+        (z, old_id) => rm_multi(~drill=false, ~syntax, ~info_map, old_id, z),
+        z,
+        prev_anchors,
+      );
 
-    /* Regenerate ephemerals from multis.ids after removal.
-       rm_multi(~drill=false) only removes the auto ID itself, not the
-       expanded ephemeral IDs created by add_ids_from_multi_term. When
-       transitioning to None (no definition), add_multi won't run, so
-       stale ephemerals would persist for one frame without this. */
+    /* Regenerate ephemerals: rm_multi(~drill=false) drops only the anchor id, not its expanded ephemerals; without this they'd persist a frame when transitioning to no-def. */
     let z = add_ids_from_multi_term(~syntax, ~info_map, z);
 
-    /* Add new multi probe if inside a definition.
-       Use ~drill=false to stay on top-level def, not drill into nested lets.
-       Use autoprobe_updates_cursor to control whether cursor follows.
-       Gated on auto_focus: in manual focus mode, don't jump focus when
-       the cursor crosses into a new top-level definition. */
-    let z =
-      switch (current_def) {
-      | Some(new_id) =>
-        add_multi(
-          new_id,
-          ~drill=false,
-          ~set_pending_cursor=autoprobe_updates_cursor && auto_focus(z),
-          ~syntax,
-          ~info_map,
-          z,
-        )
-      | None => z
-      };
-
-    /* Update auto probe tracking */
+    let z = add_new(z);
     Zipper.update_refractors(z, r =>
       {
         ...r,
-        autoprobe_target: current_def,
+        autoprobe_target: current_anchors,
       }
     );
   };

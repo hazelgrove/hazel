@@ -484,6 +484,7 @@ module View = {
       ~refine_sort=
         (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+      ~simple_indication=globals.settings.simple_indication,
       ~font_metrics=globals.font_metrics,
       ~syntax,
       z,
@@ -616,7 +617,7 @@ module View = {
      * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
       ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~on_close=() => inject(ContextMenu(ContextMenu.Model.Close)),
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
@@ -643,7 +644,6 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~dynamics,
               model.editor.state.zipper,
             ),
           ]
@@ -676,8 +676,11 @@ module View = {
             }
           )
         : [];
-    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    /* cull only in auto-probe mode, else a stale range could hide manual probes */
+    let visible =
+      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
+        ? None : globals.visible_rows;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -692,10 +695,10 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~visible?,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
+        (),
       );
-    // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
-    let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),
@@ -703,11 +706,11 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
-    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -940,15 +943,13 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        /* Always focusable so first click gives DOM focus.
-         * Key events are ignored when not selected — they bubble
-         * to Page.re which handles page-level shortcuts. */
-        Attr.tabindex(
-          0,
-        );
+        /* not selected: ignore keys (they bubble to Page); focusable via the tabindex below */
+        Attr.empty;
       } else {
         let z = model.editor.state.zipper;
-        Key.handler(~f=key => {
+        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
+           duplicating this div's tabindex — vdom warns every render */
+        Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -1074,8 +1075,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
-        /* Tag the active cell so a sidebar jump can move DOM focus to it
-           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+        /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
+        Attr.tabindex(0),
+        /* tag the active cell so a sidebar jump can move DOM focus to it */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>

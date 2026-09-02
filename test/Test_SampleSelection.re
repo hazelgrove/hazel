@@ -49,6 +49,7 @@ let mk_sample =
   env: Sample.Env.empty,
   call_stack: stack,
   args: None,
+  frame: None,
   time: 0.0,
   seq,
   origin: Probe,
@@ -74,6 +75,8 @@ let mk_cursor =
   seq,
   step_range,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 /* Count how many samples Selection.select returns */
@@ -602,6 +605,8 @@ let mk_cursor_at_index =
   seq,
   step_range,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 let intent_preservation_tests = [
@@ -910,9 +915,12 @@ let three_level_tests = [
         seq: 0,
         step_range: None,
         pending_focus: None,
+        anchor: None,
+        pinned_span: None,
       };
       /* Step 1: navigate to mid level. capture with [M1, F] */
       let mid_data: Sample.Capture.t = {
+        probe_id: Id.invalid,
         call_stack: [m1, f_frame],
         time: 0.,
         seq: 0,
@@ -941,6 +949,7 @@ let three_level_tests = [
       );
       /* Step 2: navigate to top level. capture with [F] */
       let top_data: Sample.Capture.t = {
+        probe_id: Id.invalid,
         call_stack: [f_frame],
         time: 0.,
         seq: 0,

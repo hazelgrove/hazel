@@ -74,10 +74,18 @@ let (suite, exit_with_test_status) =
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
-    @ [Test_VarHighlight.tests]
+    @ Test_Autoprobe.tests
+    @ [
+      Test_VarHighlight.tests,
+      Test_Evaluator_ProbeNav.tests,
+      Test_StepProvenance.tests,
+      Test_ObsTraceShadow.tests,
+      Test_ObsBench.tests,
+    ]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
+    @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
     @ [Test_ExplainThis.tests],
   );

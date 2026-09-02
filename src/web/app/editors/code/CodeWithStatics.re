@@ -138,7 +138,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=StaticsNormal,
         ~ctx=?,
@@ -149,21 +149,34 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
-    let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
+    /* Throttle gate for full statics recompute. Bypass the debounce when probe
+     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
+     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one */
+    let do_init = (editor: Editor.t) =>
+      CachedStatics.init(
+        ~settings,
+        ~stitch,
+        ~ctx?,
+        ~ana?,
+        ~is_dynamic_term,
+        ~root=editor.root,
+        editor.state.zipper,
+      );
+    let needs_refresh =
+      statics_mode == StaticsForce
+      || probes_differ(editor.state.zipper, statics)
+      || is_edited
+      && statics_mode != StaticsDefer;
+    let statics = needs_refresh ? do_init(editor) : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -175,9 +188,15 @@ module Update = {
         editor,
       );
 
-    /* Refresh `statics.targets` against the post-probe-effects refractors.
-     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
-     * the rest of statics stays valid. */
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
+    let statics =
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
+
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
@@ -197,7 +216,16 @@ module View = {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              refractor_rows,
+              term_data,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -213,13 +241,14 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_rows,
         ~refine_sort,
         segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -230,6 +259,7 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~is_warning=true,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,

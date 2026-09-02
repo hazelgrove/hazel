@@ -3342,6 +3342,45 @@ else 2¦|})
   ),
 ];
 
+let sel_r_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
+
+let cross_boundary_paste_tests = [
+  /* Select `comparison = (0` from `let comparison = (0 == 0) in comparison`,
+   * cutting the `=` shard out of the let form and the `(` out of parens.
+   * After paste, both should be structurally restored. */
+  test_case(
+    "Cut-paste spanning = delimiter in let: structural integrity",
+    `Quick,
+    () => {
+      let z =
+        mk({|let ¦comparison = (0 == 0) in comparison|})
+        |> perform(Zipper.init());
+      let z = perform(z, sel_r_token(6));
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles (labels: "
+        ++ String.concat(
+             "; ",
+             List.map((t: Tile.t) => String.concat(",", t.label), inc),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
+  ),
+];
+
 /* Test that wrapping a selection across a tile boundary doesn't cause
  * stack overflow. Scenario: (§1)¦ + Insert("(") produces orphan shards
  * from the original (...) tile at different nesting levels. Without the
@@ -5370,6 +5409,7 @@ let tests = [
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
   ("Editing.IncompleteListDump", incomplete_list_dump_tests),
+  ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
   ("Editing.CharSelection", char_selection_tests),
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),

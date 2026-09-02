@@ -22,6 +22,14 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
+  /* true only for single-active-editor modes; Exercises (multi-editor) is unculled */
+  let supports_viewport_culling: t => bool =
+    fun
+    | Scratch(_)
+    | Documentation(_)
+    | Tutorial(_) => true
+    | Exercises(_) => false;
+
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
   let extra_main_classes = (model: t): list(string) => {
@@ -302,6 +310,7 @@ module Update = {
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),
@@ -311,6 +320,7 @@ module Update = {
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           m,
         ),

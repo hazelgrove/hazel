@@ -107,13 +107,17 @@ module View = {
   /* A projector has an inline view, which replaces the underlying
    * syntax. Optionally, it may have an overlay view, which is shown
    * in the same place, but above most base editor decorations
-   * including the inline views of all other projectors, and/or
-   * an offside view, which is rendered at the end of the base
-   * editor line containing the projector */
+   * including the inline views of all other projectors; an offside
+   * view, which is rendered at the end of the base editor line
+   * containing the projector; and/or a below view, which is rendered
+   * starting on the line *after* the projector's line at the left
+   * edge of the editor pane. Use below in combination with a
+   * Tab(n) placeholder so the framework reserves the rows. */
   type t = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    below: option(Node.t),
     /* If true, the projector div gets the "error" class,
      * triggering the dashed red SVG border from proj-base.css */
     error: bool,
@@ -157,10 +161,11 @@ module View = {
     core_settings: Language.CoreSettings.t,
   };
 
-  let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
+  let mk = (~overlay=None, ~offside=None, ~below=None, ~error=false, inline) => {
     inline,
     overlay,
     offside,
+    below,
     error,
   };
 };
@@ -275,8 +280,21 @@ module Cook = (C: Projector) : Cooked => {
       status: args.status,
       core_settings: args.core_settings,
     });
-  let placeholder = m =>
-    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
+  /* Memoize the per-refractor sexp parse by exact model string (called on
+   * every shape refresh, mostly with unchanged strings). Bounded cache. */
+  let placeholder_models: Hashtbl.t(string, C.model) = Hashtbl.create(32);
+  let parse_model_memo = (s: string): C.model =>
+    switch (Hashtbl.find_opt(placeholder_models, s)) {
+    | Some(m) => m
+    | None =>
+      if (Hashtbl.length(placeholder_models) > 512) {
+        Hashtbl.clear(placeholder_models);
+      };
+      let m = deserialize_m(s);
+      Hashtbl.add(placeholder_models, s, m);
+      m;
+    };
+  let placeholder = m => m |> parse_model_memo |> C.placeholder;
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);

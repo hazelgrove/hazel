@@ -881,13 +881,15 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
 
   /* Piece followed by comma: keep comma with left operand, break after.
      Trailing comments after comma stay on the same line.
-     All-or-nothing: no Group wrapper on rest. */
+     All-or-nothing: no Group wrapper on rest.
+     First piece via segment_to_doc(s, [p]) (not piece_doc) so a
+     tile-with-children decomposes into a Group, like rest_after below. */
   | [p, comma, ...rest] when is_comma(comma) =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
         (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-        cats([piece_doc(p), piece_doc(comma)]),
+        cats([segment_to_doc(s, [p]), piece_doc(comma)]),
         comments,
       );
     switch (rest_after) {

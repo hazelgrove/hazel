@@ -2,22 +2,9 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-/**
- * Integration tests for probe sample selection.
- *
- * These evaluate real programs, get real samples from the evaluator,
- * then simulate cursor/pin states and verify that Selection.select
- * returns the expected results. This tests the full pipeline:
- *   parse -> evaluate -> get samples -> filter_by_pin -> select
- *
- * Complements Test_SampleSelection.re (unit tests with hand-crafted data)
- * by using real evaluation output, catching mismatches between what the
- * evaluator produces and what the selection logic expects.
- */
+/* Probe sample-selection over real evaluator output (vs Test_SampleSelection's
+ * hand-crafted unit data) — catches evaluator/selection mismatches. */
 
-/* --- Helpers --- */
-
-/* Get probes map (keyed by probe id) from evaluated code */
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
@@ -29,16 +16,13 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   EvaluatorState.get_probes(state);
 };
 
-/* Get all samples flat from evaluated code */
 let get_all_samples = (code: string): list(Sample.t) =>
   get_probes_map(code) |> Id.Map.bindings |> List.concat_map(snd);
 
-/* Partition samples into top-level (empty stack) and inner (non-empty stack) */
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
   List.partition((s: Sample.t) => List.length(s.call_stack) == 0, samples);
 
-/* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
     (~pinned=None, ~indicated_call=None, stack: CallStack.t): Sample.Focus.t => {
   call_stack: stack,
@@ -49,9 +33,10 @@ let mk_cursor =
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
-/* Run Selection.select and return (count, total_before_filter) */
 let run_select =
     (
       ~mode=Sample.Window.Single,
@@ -71,8 +56,6 @@ let run_select =
     );
   (selected, List.length(samples));
 };
-
-/* --- Tests: top-level cursor sees top-level samples --- */
 
 let top_level_tests = [
   test_case(
@@ -113,8 +96,6 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|},
   ),
 ];
 
-/* --- Tests: step-into simulation --- */
-
 let step_into_tests = [
   test_case(
     "Step-into: inner samples visible after pin (regression)",
@@ -128,7 +109,6 @@ let step_into_tests = [
       let code = {|let f = fun x -> ^^probe(x)
 in f(5)|};
       let samples = get_all_samples(code);
-      /* All samples should be inside the function (non-empty call stack) */
       switch (samples) {
       | [s] =>
         check(
@@ -241,8 +221,6 @@ in f(5)|};
   ),
 ];
 
-/* --- Tests: pin interaction with multiple probes --- */
-
 let pin_integration_tests = [
   test_case(
     "Pin at call A hides samples from call B",
@@ -267,7 +245,6 @@ in f(1); f(2)|};
           s1.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
-      /* filter_by_pin should keep s1 and drop s2 */
       let filtered =
         Sample.Selection.filter_by_pin(
           ~ap_id=None,
@@ -289,7 +266,6 @@ in f(1); f(2)|};
         false,
         CallStack.equal(kept.call_stack, s2.call_stack),
       );
-      /* Full select should also return 1 */
       let (selected, _) = run_select(~cursor, samples);
       check(int, "select returns 1", 1, List.length(selected));
     },
@@ -308,8 +284,6 @@ in f(1); f(2); f(3)|};
     },
   ),
 ];
-
-/* --- Tests: cursor relation with real samples --- */
 
 let relation_integration_tests = [
   test_case(
@@ -404,8 +378,6 @@ in f(5)|};
   ),
 ];
 
-/* --- Tests: Single vs Many mode with real data --- */
-
 let mode_tests = [
   test_case(
     "Single mode: shows exactly 1 from multiple top-level samples",
@@ -440,9 +412,6 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
   ),
 ];
 
-/* --- Tests: intent preservation with nested function calls --- */
-
-/* Helper: mk_cursor with explicit index for intent preservation testing */
 let mk_cursor_at_index =
     (~pinned=None, ~indicated_call=None, ~index: int, stack: CallStack.t)
     : Sample.Focus.t => {
@@ -454,6 +423,8 @@ let mk_cursor_at_index =
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 let intent_preservation_tests = [
@@ -535,10 +506,8 @@ in [f(10), f(20), f(30)]|};
   ),
 ];
 
-/* --- Tests: call-click alignment with real evaluation --- */
-/* Scenario: f called 3 times, probe inside f, probes on each call.
- * Clicking on a call probe should align the inner probe to that call's sample.
- * This tests whether indicated_call (set from ap_id) correctly discriminates. */
+/* Clicking a call probe aligns the inner probe to that call's sample, via
+ * indicated_call (set from ap_id). */
 
 let call_click_alignment_tests = [
   test_case(
@@ -677,12 +646,8 @@ in ^^probe(f(1))
   ),
 ];
 
-/* --- Tests: cur_var_ap diagnostic ---
- * Verifies that the probe's statics info has the right structure
- * for cur_var_ap to return Some(ap_id) when the probe wraps an
- * application like f(2). This is the critical link: if cur_var_ap
- * returns None, then indicated_call won't be set on click, and
- * the inner probe won't align. */
+/* cur_var_ap must return Some(ap_id) when a probe wraps an application —
+ * else indicated_call isn't set on click and the inner probe won't align. */
 
 let cur_var_ap_tests = [
   test_case(
@@ -692,7 +657,6 @@ let cur_var_ap_tests = [
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      /* There should be exactly one probe */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd(probe_ids);
@@ -742,7 +706,6 @@ in f(2)|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
       let (term, _elaborated, info_map, targets) = parse_with_probes(code);
-      /* Get probe IDs */
       let probe_ids = Id.Map.bindings(targets) |> List.map(fst);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
@@ -788,7 +751,6 @@ in ^^probe(f(42))|};
         Option.is_some(ap_id),
       );
       let ap_id = Option.get(ap_id);
-      /* Get inner probe's samples */
       let inner_samples =
         switch (Id.Map.find_opt(inner_probe_id, probes_map)) {
         | Some(samples) => samples
@@ -819,6 +781,607 @@ in ^^probe(f(42))|};
   ),
 ];
 
+/* Repro: pinning one fold iteration must still narrow other probes to that
+ * iteration, even though builtin fold_left's internal ap frames repeat per
+ * iteration. */
+
+let fold_pin_repro_tests = [
+  test_case(
+    "Pin on update call inside fold lambda narrows body probe",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      check(int, "should have 2 probes", 2, List.length(probes));
+      /* The body probe's samples have the deeper stacks (inside update). */
+      let depth = ((_, samples)) =>
+        List.fold_left(
+          (acc, s: Sample.t) => max(acc, List.length(s.call_stack)),
+          0,
+          samples,
+        );
+      let (call_probe, body_probe) =
+        switch (List.sort((a, b) => compare(depth(a), depth(b)), probes)) {
+        | [shallow, deep] => (shallow, deep)
+        | _ => failwith("expected exactly two probes")
+        };
+      let (call_probe_id, call_samples) = call_probe;
+      let (_, body_samples) = body_probe;
+      check(int, "call probe has 3 samples", 3, List.length(call_samples));
+      check(int, "body probe has 3 samples", 3, List.length(body_samples));
+      /* Pin the middle iteration the way ProbeProj.pin_call does:
+       * prepend the probed ap's syntax id to the sample's stack. */
+      let target: Sample.t = List.nth(call_samples, 1);
+      let pin_stack: CallStack.t = [
+        {
+          id: call_probe_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...target.call_stack,
+      ];
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some(pin_stack),
+          body_samples,
+        );
+      check(
+        int,
+        "pin narrows body probe to one iteration",
+        1,
+        List.length(filtered),
+      );
+      /* And it is the matching iteration: same value as the pinned call. */
+      switch (filtered) {
+      | [kept] =>
+        check(
+          bool,
+          "kept body sample matches pinned iteration's value",
+          true,
+          DHExp.fast_equal(kept.value, target.value),
+        )
+      | _ => ()
+      };
+    },
+  ),
+];
+
+/* Repro: pin liveness must be checked against the samples, not the statics
+ * map — stacks through builtin frames (fold_left) carry ap ids absent from
+ * user statics (and worker-minted), so the old statics check dropped them. */
+
+let dead_pin_tests = [
+  test_case(
+    "drop_dead_pin keeps a pin whose stack passes through builtin frames",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3])|};
+      let dynamics = get_probes_map(code);
+      let samples = dynamics |> Id.Map.bindings |> List.concat_map(snd);
+      /* Pick a deep sample: its stack passes through fold_left's internal
+       * frames, which are absent from any user statics map. Pin it the way
+       * pin_call does: prepend the probed ap's syntax id. */
+      let sample =
+        List.fold_left(
+          (best: Sample.t, s: Sample.t) =>
+            List.length(s.call_stack) > List.length(best.call_stack)
+              ? s : best,
+          List.hd(samples),
+          samples,
+        );
+      let pin_stack: CallStack.t = [
+        {
+          id: sample.syntax_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...sample.call_stack,
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          pin_stack,
+          None,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin through builtin frames survives",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+      /* Control: a stack rooted at a fresh id matches no sample (the call
+       * site is gone) and must still be dropped. */
+      let dead_stack: CallStack.t = [
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+        {
+          id: Haz3lcore.Id.mk(),
+          name: None,
+          fn_def_id: None,
+        },
+      ];
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+          None,
+        );
+      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      check(
+        bool,
+        "pin with a retired call site is dropped",
+        true,
+        z'.refractors.sample_focus.pinned_stack == None,
+      );
+      /* With no results at all, a pin is left alone (restored sessions). */
+      let z =
+        Haz3lcore.SampleFocusPerform.toggle_pin_call(
+          Haz3lcore.Zipper.init(),
+          dead_stack,
+          None,
+        );
+      let z' =
+        Haz3lcore.ProbePerform.drop_dead_pin(~dynamics=Id.Map.empty, z);
+      check(
+        bool,
+        "pin untouched when dynamics is empty",
+        true,
+        z'.refractors.sample_focus.pinned_stack != None,
+      );
+    },
+  ),
+];
+
+/* Repro: sample ids must differ across fold iterations. Hashtbl.hash
+ * truncates, so iterations sharing a long builtin-frame prefix once collided,
+ * and the UI (which compares samples by id) merged them. */
+
+let sample_id_tests = [
+  test_case(
+    "Sample ids are pairwise distinct across deep fold iterations",
+    `Quick,
+    () => {
+      let code = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
+      let samples = get_all_samples(code);
+      check(int, "16 samples (8 per probe)", 16, List.length(samples));
+      let ids = List.map((s: Sample.t) => s.id, samples);
+      let distinct = List.sort_uniq(compare, ids);
+      check(
+        int,
+        "all sample ids distinct",
+        List.length(ids),
+        List.length(distinct),
+      );
+    },
+  ),
+];
+
+/* Isolated repro attempt for PR #2248's open bug: "in fact example,
+ * pinning the 6 sample of fact(x-1) doesn't align other samples".
+ * Exercises the Selection level only (filter_by_pin + select with the
+ * post-pin cursor built the way capture's perspective-extension does);
+ * the UI capture flow itself is not run here. Recursion makes all rec
+ * frames share one id, so suffix matching degenerates to length — the
+ * suspected wobble. */
+/* Interval pin filtering on a NON-recursive chain (recursion masks the
+ * breadcrumb rule because the chain ap IS the pinned probe there). */
+let interval_breadcrumb_tests = [
+  test_case(
+    "Interval pin keeps ancestor call samples (breadcrumbs), drops non-call ancestors",
+    `Quick,
+    () => {
+      let code = {|let f = fun x -> ^^probe(x + 1) in
+let g = fun y -> ^^probe(f(y)) * 2 in
+^^probe(g(10) + 100)|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      /* Identify probes by their sample values: f-body → 11 (depth 2),
+       * f-call → 11 (depth 1), outer +100 → 122 (depth 0). */
+      let depth_of = ((_, ss)) =>
+        switch (ss) {
+        | [s, ..._] => List.length((s: Sample.t).call_stack)
+        | [] => (-1)
+        };
+      let sorted =
+        List.sort((a, b) => compare(depth_of(a), depth_of(b)), probes);
+      switch (sorted) {
+      | [(_, [outer]), (f_call_id, [f_call]), (_, [f_body])] =>
+        let pin_stack: CallStack.t = [
+          {
+            id: f_call_id,
+            name: None,
+            fn_def_id: None,
+          },
+          ...f_call.call_stack,
+        ];
+        let interval = Some((f_call.step_start, f_call.step_end));
+        let keep = (~ap_id, ss) =>
+          Sample.Selection.filter_by_pin(
+            ~ap_id,
+            ~pinned=Some(pin_stack),
+            ~pinned_interval=interval,
+            ss,
+          )
+          |> List.length;
+        check(
+          int,
+          "f-body sample kept (within pinned span)",
+          1,
+          keep(~ap_id=None, [f_body]),
+        );
+        /* outer probe is on `g(10) + 100`, a non-call expression whose
+         * span contains the pin: call probes keep such breadcrumbs,
+         * non-call probes do not. */
+        check(
+          int,
+          "non-call ancestor dropped",
+          0,
+          keep(~ap_id=None, [outer]),
+        );
+        check(
+          int,
+          "call-probe ancestor kept (breadcrumb)",
+          1,
+          keep(~ap_id=Some(Id.mk()), [outer]),
+        );
+      | _ => fail("expected three single-sample probes")
+      };
+    },
+  ),
+];
+
+/* Iterated calls (fold/map bodies) sample the same site repeatedly at
+ * NON-recursive stacks. This is the study's realignment shape (values
+ * flipping to a different iteration after edits) — recursion is not
+ * involved. The anchor must select the exact clicked instance. */
+let iteration_anchor_tests = [
+  test_case(
+    "Anchor selects the exact iteration, not the first at that stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let go = fun (m, a) -> ^^probe(m + a)
+in fold_left([10, 20, 30], go, 0)|},
+        );
+      check(int, "three iteration samples", 3, List.length(samples));
+      let by_step =
+        List.sort(
+          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          samples,
+        );
+      let last = List.nth(by_step, 2);
+      let first = List.hd(by_step);
+      /* Reality check (empirical): fold iterations carry FRESH
+       * worker-minted frame ids, so stacks are distinguishable within
+       * a run — but those ids regenerate on re-execution, so they are
+       * NOT stable across runs. That is why the ref also carries
+       * `opened` and why by_ref has a step fallback. */
+      check(
+        bool,
+        "iteration stacks are distinguishable within a run (fresh ids)",
+        false,
+        CallStack.ids_of_stack(first.call_stack)
+        == CallStack.ids_of_stack(last.call_stack),
+      );
+      let anchored = {
+        ...mk_cursor(last.call_stack),
+        anchor: Some(Sample.ref_of_sample(last)),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(~ap_id=None, anchored, by_step)
+      ) {
+      | Some(i) =>
+        check(
+          int,
+          "anchored cursor picks the clicked iteration (last, not first)",
+          last.step_start,
+          List.nth(by_step, i).step_start,
+        )
+      | None => fail("anchored cursor found no sample")
+      };
+      /* Cross-run shape: same program re-executed → same step timeline,
+       * regenerated frame ids. A ref whose stack ids match nothing must
+       * still recover the exact iteration via its start step. */
+      let stale_stack: CallStack.t =
+        List.map(
+          (f: CallStack.frame) =>
+            {
+              ...f,
+              id: Id.mk(),
+            },
+          last.call_stack,
+        );
+      let stale_anchor = {
+        ...mk_cursor(last.call_stack),
+        anchor:
+          Some({
+            probe_id: last.syntax_id,
+            stack: stale_stack,
+            opened: Some(last.step_start),
+          }),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          stale_anchor,
+          by_step,
+        )
+      ) {
+      | Some(i) =>
+        check(
+          int,
+          "stale-stack anchor recovers the iteration by step",
+          last.step_start,
+          List.nth(by_step, i).step_start,
+        )
+      | None => fail("stale-stack anchor found no sample")
+      };
+    },
+  ),
+];
+
+let fact_pin_alignment_tests = [
+  test_case(
+    "Pinning a recursive-call sample aligns the body probe (fact)",
+    `Quick,
+    () => {
+      let code = {|let fact = fun x -> if x < 2 then 1 else ^^probe(x) * ^^probe(fact(x - 1))
+in fact(4)|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      /* The call probe sits on an Ap, so its samples carry args. */
+      let (call_probes, body_probes) =
+        List.partition(
+          ((_, ss)) =>
+            List.exists((s: Sample.t) => Option.is_some(s.args), ss),
+          probes,
+        );
+      let (call_id, call_samples) =
+        switch (call_probes) {
+        | [p] => p
+        | _ => failwith("expected exactly one call probe")
+        };
+      let body_samples =
+        switch (body_probes) {
+        | [(_, ss)] => ss
+        | _ => failwith("expected exactly one body probe")
+        };
+      let by_depth = (ss: list(Sample.t)) =>
+        List.sort(
+          (a: Sample.t, b: Sample.t) =>
+            compare(List.length(a.call_stack), List.length(b.call_stack)),
+          ss,
+        );
+      let call_samples = by_depth(call_samples);
+      let body_samples = by_depth(body_samples);
+      check(int, "call probe: 3 samples", 3, List.length(call_samples));
+      check(int, "body probe: 3 samples", 3, List.length(body_samples));
+      /* The 6 sample (fact(3)'s value) is the shallowest call sample,
+       * observed at the top invocation's stack. */
+      let six = List.hd(call_samples);
+      check(int, "6 sample at depth 1", 1, List.length(six.call_stack));
+      /* Pin it the way ProbeProj.pin_call does. */
+      let pin_stack: CallStack.t = [
+        {
+          id: call_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...six.call_stack,
+      ];
+      /* Expected: the body probe aligns to x=3 — the unique body sample
+       * whose stack depth equals the pinned depth (inside fact(3)). */
+      let expect_aligned = (label, cursor) => {
+        let (selected, _) =
+          run_select(~mode=Sample.Window.Single, ~cursor, body_samples);
+        switch (selected) {
+        | [s] =>
+          check(
+            int,
+            label ++ ": body probe shows the pinned invocation's sample",
+            List.length(pin_stack),
+            List.length(s.call_stack),
+          )
+        | ss =>
+          fail(
+            label
+            ++ ": expected 1 selected body sample, got "
+            ++ string_of_int(List.length(ss)),
+          )
+        };
+      };
+      /* Cursor as capture leaves it when the user has stepped into the
+       * pinned frame (index at the extended head). */
+      expect_aligned(
+        "focused-in",
+        mk_cursor(~pinned=Some(pin_stack), pin_stack),
+      );
+      /* Cursor as capture's perspective extension leaves it on a fresh
+       * pin-click: extended frame present but ghosted (index at the
+       * clicked sample's original depth). */
+      expect_aligned(
+        "ghosted-extension",
+        mk_cursor_at_index(
+          ~pinned=Some(pin_stack),
+          ~index=List.length(six.call_stack) - 1,
+          pin_stack,
+        ),
+      );
+      /* FIXED (was PR #2248's open bug): with the pin stored as a span
+       * REFERENCE (D1.2), the pinned call probe displays the pinned
+       * sample itself — no stack-pattern matching, so the recursion
+       * degeneracy (pinned sample's ap-extended stack id-identical to
+       * the next level's raw stack) can no longer misalign it. The
+       * cursor here mirrors what toggle_pin_call now stores: pinned_span
+       * recovered by decomposing the pin stack. */
+      let pinned_span: option(Sample.span_ref) =
+        Some({
+          probe_id: call_id,
+          stack: six.call_stack,
+          opened: Some(six.step_start),
+        });
+      let cursor = {
+        ...mk_cursor(~pinned=Some(pin_stack), pin_stack),
+        pinned_span,
+      };
+      let (selected, _) =
+        run_select(
+          ~mode=Sample.Window.Single,
+          ~ap_id=Some(call_id),
+          ~cursor,
+          call_samples,
+        );
+      switch (selected) {
+      | [s] =>
+        check(
+          int,
+          "pinned call probe shows the pinned sample (depth 1)",
+          1,
+          List.length(s.call_stack),
+        )
+      | ss =>
+        fail(
+          "call probe: expected 1 selected, got "
+          ++ string_of_int(List.length(ss)),
+        )
+      };
+      /* Anchor-first: a cursor holding the clicked sample's reference
+       * displays exactly that sample even when its coordinate
+       * projections point elsewhere (deepest body sample here, with
+       * top-level coordinates). */
+      let deep_body = List.nth(body_samples, 2);
+      let anchored = {
+        ...mk_cursor([]),
+        anchor: Some(Sample.ref_of_sample(deep_body)),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          anchored,
+          body_samples,
+        )
+      ) {
+      | Some(i) =>
+        check(
+          bool,
+          "anchored cursor selects the anchored sample by reference",
+          true,
+          Sample.ref_matches(
+            Sample.ref_of_sample(deep_body),
+            List.nth(body_samples, i),
+          ),
+        )
+      | None => fail("anchored cursor found no sample")
+      };
+      /* Interval pin filtering (D1 tail): with the pinned span's
+       * interval resolved, other probes keep samples observed DURING
+       * the pinned evaluation — total, no stack-id degeneracy. Pinning
+       * the 6 sample (fact(3)'s whole extent) keeps x=3 and x=2
+       * (fact(2) runs within fact(3)), drops x=4 (the caller). */
+      let six_interval = Some((six.step_start, six.step_end));
+      let by_interval =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some(pin_stack),
+          ~pinned_interval=six_interval,
+          body_samples,
+        );
+      check(
+        int,
+        "call-pin interval keeps the two inner body samples",
+        2,
+        List.length(by_interval),
+      );
+      /* Pinning a LEAF sample (x=3 — a single instant) keeps only
+       * samples within that instant: none of the call samples qualify.
+       * The legacy id-suffix rule cannot express this (it would keep
+       * everything at-or-below the leaf's call level) — this is the
+       * pin-anything semantics. */
+      let x3 = List.nth(body_samples, 1);
+      check(
+        int,
+        "x3 is the depth-2 body sample",
+        2,
+        List.length(x3.call_stack),
+      );
+      let leaf_filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some([]),
+          ~pinned_interval=Some((x3.step_start, x3.step_end)),
+          call_samples,
+        );
+      check(
+        int,
+        "leaf-pin keeps no call samples (nothing runs within an instant)",
+        0,
+        List.length(leaf_filtered),
+      );
+      /* Pinned alignment is history-free: even with a DEEP retained
+       * sightline (the user clicked around deep recursion levels before
+       * pinning — the live repro on the fact slide), a probe with no
+       * direct ref aligns to the candidate closest to the pin's level,
+       * not the deepest previously-visited one. Body candidates under
+       * the pin are depths {2,3}; deep history must not select 3. */
+      let deep_sightline: CallStack.t = List.nth(body_samples, 2).call_stack;
+      let history_cursor = {
+        ...
+          mk_cursor_at_index(
+            ~pinned=Some(pin_stack),
+            ~index=List.length(six.call_stack) - 1,
+            deep_sightline,
+          ),
+        pinned_span,
+      };
+      let by_interval_cursor =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          history_cursor,
+          by_interval,
+        );
+      switch (by_interval_cursor) {
+      | Some(i) =>
+        check(
+          int,
+          "pinned view ignores click history (picks pin-level sample)",
+          List.length(pin_stack),
+          List.length(List.nth(by_interval, i).call_stack),
+        )
+      | None => fail("pinned history cursor found no sample")
+      };
+      /* Legacy-coordinate cursors (no ref stored) still take the tier
+       * path; the reference is what fixes the display. */
+      let (legacy_selected, _) =
+        run_select(
+          ~mode=Sample.Window.Single,
+          ~ap_id=Some(call_id),
+          ~cursor=mk_cursor(~pinned=Some(pin_stack), pin_stack),
+          call_samples,
+        );
+      switch (legacy_selected) {
+      | [s] =>
+        check(
+          int,
+          "legacy tier path unchanged (depth 2, the old ambiguity)",
+          2,
+          List.length(s.call_stack),
+        )
+      | _ => fail("legacy: expected 1 selected")
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -830,5 +1393,11 @@ let tests = (
     intent_preservation_tests,
     call_click_alignment_tests,
     cur_var_ap_tests,
+    fold_pin_repro_tests,
+    dead_pin_tests,
+    sample_id_tests,
+    fact_pin_alignment_tests,
+    interval_breadcrumb_tests,
+    iteration_anchor_tests,
   ]),
 );

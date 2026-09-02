@@ -138,6 +138,30 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
            )
         |> List.rev;
 
+      /* Sort probes by where each term ENDS (row, then col): a multi-probe
+         "belongs to" the line its term ends on (that's where the value
+         annotation renders). With a single anchor this is a no-op
+         (ids_to_multiprobe already yields probes in end-row order), but
+         multi-anchor cases — e.g. function-definition sugar, where the
+         parameter pattern is anchored separately and sits above the body —
+         must be compared in line order to match the per-line comments. */
+      let probe_ids =
+        List.stable_sort(
+          (a, b) =>
+            switch (
+              TermData.extreme_measures(a, syntax.term_data, syntax.measured),
+              TermData.extreme_measures(b, syntax.term_data, syntax.measured),
+            ) {
+            | (Some((_, ea)), Some((_, eb))) =>
+              switch (Int.compare(ea.row, eb.row)) {
+              | 0 => Int.compare(ea.col, eb.col)
+              | n => n
+              }
+            | _ => 0
+            },
+          probe_ids,
+        );
+
       /* Convert probe IDs to string representations */
       let actual_probes =
         List.filter_map(
@@ -513,8 +537,66 @@ M.x # no probe #|},
   ),
 ];
 
+/* FUNCTION-DEFINITION SUGAR - `let f(args) = body` keeps params in the
+ * surface binder, so target_subterm_ids anchors the param pattern
+ * separately (mirroring the Fun-literal case). The container logic then
+ * shows the whole param tuple on one line, or each param when split. */
+let function_sugar_tests = [
+  test_probe_placement(
+    ~name="Sugar one-line params - probe whole param tuple + body",
+    ~code=
+      {|let f(x: Int, y: Int): Int = # x: Int, y: Int #
+  x + y                          # x + y #
+in f(1, 2)                       # no probe #|},
+  ),
+  test_probe_placement(
+    ~name="Sugar multi-line params - probe each param + body",
+    ~code=
+      {|let f(             # no probe #
+  x: Int,          # x: Int #
+  y: Int           # y: Int #
+): Int =           # no probe #
+  x + y            # x + y #
+in f(1, 2)         # no probe #|},
+  ),
+  test_probe_placement(
+    ~name="Sugar mixed line breaks - trailing param on each line + body",
+    ~code=
+      {|let f(x: Int,      # x: Int #
+  y: Int): Int =   # y: Int #
+  x + y            # x + y #
+in f(1, 2)         # no probe #|},
+  ),
+  test_probe_placement(
+    ~name="Sugar no return type - probe param + body",
+    ~code=
+      {|let f(x: Int) =    # x: Int #
+  x + 1            # x + 1 #
+in f(1)            # no probe #|},
+  ),
+  /* Repro: slide-11 shape — sugar definition whose body is a
+   * multi-line let chain ending in a binop tail. The tail line
+   * (base + adjust) must get a probe. */
+  test_probe_placement(
+    ~name="Sugar with let-chain body - probe chain tail",
+    ~code=
+      {|let f(             # no probe #
+  base: Int,       # base: Int #
+  phase: Bool): Int =  # phase: Bool #
+  let adjust =     # adjust #
+    case phase     # phase #
+    | true => 50   # 50 #
+    | false => 0   # 0 #
+    end            # case phase | true => 50 | false => 0 end #
+  in
+  base + adjust    # base + adjust #
+in f(1, true)      # no probe #|},
+  ),
+];
+
 let tests = [
   ("MultiProbe.Basic", basic_tests),
+  ("MultiProbe.FunctionSugar", function_sugar_tests),
   ("MultiProbe.DefaultSelection", nested_multiline_tests),
   ("MultiProbe.HoleAvoidance", hole_avoidance_tests),
   ("MultiProbe.Containers", container_tests),

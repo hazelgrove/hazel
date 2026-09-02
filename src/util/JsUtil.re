@@ -25,18 +25,20 @@ let get_elem_by_selector = selector => {
 };
 
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
-  let rec loop = (sibling: Js.t(Dom_html.element)) =>
-    if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
-      Some(sibling);
-    } else {
-      loop(
-        Js.Opt.get(sibling##.nextSibling, () => failwith("no sibling"))
-        |> Js.Unsafe.coerce,
-      );
+  let rec loop = (sibling: option(Js.t(Dom_html.element))) =>
+    switch (sibling) {
+    | None => None
+    | Some(s) =>
+      if (Js.to_bool(s##.classList##contains(Js.string(className)))) {
+        Some(s);
+      } else {
+        loop(
+          Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce),
+        );
+      }
     };
   loop(
-    Js.Opt.get(element##.firstChild, () => failwith("no child"))
-    |> Js.Unsafe.coerce,
+    Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce),
   );
 };
 
@@ -101,6 +103,22 @@ let confirm = message => {
 let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+
+/* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
+   itself must hold DOM focus (not the clipboard shim). preventScroll: don't
+   fight an in-progress jump/scroll. */
+let focus_active_editor = () =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(Js.string(".code-editor.selected")),
+    )
+  ) {
+  | Some(el) =>
+    Js.Unsafe.coerce(el)##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    )
+  | None => focus_clipboard_shim()
+  };
 
 /* The id carried by whichever code-editor cell is currently the active
    (model-selected) one. Used to move DOM focus to a cell after a sidebar
@@ -247,6 +265,23 @@ let write_clipboard = (str: string): Effect.t(unit) =>
 let read_clipboard = (): Effect.t(string) =>
   has_clipboard_api() ? Clipboard.inject(Read_text) : Effect.never;
 
+/* Maintains an `at-bottom` class on a scroll container from its scroll
+ * events. Direct classList mutation, no vdom round-trip; used by the probe
+ * drawer's scroll-affordance fade (proj-probe.css). */
+let sync_at_bottom_class = (evt: Js.t(Dom_html.event)): unit =>
+  switch (Js.Opt.to_option(evt##.currentTarget)) {
+  | None => ()
+  | Some(el) =>
+    /* Tolerance: scrollTop is truncated from a sub-pixel position. */
+    let at_bottom =
+      el##.scrollTop + el##.clientHeight >= el##.scrollHeight - 2;
+    if (at_bottom) {
+      el##.classList##add(Js.string("at-bottom"));
+    } else {
+      el##.classList##remove(Js.string("at-bottom"));
+    };
+  };
+
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
 
@@ -271,6 +306,36 @@ let rec find_scroll_container_node =
 let find_scroll_container =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
   find_scroll_container_node(element_to_node(element));
+
+/* Viewport-culling geometry for the active code editor: (scroll_top,
+ * client_height), scroll_top measured from the editor's OWN row 0 (feed into
+ * VisibleRows.compute) so it's correct however the editor is nested. None if
+ * not mounted / no scroll container. Single active code editor only. */
+let code_viewport_geometry = (): option((float, float)) => {
+  let rect_prop = (el, prop): float =>
+    Js.Unsafe.get(
+      Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+      prop,
+    );
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##querySelector(Js.string(".code-container")),
+    )
+  ) {
+  | None => None
+  | Some(code) =>
+    switch (find_scroll_container(code)) {
+    | None => None
+    | Some(container) =>
+      let scroll_top =
+        Float.max(
+          0.,
+          rect_prop(container, "top") -. rect_prop(code, "top"),
+        );
+      Some((scroll_top, rect_prop(container, "height")));
+    }
+  };
+};
 
 /* Find the nearest ancestor element with the given class */
 let find_ancestor_with_class =
@@ -320,6 +385,22 @@ let scroll_vertically_into_view =
       adjust_scroll(container, bottom_gap);
     };
   };
+};
+
+/* Scroll every vertical-scroll ancestor of `el`, not just the nearest: a
+ * drawer-mode `.live-offside` sits inside `.below-wrapper` (overflow-y:auto),
+ * which would otherwise swallow the scroll and leave #main unmoved. Vertical-
+ * only, to avoid the horizontal jumps that motivated dropping scrollIntoView. */
+let scroll_vertically_into_view_ancestors =
+    (el: Js.t(Dom_html.element)): unit => {
+  let rec go = (node: Js.t(Dom.node)): unit =>
+    switch (find_scroll_container_node(node)) {
+    | None => ()
+    | Some(container) =>
+      scroll_vertically_into_view(container, el);
+      go(element_to_node(container));
+    };
+  go(element_to_node(el));
 };
 
 let scroll_cursor_into_view_if_needed = () =>
@@ -390,6 +471,23 @@ let delay = (delay: float, callback: unit => unit) => {
     );
   ();
 };
+
+/* Publish #main's content width as `--main-scroll-width` (read by the cell
+ * width rule). Two passes: reset the var first so the cell's own prior width
+ * doesn't inflate the measurement, force layout, then read scrollWidth. */
+let update_main_scroll_width = () =>
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("main")),
+    main => {
+      set_css_custom_property("--main-scroll-width", "max-content");
+      let _: int = Js.Unsafe.get(main, "offsetWidth");
+      let sw: int = Js.Unsafe.get(main, "scrollWidth");
+      set_css_custom_property(
+        "--main-scroll-width",
+        string_of_int(sw) ++ "px",
+      );
+    },
+  );
 
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
@@ -643,12 +741,7 @@ let navigate_probes =
     el##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     );
-    switch (find_scroll_container(Js.Unsafe.coerce(el))) {
-    | Some(container) =>
-      scroll_vertically_into_view(container, Js.Unsafe.coerce(el))
-    | None => ()
-    };
-    /* Extract the full probe Id from data-probe-id attribute */
+    scroll_vertically_into_view_ancestors(Js.Unsafe.coerce(el));
     let probe_id_str =
       el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
     switch (probe_id_str) {

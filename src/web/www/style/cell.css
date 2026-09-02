@@ -40,6 +40,8 @@
 :is(#main.Scratch,
 #main.Documentation):not(.Derivations) .cell {
   flex-grow: 1;
+  /* stretch background under probe overlays; --main-scroll-width set by ScrollWidth */
+  width: var(--main-scroll-width, max-content);
 }
 
 #main.Tutorial,
