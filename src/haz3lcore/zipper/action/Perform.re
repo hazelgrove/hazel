@@ -41,7 +41,7 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
      caret stays against the dropped shard. */
   let suf =
     switch (List.rev(pre), suf) {
-    | ([last, ..._], [first, ..._: list(Piece.t)])
+    | ([last, ..._], [first, ..._])
         when needs(SpaceNormalize.normalize_piece(last), first) => [
         SpaceNormalize.space(),
         ...suf,
