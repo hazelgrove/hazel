@@ -515,17 +515,24 @@ let targets_of = (group: string, name: string): list(string) =>
   | None => [name]
   };
 
-/* Not a colour. The theme DECLARES whether it is dark rather than leaving it
-   to be inferred from the seeds, and the app forwards it to CSS so native
+/* Not colours. The theme DECLARES these rather than leaving them to be
+   inferred from the seeds: polarity because low-contrast seeds could otherwise
+   flip it partway through a derivation, and contrast because no amount of
+   looking at the colours tells you whether it was asked for.
+
+   Polarity is forwarded to the standard `color-scheme` property, so native
    controls -- scrollbars, <select> popups, the caret in text inputs -- invert
-   with the theme instead of staying light on a dark editor. */
+   with the theme instead of staying light on a dark editor. Contrast has no
+   standard property behind it, so it is published for stylesheets to read. */
 let polarity_target = "hazel-color-scheme";
+let contrast_target = "hazel-contrast";
 
 /* Every CSS custom property the slide is responsible for. This, not
    `field_names`, is the output contract: it is what the stylesheets consume,
    what the tests check against, and what `theme_key` must be salted with. */
 let all_targets: list(string) = [
   polarity_target,
+  contrast_target,
   ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
 ];
 
@@ -557,6 +564,7 @@ let expected_type =
         ),
       ),
       tup_label(label("is-dark"), bool()),
+      tup_label(label("is-high-contrast"), bool()),
     ])
   );
 
@@ -598,6 +606,11 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
         | Label("is-dark") =>
           switch (Unboxing.unbox(Atom(Bool), body)) {
           | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+          | _ => []
+          }
+        | Label("is-high-contrast") =>
+          switch (Unboxing.unbox(Atom(Bool), body)) {
+          | Matches(b) => [(contrast_target, b ? "high" : "normal")]
           | _ => []
           }
         /* roles nest one level deeper: group -> entries */

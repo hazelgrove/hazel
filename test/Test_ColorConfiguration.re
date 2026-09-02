@@ -95,11 +95,13 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
-/* `hazel-color-scheme` carries polarity, not a colour: the one emitted
-   property this check does not apply to. */
+/* Two emitted properties carry flags rather than colours, and are the only
+   ones this check does not apply to. */
+let flags = [CC.polarity_target, CC.contrast_target];
+
 let unparseable = vars =>
   vars
-  |> List.filter(((n, v)) => n != CC.polarity_target && !plausible(v))
+  |> List.filter(((n, v)) => !List.mem(n, flags) && !plausible(v))
   |> List.map(((n, v)) => n ++ " = " ++ v);
 
 /* The applier writes these straight into a CSS custom property, where an
@@ -482,86 +484,86 @@ let a_partial_theme_yields_nothing = () => {
   );
 };
 
-/* ── The CSS defaults block ────────────────────────────────────────────
+/* ── The generated stylesheet ──────────────────────────────────────────
 
-     `variables.css` carries a default for every colour the slide writes, for
-     the window before the theme is applied -- a first-ever load, or one whose
-     slide fails to evaluate. Those defaults used to be written by hand, in a
-     second idiom (`oklch(from var(--frame-1) 70% c h)`) that restated the
-     slide's derivations in CSS, and 23 of them had drifted into projector
-     stylesheets as `hsl()` colours from a palette that no longer exists.
+     Every colour the theme writes also needs a default, for the window before
+     the theme is applied -- a first-ever load, or one whose slide fails to
+     evaluate. Those defaults used to be hand-written, in a second idiom
+     (`oklch(from var(--frame-1) 70% c h)`) that restated the slide's
+     derivations in CSS, and some had drifted into projector stylesheets as
+     `hsl()` colours from a palette that no longer existed.
 
-     Now the block is emitted from the light scheme, so the default a variable
-     holds before the theme lands is byte-for-byte the value the theme will give
-     it. Regenerate with:
+     `style/theme-generated.css` is emitted from the light scheme instead, so a
+     default is byte-for-byte the value the theme will set and nothing shifts
+     when the theme lands. The WHOLE file is generated, header included, which
+     is why this compares it entire rather than splicing a marked block: a
+     generated file that also holds hand-written lines invites edits to the
+     generated half. Regenerate with:
 
          make update-css-defaults
    */
-let defaults_begin = "  /* BEGIN GENERATED DEFAULTS";
-let defaults_end = "  /* END GENERATED DEFAULTS */";
+let theme_css_rel = "src/web/www/style/theme-generated.css";
 
-let variables_css = () =>
+let theme_css_path = () =>
   switch (
     List.find_opt(
       Sys.file_exists,
       List.map(
-        p => p ++ "src/web/www/style/variables.css",
+        p => p ++ theme_css_rel,
         ["", "../", "../../", "../../../", "../../../../"],
       ),
     )
   ) {
   | Some(p) => p
-  | None => failwith("cannot find src/web/www/style/variables.css")
+  | None => failwith("cannot find " ++ theme_css_rel)
   };
 
-let render_css_defaults = (): string => {
+let render_theme_css = (): string => {
   let light = List.assoc(List.hd(schemes), Lazy.force(evaluated_schemes));
-  List.sort(compare, light)
-  |> List.map(((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
-  |> String.concat("");
+  let decls =
+    List.sort(compare, light)
+    |> List.map(((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
+    |> String.concat("");
+  {|/* GENERATED FILE -- DO NOT EDIT.
+
+   Emitted from the Colors configuration slide (hazel-programs/config/colors.hz)
+   by `make update-css-defaults`, which is checked by Test_ColorConfiguration.
+   Any edit here is overwritten by the next run.
+
+   These are DEFAULTS. At startup the app evaluates the slide and writes every
+   one of these properties onto the document, so what a running editor shows
+   comes from the slide, not from this file. This is what the first frame uses,
+   before that happens, and what remains if the slide does not evaluate --
+   which is why it is the light scheme, byte-for-byte, rather than anything
+   hand-chosen.
+
+   What each name means is documented where it is decided: the role groups in
+   colors.hz, and the fan-out table in src/web/util/ColorConfiguration.re.
+   See src/web/www/style/README.md for the whole dataflow. */
+:root {
+|}
+  ++ decls
+  ++ "}\n";
 };
 
-/* Splice on the markers rather than rewriting the file: the z-index ladder,
-   the fonts, and the colours the slide does not own yet all live in the same
-   `:root` and are none of this generator's business. */
-let splice_defaults = (file: string, block: string): string => {
-  let i =
-    try(Str.search_forward(Str.regexp_string(defaults_begin), file, 0)) {
-    | Not_found => failwith("variables.css: " ++ defaults_begin ++ " missing")
-    };
-  let head_end =
-    switch (String.index_from_opt(file, i, '\n')) {
-    | Some(n) => n + 1
-    | None => failwith("variables.css: unterminated BEGIN marker")
-    };
-  let j =
-    try(Str.search_forward(Str.regexp_string(defaults_end), file, head_end)) {
-    | Not_found => failwith("variables.css: " ++ defaults_end ++ " missing")
-    };
-  String.sub(file, 0, head_end)
-  ++ block
-  ++ String.sub(file, j, String.length(file) - j);
-};
-
-let css_defaults_are_current = () => {
-  let path = variables_css();
-  let file = read_file(path);
-  let wanted = splice_defaults(file, render_css_defaults());
+let theme_css_is_current = () => {
+  let path = theme_css_path();
+  let wanted = render_theme_css();
   if (Sys.getenv_opt("UPDATE_CSS_DEFAULTS") != None) {
     write_file(path, wanted);
-    check(bool, "defaults rewritten (" ++ path ++ ")", true, true);
+    check(bool, "theme stylesheet rewritten (" ++ path ++ ")", true, true);
   } else {
     let split = t => String.split_on_char('\n', t);
-    let (e, a) = (split(wanted), split(file));
+    let (e, a) = (split(wanted), split(read_file(path)));
     check(
       list(string),
-      "variables.css defaults are current (missing; run `make update-css-defaults`)",
+      theme_css_rel ++ " is stale (missing; run `make update-css-defaults`)",
       [],
       List.filter(l => !List.mem(l, a), e),
     );
     check(
       list(string),
-      "variables.css defaults are current (stale)",
+      theme_css_rel ++ " is stale (extra)",
       [],
       List.filter(l => !List.mem(l, e), a),
     );
@@ -596,7 +598,11 @@ let tests = [
         a_partial_theme_yields_nothing,
       ),
       test_case("colours match golden", `Quick, colours_match_golden),
-      test_case("css defaults are current", `Quick, css_defaults_are_current),
+      test_case(
+        "generated stylesheet is current",
+        `Quick,
+        theme_css_is_current,
+      ),
       test_case(
         "a non-theme yields no colours",
         `Quick,

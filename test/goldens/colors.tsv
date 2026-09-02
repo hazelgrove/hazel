@@ -81,6 +81,7 @@ light	frame-2	oklch(70% 0.07 90)
 light	frame-3	oklch(60% 0.07 90)
 light	frame-4	oklch(50% 0.07 90)
 light	hazel-color-scheme	light
+light	hazel-contrast	normal
 light	hole-active	oklch(50.2% 0.2 225)
 light	hole-fill	oklch(92.05% 0.04 225)
 light	hole-stroke	oklch(60.1% 0.15 225)
@@ -350,6 +351,7 @@ contrast_light	frame-2	oklch(25% 0 90)
 contrast_light	frame-3	oklch(15% 0 90)
 contrast_light	frame-4	oklch(5% 0 90)
 contrast_light	hazel-color-scheme	light
+contrast_light	hazel-contrast	high
 contrast_light	hole-active	oklch(0% 0.25 225)
 contrast_light	hole-fill	oklch(89% 0.05 225)
 contrast_light	hole-stroke	oklch(18% 0.1875 225)
@@ -619,6 +621,7 @@ dark	frame-2	oklch(40% 0.04 250)
 dark	frame-3	oklch(55% 0.04 250)
 dark	frame-4	oklch(70% 0.04 250)
 dark	hazel-color-scheme	dark
+dark	hazel-contrast	normal
 dark	hole-active	oklch(77.4% 0.18 225)
 dark	hole-fill	oklch(21.6% 0.036 225)
 dark	hole-stroke	oklch(64.2% 0.135 225)
@@ -888,6 +891,7 @@ contrast_dark	frame-2	oklch(75% 0 250)
 contrast_dark	frame-3	oklch(85% 0 250)
 contrast_dark	frame-4	oklch(95% 0 250)
 contrast_dark	hazel-color-scheme	dark
+contrast_dark	hazel-contrast	high
 contrast_dark	hole-active	oklch(100% 0.16 225)
 contrast_dark	hole-fill	oklch(11% 0.032 225)
 contrast_dark	hole-stroke	oklch(82% 0.12 225)

@@ -242,9 +242,12 @@ let theme_of = fun (p, role) ->
         `textarea-rule-selected` = p.`textarea-h-strip-selected`
       ))
     )),
-    # Declared, not inferred. A theme with low-contrast seeds could otherwise #
-    # flip polarity partway through a derivation.                            #
-    `is-dark` = role.`dark`
+    # Declared, not inferred: a theme with low-contrast seeds could otherwise #
+    # flip polarity partway through a derivation, and no amount of looking at #
+    # the colours tells you whether high contrast was ASKED for. CSS reads    #
+    # both -- see src/web/www/style/README.md.                                #
+    `is-dark` = role.`dark`,
+    `is-high-contrast` = role.`contrast`
   )) in
 
 # ── Light scheme -- the seeds are the palette ───────────────────────── #
@@ -298,6 +301,7 @@ let light =
   ) in
   theme_of(p, ^^fold((
     `dark` = false,
+    `contrast` = false,
     `menu-nut` = p.`info-strong`,
     `menu-background` = p.`attention-1`,
     `menu-hover` = p.`code-background`,
@@ -371,6 +375,7 @@ let dark =
   ) in
   theme_of(p, ^^fold((
     `dark` = true,
+    `contrast` = false,
     `menu-nut` = p.`success-muted`,
     `menu-background` = p.`surface-1`,
     `menu-hover` = color_with_lightness(p.`code-background`, 95.),
@@ -445,6 +450,7 @@ let contrast_light =
   ) in
   theme_of(p, ^^fold((
     `dark` = false,
+    `contrast` = true,
     `menu-nut` = p.`info-strong`,
     `menu-background` = p.`attention-1`,
     `menu-hover` = p.`code-background`,
@@ -522,6 +528,7 @@ let contrast_dark =
   ) in
   theme_of(p, ^^fold((
     `dark` = true,
+    `contrast` = true,
     `menu-nut` = p.`success-muted`,
     `menu-background` = p.`surface-1`,
     `menu-hover` = color_with_lightness(p.`code-background`, 22.),

@@ -6,9 +6,11 @@ Two layers now, and the direction of reference between them is the invariant:
     the Colors slide   decides every colour and, through the fan-out table in
                        ColorConfiguration.re, writes it onto `:root` at startup
 
-    variables.css      the same names again as DEFAULTS, in a generated block,
-                       for the frame before the theme lands -- plus the
-                       colours the slide has no field for yet
+    theme-generated.css  the same names again as DEFAULTS, wholly generated,
+                         for the frame before the theme lands
+
+    variables.css        the things the theme does not own: type, timing and
+                         the z-index ladder
 
     *.css              component stylesheets consume the slide's ROLE names,
                        never the palette
@@ -32,10 +34,8 @@ import io, os, re, sys, collections
 ROOT = 'src/web/www'
 STYLE = os.path.join(ROOT, 'style')
 VARIABLES = os.path.join(STYLE, 'variables.css')
+GENERATED = os.path.join(STYLE, 'theme-generated.css')
 CONFIG = 'src/web/util/ColorConfiguration.re'
-
-BEGIN = 'BEGIN GENERATED DEFAULTS'
-END = 'END GENERATED DEFAULTS'
 
 # Pre-existing dangling references, inherited not introduced. Fixing one is a
 # VISUAL change (an invalid var() makes the whole declaration drop), so it
@@ -62,14 +62,13 @@ def palette():
 
 
 def theme_owned():
-    """Every name the theme writes, taken from the generated block. A test
-    keeps that block equal to the projection, so this cannot drift."""
-    src = io.open(VARIABLES, encoding='utf-8').read()
-    try:
-        block = src[src.index(BEGIN):src.index(END)]
-    except ValueError:
-        sys.exit(f'lint_css_roles: no generated block in {VARIABLES}')
-    return set(re.findall(r'--([\w-]+)\s*:', block))
+    """Every name the theme writes, read from the generated stylesheet. A test
+    keeps that file equal to the projection, so this cannot drift."""
+    if not os.path.exists(GENERATED):
+        sys.exit(f'lint_css_roles: {GENERATED} is missing; '
+                 'run `make update-css-defaults`')
+    src = io.open(GENERATED, encoding='utf-8').read()
+    return set(re.findall(r'--([\w-]+)\s*:', src))
 
 
 def css_files():
@@ -112,18 +111,19 @@ def main():
         # 1. Component stylesheets consume roles, not the palette.
         for m in re.finditer(r'var\(\s*--([\w-]+)', src):
             used[m.group(1)].add(f)
-            if m.group(1) in PALETTE and f != VARIABLES:
+            if m.group(1) in PALETTE and f not in (VARIABLES, GENERATED):
                 problems.append(
                     f'{os.path.relpath(f, ROOT)}: consumes palette '
                     f'--{m.group(1)} directly; use a role the slide writes')
 
         # 2. Only variables.css declares a theme-owned colour on :root.
-        if f != VARIABLES:
+        if f != GENERATED:
             for n in root_declarations(strip(raw)):
                 if n in OWNED:
                     problems.append(
                         f'{os.path.relpath(f, ROOT)}: declares theme-owned '
-                        f'--{n} on :root; the default belongs in variables.css')
+                        f'--{n} on :root; that default is generated, so it '
+                        'belongs in theme-generated.css')
 
     # 3. No NEW dangling references.
     dangling = {n for n in used if n not in defined}
