@@ -603,6 +603,18 @@ let is_infix_delimiter_op_prefix: Token.t => bool = {
   t => Hashtbl.mem(tbl, t);
 };
 
+/* Backup molds handed to delimiter prefixes in operator position. Mold
+   identity, not token, is what tells a backup-molded `-` (pending `->`)
+   from real infix minus or a labeled-tuple `=`. */
+let infix_delimiter_prefix_molds: list(Mold.t) = [
+  Mold.mk_bin(Precedence.concave_grout, Exp, []),
+  Mold.mk_bin(Precedence.concave_grout, Pat, []),
+  Mold.mk_bin(Precedence.concave_grout, Typ, []),
+  Mold.mk_bin(Precedence.concave_grout, TPat, []),
+];
+let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
+  List.mem(m, infix_delimiter_prefix_molds);
+
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
  * the single-delimiter variant during left-to-right entry */
@@ -639,12 +651,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Var => (Token.is_var, [op(Exp), op(Pat)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
-      [
-        Mold.mk_bin(Precedence.concave_grout, Exp, []),
-        Mold.mk_bin(Precedence.concave_grout, Pat, []),
-        Mold.mk_bin(Precedence.concave_grout, Typ, []),
-        Mold.mk_bin(Precedence.concave_grout, TPat, []),
-      ],
+      infix_delimiter_prefix_molds,
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
