@@ -23,10 +23,7 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   /* The drop may have REASSEMBLED into its tile, making the junction
      interior (def-child `end` vs the tile's own `in` shard) —
      normalize_piece fixes child<->shard junctions; grout/holes have
-     no token so hole-adjacent layouts are untouched. Left junction
-     only at top level: the right side (dropped shard abutting a
-     following keyword) is a transient wrap state whose glued form is
-     load-bearing for existing flows. */
+     no token so hole-adjacent layouts are untouched. */
   let pre =
     switch (List.rev(pre)) {
     | [last, ...rest] =>
@@ -37,6 +34,19 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
       | _ => List.rev([last, ...rest])
       };
     | [] => pre
+    };
+  /* right junction: the dropped shard abutting following material
+     (dropping `then` before `false` gave then|false, which re-lexes
+     as one token). The space lands at the head of the suffix, so the
+     caret stays against the dropped shard. */
+  let suf =
+    switch (List.rev(pre), suf) {
+    | ([last, ..._], [first, ..._: list(Piece.t)])
+        when needs(SpaceNormalize.normalize_piece(last), first) => [
+        SpaceNormalize.space(),
+        ...suf,
+      ]
+    | _ => suf
     };
   {
     ...z,

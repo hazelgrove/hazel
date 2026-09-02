@@ -625,7 +625,7 @@ let insertion_tests = [
     ~acts=
       mk({|¦if 1 then 2 else 3|})
       @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
-    ~goal={|if? then?else¦if 1 then 2 else 3|},
+    ~goal={|if? then?else¦ if 1 then 2 else 3|},
   ),
   test(
     ~name="Inserting let before existing let doesn't steal delimiters",
@@ -639,7 +639,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦let x = 2 in 3|},
+    ~goal={|let? =?in¦ let x = 2 in 3|},
   ),
   test(
     ~name="Inserting let before existing type doesn't steal delimiters",
@@ -653,7 +653,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦type x = 2 in 3|},
+    ~goal={|let? =?in¦ type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
