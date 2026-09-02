@@ -31,6 +31,15 @@ let source: Haz3lcore.PersistentZipper.t =
    They are separated here: a field sets the properties listed against it, and
    a field with no entry sets the single property of its own name.
 
+   A PALETTE field never sets a property of its own name. `--ink` and 33 others
+   were published and read by nothing -- no stylesheet, no OCaml, no script;
+   the only `var(--ink)`-shaped references left in the tree were commented out,
+   and palette.html declares its own `:root` rather than reading the theme's.
+   So the palette reaches CSS only through the semantic names below, which
+   makes "components consume roles, not the palette" true by construction
+   rather than by lint. The palette is still a first-class layer in the slide
+   and in `ColorPalette`; it is just not a CSS namespace.
+
    That indirection is what lets one semantic field stand in for a family of
    CSS names -- `token-inconsistent`, `token-rul` and `token-exp` are three
    properties carrying one decision -- without the slide having to name all
@@ -41,7 +50,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "surface-2"),
     [
-      "surface-2",
       "shard_projector",
       "token-secondary",
       "shard-caret-exp",
@@ -57,7 +65,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "error-1"),
     [
-      "error-1",
       "shadow-selected",
       "shadow-any",
       "eval-exception",
@@ -70,7 +77,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "ink"),
     [
-      "ink",
       "menu-item-text",
       "token-exp",
       "token-inconsistent",
@@ -85,7 +91,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "error-2"),
     [
-      "error-2",
       "cell-selected-accent",
       "caret-color",
       "error-hole-stroke",
@@ -100,7 +105,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "code-background"),
     [
-      "code-background",
       "toggle-knob",
       "textarea-indicated",
       "test-percent-text",
@@ -113,7 +117,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "frame-1"),
     [
-      "frame-1",
       "menu-scroll-track",
       "cell-result-hidden",
       "test-indet-active",
@@ -126,7 +129,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "frame-2"),
     [
-      "frame-2",
       "menu-outline",
       "menu-scroll-thumb",
       "test-indet",
@@ -138,7 +140,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "frame-4"),
     [
-      "frame-4",
       "menu-icon",
       "menu-group-name",
       "cell-result-text",
@@ -153,7 +154,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "surface-3"),
     [
-      "surface-3",
       "main-bkg",
       "cell-result",
       "live-env-bkg",
@@ -165,7 +165,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "error-3"),
     [
-      "error-3",
       "token-any",
       "eval-exception-stroke",
       "ci-status-error-text",
@@ -177,7 +176,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "success"),
     [
-      "success",
       "primary-accent",
       "test-pass",
       "exp-indicated",
@@ -191,7 +189,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "type"),
     [
-      "type",
       "token-typ",
       "main-indicated",
       "border-typ",
@@ -204,7 +201,6 @@ let aliases: list(((string, string), list(string))) = [
   (
     ("palette", "pattern"),
     [
-      "pattern",
       "token-pat",
       "pat-indicated",
       "shadow-pat",
@@ -213,36 +209,24 @@ let aliases: list(((string, string), list(string))) = [
       "token-mpat",
     ],
   ),
-  (
-    ("palette", "none"),
-    ["none", "main-scroll-track", "surface-none", "text-none"],
-  ),
+  (("palette", "none"), ["main-scroll-track", "surface-none", "text-none"]),
   (
     ("palette", "black"),
-    ["black", "token-explicit-hole-shadow", "border-black", "text-black"],
+    ["token-explicit-hole-shadow", "border-black", "text-black"],
   ),
   (
     ("palette", "attention-3"),
     [
-      "attention-3",
       "token-explicit-hole",
       "border-highlight-strong",
       "surface-highlight-strong",
     ],
   ),
-  (
-    ("palette", "type-pattern"),
-    ["type-pattern", "token-tpat", "text-tpat"],
-  ),
-  (("palette", "label"), ["label", "token-label", "surface-label"]),
+  (("palette", "type-pattern"), ["token-tpat", "text-tpat"]),
+  (("palette", "label"), ["token-label", "surface-label"]),
   (
     ("palette", "success-soft"),
-    [
-      "success-soft",
-      "test-pass-active",
-      "surface-success-soft",
-      "text-success-strong",
-    ],
+    ["test-pass-active", "surface-success-soft", "text-success-strong"],
   ),
   (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
   (("menu", "divider"), ["menu-divider"]),
@@ -325,12 +309,11 @@ let aliases: list(((string, string), list(string))) = [
   ),
   (
     ("palette", "attention-1"),
-    ["attention-1", "surface-highlight-soft", "shard-selected-expanded"],
+    ["surface-highlight-soft", "shard-selected-expanded"],
   ),
   (
     ("palette", "attention-2"),
     [
-      "attention-2",
       "border-highlight",
       "shadow-highlight",
       "surface-highlight",
@@ -339,18 +322,17 @@ let aliases: list(((string, string), list(string))) = [
   ),
   (
     ("palette", "attention-4"),
-    ["attention-4", "border-warning", "surface-warning", "text-warning"],
+    ["border-warning", "surface-warning", "text-warning"],
   ),
-  (("palette", "doc-1"), ["doc-1", "surface-highlight-a", "text-doc-1"]),
-  (("palette", "doc-2"), ["doc-2", "surface-highlight-b", "text-doc-2"]),
-  (("palette", "doc-3"), ["doc-3", "surface-highlight-c", "text-doc-3"]),
-  (("palette", "doc-6"), ["doc-6", "surface-highlight-f", "text-doc-6"]),
-  (("palette", "doc-5"), ["doc-5", "surface-highlight-e", "text-doc-5"]),
-  (("palette", "doc-4"), ["doc-4", "surface-highlight-d", "text-doc-4"]),
+  (("palette", "doc-1"), ["surface-highlight-a", "text-doc-1"]),
+  (("palette", "doc-2"), ["surface-highlight-b", "text-doc-2"]),
+  (("palette", "doc-3"), ["surface-highlight-c", "text-doc-3"]),
+  (("palette", "doc-6"), ["surface-highlight-f", "text-doc-6"]),
+  (("palette", "doc-5"), ["surface-highlight-e", "text-doc-5"]),
+  (("palette", "doc-4"), ["surface-highlight-d", "text-doc-4"]),
   (
     ("palette", "frame-3"),
     [
-      "frame-3",
       "border-strong",
       "shadow-strong",
       "surface-accent",
@@ -358,25 +340,17 @@ let aliases: list(((string, string), list(string))) = [
       "explain-this-expander",
     ],
   ),
-  (("palette", "info"), ["info", "text-info"]),
-  (
-    ("palette", "info-strong"),
-    ["info-strong", "border-info", "text-info-strong"],
-  ),
+  (("palette", "info"), ["text-info"]),
+  (("palette", "info-strong"), ["border-info", "text-info-strong"]),
   (
     ("palette", "success-muted"),
-    [
-      "success-muted",
-      "border-success-muted",
-      "shadow-success-muted",
-      "text-success-muted",
-    ],
+    ["border-success-muted", "shadow-success-muted", "text-success-muted"],
   ),
   (
     ("palette", "surface-1"),
-    ["surface-1", "border-surface", "surface-default", "text-surface"],
+    ["border-surface", "surface-default", "text-surface"],
   ),
-  (("palette", "surface-4"), ["surface-4", "surface-deep"]),
+  (("palette", "surface-4"), ["surface-deep"]),
 ];
 
 /* Every field a themer can set, as (group, name). The pair is the key: short

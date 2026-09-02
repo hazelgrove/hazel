@@ -50,18 +50,32 @@ Two things run before that pipeline can:
 | `theme-generated.css` | **Generated.** Every colour the theme owns. Do not edit; run `make update-css-defaults`. |
 | `variables.css` | Hand-written, and deliberately colour-free: type, timing, the z-index ladder. Plus `color-scheme`, which is a real property and so must be *used* somewhere. |
 | everything else | Component stylesheets. They consume role names and define no colours. |
+| `palette.html` | A standalone swatch page with its own hardcoded `:root`. It does not read the theme, so it drifts; regenerate it by hand if you care. |
 
 ## The role vocabulary
 
-The slide defines two layers, and both are published as CSS properties:
+The slide defines two layers:
 
 - a **palette** of 48 colours: what a scheme states outright, plus what the
   slide derives mechanically from that (`frame-2..4` off `frame-1`, `doc-2..6`
-  as rotations of `doc-1`). `--ink`, `--frame-1`, `--surface-2`, `--doc-1` …
+  as rotations of `doc-1`).
 - **roles** in ten groups — `menu`, `chrome`, `editor`, `cursor`, `hole`,
   `problems`, `results`, `inspector`, `probe`, `projector` — each *derived*
   from the palette by the shared axis functions, or pointed at a palette entry
   per scheme.
+
+**There is no `--ink`.** A palette colour reaches CSS only under the semantic
+names the fan-out table gives it — `--text-default`, `--border-inverse`,
+`--code-text` and seven more all carry `palette.ink`. The 34 bare palette
+names used to be published too, and were read by nothing: no stylesheet, no
+OCaml, no script, and the only references left in the tree were commented out.
+Dropping them took the output from 270 properties to 236 and made "components
+consume roles, not the palette" true by construction. The palette is still a
+first-class layer in the slide and a type in `BuiltinsColorScheme`; it is just
+not a CSS namespace.
+
+Between them the two layers write 236 properties: 163 off the palette layer,
+71 off the roles, plus the two flags.
 
 A colour belongs in the palette if a scheme states or mechanically derives it,
 and in a role if the shared derivation decides it. `ColorOverrides` is what is

@@ -13,7 +13,9 @@ Two layers now, and the direction of reference between them is the invariant:
                          the z-index ladder
 
     *.css              component stylesheets consume the slide's ROLE names,
-                       never the palette
+                       never the palette -- which is now structural: a palette
+                       colour is published only under the semantic names the
+                       fan-out gives it, so there is no --ink to consume
 
 There used to be a third layer, roles.css, a hand-written alias from role to
 palette. It is gone: the theme writes those names itself, so the alias was a
