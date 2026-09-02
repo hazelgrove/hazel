@@ -91,6 +91,9 @@ type info = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Language.Dynamics.Info.t),
+  /* Samples recorded at an arbitrary id — e.g. a subterm this projector's
+   * instrumentation targeted, like a livelit use's model argument */
+  dynamics_at: Util.Id.t => option(list(Language.Sample.t)),
   /* The elaborated sub-expression at this projector's ID.
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */

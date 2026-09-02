@@ -305,6 +305,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
+    | l = LIVELIT_IDENT { VarPat(l) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}

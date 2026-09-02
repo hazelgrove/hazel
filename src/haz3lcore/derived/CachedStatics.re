@@ -58,19 +58,43 @@ let compute_targets =
     : Sample.targets => {
   let effective_probe_ids =
     settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
+  /* The model argument of a projected livelit use, whose value the commit
+     path reads when writing a ^name.update(model, action) transition */
+  let rec livelit_model = (e: Exp.t): option(Id.t) =>
+    switch (e.term) {
+    | Parens(e) => livelit_model(e)
+    | Ap(_, {term: LivelitName(_), _}, model) => Some(Exp.rep_id(model))
+    | _ => None
+    };
   Id.Map.fold(
     (id, (), acc) => {
-      let refs =
+      let entries =
         switch (Statics.Map.lookup_exp(id, info_map)) {
-        | Some(_) => Statics.Map.refs_in(info_map, id)
+        /* A livelit projector's samples are read only for their value;
+           its refs would capture the whole livelit record per sample.
+           Also target the model argument, for the commit path. */
+        | Some({
+            user_term: {term: Projector({kind: Livelit, _}, inner), _},
+            _,
+          }) =>
+          let model =
+            switch (livelit_model(inner)) {
+            | Some(model_id) => [(model_id, {Sample.refs: []})]
+            | None => []
+            };
+          [(id, {Sample.refs: []}), ...model];
+        | Some(_) => [(id, {refs: Statics.Map.refs_in(info_map, id)})]
         | None =>
           switch (Statics.Map.lookup_pat(id, info_map)) {
-          | Some(_) => Statics.Map.bound_in(info_map, id)
-          | None => []
+          | Some(_) => [(id, {refs: Statics.Map.bound_in(info_map, id)})]
+          | None => [(id, {refs: []})]
           }
         };
-      let spec: Sample.capture_spec = {refs: refs};
-      Id.Map.add(id, spec, acc);
+      List.fold_left(
+        (acc, (id, spec)) => Id.Map.add(id, spec, acc),
+        acc,
+        entries,
+      );
     },
     effective_probe_ids,
     Id.Map.empty,

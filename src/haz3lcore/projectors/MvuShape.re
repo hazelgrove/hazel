@@ -20,6 +20,19 @@ let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
   | _ => d
   };
 
+/* A value sampled MID-run can be Closure-wrapped with OPEN terms beneath:
+   the evaluator only substitutes environments away when a run completes,
+   and functions constructed inside a closure are not individually wrapped.
+   Stripping such a Closure discards the environment that gives embedded
+   functions (e.g. HTML handlers) their meaning — substitute it instead. */
+let rec close_value = (d: DHExp.t): DHExp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Parens(inner) => close_value(inner)
+  | Closure(env, inner) => close_value(Substitution.in_exp(env, inner))
+  | _ => d
+  };
+
 // Extract constructor name and body, stripping wrappers from the body too.
 // Nullary constructors get an empty tuple as placeholder body.
 let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
@@ -31,6 +44,32 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
     | Constructor(name, _) => Some((name, strip_wrappers(body)))
     | _ => None
     };
+  | Constructor(name, _) =>
+    Some((
+      name,
+      {
+        ...d,
+        term: Tuple([]),
+      },
+    ))
+  | _ => None
+  };
+};
+
+/* Like of_constructor, but SUBSTITUTES environments instead of stripping
+   them (close_value on the spine and the body). Handler-bearing attrs
+   must decompose this way: a handler fun sampled mid-run sits under
+   Closure wrappers that carry its view-scope bindings (helpers, view
+   parameters) — strip_wrappers discards them and the fired action
+   arrives with free variables. */
+let of_constructor_closed = (d: DHExp.t): option((string, DHExp.t)) => {
+  let d = close_value(d);
+  switch (d.term) {
+  | Ap(Forward, fn, body) =>
+    switch (close_value(fn).term) {
+    | Constructor(name, _) => Some((name, close_value(body)))
+    | _ => None
+    }
   | Constructor(name, _) =>
     Some((
       name,

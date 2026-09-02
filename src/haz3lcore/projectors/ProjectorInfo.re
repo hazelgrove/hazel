@@ -71,6 +71,7 @@ let mk_info =
       })
     | None => None
     },
+  dynamics_at: id => Dynamics.Map.lookup(id, dynamics),
   elaborated: {
     let (module P) = ProjectorInit.to_module(p.kind);
     if (P.elaborate_syntax) {

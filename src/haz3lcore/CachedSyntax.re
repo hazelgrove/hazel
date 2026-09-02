@@ -102,9 +102,20 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
+  /* Measured depends only on the segment and shapes; when new dynamics
+   * leave every projector shape unchanged (the common case for a sample
+   * refresh), the whole-program re-measure is pure waste. Keep the old
+   * shape_map ref too so downstream phys-eq caches stay warm. */
+  let shapes_equal =
+    Id.Map.equal((a, b) => a == b, shape_map, old.shape_map);
   let refractor_shape_map = Id.Map.empty;
-  let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  let (shape_map, measured) =
+    shapes_equal
+      ? (old.shape_map, old.measured)
+      : (
+        shape_map,
+        Measured.of_segment(old.segment, shape_map, refractor_shape_map),
+      );
   {
     ...old,
     shape_map,

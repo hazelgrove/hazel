@@ -6,7 +6,6 @@ Hazel implements a version of the live literals (livelits) mechanism described i
 
 - No parameters
 - No splices
-- No user-defined livelits (only builtins)
 
 ## Overview
 
@@ -14,7 +13,52 @@ A livelit is a live GUI widget which can be inserted into expressions and genera
 
 Each livelit maintains an internal model, which we do not intend clients of the livelit to interact with. When testing a livelit you've created, you can unproject the livelit (by clicking the button on the bottom right of the Hazel UI) and edit this internal model directly.
 
-Livelits live in the typing context, so they can be viewed using the context inspector, but currently there is no way to add new user-defined livelits.
+Livelits live in the typing context, so they can be viewed using the context inspector. They can be defined either as OCaml builtins or in Hazel itself.
+
+## User-Defined Livelits
+
+A Hazel program can define a livelit by binding a livelit name to a module:
+
+```
+let ^pct = {
+  type Model = Int;
+  type Action = Int;
+  let init : Model = 50;
+  let update = fun (m, a) : (Model, Action) -> a;
+  let view = fun m : Model -> ...;
+  let expand = fun m : Model -> m
+} in
+^pct(25) + ^pct(75)
+```
+
+with `update: (Model, Action) => Model`, `view: Model => HTML` (handlers emit
+Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
+An optional member `shape = Inline(width) | Block(width, height) |
+Tab(width, height)` (a `LivelitShape`) sets the projector's footprint in
+character cells. Type members are accepted but not yet semantically
+load-bearing. Helpers are ordinary additional members. Since modules are
+sugar for labeled tuples, a positional `(init, update, view, expand[, shape])`
+tuple is accepted as the equivalent form.
+
+Each use elaborates to `^name.expand(model)` through the runtime `^name`
+binding, so shadowing and scoping behave like ordinary lets, and each use's
+model lives in its own argument syntax. `^name.member` is also surface
+syntax: it accesses the definition record (e.g. `^pct.expand(25)`).
+
+A projected use's `view` runs in the main evaluation (sampled at the
+projector, which renders the live HTML), so probes inside `view` and
+`expand` see samples per use. Interactions commit the transition itself as
+the new argument — `^name(^name.update(prev, action))` — normalized by the
+next evaluation, so the last interaction stays in the program where
+`update`'s probes and the stepper can reach it; each commit collapses the
+previous transition to its value first. Actions must therefore be
+first-order data. `update` alone still evaluates in the builtin environment
+(at event time, as a fallback), so helpers belong among the members.
+
+Example programs: `hazel-programs/docs/livelits/` (shipped as the "Livelits"
+doc slides, embedded at compile time — an edit there ships on the next
+build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
+the `user_def` branch of `LivelitProj.re`.
 
 ## Creating a Built-in Livelit
 
@@ -54,8 +98,8 @@ module type BuiltinLivelit = {
   // View/rendering function
   let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
 
-  // Size specification
-  let size: ProjectorCore.Shape.t;
+  // Shape (footprint) specification
+  let shape: ProjectorShape.t;
 };
 ```
 
