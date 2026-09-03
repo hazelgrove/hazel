@@ -22,6 +22,7 @@ let mk_model = (): History.Model.t => {
     globals,
     editors,
     explain_this: ExplainThisModel.init,
+    adventure: AdventureModel.inactive,
     selection: Editors.Selection.default_selection(editors),
   };
   {

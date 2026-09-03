@@ -16,6 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
+    adventure: AdventureModel.t,
     selection,
   };
 
@@ -31,6 +32,7 @@ module Model = {
       globals,
       editors,
       explain_this: ExplainThisModel.init,
+      adventure: AdventureModel.inactive,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -49,6 +51,7 @@ module Store = {
       editors,
       globals,
       explain_this,
+      adventure: AdventureModel.inactive,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -127,6 +130,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
+    | Adventure(AdventureUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
@@ -323,6 +327,96 @@ module Update = {
     };
   };
 
+  /* Create a new scratch slide for an adventure and switch to it */
+  let create_adventure_slide = (editors: Editors.Model.t): Editors.Model.t => {
+    let existing_scratchpads =
+      switch (editors) {
+      | Scratch(m) => m.scratchpads
+      | Documentation(_)
+      | Tutorial(_)
+      | Exercises(_) => []
+      };
+
+    /* Generate unique name */
+    let base_name = "Adventure";
+    let existing_names =
+      List.map(
+        (s: ScratchMode.Scratchpad.t) => s.name,
+        existing_scratchpads,
+      );
+    let rec find_unique_name = (suffix: int) => {
+      let candidate =
+        suffix == 0
+          ? base_name : base_name ++ " (" ++ string_of_int(suffix) ++ ")";
+      if (List.mem(candidate, existing_names)) {
+        find_unique_name(suffix + 1);
+      } else {
+        candidate;
+      };
+    };
+    let slide_name = find_unique_name(0);
+
+    /* Create new blank slide and append */
+    let new_scratchpads =
+      existing_scratchpads @ [ScratchMode.Scratchpad.blank_code(slide_name)];
+
+    /* Switch to Scratch mode with new slide as current */
+    Editors.Model.Scratch({
+      current: List.length(new_scratchpads) - 1,
+      scratchpads: new_scratchpads,
+    });
+  };
+
+  /* Apply adventure result side effects:
+   * - Schedules editor_actions from the result
+   * - Captures checkpoint if set_checkpoint is true
+   * - Schedules reset actions if reset_to_checkpoint is true
+   * Returns the updated adventure model. */
+  let apply_adventure_result =
+      (
+        ~schedule_action: t => unit,
+        ~zipper: Haz3lcore.Zipper.t,
+        result: AdventureUpdate.update_result,
+      )
+      : AdventureModel.t => {
+    /* Schedule any editor actions from the adventure */
+    List.iter(
+      a => schedule_action(Globals(ActiveEditor(a))),
+      result.editor_actions,
+    );
+
+    /* Handle checkpoint capture or reset */
+    if (result.set_checkpoint) {
+      {
+        ...result.model,
+        checkpoint: Some(zipper),
+      };
+    } else if (result.reset_to_checkpoint) {
+      switch (result.model.checkpoint) {
+      | Some(checkpoint_zipper) =>
+        /* Paste is text-only on dev; restore via printed checkpoint */
+        let text =
+          Haz3lcore.Printer.of_zipper(
+            ~holes="",
+            ~indent="",
+            checkpoint_zipper,
+          );
+        List.iter(
+          a => schedule_action(Globals(ActiveEditor(a))),
+          [
+            Haz3lcore.Action.Select(All),
+            Haz3lcore.Action.Destruct(Left),
+            Haz3lcore.Action.Paste(text),
+          ],
+        );
+        result.model;
+      | None => result.model
+      };
+    } else {
+      result.model;
+    };
+  };
+
   let update =
       (
         ~import_log,
@@ -340,27 +434,47 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      let* editors =
-        Editors.Update.update(
-          ~globals,
-          ~schedule_action=a => schedule_action(Editors(a)),
-          action,
-          model.editors,
-        );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
-      let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
-            ...model.globals,
-            visible_rows: None,
+      /* Block slide/mode navigation while an adventure is active, and user
+         cell edits while the tutor holds the turn. Scripted adventure
+         actions bypass this via Globals(ActiveEditor). */
+      let adventure_blocked =
+        model.adventure.active
+        && (
+          switch (action) {
+          | Editors.Update.SwitchMode(_)
+          | Scratch(SwitchSlide(_))
+          | Tutorial(SwitchExercise(_))
+          | Exercises(SwitchExercise(_)) => true
+          | Scratch(CellAction(MainEditor(_))) =>
+            AdventureModel.is_editor_locked(model.adventure)
+          | _ => false
           }
-        | _ => model.globals
+        );
+      if (adventure_blocked) {
+        model |> return_quiet;
+      } else {
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            action,
+            model.editors,
+          );
+        /* Reset visible_rows when switching to modes without viewport culling,
+         * otherwise stale culling bounds hide projectors incorrectly */
+        let globals =
+          switch (action) {
+          | SwitchMode(Tutorial | Exercises) => {
+              ...model.globals,
+              visible_rows: None,
+            }
+          | _ => model.globals
+          };
+        {
+          ...model,
+          editors,
+          globals,
         };
-      {
-        ...model,
-        editors,
-        globals,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -369,6 +483,28 @@ module Update = {
         ...model,
         explain_this,
       };
+    | Adventure(action) =>
+      /* Handle Start specially to create adventure slide */
+      let model =
+        switch (action) {
+        | Start(_) =>
+          let editors = create_adventure_slide(model.editors);
+          {
+            ...model,
+            editors,
+          };
+        | _ => model
+        };
+
+      let result = AdventureUpdate.update(action, model.adventure);
+      let zipper = get_editor(model).editor.state.zipper;
+      let adventure =
+        apply_adventure_result(~schedule_action, ~zipper, result);
+      {
+        ...model,
+        adventure,
+      }
+      |> Updated.return_quiet;
     | MakeActive(selection) =>
       {
         ...model,
@@ -420,6 +556,26 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+
+    /* Check adventure gate if active and at a UserGate step.
+     * This must happen after editors calculation so statics are available.
+     * We always check (not just when is_edited) since the check is cheap. */
+    let adventure =
+      if (model.adventure.active && AdventureModel.is_at_gate(model.adventure)) {
+        let editor =
+          get_editor({
+            ...model,
+            editors,
+          });
+        let zipper = editor.editor.state.zipper;
+        let info_map = editor.statics.info_map;
+        let result =
+          AdventureUpdate.check_gate(~zipper, ~info_map, model.adventure);
+        apply_adventure_result(~schedule_action, ~zipper, result);
+      } else {
+        model.adventure;
+      };
+
     /* Compute cursor info against the POST-calculate editors: some modes
        (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
        stitched `cells` during calculate, not during update. Reading cursor
@@ -467,6 +623,7 @@ module Update = {
       ...model,
       globals,
       editors,
+      adventure,
     };
   };
 };
@@ -642,6 +799,34 @@ module View = {
             _,
           } =>
           Some(Update.Benchmark(Start))
+        /* Adventure mode toggle: Cmd/Ctrl+Shift+A */
+        | {
+            key: D("A" | "a"),
+            sys: Mac,
+            shift: Down,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("A" | "a"),
+            sys: PC,
+            shift: Down,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          model.adventure.active
+            ? Some(Update.Adventure(Stop))
+            : Some(Update.Adventure(Start(AdventureScripts.probes_intro)))
+        /* Space advances the adventure during the tutor's turn */
+        | {key: D(" "), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+            when
+              AdventureModel.is_editor_locked(model.adventure)
+              && AdventureModel.can_advance(model.adventure) =>
+          Some(Update.Adventure(Advance))
         | {
             key: D("Z" | "z"),
             sys: Mac,
@@ -660,7 +845,9 @@ module View = {
             alt: Up,
             _,
           } =>
-          Some(Update.Globals(Redo))
+          /* Blocked during the tutor's turn */
+          AdventureModel.is_editor_locked(model.adventure)
+            ? None : Some(Update.Globals(Redo))
         | {
             key: D("Z" | "z"),
             sys: Mac,
@@ -679,7 +866,8 @@ module View = {
             alt: Up,
             _,
           } =>
-          Some(Update.Globals(Undo))
+          AdventureModel.is_editor_locked(model.adventure)
+            ? None : Some(Update.Globals(Undo))
         /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode.
            Lost in the keyboard-handling refactor; re-added at the page
            level since the toggle dispatches Globals(Set(AutoprobeMode)),
@@ -804,7 +992,13 @@ module View = {
         ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {
+          globals,
+          editors,
+          explain_this: explainThisModel,
+          adventure: adventureModel,
+          selection,
+        } as model: Model.t,
       ) => {
     let log_count = LogCount.get();
     let globals = {
@@ -892,6 +1086,22 @@ module View = {
       };
     };
 
+    /* Blocking overlay when adventure is in locked state (not at UserGate).
+     * Covers everything except the adventure dialog to prevent interaction. */
+    let adventure_overlay =
+      if (AdventureModel.is_editor_locked(adventureModel)) {
+        div(
+          ~attrs=[
+            Attr.id("adventure-overlay"),
+            Attr.class_("adventure-overlay"),
+            Attr.on_click(_ => inject(Adventure(RequestExit))),
+          ],
+          [],
+        );
+      } else {
+        Node.none;
+      };
+
     [
       top_bar(~globals, ~inject, ~editors),
       closure_cursor_bar,
@@ -910,6 +1120,8 @@ module View = {
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),
+      adventure_overlay,
+      AdventureView.view(~inject=a => inject(Adventure(a)), adventureModel),
     ];
   };
 
@@ -923,8 +1135,13 @@ module View = {
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);
+    /* tutor-turn class marks the tutor's turn (editor locked) for CSS */
+    let adventure_class =
+      AdventureModel.is_editor_locked(model.adventure)
+        ? [Attr.class_("tutor-turn")] : [];
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      ~attrs=
+        [Attr.id("page"), ...adventure_class] @ handlers(~inject, model),
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
