@@ -127,17 +127,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       );
     | (If(cond, e1, e2), _) =>
+      /* Branches always collapse fully: an indeterminate `if`'s branches are
+         never evaluation positions, so casts left uncollapsed here would be
+         stuck forever — and the stepper and evaluator reach this push through
+         differently-ordered paths, so leaving it to `recur` makes their
+         results diverge. */
+      let collapse = (d: DHExp.t): DHExp.t =>
+        transition(~recursive=true, d) |> Option.value(~default=d);
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           If(
             recur(cond),
-            recur(Asc(e1, t) |> DHExp.fresh),
-            recur(Asc(e2, t) |> DHExp.fresh),
+            collapse(Asc(e1, t) |> DHExp.fresh),
+            collapse(Asc(e2, t) |> DHExp.fresh),
           )
           |> DHExp.fresh,
         ),
-      )
+      );
     | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(

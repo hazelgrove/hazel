@@ -386,6 +386,44 @@ let qcheck_incremental_matches_fresh_after_edit =
     },
   );
 
+/* Regression: the stepper used to leave uncollapsed casts in the branches of
+   an indeterminate `if` reached through a filter, diverging semantically from
+   the evaluator while printing identically (found by qcheck_stepper_confluence,
+   seed 773972249). */
+let stepper_evaluator_agree_on_filtered_indet_if = () => {
+  let uexp = parse_exp("[(), (debug () in if ? then () else B)]");
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  switch (
+    /* evaluate_and_limit counts trampoline transitions since evaluator
+       streaming, so its budget is much larger than the small-step one. */
+    Evaluator.evaluate_and_limit(
+      ~env=Builtins.env_init,
+      ~step_limit=10000,
+      elab,
+    ),
+    full_small_step_reduction(~step_limit=100, elab),
+  ) {
+  | (
+      LimitedCompleted((bigstep_exp, _)),
+      LimitedCompleted((smallstep_exp, _)),
+    ) =>
+    check(
+      testable(Fmt.using(Exp.show, Fmt.string), Equality.semantic.exp),
+      "Small step reduction and big step reduction are equal",
+      smallstep_exp,
+      bigstep_exp,
+    )
+  | (big, small) =>
+    Alcotest.fail(
+      "expected both evaluations to complete; big="
+      ++ Evaluator.show_limited_result(big)
+      ++ " small="
+      ++ Evaluator.show_limited_result(small),
+    )
+  };
+};
+
 let rec finish_yielding = (~remaining_slices: int, evaluation) => {
   if (remaining_slices <= 0) {
     fail("Yielding evaluation did not complete");
@@ -672,6 +710,11 @@ let tests = (
     yielding_streaming_outbox_test,
     yielding_streaming_current_state_test,
     yielding_streaming_current_id_invalid_race_test,
+    Alcotest.test_case(
+      "stepper/evaluator agree on filtered indeterminate if",
+      `Quick,
+      stepper_evaluator_agree_on_filtered_indet_if,
+    ),
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
