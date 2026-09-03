@@ -96,7 +96,7 @@ let rec evaluate =
    * untouched instead (current_top_id = None ⇒ no outbox write) so the last
    * real-id publish remains until the next program node. */
   let current_top_id =
-    if (call_stack.stack == []) {
+    if (List.is_empty(call_stack.stack)) {
       switch (EvalInfo.find_opt(expr_id, eval_info)) {
       | Some(_) => Some(expr_id)
       | None => None
@@ -156,7 +156,7 @@ let rec evaluate =
      * entries while inside a call stack, and reuse_check also refuses reuse
      * there. Skip entirely when nothing downstream can consume the map. */
     let body_reuse_map =
-      if (!track_reuse || call_stack.stack != []) {
+      if (!track_reuse || !List.is_empty(call_stack.stack)) {
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
@@ -299,7 +299,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack.stack != []) {
+        if (!List.is_empty(call_stack.stack)) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -337,7 +337,7 @@ let rec evaluate =
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   let eval_5_state_merge =
       (~call_stack: CallStack.state, ~state, ~expr_id, env, exp) =>
-    if (call_stack.stack == []) {
+    if (List.is_empty(call_stack.stack)) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
       let.trampoline final_value =

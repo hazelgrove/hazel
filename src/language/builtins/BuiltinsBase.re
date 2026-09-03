@@ -26,7 +26,7 @@ let numeric_constants =
     {
       name: "epsilon_float",
       typ: Atom(Float),
-      imp: float(epsilon_float),
+      imp: float(Stdlib.epsilon_float),
     },
     {
       name: "pi",
@@ -36,12 +36,12 @@ let numeric_constants =
     {
       name: "max_sint",
       typ: Atom(SInt),
-      imp: sint(Int.max_int),
+      imp: sint(Int.max_value),
     },
     {
       name: "min_sint",
       typ: Atom(SInt),
-      imp: sint(Int.min_int),
+      imp: sint(Int.min_value),
     },
   ];
 
@@ -74,7 +74,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(Bool),
     imp: d => {
       let-unbox f = (Atom(Float), d);
-      Some(Exp.bool(Float.is_infinite(f)));
+      Some(Exp.bool(Float.is_inf(f)));
     },
     custom_statics: None,
   },
@@ -102,91 +102,91 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     name: "abs_float",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(abs_float),
+    imp: float_op(Stdlib.abs_float),
     custom_statics: None,
   },
   {
     name: "ceil",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(ceil),
+    imp: float_op(Stdlib.ceil),
     custom_statics: None,
   },
   {
     name: "floor",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(floor),
+    imp: float_op(Stdlib.floor),
     custom_statics: None,
   },
   {
     name: "exp",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(exp),
+    imp: float_op(Stdlib.exp),
     custom_statics: None,
   },
   {
     name: "log",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(log),
+    imp: float_op(Stdlib.log),
     custom_statics: None,
   },
   {
     name: "log10",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(log10),
+    imp: float_op(Stdlib.log10),
     custom_statics: None,
   },
   {
     name: "sqrt",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(sqrt),
+    imp: float_op(Stdlib.sqrt),
     custom_statics: None,
   },
   {
     name: "sin",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(sin),
+    imp: float_op(Stdlib.sin),
     custom_statics: None,
   },
   {
     name: "cos",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(cos),
+    imp: float_op(Stdlib.cos),
     custom_statics: None,
   },
   {
     name: "tan",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(tan),
+    imp: float_op(Stdlib.tan),
     custom_statics: None,
   },
   {
     name: "asin",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(asin),
+    imp: float_op(Stdlib.asin),
     custom_statics: None,
   },
   {
     name: "acos",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(acos),
+    imp: float_op(Stdlib.acos),
     custom_statics: None,
   },
   {
     name: "atan",
     arg: Atom(Float),
     ret: Atom(Float),
-    imp: float_op(atan),
+    imp: float_op(Stdlib.atan),
     custom_statics: None,
   },
   {
@@ -214,7 +214,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox m = (Atom(Int), d1);
         let-unbox n = (Atom(Int), d2);
-        if (n == Bigint.zero) {
+        if (Bigint.equal(n, Bigint.zero)) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun("mod"), d1),
@@ -258,7 +258,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox m = (Atom(Nat), d1);
         let-unbox n = (Atom(Nat), d2);
-        if (n == Bigint.zero) {
+        if (Bigint.equal(n, Bigint.zero)) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun("mod"), d1),
@@ -280,7 +280,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox m = (Atom(Float), d1);
         let-unbox n = (Atom(Float), d2);
-        if (n == 0.0) {
+        if (Float.equal(n, 0.0)) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun("mod"), d1),
@@ -288,7 +288,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
             ),
           );
         } else {
-          Some(float((Float.modf(m /. n) |> fst) *. n));
+          Some(float((Stdlib.modf(m /. n) |> fst) *. n));
         };
       }),
     custom_statics: None,
@@ -389,8 +389,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
           };
         let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
-        let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
-        Some(Exp.string(String.concat(s1, xs')));
+        let* xs' = List.map(~f=string_of, xs) |> Util.OptUtil.sequence;
+        Some(Exp.string(String.concat(~sep=s1, xs')));
       }),
     custom_statics: None,
   },
@@ -432,7 +432,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox sep = (Atom(String), d1);
         let-unbox s = (Atom(String), d2);
-        let parts = HazelString.split(sep, s) |> List.map(s => string(s));
+        let parts = HazelString.split(sep, s) |> List.map(~f=s => string(s));
         Some(list_lit(parts));
       }),
     custom_statics: None,

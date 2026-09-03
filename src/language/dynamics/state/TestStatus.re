@@ -19,4 +19,4 @@ let join: (t, t) => t =
     | (Pass, x) => x
     };
 
-let join_all: list(t) => t = List.fold_left(join, Pass);
+let join_all: list(t) => t = List.fold_left(~f=join, ~init=Pass);

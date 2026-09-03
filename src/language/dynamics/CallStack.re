@@ -15,7 +15,7 @@ type frame = {
   fn_def_id: option(Id.t),
 };
 
-let equal_frame = (a: frame, b: frame): bool => a.id == b.id;
+let equal_frame = (a: frame, b: frame): bool => Id.equal(a.id, b.id);
 
 /* Call context represented as a list of stack frames.
  * The head is the most recent (innermost) call. */
@@ -26,7 +26,8 @@ let equal = (a: t, b: t): bool => List.equal(equal_frame, a, b);
 
 /* Project a call stack to ids. Prefer `equal` for equality checks; this is
  * for suffix/prefix comparisons that need a bare id list. */
-let ids_of_stack = (cs: t): list(Id.t) => List.map((f: frame) => f.id, cs);
+let ids_of_stack = (cs: t): list(Id.t) =>
+  List.map(~f=(f: frame) => f.id, cs);
 
 /* Prepend an application as a nameless frame — used for perspective
  * extension / pinning when looking at a call without having entered it. */
@@ -79,8 +80,9 @@ let lookup_app_arg =
   | None => None
   | Some(entries) =>
     List.find_map(
-      ((stored_stack, arg)) =>
-        equal(stored_stack, call_stack) ? Some(arg) : None,
+      ~f=
+        ((stored_stack, arg)) =>
+          equal(stored_stack, call_stack) ? Some(arg) : None,
       entries,
     )
   };

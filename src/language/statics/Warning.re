@@ -20,7 +20,7 @@ let to_list: t => list(list_item) =
   | WarningPat(p) => [Pat(p)];
 
 let var_is_unused = (co_ctx, name): t =>
-  if (String.starts_with(~prefix="_", name) || CoCtx.contains_hole(co_ctx)) {
+  if (String.is_prefix(name, ~prefix="_") || CoCtx.contains_hole(co_ctx)) {
     None;
   } else {
     switch (VarMap.lookup(co_ctx, name)) {

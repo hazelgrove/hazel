@@ -39,7 +39,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
-      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+      |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
@@ -65,10 +65,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Tuple(
-            List.map2(
-              (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
-              es,
-              tys,
+            List.map2_exn(es, tys, ~f=(e, ty) =>
+              recur(Asc(e, ty) |> DHExp.fresh)
             ),
           )
           |> DHExp.fresh,
@@ -94,7 +92,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
+          ListLit(List.map(~f=d => recur(Asc(d, ty) |> DHExp.fresh), ds))
           |> DHExp.fresh,
         ),
       )
@@ -145,7 +143,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
+              ~f=((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )

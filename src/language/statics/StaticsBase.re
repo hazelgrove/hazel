@@ -8,17 +8,18 @@ module Map = {
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
-    ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
+    ids |> List.fold_left(~f=(m, id) => Id.Map.add(id, info, m), ~init=m);
 
   let add_missing_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids
     |> List.fold_left(
-         (m, id) =>
-           switch (Id.Map.find_opt(id, m)) {
-           | Some(_) => m
-           | None => Id.Map.add(id, info, m)
-           },
-         m,
+         ~f=
+           (m, id) =>
+             switch (Id.Map.find_opt(id, m)) {
+             | Some(_) => m
+             | None => Id.Map.add(id, info, m)
+             },
+         ~init=m,
        );
 
   let error_ids = (info_map: t): list(Id.t) =>
@@ -26,7 +27,8 @@ module Map = {
       (id, info, acc) =>
         /* Second clause is to eliminate non-representative ids,
          * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+        Info.is_error(info) && Id.equal(id, Info.id_of(info))
+          ? [id, ...acc] : acc,
       info_map,
       [],
     );
@@ -35,8 +37,8 @@ module Map = {
       (id, info, acc) =>
         acc
         |> (
-          Info.is_warning(info) && id == Info.id_of(info)
-            ? List.cons(id) : Fun.id
+          Info.is_warning(info) && Id.equal(id, Info.id_of(info))
+            ? List.cons(id) : Fn.id
         ),
       info_map,
       [],
@@ -48,7 +50,7 @@ module Map = {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
       |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+      |> List.map(~f=((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -125,7 +127,10 @@ module Map = {
         switch (ci) {
         | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
           let binds = Pat.bindings(pat);
-          List.exists((b: Binding.t) => b.id == binding_id, binds)
+          List.exists(
+            ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
+            binds,
+          )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
         | InfoExp(_) => None
         | _ => climb(rest)
@@ -231,15 +236,15 @@ let set_dot_labels_exp =
 
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
+    ~f=((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
+    ~init=([], m),
     xs,
   );
 
 let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold_left2(
-    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ([], m),
+  List.fold2_exn(
+    ~f=((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
+    ~init=([], m),
     xs,
     ys,
   );
@@ -402,20 +407,21 @@ let fold_patterns_with_modes =
       modes,
       m,
     ) =>
-  List.fold_left2(
-    ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-      analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-      |> (
-        ((info, elab, m)) => (
-          info.ctx,
-          tys @ [info.ty],
-          cons @ [info.constraint_],
-          m,
-          infos @ [info],
-          elabs @ [elab],
-        )
-      ),
-    (ctx, [], [], m, [], []),
+  List.fold2_exn(
+    ~f=
+      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+        |> (
+          ((info, elab, m)) => (
+            info.ctx,
+            tys @ [info.ty],
+            cons @ [info.constraint_],
+            m,
+            infos @ [info],
+            elabs @ [elab],
+          )
+        ),
+    ~init=(ctx, [], [], m, [], []),
     ps,
     modes,
   );
