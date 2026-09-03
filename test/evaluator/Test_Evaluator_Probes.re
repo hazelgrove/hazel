@@ -1001,6 +1001,32 @@ let _ = quicksort([7, 3, 9, 5, 10])
 in quicksort([5, 0, 9, 3, 1])|},
     [(6, 2)],
   ),
+  /* Stuck-destructure of a probed scrutinee must not inflate counts.
+   * `pat_proj` produces N syntactic copies of the scrutinee; without
+   * freshening their IDs, a probe on the scrutinee (here, the hole
+   * returned from the inner recursive call) records N extra samples
+   * per rewrite. With Exp.replace_all_ids on each copy, the probe on
+   * `?` inside the body fires exactly once per body evaluation —
+   * deeper recursion levels see stuck scrutinees (not Closure; bare
+   * `?`) and do destructure, but each body runs its probe exactly
+   * once. */
+  probe_count_test(
+    "Stuck-destructure of probed hole scrut: no sample inflation",
+    {|let partition_at : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = partition_at(tl, x) in
+      ^^probe(hd)
+    end
+in partition_at([7, 3, 9, 5, 10], 7)|},
+    /* Probe on `hd` inside the recursive body. Body runs at every
+     * recursion level that reaches a non-[] scrutinee, i.e. 5 times
+     * for a list of length 5. Without ID freshening on pat_proj
+     * copies, the count would be inflated by the duplication factor. */
+    [(6, 5)],
+  ),
 ];
 
 let module_tests = [

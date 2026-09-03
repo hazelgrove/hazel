@@ -102,6 +102,10 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind(string)
+  /* Rewrite step for `let <irrefutable-tuple-pat> = SCRUT in body` when
+     SCRUT is indet relative to the pattern: replaces SCRUT with a parallel
+     tuple of positional projections so the next Let step matches. */
+  | StuckDestructure
   | TheoremBind
   | RecordTheorem
   | WrapClosure
@@ -154,6 +158,71 @@ let (let-unbox) = ((request, v), f) => {
   let-unboxed result = Unboxing.unbox(request, v);
   f(result);
 };
+
+/* Decide whether a scrutinee's final form is eligible for stuck tuple
+   destructuring.
+
+   - Closure: duplicating a Closure across multiple Dot accessors
+     causes each Dot's req_final to re-enter the closure body and
+     fire probe samples per duplicate (see
+     Test_Evaluator_Probes.duplicate_prevention_tests). Skip.
+   - Tuple with the same arity as the pattern would have already
+     `Matches`'d, so we only see `IndetMatch` here for arity / label
+     mismatches. Project anyway — the resulting projections on a
+     wrong-arity tuple are stuck Dots, which is consistent with the
+     rest of the feature.
+   - Every other shape is eligible: for concrete non-tuple values
+     (e.g. `let (a, b) = 1 in …`) the resulting projections are
+     stuck Dots of a non-tuple into positions; that's the feature's
+     point — the body keeps evaluating and the stuckness is localized
+     to the specific projection references. */
+let is_destructurable_scrut = (d: Exp.t): bool =>
+  switch (DHExp.term_of(d)) {
+  | Closure(_) => false
+  | _ => true
+  };
+
+/* Pattern-directed scrutinee rewrite for stuck tuple destructuring.
+   Given an irrefutable tuple pattern `dp` and a (final, indet) scrutinee
+   `d`, build a parallel tuple of positional projections mirroring `dp`'s
+   tuple skeleton. After this rewrite, `matches(dp, pat_proj(dp, d))` is
+   guaranteed to succeed (every Tuple-pattern level meets a literal Tuple
+   of dotted leaves; Var/EmptyHole/Wild leaves bind to deep-Dot chains).
+
+   Each syntactic copy of `d` in the output is given fresh IDs via
+   `Exp.replace_all_ids`. `d` has already been `req_final`'d before we
+   get here, so any probe samples carried by its original IDs have
+   already fired once at that point; the rewritten tuple is a new
+   expression shape that shouldn't re-fire those samples when its
+   projections are evaluated. Without this freshening, a probed
+   scrutinee (including a probed `?` hole) records N extra samples per
+   stuck destructure, where N is the number of Dot projections in the
+   output.
+
+   Caller must check `Pat.is_irrefutable_tuple_pattern(dp)` and
+   `is_destructurable_scrut(d)` before invoking; otherwise the rewrite
+   may produce nonsense or may not progress matching. */
+let rec pat_proj = (dp: Pat.t, d: Exp.t): Exp.t =>
+  switch (Pat.term_of(dp)) {
+  | Var(_)
+  | EmptyHole
+  | Wild => d
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => pat_proj(p, d)
+  | Tuple(ps) =>
+    IdTagged.FreshGrammar.Exp.(
+      Tuple(
+        List.mapi(
+          (i, p) => pat_proj(p, dot(Exp.replace_all_ids(d), int(i))),
+          ps,
+        ),
+      )
+      |> Exp.fresh
+    )
+  | _ => d /* refutable subpatterns: untouched (gated out by caller) */
+  };
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -485,6 +554,26 @@ module Transition = (EV: EV_MODE) => {
 
       switch (matches) {
       | IndetMatch
+          when
+            Pat.is_irrefutable_tuple_pattern(dp)
+            && is_destructurable_scrut(d1') =>
+        /* Stuck-destructure rewrite: scrutinee is in a legitimately
+           indeterminate form relative to the pattern's tuple shape, and
+           the pattern is irrefutable. Rewrite the def to a parallel
+           tuple of positional projections; the next Let step matches
+           directly. See `is_destructurable_scrut` for excluded forms. */
+        let d1_new = pat_proj(dp, d1');
+        if (Exp.fast_equal(d1_new, d1')) {
+          Indet;
+        } else {
+          Step({
+            expr: Let(dp, d1_new, d2) |> rewrap,
+            side_effects: [],
+            kind: StuckDestructure,
+            is_value: false,
+          });
+        };
+      | IndetMatch
       | DoesNotMatch => Indet
       | Matches(env') =>
         let env' = Environment.add_bindings(env, env');
@@ -692,6 +781,21 @@ module Transition = (EV: EV_MODE) => {
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
+              when
+                Pat.is_irrefutable_tuple_pattern(dp)
+                && is_destructurable_scrut(d2') =>
+            let d2_new = pat_proj(dp, d2');
+            if (Exp.fast_equal(d2_new, d2')) {
+              Indet;
+            } else {
+              Step({
+                expr: Ap(dir, d1', d2_new) |> rewrap,
+                side_effects: [],
+                kind: StuckDestructure,
+                is_value: false,
+              });
+            };
+          | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
             let env'' = Environment.add_bindings(replacement_env, added_env);
@@ -714,6 +818,21 @@ module Transition = (EV: EV_MODE) => {
         | FunNoEnv(dp, d3) when mode == `Substitution =>
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
+          | IndetMatch
+              when
+                Pat.is_irrefutable_tuple_pattern(dp)
+                && is_destructurable_scrut(d2') =>
+            let d2_new = pat_proj(dp, d2');
+            if (Exp.fast_equal(d2_new, d2')) {
+              Indet;
+            } else {
+              Step({
+                expr: Ap(dir, d1', d2_new) |> rewrap,
+                side_effects: [],
+                kind: StuckDestructure,
+                is_value: false,
+              });
+            };
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
@@ -1022,6 +1141,48 @@ module Transition = (EV: EV_MODE) => {
         | _ => Indet
         }
 
+      /* Positional tuple access: x.0, x.1, ... — the RHS is an integer
+         literal. The integer must fit in a regular int (max tuple arity). */
+      | Atom(Int(i)) as int_term =>
+        switch (Bigint.to_int(i)) {
+        | None => Indet /* index too big to fit in OCaml int — treat as OOB */
+        | Some(idx) =>
+          switch (Unboxing.unbox(TuplePositional(idx), d1')) {
+          | Matches(d1'') =>
+            switch (DHExp.term_of(d1'')) {
+            | Tuple(ds) when idx >= 0 && idx < List.length(ds) =>
+              let element = List.nth(ds, idx);
+              /* Strip TupLabel wrapper if present — positional access doesn't
+                 care about the label. */
+              let unwrapped =
+                switch (DHExp.term_of(element)) {
+                | TupLabel(_, inner) => inner
+                | _ => element
+                };
+              Step({
+                expr: unwrapped,
+                side_effects: [],
+                kind: Dot,
+                is_value: true,
+              });
+            | ListLit(ds) =>
+              let mapped =
+                List.map(
+                  d => Dot(d, int_term |> Exp.fresh) |> Exp.fresh,
+                  ds,
+                );
+              let ls = ListLit(mapped) |> Exp.fresh;
+              Step({
+                expr: ls,
+                side_effects: [],
+                kind: Dot,
+                is_value: false,
+              });
+            | _ => Indet
+            }
+          | _ => Indet
+          }
+        }
       | _ => Indet
       };
     | TupLabel(label, d1) =>
@@ -1265,6 +1426,7 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind(_)
+  | StuckDestructure
   | TheoremBind
   | Seq
   | UpdateTest
@@ -1301,6 +1463,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
+  | StuckDestructure => "destructure stuck scrutinee"
   | TheoremBind => "theorem substitution"
   | RecordTheorem => "record theorem"
   | Seq => "sequence"
