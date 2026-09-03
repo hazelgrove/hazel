@@ -223,6 +223,11 @@ let go =
        )
     |> Option.map(maybe_reassoc)
     |> return(Cant_insert)
+  | SyncReplace(delta_doc) => Ok(SyncReplace.sync_replace(z, delta_doc))
+
+  | UpdateRemoteCarets =>
+    /* No-op on zipper state, just triggers re-render for remote cursors */
+    Ok(z)
   | Put_down =>
     Zipper.put_down(z, ~root)
     |> Option.map(maybe_reassoc)

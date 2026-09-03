@@ -9,8 +9,14 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
+/* In Patchwork mode, skip building documentation slides since they aren't
+   accessible (only Scratch mode is synced via Automerge). This saves startup time. */
 let documentation_slides: list((string, PersistentZipper.t)) =
-  Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
+  if (PatchworkComm.is_in_iframe()) {
+    [];
+  } else {
+    Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
+  };
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first

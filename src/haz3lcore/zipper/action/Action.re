@@ -136,6 +136,8 @@ type probe =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
+  | SyncReplace(FlatTypes.Doc.t)
+  | UpdateRemoteCarets /* Trigger re-render for remote cursor display */
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
@@ -181,6 +183,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | SyncReplace(_)
   | Paste(_)
   | Cut
   | Reparse
@@ -196,6 +199,7 @@ let is_edit: t => bool =
   | Copy
   | Move(_)
   | Select(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
@@ -216,6 +220,8 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
+  | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -255,6 +261,8 @@ let should_animate: t => bool =
     | ToggleFocus
     | SetFocus(_) => true
     }
+  | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_)
   | Paste(_)
   | Cut

@@ -5,6 +5,7 @@ module Model = {
   type t = {
     captions: bool,
     secondary_icons: bool,
+    zen: bool,
     core: Language.CoreSettings.t,
     async_evaluation: bool,
     context_inspector: bool,
@@ -28,6 +29,8 @@ module Model = {
   let init = {
     captions: true,
     secondary_icons: false,
+    /* Zen mode on by default in Patchwork iframe, off otherwise */
+    zen: Haz3lcore.PatchworkComm.is_in_iframe(),
     core: {
       statics: true,
       elaborate: false,
@@ -126,6 +129,7 @@ module Update = {
   type t =
     | Captions
     | SecondaryIcons
+    | Zen
     | Statics
     | Dynamics
     | ProbeAll
@@ -418,6 +422,10 @@ module Update = {
       | SecondaryIcons => {
           ...settings,
           secondary_icons: !settings.secondary_icons,
+        }
+      | Zen => {
+          ...settings,
+          zen: !settings.zen,
         }
       | ContextInspector => {
           ...settings,

@@ -77,16 +77,29 @@ module Update = {
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
-             | Structural(_)
+             | SyncReplace(_)
+             | UpdateRemoteCarets
+             | Structural(_) => false
              | Probe(_) => false
              };
            },
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      if (settings.core.flip_animations) {
+        switch (action) {
+        | UpdateRemoteCarets =>
+          let remote_transitions =
+            PatchworkComm.get_remote_carets()
+            |> List.map(((user_id, _)) =>
+                 Animation.Actions.move("remote-caret-" ++ user_id)
+               );
+          Animation.request(remote_transitions);
+        | _ when Action.should_animate(action) =>
+          Animation.request([Animation.Actions.move("caret")])
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -474,48 +487,55 @@ module View = {
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
-      ) => [
-    CaretDec.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(
-      ~refine_sort=
-        (id, mold_out) =>
-          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      z,
-    ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=syntax.measured,
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-    VarHighlight.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      ~info_map,
-      z,
-    ),
-  ];
+      ) =>
+    [
+      CaretDec.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+    ]
+    @ RemoteCaretDec.view_all(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+      )
+    @ [
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        z,
+      ),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=syntax.measured,
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Backpack.view(
+        ~font_metrics=globals.font_metrics,
+        ~measured=syntax.measured,
+        ~cached_backpack=syntax.cached_backpack,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+      VarHighlight.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        ~info_map,
+        z,
+      ),
+    ];
 
   let view =
       (

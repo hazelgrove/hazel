@@ -37,13 +37,25 @@ module Model = {
 };
 
 module Store = {
+  /* In Patchwork mode (running in iframe), we disable localStorage persistence
+     for editor content because Automerge handles persistence. We still load/save
+     settings (globals) since those are just UI preferences. */
+
   let load = (): Model.t => {
     let globals = Globals.Model.load();
     let editors =
-      Editors.Store.load(
-        ~settings=globals.settings.core,
-        ~instructor_mode=globals.settings.instructor_mode,
-      );
+      if (Haz3lcore.PatchworkComm.is_in_iframe()) {
+        /* In Patchwork mode: use default empty scratch editor.
+           Automerge will send the actual content via SyncReplace. */
+        Editors.Store.load_default(
+          ~settings=globals.settings.core,
+        );
+      } else {
+        Editors.Store.load(
+          ~settings=globals.settings.core,
+          ~instructor_mode=globals.settings.instructor_mode,
+        );
+      };
     let explain_this = ExplainThisModel.Store.load();
     {
       editors,
@@ -54,10 +66,14 @@ module Store = {
   };
 
   let save = (m: Model.t): unit => {
-    Editors.Store.save(
-      ~instructor_mode=m.globals.settings.instructor_mode,
-      m.editors,
-    );
+    /* In Patchwork mode: skip saving editor content to localStorage.
+       Automerge handles persistence. We still save settings. */
+    if (!Haz3lcore.PatchworkComm.is_in_iframe()) {
+      Editors.Store.save(
+        ~instructor_mode=m.globals.settings.instructor_mode,
+        m.editors,
+      );
+    };
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
   };
@@ -900,6 +916,7 @@ module View = {
           Attr.id("main"),
           Attr.classes(
             [Editors.Model.mode_string(editors)]
+            @ (globals.settings.zen ? ["zen"] : [])
             @ Editors.Model.extra_main_classes(editors),
           ),
           Attr.on_scroll(on_scroll),

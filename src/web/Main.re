@@ -151,6 +151,11 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
+    Haz3lcore.PatchworkComm.init_iframe(a =>
+      schedule_action(
+        Page.Update.Editors(Scratch(CellAction(MainEditor(Perform(a))))),
+      )
+    );
     JsUtil.focus_clipboard_shim();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
