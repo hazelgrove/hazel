@@ -133,6 +133,27 @@ let keywords = [
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
 
+/* ASCII identifier-ish character classes (byte-based; a non-ASCII
+ * leading byte counts as non-wordish) */
+let is_wordish_char = (c: char): bool =>
+  switch (c) {
+  | 'a' .. 'z'
+  | 'A' .. 'Z'
+  | '0' .. '9'
+  | '_' => true
+  | _ => false
+  };
+
+/* Nonempty and BEGINS wordish (first byte only) */
+let is_wordish = (t: t): bool => length(t) > 0 && is_wordish_char(t.[0]);
+
+/* Nonempty with NO wordish bytes anywhere */
+let is_symbolic = (t: t): bool => {
+  let n = String.length(t);
+  let rec go = k => k >= n || !is_wordish_char(t.[k]) && go(k + 1);
+  n > 0 && go(0);
+};
+
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
 

@@ -851,25 +851,25 @@ let do_until_linebreak =
   linebreak_on(d, generalized_neighbors(z))
     ? Some(z) : do_until(f, linebreak_on(d), z);
 
-let local_backpack = (z: t): list(Tile.t) =>
+let local_missing_shards = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let backpack_hd = (z: t): option(Tile.t) =>
-  z |> local_backpack |> ListUtil.hd_opt;
+let missing_shards_hd = (z: t): option(Tile.t) =>
+  z |> local_missing_shards |> ListUtil.hd_opt;
 
-let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
+let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
     /* Special case for ambiguous polymorphs. These tokens
        occur both on their own as infix ops and as delimiters of
        multi-delimiter forms. To give the singleton form a chance, we
        only match these to incomplete tiles to form their multi forms
        when they're on the top of the stack */
-    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
-      ? backpack_hd(z) : None;
+    missing_shards_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+      ? missing_shards_hd(z) : None;
   } else {
     List.find_map(
       t => Tile.effective_label(t) == [tok] ? Some(t) : None,
-      local_backpack(z),
+      local_missing_shards(z),
     );
   };
 
@@ -927,7 +927,7 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
 let can_put_down = z =>
-  switch (local_backpack(z)) {
+  switch (local_missing_shards(z)) {
   | [] => false
   | _ => z.caret == Outer
   };
@@ -941,7 +941,7 @@ let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
 let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
-      let+ target = backpack_hd(z);
+      let+ target = missing_shards_hd(z);
       put_down_target(Left, target, z, ~root);
     }
     : None;

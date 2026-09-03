@@ -41,8 +41,9 @@ module Update = {
         Project(_) |
         Structural(_) |
         Probe(_) |
-        PrettyPrint |
-        Dump |
+        Format(_) |
+        AdjustIndent(_, _) |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )

@@ -49,6 +49,35 @@ let by_token = (d: Direction.t, z: t): option(t) =>
     };
   };
 
+/* === Indentation-transparent caret movement ===
+   Arrow movement never RESTS inside leading whitespace: a position is
+   skippable iff everything left of it at its level, up to a linebreak
+   (or buffer start at top level), is spaces AND its right neighbor is
+   a space. Kept positions: first content (right = content), line ends
+   (right = linebreak / nothing), and a blank line's single position —
+   every line keeps at least one reachable position. Clicks (Point
+   moves) and selection resizing are exempt: click into indentation
+   and movement is normal until the caret exits the run. */
+let in_skippable_indent = (z: t): bool =>
+  z.caret == Outer
+  && z.selection.content == []
+  && (
+    switch (z.relatives.siblings) {
+    | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
+      let rec all_white = (ps: list(Piece.t)) =>
+        /* scanning right-to-left from the caret */
+        switch (ps) {
+        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [Piece.Secondary(s), ...rest] =>
+          Secondary.is_space(s)
+            ? all_white(rest) : Secondary.is_linebreak(s)
+        | _ => false
+        };
+      all_white(List.rev(l));
+    | _ => false
+    }
+  );
+
 let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
   switch (chunkiness) {
@@ -155,7 +184,19 @@ let canonicalize_inner_unselect =
  * then checks if it's indicated. If not, move one token
  * to the right. I believe but have not proved this
  * always results in the token being indicated  */
-let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+/* first anchor that resolves wins; callers pass the preferred id
+   followed by fallbacks (e.g. its statics ancestors) so a vanished
+   id can never dump the caret at the document default */
+let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
+  switch (ids) {
+  | [] => None
+  | [id, ...rest] =>
+    switch (jump_to_id_indicated(z, id)) {
+    | Some(z') => Some(z')
+    | None => jump_to_first_indicated(z, rest)
+    }
+  }
+and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   let* z_l = jump_to_side_of_id(Left, z, id);
   let* indicated_id = Indicated.index(z_l);
   if (id == indicated_id) {
@@ -196,8 +237,34 @@ let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
 
-let to_linebreak = (d: Direction.t, z: t): option(t) =>
+/* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
+let space_on = (d: Direction.t, z: t): bool =>
+  switch (d, Zipper.generalized_neighbors(z)) {
+  | (Right, (_, Some(Secondary(s)))) => Secondary.is_space(s)
+  | (Left, (Some(Secondary(s)), _)) => Secondary.is_space(s)
+  | _ => false
+  };
+
+let rec skip_spaces = (d: Direction.t, z: t): t =>
+  if (space_on(d, z)) {
+    switch (local(ByToken, d, z)) {
+    | Some(z') => skip_spaces(d, z')
+    | None => z
+    };
+  } else {
+    z;
+  };
+
+/* Move to the literal line boundary, without crossing it. */
+let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
+
+/* Move to the line boundary, then skip back past leading/trailing
+ * spaces to the first/last content on the line. */
+let to_linebreak = (d: Direction.t, z: t): option(t) => {
+  let+ z = to_linebreak_raw(d, z);
+  skip_spaces(Direction.toggle(d), z);
+};
 
 let to_next_problem =
     (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
@@ -298,6 +365,16 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let z = Zipper.directional_unselect(d, z);
   canonicalize_inner_unselect(~locator, ~target_caret, z);
 };
+let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
+  if (fuel <= 0 || !in_skippable_indent(z)) {
+    z;
+  } else {
+    switch (local(ByChar, d, z)) {
+    | Some(z) => skip_indent(~fuel=fuel - 1, d, z)
+    | None => z
+    };
+  };
+
 let go =
     (
       ~statics: Language.Statics.Map.t,

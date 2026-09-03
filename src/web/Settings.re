@@ -14,6 +14,7 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
     /* Auto probe: automatically place a multi probe on the body of
        whichever top-level definition the cursor is currently inside */
     autoprobe_mode: bool,
@@ -34,7 +35,9 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -83,6 +86,7 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
     },
+    quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -129,7 +133,8 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -143,6 +148,7 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | Quiver
     | AutoprobeMode
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
@@ -188,11 +194,18 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
-      | DeepReassociate => {
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
@@ -426,6 +439,10 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | Quiver => {
+          ...settings,
+          quiver: !settings.quiver,
         }
       | AutoprobeMode => {
           ...settings,

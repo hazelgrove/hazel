@@ -602,6 +602,12 @@ module Selection = {
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
            "Toggle Show Docs Feedback",
          ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="quiver",
+           ~action=inject(Globals(Set(Quiver))),
+           "Toggle Quiver (Completion Preview)",
+         ),
          /* Export / Diagnostics */
          mk(
            ~mdIcon="download",

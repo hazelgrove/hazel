@@ -28,6 +28,31 @@ let capture = (z): t => {
   z;
 };
 
+/* Caret sits in a line's leading whitespace: only spaces between it
+   and an actual linebreak (segment start doesn't count). Returns the
+   space count and the linebreak's id. */
+let leading_whitespace_context = (z: t): option((int, Id.t)) =>
+  if (z.selection.content != [] || z.caret != Outer) {
+    None;
+  } else {
+    let (left_sibs, _) = z.relatives.siblings;
+    let rec count_spaces = (sibs, n) =>
+      switch (sibs) {
+      | [] => None /* Start of segment is not a line start */
+      | [p, ...rest] when Piece.is_space(p) => count_spaces(rest, n + 1)
+      | [Piece.Secondary(w), ..._] when Piece.is_linebreak(Secondary(w)) =>
+        Some((n, w.id))
+      | _ => None
+      };
+    count_spaces(List.rev(left_sibs), 0);
+  };
+
+let left_neighbor_is_whitespace = (z: t): bool =>
+  switch (Zipper.generalized_neighbor(Left, z)) {
+  | Some(p) => Piece.is_whitespace(p)
+  | None => false
+  };
+
 let delete = (d: Direction.t, z: t): option(t) => {
   let+ z = select(d, z);
   let z = capture(z);
@@ -110,18 +135,125 @@ let destruct = (d: Direction.t, z: t, ~root): option(t) =>
     }
   };
 
-let go = (d: Direction.t, z: t, ~root): option(t) => {
+/* Delete multiple spaces (for indent-level backspace) */
+let rec delete_spaces = (n: int, z: t): option(t) =>
+  if (n <= 0) {
+    Some(z);
+  } else {
+    switch (delete(Left, z)) {
+    | None => Some(z)
+    | Some(z) => delete_spaces(n - 1, z)
+    };
+  };
+
+/* Hungry delete: delete all contiguous whitespace to the left,
+   including at most one linebreak. Stops at non-whitespace or
+   after consuming one linebreak. */
+let rec hungry_delete = (z: t, seen_linebreak: bool): option(t) =>
+  switch (Zipper.generalized_neighbor(Left, z)) {
+  | Some(p) when Piece.is_space(p) =>
+    let* z = delete(Left, z);
+    hungry_delete(z, seen_linebreak);
+  | Some(p) when Piece.is_linebreak(p) && !seen_linebreak =>
+    let* z = delete(Left, z);
+    hungry_delete(z, true);
+  | _ => Some(z)
+  };
+
+/* ByToken delete: escape any Inner caret, then delete the whole
+   neighboring token/piece. */
+let delete_token = (d: Direction.t, z: t): option(t) => {
+  let z =
+    switch (z.caret) {
+    | Inner(_) => Caret.set(Outer, z)
+    | Outer => z
+    };
+  delete(d, z);
+};
+
+/* Destruct plus cleanup: merge, remold_regrout, merge again (grout
+ * removed by remold_regrout can expose a second merge), then
+ * rescan_reassemble. */
+let destruct_with_cleanup = (d: Direction.t, z: t, ~root): option(t) => {
+  let+ z = destruct(d, z, ~root);
+  let z =
+    z
+    |> Insert.merge_or_noop(~root)
+    |> remold_regrout(d, ~root)
+    |> Insert.merge_or_noop(~root);
+  Zipper.rescan_reassemble(d, z, ~root);
+};
+
+/* Delete from caret to start of line (Cmd+Backspace). */
+let delete_to_line_start = (z: t, ~root): option(t) => {
+  let z = Zipper.unselect(z);
+  let* z = Zipper.do_until_linebreak(Select.local(Left), Left, z);
+  if (Selection.is_empty(z.selection)) {
+    Some(z);
+  } else {
+    let z = capture(z);
+    let z = destroy_selection(z);
+    let z =
+      z
+      |> Insert.merge_or_noop(~root)
+      |> remold_regrout(Left, ~root)
+      |> Insert.merge_or_noop(~root);
+    Some(Zipper.rescan_reassemble(Left, z, ~root));
+  };
+};
+
+let go_local =
+    (d: Direction.t, chunk: Action.chunkiness, z: t, ~root): option(t) => {
   Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
-    let+ z = destruct(d, z, ~root);
-    /* If grout disappears we may have a second merge opportunity */
-    let z =
-      z
-      |> Insert.merge_or_noop(~root)
-      |> remold_regrout(d, ~root)
-      |> Insert.merge_or_noop(~root);
-    Zipper.rescan_reassemble(d, z, ~root);
+    switch (chunk) {
+    /* BySmart is only meaningful for selection; destruct treats it as ByChar */
+    | Action.ByChar
+    | Action.BySmart =>
+      /* Indent-level backspace: within the line's AUTO-INDENT width,
+         delete an indent unit (2 spaces) per press; spaces the user
+         typed beyond the indent are real material, one per press */
+      switch (d, leading_whitespace_context(z)) {
+      | (Left, Some((n, lb_id))) when n > 0 =>
+        let level =
+          Indentation.level_of(~target_id=lb_id, Zipper.unselect_and_zip(z));
+        let to_delete = n > level ? 1 : min(2, n);
+        let+ z = delete_spaces(to_delete, z);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      | _ => destruct_with_cleanup(d, z, ~root)
+      }
+    | Action.ByToken =>
+      if (d == Left && left_neighbor_is_whitespace(z)) {
+        let+ z = hungry_delete(z, false);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      } else {
+        let+ z = delete_token(d, z);
+        let z =
+          z
+          |> Insert.merge_or_noop(~root)
+          |> remold_regrout(d, ~root)
+          |> Insert.merge_or_noop(~root);
+        Zipper.rescan_reassemble(d, z, ~root);
+      }
+    }
   };
 };
+
+let go = (destruct: Action.destruct, z: t, ~root): option(t) =>
+  switch (destruct) {
+  | Local(d, chunk) => go_local(d, chunk, z, ~root)
+  | Line(Left) => delete_to_line_start(z, ~root)
+  | Line(Right) => None /* Not yet implemented */
+  };
