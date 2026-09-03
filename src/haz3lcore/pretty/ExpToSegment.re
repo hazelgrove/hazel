@@ -45,6 +45,7 @@ module Settings = {
     show_filters: bool,
     show_ascriptions: bool,
     show_unknown_as_hole: bool,
+    raise_if_padding: bool,
     /* Emit EmptyHole as an explicit "?" TILE instead of Grout — used by
        FastParse so a source `?` lands as the tile the typing parser
        would make, keeping explicit `?` holes distinct from Grout
@@ -68,6 +69,7 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
+    raise_if_padding: false,
     hole_tiles: false,
   };
 
@@ -84,6 +86,7 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
+      raise_if_padding: false,
       hole_tiles: false,
     };
   };
@@ -1102,11 +1105,21 @@ let mk_form =
    Segment.reassemble will group them into a single Aba match and fail
    with an out-of-order combined_shards assertion.
 
-   To prevent that, pad_ids now also ensures the returned list has:
+   To prevent that, pad_ids also ensures the returned list has:
    1. no duplicates within itself;
    2. no id equal to any id in [~forbidden]. */
 let pad_ids =
-    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
+    (
+      ~settings: Settings.t,
+      ~forbidden: list(Id.t)=[],
+      n: int,
+      ids: list(Id.t),
+    )
+    : list(Id.t) => {
+  let len = List.length(ids);
+  if (len < n && settings.raise_if_padding) {
+    raise(Failure("Padding required but not enough ids provided."));
+  };
   let forbidden_set = ref(Id.Set.of_list(forbidden));
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
@@ -1118,8 +1131,8 @@ let pad_ids =
       id;
     };
   let truncated =
-    if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => Id.mk());
+    if (len < n) {
+      ids @ List.init(n - len, _ => Id.mk());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
@@ -1219,6 +1232,7 @@ let project_table_if = (should_project, pieces) =>
 
 let rec drv_exp_to_pretty =
         (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
+  let pad_ids = pad_ids(~settings);
   let mk_form = mk_form(~secondary=settings.secondary);
   let go = (~inline=settings.inline, ~sort) =>
     drv_exp_to_pretty(
@@ -1703,6 +1717,7 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
+  let pad_ids = pad_ids(~settings);
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -2409,6 +2424,7 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
+  let pad_ids = pad_ids(~settings);
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
@@ -2587,6 +2603,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
+  let pad_ids = pad_ids(~settings);
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
@@ -2905,6 +2922,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let pad_ids = pad_ids(~settings);
   /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>

@@ -96,6 +96,11 @@
   color: white;
 }
 
+/* Display live typing part of type as green */
+.dynamic > .token.Typ {
+  color: green;
+}
+
 /* REFRACTOR MODE */
 /* When Type is used as a refractor (skip_inline=true), hide backing */
 .refractors .base .projector.statics > svg {

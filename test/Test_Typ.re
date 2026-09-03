@@ -195,5 +195,302 @@ let fast_equal_tests = (
     ),
   ],
 );
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
+let diff_tests = (
+  "Typ.diff",
+  [
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="diff identity",
+        ~count=1000,
+        QCheck_Util.arb_typ(~minimal_idents=true, 7),
+        typ =>
+        Typ.diff(typ, typ) == []
+      ),
+    ),
+    test_case(
+      "diff root different atom types",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on different atom types",
+          expected,
+          Typ.diff(int_typ, float_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different codomain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let arrow1 = Typ.fresh(Arrow(int_typ, int_typ));
+        let arrow2 = Typ.fresh(Arrow(int_typ, float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on arrows with different codomains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "diff list different element",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let list1 = Typ.fresh(List(int_typ));
+        let list2 = Typ.fresh(List(float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on lists with different elements",
+          expected,
+          Typ.diff(list1, list2),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different domain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let arrow1 = Typ.fresh(Arrow(int_typ, string_typ));
+        let arrow2 = Typ.fresh(Arrow(float_typ, string_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          list(testable_id),
+          "diff on arrows with different domains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "(Int, a) ~ (Int, String)",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let var_a = Typ.fresh(Var("a"));
+        let expected = [Typ.rep_id(string_typ)];
+        check(
+          list(testable_id),
+          "diff on (Int, a) ~ (Int, String)",
+          expected,
+          Typ.diff(
+            Typ.fresh(Prod([int_typ, var_a])),
+            Typ.fresh(Prod([int_typ, string_typ])),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "diff var different names",
+      `Quick,
+      () => {
+        let var1 = Typ.fresh(Var("x"));
+        let var2 = Typ.fresh(Var("y"));
+        let expected = [Typ.rep_id(var2)];
+        check(
+          list(testable_id),
+          "diff on vars with different names",
+          expected,
+          Typ.diff(var1, var2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with same tpat and type",
+      `Quick,
+      () => {
+        let tpat_x = TPat.fresh(Var("x"));
+        let var_x = Typ.fresh(Var("x"));
+        let rec1 = Typ.fresh(Rec(tpat_x, var_x));
+        let rec2 = Typ.fresh(Rec(tpat_x, var_x));
+        let expected = [];
+        check(
+          list(testable_id),
+          "diff on recursive types with same tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with different tpats",
+      `Quick,
+      () => {
+        let rec1 =
+          Typ.fresh(Rec(TPat.fresh(Var("x")), Typ.fresh(Var("x"))));
+        let tpat_y = TPat.fresh(Var("y"));
+        let var_y = Typ.fresh(Var("y"));
+        let rec2 = Typ.fresh(Rec(tpat_y, var_y));
 
-let tests = [meet_tests, fast_equal_tests];
+        let expected = [
+          TPat.rep_id(tpat_y),
+          Typ.rep_id(var_y),
+          Typ.rep_id(rec2),
+        ];
+        check(
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+    test_case(
+      "diff Var alias expanded on right side",
+      `Quick,
+      () => {
+        let ctx =
+          Ctx.extend_tvar(
+            Ctx.empty,
+            {
+              name: "MyList",
+              id: Id.mk(),
+              kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+            },
+          );
+        let static_typ = Typ.fresh(List(Typ.fresh(Atom(Atom.Int))));
+        let dynamic_typ = Typ.fresh(Var("MyList"));
+        check(
+          list(testable_id),
+          "alias on right expands to same type",
+          [],
+          Typ.diff(~ctx, static_typ, dynamic_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff Var alias on right with partial diff",
+      `Quick,
+      () => {
+        let ctx =
+          Ctx.extend_tvar(
+            Ctx.empty,
+            {
+              name: "Pair",
+              id: Id.mk(),
+              kind:
+                Singleton(
+                  Typ.fresh(
+                    Prod([
+                      Typ.fresh(Atom(Atom.Int)),
+                      Typ.fresh(Unknown(Internal)),
+                    ]),
+                  ),
+                ),
+            },
+          );
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let static_typ =
+          Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
+        let dynamic_typ = Typ.fresh(Var("Pair"));
+        let result = Typ.diff(~ctx, static_typ, dynamic_typ);
+        /* The Unknown in Pair's expansion differs from String */
+        check(
+          bool,
+          "alias expansion produces diff",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum missing constructor in dynamic",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let static_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("None", ann, None),
+              ConstructorMap.Variant(
+                "Some",
+                ann,
+                Some(Typ.fresh(Atom(Atom.Int))),
+              ),
+            ]),
+          );
+        let some_int = Typ.fresh(Atom(Atom.Int));
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([ConstructorMap.Variant("Some", ann, Some(some_int))]),
+          );
+        let result = Typ.diff(static_typ, dynamic_typ);
+        /* Dynamic is missing None, so entire dynamic Sum is different */
+        check(
+          bool,
+          "missing constructor marks all dynamic IDs",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum extra constructor in dynamic",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let ann_with_id = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let static_typ =
+          Typ.fresh(Sum([ConstructorMap.Variant("A", ann, None)]));
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann_with_id, None),
+            ]),
+          );
+        let result = Typ.diff(static_typ, dynamic_typ);
+        /* B is extra in dynamic — its variant_ann ID should be in the diff */
+        check(
+          bool,
+          "extra constructor produces diff",
+          true,
+          List.length(result) > 0,
+        );
+      },
+    ),
+    test_case(
+      "diff Sum same constructors no diff",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.empty_variant_ann;
+        let static_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann, None),
+            ]),
+          );
+        let dynamic_typ =
+          Typ.fresh(
+            Sum([
+              ConstructorMap.Variant("A", ann, None),
+              ConstructorMap.Variant("B", ann, None),
+            ]),
+          );
+        check(
+          list(testable_id),
+          "same constructors produce no diff",
+          [],
+          Typ.diff(static_typ, dynamic_typ),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [meet_tests, fast_equal_tests, diff_tests];

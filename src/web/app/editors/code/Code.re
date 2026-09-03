@@ -77,6 +77,7 @@ let whitespace_token =
 
 let view =
     (
+      ~classes=(_: Id.t) => [],
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
@@ -185,9 +186,14 @@ let view =
               ();
             | None => ()
             };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          let children =
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat;
+          switch (classes(t.id)) {
+          | [] => children
+          | clss => [span(~attrs=[Attr.classes(clss)], children)]
+          };
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
