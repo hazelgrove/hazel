@@ -30,10 +30,11 @@ window.HazelAlgebrite = {
 };
 
 let jscoqModulePromise = null;
+const webAssetUrl = path => new URL(path, document.baseURI).href;
 const loadJsCoq = async () => {
   if (!jscoqModulePromise) {
     const runtimeImport = new Function('specifier', 'return import(specifier)');
-    jscoqModulePromise = runtimeImport('/jscoq/jscoq.js');
+    jscoqModulePromise = runtimeImport(webAssetUrl('jscoq/jscoq.js'));
   }
   return jscoqModulePromise;
 };
@@ -125,9 +126,9 @@ window.HazelJSCoq = {
 
   jscoqPaths() {
     return {
-      jscoqBasePath: new URL('/jscoq/', window.location.href).href,
-      jscoqPkgPath: new URL('/jscoq/coq-pkgs/', window.location.href).href,
-      nodeModulesPath: new URL('/node_modules/', window.location.href).href,
+      jscoqBasePath: webAssetUrl('jscoq/'),
+      jscoqPkgPath: webAssetUrl('jscoq/coq-pkgs/'),
+      nodeModulesPath: webAssetUrl('node_modules/'),
     };
   },
 
