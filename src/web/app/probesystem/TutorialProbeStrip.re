@@ -70,34 +70,34 @@ let s39 = s20 @ [Legend];
 
 let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
-  | "TuGen_01ArithmeticAndHoles"
-  | "TuGen_02ParserAndBackpack" => s01
-  | "TuGen_03AddingAndRemovingProbes" => s03
-  | "TuGen_04EnvironmentExplorer"
-  | "TuGen_05TuplesAndRecords"
-  | "TuGen_07IfExpressions" => s04
-  | "TuGen_08CaseExpressions"
-  | "TuGen_09ConstructorsWithData" => s08
-  | "TuGen_10SamplesPerCall" => s10
-  | "TuGen_11AligningSamples" => s11
-  | "TuGen_12AutoProbe" => s12
-  | "TuGen_13ReadingBiggerValues"
-  | "TuGen_14Map"
-  | "TuGen_15Fold" => s13
-  | "TuGen_16Pin" => s16
-  | "TuGen_17StepInto" => s17
-  | "TuGen_20Print" => s20
-  | "TuGen_39ExtraSampleColors" => s39
+  | "TuGen_ArithmeticAndHoles"
+  | "TuGen_TheBackpack" => s01
+  | "TuGen_AddingAndRemovingProbes" => s03
+  | "TuGen_EnvironmentExplorer"
+  | "TuGen_TuplesAndRecords"
+  | "TuGen_IfExpressions" => s04
+  | "TuGen_CaseExpressions"
+  | "TuGen_ConstructorsWithData" => s08
+  | "TuGen_SamplesPerCall" => s10
+  | "TuGen_AligningSamples" => s11
+  | "TuGen_AutoProbe" => s12
+  | "TuGen_ReadingBiggerValues"
+  | "TuGen_Map"
+  | "TuGen_Fold" => s13
+  | "TuGen_PinningCalls" => s16
+  | "TuGen_SteppingIntoCalls" => s17
+  | "TuGen_PrintStatements" => s20
+  | "TuGen_BonusSampleColors" => s39
   /* Study task slides (26+): the full kit. */
-  | "TuGen_27TaskGroveName"
-  | "TuGen_26TaskDewLedger"
-  | "TuGen_34TaskGrowthPlotter"
-  | "TuGen_31TaskLogCleaner"
-  | "TuGen_30TaskPlantingBug"
-  | "TuGen_29TaskRunningSum"
-  | "TuGen_32TaskHarvestStreak"
-  | "TuGen_33TaskCropPlotter"
-  | "TuGen_28TaskWateringTimer" => s20
+  | "TuGen_TaskGroveName"
+  | "TuGen_TaskDewLedger"
+  | "TuGen_TaskGrowthPlotter"
+  | "TuGen_TaskLogCleaner"
+  | "TuGen_TaskPlantingBug"
+  | "TuGen_TaskRunningSum"
+  | "TuGen_TaskHarvestStreak"
+  | "TuGen_TaskCropPlotter"
+  | "TuGen_TaskWateringTimer" => s20
   /* Unlisted slides (the intro, text-only transitions) show no strip:
    * nothing has been introduced there. */
   | _ => []
@@ -109,17 +109,17 @@ let flags_of_slide = (module_name: string): list(feat) =>
  * "a toggle just appeared". */
 let new_flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
-  | "TuGen_01ArithmeticAndHoles" => [AddProbe]
-  | "TuGen_04EnvironmentExplorer" => [SeeVars]
-  | "TuGen_13ReadingBiggerValues" => [Resize, ExpandProbe]
-  | "TuGen_08CaseExpressions" => [IconEmpty]
-  | "TuGen_10SamplesPerCall" => [SamplesToggle, NavSamples]
-  | "TuGen_11AligningSamples" => [FocusProbe, IconOutsideFocus]
-  | "TuGen_12AutoProbe" => [AutoProbe]
-  | "TuGen_16Pin" => [Pin, IconPinHidden]
-  | "TuGen_17StepInto" => [StepInto]
-  | "TuGen_20Print" => [Console]
-  | "TuGen_39ExtraSampleColors" => [Legend]
+  | "TuGen_ArithmeticAndHoles" => [AddProbe]
+  | "TuGen_EnvironmentExplorer" => [SeeVars]
+  | "TuGen_ReadingBiggerValues" => [Resize, ExpandProbe]
+  | "TuGen_CaseExpressions" => [IconEmpty]
+  | "TuGen_SamplesPerCall" => [SamplesToggle, NavSamples]
+  | "TuGen_AligningSamples" => [FocusProbe, IconOutsideFocus]
+  | "TuGen_AutoProbe" => [AutoProbe]
+  | "TuGen_PinningCalls" => [Pin, IconPinHidden]
+  | "TuGen_SteppingIntoCalls" => [StepInto]
+  | "TuGen_PrintStatements" => [Console]
+  | "TuGen_BonusSampleColors" => [Legend]
   | _ => []
   };
 
@@ -152,19 +152,13 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
       ),
       div(
         ~attrs=[clss(["segmented-control"])],
-        [
-          segment("Off", Off),
-          segment("Caret", Caret),
-          segment("All", All),
-        ],
+        /* Caret (follow-the-cursor) mode still exists in the logic but is
+         * hidden from the toggle for now. */
+        [segment("Off", Off), segment("All", All)],
       ),
       div(
         ~attrs=[clss(["legend-tooltip"])],
-        [
-          text(
-            "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
-          ),
-        ],
+        [text("Off, or probe the whole program (All).")],
       ),
     ],
   );

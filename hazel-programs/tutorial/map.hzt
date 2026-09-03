@@ -2,15 +2,16 @@
 show_report version=1 id=b0000012-0012-0012-0012-000000000012
 
 @prompt
-A list holds many values of the same type, written `[a, b, c]`. The `map` built-in applies a function to each element. Write the function inline as an *anonymous function* with `fun`:
+A list holds a variable number of values of the same type, written `[a, b, c]`. `map` applies a function to each element. You can reference an existing function, or define a new one inline as an *anonymous function* with `fun`:
 ```hazelnostatics
 map([1, 2, 3], fun n -> n * 2)
 ```
 
 # Tasks
 
-1. Make `garden` the list of the four base waters: `250`, `180`, `50`, `200`. Once it is filled in, notice how the values now appear down the rest of the program.
+1. Complete `garden` as a list of the four base water amounts: `250`, `180`, `50`, `200`. Once it is filled in, note how the values now appear in the rest of the program.
 2. As you finish this next part, pause to watch the values update: give every plant its 50 ml new-moon top-up by mapping over `garden`, adding 50 to each.
+3. Click the sample at the end of the `map` line, then press **Space**: you get one sample per element, one for each run of your anonymous function.
 
 @hint
 A list is `[a, b, c, d]`. Then an anonymous function `fun w -> ...` that adds 50.
@@ -32,7 +33,7 @@ map([1, 2, 3], fun n -> n + 1)
 - `length(xs)` how many elements
 - `nth(xs, 0)` the element at an index
 - `filter(xs, fun x -> x > 100)` keeps the elements that pass
-- `mapi(xs, ...)` is map, but the callback's pair also carries the index. Which slot? Probe it and see.
+- `mapi(xs, ...)` is map, but the callback's pair also provides the index
 
 @hints
 garden should be [250, 180, 50, 200]

@@ -362,19 +362,13 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
             ),
             div(
               ~attrs=[clss(["segmented-control"])],
-              [
-                segment("Off", Off),
-                segment("Caret", Caret),
-                segment("All", All),
-              ],
+              /* Caret (follow-the-cursor) mode still exists in the logic
+               * but is hidden from the toggle for now. */
+              [segment("Off", Off), segment("All", All)],
             ),
             div(
               ~attrs=[clss(["legend-tooltip"])],
-              [
-                text(
-                  "Off, follow the cursor's definition (Caret), or probe the whole program (All).",
-                ),
-              ],
+              [text("Off, or probe the whole program (All).")],
             ),
           ],
         );

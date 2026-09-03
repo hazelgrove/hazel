@@ -1,0 +1,30 @@
+@flags
+wrapper show_report version=1 id=b0000008-0008-0008-0008-000000000008
+
+@prompt
+Probes inside function definitions collect one sample *per call*. The function defined below, `watering_amount`, calculates the amount of water a plant should receive. This function is called three times at the bottom of the program. By default probes show you values from one call at a time, but you can also opt to see more.
+
+# Tasks
+1. Probe the case expression: caret on the `case` token, **Cmd/Ctrl+E**. Notice the small count badge on the probe: it shows **3**, the number of samples this probe collected (one per call).
+2. The sample reads `220`, with arrows beside it. Step through the three calls with the arrows, or click the sample and use **←/→**.
+3. Press **Space** for *Many* mode to see all three at once; **Space** again to go back. Alternatively, click the **Samples** toggle in the sidebar. (A long value gets more room in one-at-a-time mode, so switching back is a quick way to see detail.)
+4. Finish the third call at the bottom (`watering_amount(50, Waning)`) so all three run. Type `Waning` slowly and watch the sample. The partial constructor is stuck in the case until completed.
+
+@hint
+Finish the third call: `watering_amount(50, Waning)`. Then probe the `case` and use ←/→.
+
+@code
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  case phase
+  | New => base + 50
+  | Full => base - 30
+  | _ => base
+  end
+in
+watering_amount(250, Full);
+watering_amount(180, New);
+watering_amount(50, ¿)
+
+@test
+test answer == 50 end

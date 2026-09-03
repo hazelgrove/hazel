@@ -7,11 +7,11 @@ A *sum type* lists a fixed set of constructors, separated by `+`s:
 type MoonPhase = New + Waxing + Full + Waning in "…"
 ```
 
-A `case` expression tries to match a value against a sequence of patterns. A wildcard `_` pattern matches anything.
+A `case` expression tries to match a value against a sequence of patterns. A wildcard `_` pattern matches any value.
 
 # Tasks
 
-1. To begin put a probe on each branch of the case expression: on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. (Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those paths never ran.)
+1. To begin, put a probe on each branch of the case expression: on the `+` in the `New` branch, on the `-` in the `Full` branch, on `base` in the last branch, and on the `case` itself. (Note that only the matching branch shows a value, and that the `case` itself takes on the value of that branch. The other branches show **∅**, meaning those branches were never evaluated). ∅ is different from ⊖: ∅ means no sample was ever collected in the whole run, while ⊖ means samples exist but come from another call. In general, whenever you expect samples somewhere and see an icon instead, hover over it, and it will tell you why nothing is shown.
 
 2. Try changing `Full` to `New` in the definition of `current_phase` and watch a different branch light up. Change it to `Waxing`, and then back to `Full`.
 

@@ -9,7 +9,7 @@ let x = expr in
 body
 ```
 
-Hazel's editor helps scaffold incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe show in the *backpack*, shown as a yellow box above the caret.
+Hazel's editor helps scaffold incomplete syntax. When you start a multi-token form like `let … = … in`, the tokens you still owe show in the *backpack*, shown as a yellow box above the caret. It brightens when the caret is somewhere the next owed token can go.
 
 # Tasks
 
@@ -28,6 +28,9 @@ a
 ### Backpack
 - `Tab` drops the next token
 - typing it (e.g. `in`) also works
+
+### Typing
+Tokens need a space between them: `inweekly` is one token, `in weekly` is two.
 
 @hints
 Build `let weekly = 250 * 7 in weekly`.

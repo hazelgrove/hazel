@@ -160,10 +160,12 @@ let starts_with_digit = (s: string): bool =>
     c >= '0' && c <= '9';
   };
 
-/* "01-holes" -> "01 - Holes"; a category token ("task"/"extra") right after
-   the number gets its own " - ": "26-task-grove-name" -> "26 - Task - Grove
-   Name". Directory segments become " / "-joined prefixes. */
-let is_category = (s: string): bool => s == "task" || s == "extra";
+/* "01-holes" -> "01 - Holes"; a category token ("task"/"extra"/"bonus"),
+   leading or right after a number, gets its own " - ": "task-grove-name" ->
+   "Task - Grove Name", "26-task-grove-name" -> "26 - Task - Grove Name".
+   Directory segments become " / "-joined prefixes. */
+let is_category = (s: string): bool =>
+  s == "task" || s == "extra" || s == "bonus";
 let cap_join = (words: list(string)): string =>
   words
   |> List.filter(w => w != "")
@@ -189,6 +191,9 @@ let title_of = (rel: string): string => {
       | [num, ...rest]
           when starts_with_digit(num) && List.exists(w => w != "", rest) =>
         num ++ " - " ++ cap_join(rest)
+      | [cat, ...rest]
+          when is_category(cat) && List.exists(w => w != "", rest) =>
+        String.capitalize_ascii(cat) ++ " - " ++ cap_join(rest)
       | _ => cap_words(last)
       };
     let prefix =

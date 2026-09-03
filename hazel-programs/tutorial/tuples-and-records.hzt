@@ -2,7 +2,7 @@
 show_report version=1 id=b0000005-0005-0005-0005-000000000005
 
 @prompt
-A *tuple* groups values: `("moonleaf", 250)`. Access its pieces by binding a destructuring pattern:
+A *tuple* groups values: `("moonleaf", 250)`. Access its pieces via a destructuring pattern:
 ```hazelnostatics
 let (name, water) = ("moonleaf", 250) in
 name
@@ -14,8 +14,8 @@ plant.water
 ```
 
 # Tasks
-1. Probe the program's result on the last line: caret on `(caption, fern.water)`, then **Cmd/Ctrl+E**. As you fill the holes below, this sample updates live, so you can watch your work take shape.
-2. Destructure `plant` apart into `name` and `water`, then build `caption` so it reads **"moonleaf needs 250ml"**. If you drop `water` straight into the caption it turns red; the error bar at the bottom of the screen says why (here, type `Int` is inconsistent with the expected type `String`). You'll need `string_of_int` to convert.
+1. Probe the program's result on the last line: caret on `(caption, fern.water)`, then **Cmd/Ctrl+E**. As you fill the holes below, this sample updates live.
+2. Destructure `plant` apart into `name` and `water` (the parentheses around the pattern are optional but suggested for clarity), then build `caption` so it reads **"moonleaf needs 250ml"**. Notice that if you insert `water` straight into the caption it turns red (try it); the error bar at the bottom of the screen says why (here, type `Int` is inconsistent with the expected type `String`). You'll need `string_of_int` to convert.
 3. Build a `"fern"` record: ferns need **200 ml** each watering. The result sample now shows its `water` too.
 
 @hint

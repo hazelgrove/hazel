@@ -1,0 +1,43 @@
+@flags
+wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
+
+@prompt
+`fold_left` combines a list into a single value, carrying a running accumulator from left to right:
+```hazelnostatics
+fold_left(list, fun (a, b) -> "..." , start)
+```
+Each step, the callback receives two things: the running value so far, and the next element from the list. Which parameter is which, `a` or `b`? We have forgotten. Rather than guess, check the probe samples to figure it out.
+
+# Tasks
+Total the garden's watering cans, starting from 0.
+
+1. Put `a` and `b` on their own lines, so a probe lands on each.
+2. One of these is an element of the list, the other is the **accumulator** (the running total). Can you tell which? 
+3. Finish the function so as to add up all the elements.
+4. Now delete the line breaks you added: the whole fold collapses to a single value at the end of its line. Then put them back from memory. When you see a one-line fold in the wild and want to see what's happening inside, remember this: a line break for each value you want to expose.
+
+@hint
+Break the callback across lines and read the probes: the one stepping through the cans' own values (`250`, `180`, ...) is the element; the other is the accumulator (rename it `acc` if you like). Add the current can to the accumulator.
+
+@reference
+### Fold
+```hazel
+fold_left(
+  [1, 2, 3],
+  fun (a, b) -> ?,
+  0
+)
+```
+Combines the list into one value, threading a running value through the callback. Probe the callback's two arguments to see which one carries it.
+
+@hints
+The watering cans total 680.
+
+@code
+let watering_cans = [250, 180, 50, 200] in
+fold_left(watering_cans, fun (a, b) ->
+¿
+, 0)
+
+@test
+test answer == 680 end

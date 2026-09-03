@@ -15,8 +15,11 @@ make dev
 ```
 
 Slide order is the order of the list in `src/tutorialslides/Slides.re`
-(filename sort by convention). **Adding, removing, or renaming a slide**
-means updating that list too — one `[%blob]` line per file.
+(filenames are unnumbered; the list is the only ordering). **Adding,
+removing, or renaming a slide** means updating that list too — one
+`[%blob]` line per file. Renaming also changes the slide's `module_name`,
+which keys the per-slide config tables (`TutorialSlideInit`,
+`TutorialProbeStrip`) — update those keys in the same pass.
 
 ## File format
 

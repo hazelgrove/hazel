@@ -2,10 +2,10 @@
 version=1 id=b0000003-0003-0003-0003-000000000003
 
 @prompt
-To keep things simple, each line of code has at most one probe. Adding a probe to a line removes any probe already on it. Other lines keep their own. You can toggle/remove a probe the same way you added it.
+To keep layout simple, each line of code has at most one probe. Adding a probe to a line removes any probe already on it. Other lines keep their own. You can toggle/remove a probe the same way you added it.
 
 # Tasks
-1. On the first line, probe `weekly`, then `125`, then the first `*`, then the second `*` (caret on each, **Cmd/Ctrl+E**). Each new probe replaces the one before; the green underline marks the probed expression.
+1. On the first line, probe `weekly`, then `125`, then the first `*`, then the second `*` (caret on each, **Cmd/Ctrl+E**). Each new probe replaces the one before; the green underline marks the probed expression. In bigger programs, when it's unclear what a probe is on, look for that underline.
 2. Now put the caret on the `+` on the last line and probe it. Your first-line probe stays put: the one-per-line rule only blocks a second probe on the *same* line, so different lines each keep their own.
 3. Remove that new probe the same way you added it: caret on it and **Cmd/Ctrl+E** again (or click its sample and press the same keys).
 

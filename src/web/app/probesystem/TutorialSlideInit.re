@@ -39,11 +39,11 @@ let none: t = {
 /* Per-slide table (keyed by module_name, mirroring flags_of_slide). Edit
  * these to give a slide its starting probe settings on entry.
  *
- * Policy: auto-probe is OFF for the basics (slides 01-12: not introduced
- * until 12, where the user turns it on), then ON (All, whole program) for the
- * slides after, so probes appear without manual placement. Cmd/Ctrl+P toggles
- * All; the Caret follow-the-cursor mode is a performance fallback, set via the
- * toggle and never pre-set here.
+ * Policy: auto-probe is OFF for the basics (not introduced until the
+ * auto-probe slide, where the user turns it on), then ON (All, whole
+ * program) for the slides after, so probes appear without manual placement.
+ * Cmd/Ctrl+P toggles All; the Caret follow-the-cursor mode is a performance
+ * fallback, currently hidden from the toggles and never pre-set here.
  *
  * SAMPLES WINDOW: every slide also starts in a deliberate window mode.
  * `samples` is always applied (default Single, see `apply`), so the mode
@@ -51,63 +51,72 @@ let none: t = {
  * (the calm, one-sample-at-a-time view); a slide opts into Many only when
  * its lesson needs several samples visible at once (a growing accumulator
  * column, "ten samples is a lot" motivating pin, before/after colors, etc.).
- * Study tasks (26+) always start Single: the participant switches if they
- * want to. Slide 10 stays Single on purpose -- that is where Many is first
- * introduced via Space, so toggling is the lesson.
+ * Task slides always start Single: the participant switches if they want
+ * to. Samples-per-call stays Single on purpose -- that is where Many is
+ * first introduced via Space, so toggling is the lesson.
  *
  * Overrides:
- *   - 20 Print: everything off, the print console is the focus -> Off
- *   - 39 (colors) also needs the Hybrid color scheme so colors show
- *     -> All + Hybrid + Many
+ *   - print-statements: everything off, the print console is the focus
+ *   - bonus-sample-colors also needs the Hybrid color scheme so colors
+ *     show -> All + Hybrid + Many
  * Slides not listed inherit auto-probe but start Single. */
 let of_slide = (module_name: string): t =>
   switch (module_name) {
-  /* Slides 01-10, 12: auto-probe off (not introduced until 12, where the
-   * user turns it on, so it starts off there too); single window. */
-  | "TuGen_01ArithmeticAndHoles"
-  | "TuGen_02ParserAndBackpack"
-  | "TuGen_03AddingAndRemovingProbes"
-  | "TuGen_04EnvironmentExplorer"
-  | "TuGen_05TuplesAndRecords"
-  | "TuGen_07IfExpressions"
-  | "TuGen_08CaseExpressions"
-  | "TuGen_09ConstructorsWithData"
-  | "TuGen_10SamplesPerCall"
-  | "TuGen_11AligningSamples"
-  | "TuGen_12AutoProbe" => {
+  /* Early slides through auto-probe: off (not introduced until the
+   * auto-probe slide, where the user turns it on themselves, so it starts
+   * off there too); single window. */
+  | "TuGen_ArithmeticAndHoles"
+  | "TuGen_TheBackpack"
+  | "TuGen_AddingAndRemovingProbes"
+  | "TuGen_EnvironmentExplorer"
+  | "TuGen_TuplesAndRecords"
+  | "TuGen_IfExpressions"
+  | "TuGen_CaseExpressions"
+  | "TuGen_ConstructorsWithData"
+  | "TuGen_SamplesPerCall"
+  | "TuGen_AligningSamples"
+  | "TuGen_AutoProbe" => {
       ...none,
       autoprobe: Some(Off),
     }
   /* Bigger values: one hand-placed probe with three calls, starting in
    * many mode so the squeeze (and the three remedies) is the lesson. */
-  | "TuGen_13ReadingBiggerValues" => {
+  | "TuGen_ReadingBiggerValues" => {
       ...none,
       autoprobe: Some(Off),
       samples: Some(Many),
     }
   /* Print: everything off so the print console is the focus. */
-  | "TuGen_20Print" => {
+  | "TuGen_PrintStatements" => {
       ...none,
       autoprobe: Some(Off),
     }
   /* Auto-probe introduced: All (whole program), single window. */
-  | "TuGen_14Map" => {
+  | "TuGen_Map" => {
       ...none,
       autoprobe: Some(All),
     }
   /* All + many window: each needs several samples visible at once --
-   * 15 the growing accumulator column, 16 the ten-samples-is-a-lot that
-   * motivates pin, 17 the per-iteration growth. */
-  | "TuGen_15Fold"
-  | "TuGen_16Pin"
-  | "TuGen_17StepInto" => {
+   * fold's growing accumulator column, pin's ten-samples-is-a-lot
+   * motivation. */
+  | "TuGen_Fold"
+  | "TuGen_PinningCalls" => {
       ...none,
       autoprobe: Some(All),
       samples: Some(Many),
     }
+  /* Step into: auto-probe OFF so its three effects are visible -- the user
+   * places the one probe by hand, and the multi probe that step-into adds
+   * is then observable rather than drowned by ambient auto-probes. Many
+   * window for reading the per-iteration fold values afterward. */
+  | "TuGen_SteppingIntoCalls" => {
+      ...none,
+      autoprobe: Some(Off),
+      samples: Some(Many),
+    }
   /* Colors slide: All + Hybrid scheme + many so the before/after color
    * relationships between sibling samples are visible. */
-  | "TuGen_39ExtraSampleColors" => {
+  | "TuGen_BonusSampleColors" => {
       autoprobe: Some(All),
       colors: Some(Hybrid),
       samples: Some(Many),
@@ -116,18 +125,18 @@ let of_slide = (module_name: string): t =>
    * while building); debugging tasks start Off so the probing strategy is
    * the participant's own choice. All tasks start in the single window;
    * the participant switches to many if they want it. */
-  | "TuGen_27TaskGroveName"
-  | "TuGen_31TaskLogCleaner"
-  | "TuGen_29TaskRunningSum"
-  | "TuGen_33TaskCropPlotter" => {
+  | "TuGen_TaskGroveName"
+  | "TuGen_TaskLogCleaner"
+  | "TuGen_TaskRunningSum"
+  | "TuGen_TaskCropPlotter" => {
       ...none,
       autoprobe: Some(All),
     }
-  | "TuGen_26TaskDewLedger"
-  | "TuGen_34TaskGrowthPlotter"
-  | "TuGen_30TaskPlantingBug"
-  | "TuGen_32TaskHarvestStreak"
-  | "TuGen_28TaskWateringTimer" => {
+  | "TuGen_TaskDewLedger"
+  | "TuGen_TaskGrowthPlotter"
+  | "TuGen_TaskPlantingBug"
+  | "TuGen_TaskHarvestStreak"
+  | "TuGen_TaskWateringTimer" => {
       ...none,
       autoprobe: Some(Off),
     }
