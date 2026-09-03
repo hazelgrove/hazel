@@ -99,13 +99,13 @@ let section =
     (~globals: Globals.t, title: string, fields: unit => list(Node.t))
     : list(Node.t) => {
   let collapsed =
-    SidebarModel.Settings.is_debug_collapsed(title, globals.settings.sidebar);
+    !SidebarModel.Settings.is_debug_expanded(title, globals.settings.sidebar);
   let title_node =
     div(
       ~attrs=[
         clss(["debug-section-title"]),
         Attr.on_click(_ =>
-          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(title))))
+          globals.inject_global(Set(Sidebar(ToggleDebugExpanded(title))))
         ),
       ],
       [
@@ -156,13 +156,13 @@ let field_collapsible =
     )
     : Node.t => {
   let collapsed =
-    SidebarModel.Settings.is_debug_collapsed(label, globals.settings.sidebar);
+    !SidebarModel.Settings.is_debug_expanded(label, globals.settings.sidebar);
   let chevron =
     span(
       ~attrs=[
         clss(["debug-field-chevron"]),
         Attr.on_click(_ =>
-          globals.inject_global(Set(Sidebar(ToggleDebugCollapsed(label))))
+          globals.inject_global(Set(Sidebar(ToggleDebugExpanded(label))))
         ),
       ],
       [text(collapsed ? {|▸|} : {|▾|})],
@@ -756,7 +756,11 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             };
           /* Metrics render regardless of cursor state. */
           cursor_sections
-          @ render_section((module WorkerMessagingSection), ~globals);
+          @ render_section((module WorkerMessagingSection), ~globals)
+          @ render_section((module EvaluationSection), ~globals)
+          @ render_section((module StaticsSection), ~globals)
+          @ render_section((module EditorSection), ~globals)
+          @ render_section((module FrameSection), ~globals);
         },
       ),
     ],

@@ -11,25 +11,18 @@ open Js_of_ocaml;
  * the encoded size is reported by the encoding itself. Results feed the Worker
  * Messaging table in DebugSidebar.
  *
- * Everything runs on the main thread; nothing crosses to the worker. Gated by
- * `enabled` (synced from settings in Page.Update.calculate via `sync`) so
- * normal editing pays nothing. */
-
-let enabled = ref(false);
+ * Everything runs on the main thread; nothing crosses to the worker. Gating and
+ * the bounded history come from Metrics.Make, so normal editing pays nothing and
+ * no call site tests whether the panel is open. */
 
 /* Encodings the user has turned on in the panel (WorkerServer.encoding). Only
    enabled encodings are measured, so e.g. the slow sexp encoding can be
-   skipped. */
+   skipped. Synced from settings alongside `sync`, once per update cycle from
+   Page.Update.calculate (the only place with the full app settings in scope). */
 let enabled_encodings: ref(list(WorkerServer.encoding)) = ref([]);
 
-/* Sync the gating flags from settings; called once per update cycle from
-   Page.Update.calculate (the only place with the full app settings in scope). */
-let sync =
-    (~enabled as is_enabled: bool, ~encodings: list(WorkerServer.encoding))
-    : unit => {
-  enabled := is_enabled;
+let set_encodings = (encodings: list(WorkerServer.encoding)): unit =>
   enabled_encodings := encodings;
-};
 
 let active_encodings = (): list(WorkerServer.encoding) =>
   List.filter(
@@ -50,20 +43,16 @@ type dir_metric = {
 };
 
 type record = {
-  id: int,
+  id: int, /* the request id, shared with the Evaluation panel */
   entries: int, /* length of the original request/response list */
   request: list(dir_metric),
   response: list(dir_metric),
 };
 
-let history_limit = 10;
-let history: ref(list(record)) = ref([]); /* newest first */
-
-let id_counter = ref(0);
-let next_id = (): int => {
-  incr(id_counter);
-  id_counter^;
-};
+include Metrics.Make({
+  type t = record;
+  let limit = 10;
+});
 
 /* structuredClone: the serializer postMessage applies to its argument. */
 let clone_fn =
@@ -71,12 +60,7 @@ let clone_fn =
 let structured_clone: 'a. 'a => 'a =
   x => Js.Unsafe.fun_call(clone_fn, [|Js.Unsafe.inject(x)|]);
 
-let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
-  f => {
-    let t0 = Util.JsUtil.precise_timestamp();
-    let x = f();
-    (Core.Time_ns.Span.of_ms(Util.JsUtil.precise_timestamp() -. t0), x);
-  };
+let timed = Util.TimeUtil.timed;
 
 /* Measure encode -> size -> structuredClone -> decode for one direction. Each
  * stage that completes records its value; the first stage to throw sets `error`
@@ -122,55 +106,51 @@ let measure:
     };
   };
 
-let push = (r: record): unit =>
-  history := [r, ...Util.ListUtil.take(history_limit - 1, history^)];
-
-let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit => {
-  let request =
-    List.map(
-      (e: WorkerServer.encoding) => {
-        module M = (val WorkerServer.module_of_encoding(e));
-        measure(
-          ~encoding=e,
-          ~encode=() => M.encode_request(msg),
-          ~size=M.size_request,
-          ~decode=M.decode_request,
-        );
-      },
-      active_encodings(),
-    );
-  let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
-  push({
-    id,
-    entries: List.length(batch),
-    request,
-    response: [],
+let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
+  when_enabled(() => {
+    let request =
+      List.map(
+        (e: WorkerServer.encoding) => {
+          module M = (val WorkerServer.module_of_encoding(e));
+          measure(
+            ~encoding=e,
+            ~encode=() => M.encode_request(msg),
+            ~size=M.size_request,
+            ~decode=M.decode_request,
+          );
+        },
+        active_encodings(),
+      );
+    let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
+    push({
+      id,
+      entries: List.length(batch),
+      request,
+      response: [],
+    });
   });
-};
 
-let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit => {
-  let response =
-    List.map(
-      (e: WorkerServer.encoding) => {
-        module M = (val WorkerServer.module_of_encoding(e));
-        measure(
-          ~encoding=e,
-          ~encode=() => M.encode_response(resp),
-          ~size=M.size_response,
-          ~decode=M.decode_response,
-        );
-      },
-      active_encodings(),
-    );
-  history :=
-    List.map(
+let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit =>
+  when_enabled(() => {
+    let response =
+      List.map(
+        (e: WorkerServer.encoding) => {
+          module M = (val WorkerServer.module_of_encoding(e));
+          measure(
+            ~encoding=e,
+            ~encode=() => M.encode_response(resp),
+            ~size=M.size_response,
+            ~decode=M.decode_response,
+          );
+        },
+        active_encodings(),
+      );
+    update(
+      (r: record) => r.id == id,
       (r: record) =>
-        r.id == id
-          ? {
-            ...r,
-            response,
-          }
-          : r,
-      history^,
+        {
+          ...r,
+          response,
+        },
     );
-};
+  });

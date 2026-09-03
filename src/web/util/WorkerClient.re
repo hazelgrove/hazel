@@ -21,10 +21,6 @@ type latest = {
   request: Request.t,
   callbacks,
   ack_retries: int,
-  /* Correlates this request with its WorkerMetrics record (None when
-   * metrics are off) so the response-side benchmark lands on the row
-   * the request-side benchmark created. */
-  metrics_id: option(int),
 };
 
 let next_request_id = ref(0);
@@ -58,15 +54,20 @@ let with_latest = (request_id, f) =>
 
 /* Both directions cross postMessage in the Active encoding, not as live
  * values, to dodge the structured-clone overflow on deep results (#2368;
- * see WorkerServer.Active). Callers still deal in Request.t/Response.t. */
-let post_evaluate = (worker, request: Request.t) =>
-  worker##postMessage(
-    Active.encode_request(ClientMessage.Evaluate(request)),
-  );
+ * see WorkerServer.Active). Callers still deal in Request.t/Response.t.
+ *
+ * Encodes once: the Evaluation panel needs the posted byte length, and records
+ * the send here so its latency clock starts as close to the post as it can. */
+let post_evaluate = (worker, request: Request.t) => {
+  let encoded = Active.encode_request(ClientMessage.Evaluate(request));
+  EvalMetrics.record_sent(~request, ~encoded);
+  worker##postMessage(encoded);
+};
 
 let fail_latest = latest => {
   clear_timeouts();
   latest_request := None;
+  EvalMetrics.record_timeout(~id=latest.request.request_id);
   latest.callbacks.on_timeout(latest.request.batch);
 };
 
@@ -83,6 +84,8 @@ let cancel = (): unit => {
 let setup_worker_message_handler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
+      /* Stop the latency clock first thing, before any decode/benchmark. */
+      let now = Util.JsUtil.precise_timestamp();
       switch (Active.decode_response(evt##.data)) {
       | ServerMessage.Ack({request_id}) =>
         /* Liveness only — reuse tinting arrives next via ReusePlan. */
@@ -93,19 +96,17 @@ let setup_worker_message_handler = worker => {
         with_latest(request_id, latest =>
           latest.callbacks.on_stream(key, update)
         )
-      | ServerMessage.Result({request_id, response}) as msg =>
+      | ServerMessage.Result(result) as msg =>
         with_latest(
-          request_id,
+          result.request_id,
           latest => {
             clear_timeouts();
             latest_request := None;
             /* Hand the result off first; benchmarking the other encodings
              * can take tens of ms and must not delay evaluation latency. */
-            latest.callbacks.on_result(response);
-            switch (latest.metrics_id) {
-            | Some(id) => WorkerMetrics.record_response(id, msg)
-            | None => ()
-            };
+            latest.callbacks.on_result(result.response);
+            WorkerMetrics.record_response(result.request_id, msg);
+            EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
         )
       };
@@ -136,6 +137,7 @@ let get_worker = () =>
   };
 
 let restart_worker = (): unit => {
+  EvalMetrics.incr_restarts();
   switch (worker_ref.contents) {
   | Some(w) => w##terminate
   | None => ()
@@ -207,27 +209,19 @@ let request =
   | _ =>
     clear_timeouts();
     next_request_id := next_request_id^ + 1;
-    /* When metrics are on, tag this request so the response can be
-     * correlated, and benchmark the request-side encodings before posting. */
-    let metrics_id =
-      if (WorkerMetrics.enabled^) {
-        let id = WorkerMetrics.next_id();
-        WorkerMetrics.record_request(
-          id,
-          ClientMessage.Evaluate({
-            request_id: next_request_id^,
-            batch,
-          }),
-        );
-        Some(id);
-      } else {
-        None;
-      };
+    let request: Request.t = {
+      request_id: next_request_id^,
+      batch,
+    };
+    /* The request id doubles as the metrics row id, so the two panels correlate.
+     * Benchmarking the request-side encodings happens before the post, keeping
+     * that (heavy) work outside the latency clock. */
+    WorkerMetrics.record_request(
+      request.request_id,
+      ClientMessage.Evaluate(request),
+    );
     let latest = {
-      request: {
-        request_id: next_request_id^,
-        batch,
-      },
+      request,
       callbacks: {
         on_result,
         on_timeout,
@@ -235,7 +229,6 @@ let request =
         on_stream,
       },
       ack_retries: 0,
-      metrics_id,
     };
     latest_request := Some(latest);
     post_evaluate(get_worker(), latest.request);

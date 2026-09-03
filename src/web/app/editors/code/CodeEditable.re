@@ -21,12 +21,14 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
-      Editor.Update.update(
-        ~settings=settings.core,
-        action,
-        model.statics,
-        model.dynamics,
-        model.editor,
+      PerfMetrics.time_perform(~action, () =>
+        Editor.Update.update(
+          ~settings=settings.core,
+          action,
+          model.statics,
+          model.dynamics,
+          model.editor,
+        )
       )
       |> (
         fun

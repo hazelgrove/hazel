@@ -89,11 +89,6 @@ module Model = {
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
 };
 
-type statics_mode =
-  | StaticsNormal
-  | StaticsDefer
-  | StaticsForce;
-
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
 module StaticsDebounce = {
@@ -103,7 +98,7 @@ module StaticsDebounce = {
 
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
     if (is_edited && debounce_ms > 0.0) {
@@ -121,11 +116,11 @@ module StaticsDebounce = {
             debounce_ms,
           ),
         );
-      StaticsDefer;
+      Defer;
     } else if (force_now) {
-      StaticsForce;
+      Force;
     } else {
-      StaticsNormal;
+      Normal;
     };
   };
 };
@@ -140,7 +135,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=false,
         ~is_edited,
-        ~statics_mode=StaticsNormal,
+        ~statics_mode: StaticsMode.t=Normal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -152,28 +147,42 @@ module Update = {
     /* Throttle gate: decide whether to do a full statics recompute this
      * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
      * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let recompute =
+      statics_mode == StaticsMode.Force
+      || is_edited
+      && statics_mode != StaticsMode.Defer;
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
+      recompute
+        ? PerfMetrics.time_statics(() =>
+            CachedStatics.init(
+              ~settings,
+              ~stitch,
+              ~ctx?,
+              ~ana?,
+              ~is_dynamic_term,
+              ~root=editor.root,
+              editor.state.zipper,
+            )
           )
         : statics;
+    PerfMetrics.record_statics_counts(
+      ~recompute,
+      ~mode=statics_mode,
+      statics,
+    );
 
     let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
+      PerfMetrics.time_syntax(() =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
       );
+    PerfMetrics.record_syntax_counts(editor.syntax);
 
     /* Refresh `statics.targets` against the post-probe-effects refractors.
      * Cheap O(|probe_ids|) fold; only this field depends on refractors, so

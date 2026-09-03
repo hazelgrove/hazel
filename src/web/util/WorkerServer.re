@@ -72,6 +72,12 @@ module ServerMessage = {
   type result = {
     request_id: int,
     response: Response.t,
+    /* Time the worker spent inside the evaluator for this batch, so the
+     * Evaluation panel can separate evaluation from the queue + result
+     * serialization + transfer that the client's round trip also covers.
+     * A TimeUtil.span rather than a Core one so the derived converters resolve;
+     * see TimeUtil. */
+    eval_time: TimeUtil.span,
   };
 
   [@deriving (show, sexp, yojson)]
@@ -299,6 +305,19 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   (key, stream);
 };
 
+/* Evaluator time accumulated for the request in flight, reported back in the
+ * result. Timed unconditionally — the worker cannot see whether the Evaluation
+ * panel is open, and two clock reads per slice (5000 trampoline steps) is noise
+ * against the slice itself. */
+let eval_total = ref(Core.Time_ns.Span.zero);
+
+let timed_eval: 'a. (unit => 'a) => 'a =
+  f => {
+    let (span, x) = TimeUtil.timed(f);
+    eval_total := Core.Time_ns.Span.(eval_total^ + span);
+    x;
+  };
+
 let start_evaluation = (req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
@@ -333,6 +352,7 @@ let post_batch_result = (model, request_id, completed) =>
       ServerMessage.Result({
         request_id,
         response: List.rev(completed),
+        eval_time: eval_total^,
       }),
     );
   };
@@ -391,7 +411,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (start_evaluation(req_value)) {
+    switch (timed_eval(() => start_evaluation(req_value))) {
     | CompletedImmediately(response) =>
       evaluate_next_batch_item(
         model,
@@ -456,9 +476,11 @@ and run_scheduled_slice = model => {
     plan_latest_batch(model)
   | Running(running) =>
     switch (
-      Language.Evaluator.run_yielding_slice(
-        ~step_budget=slice_step_budget,
-        running.evaluation,
+      timed_eval(() =>
+        Language.Evaluator.run_yielding_slice(
+          ~step_budget=slice_step_budget,
+          running.evaluation,
+        )
       )
     ) {
     | exception exn =>
@@ -521,6 +543,7 @@ let install_message_handler = () => {
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
     post_ack(request);
+    eval_total := Core.Time_ns.Span.zero;
     commit({
       ...model^,
       latest_request: Some(request),

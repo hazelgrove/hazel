@@ -394,80 +394,93 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
-       the WorkerClient.request call sites); only run when the panel is open. */
+    /* Sync debug-panel gating here (settings aren't reachable at the
+       WorkerClient.request call sites nor the per-frame instrumentation sites);
+       each collector only runs while its panel is open. */
+    let sidebar = model.globals.settings.sidebar;
+    let debug_panel_open = title =>
+      model.globals.settings.show_debug_panel
+      && SidebarModel.Settings.is_debug_expanded(title, sidebar);
     WorkerMetrics.sync(
-      ~enabled=
-        model.globals.settings.show_debug_panel
-        && !
-             SidebarModel.Settings.is_debug_collapsed(
-               WorkerMessagingSection.title,
-               model.globals.settings.sidebar,
-             ),
-      ~encodings=model.globals.settings.sidebar.worker_encodings,
+      ~enabled=debug_panel_open(WorkerMessagingSection.title),
     );
-    let editors =
-      Editors.Update.calculate(
-        ~settings=
-          dynamics
-            ? model.globals.settings.core
-            : {
-              ...model.globals.settings.core,
-              dynamics: false,
-            },
-        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-        ~schedule_action=a => schedule_action(Editors(a)),
-        ~is_edited,
-        model.editors,
-      );
-    /* Compute cursor info against the POST-calculate editors: some modes
-       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
-       stitched `cells` during calculate, not during update. Reading cursor
-       info from `model.editors` (pre-calculate) would see stale cell state
-       and yield the wrong ExplainThis highlights for a click/move-only
-       action, which doesn't trigger a full statics rebuild. */
-    let cursor_info =
-      Editors.Selection.get_cursor_info(
-        ~inject=_ => Ui_effect.Ignore,
-        ~selection=model.selection,
-        editors,
-      );
-    /* When the user's cursor is inside a derivation tree cell, the
-       deduction-specific highlight map takes precedence over the generic
-       ExplainThis one. We consult the live selection here (rather than
-       Editors.Model.get_derivation_info, which reads the stale `model.pos`
-       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation.
+    WorkerMetrics.set_encodings(sidebar.worker_encodings);
+    EvalMetrics.sync(~enabled=debug_panel_open(EvaluationSection.title));
+    PerfMetrics.sync(
+      ~enabled=
+        debug_panel_open(StaticsSection.title)
+        || debug_panel_open(EditorSection.title)
+        || debug_panel_open(FrameSection.title),
+    );
+    /* Everything below is one frame for the telemetry panels. */
+    PerfMetrics.time_frame(() => {
+      let editors =
+        Editors.Update.calculate(
+          ~settings=
+            dynamics
+              ? model.globals.settings.core
+              : {
+                ...model.globals.settings.core,
+                dynamics: false,
+              },
+          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~schedule_action=a => schedule_action(Editors(a)),
+          ~is_edited,
+          model.editors,
+        );
+      /* Compute cursor info against the POST-calculate editors: some modes
+         (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+         stitched `cells` during calculate, not during update. Reading cursor
+         info from `model.editors` (pre-calculate) would see stale cell state
+         and yield the wrong ExplainThis highlights for a click/move-only
+         action, which doesn't trigger a full statics rebuild. */
+      let cursor_info =
+        PerfMetrics.time_cursor(() =>
+          Editors.Selection.get_cursor_info(
+            ~inject=_ => Ui_effect.Ignore,
+            ~selection=model.selection,
+            editors,
+          )
+        );
+      /* When the user's cursor is inside a derivation tree cell, the
+         deduction-specific highlight map takes precedence over the generic
+         ExplainThis one. We consult the live selection here (rather than
+         Editors.Model.get_derivation_info, which reads the stale `model.pos`
+         inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+         get misclassified as focus on the derivation.
 
-       Only the winning map is computed. Each of these runs the whole of
-       ExplainThis.decide, so computing the generic one unconditionally and then
-       discarding it cost a full pass on every frame with a derivation focused. */
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
+         Only the winning map is computed. Each of these runs the whole of
+         ExplainThis.decide, so computing the generic one unconditionally and then
+         discarding it cost a full pass on every frame with a derivation focused. */
+      let derivation_info =
+        Editors.Selection.get_derivation_info(
+          ~selection=model.selection,
+          editors,
+        );
+      let color_highlights =
+        PerfMetrics.time_colors(() =>
+          switch (derivation_info) {
+          | Some(_) =>
+            ExplainThis.get_color_map_deduction(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              derivation_info,
+            )
+          | None =>
+            ExplainThis.get_color_map(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              cursor_info.info,
+            )
+          }
+        );
+      let globals = Globals.Update.calculate(color_highlights, model.globals);
+      {
+        ...model,
+        globals,
         editors,
-      );
-    let color_highlights =
-      switch (derivation_info) {
-      | Some(_) =>
-        ExplainThis.get_color_map_deduction(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          derivation_info,
-        )
-      | None =>
-        ExplainThis.get_color_map(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          cursor_info.info,
-        )
       };
-    let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    });
   };
 };
 
