@@ -97,6 +97,7 @@ type atomic_form =
   | DrvVar
   | ExplicitHole
   | ImplicitHoleMarker
+  | ConcaveHoleMarker
   | LLMHole
   | Wild
   | String
@@ -660,6 +661,19 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+    )
+  /* the concave-grout marker is an OPERATOR hole: it molds as a bin
+     at grout precedence, so the typing parse of `1 ⧖ 2` needs no
+     extra grout and stripping the tile leaves exactly the concave
+     grout it stands for */
+  | ConcaveHoleMarker => (
+      Token.is_concave_hole_marker,
+      [
+        Mold.mk_bin(Precedence.concave_grout, Exp, []),
+        Mold.mk_bin(Precedence.concave_grout, Pat, []),
+        Mold.mk_bin(Precedence.concave_grout, Typ, []),
+        Mold.mk_bin(Precedence.concave_grout, TPat, []),
+      ],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
