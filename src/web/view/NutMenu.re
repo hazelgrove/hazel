@@ -182,6 +182,12 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Show elaborated (internal) expressions"),
       },
       {
+        name: "Action Explorer",
+        active: globals.settings.show_action_explorer,
+        setting: ToggleActionExplorer,
+        tooltip: Some("Show action explorer for coding agent"),
+      },
+      {
         name: "Probe All",
         active: globals.settings.core.probe_all,
         setting: ProbeAll,

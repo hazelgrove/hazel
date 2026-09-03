@@ -152,9 +152,27 @@ let execute_one_tool_call =
           chat_id,
         );
       let success_message =
-        "The "
-        ++ tool_call.name
-        ++ " tool call was successful and has been applied to the model.";
+        switch (action) {
+        | ReadAction(read_action) =>
+          /* Read actions: the result content is the message */
+          let z = cell_editor.editor.editor.state.zipper;
+          switch (CompositionGo.Public.read_dispatch(~action=read_action, ~z)) {
+          | Ok(content) => content
+          | Error(_) =>
+            "The " ++ tool_call.name ++ " tool call encountered an error."
+          };
+        | _ =>
+          let base_msg =
+            "The "
+            ++ tool_call.name
+            ++ " tool call was successful and has been applied to the model.";
+          switch (CompositionGo.Public.last_warning^) {
+          | Some(warning) =>
+            CompositionGo.Public.last_warning := None;
+            base_msg ++ "\n" ++ warning;
+          | None => base_msg
+          };
+        };
       let (before_segment, after_segment) =
         mk_segment_snapshots(
           ~old_editor=cell_editor.editor.editor,
