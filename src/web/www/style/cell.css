@@ -281,6 +281,47 @@
   margin-bottom: 0;
 }
 
+/* Match the heading colors used elsewhere in Hazel (e.g. .slide h1,
+   .hsod-body h1) instead of the browser-default near-black/gray.
+   Sizes are scaled below the .title-cell .title-text (1.5rem) so the
+   tutorial title stays the largest text on the page. */
+.prompt-content h1,
+.prompt-content h2,
+.prompt-content h3,
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h1,
+.task-reference-panel h2,
+.task-reference-panel h3,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  color: var(--BR4);
+  font-family: var(--ui-font);
+}
+
+.prompt-content h1,
+.task-reference-panel h1 {
+  font-size: 1.3rem;
+}
+.prompt-content h2,
+.task-reference-panel h2 {
+  font-size: 1.15rem;
+}
+.prompt-content h3,
+.task-reference-panel h3 {
+  font-size: 1.05rem;
+}
+.prompt-content h4,
+.prompt-content h5,
+.prompt-content h6,
+.task-reference-panel h4,
+.task-reference-panel h5,
+.task-reference-panel h6 {
+  font-size: 1rem;
+}
+
 #main.Tutorial .cell:has(.code-editor.selected),
 #main.Exercises .cell:has(.code-editor.selected),
 #main.Derivations .cell:has(.code-editor.selected) {

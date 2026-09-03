@@ -44,6 +44,7 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
+  task_reference: string,
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
@@ -73,6 +74,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     module_name: p.module_name,
     prompt: p.prompt,
     display_hint: p.display_hint,
+    task_reference: p.task_reference,
     your_impl: f(p.your_impl),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
@@ -120,6 +122,66 @@ let editor_positions = [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
+
+let pos_of_idx = (idx: int) =>
+  switch (idx) {
+  | 0 => YourImpl
+  | _ =>
+    if (idx < 0) {
+      failwith("negative idx");
+    } else if (idx == 1) {
+      HiddenTests;
+    } else {
+      failwith("element idx");
+    }
+  };
+
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
+
+let eds_of_spec =
+    (
+      {
+        id,
+        title,
+        version,
+        module_name,
+        prompt,
+        your_impl,
+        display_hint,
+        task_reference,
+        hidden_tests,
+        wrapper,
+        show_report,
+      },
+      ~settings as _: Language.CoreSettings.t,
+    ) => {
+  let editor_of_serialization = Editor.Model.mk;
+  let your_impl = editor_of_serialization(your_impl);
+  let hidden_tests = {
+    let {tests, hints} = hidden_tests;
+    let tests = editor_of_serialization(tests);
+    {
+      tests,
+      hints,
+    };
+  };
+  {
+    id,
+    title,
+    version,
+    module_name,
+    prompt,
+    display_hint,
+    task_reference,
+    your_impl,
+    hidden_tests,
+    wrapper,
+    show_report,
+  };
+};
 
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
@@ -281,6 +343,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     module_name: spec.module_name,
     prompt: spec.prompt,
     display_hint: spec.display_hint,
+    task_reference: spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
     your_impl,
