@@ -81,7 +81,7 @@ let read_file = (file, k) => {
     Dom.handler(_ => {
       let result = reader##.result;
       let option = Js.Opt.to_option(File.CoerceTo.string(result));
-      let data = Option.map(Js.to_string, option);
+      let data = Option.map(~f=Js.to_string, option);
       k(data);
       Js._true;
     });
@@ -295,7 +295,7 @@ let find_ancestor_with_class =
 };
 
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
-  if (delta != 0.) {
+  if (Float.(delta != 0.)) {
     let current = float_of_int(container##.scrollTop);
     let target = current +. delta;
     container##.scrollTop := int_of_float(target);
@@ -311,12 +311,12 @@ let scroll_vertically_into_view =
   let margin_px =
     Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
   let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
-  if (top_gap < 0.) {
+  if (Float.(top_gap < 0.)) {
     adjust_scroll(container, top_gap);
   } else {
     let bottom_gap =
       el_rect##.bottom -. (container_rect##.bottom -. margin_px);
-    if (bottom_gap > 0.) {
+    if (Float.(bottom_gap > 0.)) {
       adjust_scroll(container, bottom_gap);
     };
   };
@@ -347,7 +347,7 @@ module Fragment = {
       | Https({hu_fragment: str, _})
       | File({fu_fragment: str, _}) => str
       };
-    Url.Current.get() |> Option.map(fragment_of_url);
+    Url.Current.get() |> Option.map(~f=fragment_of_url);
   };
 };
 
@@ -428,7 +428,7 @@ let setup_focus_bar_scroll_compensation = () =>
           last_height := new_height;
           let scroll_top: float =
             Js.Unsafe.get(main, Js.string("scrollTop"));
-          if (delta != 0.0 && scroll_top > 0.0) {
+          if (Float.(delta != 0.0) && Float.(scroll_top > 0.0)) {
             Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
           };
         });
@@ -446,7 +446,7 @@ let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(
     Dom_html.window##prompt(Js.string(message), Js.string(default)),
   )
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Measure actual font metrics from the #font-specimen element.
@@ -455,8 +455,8 @@ let font_metrics_from_specimen = (): (float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    let col_width = Float.max(1.0, rect##.right -. rect##.left);
+    let row_height = Float.max(1.0, rect##.bottom -. rect##.top);
     (col_width, row_height);
   | None => (10.0, 10.0)
   };
@@ -470,7 +470,7 @@ let on_dpr_change = (callback: unit => unit): unit => {
       Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
       |> Js.float_of_number
       |> Js.to_float;
-    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let query = Stdlib.Printf.sprintf("(resolution: %fdppx)", dpr);
     let mql =
       Js.Unsafe.meth_call(
         Dom_html.window,
@@ -526,8 +526,10 @@ module QueryParams = {
   let get_param = (name: string): option(string) => {
     let q_opt =
       Url.Current.get()
-      |> Option.map(url =>
-           url |> get_arguments |> List.find_opt(((k, _)) => k == name)
+      |> Option.map(~f=url =>
+           url
+           |> get_arguments
+           |> List.find(~f=((k, _)) => String.equal(k, name))
          );
     switch (q_opt) {
     | Some(Some((_, v))) => Some(v)
@@ -537,10 +539,10 @@ module QueryParams = {
 
   let set_param = (name: string, value: string) => {
     Url.Current.get()
-    |> Option.iter(url => {
+    |> Option.iter(~f=url => {
          let args =
            get_arguments(url)
-           |> List.filter(((k, _)) => k != name)
+           |> List.filter(~f=((k, _)) => !String.equal(k, name))
            |> List.cons((name, value));
 
          let new_url = set_arguments(url, args);
@@ -592,25 +594,27 @@ let navigate_probes =
   /* Sort by top, then left */
   let sorted =
     List.sort(
-      ((_, t1, l1), (_, t2, l2)) => {
-        let c = compare(t1, t2);
-        if (c != 0) {
-          c;
-        } else {
-          compare(l1, l2);
-        };
-      },
+      ~compare=
+        ((_, t1, l1), (_, t2, l2)) => {
+          let c = Float.compare(t1, t2);
+          if (c != 0) {
+            c;
+          } else {
+            Float.compare(l1, l2);
+          };
+        },
       items^,
     );
   /* Find current index */
   let current_idx = ref(-1);
   List.iteri(
-    (i, (el, _, _)) => {
-      let id: string = Js.to_string(el##.id);
-      if (id == current_id) {
-        current_idx := i;
-      };
-    },
+    ~f=
+      (i, (el, _, _)) => {
+        let id: string = Js.to_string(el##.id);
+        if (String.equal(id, current_id)) {
+          current_idx := i;
+        };
+      },
     sorted,
   );
   /* Find target, optionally skipping unaligned probes */
@@ -624,7 +628,7 @@ let navigate_probes =
     if (idx < 0 || idx >= n) {
       None;
     } else {
-      let (el, _, _) = List.nth(sorted, idx);
+      let (el, _, _) = List.nth_exn(sorted, idx);
       let dominated =
         skip_unaligned
         && {
@@ -632,7 +636,7 @@ let navigate_probes =
             el##getAttribute(Js.string("data-cursor-aligned"))
             |> Js.Opt.to_option;
           switch (attr) {
-          | Some(s) => Js.to_string(s) != "true"
+          | Some(s) => !String.equal(Js.to_string(s), "true")
           | None => true
           };
         };
