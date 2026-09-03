@@ -109,6 +109,13 @@ let values_group = (~globals: Globals.t) => {
         tooltip: Some("Project tables in evaluated results"),
       },
       {
+        name: "Charts",
+        active: s.project_charts,
+        setting: Evaluation(ProjectCharts),
+        tooltip:
+          Some("Project charts (Chart ADT values) in evaluated results"),
+      },
+      {
         name: "Ascriptions",
         active: s.show_ascriptions,
         setting: Evaluation(ShowAscriptions),

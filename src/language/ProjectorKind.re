@@ -17,6 +17,7 @@ type t =
   | Livelit
   | TextArea
   | Table
+  | Chart
   | Csv;
 
 let livelit_projectors: list(t) = [
@@ -27,6 +28,7 @@ let livelit_projectors: list(t) = [
   SliderF,
   TextArea,
   Table,
+  Chart,
   Card,
   Livelit,
 ];
@@ -50,6 +52,7 @@ let name = (p: t): string =>
   | Livelit => "livelit"
   | TextArea => "text"
   | Table => "table"
+  | Chart => "chart"
   | Csv => "csv"
   };
 

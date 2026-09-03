@@ -194,12 +194,62 @@ module JSON = {
     );
 };
 
+module Chart = {
+  /* Shared data shapes. Kept structural (inlined into the sum below) rather
+     than registered as their own named aliases, because the `constructors`
+     fold below only accepts sum types. */
+  let categorical: Typ.t =
+    list(
+      prod([
+        tup_label(label("label"), string()),
+        tup_label(label("value"), float()),
+      ]),
+    );
+  let points: Typ.t =
+    list(
+      prod([
+        tup_label(label("x"), float()),
+        tup_label(label("y"), float()),
+      ]),
+    );
+
+  /* A list of named series, each with its own categorical data — for
+     multi-series (grouped) bar charts. */
+  let grouped: Typ.t =
+    list(
+      prod([
+        tup_label(label("name"), string()),
+        tup_label(label("data"), categorical),
+      ]),
+    );
+
+  /* type Chart =
+     + BarChart([(label=String, value=Float)])
+     + GroupedBarChart([(name=String, data=[(label=String, value=Float)])])
+     + LineChart([(x=Float, y=Float)])
+     + ScatterChart([(x=Float, y=Float)])
+     + PieChart([(label=String, value=Float)])
+
+     Constructor names are deliberately namespaced (BarChart, not Bar) to
+     avoid colliding with the flat, global constructor namespace shared by
+     all ADTs (e.g. JSON already claims Float/Int/String/List/Bool). */
+  let t: Typ.t =
+    sum_type([
+      ("BarChart", Some(categorical)),
+      ("GroupedBarChart", Some(grouped)),
+      ("LineChart", Some(points)),
+      ("ScatterChart", Some(points)),
+      ("PieChart", Some(categorical)),
+    ]);
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
+  ("Chart", Chart.t),
   ("$Meta", meta_type),
 ];
 
