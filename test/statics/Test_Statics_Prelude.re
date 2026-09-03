@@ -103,6 +103,11 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       l1 == l2 && ls1 == ls2
     | (BadOperator(s1), BadOperator(s2)) => s1 == s2
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
+    | (
+        BadLivelitExpansion({declared: d1, actual: a1}),
+        BadLivelitExpansion({declared: d2, actual: a2}),
+      ) =>
+      Typ.fast_equal(d1, d2) && Typ.fast_equal(a1, a2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
     | (Redundant, Redundant) => true
     | (ExpectedConstructor, ExpectedConstructor) => true

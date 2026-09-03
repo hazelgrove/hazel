@@ -1674,6 +1674,37 @@ and uexp_to_info_map =
           let model_for_expand =
             Option.is_some(user_def) ? arg_elab : arg.user_term;
 
+          /* Type the expansion — the paper's per-invocation-site validation
+             (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
+             the use synthesizes — clients reason against the livelit's
+             interface, not against whatever code came out of expand — so
+             this pass runs in syn mode and throws its map away; its one
+             product is the mark owed when the expansion's own type is
+             inconsistent with the declaration. Statics traverses surface
+             syntax only, so what gets typed is the expansion of the SURFACE
+             model even where the elaborated one is what gets evaluated.
+             That re-traverses the model, so a use costs twice its model
+             subtree — small in practice, since a model is a literal or a
+             committed transition over one. */
+          let expansion_marks = (expanded: Exp.t) => {
+            let to_check =
+              Option.is_some(user_def)
+                ? expand(arg.user_term) : Some(expanded);
+            switch (to_check) {
+            /* mk_expand_dot always expands, so None is unreachable for a
+               user livelit; skipping the check is the safe reading if
+               that ever changes. */
+            | None => []
+            | Some(to_check) =>
+              let (checked, _, _) = go(~ana=syn, to_check, m);
+              UserLivelit.expansion_mark(
+                ctx,
+                ~declared=expansion_t,
+                ~actual=checked.elab_syn_ty,
+              );
+            };
+          };
+
           // try to expand
           switch (expand(model_for_expand)) {
           | Some(expanded) =>
@@ -1681,7 +1712,7 @@ and uexp_to_info_map =
               add(
                 ~elab_term=expanded,
                 ~elab_syn_ty=expansion_t,
-                ~marks=[],
+                ~marks=expansion_marks(expanded),
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
                   SubexpProbeTargets.union_all([
@@ -2202,20 +2233,22 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      /* Bind a livelit: `let ^name = (init, update, view, expand) in ...`
-         additionally puts a LivelitEntry in the body's context. The
-         definition also remains an ordinary binding of `^name`, which the
-         expansion of each use references at runtime. */
+      /* Bind a livelit: `let ^name = { ...members } in ...` additionally
+         puts a LivelitEntry in the body's context, carrying the module's
+         declared Model, Action and Expansion types. The definition also
+         remains an ordinary binding of `^name`, which the expansion of
+         each use references at runtime — and which typing that expansion
+         consults, so the declaration is an obligation, not an assertion. */
       let (p_ana_ctx, livelit_marks) =
         switch (UserLivelit.binder_name(p)) {
         | Some(ll_name) =>
           switch (
             UserLivelit.mk(
+              ~ctx,
               ~name=ll_name,
               ~id=Pat.rep_id(p),
               ~def_user=def.user_term,
               ~def_elab,
-              ~def_ty=def.ty,
             )
           ) {
           | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])

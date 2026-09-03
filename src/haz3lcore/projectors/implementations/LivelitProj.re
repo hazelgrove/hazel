@@ -186,33 +186,21 @@ module M: Projector = {
       |> Option.map(snd)
     };
 
-  /* Extract a member from the evaluated definition record: by label when
-     labeled (modules desugar to labeled tuples, any size); positional only
-     for a plain (init, update, view, expand) tuple */
+  /* Extract a member from the evaluated definition record. A definition is
+     always a module, and modules desugar to LABELED tuples, so members are
+     found by name and member order and helper count don't matter. */
   let record_field =
-      (record: TermBase.Exp.t, label: string, index: int)
-      : option(TermBase.Exp.t) =>
+      (record: TermBase.Exp.t, label: string): option(TermBase.Exp.t) =>
     switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
     | Some(fs) =>
-      switch (
-        List.find_map(
-          f =>
-            switch (MvuShape.of_field(f)) {
-            | Some((l, v)) when l == label => Some(v)
-            | _ => None
-            },
-          fs,
-        )
-      ) {
-      | Some(v) => Some(v)
-      | None when List.length(fs) >= 4 =>
-        let f = List.nth(fs, index);
-        switch (MvuShape.of_field(f)) {
-        | Some((_, v)) => Some(v)
-        | None => Some(f)
-        };
-      | None => None
-      }
+      List.find_map(
+        f =>
+          switch (MvuShape.of_field(f)) {
+          | Some((l, v)) when l == label => Some(v)
+          | _ => None
+          },
+        fs,
+      )
     | None => None
     };
 
@@ -350,7 +338,7 @@ module M: Projector = {
        (uncommittable model), so like a transient event it leaves the
        set of "ours" syntax states alone. */
     let store_entry = (new_model, record, ~committed) =>
-      switch (record_field(record, "view", 2)) {
+      switch (record_field(record, "view")) {
       | Some(view_fn) =>
         switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
         | Ok(html) when MvuShape.is_html(html) =>
@@ -417,7 +405,7 @@ module M: Projector = {
       switch (MvuShape.safe_evaluate(def_elab)) {
       | Error(e) => `Error("definition error: " ++ e)
       | Ok(record) =>
-        switch (record_field(record, "update", 1)) {
+        switch (record_field(record, "update")) {
         | None => `Error("definition is missing update")
         | Some(update_fn) =>
           let applied =
@@ -602,7 +590,7 @@ module M: Projector = {
       switch (MvuShape.safe_evaluate(def_elab)) {
       | Error(e) => err("livelit definition error: " ++ e)
       | Ok(record) =>
-        switch (record_field(record, "view", 2)) {
+        switch (record_field(record, "view")) {
         | None => err("livelit definition is missing view")
         | Some(view_fn) =>
           switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {

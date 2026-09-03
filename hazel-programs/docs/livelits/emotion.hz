@@ -8,6 +8,7 @@ let ^mood = {
   # 200 + value - 2 * grab-y (the bias keeps it positive). #
   type Model = (Int, Int);
   type Action = + Down(Int) + MoveTo(Int) + Up;
+  type Expansion = String;
 
   let init : Model = (50, -1);
 

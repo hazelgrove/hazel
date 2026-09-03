@@ -2,8 +2,10 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-/* User-defined livelits: `let ^name = (init, update, view, expand) in ...`
-   binds a livelit whose uses elaborate through the runtime binding. */
+/* User-defined livelits: `let ^name = { type Model; type Action;
+   type Expansion; init; update; view; expand } in ...` binds a livelit
+   whose uses elaborate through the runtime binding, synthesizing the
+   declared Expansion. */
 
 let statics = (text: string): (Statics.Map.t, Exp.t) => {
   let term = parse_exp(text);
@@ -28,15 +30,48 @@ let has_mark = (pred: Mark.t => bool, m: Statics.Map.t): bool =>
     m,
   );
 
-let dbl_def = "(0, fun (m, a) -> a, fun m -> 0, fun m -> m * 2)";
-
-let dbl_module = "{
+/* A definition is a module declaring Model, Action and Expansion and
+   binding init, update, view and expand. `dbl` means twice its model. */
+let dbl_def = "{
 type Model = Int;
 type Action = Int;
+type Expansion = Int;
 let init : Model = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> 0;
 let expand = fun m -> m * 2
+}";
+
+/* The standard definition plus one extra member, for tests about members
+   other than the four required ones. */
+let def_with = (~extra: string) =>
+  "{
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> 0;
+let expand = fun m -> m * 2"
+  ++ (extra == "" ? "" : ";\n" ++ extra)
+  ++ "
+}";
+
+/* Everything but the declared types and expand held fixed, so a test can
+   vary just the interface it is about. */
+let def = (~expansion: string, ~expand: string) =>
+  "{
+type Model = Int;
+type Action = Int;
+type Expansion = "
+  ++ expansion
+  ++ ";
+let init : Model = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> 0;
+let expand = "
+  ++ expand
+  ++ "
 }";
 
 let parses_as_binder = () => {
@@ -65,25 +100,48 @@ let multiple_uses = () =>
     "let ^dbl = " ++ dbl_def ++ " in ^dbl(1) + ^dbl(2) + ^dbl(3)",
   );
 
-let labeled_out_of_order = () =>
+let members_out_of_order = () =>
   run_test(
-    "labeled fields select by name",
+    "members and types are found by name, in any order",
     "42",
-    "let ^dbl = (expand=fun m -> m * 2, init=0, update=fun (m, a) -> a, view=fun m -> 0) in ^dbl(21)",
+    "let ^dbl = {
+let expand = fun m -> m * 2;
+type Expansion = Int;
+let view = fun m -> 0;
+type Model = Int;
+let init = 0;
+type Action = Int;
+let update = fun (m, a) -> a
+} in ^dbl(21)",
   );
 
 let helpers_in_def = () =>
   run_test(
-    "helpers bind inside the definition",
+    "helpers bind outside the definition module",
     "5",
-    "let ^inc = (let f = fun x -> x + 1 in (0, fun (m, a) -> a, fun m -> 0, fun m -> f(m))) in ^inc(4)",
+    "let ^inc = (let f = fun x -> x + 1 in "
+    ++ def(~expansion="Int", ~expand="fun m -> f(m)")
+    ++ ") in ^inc(4)",
+  );
+
+/* detect() descends through a leading type alias, and carries it into
+   scope so a declared member type may be stated in terms of it. */
+let type_alias_before_def = () =>
+  run_test(
+    "a type alias in front of the module is in scope for Expansion",
+    "42",
+    "let ^dbl = (type Pct = Int in "
+    ++ def(~expansion="Pct", ~expand="fun m -> m * 2")
+    ++ ") in ^dbl(21)",
   );
 
 let shadows_builtin = () =>
   run_test(
     "a user ^slider shadows the builtin",
     "105",
-    "let ^slider = (0, fun (m, a) -> a, fun m -> 0, fun m -> m + 100) in ^slider(5)",
+    "let ^slider = "
+    ++ def(~expansion="Int", ~expand="fun m -> m + 100")
+    ++ " in ^slider(5)",
   );
 
 let nested_shadowing = () =>
@@ -92,14 +150,9 @@ let nested_shadowing = () =>
     "30",
     "let ^d = "
     ++ dbl_def
-    ++ " in let ^d = (0, fun (m, a) -> a, fun m -> 0, fun m -> m * 3) in ^d(10)",
-  );
-
-let module_evaluates = () =>
-  run_test(
-    "module definition with type members",
-    "42",
-    "let ^dbl = " ++ dbl_module ++ " in ^dbl(21)",
+    ++ " in let ^d = "
+    ++ def(~expansion="Int", ~expand="fun m -> m * 3")
+    ++ " in ^d(10)",
   );
 
 let module_helpers = () =>
@@ -107,6 +160,9 @@ let module_helpers = () =>
     "helpers are ordinary module members",
     "15",
     "let ^inc = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
@@ -120,6 +176,9 @@ let module_funlet_members = () =>
     "funlet-form members are recognized by name",
     "8",
     "let ^dbl = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
 let init = 0;
 let update(m, a) = a;
 let view(m) = 0;
@@ -144,71 +203,137 @@ let module_missing_members = () => {
   );
 };
 
-let module_adapter = () => {
-  let def_text = "{
-let init = 50;
-let update = fun (m, a) -> a;
-let view = fun m -> Text(\"hi\");
-let expand = fun m -> m;
-let shape = Tab(30, 5)
-}";
+/* Build the livelit the adapter would put in the context, or fail. */
+let mk_ll = (def_text: string): LivelitCtx.raw_livelit => {
   let def_user = parse_exp(def_text);
-  let (_, def_elab) =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), def_user);
+  let ctx = Builtins.ctx_init(Some(Int));
+  let (_, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
   switch (
-    UserLivelit.mk(
-      ~name="s",
-      ~id=Id.invalid,
-      ~def_user,
-      ~def_elab,
-      ~def_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
-    )
+    UserLivelit.mk(~ctx, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
   ) {
-  | Ok(ll) =>
-    check(
-      dhexp_typ,
-      "model_default is the init member",
-      parse_exp("50"),
-      ll.model_default,
-    );
-    check(
-      bool,
-      "shape member sets the projector shape",
-      true,
-      ll.shape
-      == {
-           horizontal: 30,
-           vertical: Tab(4) /* 5 lines = 4 linebreaks */
-         },
-    );
+  | Ok(ll) => ll
   | Error(_) => fail("adapter rejected a well-formed module definition")
   };
+};
+
+let module_adapter = () => {
+  let ll = mk_ll(def_with(~extra="let shape = Tab(30, 5)"));
+  check(
+    dhexp_typ,
+    "model_default is the init member",
+    parse_exp("0"),
+    ll.model_default,
+  );
+  check(
+    bool,
+    "shape member sets the projector shape",
+    true,
+    ll.shape
+    == {
+         horizontal: 30,
+         vertical: Tab(4) /* 5 lines = 4 linebreaks */
+       },
+  );
+};
+
+/* Each LivelitShape constructor, since the vertical is derived: Inline is one
+   line, Block and Tab are h LINES and the internal count is linebreaks. A
+   one-line Block or Tab degenerates to Inline. */
+let shape_member = () => {
+  let shape = (s: string) =>
+    mk_ll(def_with(~extra="let shape = " ++ s)).shape;
+  let expect = (s, want: Util.ProjectorShape.t) =>
+    check(bool, s, true, shape(s) == want);
+  expect(
+    "Inline(20)",
+    {
+      horizontal: 20,
+      vertical: Inline,
+    },
+  );
+  expect(
+    "Block(32, 8)",
+    {
+      horizontal: 32,
+      vertical: Block(7),
+    },
+  );
+  expect(
+    "Tab(16, 5)",
+    {
+      horizontal: 16,
+      vertical: Tab(4),
+    },
+  );
+  expect(
+    "Block(12, 1)",
+    {
+      horizontal: 12,
+      vertical: Inline,
+    },
+  );
+  /* no shape member at all falls back to the default */
+  check(
+    bool,
+    "default shape without the member",
+    true,
+    mk_ll(def_with(~extra="")).shape == UserLivelit.default_shape,
+  );
 };
 
 let bad_def_marked = () => {
   let (m, _) = statics("let ^x = 5 in 1");
   check(
     bool,
-    "non-tuple definition gets InvalidLivelitDef",
+    "non-module definition gets InvalidLivelitDef",
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefNotTuple) => true
+      | Mark.InvalidLivelitDef(DefNotModule) => true
       | _ => false,
       m,
     ),
   );
 };
 
-let bad_arity_marked = () => {
-  let (m, _) = statics("let ^x = (1, 2) in 1");
+/* A tuple has nowhere to declare Model, Action and Expansion, so the form
+   the module desugars to is no longer a definition on its own. */
+let tuple_def_marked = () => {
+  let (m, _) =
+    statics("let ^x = (0, fun (m, a) -> a, fun m -> 0, fun m -> m) in 1");
   check(
     bool,
-    "wrong-arity tuple gets InvalidLivelitDef",
+    "the tuple form is no longer a definition",
     true,
     has_mark(
       fun
-      | Mark.InvalidLivelitDef(DefBadArity(2)) => true
+      | Mark.InvalidLivelitDef(DefNotModule) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+let missing_types_marked = () => {
+  let (m, _) =
+    statics(
+      "let ^x = {
+let init = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> 0;
+let expand = fun m -> m
+} in 1",
+    );
+  check(
+    bool,
+    "missing type members reported by name",
+    true,
+    has_mark(
+      fun
+      | Mark.InvalidLivelitDef(
+          DefMissingTypes(["Model", "Action", "Expansion"]),
+        ) =>
+        true
       | _ => false,
       m,
     ),
@@ -239,6 +364,7 @@ let good_def_unmarked = () => {
     has_mark(
       fun
       | Mark.InvalidLivelitDef(_)
+      | Mark.BadLivelitExpansion(_)
       | Mark.Free(_) => true
       | _ => false,
       m,
@@ -249,19 +375,21 @@ let good_def_unmarked = () => {
 /* The adapter contract LivelitProj relies on: the captured definition
    evaluates closed, its fields extract, and view(model) yields HTML. */
 let adapter = () => {
-  let def_text = "(50, fun (m, a) -> a, fun m -> Text(\"hi\"), fun m -> m)";
+  let def_text = "{
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init = 50;
+let update = fun (m, a) -> a;
+let view = fun m -> Text(\"hi\");
+let expand = fun m -> m
+}";
   let def_user = parse_exp(def_text);
-  let (_, def_elab) =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), def_user);
+  let ctx = Builtins.ctx_init(Some(Int));
+  let (_, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
   let ll =
     switch (
-      UserLivelit.mk(
-        ~name="s",
-        ~id=Id.invalid,
-        ~def_user,
-        ~def_elab,
-        ~def_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
-      )
+      UserLivelit.mk(~ctx, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
     ) {
     | Ok(ll) => ll
     | Error(_) => fail("adapter rejected a well-formed definition")
@@ -279,10 +407,25 @@ let adapter = () => {
     | Some(def) => evaluate(def)
     | None => fail("user_def not captured")
     };
-  switch (
-    Haz3lcore.MvuShape.of_tuple(Haz3lcore.MvuShape.strip_wrappers(record))
-  ) {
-  | Some([_, _, view_fn, _]) =>
+  /* modules desugar to LABELED tuples, so members come out by name --
+     the lookup LivelitProj.record_field does at render time */
+  let member = (label: string) =>
+    switch (
+      Haz3lcore.MvuShape.of_tuple(Haz3lcore.MvuShape.strip_wrappers(record))
+    ) {
+    | Some(fs) =>
+      List.find_map(
+        f =>
+          switch (Haz3lcore.MvuShape.of_field(f)) {
+          | Some((l, v)) when l == label => Some(v)
+          | _ => None
+          },
+        fs,
+      )
+    | None => None
+    };
+  switch (member("view")) {
+  | Some(view_fn) =>
     let html =
       evaluate(
         IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, parse_exp("50")),
@@ -293,36 +436,7 @@ let adapter = () => {
       true,
       Haz3lcore.MvuShape.is_html(html),
     );
-  | _ => fail("definition did not evaluate to a 4-tuple")
-  };
-};
-
-let shape_field = () => {
-  let def_user =
-    parse_exp("(0, fun (m, a) -> a, fun m -> 0, fun m -> m, Block(30, 5))");
-  let (_, def_elab) =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), def_user);
-  switch (
-    UserLivelit.mk(
-      ~name="s",
-      ~id=Id.invalid,
-      ~def_user,
-      ~def_elab,
-      ~def_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
-    )
-  ) {
-  | Ok(ll) =>
-    check(
-      bool,
-      "fifth field sets the projector shape",
-      true,
-      ll.shape
-      == {
-           horizontal: 30,
-           vertical: Block(4) /* 5 lines = 4 linebreaks */
-         },
-    )
-  | Error(_) => fail("adapter rejected a 5-field definition")
+  | None => fail("definition record has no view member")
   };
 };
 
@@ -396,6 +510,9 @@ let probe_run = (text: string) => {
 };
 
 let view_probe_def = "let ^dbl = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> a;
 let view = fun m -> Text(string_of_int(^^probe(m * 3)));
@@ -467,17 +584,20 @@ let member_access = () =>
   run_test(
     "^name.member accesses the definition record",
     "51",
-    "let ^dbl = " ++ dbl_module ++ " in ^dbl.expand(21) + ^dbl.update((3, 9))",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl.expand(21) + ^dbl.update((3, 9))",
   );
 
 let redex_as_model = () =>
   run_test(
     "a committed transition normalizes in the main run",
     "18",
-    "let ^dbl = " ++ dbl_module ++ " in ^dbl(^dbl.update(3, 9))",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl(^dbl.update(3, 9))",
   );
 
 let update_probe_def = "let ^dbl = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> ^^probe(m + a);
 let view = fun m -> Text(string_of_int(m));
@@ -543,7 +663,7 @@ let redex_roundtrip = () => {
   run_test(
     "committed transition text round-trips: " ++ text,
     "18",
-    "let ^dbl = " ++ dbl_module ++ " in ^dbl(" ++ text ++ ")",
+    "let ^dbl = " ++ dbl_def ++ " in ^dbl(" ++ text ++ ")",
   );
 };
 
@@ -554,6 +674,9 @@ let sampled_handlers_are_closed = () => {
   let (mtr, _, probes) =
     probe_run(
       "let ^pk = {
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
@@ -608,28 +731,227 @@ let expand = fun m -> m
   };
 };
 
+/* ---- The expansion obligation ----
+
+   A use of ^name synthesizes the DECLARED Expansion, so statics owes a
+   check that the expansion actually has that type. */
+
+let expansion_mark = (m: Statics.Map.t): option(Mark.t) =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (acc, info: Info.t) {
+      | (Some(_), _) => acc
+      | (None, InfoExp({marks, _})) =>
+        List.find_opt(
+          fun
+          | Mark.BadLivelitExpansion(_) => true
+          | _ => false,
+          marks,
+        )
+      | (None, _) => None
+      },
+    m,
+    None,
+  );
+
+let expansion_mismatch_marked = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m : Model -> m")
+      ++ " in ^s(1)",
+    );
+  switch (expansion_mark(m)) {
+  | Some(BadLivelitExpansion({declared, actual})) =>
+    check(
+      bool,
+      "declared type reported",
+      true,
+      Typ.fast_equal(declared, IdTagged.FreshGrammar.Typ.string()),
+    );
+    check(
+      bool,
+      "actual type reported",
+      true,
+      Typ.fast_equal(actual, IdTagged.FreshGrammar.Typ.int()),
+    );
+  | _ => fail("expected BadLivelitExpansion on the use")
+  };
+};
+
+/* The check is discharged per use, since the expansion is a function of
+   that use's model. A use spreads its info over its own ids and its
+   expansion's, so count relative to one use rather than absolutely. */
+let expansion_mismatch_at_each_use = () => {
+  let marked = (uses: string) => {
+    let (m, _) =
+      statics(
+        "let ^s = "
+        ++ def(~expansion="String", ~expand="fun m : Model -> m")
+        ++ " in "
+        ++ uses,
+      );
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch ((info: Info.t)) {
+        | InfoExp({marks, _}) =>
+          acc
+          + List.length(
+              List.filter(
+                fun
+                | Mark.BadLivelitExpansion(_) => true
+                | _ => false,
+                marks,
+              ),
+            )
+        | _ => acc
+        },
+      m,
+      0,
+    );
+  };
+  let one = marked("^s(1)");
+  check(bool, "one use is marked", true, one > 0);
+  check(
+    int,
+    "two uses are marked twice over",
+    2 * one,
+    marked("(^s(1), ^s(2))"),
+  );
+};
+
+/* The declaration is what clients type against: `^s(7) ++ "!"` is fine
+   because Expansion is String, whatever expand happens to return. */
+let declared_type_is_the_interface = () =>
+  run_test(
+    "clients type against the declared Expansion",
+    "\"7!\"",
+    "let ^s = "
+    ++ def(~expansion="String", ~expand="fun m -> string_of_int(m)")
+    ++ " in ^s(7) ++ \"!\"",
+  );
+
+let declared_type_no_marks = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m -> string_of_int(m)")
+      ++ " in ^s(7) ++ \"!\"",
+    );
+  check(
+    bool,
+    "a consistent expansion is unmarked",
+    false,
+    has_mark(
+      fun
+      | Mark.BadLivelitExpansion(_) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* Consistency, not equality, is the test — an expansion statics can only
+   type as Unknown stays gradual, as it would anywhere else. */
+let unknown_expansion_not_marked = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m -> m")
+      ++ " in ^s(1)",
+    );
+  check(
+    bool,
+    "an Unknown expansion is not marked",
+    false,
+    has_mark(
+      fun
+      | Mark.BadLivelitExpansion(_) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
+/* The declared type is stated independently of the definition, so a
+   deliberately abstract Expansion narrows what clients may assume. */
+let abstract_expansion_hides_the_model = () => {
+  let (m, _) =
+    statics(
+      "let ^s = "
+      ++ def(~expansion="String", ~expand="fun m -> string_of_int(m)")
+      ++ " in ^s(7) + 1",
+    );
+  check(
+    bool,
+    "the client's misuse of Expansion is the client's error",
+    true,
+    has_mark(
+      fun
+      | Mark.ExpectationMismatch(_) => true
+      | _ => false,
+      m,
+    ),
+  );
+};
+
 let tests = [
   (
     "UserLivelits",
     [
       test_case("pattern parses as binder", `Quick, parses_as_binder),
       test_case("expansion evaluates", `Quick, evaluates),
-      test_case("module definition", `Quick, module_evaluates),
       test_case("module helpers", `Quick, module_helpers),
       test_case("module funlet members", `Quick, module_funlet_members),
       test_case("module missing members", `Quick, module_missing_members),
+      test_case("module missing types", `Quick, missing_types_marked),
       test_case("module adapter", `Quick, module_adapter),
+      test_case("shape member", `Quick, shape_member),
       test_case("multiple uses", `Quick, multiple_uses),
-      test_case("labeled out of order", `Quick, labeled_out_of_order),
+      test_case("members out of order", `Quick, members_out_of_order),
       test_case("helpers inside definition", `Quick, helpers_in_def),
+      test_case(
+        "type alias before definition",
+        `Quick,
+        type_alias_before_def,
+      ),
       test_case("shadows builtin", `Quick, shadows_builtin),
       test_case("nested shadowing", `Quick, nested_shadowing),
       test_case("bad definition marked", `Quick, bad_def_marked),
-      test_case("bad arity marked", `Quick, bad_arity_marked),
+      test_case("tuple definition marked", `Quick, tuple_def_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
       test_case("adapter contract", `Quick, adapter),
-      test_case("positional shape field", `Quick, shape_field),
+      test_case(
+        "expansion mismatch marked",
+        `Quick,
+        expansion_mismatch_marked,
+      ),
+      test_case(
+        "expansion mismatch at each use",
+        `Quick,
+        expansion_mismatch_at_each_use,
+      ),
+      test_case(
+        "declared type is the interface",
+        `Quick,
+        declared_type_is_the_interface,
+      ),
+      test_case(
+        "consistent expansion unmarked",
+        `Quick,
+        declared_type_no_marks,
+      ),
+      test_case(
+        "unknown expansion not marked",
+        `Quick,
+        unknown_expansion_not_marked,
+      ),
+      test_case(
+        "abstract expansion hides the model",
+        `Quick,
+        abstract_expansion_hides_the_model,
+      ),
       test_case("commit vs ephemeral decision", `Quick, commit_decision),
       test_case("view probes fire when projected", `Quick, view_probes_fire),
       test_case(

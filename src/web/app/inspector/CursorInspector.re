@@ -263,6 +263,7 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | BadLivelitExpansion(_)
     | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
@@ -732,20 +733,30 @@ let exp_mark_err_view =
       ...List.map(label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
-  | InvalidLivelitDef(DefNotTuple) =>
+  | BadLivelitExpansion({declared, actual}) =>
     div_err([
-      text("Livelit definition should be a module with members "),
-      code("init, update, view, expand"),
+      text("Livelit expands to type "),
+      view_type(actual),
+      text(", but declares "),
+      code("Expansion"),
+      text(" = "),
+      view_type(declared),
     ])
-  | InvalidLivelitDef(DefBadArity(n)) =>
+  | InvalidLivelitDef(DefNotModule) =>
     div_err([
-      text("Livelit definition should have fields "),
-      code("(init, update, view, expand)"),
-      text(", got " ++ string_of_int(n)),
+      text("Livelit definition should be a module declaring "),
+      code("type Model, Action, Expansion"),
+      text(" and members "),
+      code("init, update, view, expand"),
     ])
   | InvalidLivelitDef(DefMissingMembers(missing)) =>
     div_err([
       text("Livelit definition is missing members: "),
+      ...List.map(code, missing),
+    ])
+  | InvalidLivelitDef(DefMissingTypes(missing)) =>
+    div_err([
+      text("Livelit definition is missing type members: "),
       ...List.map(code, missing),
     ])
   | BadTheorem(typ) =>
