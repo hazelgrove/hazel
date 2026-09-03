@@ -41,16 +41,36 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
         switch (id) {
         | Some(ap_id) =>
           /* Perspective extension: see CallStack.extend. Index stays at
-             the original depth, so this frame appears "below" (ghosted). */
-          CallStack.extend(ap_id, data.call_stack)
+             the original depth, so this frame appears "below" (ghosted).
+             When the extended view is a suffix of the current sightline
+             (stepping up an existing chain), preserve the full sightline
+             so below-focus frames aren't lost — symmetric with None. */
+          let extended = CallStack.extend(ap_id, data.call_stack);
+          ListUtil.is_suffix_of(
+            ~eq=CallStack.equal_frame,
+            extended,
+            sample_focus.call_stack,
+          )
+            ? sample_focus.call_stack : extended;
         | None =>
-          !
-            ListUtil.is_suffix_of(
-              ~eq=CallStack.equal_frame,
-              data.call_stack,
-              sample_focus.call_stack,
-            )
-            ? data.call_stack : sample_focus.call_stack
+          /* When data.call_stack is a suffix of the current sightline,
+             preserve below-focus frames but refresh the overlapping
+             suffix with data's frames: samples carry real fn_def_ids,
+             whereas the Some(ap_id) branch can seed synthetic frames
+             with fn_def_id=None. */
+          if (ListUtil.is_suffix_of(
+                ~eq=CallStack.equal_frame,
+                data.call_stack,
+                sample_focus.call_stack,
+              )) {
+            let prefix_len =
+              List.length(sample_focus.call_stack)
+              - List.length(data.call_stack);
+            ListUtil.take(prefix_len, sample_focus.call_stack)
+            @ data.call_stack;
+          } else {
+            data.call_stack;
+          }
         },
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),

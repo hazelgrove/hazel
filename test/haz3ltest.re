@@ -74,6 +74,7 @@ let (suite, exit_with_test_status) =
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
+    @ [Test_Evaluator_ProbeNav.tests]
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]

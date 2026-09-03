@@ -282,6 +282,20 @@
   color: var(--STONE);
 }
 
+/* Shared pin-icon appearance. Grouped here so all three pin icons
+ * (live-offside, sample context menu, sample focus bar in style.css)
+ * stay in sync — adjust stroke width/color in one place.
+ * box-sizing: border-box means each use-site can set its desired outer
+ * size directly; the stroke is drawn inside that radius. */
+.live-offside .pin,
+.sample-context-menu .action-item .pin-icon,
+#sample-focus-bar .pin-icon {
+  background: white;
+  border: 1.5px solid var(--R1);
+  box-sizing: border-box;
+  border-radius: 1em;
+}
+
 .live-offside .pin {
   pointer-events: auto;
   position: absolute;
@@ -289,11 +303,6 @@
   top: -0.4em;
   height: 1.3em;
   width: 1.3em;
-  border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
   transform-origin: top right;
   scale: 0.6;
 }
@@ -741,18 +750,9 @@
   border-radius: 0.2em;
 }
 
-.sample-context-menu .action-item.pinned .pin-icon {
-  background-color: var(--R1);
-}
-
 .sample-context-menu .action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
-  border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
   scale: 0.75;
 }
 
@@ -791,6 +791,7 @@
 .sample-context-menu .action-item.rich-probe-action .table-badge svg path {
   fill: white;
 }
+
 
 .live-offside .live-env {
   padding: 0.2em 0.55em;

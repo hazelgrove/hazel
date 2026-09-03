@@ -414,6 +414,54 @@ module Focus = {
 
 /* Sample selection and filtering logic */
 module Selection = {
+  /* Pin-gated "strict" reachability for ArrowUp/Down probe navigation.
+   *
+   * Given a cursor and the pin-filtered samples of a candidate probe,
+   * returns true iff some sample of that probe satisfies:
+   *   (a) sample.call_stack equals cursor.effective_stack, OR
+   *   (b) the target's enclosing fn_def_id differs from the cursor's
+   *       AND the two stacks are related (one is a suffix of the other).
+   *
+   * See ProbeProj.is_cursor_aligned for the full design rationale.
+   * Pure function, exposed so tests can assert reachability directly. */
+  let is_reachable_pinned =
+      (~cursor: Focus.t, target_samples: list(sample)): bool => {
+    let effective = Focus.effective_stack(cursor);
+    let fn_of_innermost = (stack: CallStack.t): option(Id.t) =>
+      switch (stack) {
+      | [] => None
+      | [frame, ..._] => frame.fn_def_id
+      };
+    let cursor_fn = fn_of_innermost(effective);
+    let target_fn =
+      switch (target_samples) {
+      | [] => None
+      | [s, ..._] => fn_of_innermost(s.call_stack)
+      };
+    List.exists(
+      (sample: sample) =>
+        if (CallStack.equal(sample.call_stack, effective)) {
+          true;
+              /* rule (a) */
+        } else if (target_fn != cursor_fn) {
+          /* rule (b) */
+          ListUtil.is_suffix_of(
+            ~eq=CallStack.equal_frame,
+            sample.call_stack,
+            effective,
+          )
+          || ListUtil.is_suffix_of(
+               ~eq=CallStack.equal_frame,
+               effective,
+               sample.call_stack,
+             );
+        } else {
+          false;
+        },
+      target_samples,
+    );
+  };
+
   /* Categorizes why no samples are shown for a probe */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type empty_status =

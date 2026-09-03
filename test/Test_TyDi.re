@@ -377,6 +377,69 @@ let ci_sort_tests = (
   ],
 );
 
+/* Trailing/middle delimiters already down via the backpack should be
+ * suggested even on a single-character prefix. This relaxes the normal
+ * 2-char minimum for the unambiguous case where the leading delimiter
+ * of a multi-delim form is already in the segment.
+ *
+ * Note: backpack labels don't get the `leading_expander` trailing space
+ * that leading-form suggestions do, so `then`, `else`, `in`, `=>` are
+ * suggested without a trailing space here. */
+let backpack_trailing_tests = (
+  "TyDi.BackpackTrailing",
+  [
+    /* Case arrow: `=` completes to `=>` (the crucial one). The parser
+     * transiently treats `p =` as a tuple label binding, so ci becomes
+     * TupLabel; backpack suggestions must still fire there. */
+    tydi_test(
+      ~name="case arrow: 1-char `=` completes to `=>`",
+      ~code="case true | true =¦",
+      ~expect=Some(">"),
+    ),
+    tydi_test(
+      ~name="case arrow: second rule `=` completes to `=>`",
+      ~code="case true | true => 1 | false =¦",
+      ~expect=Some(">"),
+    ),
+    /* `then` trailing after if */
+    tydi_test(
+      ~name="if/then: 1-char `t` completes to `then`",
+      ~code="if true t¦",
+      ~expect=Some("hen"),
+    ),
+    /* `else` trailing after then */
+    tydi_test(
+      ~name="if/then/else: 1-char `e` completes to `else`",
+      ~code="if true then 1 e¦",
+      ~expect=Some("lse"),
+    ),
+    /* `in` trailing after let */
+    tydi_test(
+      ~name="let/in: 1-char `i` completes to `in`",
+      ~code="let x = 1 i¦",
+      ~expect=Some("n"),
+    ),
+    /* `end` trailing after case */
+    tydi_test(
+      ~name="case/end: 1-char `e` completes to `end`",
+      ~code="case true | true => 1 e¦",
+      ~expect=Some("nd"),
+    ),
+    /* Negative: no backpack, 1 char should NOT trigger */
+    tydi_test(
+      ~name="no backpack: 1-char `f` does not trigger",
+      ~code="let x : Bool = f¦",
+      ~expect=None,
+    ),
+    /* Negative: no backpack, 2 chars triggers normally */
+    tydi_test(
+      ~name="no backpack: 2-char `fa` triggers `false`",
+      ~code="let x : Bool = fa¦",
+      ~expect=Some("lse"),
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -388,5 +451,6 @@ let tests = [
   suppression_tests,
   qualified_tests,
   base_typ_suppression_tests,
+  backpack_trailing_tests,
   ci_sort_tests,
 ];
