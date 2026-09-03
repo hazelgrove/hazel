@@ -82,8 +82,8 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_AligningSamples" => s11
   | "TuGen_AutoProbe" => s12
   | "TuGen_ReadingBiggerValues"
-  | "TuGen_Map"
-  | "TuGen_Fold" => s13
+  | "TuGen_MappingOverAList"
+  | "TuGen_FoldingOverAList" => s13
   | "TuGen_PinningCalls" => s16
   | "TuGen_SteppingIntoCalls" => s17
   | "TuGen_PrintStatements" => s20

@@ -22,13 +22,17 @@ A function with an arrow type annotation can call itself. Take a list apart with
 let len : [Int] -> Int = fun xs ->
   case xs
   | [] => 0
-  | x :: rest => 1 + len(rest)
+  | _ :: rest => 1 + len(rest)
   end
 in len([7, 8, 9])
 ```
 
+### List operators
+- `::` (cons) prepends: `0 :: [1, 2]` is `[0, 1, 2]`
+- `@` appends lists: `[1, 2] @ [3]` is `[1, 2, 3]`
+
 ### Fold
-`fold_left(list, fun (a, b) -> ..., start)` threads a running value through the callback. Probe `a` and `b` to see which is which.
+`fold_left(list, callback, init)` threads a running value through the callback.
 
 @hints
 running_sum([1, 2, 3]) should be [1, 3, 6]

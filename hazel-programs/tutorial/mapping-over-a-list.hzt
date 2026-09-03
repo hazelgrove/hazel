@@ -2,7 +2,7 @@
 show_report version=1 id=b0000012-0012-0012-0012-000000000012
 
 @prompt
-A list holds a variable number of values of the same type, written `[a, b, c]`. `map` applies a function to each element. You can reference an existing function, or define a new one inline as an *anonymous function* with `fun`:
+A list holds a variable number of values of the same type, written `[a, b, c]`. Two operators build lists: `::` (cons) prepends an element, and `@` appends two lists (examples in the sidebar). `map` applies a function to each element. You can reference an existing function, or define a new one inline as an *anonymous function* with `fun`:
 ```hazelnostatics
 map([1, 2, 3], fun n -> n * 2)
 ```
@@ -22,6 +22,11 @@ A list is `[a, b, c, d]`. Then an anonymous function `fun w -> ...` that adds 50
 [1, 2, 3]
 ```
 A list of integers has type `[Int]`.
+
+### List operators
+- `::` (cons) prepends: `0 :: [1, 2]` is `[0, 1, 2]`
+- `@` appends lists: `[1, 2] @ [3]` is `[1, 2, 3]`
+- `::` also works in patterns: `x :: rest` splits a list
 
 ### Map and anonymous functions
 ```hazel

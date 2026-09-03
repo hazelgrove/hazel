@@ -92,14 +92,14 @@ let of_slide = (module_name: string): t =>
       autoprobe: Some(Off),
     }
   /* Auto-probe introduced: All (whole program), single window. */
-  | "TuGen_Map" => {
+  | "TuGen_MappingOverAList" => {
       ...none,
       autoprobe: Some(All),
     }
   /* All + many window: each needs several samples visible at once --
    * fold's growing accumulator column, pin's ten-samples-is-a-lot
    * motivation. */
-  | "TuGen_Fold"
+  | "TuGen_FoldingOverAList"
   | "TuGen_PinningCalls" => {
       ...none,
       autoprobe: Some(All),

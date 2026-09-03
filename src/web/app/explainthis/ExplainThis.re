@@ -110,9 +110,28 @@ let highlight =
   (Node.span(~attrs, msg), mapping);
 };
 
+/* Fenced hazel code is dedented line-by-line before parsing: the editor
+ * derives indentation itself on load, so any authored indentation in the
+ * fence would stack on top of the automatic indentation. */
+let strip_leading_ws = (line: string): string => {
+  let n = String.length(line);
+  let rec first = i =>
+    i < n && (line.[i] == ' ' || line.[i] == '\t') ? first(i + 1) : i;
+  let i = first(0);
+  String.sub(line, i, n - i);
+};
+
 let memo_parse =
-  Core.Memo.general(~cache_size_bound=1000, code =>
-    Parser.to_zipper(~root=Exp, String.trim(code))
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    code => {
+      let code =
+        String.trim(code)
+        |> String.split_on_char('\n')
+        |> List.map(strip_leading_ws)
+        |> String.concat("\n");
+      Parser.to_zipper(~root=Exp, code);
+    },
   );
 
 /*

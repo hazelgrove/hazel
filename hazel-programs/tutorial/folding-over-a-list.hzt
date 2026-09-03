@@ -21,14 +21,7 @@ Break the callback across lines and read the probes: the one stepping through th
 
 @reference
 ### Fold
-```hazel
-fold_left(
-  [1, 2, 3],
-  fun (a, b) -> ?,
-  0
-)
-```
-Combines the list into one value, threading a running value through the callback. Probe the callback's two arguments to see which one carries it.
+`fold_left(list, callback, init)` combines the list into one value, threading a running value through the callback.
 
 @hints
 The watering cans total 680.

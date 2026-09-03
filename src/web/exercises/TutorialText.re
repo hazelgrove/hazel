@@ -147,11 +147,43 @@ let module_name_of = (rel: string): string => {
   "TuGen_" ++ camel;
 };
 
-let cap_words = (s: string): string =>
-  String.split_on_char('-', s)
+/* Title case: capitalize each word except minor words (articles,
+   conjunctions, short prepositions), which stay lowercase unless first:
+   "mapping-over-a-list" -> "Mapping over a List". */
+let minor_word = (w: string): bool =>
+  switch (w) {
+  | "a"
+  | "an"
+  | "the"
+  | "and"
+  | "or"
+  | "nor"
+  | "but"
+  | "of"
+  | "to"
+  | "in"
+  | "on"
+  | "at"
+  | "by"
+  | "for"
+  | "with"
+  | "over"
+  | "per"
+  | "into"
+  | "via"
+  | "as" => true
+  | _ => false
+  };
+let title_case_words = (words: list(string)): string =>
+  words
   |> List.filter(w => w != "")
-  |> List.map(String.capitalize_ascii)
+  |> List.mapi((i, w) =>
+       i > 0 && minor_word(w) ? w : String.capitalize_ascii(w)
+     )
   |> String.concat(" ");
+
+let cap_words = (s: string): string =>
+  title_case_words(String.split_on_char('-', s));
 
 let starts_with_digit = (s: string): bool =>
   String.length(s) > 0
@@ -166,11 +198,7 @@ let starts_with_digit = (s: string): bool =>
    Directory segments become " / "-joined prefixes. */
 let is_category = (s: string): bool =>
   s == "task" || s == "extra" || s == "bonus";
-let cap_join = (words: list(string)): string =>
-  words
-  |> List.filter(w => w != "")
-  |> List.map(String.capitalize_ascii)
-  |> String.concat(" ");
+let cap_join = (words: list(string)): string => title_case_words(words);
 let title_of = (rel: string): string => {
   let segs = String.split_on_char('/', chop_lesson_ext(rel));
   switch (List.rev(segs)) {
