@@ -37,10 +37,17 @@ let fuzz_whitespace = (choices: array(int), s: string): string => {
         | '"' => go(i + 1, run_idx, false)
         | _ => go(i + 1, run_idx, true)
         };
-      } else if (c == ' ' || c == '\n' || c == '\t') {
+      } else if (Char.equal(c, ' ')
+                 || Char.equal(c, '\n')
+                 || Char.equal(c, '\t')) {
         /* consume the whole run */
         let j = ref(i);
-        while (j^ < n && (s.[j^] == ' ' || s.[j^] == '\n' || s.[j^] == '\t')) {
+        while (j^ < n
+               && (
+                 Char.equal(s.[j^], ' ')
+                 || Char.equal(s.[j^], '\n')
+                 || Char.equal(s.[j^], '\t')
+               )) {
           incr(j);
         };
         let replacement =
@@ -55,7 +62,7 @@ let fuzz_whitespace = (choices: array(int), s: string): string => {
         go(j^, run_idx + 1, false);
       } else {
         Stdlib.Buffer.add_char(buf, c);
-        go(i + 1, run_idx, c == '"');
+        go(i + 1, run_idx, Char.equal(c, '"'));
       };
     };
   go(0, 0, false);

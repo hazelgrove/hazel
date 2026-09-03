@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Base;
+open Poly;
 
 let print_seg = Printer.of_segment(~holes="?", ~refractors=[]);
 
@@ -19,7 +20,7 @@ and equal_piece = (a: piece, b: piece) => {
   | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
   | (Projector(p1), Projector(p2)) =>
     p1.kind == p2.kind
-    && p1.model == p2.model
+    && String.equal(p1.model, p2.model)
     && equal_piece(p1.syntax, p2.syntax)
   | _ => false
   };

@@ -2,6 +2,7 @@ open Haz3lcore;
 open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
+open Poly;
 
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
@@ -31,7 +32,7 @@ let qcheck_evaluator_does_not_crash_test =
         | Failure(msg)
             when
               List.exists(
-                (==)(msg),
+                ~f=(==)(msg),
                 ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
@@ -41,7 +42,7 @@ let qcheck_evaluator_does_not_crash_test =
       }
     | exception e =>
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -98,14 +99,12 @@ let qcheck_stepper_confluence =
       | (_, StepLimitExceeded)
       | (StepLimitExceeded, _) => true
       | exception e =>
-        print_endline(
-          "Skipping evaluation failure: " ++ Printexc.to_string(e),
-        );
+        print_endline("Skipping evaluation failure: " ++ Exn.to_string(e));
         true;
       }
     | exception e =>
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -174,8 +173,7 @@ let qcheck_pattern_equivalence_test =
     ) {
     | e =>
       print_endline(
-        "Skipping pattern equivalence test due to error: "
-        ++ Printexc.to_string(e),
+        "Skipping pattern equivalence test due to error: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -208,7 +206,7 @@ let qcheck_preservation_test =
                 Builtins.ctx_init(Some(Int)),
                 next,
               );
-            Statics.Map.ty_of(next.annotation.ids |> List.hd, statics);
+            Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
           }
         ) {
         | Some(ty) =>
@@ -320,7 +318,7 @@ let qcheck_incremental_matches_fresh_after_edit =
         | Failure(msg)
             when
               List.exists(
-                (==)(msg),
+                ~f=(==)(msg),
                 ["type application in dynamics", "Type meet of ap"],
               ) =>
           None
@@ -333,7 +331,7 @@ let qcheck_incremental_matches_fresh_after_edit =
       | [] => true /* Nothing to edit — the property is vacuously true. */
       | lits =>
         let (target_id, old_value) =
-          List.nth(lits, seed mod List.length(lits));
+          List.nth_exn(lits, seed mod List.length(lits));
         /* +1 keeps the type fixed, so the edit typechecks the same as the
          * original while still changing the value at `target_id`. */
         let new_value = Bigint.(old_value + of_int(1));

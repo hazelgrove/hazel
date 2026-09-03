@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let tests = (
   "Atom",
@@ -10,10 +11,16 @@ let tests = (
       () => {
         let fns = Atom.conversions_from(Atom.Int);
         check(int, "5 conversions", 5, List.length(fns));
-        let names = List.map(fst, fns);
+        let names = List.map(~f=fst, fns);
         List.iter(
-          expected =>
-            check(bool, "has " ++ expected, true, List.mem(expected, names)),
+          ~f=
+            expected =>
+              check(
+                bool,
+                "has " ++ expected,
+                true,
+                List.mem(names, expected, ~equal=Poly.equal),
+              ),
           [
             "sint_of_int",
             "nat_of_int",
@@ -30,12 +37,12 @@ let tests = (
       () => {
         let fns = Atom.conversions_from(Atom.Nat);
         check(int, "5 conversions", 5, List.length(fns));
-        let names = List.map(fst, fns);
+        let names = List.map(~f=fst, fns);
         check(
           bool,
           "no self-conversion",
           false,
-          List.mem("nat_of_nat", names),
+          List.mem(names, "nat_of_nat", ~equal=Poly.equal),
         );
       },
     ),
@@ -88,9 +95,8 @@ let tests = (
           "int->sint",
           "sint_of_int",
           fst(
-            List.find(
-              ((_, to_: Atom.cls)) => to_ == Atom.SInt,
-              int_conversions,
+            List.find_exn(int_conversions, ~f=((_, to_: Atom.cls)) =>
+              Atom.equal_cls(to_, Atom.SInt)
             ),
           ),
         );
@@ -100,9 +106,8 @@ let tests = (
           "nat->string",
           "string_of_nat",
           fst(
-            List.find(
-              ((_, to_: Atom.cls)) => to_ == Atom.String,
-              nat_conversions,
+            List.find_exn(nat_conversions, ~f=((_, to_: Atom.cls)) =>
+              to_ == Atom.String
             ),
           ),
         );
