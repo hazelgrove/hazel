@@ -228,7 +228,7 @@
 
 #assistant .llm-message {
   padding: 8px 12px;
-  /* background-color: var(--T1); */
+  /* background-color: var(--surface-1); */
   border-radius: 3px;
   font-size: 1em;
   max-width: 100%;

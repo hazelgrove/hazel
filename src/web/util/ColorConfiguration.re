@@ -1,6 +1,7 @@
 open Language;
 
 module C = Language.BuiltinsADT.Color;
+module CS = Language.BuiltinsColorScheme;
 
 /* The Colors config slide.
 
@@ -9,280 +10,386 @@ module C = Language.BuiltinsADT.Color;
    documentation slides are. It is not generated: a generator cannot emit
    comments, and the layering is much easier to read stated directly.
 
-   This module is only the CONTRACT around that text: the CSS custom properties
-   the app expects the slide to define, the type it is analyzed against, and
-   the read-back that turns the evaluated slide into CSS.
+   The SHAPE of the theme that program produces lives in
+   Language.BuiltinsColorScheme, decomposed into named types the slide can
+   annotate with. This module is the CSS side of the same contract: the
+   `aliases` table below fans each of those fields out to the custom
+   properties the stylesheets actually read, `all_targets` is that output list,
+   and the read-back walks the evaluated slide from one to the other.
 
-   Keeping the names here rather than scraping them from the .hz is deliberate.
-   They are what the stylesheets consume, so they are an interface, and
-   Test_ColorConfiguration pins that the slide and this list agree -- both that
-   the slide type-checks against `expected_type` with no static errors, and
-   that evaluating it yields exactly these variables. */
+   Test_ColorConfiguration pins the join -- both that the slide type-checks
+   against the contract with no static errors, and that evaluating it yields
+   exactly these variables. */
 
 let source: Haz3lcore.PersistentZipper.t =
   Haz3lcore.PersistentZipper.of_slide_text([%blob "../colors.hz"]);
 
-/* The palette layer, published under its own names. Stylesheets consume
-   roles (see style/roles.css), but the palette stays the theme-settable input
-   layer and saved user themes write these names inline. */
-let palette: list(string) = [
-  "NONE",
-  "SAND",
-  "STONE",
-  "BLACK",
-  "BR1",
-  "BR2",
-  "BR3",
-  "BR4",
-  "T1",
-  "T2",
-  "T3",
-  "T4",
-  "Y0",
-  "Y1",
-  "Y2",
-  "Y3",
-  "R0",
-  "R1",
-  "R2",
-  "TYP",
-  "PAT",
-  "TPAT",
-  "LABEL",
-  "highlight-a",
-  "highlight-b",
-  "highlight-c",
-  "G0",
-  "G1",
-  "G2",
-  "GB0",
-  "GB1",
-];
+/* ── Hazel field -> CSS custom properties ───────────────────────────────
 
-/* Semantic roles, grouped by the part of the UI they dress. The label IS
-   the CSS custom-property name, verbatim -- there is no registry to drift
-   from, because `set_css_variable` is the only consumer. */
-let role_groups: list((string, list(string))) = [
+   The slide's field names and the CSS variable names used to be the same
+   thing, which is why a themer met `shard-caret-tpat` and `backback-targets`.
+   They are separated here: a field sets the properties listed against it, and
+   a field with no entry sets the single property of its own name.
+
+   A PALETTE field never sets a property of its own name. `--ink` and 33 others
+   were published and read by nothing -- no stylesheet, no OCaml, no script;
+   the only `var(--ink)`-shaped references left in the tree were commented out,
+   and palette.html declares its own `:root` rather than reading the theme's.
+   So the palette reaches CSS only through the semantic names below, which
+   makes "components consume roles, not the palette" true by construction
+   rather than by lint. The palette is still a first-class layer in the slide
+   and in `ColorPalette`; it is just not a CSS namespace.
+
+   That indirection is what lets one semantic field stand in for a family of
+   CSS names -- `token-inconsistent`, `token-rul` and `token-exp` are three
+   properties carrying one decision -- without the slide having to name all
+   three. It also pins the properties whose names would otherwise follow a
+   role's: renaming a role must not rename a CSS variable, so a renamed role
+   keeps a row here naming the property it always wrote. */
+let aliases: list(((string, string), list(string))) = [
   (
-    "ui",
+    ("palette", "surface-2"),
     [
-      "primary-accent",
-      "nut-menu",
-      "nut-menu-active",
-      "menu-bkg",
-      "menu-item-hover-bkg",
-      "menu-item-text",
-      "menu-outline",
-      "menu-icon",
-      "menu-group-name",
-      "menu-scroll-thumb",
-      "menu-scroll-track",
-      "menu-divider",
-      "menu-shadow",
-      "ui-bkg",
-      "ui-header-text",
-      "toggle-knob",
-      "df-hover-bg",
-      "context-meter-fill",
+      "shard_projector",
+      "token-secondary",
+      "shard-caret-exp",
+      "shard-exp",
+      "shard-rul",
+      "shard-any",
+      "border-raised",
+      "surface-raised",
+      "df-zebra-bg",
+      "table-header-bg",
     ],
   ),
   (
-    "code",
+    ("palette", "error-1"),
     [
-      "main-bkg",
-      "cell-active",
-      "main-scroll-thumb",
-      "main-scroll-track",
+      "shadow-selected",
+      "shadow-any",
+      "eval-exception",
+      "ci-status-error-bkg",
+      "test-fail-active",
+      "shadow-error-soft",
+      "surface-error-soft",
+    ],
+  ),
+  (
+    ("palette", "ink"),
+    [
+      "menu-item-text",
+      "token-exp",
+      "token-inconsistent",
+      "token-rul",
+      "surface-inverse",
+      "text-default",
+      "border-inverse",
+      "code-text",
+      "token-mod",
+    ],
+  ),
+  (
+    ("palette", "error-2"),
+    [
       "cell-selected-accent",
       "caret-color",
       "error-hole-stroke",
-      "token-exp",
-      "token-pat",
-      "token-typ",
-      "token-tpat",
-      "token-label",
-      "token-string-lit",
-      "token-comment",
-      "token-incomplete",
-      "token-inconsistent",
-      "token-buffer",
-      "token-explicit-hole",
-      "token-explicit-hole-shadow",
-      "token-secondary",
-      "token-rul",
+      "test-fail",
+      "border-error",
+      "shadow-error",
+      "surface-error",
+      "text-error",
+      "num-samples-indicated",
+    ],
+  ),
+  (
+    ("palette", "code-background"),
+    [
+      "toggle-knob",
+      "textarea-indicated",
+      "test-percent-text",
+      "border-seam",
+      "surface-code",
+      "text-inverse",
+      "df-bg",
+    ],
+  ),
+  (
+    ("palette", "frame-1"),
+    [
+      "menu-scroll-track",
+      "cell-result-hidden",
+      "test-indet-active",
+      "border-soft",
+      "shadow-soft",
+      "surface-shard",
+      "text-faint",
+    ],
+  ),
+  (
+    ("palette", "frame-2"),
+    [
+      "menu-outline",
+      "menu-scroll-thumb",
+      "test-indet",
+      "border-default",
+      "surface-shard-strong",
+      "text-muted",
+    ],
+  ),
+  (
+    ("palette", "frame-4"),
+    [
+      "menu-icon",
+      "menu-group-name",
+      "cell-result-text",
+      "border-stronger",
+      "surface-accent-strong",
+      "text-strong",
+      "context-meter-track",
+      "editor-mode-text",
+      "select-text",
+    ],
+  ),
+  (
+    ("palette", "surface-3"),
+    [
+      "main-bkg",
+      "cell-result",
+      "live-env-bkg",
+      "surface-sunken",
+      "text-sunken",
+      "border-sunken",
+    ],
+  ),
+  (
+    ("palette", "error-3"),
+    [
       "token-any",
-      "token-drv",
+      "eval-exception-stroke",
+      "ci-status-error-text",
+      "border-error-strong",
+      "surface-error-strong",
+      "text-error-strong",
     ],
   ),
   (
-    "shard",
+    ("palette", "success"),
     [
-      "shard-caret-exp",
-      "shard-lines-exp",
-      "shard-exp",
-      "shard-caret-pat",
-      "shard-caret-typ",
-      "shard-caret-tpat",
-      "shard-pat",
-      "shard-typ",
-      "shard-tpat",
+      "primary-accent",
+      "test-pass",
+      "exp-indicated",
+      "border-success",
+      "shadow-success",
+      "surface-success",
+      "text-success",
+      "fold-accent",
+    ],
+  ),
+  (
+    ("palette", "type"),
+    [
+      "token-typ",
+      "main-indicated",
+      "border-typ",
+      "shadow-typ",
+      "text-typ",
+      "exp-ap-indicated",
+      "token-sig",
+    ],
+  ),
+  (
+    ("palette", "pattern"),
+    [
+      "token-pat",
+      "pat-indicated",
+      "shadow-pat",
+      "text-pat",
+      "surface-pat",
+      "token-mpat",
+    ],
+  ),
+  (("palette", "none"), ["main-scroll-track", "surface-none", "text-none"]),
+  (
+    ("palette", "black"),
+    ["token-explicit-hole-shadow", "border-black", "text-black"],
+  ),
+  (
+    ("palette", "attention-3"),
+    [
+      "token-explicit-hole",
+      "border-highlight-strong",
+      "surface-highlight-strong",
+    ],
+  ),
+  (("palette", "type-pattern"), ["token-tpat", "text-tpat"]),
+  (("palette", "label"), ["token-label", "surface-label"]),
+  (
+    ("palette", "success-soft"),
+    ["test-pass-active", "surface-success-soft", "text-success-strong"],
+  ),
+  (("menu", "background"), ["menu-bkg", "test-panel-bkg"]),
+  (("menu", "divider"), ["menu-divider"]),
+  (("palette", "divider"), ["CREASE"]),
+  (("menu", "shadow"), ["menu-shadow"]),
+  (("palette", "overlay-shadow"), ["SHADOW"]),
+  (("cursor", "connector"), ["shard-lines-exp", "shard-lines-rul"]),
+  (("cursor", "pattern"), ["shard-caret-pat", "shard-pat"]),
+  (("cursor", "type"), ["shard-caret-typ", "shard-typ"]),
+  (("cursor", "type-pattern"), ["shard-caret-tpat", "shard-tpat"]),
+  (("hole", "error"), ["error-hole-fill"]),
+  (("palette", "error-hole"), ["ERRHOLE"]),
+  (("menu", "nut"), ["nut-menu"]),
+  (("menu", "hover"), ["menu-item-hover-bkg", "light-page-color"]),
+  (("chrome", "background"), ["ui-bkg"]),
+  (("chrome", "heading"), ["ui-header-text"]),
+  (("chrome", "meter"), ["context-meter-fill"]),
+  (("chrome", "table-row-hover"), ["df-hover-bg"]),
+  (("editor", "cell"), ["cell-active"]),
+  (("editor", "scrollbar"), ["main-scroll-thumb"]),
+  (("editor", "buffer"), ["token-buffer"]),
+  (("editor", "derivation"), ["token-drv"]),
+  (("editor", "locked-cell"), ["cell-exercises-border"]),
+  (("editor", "backpack-outline"), ["backpack-selection-outline"]),
+  (("cursor", "derivation"), ["shard-caret-drv", "shard-drv"]),
+  (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
+  (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
+  (("cursor", "module-pattern"), ["shard-caret-mpat", "shard-mpat"]),
+  (("hole", "empty"), ["empty-hole-fill"]),
+  (("hole", "empty-edge"), ["empty-hole-stroke"]),
+  (("hole", "warning"), ["warning-hole-fill", "ci-status-warning-bkg"]),
+  (
+    ("hole", "warning-edge"),
+    ["warning-hole-stroke", "ci-status-warning-text"],
+  ),
+  (("problems", "row"), ["hole-fill"]),
+  (("problems", "row-edge"), ["hole-stroke"]),
+  (("problems", "row-active"), ["hole-active"]),
+  (("results", "divider"), ["cell-result-border"]),
+  (("results", "reused"), ["incremental-frozen"]),
+  (("results", "reused-edge"), ["incremental-frozen-edge"]),
+  (("results", "sweep"), ["incremental-active-sweep"]),
+  (("results", "pending"), ["incremental-pending"]),
+  (("results", "pending-edge"), ["incremental-pending-edge"]),
+  (("inspector", "badge"), ["ci-icon-bkg"]),
+  (("inspector", "text"), ["ci-status-text"]),
+  (("inspector", "separator"), ["context-inspector-colon"]),
+  (("palette", "probe-value"), ["exp-base"]),
+  (("palette", "probe-value-edge"), ["exp-shadow"]),
+  (("palette", "probe-pattern"), ["pat-base"]),
+  (("palette", "probe-pattern-edge"), ["pat-shadow"]),
+  (("palette", "probe-application"), ["exp-ap"]),
+  (("palette", "probe-timeline"), ["pat-cell"]),
+  (("probe", "depth"), ["depth-shadow"]),
+  (("probe", "caller"), ["sample-above-bg"]),
+  (("probe", "caller-text"), ["sample-above-text"]),
+  (("probe", "caller-edge"), ["sample-above-shadow"]),
+  (("probe", "callee"), ["sample-below-bg"]),
+  (("probe", "callee-text"), ["sample-below-text"]),
+  (("probe", "callee-edge"), ["sample-below-shadow"]),
+  (("probe", "other"), ["sample-neutral-bg"]),
+  (("probe", "other-text"), ["sample-neutral-text"]),
+  (("probe", "focus-text"), ["sample-focus-text"]),
+  (("palette", "statics-background"), ["main-base"]),
+  (("palette", "statics-edge"), ["main-shadow"]),
+  (("projector", "fold-background"), ["fold-bkg"]),
+  (("palette", "textarea-margin"), ["textarea-v-stripe"]),
+  (("palette", "textarea-rule"), ["textarea-h-stripe"]),
+  (("palette", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
+  (("editor", "string"), ["token-string-lit", "token-incomplete"]),
+  (("editor", "comment"), ["token-comment"]),
+  (
+    ("editor", "selection"),
+    [
       "shard-selected",
-      "shard-buffer",
-      "shard_projector",
-      "shard-rul",
-      "shard-lines-rul",
-      "shadow-selected",
-      "shard-any",
-      "shadow-any",
-      "shard-caret-drv",
-      "shard-caret-mod",
-      "shard-caret-sig",
-      "shard-caret-mpat",
-    ],
-  ),
-  (
-    "hole",
-    [
-      "empty-hole-stroke",
-      "empty-hole-fill",
-      "error-hole-fill",
-      "warning-hole-fill",
-      "warning-hole-stroke",
-      "hole-fill",
-      "hole-stroke",
-      "hole-active",
-    ],
-  ),
-  (
-    "backpack",
-    [
       "backpack-selection",
       "backpack-joiner",
       "backpack-genie",
-      "backpack-selection-outline",
-      "backback-targets",
-    ],
-  ),
-  ("projector", ["textarea-indicated", "textarea-text", "fold-bkg"]),
-  (
-    "dynamics",
-    [
-      "cell-result-text",
-      "cell-result-border",
-      "cell-result-hidden",
-      "eval-exception",
-      "eval-exception-stroke",
-      "step-hole-color",
-      "incremental-frozen",
-      "incremental-frozen-edge",
-      "incremental-active-sweep",
     ],
   ),
   (
-    "ci",
+    ("palette", "attention-1"),
+    ["surface-highlight-soft", "shard-selected-expanded"],
+  ),
+  (
+    ("palette", "attention-2"),
     [
-      "ci-icon-bkg",
-      "ci-status-text",
-      "ci-status-error-text",
-      "ci-status-error-bkg",
-      "context-inspector-colon",
+      "border-highlight",
+      "shadow-highlight",
+      "surface-highlight",
+      "num-samples",
     ],
   ),
   (
-    "exercise",
+    ("palette", "attention-4"),
+    ["border-warning", "surface-warning", "text-warning"],
+  ),
+  (("palette", "doc-1"), ["surface-highlight-a", "text-doc-1"]),
+  (("palette", "doc-2"), ["surface-highlight-b", "text-doc-2"]),
+  (("palette", "doc-3"), ["surface-highlight-c", "text-doc-3"]),
+  (("palette", "doc-6"), ["surface-highlight-f", "text-doc-6"]),
+  (("palette", "doc-5"), ["surface-highlight-e", "text-doc-5"]),
+  (("palette", "doc-4"), ["surface-highlight-d", "text-doc-4"]),
+  (
+    ("palette", "frame-3"),
     [
-      "cell-caption",
-      "cell-result",
-      "cell-exercises-border",
-      "test-panel-bkg",
-      "test-percent-text",
-      "test-pass",
-      "test-pass-active",
-      "test-fail",
-      "test-fail-active",
-      "test-indet",
-      "test-indet-active",
+      "border-strong",
+      "shadow-strong",
+      "surface-accent",
+      "text-accent",
+      "explain-this-expander",
     ],
+  ),
+  (("palette", "info"), ["text-info"]),
+  (("palette", "info-strong"), ["border-info", "text-info-strong"]),
+  (
+    ("palette", "success-muted"),
+    ["border-success-muted", "shadow-success-muted", "text-success-muted"],
   ),
   (
-    "special",
-    [
-      "textarea-v-stripe",
-      "textarea-h-stripe",
-      "textarea-h-strip-selected",
-      "SHADOW",
-      "ERRHOLE",
-      "CREASE",
-    ],
+    ("palette", "surface-1"),
+    ["border-surface", "surface-default", "text-surface"],
   ),
-  (
-    "projector_extended",
-    [
-      "live-env-bkg",
-      "num-closures",
-      "num-closures-indicated",
-      "exp-ap",
-      "pat-ap",
-      "exp-indicated",
-      "pat-indicated",
-      "exp-ap-indicated",
-      "exp-base",
-      "pat-base",
-      "exp-shadow",
-      "pat-shadow",
-      "exp-ap-shadow",
-      "exp-cell",
-      "pat-cell",
-      "main-base",
-      "main-shadow",
-      "main-indicated",
-      "depth-shadow",
-      "sample-above-text",
-      "sample-above-bg",
-      "sample-above-shadow",
-      "sample-below-text",
-      "sample-below-bg",
-      "sample-below-shadow",
-      "sample-neutral-text",
-      "sample-neutral-bg",
-      "sample-focus-text",
-    ],
-  ),
+  (("palette", "surface-4"), ["surface-deep"]),
 ];
 
-/* The analyzed type: a labeled tuple of `palette` and `roles`, every leaf a
-   `ColorValue`. `ColorValue` lives in the builtin context, so the slide needs
-   no type declaration of its own. The editor threads this in as `~ana`, so a
-   slide that stops matching it goes red in the buffer. */
-let expected_type =
-  IdTagged.FreshGrammar.Typ.(
-    prod([
-      tup_label(
-        label("palette"),
-        prod(
-          List.map(n => tup_label(label(n), var("ColorValue")), palette),
-        ),
-      ),
-      tup_label(
-        label("roles"),
-        prod(
-          List.map(
-            ((group, members)) =>
-              tup_label(
-                label(group),
-                prod(
-                  List.map(
-                    n => tup_label(label(n), var("ColorValue")),
-                    members,
-                  ),
-                ),
-              ),
-            role_groups,
-          ),
-        ),
-      ),
-    ])
-  );
+/* Every field a themer can set, as (group, name). The pair is the key: short
+   names are the point -- `menu.background` and `chrome.background` are two
+   different colors and should not have to be spelled apart. */
+let field_names: list((string, string)) =
+  List.map(n => ("palette", n), CS.palette)
+  @ List.concat_map(
+      ((group, members)) => List.map(n => (group, n), members),
+      CS.role_groups,
+    );
+
+let targets_of = (group: string, name: string): list(string) =>
+  switch (List.assoc_opt((group, name), aliases)) {
+  | Some(targets) => targets
+  | None => [name]
+  };
+
+/* Not colors: the two flags the theme declares (see BuiltinsColorScheme).
+
+   Polarity is forwarded to the standard `color-scheme` property, so native
+   controls -- scrollbars, <select> popups, the caret in text inputs -- invert
+   with the theme instead of staying light on a dark editor. Contrast has no
+   standard property behind it, so it is published for stylesheets to read. */
+let polarity_target = "hazel-color-scheme";
+let contrast_target = "hazel-contrast";
+
+/* Every CSS custom property the slide is responsible for. This, not
+   `field_names`, is the output contract: it is what the stylesheets consume,
+   what the tests check against, and what `theme_key` must be salted with. */
+let all_targets: list(string) = [
+  polarity_target,
+  contrast_target,
+  ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
+];
+
+/* The type the editor threads in as `~ana`, so a slide that stops matching
+   the contract goes red in the buffer. */
+let expected_type = CS.typ;
 
 let entries_of = (v: Exp.t): list(Exp.t) =>
   switch (v.term) {
@@ -290,37 +397,52 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
   | _ => []
   };
 
-/* One `(name, value)` pair per labeled field holding a decodable colour. */
-let colors_of_group = (group: Exp.t): list((string, string)) =>
-  List.filter_map(
+/* One pair per CSS property a labeled field is responsible for -- usually
+   one, but a field standing in for a family sets several. */
+let colors_of_group =
+    (group_name: string, group: Exp.t): list((string, string)) =>
+  List.concat_map(
     (entry: Exp.t) =>
       switch (entry.term) {
       | TupLabel(l, v) =>
         switch (l.term, C.of_exp(v)) {
-        | (Label(name), Some(c)) => Some((name, C.to_css(c)))
-        | _ => None
+        | (Label(name), Some(c)) =>
+          let css = C.to_css(c);
+          List.map(t => (t, css), targets_of(group_name, name));
+        | _ => []
         }
-      | _ => None
+      | _ => []
       },
     entries_of(group),
   );
 
 /* Read the evaluated slide back out as the CSS custom properties to write.
-   Both layers are emitted: stylesheets consume role names via roles.css, and
-   saved user themes plus roles.css itself still consume the palette. */
-let css_vars_of_value = (value: Exp.t): list((string, string)) =>
+   Both layers are emitted: stylesheets consume the role names, and the
+   palette is published too, because it is what a saved user theme writes. */
+let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
     (section: Exp.t) =>
       switch (section.term) {
       | TupLabel(l, body) =>
         switch (l.term) {
-        | Label("palette") => colors_of_group(body)
+        | Label("palette") => colors_of_group("palette", body)
+        | Label(l) when l == CS.polarity_field =>
+          switch (Unboxing.unbox(Atom(Bool), body)) {
+          | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+          | _ => []
+          }
+        | Label(l) when l == CS.contrast_field =>
+          switch (Unboxing.unbox(Atom(Bool), body)) {
+          | Matches(b) => [(contrast_target, b ? "high" : "normal")]
+          | _ => []
+          }
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>
           List.concat_map(
             (g: Exp.t) =>
               switch (g.term) {
-              | TupLabel(_, members) => colors_of_group(members)
+              | TupLabel({term: Label(gname), _}, members) =>
+                colors_of_group(gname, members)
               | _ => []
               },
             entries_of(body),
@@ -331,6 +453,19 @@ let css_vars_of_value = (value: Exp.t): list((string, string)) =>
       },
     entries_of(value),
   );
+
+/* All of the properties, or none of them.
+
+   A slide that yields most of a theme is worse than one that yields none: the
+   editor ends up half in the user's colors and half in the stylesheet
+   defaults, with no indication which is which. `apply_theme_at_startup`
+   already reads `[]` as "leave the last theme up", so the empty list is the
+   honest answer to a slide that cannot fill the contract. */
+let css_vars_of_value = (value: Exp.t): list((string, string)) => {
+  let vars = decoded_vars(value);
+  let produced = List.sort_uniq(compare, List.map(fst, vars));
+  produced == List.sort_uniq(compare, all_targets) ? vars : [];
+};
 
 /* The whole load path for a Colors slide: parse, analyze, evaluate, read
    back. Product code rather than a test helper because the startup path

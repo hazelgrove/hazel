@@ -47,7 +47,7 @@ module Model = {
      No version in the key. It used to carry one, so that a slide saved
      against an older contract would not be restored into a newer build --
      but a slide that no longer satisfies the contract simply yields no
-     colours, and `apply_theme_at_startup` treats that as "use the defaults"
+     colors, and `apply_theme_at_startup` treats that as "use the defaults"
      (every palette var has a literal default in variables.css). Resetting
      the slide is how the user gets a working one back. That is a better
      answer than a version we have to remember to bump, and it covers shapes
@@ -184,7 +184,7 @@ module StoreConfig =
     );
   });
 
-/* ── The colour theme, applied at startup ───────────────────────────────
+/* ── The color theme, applied at startup ───────────────────────────────
 
    HARD REQUIREMENT: the user's theme applies in EVERY mode. `Editors` loads
    and calculates only the mode you are in, and the config side effect below
@@ -194,7 +194,7 @@ module StoreConfig =
    startup, with no reference to which mode is active.
 
    Cached because the slide is a ~500-line Hazel program: parse, statics and
-   evaluate cost ~170ms, and in the app the colours normally arrive with the
+   evaluate cost ~170ms, and in the app the colors normally arrive with the
    Web Worker's evaluation result, well after the first frame. On a cache miss
    the slide is evaluated synchronously instead of being left unthemed — once,
    and only when the slide or the contract has changed.
@@ -204,11 +204,11 @@ module StoreConfig =
    IndexedDB only opens asynchronously, by which time the spinner has painted.
 
    Format is newline-delimited — key, then name/value pairs — because a CSS
-   colour value cannot contain a newline, so nothing needs escaping and the
+   color value cannot contain a newline, so nothing needs escaping and the
    inline script stays three lines. */
 let theme_storage_key = "HAZEL_THEME";
 
-/* Which slide the colours come from: the user's if they have edited it, the
+/* Which slide the colors come from: the user's if they have edited it, the
    built-in source otherwise. One definition, used for both the cache key and
    the fallback evaluation, so those two can never disagree about the source. */
 let colors_source = ((_, slides): Model.persistent): PersistentZipper.t =>
@@ -234,13 +234,10 @@ let theme_key = (persistent: Model.persistent): string =>
     /* Joined into one string on purpose: `Hashtbl.hash` samples only the
        first few nodes of a list, so a name added at the end of a 142-entry
        contract would not change the hash. */
-    Hashtbl.hash(
-      String.concat(
-        ",",
-        ColorConfiguration.palette
-        @ List.concat_map(snd, ColorConfiguration.role_groups),
-      ),
-    ),
+    /* The OUTPUT contract, not the slide's field names: a field can be
+       re-pointed at different properties without its name changing, and the
+       cache has to notice. */
+    Hashtbl.hash(String.concat(",", ColorConfiguration.all_targets)),
   );
 
 let apply_colors = (vars: list((string, string))): unit =>
@@ -292,7 +289,7 @@ let apply_theme_at_startup = (): unit => {
     };
   /* Nothing on failure -- deliberately. A slide that does not satisfy the
      contract leaves the last theme the inline <head> script painted, and
-     leaves the cache holding it, so the editor stays in the colours the user
+     leaves the cache holding it, so the editor stays in the colors the user
      chose while they go and fix the slide. Snapping to the defaults instead
      would hand someone a bright editor to repair a dark theme in, and it
      would disagree with the in-session behaviour: `perform_side_effect` only
@@ -485,7 +482,7 @@ module Update = {
        follow the model on its own -- something has to put it back. Applying it
        when an evaluation ARRIVES is not enough: undo installs a whole snapshot
        and never replays the actions that built it, so the buffer and the
-       printed result go back while the document keeps the colours of a future
+       printed result go back while the document keeps the colors of a future
        that was undone. Reconciling here, against whatever model is current,
        covers undo and every other path that swaps a model in wholesale. */
     reconcile_colors(config_type, model, new_ed);
