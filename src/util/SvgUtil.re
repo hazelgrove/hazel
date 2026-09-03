@@ -133,3 +133,35 @@ module Path = {
     );
   };
 };
+
+/* A square icon built from raw SVG path data. Used for the small glyphs
+ * that label UI affordances (rich-probe badges, toolbar buttons): the
+ * caller supplies a viewBox and one path string per subpath, plus an
+ * optional transform applied to each.
+ *
+ * Lives here rather than in a feature module because both the web layer
+ * (Icons) and haz3lcore projectors need it, and util is below both. */
+let icon_size = 20.;
+
+let simple_icon = (~transform="", ~view: string, ds: list(string)): Node.t =>
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      Attr.[
+        create("viewBox", view),
+        create("width", Printf.sprintf("%fpx", icon_size)),
+        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("preserveAspectRatio", "none"),
+      ],
+    List.map(
+      d =>
+        Node.create_svg(
+          "path",
+          ~attrs=
+            [Attr.create("d", d)]
+            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
+          [],
+        ),
+      ds,
+    ),
+  );

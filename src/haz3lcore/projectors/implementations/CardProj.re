@@ -639,6 +639,7 @@ module M: Projector = {
       },
     offside: None,
     overlay: None,
+    docked: None,
     error: false,
   };
 };

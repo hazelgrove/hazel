@@ -15,6 +15,7 @@ let utility: ProjectorBase.utility = {
         hole_tiles: false,
         fold_fn_bodies: `NoFold,
         project_tables: false,
+        project_html: false,
       },
       any,
     );

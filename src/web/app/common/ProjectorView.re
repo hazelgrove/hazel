@@ -473,9 +473,14 @@ let mk_view =
       projector_list: list(Id.t),
     )
     : View.t => {
-  /* Only the app projector reads the AppStore, so only its cache entry
-     has to expire when the store changes. */
-  let app_version = p.kind == ProjectorCore.Kind.HTML ? AppBridge.version^ : 0;
+  /* Only surfaces that read the AppStore have to expire when it changes:
+     the HTML projector, and a probe whose rich probe is running an app. */
+  let app_version =
+    switch (p.kind) {
+    | ProjectorCore.Kind.HTML
+    | ProjectorCore.Kind.Probe => AppBridge.version^
+    | _ => 0
+    };
   switch (
     ViewCache.lookup(
       p.id,
@@ -734,6 +739,46 @@ let sidebar_views =
        );
      });
 };
+
+/* Secondary surfaces projectors want in the panel without moving themselves
+ * there — see ProjectorBase.View.docked. A probe uses this to dock its rich
+ * probe while the probe itself stays on the code, so unlike sidebar_views
+ * these contribute no chip and their source projector keeps its inline view.
+ *
+ * Every candidate has to be rendered to find out whether it wants a card, so
+ * this is deliberately given refractor data rather than every projector;
+ * mk_view is cached, and the code editor has already populated those entries
+ * this frame. */
+let docked_views =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
+      projector_data: list(Model.projector_data),
+      projector_list: list(Id.t),
+    )
+    : list((Base.projector, Node.t, unit => Ui_effect.t(unit))) =>
+  projector_data
+  |> List.sort(by_measurement)
+  |> List.filter_map((d: Model.projector_data) => {
+       let views =
+         mk_view(inject, font_metrics, ~core_settings, d, projector_list);
+       views.docked
+       |> Option.map((docked: ProjectorBase.View.docked) =>
+            (
+              d.p,
+              div(
+                ~attrs=[
+                  Attr.classes(
+                    projector_clss(~view_error=views.error, d.status),
+                  ),
+                ],
+                [docked.content],
+              ),
+              docked.undock,
+            )
+          );
+     });
 
 let move_dir = (key: Key.t): option(Direction.t) =>
   switch (key) {

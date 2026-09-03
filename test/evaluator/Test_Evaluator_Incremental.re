@@ -1643,6 +1643,91 @@ n|};
   );
 };
 
+/* Regression: reusing a cached value that carries no environment.
+ *
+ * `Transition`'s `Closure` rule evaluates subterms with `~in_closure`, so
+ * `wrap_closure_when_done` omits the `Closure` wrapper for a function value
+ * nested under a `Closure` -- correct in place, because the enclosing `Closure`
+ * supplies the environment. A cache entry is keyed by id alone and is replayed
+ * at top level, where that enclosing `Closure` is gone, so applying the
+ * replayed function lands in `Transition`'s `| FunNoEnv(_) => Indet` and the
+ * application is silently final-but-stuck.
+ *
+ * Reaching it needs the editor, not a bare evaluation: the cached ids must
+ * survive into the next program, which only happens when the SAME document is
+ * edited in place. Plain typing is enough -- no projector involved. */
+let bare_fun_reuse_tests = {
+  /* The real slide, with the refractor stripped: this is plain typing into an
+     ordinary document, no projector and no commit anywhere. */
+  let program =
+    switch (List.assoc_opt("Charts / Calculator", Charts.Slides.all_slides)) {
+    | Some({backup_text, _}: Haz3lcore.PersistentZipper.t) =>
+      /* strip the refractor trigger without pulling in Str */
+      String.concat(
+        "calc(0)",
+        String.split_on_char('\000', backup_text)
+        |> List.hd
+        |> (
+          t => {
+            let needle = "^^probe_html(calc(0))";
+            let nl = String.length(needle);
+            let rec go = (i, acc) =>
+              i + nl <= String.length(t) && String.sub(t, i, nl) == needle
+                ? [acc, ...go(i + nl, "")]
+                : i < String.length(t)
+                    ? go(i + 1, acc ++ String.make(1, t.[i])) : [acc];
+            go(0, "");
+          }
+        ),
+      )
+    | None => Alcotest.fail("Calculator slide not registered")
+    };
+  let typed = {| |> pressDigit(_, "1")|};
+  [
+    Alcotest.test_case(
+      "reuse keeps a function value's environment (plain typing)",
+      `Quick,
+      () => {
+        let model = EditorCycle.of_text(program);
+        let prev =
+          switch (EditorCycle.evaluate_as_worker(model)) {
+          | Ok((_, state)) => state.incr_eval
+          | Error(m) => Alcotest.fail("first evaluation: " ++ m)
+          };
+        /* Type the application at the end of the SAME document. */
+        let model =
+          switch (EditorCycle.perform(Move(End), model)) {
+          | Ok(m) => m
+          | Error(m) => Alcotest.fail("Move(End): " ++ m)
+          };
+        let after =
+          String.fold_left(
+            (model, c) =>
+              switch (EditorCycle.perform(Insert(String.make(1, c)), model)) {
+              | Ok(m) => m
+              | Error(m) =>
+                Alcotest.fail("Insert " ++ String.make(1, c) ++ ": " ++ m)
+              },
+            model,
+            typed,
+          );
+        switch (EditorCycle.evaluate_as_worker(~prev, after)) {
+        | Error(m) => Alcotest.fail("second evaluation: " ++ m)
+        | Ok((value, _)) =>
+          /* Without the guard this is `Ap(Forward, Fun((node, acc, op, entry),
+             ...), ...)`: setState applied to a final 4-tuple, stuck forever. */
+          Alcotest.check(
+            Alcotest.bool,
+            "the typed application reduces",
+            true,
+            Haz3lcore.MvuShape.is_html(value),
+          )
+        };
+      },
+    ),
+  ];
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1836,5 +1921,6 @@ let tests = (
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
     ),
-  ],
+  ]
+  @ bare_fun_reuse_tests,
 );

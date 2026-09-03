@@ -1,0 +1,277 @@
+# LINKED VIEWS #
+
+# Drag the top of any bar. The pie beside it is derived from the same model, #
+# so it redraws as you drag: two views of one state, which is all an MVU #
+# `view` function ever is. #
+
+# Deriving a second chart INSIDE `view` is what makes it live. The app's #
+# model lives in the runtime, not in the syntax, so a chart built outside #
+# the app — from the 4-tuple's `init` component — would show the starting #
+# data and never move. #
+
+# The drawing helpers are the Svg and Chart modules from the Charts slide, #
+# trimmed to what this program actually uses: a pie needs no scales, so #
+# there is no Scale module here at all. #
+
+module Svg = {
+  # Numbers reach SVG as attribute strings. #
+  let f2 : Float -> String = fun x -> to_fixed(x, 2);
+  let at : (String, Float) -> Attr = fun (k, v) -> Create(k, to_fixed(v, 2));
+
+  # Labels: drop the decimals when a value lands on a whole number. #
+  let num : Float -> String =
+    fun v ->
+      if v -. floor(v) ==. 0.0 && abs_float(v) <. 100000000.0
+      then string_of_int(int_of_float(v))
+      else to_fixed(v, 2);
+
+  let root : (Float, Float, [HTML]) -> HTML =
+    fun (w, h, kids) ->
+      Node("svg", [
+        Create("viewBox", "0 0 " ++ f2(w) ++ " " ++ f2(h)),
+        Create("preserveAspectRatio", "xMidYMid meet"),
+        Class("chart-svg")
+      ], kids);
+
+  let g : (Float, Float, [HTML]) -> HTML =
+    fun (dx, dy, kids) ->
+      Node("g", [Create("transform",
+        "translate(" ++ f2(dx) ++ "," ++ f2(dy) ++ ")")], kids);
+
+  # A native SVG tooltip. Nested inside a shape, the browser shows it on hover. #
+  let tip : String -> HTML = fun s -> Node("title", [], [Text(s)]);
+
+  let rect : (Float, Float, Float, Float, String, [HTML]) -> HTML =
+    fun (x, y, w, h, fill, kids) ->
+      Node("rect", [at("x", x), at("y", y), at("width", w), at("height", h),
+                    Create("fill", fill), Class("chart-mark")], kids);
+
+  let circle : (Float, Float, Float, String, [HTML]) -> HTML =
+    fun (cx, cy, r, fill, kids) ->
+      Node("circle", [at("cx", cx), at("cy", cy), at("r", r),
+                      Create("fill", fill), Class("chart-mark")], kids);
+
+  let path : (String, String, String, [HTML]) -> HTML =
+    fun (d, fill, cls, kids) ->
+      Node("path", [Create("d", d), Create("fill", fill), Class(cls)], kids);
+
+  let text : (Float, Float, String, String) -> HTML =
+    fun (x, y, cls, s) ->
+      Node("text", [at("x", x), at("y", y), Class(cls)], [Text(s)])
+} in
+
+module Chart = {
+  let w = 320.0;
+  let h = 220.0;
+
+  let palette : [String] = [
+    "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)",
+    "var(--chart-5)", "var(--chart-6)", "var(--chart-7)", "var(--chart-8)"
+  ];
+  let color : Int -> String = fun i -> nth(palette, int_mod(i, 8));
+
+  let empty : HTML =
+    Svg.root(w, h, [Svg.text(w /. 2.0, h /. 2.0, "chart-empty", "no data")]);
+
+  let pie : [(label=String, value=Float)] -> HTML =
+    fun rows ->
+      # Negative slices have no meaning in a pie; clamp them away. #
+      let vals = map(rows, fun r -> if r.value <. 0.0 then 0.0 else r.value) in
+      let total = fold_left(vals, fun (a, v) -> a +. v, 0.0) in
+      if length(rows) == 0 || total <=. 0.0
+      then empty
+      else
+        let cx = 92.0 in
+        let cy = h /. 2.0 in
+        let r = 76.0 in
+        # Running start angle for each slice, in turns (0..1). #
+        let starts =
+          fold_left(vals, fun (acc, v) ->
+            acc @ [(case rev(acc) | [] => 0.0 | s::_ => s end) +. v /. total],
+            [0.0]) in
+        let arc = fun (a0, a1, fill, tipText) ->
+          let ang = fun a -> a *. 2.0 *. pi in
+          let ptx = fun a -> cx +. r *. sin(ang(a)) in
+          let pty = fun a -> cy -. r *. cos(ang(a)) in
+          # A slice covering the whole circle has no arc endpoints to name. #
+          if a1 -. a0 >=. 0.999999
+          then Svg.circle(cx, cy, r, fill, [Svg.tip(tipText)])
+          else
+            Svg.path(
+              "M " ++ Svg.f2(cx) ++ "," ++ Svg.f2(cy)
+              ++ " L " ++ Svg.f2(ptx(a0)) ++ "," ++ Svg.f2(pty(a0))
+              ++ " A " ++ Svg.f2(r) ++ "," ++ Svg.f2(r) ++ " 0 "
+              ++ (if a1 -. a0 >. 0.5 then "1" else "0") ++ " 1 "
+              ++ Svg.f2(ptx(a1)) ++ "," ++ Svg.f2(pty(a1)) ++ " Z",
+              fill, "chart-mark", [Svg.tip(tipText)]) in
+        let slices =
+          concat(mapi(zip(rows, vals), fun (i, rv) ->
+            let (row, v) = rv in
+            if v <=. 0.0
+            then []
+            else [arc(nth(starts, i), nth(starts, i + 1), color(i),
+                      row.label ++ ": " ++ Svg.num(row.value))])) in
+        let legend =
+          mapi(rows, fun (i, row) ->
+            Svg.g(0.0, float_of_int(i) *. 14.0, [
+              Svg.rect(0.0, 0.0 -. 7.0, 8.0, 8.0, color(i), []),
+              Svg.text(12.0, 0.0, "chart-legend",
+                       row.label ++ "  " ++ Svg.num(row.value))])) in
+        Svg.root(w, h, [Svg.g(0.0, 0.0, slices), Svg.g(186.0, 24.0, legend)])
+} in
+
+
+# ===== THE APP ===== #
+
+# Rows are the same labeled shape Chart.pie takes, so deriving the pie is #
+# just handing it the model. #
+
+type Row = (label=String, value=Float) in
+
+type Model = (
+  values = [Row],
+  dragging = Int      # index of the bar being dragged, or -1 for none #
+) in
+
+type Action =
+  + Grab(Int)
+  + MoveTo(Int, Int)
+  + Release
+in
+
+let ml = 38.0 in
+let mt = 12.0 in
+let iw = 268.0 in
+let ih = 178.0 in
+let vmax = 50.0 in
+
+let init : Model = (
+  values = [
+    ("Kale", 42.0), ("Chard", 31.0), ("Leek", 24.0),
+    ("Beet", 18.0), ("Fennel", 12.0)
+  ],
+  dragging = 0 - 1
+) in
+
+# Pointer y within the plot, back to a data value, clamped to the axis. #
+let valueAt : Int -> Float =
+  fun py ->
+    let v = (ih -. (float_of_int(py) -. mt)) /. ih *. vmax in
+    if v <. 0.0 then 0.0 else if v >. vmax then vmax else v
+in
+
+let update : (Model, Action) -> (Model, Cmd) =
+  fun (model, action) ->
+    case action
+    | Grab(i) => ((values = model.values, dragging = i), CmdNone)
+    | Release => ((values = model.values, dragging = 0 - 1), CmdNone)
+    | MoveTo(_, py) =>
+        if model.dragging < 0
+        then (model, CmdNone)
+        else
+          ((values =
+              mapi(model.values, fun (j, r) ->
+                if j == model.dragging
+                then (label = r.label, value = valueAt(py))
+                else r),
+            dragging = model.dragging),
+           CmdNone)
+    end
+in
+
+# The bars are built from raw Node rather than Svg.rect: they carry event #
+# handlers, and the library's shape helpers take a fixed attribute list. #
+
+let bar : (Int, Row) -> [HTML] =
+  fun (i, row) ->
+    let step = iw /. 5.0 in
+    let x = ml +. step *. float_of_int(i) +. step *. 0.125 in
+    let bw = step *. 0.75 in
+    let y = mt +. ih -. row.value /. vmax *. ih in
+    [
+      Node("rect", [
+        Svg.at("x", x), Svg.at("y", y),
+        Svg.at("width", bw), Svg.at("height", mt +. ih -. y),
+        Create("fill", Chart.color(i)),
+        Create("cursor", "ns-resize"),
+        OnMouseDownAt(fun _ -> Grab(i))
+      ], [Svg.tip(row.label ++ ": " ++ Svg.num(row.value))]),
+      # A wider invisible grip so the top edge is easy to catch. #
+      Node("rect", [
+        Svg.at("x", x), Svg.at("y", y -. 5.0),
+        Svg.at("width", bw), Svg.at("height", 10.0),
+        Create("fill", "transparent"),
+        Create("cursor", "ns-resize"),
+        OnMouseDownAt(fun _ -> Grab(i))
+      ], []),
+      Svg.text(x +. bw /. 2.0, y -. 5.0, "chart-value", Svg.num(row.value)),
+      Svg.text(x +. bw /. 2.0, mt +. ih +. 14.0,
+               "chart-axis-text chart-axis-x", row.label)
+    ]
+in
+
+let ticks : [Float] = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0] in
+
+let bars : Model -> HTML =
+  fun model ->
+    Node("svg", [
+      Create("viewBox", "0 0 " ++ Svg.f2(Chart.w) ++ " " ++ Svg.f2(Chart.h)),
+      # Handler pixels are viewBox coordinates only while these agree. #
+      Width("320"), Height("220"),
+      Class("chart-svg"),
+      # Tracking on the root, not the bar, so a fast drag doesn't lose the #
+      # pointer the moment it leaves the bar it grabbed. #
+      OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)),
+      OnMouseUpAt(fun _ -> Release),
+      OnMouseLeave(Release)
+    ],
+    map(ticks, fun t ->
+      Node("line", [
+        Svg.at("x1", ml), Svg.at("y1", mt +. ih -. t /. vmax *. ih),
+        Svg.at("x2", ml +. iw), Svg.at("y2", mt +. ih -. t /. vmax *. ih),
+        Class("chart-grid")
+      ], []))
+    @ map(ticks, fun t ->
+      Svg.text(ml -. 6.0, mt +. ih -. t /. vmax *. ih +. 3.5,
+               "chart-axis-text chart-axis-y", Svg.num(t)))
+    @ concat(mapi(model.values, fun (i, r) -> bar(i, r))))
+in
+
+let figure : (String, HTML) -> HTML =
+  fun (caption, chart) ->
+    Div([Class("chart-figure")], [Div([Class("chart-caption")], [Text(caption)]), chart])
+in
+
+let view : Model -> HTML =
+  fun model ->
+    Div([Class("chart-gallery")], [
+      figure("Drag a bar", bars(model)),
+      figure("Share of harvest", Chart.pie(model.values))
+    ])
+in
+
+let subs : Model -> Sub = fun _ -> SubNone in
+
+hint "dragging rewrites one row and leaves its label alone"
+test
+  let (grabbed, _) = update(init, Grab(2)) in
+  let (moved, _) = update(grabbed, MoveTo(100, 101)) in
+  nth(moved.values, 0) == nth(init.values, 0)
+    && nth(moved.values, 2).label == "Leek"
+    && nth(moved.values, 2).value != 24.0
+end;
+
+hint "a move with nothing grabbed changes nothing"
+test
+  let (moved, _) = update(init, MoveTo(100, 101)) in
+  moved.values == init.values
+end;
+
+hint "the pie derives from whatever the model currently holds"
+test
+  let (grabbed, _) = update(init, Grab(0)) in
+  let (moved, _) = update(grabbed, MoveTo(100, 12)) in
+  Chart.pie(moved.values) != Chart.pie(init.values)
+end;
+
+^^html((init, update, view, subs))

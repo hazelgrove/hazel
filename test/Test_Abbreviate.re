@@ -13,6 +13,7 @@ let abbrev_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: false,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let exp_to_seg = ExpToSegment.exp_to_segment(~settings=abbrev_settings);
