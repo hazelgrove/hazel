@@ -30,6 +30,13 @@ let inline = (width: int): t => {
 };
 let default: t = inline(0);
 
+let s = (s: t) =>
+  switch (s.vertical) {
+  | Inline => "Inline"
+  | Tab(_) => "Tab"
+  | Block(_) => "Block"
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape = t;
 

@@ -152,6 +152,7 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_clipboard_shim();
+    /* Strudel is now loaded lazily when first Player projector is used */
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to

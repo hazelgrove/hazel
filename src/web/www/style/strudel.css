@@ -1,0 +1,60 @@
+/* Strudel Audio Controls */
+
+.strudel-controls {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--T2);
+  border-radius: 0.4em;
+  overflow: hidden;
+  font-size: 0.85em;
+  margin-bottom: 0.3em;
+  border: 1px solid var(--BR2);
+}
+
+.strudel-controls .pattern {
+  font-family: var(--code-font);
+  color: var(--STONE);
+  padding: 0.4em 0.6em;
+  display: flex;
+  align-items: center;
+}
+
+/* Button panel - play and stop as joined button group */
+.strudel-controls .button-panel {
+  display: flex;
+  align-items: stretch;
+}
+
+.strudel-controls button {
+  border: none;
+  cursor: pointer;
+  transition: filter 0.1s, background-color 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  padding: 0.4em;
+  font-size: 1em;
+}
+
+.strudel-controls button:hover {
+  filter: brightness(1.15);
+}
+
+.strudel-controls button:active {
+  filter: brightness(0.9);
+}
+
+.strudel-controls button.play {
+  background: var(--G0);
+  color: white;
+  border-radius: 0.3em 0 0 0.3em;
+  /* border-right: 1px solid rgba(255,255,255,0.2); */
+}
+
+.strudel-controls button.stop {
+  background: var(--BR1);
+  color: white;
+  border-radius: 0 0.3em 0.3em 0;
+  outline: 1px solid var(--BR2);
+}

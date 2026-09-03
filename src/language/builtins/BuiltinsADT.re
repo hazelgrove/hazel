@@ -15,6 +15,27 @@ let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
 
 let meta_type: Typ.t = sum_type([("$e", None), ("$v", None)]);
 
+// Sound type for Strudel audio integration
+// Recursive type: Sound = Note(String) | Sample(String) | Rev(Sound) | ...
+// Note: synth tones (c4, e4), Sample: drum/synth samples (bd, sd, piano)
+// We use Unknown(Internal) as a placeholder for the recursive reference
+let sound_inner = Unknown(Internal) |> Typ.fresh;
+let sound_type: Typ.t =
+  sum_type([
+    ("Note", Some(string())),
+    ("Sample", Some(string())),
+    ("Rev", Some(sound_inner)),
+    ("Fast", Some(prod([float(), sound_inner]))),
+    ("Slow", Some(prod([float(), sound_inner]))),
+    ("Seq", Some(list(sound_inner))),
+    ("Stack", Some(list(sound_inner))),
+    ("JuxRev", Some(sound_inner)),
+    ("Gain", Some(prod([float(), sound_inner]))),
+    ("Pan", Some(prod([float(), sound_inner]))),
+    ("Bank", Some(prod([string(), sound_inner]))),
+    ("Cpm", Some(prod([float(), sound_inner]))),
+  ]);
+
 module Ord = {
   let t: Typ.t = sum_type([("Lt", None), ("Eq", None), ("Gt", None)]);
 
@@ -201,6 +222,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
+  ("Sound", sound_type),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

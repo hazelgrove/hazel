@@ -67,6 +67,7 @@ module Shortcuts = {
   let goto_definition = "F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
+  let player = () => Os.is_mac^ ? "⌥P" : "Alt+P";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
@@ -117,7 +118,8 @@ let probe_data =
           switch (probe_status) {
           | Multi => "Remove multi probe"
           | Manual(_) => "Remove probe"
-          | Statics(_) => "Switch to multi probe"
+          | Statics(_)
+          | Player(_) => "Switch to multi probe"
           | Ephemeral(_) => "Hide probe"
           | Suppressed(_) => "Show probe"
           | Non => "Add multi probe"
@@ -126,7 +128,8 @@ let probe_data =
           switch (probe_status) {
           | Manual(_) => "Remove probe"
           | Multi => "Remove probe"
-          | Statics(_) => "Switch to probe"
+          | Statics(_)
+          | Player(_) => "Switch to probe"
           | Ephemeral(_) => "Hide probe"
           | Suppressed(_) => "Show probe"
           | Non => "Add probe"
@@ -152,12 +155,39 @@ let type_annotation_data =
         switch (probe_status) {
         | Statics(_) => "Remove statics"
         | Manual(_)
+        | Player(_)
         | Multi => "Switch to statics"
         | Ephemeral(_)
         | Suppressed(_)
         | Non => "Add statics"
         },
         Action.Probe(ToggleStatics),
+      ),
+    ]
+  | _ => []
+  };
+
+let player_data =
+    (
+      ~can_player: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    )
+    : list(Menu.item(command)) =>
+  switch (ci) {
+  | Some(InfoExp(_)) when can_player => [
+      action_item(
+        ~shortcut=Shortcuts.player(),
+        switch (probe_status) {
+        | Player(_) => "Remove player"
+        | Manual(_)
+        | Statics(_)
+        | Multi => "Switch to player"
+        | Ephemeral(_)
+        | Suppressed(_)
+        | Non => "Add player"
+        },
+        Action.Probe(TogglePlayer),
       ),
     ]
   | _ => []
@@ -321,6 +351,7 @@ module Projectors = {
     switch (kind) {
     | Fold => Some(Shortcuts.fold())
     | Statics => Some(Shortcuts.type_annotation())
+    | Player => Some(Shortcuts.player())
     | _ when chosen_livelit == Some(kind) => Some(Shortcuts.livelit())
     | _ => None
     };
@@ -329,15 +360,22 @@ module Projectors = {
     switch (kind) {
     | Fold => "Fold"
     | Statics => "Statics"
+    | Player => "Player"
     | Checkbox => "Checkbox"
     | Slider => "Slider"
     | SliderF => "SliderF"
+    | Knob => "Knob"
     | Card => "Card"
     | TextArea => "Text"
     | Csv => "CSV"
     | Table => "Table"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | NotePicker => "Notes"
+    | RhythmGrid => "Rhythm"
+    | XYPad => "XY Pad"
+    | SamplePicker => "Samples"
+    | ScalePicker => "Scales"
     };
 
   let applicable_kinds =
@@ -408,9 +446,11 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
+  let can_player = ProbePerform.can_player(id, info_map);
   let is_def = ProbePerform.is_definition_form(id, info_map);
   probe_data(~can_probe, ~is_def, probe_status, ci)
-  @ type_annotation_data(~can_type=can_statics, probe_status, ci);
+  @ type_annotation_data(~can_type=can_statics, probe_status, ci)
+  @ player_data(~can_player, probe_status, ci);
 };
 
 /* ============================================================

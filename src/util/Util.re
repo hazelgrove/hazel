@@ -26,6 +26,7 @@ module ColumnMenuListener = ColumnMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;
+module Strudel = Strudel;
 module Calc = Calc;
 module Sets = Sets;
 module Maps = Maps;
