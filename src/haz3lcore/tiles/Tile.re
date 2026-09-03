@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 include Base;
 
 exception Ambiguous_molds;
@@ -37,7 +38,7 @@ let to_piece = t => Tile(t);
 let sorted_children = ({mold, shards, children, _}: t) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
+  |> List.map(~f=((l, child, r)) => {
        let (_, l) = Mold.nibs(~index=l, mold);
        let (r, _) = Mold.nibs(~index=r, mold);
        (l.sort == r.sort ? l.sort : Any, child);
@@ -46,7 +47,7 @@ let sorted_children = ({mold, shards, children, _}: t) =>
 let contained_children = (t: t): list((t, Base.segment, t)) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
+  |> List.map(~f=((l, child, r)) => {
        let l = {
          ...t,
          shards: [l],
@@ -68,7 +69,7 @@ let shard_of = (t: t, i: int): t => {
 
 let split_shards = (id, label, mold, shards) =>
   shards
-  |> List.map(i =>
+  |> List.map(~f=i =>
        {
          id,
          label,
@@ -79,27 +80,29 @@ let split_shards = (id, label, mold, shards) =>
      );
 
 let left_missing_shards = (t: t): list(t) =>
-  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.label, t.mold);
+  List.init(l_shard(t), ~f=Fn.id) |> split_shards(t.id, t.label, t.mold);
 
 let right_missing_shards = (t: t): list(t) =>
-  List.init(List.length(t.label) - r_shard(t) - 1, i => r_shard(t) + i + 1)
+  List.init(List.length(t.label) - r_shard(t) - 1, ~f=i =>
+    r_shard(t) + i + 1
+  )
   |> split_shards(t.id, t.label, t.mold);
 
 let missing_shards = (t: t): list(t) =>
   List.filter(
-    i => !List.mem(i, t.shards),
-    List.init(List.length(t.label), Fun.id),
+    ~f=i => !List.mem(t.shards, i, ~equal=Poly.equal),
+    List.init(List.length(t.label), ~f=Fn.id),
   )
   |> split_shards(t.id, t.label, t.mold);
 
 let effective_label = (t: t): list(string) =>
-  List.map(List.nth(t.label), t.shards);
+  List.map(~f=List.nth_exn(t.label), t.shards);
 
 // postcond: output segment is nonempty
 let disassemble = ({id, label, mold, shards, children}: t): segment => {
   let shards = split_shards(id, label, mold, shards);
   Aba.mk(shards, children)
-  |> Aba.join(s => [to_piece(s)], Fun.id)
+  |> Aba.join(s => [to_piece(s)], Fn.id)
   |> List.concat;
 };
 
@@ -114,7 +117,7 @@ let reassemble = (match: Aba.t(t, segment)): t => {
        );
   // check lengths
   let _ = Aba.mk(shards, children);
-  assert(List.sort(Int.compare, shards) == shards);
+  assert(List.sort(~compare=Int.compare, shards) == shards);
   {
     id: t.id,
     label: t.label,

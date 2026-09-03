@@ -6,6 +6,7 @@ open Js_of_ocaml;
 open Language;
 open RichProbe;
 open RichProbeRegistry;
+open Poly;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
@@ -35,7 +36,7 @@ let probe_model_of_sexp = sexp =>
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
-  |> Option.map((r: packed_renderer) =>
+  |> Option.map(~f=(r: packed_renderer) =>
        sexp_of_probe_model({active_renderer: Some(r.empty_model)})
        |> Sexplib.Sexp.to_string
      );
@@ -106,23 +107,26 @@ module Settings = {
       }
     | ToggleBeforeCutoff => {
         ...settings,
-        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+        before_cutoff:
+          Option.is_none(settings.before_cutoff) ? Some(1) : None,
       }
     | ToggleAfterCutoff => {
         ...settings,
-        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+        after_cutoff: Option.is_none(settings.after_cutoff) ? Some(1) : None,
       }
     | ToggleCallerCutoff => {
         ...settings,
-        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+        caller_cutoff:
+          Option.is_none(settings.caller_cutoff) ? Some(1) : None,
       }
     | ToggleCalleeCutoff => {
         ...settings,
-        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+        callee_cutoff:
+          Option.is_none(settings.callee_cutoff) ? Some(1) : None,
       }
     };
 
-  let offset = Hashtbl.create(100);
+  let offset = Stdlib.Hashtbl.create(100);
 
   let s = ref(init);
   let version = ref(0);
@@ -132,7 +136,7 @@ module Settings = {
   let show_env = ref(false);
 
   let reset_mode = () => {
-    Hashtbl.clear(offset);
+    Stdlib.Hashtbl.clear(offset);
     s := init;
     version := version^ + 1;
     show_env := false;
@@ -165,12 +169,12 @@ type probe_ctx = {
 /* Stateful window offset management (GUI-specific) */
 module WindowState = {
   let get_offset = (k: Id.t): int =>
-    switch (Hashtbl.find_opt(offset, k)) {
+    switch (Stdlib.Hashtbl.find_opt(offset, k)) {
     | Some(v) => v
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Stdlib.Hashtbl.replace(offset, k, v);
 
   /* Update offset and return (new_offset, max_samples) */
   let reform =
@@ -195,21 +199,21 @@ module WindowState = {
 };
 
 module SampleLength = {
-  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
+  let lengths: Stdlib.Hashtbl.t(int, int) = Stdlib.Hashtbl.create(100);
 
   let reset = () => {
-    Hashtbl.clear(lengths);
+    Stdlib.Hashtbl.clear(lengths);
   };
 
   let is_explicit = (sample: Sample.t): bool =>
-    Hashtbl.mem(lengths, sample.id);
+    Stdlib.Hashtbl.mem(lengths, sample.id);
 
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
-    Hashtbl.find_opt(lengths, sample.id)
+    Stdlib.Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
   let set = (id: int, length: int): unit =>
-    Hashtbl.replace(lengths, id, length);
+    Stdlib.Hashtbl.replace(lengths, id, length);
 };
 
 /* Select samples to display, using stateful window offset.
@@ -240,7 +244,7 @@ let select_samples =
       dynamics.sample_focus,
       samples,
     );
-  if (first_idx == None && settings.window == Single) {
+  if (Option.is_none(first_idx) && settings.window == Single) {
     [];
   } else {
     let cursor_idx = first_idx |> Option.value(~default=0);
@@ -266,7 +270,7 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
     e##.currentTarget
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code")
-    |> Option.get;
+    |> Option.value_exn;
   let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
   let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
   let row = to_int(y_rel /. row_height);
@@ -300,12 +304,16 @@ let depth_clss =
   switch (relation.relative_level_to_cursor) {
   | Same => ["depth-same"]
   | Below(n)
-      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      when
+        Option.is_none(settings.before_cutoff)
+        || Some(n) <= settings.before_cutoff => [
       "depth-below",
       "depth-" ++ string_of_int(n),
     ]
   | Above(n)
-      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      when
+        Option.is_none(settings.after_cutoff)
+        || Some(n) <= settings.after_cutoff => [
       "depth-above",
       "depth-" ++ string_of_int(n),
     ]
@@ -347,11 +355,11 @@ let color_clss =
     ) {
     | (true, _, _) => ["focus"]
     | (_, Some(0), _) => ["related-before"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
+    | (_, Some(_), _) when Option.is_none(settings.caller_cutoff) => [
         "related-before",
       ]
     | (_, _, Some(0)) => ["related-after"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+    | (_, _, Some(_)) when Option.is_none(settings.callee_cutoff) => [
         "related-after",
       ]
     | (_, _, _) =>
@@ -360,12 +368,13 @@ let color_clss =
       switch (relation.relative_level_to_cursor) {
       | Above(n)
           when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+            Option.is_none(settings.after_cutoff)
+            || Some(n) <= settings.after_cutoff => [
           "tangent-before",
         ]
       | Below(n)
           when
-            settings.before_cutoff == None
+            Option.is_none(settings.before_cutoff)
             || Some(n) <= settings.before_cutoff => [
           "tangent-after",
         ]
@@ -406,8 +415,8 @@ let cursor_clss =
 module Debug = {
   let stack = (stack: CallStack.t): string =>
     stack
-    |> List.map((f: CallStack.frame) => Id.str3(f.id))
-    |> String.concat("\n");
+    |> List.map(~f=(f: CallStack.frame) => Id.str3(f.id))
+    |> String.concat(~sep="\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
     "sample id: "
@@ -423,15 +432,15 @@ module Debug = {
     ++ "\nstack:\n"
     ++ stack(sample.call_stack)
     ++ "\nstep-range:\n"
-    ++ Printf.sprintf("[%d, %d]", sample.step_start, sample.step_end)
+    ++ Stdlib.Printf.sprintf("[%d, %d]", sample.step_start, sample.step_end)
     ++ "\ntime: "
-    ++ Printf.sprintf("%.0f", sample.time);
+    ++ Stdlib.Printf.sprintf("%.0f", sample.time);
 };
 
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer =
     (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
-  List.find_opt(r => r.can_handle(sort, exp), renderers);
+  List.find(~f=r => r.can_handle(sort, exp), renderers);
 
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
@@ -473,7 +482,8 @@ let find_best_budget = (width_at: int => int, target_width: int): int => {
 };
 
 module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+  let mousedown: ref(option(Js.t(Dom_html.element))) =
+    ref(Stdlib.Option.None);
 };
 
 let value_view =
@@ -592,12 +602,12 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
   };
 
 /* Generate a DOM id that's unique per sample-instance. sample.id is
- * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
+ * Stdlib.Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
  * invocations frequently collide on it. Combining with step_start/step_end
  * disambiguates. If Sample.id is ever made truly unique, simplify this back
  * to just sample.id. See issue #2288. */
 let dropdown_id = (sample: Sample.t): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "sample-dropdown-%d-%d-%d",
     sample.id,
     sample.step_start,
@@ -615,7 +625,8 @@ let can_step_into = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
   | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
-    | Var(name) => Environment.lookup(Builtins.env_init, name) == None
+    | Var(name) =>
+      Option.is_none(Environment.lookup(Builtins.env_init, name))
     | _ => false
     }
   | _ => false
@@ -702,7 +713,7 @@ let rich_probe_items =
   | None => []
   | Some(indicated) =>
     renderers
-    |> List.filter_map(r =>
+    |> List.filter_map(~f=r =>
          r.can_handle(ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, local, indicated, r)) : None
        )
@@ -767,7 +778,7 @@ let get_arg_var_info =
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
-    | Tuple(elements) => List.map(extract_var, elements)
+    | Tuple(elements) => List.map(~f=extract_var, elements)
     | _ => [None]
     }
   | _ => []
@@ -836,16 +847,17 @@ let sample_call_display =
         let num_elems = List.length(elements);
         let arg_rows =
           List.mapi(
-            (i, elem) =>
-              arg_row(
-                ~var_info=
-                  switch (List.nth_opt(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(elem),
-              ),
+            ~f=
+              (i, elem) =>
+                arg_row(
+                  ~var_info=
+                    switch (List.nth(arg_var_info, i)) {
+                    | Some(v) => v
+                    | None => None
+                    },
+                  ~is_last=i == num_elems - 1,
+                  render_exp(elem),
+                ),
             elements,
           );
         [
@@ -897,8 +909,8 @@ let filtered_env_entries =
   sample.env
   |> ListUtil.dedup
   |> Sample.Env.remove_opaques
-  |> List.filter((en: Sample.Env.entry) =>
-       !List.mem(en.binding.name, filter_vars)
+  |> List.filter(~f=(en: Sample.Env.entry) =>
+       !List.mem(filter_vars, en.binding.name, ~equal=Poly.equal)
      );
 
 /* Environment section showing variable bindings.
@@ -920,7 +932,7 @@ let sample_environment =
         [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(ctx, view_seg, sample), elems),
+            List.map(~f=env_val(ctx, view_seg, sample), elems),
           ),
         ],
       ),
@@ -931,7 +943,7 @@ let sample_environment =
 let sample_context_menu =
     (~show_env, ctx: probe_ctx, local, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
-  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
+  let filter_vars = List.filter_map(~f=Fn.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
@@ -977,11 +989,13 @@ let sample_view =
   let has_rich =
     switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
     | Some(indicated) =>
-      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
+      List.exists(~f=r => r.can_handle(ctx.sort, indicated.value), renderers)
     | None => false
     };
   let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+    !(hide_env && Option.is_none(ctx.ap_id))
+    || sample.call_stack != []
+    || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
@@ -1093,7 +1107,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      let sample = List.nth(samples, next_idx_maybe);
+      let sample = List.nth_exn(samples, next_idx_maybe);
       parent(
         SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
       );
@@ -1328,7 +1342,7 @@ let offside_view =
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let active_renderer_id =
-      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
+      Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
       ap_id,
       statics,
@@ -1348,12 +1362,13 @@ let offside_view =
       );
     let num_total = List.length(filtered_samples);
     let is_cursor_aligned =
-      Sample.Selection.most_aligned_index(
-        ~ap_id,
-        dynamics.sample_focus,
-        filtered_samples,
-      )
-      != None;
+      Option.is_some(
+        Sample.Selection.most_aligned_index(
+          ~ap_id,
+          dynamics.sample_focus,
+          filtered_samples,
+        ),
+      );
     let samples =
       select_samples(
         ~settings,
@@ -1410,7 +1425,7 @@ let offside_view =
             segment,
           );
         let indicated_sample_id =
-          indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+          indicated_sample(ctx) |> Option.map(~f=(s: Sample.t) => s.id);
         let sample_view =
           sample_view(
             ctx,
@@ -1421,11 +1436,12 @@ let offside_view =
           );
         let group_views =
           List.map(
-            samples =>
-              Node.div(
-                ~attrs=[Attr.classes(["sample-group"])],
-                List.map(sample_view, samples),
-              ),
+            ~f=
+              samples =>
+                Node.div(
+                  ~attrs=[Attr.classes(["sample-group"])],
+                  List.map(~f=sample_view, samples),
+                ),
             groups,
           );
         (
@@ -1449,7 +1465,7 @@ let get_current = (~settings, info: info) => {
     | None =>
       /* Fallback: get the first sample */
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
-      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+      ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.value);
     };
   | _ => None
   };

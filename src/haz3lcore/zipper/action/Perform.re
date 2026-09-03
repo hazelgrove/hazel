@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type state = {
@@ -19,12 +20,12 @@ let go =
       {zipper: z, col_target}: state,
     )
     : Action.Result.t(Zipper.t) => {
-  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
+  let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fn.id;
   /* Paste is a rare bulk edit that can leave incomplete delimiter forms
      anywhere in the pasted region, so it gets the thorough (full-relatives)
      reassociation guard rather than the cheap caret-local one. */
   let maybe_reassoc_thorough =
-    settings.deep_reassociate ? Reassociate.go_thorough : Fun.id;
+    settings.deep_reassociate ? Reassociate.go_thorough : Fn.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -51,7 +52,7 @@ let go =
       | Error(why) =>
         print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
         Parser.to_zipper(~root, ~zipper_init=z, clipboard)
-        |> Option.map(maybe_reassoc_thorough)
+        |> Option.map(~f=maybe_reassoc_thorough)
         |> return(CantPaste);
       };
     };
@@ -96,8 +97,8 @@ let go =
     Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
   | Project(a) =>
     let refractor_list =
-      List.map(fst, z.refractors.manuals)
-      @ List.map(fst, Id.Map.to_list(z.refractors.multis.ephemerals));
+      List.map(~f=fst, z.refractors.manuals)
+      @ List.map(~f=fst, Id.Map.to_list(z.refractors.multis.ephemerals));
     ProjectorPerform.go(
       syntax.term_data,
       a,
@@ -111,13 +112,13 @@ let go =
     Move.go(
       ~statics=statics.info_map,
       ~problem_ids=
-        Seq.append(
-          List.to_seq(statics.error_ids),
-          Seq.append(
-            List.to_seq(statics.warning_ids),
-            Seq.filter_map(
+        Stdlib.Seq.append(
+          Stdlib.List.to_seq(statics.error_ids),
+          Stdlib.Seq.append(
+            Stdlib.List.to_seq(statics.warning_ids),
+            Stdlib.Seq.filter_map(
               (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              List.to_seq(Segment.holes(syntax.segment)),
+              Stdlib.List.to_seq(Segment.holes(syntax.segment)),
             ),
           ),
         ),
@@ -211,7 +212,7 @@ let go =
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
     Destruct.go(d, z, ~root)
-    |> Option.map(maybe_reassoc)
+    |> Option.map(~f=maybe_reassoc)
     |> return(Cant_destruct)
   | Insert(char) =>
     z
@@ -221,11 +222,11 @@ let go =
          ~ci=Indicated.ci_of(z, statics.info_map),
          ~root,
        )
-    |> Option.map(maybe_reassoc)
+    |> Option.map(~f=maybe_reassoc)
     |> return(Cant_insert)
   | Put_down =>
     Zipper.put_down(z, ~root)
-    |> Option.map(maybe_reassoc)
+    |> Option.map(~f=maybe_reassoc)
     |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z, ~root))

@@ -261,7 +261,7 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
   let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = any => C.init(any) |> Option.map(serialize_m);
+  let init = any => C.init(any) |> Option.map(~f=serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
   let elaborate_syntax = C.elaborate_syntax;

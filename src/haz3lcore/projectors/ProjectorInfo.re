@@ -79,8 +79,8 @@ let mk_info =
         try(Some(Segment.root_id(Segment.skel(seg), seg))) {
         | _ => None
         };
-      Option.bind(inner_id, id =>
-        Option.bind(elaborated, Exp.find_by_id(id))
+      Option.bind(inner_id, ~f=id =>
+        Option.bind(elaborated, ~f=Exp.find_by_id(id))
       );
     } else {
       None;

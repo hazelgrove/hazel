@@ -1,6 +1,7 @@
 open ProjectorBase;
 open Util;
 open OptUtil.Syntax;
+open Poly;
 
 /* Projection logic is based on selection and parenthesization.
  * If there is no current selection, we select the currently indicated
@@ -46,7 +47,7 @@ let init =
 
   /* Try raw syntax first; for elaborate_syntax projectors, fall back to the
      elaborated form keyed by the term's id. */
-  switch (Option.bind(any, ProjectorInit.init(kind, orig_piece, _)), any) {
+  switch (Option.bind(any, ~f=ProjectorInit.init(kind, orig_piece, _)), any) {
   | (Some(_) as result, _) => result
   | (None, Some(Exp(exp))) when P.elaborate_syntax =>
     let* elab_exp =
@@ -60,7 +61,7 @@ let init =
 /* Migrate a refractor from one ID to another (if present) */
 let migrate_refractor = (from_id: Id.t, to_id: Id.t, z: Zipper.t): Zipper.t =>
   ZipperBase.update_manuals(
-    List.map(((id, entry)) =>
+    List.map(~f=((id, entry)) =>
       if (id == from_id) {
         (to_id, entry);
       } else {
@@ -110,9 +111,9 @@ let go =
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
-    List.nth(projector_list, idx);
+    List.nth_exn(projector_list, idx);
   let refractor_idx_to_id = (idx: int): Id.t =>
-    List.nth(refractor_list, idx);
+    List.nth_exn(refractor_list, idx);
   let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
     ProjectorCore.Kind.is_refractor(kind)
       ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
@@ -195,7 +196,7 @@ let go =
   | SetIndicated(ChooseLivelit) =>
     switch (
       List.filter_map(
-        set_indicated(z),
+        ~f=set_indicated(z),
         ProjectorCore.Kind.livelit_projectors,
       )
     ) {
@@ -220,8 +221,8 @@ let go =
     if (ProjectorCore.Kind.is_refractor(kind)) {
       let parenthesized_seg = [parenthesized_piece];
       let manual_model =
-        List.assoc_opt(id, z.refractors.manuals)
-        |> Option.map((pr: Refractors.entry) => pr.model);
+        List.Assoc.find(z.refractors.manuals, id, ~equal=Poly.equal)
+        |> Option.map(~f=(pr: Refractors.entry) => pr.model);
       let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
       /* Select the term range and replace with new syntax.
        * Don't unselect/remold here — the normal update cycle handles that. */
@@ -248,7 +249,10 @@ let go =
         switch (do_replace()) {
         | Some(z) =>
           let z =
-            Zipper.update_manuals(List.filter(((mid, _)) => mid != id), z);
+            Zipper.update_manuals(
+              List.filter(~f=((mid, _)) => mid != id),
+              z,
+            );
           Ok(ZipperBase.add_manual(~model=?manual_model, new_id, kind, z));
         | None => Error(Cant_project)
         };
@@ -478,11 +482,12 @@ let revalidate_projectors_in_segment =
   let rec go_seg =
           (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
     List.fold_left(
-      ((z, acc, any_ch), p) => {
-        let (z'', parts, p_ch) = go_piece(z, p);
-        (z'', acc @ parts, any_ch || p_ch);
-      },
-      (z, [], false),
+      ~f=
+        ((z, acc, any_ch), p) => {
+          let (z'', parts, p_ch) = go_piece(z, p);
+          (z'', acc @ parts, any_ch || p_ch);
+        },
+      ~init=(z, [], false),
       seg,
     );
   }
@@ -492,11 +497,12 @@ let revalidate_projectors_in_segment =
     | Tile(t) =>
       let (z', children, ch) =
         List.fold_left(
-          ((z, rev_chs, any_ch), c) => {
-            let (z'', c', c_ch) = go_seg(z, c);
-            (z'', [c', ...rev_chs], any_ch || c_ch);
-          },
-          (z, [], false),
+          ~f=
+            ((z, rev_chs, any_ch), c) => {
+              let (z'', c', c_ch) = go_seg(z, c);
+              (z'', [c', ...rev_chs], any_ch || c_ch);
+            },
+          ~init=(z, [], false),
           t.children,
         );
       let children = List.rev(children);

@@ -141,7 +141,8 @@ let pack_renderer =
     id,
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
     init_model: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+      R.parse(sort, exp)
+      |> Option.map(~f=v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
