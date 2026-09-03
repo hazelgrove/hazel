@@ -402,8 +402,20 @@ and uexp_to_info_map =
   let default_case = () => {
     switch (term) {
     | Closure(env, e) =>
-      // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let (e, e_elab, m) = go(~ana, e, m);
+      /* A closure's body is scoped by `env`, not by whatever is in scope
+         where this value is being typed, so shadow the ambient bindings
+         `env` also binds (see Ctx.of_closure_env). Callers that want the
+         body typed precisely must close the value first, as live typing and
+         the dynamic type projector now do (Dynamics.to_live_typing_map,
+         DynamicTypInfer.type_of_sample); this only keeps a term that still
+         carries closures — an evaluation result rendered in the result
+         editor, say — from binding its variables to the wrong binder. */
+      let ctx_closure =
+        Ctx.of_closure_env(
+          ctx,
+          Environment.fold(((name, _), acc) => [name, ...acc], [], env),
+        );
+      let (e, e_elab, m) = go(~ctx=ctx_closure, ~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,

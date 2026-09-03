@@ -1,10 +1,18 @@
 open Language;
 
 /* Infer a type from a single sample value by running statics on it.
-   Uses the provided context so user-defined types are visible. */
+   Uses the provided context so user-defined types are visible.
+
+   The value is closed first: a function value is a `Closure(env, body)`, and
+   statics discards a closure's env, so the body's free variables would
+   otherwise resolve against `ctx` and capture whatever same-named binder is
+   in scope where the sample was taken. Substituting each closure's own env
+   leaves nothing free to capture. Note this mints fresh ids, so the lookup
+   below must use the substituted expression's rep_id, not the sample's. */
 let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
-  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, sample.value);
-  IdTagged.rep_id(sample.value)
+  let exp = Substitution.in_exp(Environment.empty, sample.value);
+  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, exp);
+  IdTagged.rep_id(exp)
   |> Id.Map.find_opt(_, info_map)
   |> Option.bind(
        _,

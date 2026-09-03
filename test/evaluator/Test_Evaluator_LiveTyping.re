@@ -49,37 +49,21 @@ module FError =
   });
 
 /**
- * Helper function to assemble live typing data map from samples and type instantiations.
- * This logic is shared between multiple test cases.
+ * Helper function to assemble live typing data map from samples and type
+ * instantiations. Defers to the same conversion the editor uses
+ * (Dynamics.to_live_typing_map), so tests exercise its value-closing.
  */
 let mk_live_typing =
     (
       probe_data: Id.Map.t(list(Sample.t)),
       type_insts: Dynamics.TypeInstMap.t,
     )
-    : LiveTyping.Map.t => {
-  LiveTyping.Map.mk(
-    Id.Map.map(
-      samples =>
-        List.map(
-          (s: Sample.t): LiveTyping.sample => {exp: s.value},
-          samples,
-        ),
-      probe_data,
-    ),
-    Id.Map.map(
-      List.map(
-        (inst: Dynamics.TypeInstantiation.t): LiveTyping.type_instantiation =>
-        {
-          tpat_id: inst.tpat_id,
-          type_var: inst.type_var,
-          instantiated_type: inst.instantiated_type,
-        }
-      ),
-      type_insts,
-    ),
-  );
-};
+    : LiveTyping.Map.t =>
+  Dynamics.to_live_typing_map({
+    ...Dynamics.empty,
+    probe_map: probe_data,
+    type_inst_map: type_insts,
+  });
 
 /**
  * Maps static and live typing error information to error annotations.
@@ -272,6 +256,22 @@ let live_error_ids_of =
     );
   (live_ids, static_map, live_map);
 };
+
+/* The synthesized type of the pattern variable `name` in `map`. This is the
+   binder type that drives both the inspector display and the context entry
+   seen by uses. Assumes `name` is bound only once in the program. */
+let pat_elab_syn_ty = (name: string, map: Statics.Map.t): option(Typ.t) =>
+  Id.Map.fold(
+    (_, info, acc) =>
+      switch (info) {
+      | Info.InfoPat({user_term, elab_syn_ty, _})
+          when Pat.get_var(user_term) == Some(name) =>
+        Some(elab_syn_ty)
+      | _ => acc
+      },
+    map,
+    None,
+  );
 
 /* Property: for every expression-info id, the elab_syn_ty produced by static
    analysis run *with* live-typing dynamics is more precise than (or equal to)
@@ -588,32 +588,69 @@ in
             EvaluatorState.get_type_insts(state),
           );
         let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
-        /* The let-bound pattern `x`: its synthesized type is the binder type
-           that drives both the inspector display and the context entry seen
-           by uses. Statically `[?]`, at runtime `[String]`. */
-        let pat_syn = (name, map) =>
-          Id.Map.fold(
-            (_, info, acc) =>
-              switch (info) {
-              | Info.InfoPat({user_term, elab_syn_ty, _})
-                  when Pat.get_var(user_term) == Some(name) =>
-                Some(elab_syn_ty)
-              | _ => acc
-              },
-            map,
-            None,
-          );
+        /* The let-bound pattern `x`: statically `[?]`, at runtime `[String]`. */
         check(
           Alcotest.option(Test_Statics_Prelude.testable_typ),
           "x binder synthesizes ? statically",
           Some(Test_Statics_Prelude.FTemp.Typ.unknown(Internal)),
-          pat_syn("x", static_map),
+          pat_elab_syn_ty("x", static_map),
         );
         check(
           Alcotest.option(Test_Statics_Prelude.testable_typ),
           "x binder is live [String]",
           Some(Test_Statics_Prelude.FTemp.Typ.(list(string()))),
-          pat_syn("x", live_map),
+          pat_elab_syn_ty("x", live_map),
+        );
+      },
+    ),
+    test_case(
+      "Captured variable shadowed at the binder is not a live error",
+      `Quick,
+      () => {
+        /* `f` closes over the outer `h : Int`. Its value is sampled at
+           binders inside `fun h -> ...`, where the name `h` means the
+           parameter instead — so a sample read against the ambient scope
+           types as `() -> (() -> Int)` and the `z` binder gets a spurious
+           ExpectationMismatch. The closure must be read against the
+           environment it captured. */
+        let program = {|let h = 3 in let f = fun () -> h in let g = fun h -> let z = h in 3 + h() in g(f)|};
+        let (live_ids, _, live_map) = live_error_ids_of(program);
+        check(
+          Alcotest.int,
+          "no live typing errors",
+          0,
+          List.length(live_ids),
+        );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "z binder is live () -> Int, not () -> ?",
+          Some(Test_Statics_Prelude.FTemp.Typ.(arrow(prod([]), int()))),
+          pat_elab_syn_ty("z", live_map),
+        );
+      },
+    ),
+    test_case(
+      "Captured variable shadowed after capture is not a live error",
+      `Quick,
+      () => {
+        /* Same hazard without the probed binder itself doing the shadowing:
+           `f` captures `k : Int`, a later `k : String` shadows it, and the
+           parameter `p` is sampled with `f`'s closure. Reading that closure
+           against the ambient scope gives `p : () -> String`, making
+           `3 + p()` a live error. */
+        let program = {|let k = 3 in let f = fun () -> k in let k = "hi" in let g = fun p -> 3 + p() in g(f)|};
+        let (live_ids, _, live_map) = live_error_ids_of(program);
+        check(
+          Alcotest.int,
+          "no live typing errors",
+          0,
+          List.length(live_ids),
+        );
+        check(
+          Alcotest.option(Test_Statics_Prelude.testable_typ),
+          "p binder is live () -> Int",
+          Some(Test_Statics_Prelude.FTemp.Typ.(arrow(prod([]), int()))),
+          pat_elab_syn_ty("p", live_map),
         );
       },
     ),

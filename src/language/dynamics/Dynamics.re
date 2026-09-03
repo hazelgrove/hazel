@@ -144,3 +144,41 @@ let filter_by_focus = (sample_focus: Sample.Focus.t, dyn: t): t => {
     theorems: dyn.theorems,
   };
 };
+
+/* Package evaluation results for the live typing pass, which re-runs statics
+ * with each probed id's observed values in hand (see LiveTyping.re).
+ *
+ * Sample values are CLOSED here. A runtime function value is a
+ * `Closure(env, body)` whose free variables are bound by `env`, but statics
+ * discards a closure's env and resolves the body's variables against whatever
+ * is in scope at the site being typed. That silently captures a same-named
+ * binder: a sample `fun () -> h` taken inside a `fun h -> ...` gets typed as
+ * if its `h` were the parameter rather than the `h` it actually closed over,
+ * producing wrong live types and spurious live typing errors.
+ * `Substitution.in_exp` resolves each closure against its own env (its
+ * postcondition is that no closures remain), so the expression statics sees
+ * has no free variables left to capture.
+ *
+ * Unguarded on purpose: substitution walks the value, but so does the statics
+ * run that `LiveTyping.refine_typ_with_dynamics` performs on every sample, and
+ * any cheap "does this contain a closure?" test would have to walk it too
+ * (`Exp.map_term` rebuilds every node, so it is no cheaper than substituting). */
+let to_live_typing_map = (dyn: t): LiveTyping.Map.t =>
+  LiveTyping.Map.mk(
+    Id.Map.map(
+      List.map((s: Sample.t): LiveTyping.sample =>
+        {exp: Substitution.in_exp(Environment.empty, s.value)}
+      ),
+      dyn.probe_map,
+    ),
+    Id.Map.map(
+      List.map((inst: TypeInstantiation.t): LiveTyping.type_instantiation =>
+        {
+          tpat_id: inst.tpat_id,
+          type_var: inst.type_var,
+          instantiated_type: inst.instantiated_type,
+        }
+      ),
+      dyn.type_inst_map,
+    ),
+  );

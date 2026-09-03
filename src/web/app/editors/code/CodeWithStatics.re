@@ -263,33 +263,10 @@ module Update = {
             let filtered_dynamics =
               Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
 
-            let dynamic_expressions: Id.Map.t(LiveTyping.Map.entry) =
-              Id.Map.map(
-                List.map((sample: Sample.t): LiveTyping.sample =>
-                  {exp: sample.value}
-                ),
-                filtered_dynamics.probe_map,
-              );
-
-            let type_inst_probes: Id.Map.t(LiveTyping.Map.type_inst_entry) =
-              Id.Map.map(
-                List.map(
-                  (inst: Dynamics.TypeInstantiation.t): LiveTyping.type_instantiation =>
-                  {
-                    tpat_id: inst.tpat_id,
-                    type_var: inst.type_var,
-                    instantiated_type: inst.instantiated_type,
-                  }
-                ),
-                filtered_dynamics.type_inst_map,
-              );
-
             let (live_typing_info_map, _) =
               Statics.mk(
-                ~dynamics={
-                  exp_probes: dynamic_expressions,
-                  type_inst_probes,
-                },
+                ~dynamics=
+                  Language.Dynamics.to_live_typing_map(filtered_dynamics),
                 settings,
                 ctx_init,
                 statics.term,
