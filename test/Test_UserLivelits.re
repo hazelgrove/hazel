@@ -42,6 +42,21 @@ let view = fun m -> 0;
 let expand = fun m -> m * 2
 }";
 
+/* The standard definition plus one extra member, for tests about members
+   other than the four required ones. */
+let def_with = (~extra: string) =>
+  "{
+type Model = Int;
+type Action = Int;
+type Expansion = Int;
+let init = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> 0;
+let expand = fun m -> m * 2"
+  ++ (extra == "" ? "" : ";\n" ++ extra)
+  ++ "
+}";
+
 /* Everything but the declared types and expand held fixed, so a test can
    vary just the interface it is about. */
 let def = (~expansion: string, ~expand: string) =>
@@ -188,42 +203,82 @@ let module_missing_members = () => {
   );
 };
 
-let module_adapter = () => {
-  let def_text = "{
-type Model = Int;
-type Action = Int;
-type Expansion = Int;
-let init = 50;
-let update = fun (m, a) -> a;
-let view = fun m -> Text(\"hi\");
-let expand = fun m -> m;
-let shape = Tab(30, 5)
-}";
+/* Build the livelit the adapter would put in the context, or fail. */
+let mk_ll = (def_text: string): LivelitCtx.raw_livelit => {
   let def_user = parse_exp(def_text);
   let ctx = Builtins.ctx_init(Some(Int));
   let (_, def_elab) = Statics.mk(CoreSettings.on, ctx, def_user);
   switch (
     UserLivelit.mk(~ctx, ~name="s", ~id=Id.invalid, ~def_user, ~def_elab)
   ) {
-  | Ok(ll) =>
-    check(
-      dhexp_typ,
-      "model_default is the init member",
-      parse_exp("50"),
-      ll.model_default,
-    );
-    check(
-      bool,
-      "shape member sets the projector shape",
-      true,
-      ll.shape
-      == {
-           horizontal: 30,
-           vertical: Tab(4) /* 5 lines = 4 linebreaks */
-         },
-    );
+  | Ok(ll) => ll
   | Error(_) => fail("adapter rejected a well-formed module definition")
   };
+};
+
+let module_adapter = () => {
+  let ll = mk_ll(def_with(~extra="let shape = Tab(30, 5)"));
+  check(
+    dhexp_typ,
+    "model_default is the init member",
+    parse_exp("0"),
+    ll.model_default,
+  );
+  check(
+    bool,
+    "shape member sets the projector shape",
+    true,
+    ll.shape
+    == {
+         horizontal: 30,
+         vertical: Tab(4) /* 5 lines = 4 linebreaks */
+       },
+  );
+};
+
+/* Each LivelitShape constructor, since the vertical is derived: Inline is one
+   line, Block and Tab are h LINES and the internal count is linebreaks. A
+   one-line Block or Tab degenerates to Inline. */
+let shape_member = () => {
+  let shape = (s: string) =>
+    mk_ll(def_with(~extra="let shape = " ++ s)).shape;
+  let expect = (s, want: Util.ProjectorShape.t) =>
+    check(bool, s, true, shape(s) == want);
+  expect(
+    "Inline(20)",
+    {
+      horizontal: 20,
+      vertical: Inline,
+    },
+  );
+  expect(
+    "Block(32, 8)",
+    {
+      horizontal: 32,
+      vertical: Block(7),
+    },
+  );
+  expect(
+    "Tab(16, 5)",
+    {
+      horizontal: 16,
+      vertical: Tab(4),
+    },
+  );
+  expect(
+    "Block(12, 1)",
+    {
+      horizontal: 12,
+      vertical: Inline,
+    },
+  );
+  /* no shape member at all falls back to the default */
+  check(
+    bool,
+    "default shape without the member",
+    true,
+    mk_ll(def_with(~extra="")).shape == UserLivelit.default_shape,
+  );
 };
 
 let bad_def_marked = () => {
@@ -851,6 +906,7 @@ let tests = [
       test_case("module missing members", `Quick, module_missing_members),
       test_case("module missing types", `Quick, missing_types_marked),
       test_case("module adapter", `Quick, module_adapter),
+      test_case("shape member", `Quick, shape_member),
       test_case("multiple uses", `Quick, multiple_uses),
       test_case("members out of order", `Quick, members_out_of_order),
       test_case("helpers inside definition", `Quick, helpers_in_def),

@@ -1682,12 +1682,18 @@ and uexp_to_info_map =
              product is the mark owed when the expansion's own type is
              inconsistent with the declaration. Statics traverses surface
              syntax only, so what gets typed is the expansion of the SURFACE
-             model even where the elaborated one is what gets evaluated. */
+             model even where the elaborated one is what gets evaluated.
+             That re-traverses the model, so a use costs twice its model
+             subtree — small in practice, since a model is a literal or a
+             committed transition over one. */
           let expansion_marks = (expanded: Exp.t) => {
             let to_check =
               Option.is_some(user_def)
                 ? expand(arg.user_term) : Some(expanded);
             switch (to_check) {
+            /* mk_expand_dot always expands, so None is unreachable for a
+               user livelit; skipping the check is the safe reading if
+               that ever changes. */
             | None => []
             | Some(to_check) =>
               let (checked, _, _) = go(~ana=syn, to_check, m);
