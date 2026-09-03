@@ -562,7 +562,7 @@ let of_segment =
   List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
 };
 
-let selection =
+let selection_svgs =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
@@ -581,15 +581,23 @@ let selection =
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
   let groups = group_consecutive(rows);
-  div_c(
-    "selects",
-    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
-  );
+  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
+
+let selection =
+    (
+      ~measured: Measured.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~font_metrics: FontMetrics.t,
+      z: Zipper.t,
+    ) =>
+  div_c("selects", selection_svgs(~measured, ~shape_map, ~font_metrics, z));
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
     (
+      ~associative=false,
+      ~info_map: Language.Statics.Map.t,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
@@ -599,35 +607,26 @@ let selection_expanded =
   div_c(
     "selects",
     switch (
-      TermData.get_root_id_using_ranges(
-        z.selection.content,
-        term_data,
-        measured,
-      )
-    ) {
-    | None => []
-    | Some(id) =>
-      let seg = TermData.segment(id, term_data);
-      switch (seg) {
-      | None => []
-      | Some(seg) =>
-        of_segment(
-          ~measured,
-          ~shape_map,
-          ~font_metrics,
-          ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
-          seg,
-        )
-        @ of_segment(
+      associative
+        ? SelectionEffective.expanded_segment_with_associativity(
+            ~info_map,
             ~measured,
-            ~shape_map,
-            ~font_metrics,
-            ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-            ~clss=["selected", Selection.buffer_cls(z.selection)],
-            z.selection.content,
+            ~term_data,
+            z,
           )
-      };
+        : SelectionEffective.expanded_segment(~measured, ~term_data, z)
+    ) {
+    | [] => []
+    | seg =>
+      of_segment(
+        ~measured,
+        ~shape_map,
+        ~font_metrics,
+        ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+        seg,
+      )
+      @ selection_svgs(~measured, ~shape_map, ~font_metrics, z)
     },
   );
 

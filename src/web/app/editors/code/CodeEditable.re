@@ -470,6 +470,7 @@ module View = {
   let deco =
       (
         ~expand_selection=false,
+        ~associative_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
@@ -488,16 +489,22 @@ module View = {
       ~syntax,
       z,
     ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
+    expand_selection
+      ? Highlight.selection_expanded(
+          ~associative=associative_selection,
+          ~info_map,
+          ~term_data=syntax.term_data,
+          ~measured=syntax.measured,
+          ~shape_map=syntax.shape_map,
+          ~font_metrics=globals.font_metrics,
+          z,
+        )
+      : Highlight.selection(
+          ~measured=syntax.measured,
+          ~shape_map=syntax.shape_map,
+          ~font_metrics=globals.font_metrics,
+          z,
+        ),
     Backpack.view(
       ~font_metrics=globals.font_metrics,
       ~measured=syntax.measured,
@@ -529,9 +536,13 @@ module View = {
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
+        ~associative_selection=?,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
+    let expand_selection = Option.value(expand_selection, ~default=false);
+    let associative_selection =
+      Option.value(associative_selection, ~default=false);
     let inject =
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
@@ -633,7 +644,8 @@ module View = {
     let edit_decos =
       selected
         ? deco(
-            ~expand_selection?,
+            ~expand_selection,
+            ~associative_selection,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
@@ -678,6 +690,24 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    let effective_selection_segment =
+      if (expand_selection) {
+        associative_selection
+          ? SelectionEffective.expanded_segment_with_associativity(
+              ~info_map=model.statics.info_map,
+              ~measured=model.editor.syntax.measured,
+              ~term_data=model.editor.syntax.term_data,
+              zipper,
+            )
+          : SelectionEffective.expanded_segment(
+              ~measured=model.editor.syntax.measured,
+              ~term_data=model.editor.syntax.term_data,
+              zipper,
+            );
+      } else {
+        zipper.selection.content;
+      };
+    let effective_selection_ids = Segment.ids(effective_selection_segment);
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -692,6 +722,7 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~selection_ids=effective_selection_ids,
       );
     // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
@@ -723,6 +754,7 @@ module View = {
           ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
           ~elaborated=Some(model.statics.elaborated),
+          ~selection_ids=effective_selection_ids,
         ),
         model.editor.syntax.projector_list,
       );
