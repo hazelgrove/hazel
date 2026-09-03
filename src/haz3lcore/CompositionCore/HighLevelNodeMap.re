@@ -507,6 +507,25 @@ let rec build_children =
         build_children(exp_to_info(def), new_path, node_map, info_map);
       // 2. Find siblings (continuation after "in")
       build_children(exp_to_info(body), path, node_map, info_map);
+    | Module(items) =>
+      /* Module literal: members become nodes at this path (children of the
+         enclosing binding). Statics checks module literals by expansion
+         into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
+         (ModuleHelpers.lower; reclassify only rewrites cls), so the first
+         item's wrapper info chains through the remaining members exactly
+         like a top-level binding chain — the Let/TyAlias cases above walk
+         it, making members siblings of one another. Wrapper pat/def ids
+         are the members' real syntax ids, so downstream span selection
+         works unchanged. */
+      switch (items) {
+      | [] => node_map
+      | [first, ..._] =>
+        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
+        | Some(wrapper_info) =>
+          build_children(wrapper_info, path, node_map, info_map)
+        | None => node_map
+        }
+      }
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);

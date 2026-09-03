@@ -5,50 +5,54 @@ open Language;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
   | Action(action)
+  | DocsRequest(string) /* read_docs: answered from DocPacks, no editor change */
   | Failure(string);
 
 module Local = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(API.Json.t);
 
-  let tools = [
-    ViewTools.expand,
-    ViewTools.collapse,
-    ProbeTools.place_probe,
-    ProbeTools.remove_probe,
-    ProbeTools.toggle_probe,
-    StaticsTools.place_statics,
-    StaticsTools.remove_statics,
-    StaticsTools.toggle_statics,
-    SyntaxProjectorTools.place_syntax_projector,
-    SyntaxProjectorTools.remove_syntax_projector,
-    SyntaxProjectorTools.toggle_syntax_projector,
-    EditTools.update_definition,
-    EditTools.update_body,
-    EditTools.update_pattern,
-    EditTools.update_binding_clause,
-    EditTools.delete_binding_clause,
-    EditTools.delete_body,
-    EditTools.insert_after,
-    EditTools.insert_before,
-    WorkbenchTools.create_new_task,
-    WorkbenchTools.set_active_task,
-    WorkbenchTools.unset_active_task,
-    WorkbenchTools.set_active_subtask,
-    WorkbenchTools.unset_active_subtask,
-    WorkbenchTools.mark_active_task_complete,
-    WorkbenchTools.mark_active_task_incomplete,
-    WorkbenchTools.mark_active_subtask_complete,
-    WorkbenchTools.mark_active_subtask_incomplete,
-    WorkbenchTools.mark_active_subtask_failed,
-    WorkbenchTools.mark_active_task_failed,
-    WorkbenchTools.add_new_subtask_to_active_task,
-    WorkbenchTools.reorder_subtasks_in_active_task,
-    WorkbenchTools.update_active_task,
-    WorkbenchTools.update_active_subtask,
-    WorkbenchTools.delete_task,
-    WorkbenchTools.delete_subtask,
-  ];
+  /* read_docs is offered only when the pack registry is non-empty */
+  let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+  let tools =
+    [ViewTools.expand, ViewTools.collapse]
+    @ docs_tools
+    @ [
+      ProbeTools.place_probe,
+      ProbeTools.remove_probe,
+      ProbeTools.toggle_probe,
+      StaticsTools.place_statics,
+      StaticsTools.remove_statics,
+      StaticsTools.toggle_statics,
+      SyntaxProjectorTools.place_syntax_projector,
+      SyntaxProjectorTools.remove_syntax_projector,
+      SyntaxProjectorTools.toggle_syntax_projector,
+      EditTools.update_definition,
+      EditTools.update_body,
+      EditTools.update_pattern,
+      EditTools.update_binding_clause,
+      EditTools.delete_binding_clause,
+      EditTools.delete_body,
+      EditTools.insert_after,
+      EditTools.insert_before,
+      WorkbenchTools.create_new_task,
+      WorkbenchTools.set_active_task,
+      WorkbenchTools.unset_active_task,
+      WorkbenchTools.set_active_subtask,
+      WorkbenchTools.unset_active_subtask,
+      WorkbenchTools.mark_active_task_complete,
+      WorkbenchTools.mark_active_task_incomplete,
+      WorkbenchTools.mark_active_subtask_complete,
+      WorkbenchTools.mark_active_subtask_incomplete,
+      WorkbenchTools.mark_active_subtask_failed,
+      WorkbenchTools.mark_active_task_failed,
+      WorkbenchTools.add_new_subtask_to_active_task,
+      WorkbenchTools.reorder_subtasks_in_active_task,
+      WorkbenchTools.update_active_task,
+      WorkbenchTools.update_active_subtask,
+      WorkbenchTools.delete_task,
+      WorkbenchTools.delete_subtask,
+    ];
 
   /** Read an optional string field: None when absent or empty-string, Some otherwise.
       Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
@@ -73,7 +77,20 @@ module Local = {
     k;
   };
 
-  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
+  let rec action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
+    /* read_docs is answered from DocPacks without touching the editor, so
+       it lives at the wrapper level rather than in the action type */
+    if (tool_name == "read_docs") {
+      switch (API.Json.dot("topic", args)) {
+      | Some(`String(topic)) => DocsRequest(topic)
+      | _ => Failure("read_docs requires a `topic` string argument")
+      };
+    } else {
+      action_of_editor(~tool_name, ~args);
+    }
+
+  and action_of_editor =
+      (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
     /* Argument(s) may or may not be provided depending on the tool called */
