@@ -186,11 +186,91 @@ let vertical =
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
+/* Two phases (a ByChar-only walk is O(chars) — >100k steps for a
+   cross-file click at 4k lines): a coarse ByToken walk to the start
+   of a row NEXT TO the goal, then a ByChar walk. The coarse goal sits
+   on the SAME side of the final goal as the initial position, so the
+   char walk approaches the goal from the side it always did and
+   inaccessible-goal tie-breaks are unchanged. */
+let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > 1) {
+      let coarse =
+        Point.{
+          row: init.row < goal.row ? goal.row : goal.row + 1,
+          col: 0,
+        };
+      switch (do_towards_point(~measured, local(ByToken), coarse, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    } else {
+      z;
+    };
   switch (do_towards_point(~measured, local(ByChar), goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
+};
+
+/* TELEPORT for long jumps: a zipper with empty selection and an Outer
+   caret at a top-level boundary is literally a split of the zipped
+   segment, so instead of stepping the whole distance we rebuild the
+   relatives at the boundary nearest the goal (on the SAME side as the
+   original position, preserving the walk's approach side) and only
+   walk from there. O(top-level pieces) list work, no zipper steps.
+   Landing parity with the pure walk is test-gated (Test_ClickTeleport). */
+let teleport_row_threshold = 50;
+
+let teleport_to_boundary =
+    (~measured: Measured.t, ~goal: Point.t, ~from_above: bool, z: t): t => {
+  let z = unselect(z);
+  let seg = Zipper.unselect_and_zip(z);
+  /* from above: caret before the first piece that reaches goal.row
+     (walk proceeds rightward). From below: caret after the last piece
+     that starts by goal.row (walk proceeds leftward). */
+  let k =
+    List.fold_left(
+      (k, p) =>
+        switch (Measured.find_by_id(Piece.id(p), measured)) {
+        | Some(m) =>
+          let above =
+            from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
+          above ? k + 1 : k;
+        | None => k
+        },
+      0,
+      seg,
+    );
+  let (pre, suf) = Util.ListUtil.split_n(k, seg);
+  {
+    ...z,
+    selection: Selection.mk([]),
+    caret: Outer,
+    relatives: {
+      siblings: (pre, suf),
+      ancestors: [],
+    },
+  };
+};
+
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > teleport_row_threshold
+        && Selection.is_empty(z.selection)) {
+      teleport_to_boundary(
+        ~measured,
+        ~goal,
+        ~from_above=init.row < goal.row,
+        z,
+      );
+    } else {
+      z;
+    };
+  to_point_walk(~measured, ~goal, z);
+};
 
 let to_start: t => t = do_to_extreme(local(ByToken, Left));
 

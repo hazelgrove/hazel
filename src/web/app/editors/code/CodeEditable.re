@@ -84,7 +84,14 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
+      /* Rapid input snaps instead of gliding: every qualifying action
+         starts a fresh 125ms caret translate, so under key repeat the
+         caret is perpetually mid-glide, visibly trailing the text.
+         Animate only when the previous glide has had time to finish —
+         discrete jumps keep the animation, bursts stay tight. */
+      settings.core.flip_animations
+      && Action.should_animate(action)
+      && Animation.caret_glide_available()
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);
@@ -525,7 +532,6 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
@@ -541,6 +547,11 @@ module View = {
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
+      };
+    let escape_vertical =
+      switch (edit_mode) {
+      | ReadOnly => None
+      | Editable({escape_vertical, _}) => escape_vertical
       };
     /* Editor-level clipboard helpers. Bypass the page-level
        on_copy/on_paste path because Firefox refuses to dispatch
@@ -676,7 +687,6 @@ module View = {
             }
           )
         : [];
-    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
@@ -693,8 +703,10 @@ module View = {
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
       );
-    // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
+    /* Visible row range from the scroll handler. Consumed ONLY by the
+       pending-eval highlight below: culling projectors/refractors with
+       these bounds hid them incorrectly on stale bounds (the Jan
+       "Disable culling" fix, #2702) - they render uncculled. */
     let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
@@ -702,19 +714,16 @@ module View = {
         signal(MakeActive),
         globals.font_metrics,
         ~core_settings=globals.settings.core,
-        ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
-    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
         ~core_settings=globals.settings.core,
-        ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.for_decoration(zipper),
@@ -727,31 +736,25 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
-     * evaluation highlights are transient progress feedback, so keep them on
-     * while the worker is running. */
     let incr_eval_overlay =
-      switch (
-        predicted_reuse,
-        globals.settings.show_incremental_deco || pending_eval_ids != [],
-      ) {
-      | (Some(predicted_reuse), true) => [
+      if (globals.settings.show_pending_eval && pending_eval_ids != []) {
+        [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                ~visible?,
                 ~pending_eval_ids,
                 ~show_active_eval,
-                ~show_frozen=globals.settings.show_incremental_deco,
-                predicted_reuse,
+                (),
               ),
             ],
           ),
-        ]
-      | (None, _)
-      | (Some(_), false) => []
+        ];
+      } else {
+        [];
       };
     let overlays =
       incr_eval_overlay
@@ -948,11 +951,53 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
+        /* row-edge detection for escape_vertical: hosts that stack
+           editors (see EditMode) get Up-on-first-row / Down-on-last-row
+           BEFORE the core move snaps the caret to line start/end */
+        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+          switch (escape_vertical) {
+          | None => None
+          | Some(_) when z.selection.content != [] => None
+          | Some(_) =>
+            let measured = model.editor.syntax.measured;
+            let Util.Point.{row, col} =
+              Haz3lcore.Zipper.Caret.point(measured, z);
+            let last_row = max(0, measured.total_rows - 1);
+            switch (v) {
+            | Up when row == 0 => Some(col)
+            | Down when row == last_row => Some(col)
+            | _ => None
+            };
+          };
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
+          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Up)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Up,
+                Option.get(caret_row_edge(Up)),
+              ),
+            ])
+          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Down)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Down,
+                Option.get(caret_row_edge(Down)),
+              ),
+            ])
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,

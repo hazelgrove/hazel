@@ -37,6 +37,12 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* per-editor chunk memo for incremental re-measurement; rides the
+     generation chain via {...old} so each editor keeps its own */
+  m_cache: Measured.Incr.cache,
+  /* per-editor item memo for incremental parsing (terms/term_data/
+     projectors composed per item instead of a whole-program walk) */
+  t_cache: MakeTerm.Incr.cache,
 };
 
 // should not be serializing
@@ -45,10 +51,41 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
+let mk =
+    (
+      ~root=Sort.Exp,
+      ~m_cache=?,
+      ~t_cache=?,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      z,
+    )
+    : t => {
+  let m_cache =
+    switch (m_cache) {
+    | Some(c) => c
+    | None => Measured.Incr.mk_cache()
+    };
+  let t_cache =
+    switch (t_cache) {
+    | Some(c) => c
+    | None => MakeTerm.Incr.mk_cache()
+    };
   let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
+  /* Exp and Mod roots take the per-item incremental parse; other
+     roots (Pat/Typ/TPat/Drv/... cells, all small) parse ONCE at their
+     own sort — the Exp-rooted [go] misparses them (every token
+     sort-inconsistent), and running it just for projectors paid a
+     full wrong parse */
+  let (terms, term_data, projectors, projector_list) =
+    if (root == Sort.Exp || root == Sort.Mod) {
+      let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+        MakeTerm.Incr.go_incr(~root, ~cache=t_cache, segment);
+      (terms, term_data, projectors, projector_list);
+    } else {
+      MakeTerm.sorted_syntax_data(~root, segment);
+    };
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -59,7 +96,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     );
   let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_shape_map);
+    Measured.Incr.of_segment(
+      ~cache=m_cache,
+      segment,
+      projector_shapes,
+      refractor_shape_map,
+    );
   {
     old: false,
     segment,
@@ -71,15 +113,17 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projector_list,
     shape_map: projector_shapes,
     projector_errors,
-    cached_backpack: Segment.global_missing_shards(segment),
+    cached_backpack: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    m_cache,
+    t_cache,
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~root=Sort.Exp, z: Zipper.t) =>
+  mk(~root, z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
 
 let mark_old: t => t =
   old => {
@@ -102,9 +146,20 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty;
+  /* Measured only exists to place projector boxes: when the recomputed
+     shapes come out identical (the common case — statics/dynamics
+     change every streamed chunk, projector shapes almost never do),
+     keep the old layout. Re-measuring the whole program here was an
+     O(program) cost on EVERY dynamics change. */
   let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+    compare(shape_map, old.shape_map) == 0
+      ? old.measured
+      : Measured.Incr.of_segment(
+          ~cache=old.m_cache,
+          old.segment,
+          shape_map,
+          Id.Map.empty,
+        );
   {
     ...old,
     shape_map,
@@ -132,9 +187,31 @@ let elaborated_phys_eq =
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate =
+    (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    /* [old] is marked on every zipper change, but CARET/SELECTION
+       moves don't change the content: measured/terms/term_data are
+       segment functions and can be reused wholesale (a full mk paid
+       ~350ms per caret move at 4k lines) */
+    let segment = Zipper.unselect_and_zip(z);
+    if (Segment.ptr_eq(segment, old.segment)) {
+      {
+        ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
+        old: false,
+        selection_ids: Selection.selection_ids(z.selection),
+      };
+    } else {
+      mk(
+        ~root,
+        ~m_cache=old.m_cache,
+        ~t_cache=old.t_cache,
+        z,
+        ~info_map,
+        ~dyn_map,
+        ~elaborated,
+      );
+    };
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {

@@ -126,6 +126,64 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
+/* Align the active cell's stack entry to the TOP of the viewport
+   (jump-to-definition lands the target under the reader's eyes; the
+   stack's trailing slack space makes this reachable even for the last
+   entry). The scroll target is the entry's HEADER band when the cell
+   is a stack body, so the name stays visible. */
+let align_active_cell_top = (): unit =>
+  switch (get_elem_by_id_opt(active_cell_id)) {
+  | None => ()
+  | Some(elem) =>
+    let target = {
+      let closest = sel =>
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            elem,
+            "closest",
+            [|Js.Unsafe.inject(Js.string(sel))|],
+          ),
+        );
+      switch (closest(".focus-body")) {
+      | Some(body) =>
+        switch (Js.Opt.to_option(body##.previousElementSibling)) {
+        | Some(prev) => Some(prev)
+        | None => Some(body)
+        }
+      | None => closest(".focus-header")
+      };
+    };
+    switch (target) {
+    | None => ()
+    | Some(t) =>
+      /* Scrolling a just-opened cell to the viewport top is jarring
+         when the cell landed in view anyway (andrew). Skip when the
+         header is visible WITH some room below it for body context —
+         a header peeking at the bottom edge still scrolls. Off-screen
+         targets keep the align-to-top (jump-to-definition lands the
+         target under the reader's eyes). */
+      let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
+      let top: float = Js.Unsafe.get(rect, "top");
+      let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
+      let top_chrome = 48.; /* fixed top bar */
+      let body_context = 140.; /* ~4 rows of body visible below */
+      let visible_enough = top >= top_chrome && top <= vh -. body_context;
+      if (!visible_enough) {
+        let _: unit =
+          Js.Unsafe.meth_call(
+            t,
+            "scrollIntoView",
+            [|
+              Js.Unsafe.obj([|
+                ("block", Js.Unsafe.inject(Js.string("start"))),
+              |]),
+            |],
+          );
+        ();
+      };
+    };
+  };
+
 let clipboard_shim = {
   Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
@@ -294,6 +352,34 @@ let find_ancestor_with_class =
   loop(element_to_node(el));
 };
 
+/* clientHeight forces layout on a dirty tree, and scroll handlers run
+   per scrolled frame (every held key once reveals write scrollTop) —
+   a container's viewport height only changes on resize, so cache it.
+   Keyed by element identity; resize clears (see the listener below). */
+let client_height_cache: ref(option((Js.t(Dom_html.element), float))) =
+  ref(None);
+let client_height_listener = ref(false);
+let cached_client_height = (el: Js.t(Dom_html.element)): float => {
+  if (! client_height_listener^) {
+    client_height_listener := true;
+    let clear = Js.wrap_callback(_ => client_height_cache := None);
+    let _ =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "addEventListener",
+        [|Js.Unsafe.inject(Js.string("resize")), Js.Unsafe.inject(clear)|],
+      );
+    ();
+  };
+  switch (client_height_cache^) {
+  | Some((el', h)) when el' === el => h
+  | _ =>
+    let h = float_of_int(el##.clientHeight);
+    client_height_cache := Some((el, h));
+    h;
+  };
+};
+
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
     let current = float_of_int(container##.scrollTop);
@@ -322,10 +408,34 @@ let scroll_vertically_into_view =
   };
 };
 
+/* find_scroll_container reads scrollHeight/clientHeight up the parent
+   chain — forced layout on dirty frames, and this runs after every
+   action. Cache the resolved container; revalidate only that it is
+   still in the document (slide/mode switches replace it). */
+let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
+  ref(None);
+let find_scroll_container_cached =
+    (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
+  let valid = (el: Js.t(Dom_html.element)): bool =>
+    Js.to_bool(Js.Unsafe.get(el, "isConnected"))
+    /* must still be an ancestor: the caret can move to an editor with
+       a different scroll container (e.g. stacked cells) */
+    && Js.to_bool(
+         Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
+       );
+  switch (scroll_container_cache^) {
+  | Some(el) when valid(el) => Some(el)
+  | _ =>
+    let found = find_scroll_container(element);
+    scroll_container_cache := found;
+    found;
+  };
+};
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container(caret_elem)) {
+    switch (find_scroll_container_cached(caret_elem)) {
     | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
       caret_elem##scrollIntoView(

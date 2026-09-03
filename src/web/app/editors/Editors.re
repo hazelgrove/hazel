@@ -284,6 +284,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=false,
           m,
         ),
       )
@@ -294,6 +295,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=true,
           m,
         ),
       )
@@ -400,6 +402,32 @@ module Selection = {
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
+    };
+
+  /* Cross-cell jump-to-definition in scratch/documentation stacks
+     (see ScratchMode.Selection.stack_jump_override): (ensure-entry
+     action, new selection, follow-up caret jump) */
+  let stack_jump_override =
+      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_jump_override(sa, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
+  /* the selection an outline add/ensure should land on (see
+     ScratchMode.Selection.stack_add_selection) */
+  let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_add_selection(sa, m)
+      |> Option.map(s => Scratch(s))
+    | _ => None
     };
 
   let default_selection =

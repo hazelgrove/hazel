@@ -37,10 +37,13 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
-let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
+let min_col = (~first: Point.t, ~last: Point.t, ~rows: Measured.t): int =>
   min(
     first.col,
-    Rows.min_col(ListUtil.range(~lo=first.row, last.row + 1), rows),
+    Measured.min_col_of_rows(
+      ListUtil.range(~lo=first.row, last.row + 1),
+      rows,
+    ),
   );
 
 let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
@@ -192,7 +195,7 @@ let paths =
       tiles: tile_data,
       line_clss: list(string),
       font_metrics: FontMetrics.t,
-      rows: Rows.t,
+      rows: Measured.t,
       (first, last): (Point.t, Point.t),
     )
     : list(Node.t) =>
@@ -260,7 +263,7 @@ let term =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
       ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
+      ~rows: Measured.t,
       ~tiles: tile_data,
       ~line_clss: list(string)=[],
       ~base_clss: option(string)=?,
@@ -337,7 +340,7 @@ let term =
       term(
         ~refine_sort,
         ~font_metrics,
-        ~rows=measured.rows,
+        ~rows=measured,
         ~tiles,
         (l, r),
         ~attr?,
@@ -388,7 +391,7 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (Measured.find_pr_opt(p, syntax.measured)) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -513,7 +516,7 @@ module Refractors = {
         ~dashed: bool,
         sort: Sort.t,
         font_metrics: FontMetrics.t,
-        rows: Rows.t,
+        rows: Measured.t,
         ~cls: string,
         (first, last): (Point.t, Point.t),
       )
@@ -522,7 +525,12 @@ module Refractors = {
     let (orig, path) =
       l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
     let dashed_length =
-      IntMap.find(last.row, rows).max_col
+      (
+        switch (Measured.row_shape(last.row, rows)) {
+        | Some(sh) => sh.max_col
+        | None => last.col
+        }
+      )
       - last.col
       + ProjectorView.offside_offset;
     [
@@ -567,7 +575,7 @@ module Refractors = {
           ~cls=cls ++ " " ++ kind_cls,
           sort,
           font_metrics,
-          syntax.measured.rows,
+          syntax.measured,
           range,
         );
       | _ => []

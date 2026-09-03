@@ -94,7 +94,72 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, [editor.editor])]
+      | Code({editor, _}) =>
+        /* open stack cells report their problems too (live, unlike the
+           master's frozen copy of the same definitions) */
+        let stack: list((option(string), list(CodeEditable.Model.t))) =
+          switch (m.focus) {
+          | None => []
+          | Some(f) =>
+            List.map(
+              (e: ScratchMode.Model.stack_entry) =>
+                (
+                  Some(
+                    Option.value(
+                      ScratchMode.Model.header_name(e),
+                      ~default="cell",
+                    ),
+                  ),
+                  /* header too: binder/signature errors (TPatNotAVar,
+                     shadowed type names, …) live in the header editor */
+                  [e.e_header.editor, e.e_body.editor],
+                ),
+              f.f_entries,
+            )
+          };
+        /* dedup: the master's copy of an OPEN definition is frozen while
+           its cell is live — mask master errors/warnings covered by open
+           items so each problem is listed once (under the cell's name) */
+        let master_editor: CodeEditable.Model.t = editor.editor;
+        let master_editor =
+          switch (m.focus, Haz3lcore.DefStatics.current()) {
+          | (Some(f), Some(ds)) =>
+            let open_maps =
+              List.filter_map(
+                (e: ScratchMode.Model.stack_entry) =>
+                  List.find_opt(
+                    (it: Haz3lcore.DefStatics.item) =>
+                      it.d_id == e.e_id
+                      || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                    ds.items,
+                  )
+                  |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
+                f.f_entries,
+              );
+            let covered = id =>
+              List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
+            {
+              ...master_editor,
+              statics: {
+                ...master_editor.statics,
+                error_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.error_ids,
+                  ),
+                warning_ids:
+                  List.filter(
+                    id => !covered(id),
+                    master_editor.statics.warning_ids,
+                  ),
+              },
+            };
+          | _ => master_editor
+          };
+        let master: list((option(string), list(CodeEditable.Model.t))) = [
+          (None, [master_editor]),
+        ];
+        master @ stack;
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -340,6 +405,40 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      /* Cross-cell jump-to-definition: a stack cell's jump whose binder
+         lives in another definition is rewritten to (ensure the target
+         is stacked, select it, then a follow-up caret jump) — mirroring
+         the JumpToTile flow above. */
+      let (action, selection, followup) =
+        switch (Editors.Selection.stack_jump_override(action, model.editors)) {
+        | Some((action', selection, followup)) => (
+            action',
+            selection,
+            Some(followup),
+          )
+        | None => (action, model.selection, None)
+        };
+      switch (followup) {
+      | Some(k) =>
+        schedule_action(Editors(k));
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
+      | None => ()
+      };
+      /* outline adds move the selection (and DOM focus, which also
+         scrolls the new cell into view) to the added cell */
+      let selection =
+        switch (followup) {
+        | Some(_) => selection
+        | None =>
+          switch (
+            Editors.Selection.stack_add_selection(action, model.editors)
+          ) {
+          | Some(s) =>
+            Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
+            s;
+          | None => selection
+          }
+        };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -361,6 +460,7 @@ module Update = {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -620,6 +720,46 @@ module Selection = {
   };
 };
 
+/* single-slot vdom memo for the outline sidebar: the roll-up walk,
+   row construction and diff are O(program) per render at 4k (ledger
+   §14); its inputs change on Force frames and outline interaction,
+   not per keystroke. Key parts compare physically where the value is
+   rebuilt-on-change (statics, the DefStatics slot, test results) and
+   structurally where small. */
+type outline_memo_key = {
+  ok_statics: Haz3lcore.CachedStatics.t,
+  ok_slot: option(Haz3lcore.DefStatics.t),
+  ok_focused: list((Haz3lcore.Id.t, option(string))),
+  ok_is_scratch: bool,
+  ok_name: string,
+  ok_collapsed: list(OutlineTree.path),
+  ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
+  ok_results: option(Language.TestResults.t),
+};
+let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
+  ref(Option.none);
+let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
+  a.ok_statics === b.ok_statics
+  && (
+    switch (a.ok_slot, b.ok_slot) {
+    | (Some(x), Some(y)) => x === y
+    | (None, None) => true
+    | _ => false
+    }
+  )
+  && a.ok_focused == b.ok_focused
+  && a.ok_is_scratch == b.ok_is_scratch
+  && a.ok_name == b.ok_name
+  && a.ok_collapsed == b.ok_collapsed
+  && a.ok_menu == b.ok_menu
+  && (
+    switch (a.ok_results, b.ok_results) {
+    | (Some(x), Some(y)) => x === y
+    | (None, None) => true
+    | _ => false
+    }
+  );
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
@@ -848,6 +988,199 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    /* module/definition outline (modular-editors phases 1-2) */
+    let outline = {
+      /* every stacked definition's id (+ live header name) */
+      let focused_entries =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) => ScratchMode.Model.focused_names(m)
+        | _ => []
+        };
+
+      /* structural def ops only make sense in scratch-style modes */
+      let is_scratch =
+        switch (model.editors) {
+        | Scratch(_)
+        | Documentation(_) => true
+        | _ => false
+        };
+      let (slide_prefix, slide_name) =
+        switch (model.editors) {
+        | Scratch(m) => (
+            "scratch",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | Documentation(m) => (
+            "doc",
+            switch (List.nth_opt(m.scratchpads, m.current)) {
+            | Some(sp) => sp.name
+            | None => ""
+            },
+          )
+        | _ => ("", "")
+        };
+      let collapsed_paths =
+        ScratchMode.collapse_paths(slide_prefix, slide_name);
+      let menu = is_scratch ? ScratchMode.outline_menu^ : None;
+      let test_results =
+        switch (model.editors) {
+        | Scratch(m)
+        | Documentation(m) =>
+          switch (
+            List.nth_opt(m.scratchpads, m.current)
+            |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
+          ) {
+          | Some(Code({editor, _})) =>
+            EvalResult.Model.test_results(editor.CellEditor.Model.result)
+          | _ => None
+          }
+        | _ => None
+        };
+      let memo_key = {
+        ok_statics: current_editor.statics,
+        ok_slot: Haz3lcore.DefStatics.current(),
+        ok_focused: focused_entries,
+        ok_is_scratch: is_scratch,
+        ok_name: slide_name,
+        ok_collapsed: collapsed_paths,
+        ok_menu: menu,
+        ok_results: test_results,
+      };
+      switch (outline_memo^) {
+      | Some((k, node)) when outline_key_same(k, memo_key) => node
+      | _ =>
+        let node = {
+          /* error attribution at OUTLINE granularity: each error badges the
+             DEEPEST row containing it; ancestor rows get a roll-up badge
+             that CSS shows only while collapsed (andrew: error goes on the
+             deepest thing not hidden by a collapse) */
+          /* While a stack is open the master's statics are FROZEN (its
+             calculate is skipped) — only the DefStatics slot tracks the
+             live spliced program (every Force frame). Rows inside open
+             cells (nested defs, renames typed into a cell) update through
+             it; without this the outline only refreshed on restructure
+             ops. Unstacked, the master's own statics are live — but they
+             can be EMPTY right after an undo restores a compacted
+             snapshot, so fall back to the slot then too. */
+          let outline_term = {
+            let term = current_editor.statics.term;
+            let stacked = focused_entries != [];
+            let named = () =>
+              List.exists(
+                (n: OutlineTree.node) => n.o_label != "",
+                OutlineTree.of_term(term),
+              );
+            if (!stacked && named()) {
+              term;
+            } else {
+              switch (Haz3lcore.DefStatics.current()) {
+              | Some(ds) => ds.Haz3lcore.DefStatics.term
+              | None => term
+              };
+            };
+          };
+          let (error_items, error_subtree) = {
+            let term = outline_term;
+            /* prefer the DefStatics slot: it stays live during stacked
+               editing (the master's own statics are frozen then) */
+            let (info_map, error_ids) =
+              switch (Haz3lcore.DefStatics.current()) {
+              | Some(ds) => (
+                  ds.merged,
+                  Haz3lcore.DefStatics.all_error_ids(ds),
+                )
+              | None => (
+                  current_editor.statics.info_map,
+                  current_editor.statics.error_ids,
+                )
+              };
+            let outline_ids = {
+              let rec go = (acc, ns: list(OutlineTree.node)) =>
+                List.fold_left(
+                  (acc, n: OutlineTree.node) =>
+                    go(
+                      switch (n.o_id) {
+                      | Some(id) => [id, ...acc]
+                      | None => acc
+                      },
+                      n.o_children,
+                    ),
+                  acc,
+                  ns,
+                );
+              go([], OutlineTree.of_term(term));
+            };
+            let in_outline = id => List.mem(id, outline_ids);
+            List.fold_left(
+              ((direct, roll), err_id) => {
+                let path =
+                  switch (Haz3lcore.Id.Map.find_opt(err_id, info_map)) {
+                  | Some(info) => [
+                      err_id,
+                      ...Language.Info.ancestors_of(info),
+                    ]
+                  | None => [err_id]
+                  };
+                switch (List.filter(in_outline, path)) {
+                | [] => (direct, roll)
+                | [deepest, ...above] => (
+                    [deepest, ...direct],
+                    above @ roll,
+                  )
+                };
+              },
+              ([], []),
+              error_ids,
+            );
+          };
+          OutlineSidebar.view(
+            ~jump=id => globals.inject_global(JumpToTile(id)),
+            /* plain click with a stack open ADDS (or moves to) that cell —
+               never replaces the stack (andrew: replacing was a footgun) */
+            ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
+            ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
+            ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
+            ~is_collapsed=path => List.mem(path, collapsed_paths),
+            ~toggle_collapse=
+              path => inject(Editors(Scratch(OutlineCollapse(path)))),
+            ~error_items,
+            ~error_subtree,
+            ~unfocus=inject(Editors(Scratch(UnfocusDef))),
+            ~focused_entries,
+            ~menu,
+            ~menu_open=
+              (id, is_module, x, y) =>
+                is_scratch
+                  ? inject(
+                      Editors(
+                        Scratch(OutlineMenu(Some((id, is_module, x, y)))),
+                      ),
+                    )
+                  : Virtual_dom.Vdom.Effect.Ignore,
+            ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
+            ~def_op=
+              (op, id) => inject(Editors(Scratch(OutlineDefOp(op, id)))),
+            /* live ✓/✗ for test rows, from the master's whole-program
+               result (stays live while a stack is open) */
+            ~test_status=
+              id =>
+                Option.bind(test_results, (tr: Language.TestResults.t) =>
+                  Language.TestMap.lookup(id, tr.test_map)
+                  |> Option.map(Language.TestMap.joint_status)
+                ),
+            /* the master's statics slot when warm; the DefStatics term
+               when the master was restored compacted (undo) */
+            outline_term,
+          );
+        };
+        outline_memo := Some((memo_key, node));
+        node;
+      };
+    };
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
@@ -865,7 +1198,7 @@ module View = {
       let culling_enabled =
         switch (editors) {
         | Scratch(_)
-        | Documentation(_)
+        | Documentation(_) => true
         | Tutorial(_)
         | Exercises(_) => false
         };
@@ -881,7 +1214,7 @@ module View = {
           let new_visible =
             Globals.VisibleRows.compute(
               ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=float_of_int(c##.clientHeight),
+              ~client_height=JsUtil.cached_client_height(c),
               ~row_height=globals.font_metrics.row_height,
               (),
             );
@@ -907,6 +1240,7 @@ module View = {
         editors_view,
       ),
       sidebar,
+      outline,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

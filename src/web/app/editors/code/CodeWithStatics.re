@@ -87,6 +87,10 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  /* per-item persistence rebuilds the zipper directly (no text or
+     sexp parse); the persistent record still supplies the root */
+  let unpersist_with = (~zipper: Haz3lcore.Zipper.t, p: persistent) =>
+    Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
 type statics_mode =
@@ -141,7 +145,13 @@ module Update = {
         ~autoprobe_mode=false,
         ~is_edited,
         ~statics_mode=StaticsNormal,
+        ~compositional=false,
         ~ctx=?,
+        /* PROJECTED statics (stack cells): the whole-program item
+           analysis scoped to this cell — replaces the private init_*
+           run on recompute frames (one statics run per item; cells
+           read it) */
+        ~projected: option(CachedStatics.t)=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
@@ -151,18 +161,65 @@ module Update = {
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
      * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
+     * then skips the shape pass via phys-eq on info_map/elaborated.
+     * PROBE EXCEPTION: probe ids are an ANALYSIS input (per-node
+     * probe_targets witnesses) — deferring the recompute lets this
+     * frame's eval request go out with fresh targets but a stale map,
+     * and the worker's incremental cache then replays sampleless until
+     * the next edit. A probe change recomputes NOW (cheap: DefStatics
+     * probe-aware dirtying re-analyzes only the probed item). */
+    let probes_changed =
+      Id.Map.compare(
+        compare,
+        CachedStatics.probe_ids_of_zipper(editor.state.zipper),
+        statics.probe_ids,
+      )
+      != 0;
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
+      statics_mode == StaticsForce
+      || is_edited
+      && statics_mode != StaticsDefer
+      || probes_changed
+        ? switch (projected) {
+          | Some(p) => p
+          | None =>
+            editor.root == Sort.Typ
+              /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+                 entries for the inspector) under the provided ctx */
+              ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+              : editor.root == Sort.Pat
+                  ? CachedStatics.init_pat(
+                      ~settings,
+                      ~ctx?,
+                      editor.state.zipper,
+                    )
+                  : editor.root == Sort.TPat
+                      ? CachedStatics.init_tpat(
+                          ~settings,
+                          ~ctx?,
+                          editor.state.zipper,
+                        )
+                      : compositional
+                          /* whole-program editors: per-item statics (DefStatics) —
+                             only the dirty items re-analyze, and no monolithic
+                             whole-program recursion runs (browser stack overflow on
+                             large programs) */
+                          ? CachedStatics.init_compositional(
+                              ~settings,
+                              ~stitch,
+                              ~root=editor.root,
+                              editor.state.zipper,
+                            )
+                          : CachedStatics.init(
+                              ~settings,
+                              ~stitch,
+                              ~ctx?,
+                              ~ana?,
+                              ~is_dynamic_term,
+                              ~root=editor.root,
+                              editor.state.zipper,
+                            )
+          }
         : statics;
 
     let editor =
@@ -193,7 +250,37 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  /* Memo for the code text + error/warning arms — by far the most
+     expensive vdom in the app (of_tile/shard walks over the whole
+     program). None of it depends on DYNAMICS, yet every streamed
+     result chunk re-renders the page and was rebuilding it (~1s per
+     chunk on mega-2k). Keyed on the physical identities of every
+     input (as Obj.t, compared with ===); identical nodes also
+     short-circuit the virtual-dom diff by reference equality. LRU so
+     a stack of cells + master all stay resident. */
+  type memo_entry = {
+    m_key: array(Obj.t),
+    m_nodes: list(Node.t),
+  };
+  let view_memo: ref(list(memo_entry)) = ref([]);
+  /* SMALL cap, and same-length entries evict each other: every key
+     pins a whole GENERATION of segment/measured/info_map — on mega
+     programs a deep LRU pinned hundreds of MB of superseded
+     generations (heap death after a few edits). Same piece-count is
+     a cheap same-editor-previous-generation proxy; a false hit just
+     costs a recompute. */
+  let view_memo_max = 4;
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
+    let n = Array.length(a);
+    Array.length(b) == n
+    && {
+      let rec go = i => i >= n || a[i] === b[i] && go(i + 1);
+      go(0);
+    };
+  };
+
+  let view =
+      (~globals: Globals.t, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
@@ -204,44 +291,88 @@ module View = {
       _,
     }: Model.t = model;
     let info_map = model.statics.info_map;
-    let refine_sort = (id, mold_out) =>
-      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
-    let code_text_view =
-      CodeViewable.view(
-        ~globals,
-        ~measured,
-        ~term_data,
-        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~shape_map,
-        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
-        ~refine_sort,
-        segment,
-      );
-    let error_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        model.statics.error_ids,
-      );
+    let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
-    let warning_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~is_warning=true,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        warning_ids,
-      );
+    let key = [|
+      Obj.repr(measured),
+      Obj.repr(term_data),
+      Obj.repr(shape_map),
+      Obj.repr(segment),
+      Obj.repr(info_map),
+      Obj.repr(model.editor.syntax),
+      Obj.repr(model.statics.error_ids),
+      Obj.repr(warning_ids),
+      Obj.repr(buffer_ids),
+      Obj.repr(globals.font_metrics),
+      Obj.repr(globals.settings),
+    |];
+    let nodes =
+      switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
+      | Some(entry) =>
+        /* refresh LRU position */
+        view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
+        entry.m_nodes;
+      | None =>
+        let refine_sort = (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
+        let code_text_view =
+          CodeViewable.view_chunked(
+            ~globals,
+            ~measured,
+            ~term_data,
+            ~buffer_ids,
+            ~shape_map,
+            ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+            ~refine_sort,
+            ~statics_ident=Obj.repr(info_map),
+          );
+        let error_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            model.statics.error_ids,
+          );
+        let warning_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~is_warning=true,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            warning_ids,
+          );
+        // errors after warnings to prioritize errors over warnings
+        let nodes = [code_text_view, warning_decos, error_decos];
+        let rec take = (n, xs) =>
+          switch (n, xs) {
+          | (0, _)
+          | (_, []) => []
+          | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
+          };
+        let seg_len = List.length(segment);
+        let same_len = (e: memo_entry) =>
+          switch ((Obj.magic(e.m_key[3]): Segment.t)) {
+          | s => List.length(s) == seg_len
+          | exception _ => false
+          };
+        view_memo :=
+          [
+            {
+              m_key: key,
+              m_nodes: nodes,
+            },
+            ...take(
+                 view_memo_max - 1,
+                 List.filter(e => !same_len(e), view_memo^),
+               ),
+          ];
+        nodes;
+      };
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
       @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
-    Node.div(
-      ~attrs=[Attr.classes(container_classes)],
-      // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
-    );
+    Node.div(~attrs=[Attr.classes(container_classes)], nodes @ overlays);
   };
 };

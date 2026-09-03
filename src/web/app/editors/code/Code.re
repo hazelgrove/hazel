@@ -83,6 +83,9 @@ let view =
       ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      /* false for non-final chunks of a chunked render: their trailing
+         linebreak is a real row boundary, not a hanging last row */
+      ~reserve_trailing_row: bool=true,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
          using information unavailable at this purely syntactic layer (e.g.
          statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
@@ -195,5 +198,161 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  let nodes = of_segment(segment);
+  /* a TRAILING linebreak produces no final line box in pre flow, so
+     the editor came up one row short and the caret hung below it
+     (worst in stacked cells, where the next cell sits right there):
+     a zero-width space reserves the last row */
+  switch (List.rev(segment)) {
+  | [Secondary(s), ..._]
+      when reserve_trailing_row && Secondary.is_linebreak(s) =>
+    nodes @ [Node.text("\xe2\x80\x8b")]
+  | _ => nodes
+  };
+};
+
+/* ===== PER-CHUNK CODE TEXT (plans/subeditor-dataflow.md paragraph 5a)
+   One inline span per measured chunk, memoized by anchor: unchanged
+   chunks return the SAME vdom node, so the virtual-dom diff skips
+   them by reference and an edit re-renders one chunk's tokens.
+   Inline spans in pre flow reproduce the flat render exactly (the
+   text, with its embedded linebreaks, flows identically).
+
+   The memo key is CONTENT-based where identity churns per frame:
+   term_data/info_map are rebuilt wholesale each parse/statics pass,
+   so we key on the per-tile RENDER-RELEVANT projection (the refined
+   sort and the term-data sort actually consulted by of_delim) and
+   compare structurally. c_flat identity covers pieces + projector/
+   refractor shape slices (Measured.Incr guarantees slice equality
+   on reuse). Eviction: tick sweep (view-side cache discipline). */
+module ChunkViews = {
+  type entry = {
+    mutable cv_flat: Obj.t, /* Measured.flat identity */
+    mutable cv_final: bool,
+    mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
+    mutable cv_sorts: array((Sort.t, option(Sort.t))),
+    /* info_map identity at the last sort probe: when it matches, the
+       probe is skipped entirely — for unchanged pieces go_incr shares
+       term_data values, so sorts can only change via new statics */
+    mutable cv_info: Obj.t,
+    mutable cv_buffer: Obj.t, /* buffer_ids identity (usually []) */
+    mutable cv_fm: Obj.t,
+    mutable cv_settings: Obj.t,
+    mutable cv_node: Node.t,
+    mutable cv_tick: int,
+  };
+  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  let tick = ref(0);
+  let sweep = () =>
+    if (tick^ mod 64 == 0) {
+      let dead =
+        Hashtbl.fold(
+          (a, e, acc) => e.cv_tick < tick^ - 16 ? [a, ...acc] : acc,
+          cache,
+          [],
+        );
+      List.iter(Hashtbl.remove(cache), dead);
+    };
+};
+
+/* every tile in the chunk subtree (of_delim consults term_data and
+   refine_sort per tile; grout/secondary render from pieces alone) */
+let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        List.fold_left(
+          (acc, s) => chunk_tiles(s, acc),
+          [t, ...acc],
+          t.children,
+        )
+      | _ => acc
+      },
+    acc,
+    seg,
+  );
+
+let view_chunked =
+    (
+      ~measured: Measured.t,
+      ~settings: Settings.Model.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_shape_map: Id.Map.t(_),
+      ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
+      ~refine_sort: (Id.t, Sort.t) => Sort.t,
+      /* identity of the statics map behind refine_sort (see cv_info) */
+      ~statics_ident: Obj.t,
+      ~buffer_ids: list(Id.t),
+    )
+    : list(Node.t) => {
+  incr(ChunkViews.tick);
+  ChunkViews.sweep();
+  let n = Array.length(measured.chunks);
+  let sorts_of = (tiles: list(Tile.t)) =>
+    tiles
+    |> List.map((t: Tile.t) =>
+         (
+           refine_sort(t.id, t.mold.out),
+           Option.map(
+             (d: TermData.data) => d.sort,
+             Id.Map.find_opt(t.id, term_data),
+           ),
+         )
+       )
+    |> Array.of_list;
+  let render = (ch: Measured.chunk, final: bool): t =>
+    span(
+      ~attrs=[Attr.class_("code-chunk")],
+      view(
+        ~measured,
+        ~settings,
+        ~shape_map,
+        ~refractor_shape_map,
+        ~font_metrics,
+        ~term_data,
+        ~reserve_trailing_row=final,
+        ~refine_sort,
+        ~buffer_ids,
+        ch.c_pieces,
+      ),
+    );
+  List.init(n, i => i)
+  |> List.map(i => {
+       let ch = measured.chunks[i];
+       let final = i == n - 1;
+       let stable = (e: ChunkViews.entry) =>
+         e.cv_flat === Obj.repr(ch.c_flat)
+         && e.cv_final == final
+         && e.cv_buffer === Obj.repr(buffer_ids)
+         && e.cv_fm === Obj.repr(font_metrics)
+         && e.cv_settings === Obj.repr(settings);
+       switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
+       | Some(e) when stable(e) && e.cv_info === statics_ident =>
+         e.cv_tick = ChunkViews.tick^;
+         e.cv_node;
+       | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
+         e.cv_info = statics_ident;
+         e.cv_tick = ChunkViews.tick^;
+         e.cv_node;
+       | _ =>
+         let tiles = chunk_tiles(ch.c_pieces, []);
+         let node = render(ch, final);
+         let e = {
+           ChunkViews.cv_flat: Obj.repr(ch.c_flat),
+           cv_final: final,
+           cv_tiles: tiles,
+           cv_sorts: sorts_of(tiles),
+           cv_info: statics_ident,
+           cv_buffer: Obj.repr(buffer_ids),
+           cv_fm: Obj.repr(font_metrics),
+           cv_settings: Obj.repr(settings),
+           cv_node: node,
+           cv_tick: ChunkViews.tick^,
+         };
+         Hashtbl.replace(ChunkViews.cache, ch.c_anchor, e);
+         node;
+       };
+     });
 };

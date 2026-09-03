@@ -60,13 +60,20 @@ let tests = (
                 |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
+              /* mega-mod-* corpora are MOD-rooted (plans/mod-root.md) */
+              let root =
+                String.starts_with(
+                  ~prefix="mega-mod",
+                  Filename.basename(path),
+                )
+                  ? Sort.Mod : Sort.Exp;
               let r =
                 known_gap
                   ? None
                   : FastParse.of_text(
                       ~materialize=Triggers.invoked_projector,
                       ~collect_refractors=true,
-                      ~root=Exp,
+                      ~root,
                       src,
                     );
               let ms = (Sys.time() -. f0) *. 1000.;

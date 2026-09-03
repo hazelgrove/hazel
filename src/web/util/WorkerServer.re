@@ -5,11 +5,35 @@ module Js = Js_of_ocaml.Js;
 type key = string;
 
 module Request = {
+  /* The incremental cache is WORKER-RESIDENT (keyed per batch key):
+     shipping the whole previous cache with every request was a
+     historical artifact of the ephemeral-worker era (PR #2222) — it
+     dominated the request payload and once overflowed structured
+     clone (#2368). `UseResident` tells the worker to use its own
+     cache for this key; a stale or missing resident cache is
+     CORRECTNESS-SAFE (reuse_check re-verifies every entry) and only
+     costs a colder eval. `Seed` is for callers that own their cache
+     (the sync main-thread path, tests). */
+  [@deriving (show, sexp, yojson)]
+  type prev_source =
+    | UseResident
+    | Seed(Language.EvaluatorState.incr_eval);
+  /* What the client wants STREAMED during this evaluation. The stream's
+     only consumers are the pending-eval highlight (entry-key membership +
+     [current]), test badges, and probe samples — so when the highlight is
+     off, entries carrying none of those are pure decode/merge/render cost
+     on the main thread (one full cycle per posted chunk). [Effects] ships
+     only effect-bearing entries; the completion response is unaffected. */
+  [@deriving (show, sexp, yojson)]
+  type stream_interest =
+    | Full
+    | Effects;
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    prev: Language.EvaluatorState.incr_eval,
+    prev: prev_source,
+    stream: stream_interest,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -41,7 +65,7 @@ module ClientMessage = {
 };
 
 module ServerMessage = {
-  /* Reuse-pass predictions for immediate UI tinting (frozen vs re-eval). */
+  /* Reuse-pass predictions sent before evaluation slices begin. */
   [@deriving (show, sexp, yojson)]
   type reuse_predictions =
     list((key, Language.IncrEval.t(Language.EvaluatorState.t)));
@@ -54,7 +78,7 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type ack = {request_id: int};
 
-  /* Predicted reusable cache entries for UI tinting (frozen vs re-eval). */
+  /* Predicted reusable cache entries for initializing streamed state. */
   [@deriving (show, sexp, yojson)]
   type reuse_plan = {
     request_id: int,
@@ -220,11 +244,35 @@ let error_response = exn =>
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   };
 
+/* the worker's own per-key incremental caches (async path) */
+let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+  Hashtbl.create(4);
+
+let resolve_prev =
+    (~key: option(key)=?, prev: Request.prev_source)
+    : Language.EvaluatorState.incr_eval =>
+  switch (prev, key) {
+  | (Seed(p), _) => p
+  | (UseResident, Some(k)) =>
+    Option.value(
+      Hashtbl.find_opt(resident, k),
+      ~default=Language.IncrEval.empty,
+    )
+  | (UseResident, None) => Language.IncrEval.empty
+  };
+
+let store_resident = (key: key, response: Response.value): unit =>
+  switch (response) {
+  | Ok((_, state)) =>
+    Hashtbl.replace(resident, key, state.Language.EvaluatorState.incr_eval)
+  | Error(_) => ()
+  };
+
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
-      ~prev,
+      ~prev=resolve_prev(prev),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
@@ -278,16 +326,16 @@ let initial_model = {
 
 /* Worker execution model (three phases per request):
  * 1. Instant `Ack` — liveness only; no ReusePass.
- * 2. `ReusePlan` — predicted reusable entries for frozen/re-eval tinting.
+ * 2. `ReusePlan` — predicted reusable entries for streamed state.
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     switch (
       Language.ReusePass.reuse_pass(
-        ~prev,
+        ~prev=resolve_prev(~key, prev),
         ~eval_info=eval_info_map,
         ~env=Language.Builtins.env_init,
         expr,
@@ -299,11 +347,31 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   (key, stream);
 };
 
-let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+let stream_min_interval_ms: ref(float) = ref(100.);
+
+/* interest of the CURRENTLY RUNNING batch item (items run one at a
+   time; flushes only ever concern the running item) */
+let current_stream_interest: ref(Request.stream_interest) =
+  ref(Request.Full);
+
+let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
+  let Request.{expr, eval_info_map, prev, stream} = req_value;
+  current_stream_interest := stream;
+  /* stream cadence scales with program size: each posted chunk costs
+     the client a stream-collection + recalc cycle that grows with the
+     program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
+     drowned the main thread. Clamped to [100ms, 1s]. */
+  stream_min_interval_ms :=
+    max(
+      100.,
+      min(
+        1000.,
+        float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
+      ),
+    );
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev,
+      ~prev=resolve_prev(~key, prev),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
@@ -337,6 +405,53 @@ let post_batch_result = (model, request_id, completed) =>
     );
   };
 
+/* Stream chunks cross to the MAIN thread, whose consumers read only
+   entry KEYS (pending-eval worklist), [seq] (frontier ordering), and
+   each state's probes/tests/steps (stream collection). The
+   reuse-cache payload — prev_elab (the region's whole elaborated
+   subtree), prev_reuse_map, prev_probe_targets, the region's value,
+   and the state's own nested incr_eval — stays worker-side
+   (store_resident keeps the full response); shipping it decoded to
+   ~90MB live on mega programs, most of the per-edit heap churn. */
+let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+let slim_state = (state: Language.EvaluatorState.t) =>
+  Language.EvaluatorState.{
+    ...state,
+    incr_eval: Language.IncrEval.empty,
+  };
+let slim_stream_update =
+    (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
+    : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
+  Language.IncrEval.{
+    completed: {
+      entries:
+        Id.Map.map(
+          (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
+            Language.IncrEval.{
+              prev_elab: Lazy.force(slim_hole),
+              prev_reuse_map: Language.IncrEval.empty_reuse_map,
+              prev_probe_targets:
+                Language.EvalInfo.ProbeTargets(
+                  Language.SubexpProbeTargets.empty,
+                ),
+              value: Lazy.force(slim_hole),
+              state: slim_state(e.state),
+              seq: e.seq,
+            },
+          u.completed.entries,
+        ),
+    },
+    current:
+      Option.map(
+        (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
+          Language.IncrEval.{
+            ...c,
+            state: slim_state(c.state),
+          },
+        u.current,
+      ),
+  };
+
 let post_stream_update =
     (
       ~allow_empty=false,
@@ -351,14 +466,57 @@ let post_stream_update =
       ServerMessage.Stream({
         request_id,
         key,
-        update,
+        update: slim_stream_update(update),
       }),
     );
   };
 
-let flush_stream_update = (model, request_id, key, evaluation) => {
-  let update = Language.Evaluator.drain_streaming_outbox(evaluation);
-  post_stream_update(model, request_id, key, update);
+/* Stream posts are THROTTLED: every posted update costs the client a
+   full update/calculate/render cycle, and un-throttled per-slice posts
+   flooded mega programs with hundreds of chunks (each ~O(program) on
+   the main thread). Undrained entries keep accumulating in the
+   evaluation's outbox; completion flushes unconditionally. */
+let last_stream_post: ref(float) = ref(0.);
+
+let entry_has_effects =
+    (e: Language.IncrEval.entry(Language.EvaluatorState.t)): bool =>
+  Language.EvaluatorState.(
+    e.state.tests != []
+    || !Util.Id.Map.is_empty(e.state.probes)
+    || e.state.theorems != []
+  );
+
+/* [Effects] interest: only effect-bearing entries ship; husks (ids +
+   step counts) exist for the pending-eval highlight, which the client
+   said is off. A filtered-to-empty chunk is not posted at all, so the
+   client pays no render cycle for it. */
+let filter_stream_interest =
+    (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
+    : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
+  switch (current_stream_interest^) {
+  | Full => u
+  | Effects =>
+    Language.IncrEval.{
+      completed: {
+        entries:
+          Util.Id.Map.filter(
+            (_, e) => entry_has_effects(e),
+            u.completed.entries,
+          ),
+      },
+      current: None,
+    }
+  };
+
+let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
+  let now: float = Js.Unsafe.global##.Date##now();
+  if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
+    last_stream_post := now;
+    let update =
+      Language.Evaluator.drain_streaming_outbox(evaluation)
+      |> filter_stream_interest;
+    post_stream_update(model, request_id, key, update);
+  };
 };
 
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
@@ -381,6 +539,48 @@ let post_reuse_plan = (model, request: Request.t) =>
 let schedule_async = callback =>
   ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
+/* ... and cap the value's SIZE: the main thread only ever displays a
+   budget-pruned copy (EvalResult.prune_for_display), so anything past
+   the budget is marshal/decode dead weight — a Mod-rooted program's
+   value (the module exports tuple, full member ASTs) added a
+   ~300-400ms decode frame to EVERY edit's result arrival. Budget
+   matches the display side; over-budget subtrees become holes. */
+/* slightly ABOVE the display budget (EvalResult.display_budget), so
+   the main side can detect ship-side truncation: its own display
+   prune trips exactly when this one did */
+let value_ship_budget = 6_000;
+let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
+  let (pruned, truncated) =
+    Language.TermPrune.prune(~budget=value_ship_budget, e);
+  if (truncated) {
+    print_endline(
+      Printf.sprintf(
+        "[worker] result value exceeds %d nodes: truncated for shipping (elided parts shown as holes)",
+        value_ship_budget,
+      ),
+    );
+  };
+  pruned;
+};
+
+/* The UI never consumes the incremental cache from ASYNC responses:
+   the next request's prev is WORKER-RESIDENT and reuse predictions
+   arrive via ReusePlan. Strip it AFTER store_resident so the
+   completion payload doesn't marshal the whole entry map back across
+   the boundary (it rivals the old request-side prev-cache in size). */
+let slim_response = (response: Response.value): Response.value =>
+  switch (response) {
+  | Ok((exp, state)) =>
+    Ok((
+      exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+      Language.EvaluatorState.{
+        ...state,
+        incr_eval: Language.IncrEval.empty,
+      },
+    ))
+  | Error(_) as e => e
+  };
+
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
   | [] =>
@@ -391,14 +591,15 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (start_evaluation(req_value)) {
+    switch (start_evaluation(~key, req_value)) {
     | CompletedImmediately(response) =>
+      store_resident(key, response);
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, response), ...completed],
+        [(key, slim_response(response)), ...completed],
         remaining,
-      )
+      );
     | Yielding(evaluation) =>
       let model = {
         ...model,
@@ -423,13 +624,15 @@ and begin_latest_batch = model =>
   | Some({request_id, batch}) =>
     evaluate_next_batch_item(model, request_id, [], batch)
   }
-and finish_current_item = (model, running, response) =>
+and finish_current_item = (model, running, response) => {
+  store_resident(running.key, response);
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, response), ...running.completed],
+    [(running.key, slim_response(response)), ...running.completed],
     running.remaining,
-  )
+  );
+}
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {
@@ -465,6 +668,7 @@ and run_scheduled_slice = model => {
       finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
       flush_stream_update(
+        ~force=true,
         model,
         running.request_id,
         running.key,

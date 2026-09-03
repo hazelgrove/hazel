@@ -26,8 +26,18 @@ module ViewCache = {
     status: View.status,
     model: string,
     view: View.t,
+    last_used: int /* tick of last lookup hit or store (see sweep) */
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+
+  /* jsoo has no weak refs: an id that stops rendering (autoprobe
+     re-anchors mint fresh probe ids EVERY EDIT) would pin its entry
+     forever — and each entry pins a whole GENERATION of statics map,
+     dynamics map, elaboration, and vdom (closures capture the render
+     scope). Measured ~13MB leaked per edit on mega-1k. Sweep entries
+     not used for a couple of frames' worth of log_frame ticks
+     (log_frame fires once per editor per frame). */
+  let tick: ref(int) = ref(0);
 
   let lookup =
       (
@@ -52,7 +62,17 @@ module ViewCache = {
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
           && e.model == model =>
-      Some(e.view)
+      if (e.last_used != tick^) {
+        Hashtbl.replace(
+          cache,
+          id,
+          {
+            ...e,
+            last_used: tick^,
+          },
+        );
+      };
+      Some(e.view);
     | _ => None
     };
 
@@ -81,6 +101,7 @@ module ViewCache = {
         status,
         model,
         view,
+        last_used: tick^,
       },
     );
 
@@ -89,6 +110,16 @@ module ViewCache = {
   let log_frame = () => {
     hits := 0;
     misses := 0;
+    incr(tick);
+    if (tick^ mod 8 == 0) {
+      let stale =
+        Hashtbl.fold(
+          (id, e, acc) => tick^ - e.last_used > 24 ? [id, ...acc] : acc,
+          cache,
+          [],
+        );
+      List.iter(Hashtbl.remove(cache), stale);
+    };
   };
 };
 

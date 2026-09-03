@@ -334,10 +334,7 @@ module View = {
         current_left;
       } else {
         get_left(
-          Int.min(
-            current_left,
-            Measured.Rows.find(row, measured.rows).indent,
-          ),
+          Int.min(current_left, Measured.row_indent(row, measured)),
           row + 1,
           final_row,
         );
@@ -350,7 +347,10 @@ module View = {
         get_right(
           Int.max(
             current_right,
-            Measured.Rows.find(row, measured.rows).max_col,
+            switch (Measured.row_shape(row, measured)) {
+            | Some(sh) => sh.max_col
+            | None => current_right
+            },
           ),
           row + 1,
           final_row,
@@ -603,6 +603,7 @@ module View = {
                                   inject: x =>
                                     inject(RewriteEditorAction(x)),
                                   escape: _ => Ui_effect.Ignore,
+                                  escape_vertical: None,
                                   take_focus: _ => Ui_effect.Ignore,
                                   focus:
                                     switch (selected) {

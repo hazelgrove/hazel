@@ -46,9 +46,7 @@ module Map = {
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx
-      |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+      co_ctx |> CoCtx.names |> List.map(n => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -229,20 +227,30 @@ let set_dot_labels_exp =
   | _ => m
   };
 
-let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
-    xs,
-  );
+/* NOTE: these folds (and the sibling ones in Statics.re) accumulate
+   with cons + a final rev, NOT [acc @ [x]]: the append version is
+   quadratic in list length and was a top statics cost on n-ary forms
+   (module bodies, wide tuples) at mega scale. */
+let map_m = (f, xs, m: Map.t) => {
+  let (xs, m) =
+    List.fold_left(
+      ((xs, m), x) => f(x, m) |> (((x, m)) => ([x, ...xs], m)),
+      ([], m),
+      xs,
+    );
+  (List.rev(xs), m);
+};
 
-let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold_left2(
-    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ([], m),
-    xs,
-    ys,
-  );
+let map_m2 = (f, xs, ys, m: Map.t) => {
+  let (zs, m) =
+    List.fold_left2(
+      ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => ([z, ...zs], m)),
+      ([], m),
+      xs,
+      ys,
+    );
+  (List.rev(zs), m);
+};
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
@@ -401,24 +409,34 @@ let fold_patterns_with_modes =
       ps: list(Pat.t),
       modes,
       m,
-    ) =>
-  List.fold_left2(
-    ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-      analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-      |> (
-        ((info, elab, m)) => (
-          info.ctx,
-          tys @ [info.ty],
-          cons @ [info.constraint_],
-          m,
-          infos @ [info],
-          elabs @ [elab],
-        )
-      ),
-    (ctx, [], [], m, [], []),
-    ps,
-    modes,
+    ) => {
+  let (ctx, tys, cons, m, infos, elabs) =
+    List.fold_left2(
+      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+        |> (
+          ((info, elab, m)) => (
+            info.ctx,
+            [info.ty, ...tys],
+            [info.constraint_, ...cons],
+            m,
+            [info, ...infos],
+            [elab, ...elabs],
+          )
+        ),
+      (ctx, [], [], m, [], []),
+      ps,
+      modes,
+    );
+  (
+    ctx,
+    List.rev(tys),
+    List.rev(cons),
+    m,
+    List.rev(infos),
+    List.rev(elabs),
   );
+};
 
 module type ExpressionStatics = {
   let uexp_to_info_map:

@@ -63,7 +63,7 @@ let make_problem_context =
   let measured = syntax.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
-    let reversed = List.rev(measured.piece_rows);
+    let reversed = List.rev(Measured.piece_rows(measured));
     let (line_numbers_rev, _) =
       List.fold_left(
         ((acc, line_count), row) =>
@@ -305,7 +305,49 @@ type problem_collection = {
    coincide): shared structural problems land in exactly one group while
    any context-specific static error still surfaces in the group where it
    actually occurs. */
-let make =
+/* single-slot memo: the sidebar rebuilds this on EVERY page render
+   (the tab badge reads counts even with the panel collapsed), and a
+   source costs a full holes walk + measured positions — O(program)
+   for the master. Sources are pointer-stable between edits, so
+   idle/chunk frames collapse to identity compares. */
+let memo: ref(option((bool, list(editor_group_input), problem_collection))) =
+  ref(None);
+
+let same_inputs =
+    (a: list(editor_group_input), b: list(editor_group_input)): bool => {
+  let same_source = (x: editor_source, y: editor_source) =>
+    x.statics === y.statics && x.syntax === y.syntax;
+  let rec same_sources = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) =>
+      same_source(x, y) && same_sources(xs, ys)
+    | _ => false
+    };
+  let same_group = (x: editor_group_input, y: editor_group_input) =>
+    x.label == y.label && same_sources(x.sources, y.sources);
+  let rec go = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) => same_group(x, y) && go(xs, ys)
+    | _ => false
+    };
+  go(a, b);
+};
+
+let rec make =
+        (~display_warnings: bool, inputs: list(editor_group_input))
+        : problem_collection =>
+  switch (memo^) {
+  | Some((dw, prev, out))
+      when dw == display_warnings && same_inputs(prev, inputs) => out
+  | _ =>
+    let out = make_uncached(~display_warnings, inputs);
+    memo := Some((display_warnings, inputs, out));
+    out;
+  }
+
+and make_uncached =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
   let seen: Hashtbl.t((Id.t, problem_category), unit) = Hashtbl.create(64);

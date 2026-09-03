@@ -37,6 +37,12 @@ module Model = {
     result: EvalResult.Model.unpersist(result),
   };
 
+  let unpersist_with =
+      (~settings as _=?, ~zipper, {editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist_with(~zipper, editor),
+    result: EvalResult.Model.unpersist(result),
+  };
+
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
@@ -92,11 +98,25 @@ module Update = {
         ~autoprobe_mode=false,
         ~is_edited,
         ~statics_mode=CodeWithStatics.StaticsNormal,
+        ~compositional=false,
+        ~ctx=?,
+        ~projected: option(Haz3lcore.CachedStatics.t)=?,
+        ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         ~queue_worker,
         ~stitch,
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* Cell dynamics = own evaluation's samples, plus (for stack cells)
+       the WHOLE-PROGRAM samples flowing in from the master's stacked
+       eval — the master's win on conflicts (it saw real call sites) */
+    let mk_dynamics = result => {
+      let own = EvalResult.Model.dynamics(result);
+      switch (extra_dynamics) {
+      | Some(extra) => Id.Map.union((_, m, _) => Some(m), extra, own)
+      | None => own
+      };
+    };
     /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
@@ -104,8 +124,11 @@ module Update = {
         ~autoprobe_mode,
         ~is_edited,
         ~statics_mode,
+        ~compositional,
+        ~ctx?,
+        ~projected?,
         ~stitch,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=mk_dynamics(result),
         ~is_dynamic_term=false,
         editor,
       );
@@ -148,7 +171,7 @@ module Update = {
           ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=mk_dynamics(result),
           ~is_dynamic_term=false,
           editor,
         );
@@ -212,6 +235,16 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
+        /* stack cells: the MASTER's whole-program result feeds this
+           cell's dynamic decorations — samples, frozen-reuse tint,
+           pending/active-eval indicators (the cell's own result never
+           evaluates while stacked) */
+        ~master_result: option(EvalResult.Model.t)=?,
+        /* arrow-key at the buffer's edge: hosts (e.g. the editor
+           stack) route the caret to a neighboring pane */
+        ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
+        ~escape_vertical:
+           option((Haz3lcore.Action.vertical, int) => Ui_effect.t(unit))=None,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -261,14 +294,28 @@ module View = {
               ? EditMode.ReadOnly
               : Editable({
                   inject: action => inject(MainEditor(action)),
-                  escape: _ => Ui_effect.Ignore,
+                  escape,
+                  escape_vertical,
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
-          ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
+          /* stack cells: whole-program SAMPLES flow in from the master's
+             stacked eval (upstream removed the frozen tint, so samples
+             are the only master-derived decoration left) */
+          ~dynamics={
+            let own = EvalResult.Model.dynamics(model.result);
+            switch (master_result) {
+            | Some(mr) =>
+              Id.Map.union(
+                (_, m, _) => Some(m),
+                EvalResult.Model.dynamics(mr),
+                own,
+              )
+            | None => own
+            };
+          },
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
           model.editor,
