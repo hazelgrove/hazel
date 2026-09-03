@@ -30,7 +30,7 @@ table.table {
  * nested children (e.g. the column menu sitting inside the <th>). */
 .table th .column-label {
     font-weight: 600;
-    color: var(--BR4);
+    color: var(--text-strong);
     font-family: var(--code-font);
 }
 
@@ -92,7 +92,7 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
 }
 
 .projector.table > .table-inner > .table-error-banner {
-    color: var(--R1);
+    color: var(--text-error);
     font-size: calc(var(--base-font-size) * 0.95);
     line-height: 1.2;
     padding: 0.35em 0.5em 0.25em;

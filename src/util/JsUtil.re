@@ -102,6 +102,14 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
+/* Set while an interactive projector owns DOM focus (the keybinding
+   recorder). The page pulls focus back to the clipboard shim on any bubbled
+   focus/blur, and the shim's focusout fires BEFORE the projector's focusin —
+   so a guard that inspects the event is always too late. The projector
+   raises this on pointerdown, before focus moves at all, and lowers it on
+   blur. */
+let projector_holds_focus = ref(false);
+
 /* The id carried by whichever code-editor cell is currently the active
    (model-selected) one. Used to move DOM focus to a cell after a sidebar
    jump, so the editor receives keystrokes and the caret (gated on :focus)
@@ -442,6 +450,37 @@ let setup_focus_bar_scroll_compensation = () =>
     };
   };
 
+/* localStorage rather than the IndexedDB store: the colour theme has to be
+   readable synchronously from an inline <head> script, before the first
+   paint, and IndexedDB only opens asynchronously. */
+let set_local_storage = (key: string, value: string): unit =>
+  try({
+    let store =
+      Dom_html.window##.localStorage |> Js.Optdef.get(_, () => assert(false));
+    store##setItem(Js.string(key), Js.string(value));
+  }) {
+  | _ => ()
+  };
+
+let get_local_storage = (key: string): option(string) =>
+  try({
+    let store =
+      Dom_html.window##.localStorage |> Js.Optdef.get(_, () => assert(false));
+    store##getItem(Js.string(key))
+    |> (x => Js.Opt.to_option(x) |> Option.map(Js.to_string));
+  }) {
+  | _ => None
+  };
+
+let set_css_variable = (name: string, value: string) => {
+  let doc = Dom_html.document;
+  let root = doc##.documentElement;
+  let style: Js.t(Dom_html.cssStyleDeclaration) = root##.style;
+
+  let _ =
+    style##setProperty(Js.string(name), Js.string(value), Js.undefined);
+  ();
+};
 let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(
     Dom_html.window##prompt(Js.string(message), Js.string(default)),

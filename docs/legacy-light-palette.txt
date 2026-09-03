@@ -1,0 +1,156 @@
+Legacy light palette (hand-written)
+===================================
+
+Verbatim record of the hand-written palette, kept so the derived
+scheme can be checked against what a human actually chose.
+
+This is a REFERENCE ARTIFACT, not live code and not a stylesheet.
+It lives in docs/ deliberately: src/web/dune copies www as a
+source_tree, so a stray .css under style/ ships to the browser and
+reads like live-but-broken CSS.
+
+Extracted from src/web/util/ColorConfiguration.re at ecd71c2557.
+142 entries, in source order.
+
+--NONE: oklch(0% 0 0 / 0%);                                   /* transparent */
+--SAND: oklch(99% 0.012 90);                                  /* code background */
+--STONE: oklch(52% 0.03 220);                                 /* code text */
+--BLACK: oklch(0% 0 0);                                       /* use sparingly */
+--BR1: oklch(85% 0.07 90);                                    /* caret shard, token buffer */
+--BR2: oklch(from var(--BR1) 70% c h);                        /* exp shard arms */
+--BR3: oklch(from var(--BR1) 60% c h);                        /* top ui accent */
+--BR4: oklch(from var(--BR1) 50% c h);                        /* top ui accent */
+--T1: oklch(97% 0.025 90);                                    /* buffer shards */
+--T2: oklch(from var(--T1) 94% c h);                          /* projector shards */
+--T3: oklch(from var(--T1) 91% c h);                          /* result background */
+--T4: oklch(from var(--T1) 88% c h);                          /* darker background */
+--Y0: oklch(95% 0.05 90);                                     /* menu fill */
+--Y1: oklch(91% 0.11 95);                                     /* selections */
+--Y2: oklch(88% 0.2 95);                                      /* explicit hole */
+--Y3: oklch(71% 0.2 95);                                      /* incomplete shards */
+--R0: oklch(85% 0.1 30);                                      /* broken shard fill */
+--R1: oklch(60% 0.3 30);                                      /* caret, error stroke */
+--R2: oklch(40% 0.3 30);                                      /* error text, broken shard text */
+--TYP: oklch(60% 0.2 300);                                    /* type colors */
+--PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));           /* pattern colors */
+--TPAT: var(--PAT);                                           /* type pattern colors */
+--LABEL: oklch(60% 0.2 180);                                  /* label colors */
+--highlight-a: oklch(0.95 0.07 360);                          /* primary highlight */
+--highlight-b: oklch(from var(--highlight-a) l c calc(h - 1 * 120));/* secondary highlight */
+--highlight-c: oklch(from var(--highlight-a) l c calc(h - 2 * 120));/* tertiary highlight */
+--G0: oklch(70% 0.15 150);                                    /* page title, passing tests */
+--G1: oklch(85% 0.15 150);                                    /* passing tests hover */
+--G2: oklch(80% 0.05 150);                                    /* comments */
+--GB0: oklch(70% 0.05 120);                                   /* nut menu active */
+--GB1: oklch(45% 0.05 120);                                   /* nut menu fill */
+--primary-accent: var(--G0);                                  /* primary UI accent */
+--nut-menu: var(--GB1);                                       /* navigation menu background */
+--nut-menu-active: var(--GB0);                                /* active menu state */
+--menu-bkg: var(--Y0);                                        /* menu background */
+--menu-item-hover-bkg: var(--SAND);                           /* menu item hover */
+--menu-item-text: var(--STONE);                               /* menu text */
+--menu-outline: var(--BR2);                                   /* menu borders */
+--menu-icon: var(--BR4);                                      /* menu icons */
+--menu-group-name: var(--menu-icon);                          /* menu section headers */
+--menu-scroll-thumb: var(--menu-outline);                     /* scrollbar */
+--menu-scroll-track: var(--BR1);                              /* scrollbar track */
+--menu-divider: var(--CREASE);                                /* menu separators */
+--menu-shadow: var(--SHADOW);                                 /* menu shadows */
+--ui-bkg: var(--T1);                                          /* main UI background */
+--ui-header-text: var(--BR3);                                 /* header text */
+--toggle-knob: var(--SAND);                                   /* toggle switches */
+--main-bkg: var(--T3);                                        /* main code background */
+--cell-active: var(--SAND);                                   /* active cell background */
+--main-scroll-thumb: var(--BR1);                              /* scrollbar */
+--main-scroll-track: var(--NONE);                             /* scrollbar track */
+--cell-selected-accent: var(--R1);                            /* selection accent */
+--caret-color: var(--R1);                                     /* text cursor */
+--error-hole-stroke: var(--R1);                               /* error indicators */
+--token-exp: var(--STONE);                                    /* expression tokens */
+--token-pat: var(--PAT);                                      /* pattern tokens */
+--token-typ: var(--TYP);                                      /* type tokens */
+--token-tpat: var(--TPAT);                                    /* type pattern tokens */
+--token-label: var(--LABEL);                                  /* label tokens */
+--token-string-lit: var(--Y3);                                /* string literals */
+--token-comment: var(--G2);                                   /* comments */
+--token-incomplete: var(--Y3);                                /* incomplete code */
+--token-inconsistent: var(--token-exp);                       /* inconsistent code */
+--token-buffer: var(--BR1);                                   /* buffer tokens */
+--token-explicit-hole: var(--Y2);                             /* explicit holes */
+--token-explicit-hole-shadow: var(--BLACK);                   /* hole shadows */
+--token-secondary: var(--shard-exp);                          /* secondary text */
+--token-rul: var(--token-exp);                                /* rule tokens */
+--token-any: var(--R2);                                       /* any type tokens */
+--shard-caret-exp: var(--T2);                                 /* expression caret shards */
+--shard-lines-exp: var(--BR1);                                /* expression shard borders */
+--shard-exp: var(--T2);                                       /* expression shards */
+--shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);/* pattern caret shards */
+--shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);/* type caret shards */
+--shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);/* type pattern caret shards */
+--shard-pat: var(--shard-caret-pat);                          /* pattern shards */
+--shard-typ: var(--shard-caret-typ);                          /* type shards */
+--shard-tpat: var(--shard-caret-tpat);                        /* type pattern shards */
+--shard-selected: var(--Y1);                                  /* selected shards */
+--shard-buffer: var(--T1);                                    /* buffer shards */
+--shard_projector: var(--T2);                                 /* projector shards */
+--shard-rul: var(--shard-exp);                                /* rule shards */
+--shard-lines-rul: var(--shard-lines-exp);                    /* rule shard borders */
+--shadow-selected: var(--R0);                                 /* selection shadows */
+--shard-any: var(--shard-exp);                                /* any type shards */
+--shadow-any: var(--R0);                                      /* any type shadows */
+--empty-hole-stroke: var(--BR1);                              /* empty hole borders */
+--empty-hole-fill: var(--Y0);                                 /* empty hole backgrounds */
+--error-hole-fill: var(--ERRHOLE);                            /* error hole backgrounds */
+--backpack-selection: var(--shard-selected);                  /* selection backgrounds */
+--backpack-joiner: var(--backpack-selection);                 /* connection lines */
+--backpack-genie: var(--backpack-selection);                  /* genie indicators */
+--backpack-selection-outline: var(--light-page-color);        /* selection borders */
+--backback-targets: var(--Y3);                                /* target indicators */
+--textarea-indicated: var(--SAND);                            /* indicated text areas */
+--textarea-text: var(--BR3);                                  /* textarea text */
+--cell-result-text: var(--BR4);                               /* result text */
+--cell-result-border: var(--BR1);                             /* result borders */
+--cell-result-hidden: var(--BR1);                             /* hidden results */
+--eval-exception: var(--test-fail-active);                    /* evaluation errors */
+--eval-exception-stroke: var(--R2);                           /* error outlines */
+--step-hole-color: var(--G0);                                 /* stepper holes */
+--ci-icon-bkg: var(--BR3);                                    /* inspector icons */
+--ci-status-text: var(--BR4);                                 /* status text */
+--ci-status-error-text: var(--R2);                            /* error text */
+--ci-status-error-bkg: var(--test-fail-active);               /* error backgrounds */
+--context-inspector-colon: var(--BR2);                        /* separator colons */
+--cell-caption: var(--BR2);                                   /* exercise captions */
+--cell-result: var(--T3);                                     /* exercise results */
+--cell-exercises-border: var(--BR2);                          /* exercise borders */
+--test-panel-bkg: var(--menu-bkg);                            /* test panel background */
+--test-percent-text: var(--SAND);                             /* test percentage text */
+--test-pass: var(--G0);                                       /* passing tests */
+--test-pass-active: var(--G1);                                /* active passing tests */
+--test-fail: var(--R1);                                       /* failing tests */
+--test-fail-active: var(--R0);                                /* active failing tests */
+--test-indet: var(--BR2);                                     /* indeterminate tests */
+--test-indet-active: var(--BR1);                              /* active indeterminate tests */
+--textarea-v-stripe: oklch(78% 0.14 6 / 55%);                 /* vertical stripes */
+--textarea-h-stripe: oklch(87% 0.07 246);                     /* horizontal stripes */
+--textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);        /* selected stripes */
+--SHADOW: oklch(50% 0.1 90 / 33%);                            /* general shadows */
+--ERRHOLE: oklch(96% 0.02 47);                                /* error hole backgrounds */
+--CREASE: oklch(0% 0 0 / 40%);                                /* crease/divider lines */
+--live-env-bkg: var(--T3);                                    /* live environment background */
+--num-closures: var(--Y1);                                    /* number of closures indicator */
+--num-closures-indicated: var(--R1);                          /* indicated number of closures */
+--exp-ap: hsl(265, 75%, 80%);                                 /* expression application */
+--pat-ap: hsl(220, 75%, 80%);                                 /* pattern application */
+--exp-indicated: var(--G0);                                   /* indicated expression state */
+--pat-indicated: var(--PAT);                                  /* indicated pattern state */
+--exp-ap-indicated: var(--TYP);                               /* indicated expression application */
+--exp-base: hsl(120, 40%, 85%);                               /* base expression background */
+--pat-base: hsl(170, 40%, 85%);                               /* base pattern background */
+--exp-shadow: oklch(0.55 0.15 150);                           /* expression shadow */
+--pat-shadow: oklch(0.5 0.1 245);                             /* pattern shadow */
+--exp-ap-shadow: oklch(0.5 0.1 300);                          /* expression application shadow */
+--exp-cell: hsl(115, 30%, 70%);                               /* expression cell background */
+--pat-cell: hsl(165, 30%, 70%);                               /* pattern cell background */
+--main-base: hsl(281, 80%, 95%);                              /* type projector main background */
+--main-shadow: hsl(281, 40%, 25%);                            /* type projector shadow */
+--main-indicated: var(--TYP);                                 /* type projector indicated state */

@@ -36,6 +36,14 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     Some(
       "- **table** — Spreadsheet-style editor for a **list of labeled tuples** sharing the same labels; the labels become column headers. Attaches off the **elaborated** form, so it can apply where the surface syntax alone is not yet a table.",
     )
+  | Keybinding =>
+    Some(
+      "- **keybinding** — Key-capture editor for a string literal holding a keyboard shortcut; records the next chord pressed and commits it as the literal.",
+    )
+  | Color =>
+    Some(
+      "- **color** — Colour picker for an `Oklch(l, c, h)` literal: a swatch plus lightness, chroma and hue sliders. Attaches only to that constructor applied to three float literals.",
+    )
   | Fold
   | Probe
   | Statics => None

@@ -82,6 +82,7 @@ module Update = {
     | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
     };
   };
 
@@ -114,6 +115,9 @@ module Update = {
         ~instructor_mode=model.globals.settings.instructor_mode,
         m,
       )
+    | Config(m) => [
+        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+      ]
     };
   };
 
@@ -194,6 +198,7 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -201,7 +206,7 @@ module Update = {
            focus (which stays on the clicked sidebar row). Schedule a focus
            of the now-active cell after render so the editor receives
            keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -245,6 +250,19 @@ module Update = {
     | ExportForInit =>
       let (filename, contents) =
         switch (model.editors) {
+        | Config(model) =>
+          let (config_type, cell) = List.nth(model.configs, model.current);
+          let name = ConfigurationMode.Model.config_name_of_type(config_type);
+          /* Config slides are text-backed like the doc slides: export the
+             committed-.hz form, matching the scratch export below. */
+          let persisted =
+            Haz3lcore.PersistentZipper.persist(
+              cell.editor.editor.state.zipper,
+            );
+          (
+            (name |> StringUtil.sanitize_filename) ++ ".hz",
+            persisted.backup_text,
+          );
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
@@ -303,6 +321,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -344,6 +363,7 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_global=a => schedule_action(Globals(a)),
           action,
           model.editors,
         );
@@ -478,8 +498,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
       ~selection,
@@ -487,135 +506,77 @@ module Selection = {
     )
     |> Cursor.with_actions([
          /* Undo / Redo */
-         mk(
-           ~mdIcon="undo",
-           ~hotkey=meta ++ "+z",
-           ~action=inject(Globals(Undo)),
-           "Undo",
-         ),
-         mk(
-           ~mdIcon="redo",
-           ~hotkey=meta ++ "+shift+z",
-           ~action=inject(Globals(Redo)),
-           "Redo",
-         ),
+         of_shortcut(~action=inject(Globals(Undo)), Undo),
+         of_shortcut(~action=inject(Globals(Redo)), Redo),
          /* Settings */
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
-           ~action=inject(Globals(Set(Statics))),
-           "Toggle Statics",
-         ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(~action=inject(Globals(Set(Statics))), ToggleStatics),
+         of_shortcut(
            ~action=inject(Globals(Set(Assist))),
-           "Toggle Completion",
+           ToggleCompletion,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
-           "Toggle Show Whitespace",
+           ToggleShowWhitespace,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(SelectionChunkiness))),
-           "Toggle Character-level Mouse",
+           ToggleCharacterLevelMouse,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Benchmark))),
-           "Toggle Print Benchmarks",
+           TogglePrintBenchmarks,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ShowDebugPanel))),
-           "Toggle Debug Sidebar",
+           ToggleDebugSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Dynamics))),
-           "Toggle Dynamics",
+           ToggleDynamics,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Elaborate))),
-           "Toggle Show Elaboration",
+           ToggleShowElaboration,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
-           "Toggle Show Function Bodies",
+           ToggleShowFunctionBodies,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
-           "Toggle Show Case Clauses",
+           ToggleShowCaseClauses,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
-           "Toggle Show fixpoints",
+           ToggleShowFixpoints,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
-           "Toggle Show Ascription Steps",
+           ToggleShowAscriptionSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
-           "Toggle Show Lookup Steps",
+           ToggleShowLookupSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
-           "Toggle Show Stepper Filters",
+           ToggleShowStepperFilters,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
-           "Toggle Show Hidden Steps",
+           ToggleShowHiddenSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
-           "Toggle Show Sidebar",
+           ToggleShowSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
-           "Toggle Show Docs Feedback",
+           ToggleShowDocsFeedback,
          ),
          /* Export / Diagnostics */
-         mk(
-           ~mdIcon="download",
-           ~section="Export",
-           ~action=inject(Globals(ExportForInit)),
-           "Export For Init",
-         ),
-         mk(
-           ~mdIcon="timer",
-           ~section="Diagnostics",
-           ~hotkey="F7",
-           ~action=inject(Benchmark(Start)),
-           "Run Benchmark",
-         ),
+         of_shortcut(~action=inject(Globals(ExportForInit)), ExportForInit),
+         of_shortcut(~action=inject(Benchmark(Start)), RunBenchmark),
        ]);
   };
 };
@@ -719,13 +680,24 @@ module View = {
     [
       Key.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
+        /* Leave focus alone when it is moving INTO a projector. An
+           interactive projector (the keybinding recorder) needs to hold
+           focus; without this guard it receives focus and has it taken back
+           in the same frame, so it can never capture a key. */
+        if (! JsUtil.projector_holds_focus^) {
+          JsUtil.focus_clipboard_shim();
+        };
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
           : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
-        JsUtil.focus_clipboard_shim();
+        /* Focus events bubble here, so without this guard focusing a
+           projector is undone immediately: an interactive projector (the
+           keybinding recorder) could never hold focus or capture a key. */
+        if (! JsUtil.projector_holds_focus^) {
+          JsUtil.focus_clipboard_shim();
+        };
         Effect.Ignore;
       }),
     ];
@@ -867,7 +839,8 @@ module View = {
         | Scratch(_)
         | Documentation(_)
         | Tutorial(_)
-        | Exercises(_) => false
+        | Exercises(_)
+        | Config(_) => false
         };
       if (!culling_enabled) {
         Effect.Ignore;
@@ -922,7 +895,10 @@ module View = {
       ) => {
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(cursor.contextual_actions);
+    NinjaKeys.initialize(
+      ~overrides=model.globals.settings.shortcut_overrides,
+      cursor.contextual_actions,
+    );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
