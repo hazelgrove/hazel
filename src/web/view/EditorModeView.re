@@ -95,6 +95,10 @@ let indicator_select =
        // Create a dropdown (select element) for the current path component
        select(
          ~attrs=[
+           // drive the <select> from the model via the `value` property: the
+           // <option selected> attr alone doesn't move a live select on
+           // programmatic (arrow/keyboard) slide change
+           Attr.string_property("value", slide_segment),
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) => {
              signal(

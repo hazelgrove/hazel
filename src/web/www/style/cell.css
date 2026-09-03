@@ -46,13 +46,21 @@
 #main.Exercises,
 #main.Derivations {
   padding: 1.5em;
-  padding-top: 3.5em;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 1.2em;
-  background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises,
+#main.Derivations {
+  padding-top: 3.5em;
+  background-color: var(--ui-bkg);
+}
+
+#main.Tutorial {
+  background-color: var(--SAND);
 }
 
 /* Derivation slides inside the unified Scratch/Documentation modes
@@ -266,6 +274,14 @@
   font-size: 1rem;
 }
 
+/* Allow selecting the prompt prose (overrides #page { user-select: none }).
+   Selecting prompt text also moves DOM focus off the editor, which
+   correctly drops the active-cell accent back to its idle pale state. */
+.prompt-content,
+.prompt-content * {
+  user-select: text;
+}
+
 /* Markdown paragraphs inside a prompt. Each blank line in the source
    produces its own <p>; we space them modestly and trim the outer
    margins so the prompt cell doesn't pick up extra padding. */
@@ -322,16 +338,35 @@
   font-size: 1rem;
 }
 
-#main.Tutorial .cell:has(.code-editor.selected),
+/* Exercises/Derivations: the active-cell accent tracks the first-class
+   model selection (which of several cells is active), independent of DOM
+   focus — focus may legitimately rest in the sidebar or elsewhere. */
 #main.Exercises .cell:has(.code-editor.selected),
 #main.Derivations .cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
 
-#main.Tutorial .cell.unlocked:has(.code-editor.selected),
 #main.Exercises .cell.unlocked:has(.code-editor.selected),
 #main.Derivations .cell.unlocked:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+/* Tutorial: a single cell is always the model selection, so the accent
+   instead tracks real DOM focus. The red line reads as a spine descending
+   from the UI root: it lights whenever focus lives anywhere below the
+   editor — the editor proper OR an inline projector/probe within it —
+   hence :focus-within rather than :focus. Idle shows a pale line. */
+#main.Tutorial .cell.unlocked:has(.code-editor) {
+  border-left: 1px solid var(--cell-idle-accent);
+}
+
+#main.Tutorial .cell:has(.code-editor:focus-within) {
+  background-color: var(--cell-active);
+}
+
+#main.Tutorial .cell.unlocked:has(.code-editor:focus-within) {
+  border-left-color: var(--cell-selected-accent);
   background-color: var(--cell-active);
 }
 
