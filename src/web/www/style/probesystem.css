@@ -164,7 +164,6 @@
 }
 
 #probe-sidebar .quick-ref .qr-when-focused,
-#probe-sidebar .quick-ref .qr-when-unfocused,
 #probe-sidebar .quick-ref .qr-cmd-e,
 #probe-sidebar .quick-ref .qr-focus-probe {
   display: inline-flex;
@@ -181,7 +180,6 @@
 }
 
 /* Dim keyboard badges based on probe focus state */
-body:has(.live-offside:focus) #probe-sidebar .qr-when-unfocused,
 body:not(:has(.live-offside:focus)) #probe-sidebar .qr-when-focused {
   opacity: 0.45;
 }
@@ -228,16 +226,6 @@ body:not(:has(.live-offside:focus))
   grid-column: 1 / -1; /* span full width of the grid */
   justify-self: start; /* left align */
   font-size: 0.85em;
-}
-
-#probe-sidebar .panel.call-cursor .title {
-  padding-bottom: 0.5em;
-}
-
-#probe-sidebar .panel.call-cursor .stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 
 #probe-sidebar .legend .projector {
@@ -293,18 +281,9 @@ body:not(:has(.live-offside:focus))
   display: none;
 }
 
-#probe-sidebar .is-index .probe-entry > .code {
-  outline: 1px solid var(--BR1);
-  /* z-index: 1; */
-}
-
 #probe-sidebar .indicated-call .probe-entry > .code {
   outline: 1px solid var(--R1);
   /* z-index: 2; */
-}
-
-#probe-sidebar .indicated-call.not-in-stack {
-  padding-bottom: 0.25em;
 }
 
 .probe-entry > .code {
@@ -316,11 +295,6 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .after-index .probe-entry .code {
   opacity: 0.5;
-}
-
-#probe-sidebar .panel.panel.window-toggle .named-menu-item {
-  display: flex;
-  gap: 0.5em;
 }
 
 #probe-sidebar .code:hover {
@@ -428,8 +402,7 @@ body:not(:has(.live-offside:focus))
   gap: 0.3em;
 }
 
-#probe-sidebar .toggle-controls .toggle-label .kbd-badge,
-#probe-sidebar .toggle-controls .toggle-label .click-kbd-pill {
+#probe-sidebar .toggle-controls .toggle-label .kbd-badge {
   margin-left: auto;
 }
 
@@ -506,30 +479,6 @@ body:not(:has(.live-offside:focus))
   align-items: center;
 }
 
-/* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
-#probe-sidebar .click-kbd-pill {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  font-size: 0.78em;
-  line-height: 1.4;
-}
-
-#probe-sidebar .click-kbd-pill .click-part {
-  padding: 1px 3px;
-  outline: 1px solid var(--BR1);
-  border-radius: 3px 0 0 3px;
-  color: var(--BR2);
-  font-size: 0.85em;
-}
-
-#probe-sidebar .click-kbd-pill .kbd-part {
-  padding: 1px 4px;
-  background: var(--BR1);
-  color: var(--BR3);
-  border-radius: 0 3px 3px 0;
-}
-
 #probe-sidebar .panel.prints .body {
   user-select: text;
   cursor: text;
@@ -601,13 +550,6 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .run-button:active {
   background-color: var(--Y3);
-}
-
-#probe-sidebar .panel.window-toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
 }
 
 /* Log Sidebar Styles */

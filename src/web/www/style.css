@@ -8,13 +8,11 @@
 @import "style/cursor-inspector.css";
 @import "style/type-display.css";
 @import "style/explainthis.css";
-@import "style/assistant.css";
 @import "style/agent/agent-main-menu.css";
 @import "style/agent/agent-chat.css";
 @import "style/agent/agent-chat-messages.css";
 @import "style/probesystem.css";
 @import "style/sidebar.css";
-@import "style/project.css";
 @import "style/exercise-mode.css";
 @import "style/tutorial-mode.css";
 @import "style/test-panel.css";
@@ -257,18 +255,6 @@ select {
 
 #sample-focus-bar .breadcrumb-separator.ghost {
   color: var(--BR1);
-}
-
-#sample-focus-bar .more-indicator {
-  color: var(--BR2);
-  margin-left: 0.25em;
-  opacity: 0.5;
-}
-
-#sample-focus-bar .stack-icon {
-  color: var(--BR4);
-  margin-right: 0.5em;
-  font-size: 0.9em;
 }
 
 #sample-focus-bar .breadcrumb-entry.unknown {

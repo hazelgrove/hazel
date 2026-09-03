@@ -163,13 +163,6 @@
   gap: 5px;
 }
 
-.axiom-row {
-  display: flex;
-  flex-direction: row;
-  gap: 1em;
-  align-items: center;
-}
-
 .rewrite-box {
   background-color: var(--menu-bkg);
   border-radius: 0 0 0.5em 0;
@@ -185,24 +178,6 @@
 
 .stepper-justification {
   width: 260px;
-}
-
-.step-expand,
-.step-back {
-  cursor: pointer;
-}
-
-.step-expand:hover span,
-.step-back:hover span {
-  display: none;
-}
-
-.step-expand:hover:before {
-  content: "↕";
-}
-
-.step-back:hover:before {
-  content: "←";
 }
 
 .substituted {
