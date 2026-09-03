@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 // open ExplainThisUpdate;
 // open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
@@ -40,10 +41,10 @@ module Model = {
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Tutorial.positioned_editors(exercise.editors)
-    |> List.filter(((pos, _)) =>
+    |> List.filter(~f=((pos, _)) =>
          Tutorial.is_editable(pos, ~instructor_mode)
        )
-    |> List.map(((pos, editor: Editor.t)) =>
+    |> List.map(~f=((pos, editor: Editor.t)) =>
          (pos, editor.state.zipper |> PersistentZipper.persist)
        );
   };
@@ -345,11 +346,11 @@ module Selection = {
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_piece(tile, e.syntax.term_data) != None
+    |> List.find(~f=((p, e: Editor.t)) =>
+         Option.is_some(TermData.root_piece(tile, e.syntax.term_data))
          && Tutorial.is_editable(p, ~instructor_mode=settings.instructor_mode)
        )
-    |> Option.map(((pos, _)) =>
+    |> Option.map(~f=((pos, _)) =>
          (
            Update.Editor(
              pos,
@@ -370,11 +371,12 @@ module View = {
     | Always('a);
   let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
     List.filter_map(
-      vis =>
-        switch (vis) {
-        | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
-        | Always(node) => Some(node)
-        },
+      ~f=
+        vis =>
+          switch (vis) {
+          | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
+          | Always(node) => Some(node)
+          },
       v,
     );
   };
@@ -437,7 +439,8 @@ module View = {
     //     div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     //   );
     let prompt_view = {
-      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+      let prompt_placeholder =
+        String.equal(eds.prompt, "") ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -482,7 +485,8 @@ module View = {
       );
     let hint_view = {
       let hint_placeholder =
-        eds.display_hint == "" ? "No hints available." : eds.display_hint;
+        String.equal(eds.display_hint, "")
+          ? "No hints available." : eds.display_hint;
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
@@ -584,7 +588,7 @@ module View = {
         );
       };
     [title_view, prompt_view]
-    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ (String.equal(eds.display_hint, "") ? [] : [hint_view])
     @ render_cells(
         globals.settings,
         [

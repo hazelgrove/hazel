@@ -86,13 +86,14 @@ let copy_color_map_of_specceds =
     : ColorSteps.t => {
   (
     List.fold_left(
-      (new_map, (spec, syntax)) =>
-        switch (Haz3lcore.Id.Map.find_opt(Drv.Any.rep_id(syntax), map)) {
-        | None => new_map
-        | Some(color) =>
-          Haz3lcore.Id.Map.add(Drv.Any.rep_id(spec), color, new_map)
-        },
-      Haz3lcore.Id.Map.empty,
+      ~f=
+        (new_map, (spec, syntax)) =>
+          switch (Haz3lcore.Id.Map.find_opt(Drv.Any.rep_id(syntax), map)) {
+          | None => new_map
+          | Some(color) =>
+            Haz3lcore.Id.Map.add(Drv.Any.rep_id(spec), color, new_map)
+          },
+      ~init=Haz3lcore.Id.Map.empty,
       terms,
     ),
     idx,
@@ -113,8 +114,8 @@ let copy_color_map =
     | FailTest(map, test) =>
       test
       |> RuleFormula.get_symbols
-      |> List.map(RuleVerify.Map.find_opt(_, map))
-      |> List.filter_map(Fun.id)
+      |> List.map(~f=RuleVerify.Map.find_opt(_, map))
+      |> List.filter_map(~f=Fn.id)
     };
   copy_color_map_of_specceds(terms, color_map);
 };
@@ -151,26 +152,28 @@ let premises_view =
           Attr.class_("drv-explainthis"),
         ],
         List.map(
-          spec =>
-            Node.div(
-              ~attrs=[Attr.class_("drv-explainthis")],
-              [exp_show(spec, ~color_map, ~globals)],
-            ),
+          ~f=
+            spec =>
+              Node.div(
+                ~attrs=[Attr.class_("drv-explainthis")],
+                [exp_show(spec, ~color_map, ~globals)],
+              ),
           prems,
         )
         @ [
           Node.div(
             ~attrs=[Attr.class_("deduction-test")],
             List.map(
-              (test: RuleSpec.test) =>
-                switch (test.term) {
-                | Ignore(_) => Node.none
-                | _ =>
-                  Node.div(
-                    ~attrs=[Attr.class_("drv-explainthis")],
-                    [test_show(test, ~color_map, ~globals)],
-                  )
-                },
+              ~f=
+                (test: RuleSpec.test) =>
+                  switch (test.term) {
+                  | Ignore(_) => Node.none
+                  | _ =>
+                    Node.div(
+                      ~attrs=[Attr.class_("drv-explainthis")],
+                      [test_show(test, ~color_map, ~globals)],
+                    )
+                  },
               tests,
             ),
           ),

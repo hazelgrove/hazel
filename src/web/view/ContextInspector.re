@@ -72,7 +72,7 @@ let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
   div(
     ~attrs=[clss(["context-inspector"])],
     List.map(
-      context_entry_view(~globals),
+      ~f=context_entry_view(~globals),
       ctx
       |> Language.Ctx.filter_shadowed
       |> Language.Ctx.filter_stepper_filter_variables
@@ -87,7 +87,7 @@ let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
   |> Language.Ctx.filter_stepper_filter_variables
   |> (x => x.entries)
   |> List.rev
-  |> List.map(context_entry_view(~globals));
+  |> List.map(~f=context_entry_view(~globals));
 
 let view = (~globals: Globals.t, ci: option(Language.Statics.Info.t)): Node.t => {
   let clss =

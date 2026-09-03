@@ -2,6 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
@@ -97,12 +98,13 @@ module Model = {
     let c = model.cells;
     let hidden_bug_labels =
       List.mapi(
-        (i, b) =>
-          (
-            CodeExercise.HiddenBugs(i),
-            "Mutant " ++ string_of_int(i + 1),
-            b,
-          ),
+        ~f=
+          (i, b) =>
+            (
+              CodeExercise.HiddenBugs(i),
+              "Mutant " ++ string_of_int(i + 1),
+              b,
+            ),
         c.hidden_bugs,
       );
     let pairs = [
@@ -123,9 +125,10 @@ module Model = {
       ...hidden_bug_labels,
     ];
     List.filter_map(
-      ((pos, label, cell: CellEditor.Model.t)) =>
-        CodeExercise.shown_in(pos, ~instructor_mode)
-          ? Some((Some(label), [cell.editor])) : None,
+      ~f=
+        ((pos, label, cell: CellEditor.Model.t)) =>
+          CodeExercise.shown_in(pos, ~instructor_mode)
+            ? Some((Some(label), [cell.editor])) : None,
       pairs,
     );
   };
@@ -251,7 +254,7 @@ module Update = {
         cells: {
           ...model.cells,
           hidden_bugs:
-            List.filteri((j, _) => j != i, model.cells.hidden_bugs),
+            List.filteri(~f=(j, _) => j != i, model.cells.hidden_bugs),
         },
       })
     | UpdatePrompt(prompt) =>
@@ -542,20 +545,22 @@ module Update = {
             model.editors.your_impl,
           ),
         hidden_bugs:
-          List.map2(
-            (cell: CellEditor.Model.t, editor: CodeExercise.wrong_impl('a)):
-              CodeExercise.wrong_impl('a) =>
-              {
-                impl:
-                  calculate(
-                    cell.editor.statics,
-                    cell.editor.dynamics,
-                    editor.impl,
-                  ),
-                hint: editor.hint,
-              },
+          List.map2_exn(
             cells.hidden_bugs,
             model.editors.hidden_bugs,
+            ~f=(
+                 cell: CellEditor.Model.t,
+                 editor: CodeExercise.wrong_impl('a),
+               ): CodeExercise.wrong_impl('a) =>
+            {
+              impl:
+                calculate(
+                  cell.editor.statics,
+                  cell.editor.dynamics,
+                  editor.impl,
+                ),
+              hint: editor.hint,
+            }
           ),
         hidden_tests: {
           tests:
@@ -609,14 +614,14 @@ module Selection = {
       (~settings: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {
     CodeExercise.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_piece(id, e.syntax.term_data) != None
+    |> List.find(~f=((p, e: Editor.t)) =>
+         Option.is_some(TermData.root_piece(id, e.syntax.term_data))
          && CodeExercise.shown_in(
               p,
               ~instructor_mode=settings.instructor_mode,
             )
        )
-    |> Option.map(((pos, _)) =>
+    |> Option.map(~f=((pos, _)) =>
          (
            Update.Editor(
              pos,
@@ -680,8 +685,9 @@ module View = {
       EvalResult.Model.eval_is_pending(test_validation.result)
       || EvalResult.Model.eval_is_pending(hidden_tests.result)
       || List.exists(
-           (cell: CellEditor.Model.t) =>
-             EvalResult.Model.eval_is_pending(cell.result),
+           ~f=
+             (cell: CellEditor.Model.t) =>
+               EvalResult.Model.eval_is_pending(cell.result),
            hidden_bugs,
          );
 
@@ -884,8 +890,9 @@ module View = {
         ~eval_pending=
           EvalResult.Model.eval_is_pending(test_validation.result)
           || List.exists(
-               (cell: CellEditor.Model.t) =>
-                 EvalResult.Model.eval_is_pending(cell.result),
+               ~f=
+                 (cell: CellEditor.Model.t) =>
+                   EvalResult.Model.eval_is_pending(cell.result),
                hidden_bugs,
              ),
         grading_report.mutation_testing_report,
@@ -956,8 +963,8 @@ module View = {
     /* Instructor-only authoring section; thunked so students build none of it. */
     let wrong_impl_section = () => {
       let mutant_views =
-        List.combine(eds.hidden_bugs, hidden_bugs)
-        |> List.mapi((i, (_, cell)) =>
+        List.zip_exn(eds.hidden_bugs, hidden_bugs)
+        |> List.mapi(~f=(i, (_, cell)) =>
              editor_view(
                HiddenBugs(i),
                cell,

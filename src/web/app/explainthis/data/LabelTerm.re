@@ -7,7 +7,7 @@ let label = (n: string): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "`%s` is a label for an element within a Tuple or Tuple type.",
       n,
     ),

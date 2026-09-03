@@ -11,7 +11,7 @@ let listlit_pat = (~n: int): form => {
   colorings: [],
   expandable_id: None,
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that are lists with %d-elements where each element matches the corresponding element pattern match this *list literal pattern*.",
       n,
     ),
@@ -39,7 +39,7 @@ let cons_base_pat_coloring_ids =
 let cons_base_pat_id: form_id = ConsPat;
 let cons_base_pat_form = [pat_hd, cons_pat(), pat_tl];
 let cons_base_pat_explanation = (~hd_id: Id.t, ~tl_id: Id.t): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%s) and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.",
     Id.to_string(hd_id),
     Id.to_string(tl_id),
@@ -74,7 +74,7 @@ let cons2_pat = (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t): form => {
       [pat("p_snd"), cons_pat(), pat("p_tl")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%s), *second element* matching the [*second element pattern*](%s), and *tail* list matching the [*tail pattern*](%s) match this non-empty list pattern.",
       Id.to_string(fst_id),
       Id.to_string(snd_id),

@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open Util;
+open Poly;
 
 /* Edge-scrolling during drag-select: when the pointer is near the
  * top or bottom edge of the scroll container, automatically scroll
@@ -42,7 +43,7 @@ let compute_delta = (client_y: float): float =>
     let bottom = rect##.bottom;
     let dist_from_top = client_y -. top;
     let dist_from_bottom = bottom -. client_y;
-    if (dist_from_top < 0.0) {
+    if (Float.(dist_from_top < 0.0)) {
       -. max_speed_px;
     } else if (dist_from_bottom < 0.0) {
       max_speed_px;
@@ -62,7 +63,7 @@ let tick = () =>
   | None => ()
   | Some(container) =>
     let delta = compute_delta(last_client_y^);
-    if (delta != 0.0) {
+    if (!Float.equal(delta, 0.0)) {
       JsUtil.adjust_scroll(container, delta);
       switch (on_tick^) {
       | Some(f) => f()
@@ -87,7 +88,7 @@ let update = (~client_y: float, ~on_scroll: unit => unit) => {
   last_client_y := client_y;
   on_tick := Some(on_scroll);
   let delta = compute_delta(client_y);
-  if (delta != 0.0) {
+  if (!Float.equal(delta, 0.0)) {
     ensure_timer();
   } else {
     clear_timer();

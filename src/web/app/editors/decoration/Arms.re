@@ -4,6 +4,7 @@ open Virtual_dom.Vdom;
 open SvgUtil;
 open Measured;
 open SvgUtil.Path;
+open Poly;
 
 /* This module is responsible for drawing the term indication decorations,
  * consisting of hexagonal delimiter decorations and the paths between them */
@@ -23,17 +24,19 @@ let svg =
 
 let shards_of_tiles = (tiles: tile_data) =>
   tiles
-  |> List.concat_map(((_, _, shards)) => shards)
-  |> List.sort((m1, m2) => Point.compare(snd(m1).origin, snd(m2).origin));
+  |> List.concat_map(~f=((_, _, shards)) => shards)
+  |> List.sort(~compare=(m1, m2) =>
+       Point.compare(snd(m1).origin, snd(m2).origin)
+     );
 
 let rep_tips = (tiles: tile_data) => {
   assert(tiles != []);
-  let (_, rep_mold, _) = List.hd(tiles);
+  let (_, rep_mold, _) = List.hd_exn(tiles);
   let (l, r) = rep_mold.nibs;
   let (l, r) = ShardDec.tips_of_shapes((l.shape, r.shape));
   (
-    Option.map(Nib.Shape.direction_of(Left), l),
-    Option.map(Nib.Shape.direction_of(Right), r),
+    Option.map(~f=Nib.Shape.direction_of(Left), l),
+    Option.map(~f=Nib.Shape.direction_of(Right), r),
   );
 };
 
@@ -130,22 +133,23 @@ let inner_lines =
     : list(positioned_path) => {
   let horizontals =
     shard_rows
-    |> List.map(ListUtil.neighbors)
+    |> List.map(~f=ListUtil.neighbors)
     |> List.concat_map(
-         List.map(((l, r)) => {
-           let first = snd(l).origin;
-           let last = snd(r).origin;
-           (first, m_horizontal(~hx, ~first, ~last));
-         }),
+         ~f=
+           List.map(~f=((l, r)) => {
+             let first = snd(l).origin;
+             let last = snd(r).origin;
+             (first, m_horizontal(~hx, ~first, ~last));
+           }),
        );
   let verticals =
     shard_rows
     |> ListUtil.neighbors
-    |> List.filter_map(((l, r)) => {
+    |> List.filter_map(~f=((l, r)) => {
          assert(l != []);
          assert(r != []);
-         let first = snd(List.hd(l)).origin;
-         let last = snd(List.hd(r)).origin;
+         let first = snd(List.hd_exn(l)).origin;
+         let last = snd(List.hd_exn(r)).origin;
          if (last.row > first.row) {
            Some((first, m_vertical(~first, ~last, ~min_col, ~hx)));
          } else {
@@ -203,7 +207,7 @@ let paths =
     let shards = shards_of_tiles(tiles);
     assert(shards != []);
     let path_cls = ["child-line", Sort.class_of(sort)] @ line_clss;
-    let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
+    let hx = Stdlib.abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
     List.concat([
@@ -212,14 +216,14 @@ let paths =
         ~hx,
         ~min_col,
         ~first,
-        ~last=snd(List.hd(shards)).origin,
+        ~last=snd(List.hd_exn(shards)).origin,
       )
       |> Option.to_list,
       r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
       |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
-    |> List.map(svg(~font_metrics, ~path_cls));
+    |> List.map(~f=svg(~font_metrics, ~path_cls));
   };
 
 /* This draws the shards backing decorations,
@@ -234,22 +238,26 @@ let shards =
     )
     : list(Node.t) =>
   List.concat_map(
-    ((id, mold: Mold.t, shards: list(Shards.shard))) => {
-      let sort = refine_sort(id, mold.out);
-      List.map(
-        ((index: int, measurement: Measured.measurement)) =>
-          ShardDec.simple(
-            ~attr?,
-            {
-              font_metrics,
-              measurement,
-              tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-            },
-            Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
-          ),
-        shards,
-      );
-    },
+    ~f=
+      ((id, mold: Mold.t, shards: list(Shards.shard))) => {
+        let sort = refine_sort(id, mold.out);
+        List.map(
+          ~f=
+            ((index: int, measurement: Measured.measurement)) =>
+              ShardDec.simple(
+                ~attr?,
+                {
+                  font_metrics,
+                  measurement,
+                  tips:
+                    ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+                },
+                Option.to_list(base_clss)
+                @ ["indicated", Sort.class_of(sort)],
+              ),
+          shards,
+        );
+      },
     tiles,
   );
 
@@ -284,7 +292,7 @@ let tiles_data =
     let+ tile = TermData.root_tile(id, term_data);
     (id, tile.mold, Measured.find_shards(~msg, tile, measured));
   };
-  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(~f=of_tile);
 };
 
 let term =
@@ -333,7 +341,7 @@ let term =
     switch (TermData.extreme_measures(id, term_data, measured)) {
     | Some((l, r)) =>
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
+      let tiles = is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
       term(
         ~refine_sort,
         ~font_metrics,
@@ -425,7 +433,7 @@ module Errors = {
     div_c(
       is_warning ? "warnings" : "errors",
       List.map(
-        of_id(~refine_sort, ~is_warning, ~font_metrics, ~syntax),
+        ~f=of_id(~refine_sort, ~is_warning, ~font_metrics, ~syntax),
         error_ids,
       ),
     );
@@ -499,9 +507,10 @@ module Indicated = {
         ? "indication-refractored" : "indication";
     let kind_cls =
       refractor_kind
-      |> Option.map(ProjectorCore.Kind.name)
+      |> Option.map(~f=ProjectorCore.Kind.name)
       |> Option.value(~default="");
-    let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
+    let cls =
+      String.equal(kind_cls, "") ? base_cls : base_cls ++ " " ++ kind_cls;
     div_c(cls, indicated_piece(~refine_sort, ~font_metrics, ~syntax, z));
   };
 };
@@ -520,7 +529,7 @@ module Refractors = {
       : list(Node.t) => {
     let min_col = min_col(~first, ~last, ~rows);
     let (orig, path) =
-      l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
+      l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.value_exn;
     let dashed_length =
       IntMap.find(last.row, rows).max_col
       - last.col
@@ -558,7 +567,7 @@ module Refractors = {
     | Some(t) =>
       switch (term_range(~syntax, t.root_piece)) {
       | Some(range) =>
-        let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
+        let hx = Stdlib.abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
         let sort = Piece.sort(t.root_piece) |> fst;
         let kind_cls = ProjectorCore.Kind.name(kind);
         paths(
@@ -585,7 +594,7 @@ module Refractors = {
       : list(Node.t) =>
     (
       z.refractors.manuals
-      |> List.concat_map(((id, entry: Refractors.entry)) =>
+      |> List.concat_map(~f=((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
              ~kind=entry.kind,
@@ -599,7 +608,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
-      |> List.concat_map(((id, entry: Refractors.entry)) =>
+      |> List.concat_map(~f=((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
              ~kind=entry.kind,

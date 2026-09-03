@@ -26,7 +26,7 @@ module Model = {
      scratchpads inside the unified Scratch/Documentation modes. */
   let extra_main_classes = (model: t): list(string) => {
     let scratchpad_kind_class = (m: ScratchMode.Model.t) => {
-      let current = List.nth(m.scratchpads, m.current);
+      let current = List.nth_exn(m.scratchpads, m.current);
       switch (current.kind) {
       | Code(_) => []
       | Drv(_) => ["Derivations"]
@@ -88,12 +88,15 @@ module StoreMode = {
 module Store = {
   let scratch_defaults = () => {
     let (current, slides) = Lazy.force(Init.startup).scratch;
-    (current, List.map(fst, slides));
+    (current, List.map(~f=fst, slides));
   };
 
   let doc_defaults = () => {
     let (current, slides) = Lazy.force(Init.startup).documentation;
-    (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
+    (
+      current,
+      List.map(~f=fst, slides) @ Init.documentation_drv_slide_names(),
+    );
   };
 
   let load_scratch = (~settings) => {
@@ -119,8 +122,8 @@ module Store = {
 
   let load = (~settings, ~instructor_mode) => {
     let has_share_params =
-      JsUtil.QueryParams.get_param("name") != None
-      && JsUtil.QueryParams.get_param("share") != None;
+      Option.is_some(JsUtil.QueryParams.get_param("name"))
+      && Option.is_some(JsUtil.QueryParams.get_param("share"));
 
     if (has_share_params) {
       Model.Scratch(load_scratch(~settings));
@@ -390,16 +393,16 @@ module Selection = {
     switch (model) {
     | Scratch(m) =>
       ScratchMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
+      |> Option.map(~f=((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Documentation(m) =>
       ScratchMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
+      |> Option.map(~f=((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Tutorial(m) =>
       TutorialsMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Tutorial(x), Tutorial(y)))
+      |> Option.map(~f=((x, y)) => (Update.Tutorial(x), Tutorial(y)))
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
+      |> Option.map(~f=((x, y)) => (Update.Exercises(x), Exercises(y)))
     };
 
   let default_selection =
@@ -548,19 +551,20 @@ module View = {
               ),
             ],
             List.map(
-              s =>
-                EditorModeView.option_view(
-                  (
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    }
-                  )
-                  == s,
-                  s,
-                ),
+              ~f=
+                s =>
+                  EditorModeView.option_view(
+                    String.equal(
+                      switch (editors) {
+                      | Scratch(_) => "Scratch"
+                      | Documentation(_) => "Documentation"
+                      | Tutorial(_) => "Tutorial"
+                      | Exercises(_) => "Exercises"
+                      },
+                      s,
+                    ),
+                    s,
+                  ),
               ["Scratch", "Documentation", "Tutorial", "Exercises"],
             ),
           ),

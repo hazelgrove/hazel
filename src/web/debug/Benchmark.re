@@ -43,8 +43,8 @@ let non_empty_hole : Int = true in
 let str_to_inserts = (str: string): list(Editors.Update.t) =>
   List.init(
     String.length(str),
-    i => {
-      let c = String.sub(str, i, 1);
+    ~f=i => {
+      let c = String.sub(str, ~pos=i, ~len=1);
       Editors.Update.Scratch(CellAction(MainEditor(Perform(Insert(c)))));
     },
   );
@@ -61,12 +61,13 @@ let start = (): unit => {
 let finish = (): unit => {
   switch (time^) {
   | (-1.0) =>
-    Printf.sprintf("Benchmark: Error: No benchmark running") |> print_endline
+    Stdlib.Printf.sprintf("Benchmark: Error: No benchmark running")
+    |> print_endline
 
   | _ =>
     let elapsed = (JsUtil.timestamp() -. time^) /. 1000.;
     time := (-1.0);
-    Printf.sprintf("Benchmark: Finished: time: %f seconds", elapsed)
+    Stdlib.Printf.sprintf("Benchmark: Finished: time: %f seconds", elapsed)
     |> print_endline;
   };
 };

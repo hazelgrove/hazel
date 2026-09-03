@@ -32,9 +32,12 @@ module View = {
             let (l, r) =
               ProofRule.can_eq(~info_map, ~env, model.ctx_entry.rule, exp);
             (
-              Option.map(_ => signal(EqualityLeft(model.ctx_entry.name)), l),
               Option.map(
-                _ => signal(EqualityRight(model.ctx_entry.name)),
+                ~f=_ => signal(EqualityLeft(model.ctx_entry.name)),
+                l,
+              ),
+              Option.map(
+                ~f=_ => signal(EqualityRight(model.ctx_entry.name)),
                 r,
               ),
             );

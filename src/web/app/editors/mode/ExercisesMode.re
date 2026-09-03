@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* This file handles the pagenation of Exercise Mode, and switching between
    exercises. CodeExerciseMode.re / DerivationExerciseMode.re /
@@ -90,17 +91,18 @@ module Model = {
 
   let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
-      List.map2(
-        unpersist_exercise(~settings, ~instructor_mode),
+      List.map2_exn(
         ExerciseSettings.exercises, // TODO: Move this
-        persistent.exercise_data |> List.map(snd),
+        persistent.exercise_data |> List.map(~f=snd),
+        ~f=unpersist_exercise(~settings, ~instructor_mode),
       );
     let current =
       ListUtil.findi_opt(
-        (spec: exercise_spec) => id_of_spec(spec) == persistent.cur_exercise,
+        (spec: exercise_spec) =>
+          Id.equal(id_of_spec(spec), persistent.cur_exercise),
         ExerciseSettings.exercises,
       )
-      |> Option.map(fst)
+      |> Option.map(~f=fst)
       |> Option.value(~default=0);
     {
       current,
@@ -120,7 +122,7 @@ module Model = {
     | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
     };
 
-  let get_current = (m: t) => List.nth(m.exercises, m.current);
+  let get_current = (m: t) => List.nth_exn(m.exercises, m.current);
 
   let get_exercise_module_name = (e: exercise): string =>
     switch (e) {
@@ -153,7 +155,7 @@ module Model = {
 
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     switch (current) {
     | Code(e) => e.cells.user_impl.editor
     /* Setup cell's statics are computed from the stitched `prelude + setup`
@@ -172,7 +174,7 @@ module Model = {
   let get_problem_editors =
       (~instructor_mode: bool, model: t)
       : list((option(string), list(CodeEditable.Model.t))) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     switch (current) {
     | Code(e) =>
       CodeExerciseMode.Model.get_problem_editors(~instructor_mode, e)
@@ -188,7 +190,7 @@ module StoreExerciseKey =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(ExerciseSettings.exercises, 0) |> Model.id_of_spec;
+      List.nth_exn(ExerciseSettings.exercises, 0) |> Model.id_of_spec;
     let key = Store.CurrentExercise;
   });
 
@@ -230,7 +232,7 @@ module Store = {
   };
 
   let save = (model: Model.t, ~instructor_mode) => {
-    let exercise = List.nth(model.exercises, model.current);
+    let exercise = List.nth_exn(model.exercises, model.current);
     let key = Model.get_exercise_id(exercise);
     save_exercise(exercise, ~instructor_mode);
     StoreExerciseKey.save(key);
@@ -243,10 +245,11 @@ module Store = {
     let cur_exercise = StoreExerciseKey.load();
     let exercise_data =
       List.map(
-        spec => {
-          let key = Model.id_of_spec(spec);
-          (key, load_exercise(~settings, key, spec, ~instructor_mode));
-        },
+        ~f=
+          spec => {
+            let key = Model.id_of_spec(spec);
+            (key, load_exercise(~settings, key, spec, ~instructor_mode));
+          },
         ExerciseSettings.exercises,
       );
     {
@@ -260,10 +263,11 @@ module Store = {
       cur_exercise: StoreExerciseKey.load(),
       exercise_data:
         List.map(
-          spec => {
-            let key = Model.id_of_spec(spec);
-            (key, load_exercise(~settings, key, spec, ~instructor_mode));
-          },
+          ~f=
+            spec => {
+              let key = Model.id_of_spec(spec);
+              (key, load_exercise(~settings, key, spec, ~instructor_mode));
+            },
           ExerciseSettings.exercises,
         ),
     }
@@ -275,20 +279,22 @@ module Store = {
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);
     List.iter(
-      ((key, value)) => {
-        let n =
-          ListUtil.findi_opt(
-            spec => Model.id_of_spec(spec) == key,
-            exercise_specs,
-          )
-          |> Option.get
-          |> fst;
-        let spec = List.nth(exercise_specs, n);
-        save_exercise(
-          value |> Model.unpersist_exercise(~settings, ~instructor_mode, spec),
-          ~instructor_mode,
-        );
-      },
+      ~f=
+        ((key, value)) => {
+          let n =
+            ListUtil.findi_opt(
+              spec => Model.id_of_spec(spec) == key,
+              exercise_specs,
+            )
+            |> Option.value_exn
+            |> fst;
+          let spec = List.nth_exn(exercise_specs, n);
+          save_exercise(
+            value
+            |> Model.unpersist_exercise(~settings, ~instructor_mode, spec),
+            ~instructor_mode,
+          );
+        },
       exercise_export.exercise_data,
     );
   };
@@ -296,10 +302,11 @@ module Store = {
   let reset = (~settings, ~instructor_mode) => {
     let _ = StoreExerciseKey.reset();
     List.iter(
-      spec => {
-        let _ = init_exercise(~settings, spec, ~instructor_mode);
-        ();
-      },
+      ~f=
+        spec => {
+          let _ = init_exercise(~settings, spec, ~instructor_mode);
+          ();
+        },
       ExerciseSettings.exercises,
     );
   };
@@ -489,7 +496,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
       : cursor(Update.t) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     let cursor =
       switch (current, selection) {
       | (Code(e), Code(selection)) =>
@@ -555,24 +562,24 @@ module Selection = {
 
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     switch (current) {
     | Code(e) =>
       CodeExerciseMode.Selection.jump_to_tile(~settings, tile, e)
-      |> Option.map(((x, y)) => (Update.Exercise(x), Code(y)))
+      |> Option.map(~f=((x, y)) => (Update.Exercise(x), Code(y)))
     | Derivation(e) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, e)
-      |> Option.map(((x, y)) => (Update.Derivation(x), Derivation(y)))
+      |> Option.map(~f=((x, y)) => (Update.Derivation(x), Derivation(y)))
     | Theorem(e) =>
       TheoremExerciseMode.Selection.jump_to_tile(tile, e)
-      |> Option.map(((x, y)) =>
+      |> Option.map(~f=((x, y)) =>
            (Update.TheoremExercise(x), TheoremExercise(y))
          )
     };
   };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     switch (selection, current) {
     | (Derivation(sel), Derivation(e)) =>
       DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, e)
@@ -594,7 +601,7 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
-    let current = List.nth(model.exercises, model.current);
+    let current = List.nth_exn(model.exercises, model.current);
     switch (current) {
     | Code(current) =>
       CodeExerciseMode.View.view(

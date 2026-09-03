@@ -2,6 +2,7 @@ open Language;
 open Virtual_dom.Vdom;
 open Node;
 open Tutorial;
+open Poly;
 
 include Grading;
 
@@ -62,14 +63,14 @@ module ImplGradingReport = {
   let total = (report: t) => List.length(report.hinted_results);
   let num_passed = (report: t) => {
     report.hinted_results
-    |> List.find_all(((status, _)) => status == TestStatus.Pass)
+    |> List.filter(~f=((status, _)) => Poly.equal(status, TestStatus.Pass))
     |> List.length;
   };
 
   let percentage = (report: t): float => {
     let passed = float_of_int(num_passed(report));
     let total = float_of_int(total(report));
-    if (total == 0.0) {
+    if (Float.equal(total, 0.0)) {
       0.0; // Avoid division by zero
     } else {
       passed /. total; // Return percentage as a float
@@ -142,13 +143,13 @@ module ImplGradingReport = {
        * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
-        |> List.mapi((i, (status, hint)) =>
+        |> List.mapi(~f=(i, (status, hint)) =>
              individual_report(
                i,
                ~signal_jump,
                ~hint,
                ~status,
-               List.nth(test_results.test_map, i),
+               List.nth_exn(test_results.test_map, i),
              )
            ),
       )
@@ -185,7 +186,7 @@ module ImplGradingReport = {
               ]
               @ Option.to_list(
                   report.test_results
-                  |> Option.map(test_results =>
+                  |> Option.map(~f=test_results =>
                        TestView.test_bar(
                          ~inject_jump=signal_jump,
                          ~test_results,

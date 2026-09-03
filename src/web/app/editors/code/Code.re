@@ -3,12 +3,13 @@ open Node;
 open Haz3lcore;
 open Util;
 open Util.WebUtil;
+open Poly;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
 let is_ref = (token: string, sort: Sort.t) =>
-  sort != Pat
-  && sort != TPat
+  !Poly.equal(sort, Pat)
+  && !Poly.equal(sort, TPat)
   && !Token.is_keyword(token)
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
@@ -130,11 +131,11 @@ let view =
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
-      List.nth(t.label, i),
+      List.nth_exn(t.label, i),
       List.length(t.label),
       sort,
       is_consistent(sort, t),
-      List.mem(t.id, buffer_ids),
+      List.mem(buffer_ids, t.id, ~equal=Id.equal),
       Tile.is_complete(t),
       Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
@@ -145,13 +146,14 @@ let view =
 
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
-    | Whitespace(str) when str == Token.linebreak =>
+    | Whitespace(str) when String.equal(str, Token.linebreak) =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       Node.text(lb_icon ++ token);
-    | Whitespace(str) when str == Token.space => Node.text(ws_icon)
+    | Whitespace(str) when String.equal(str, Token.space) =>
+      Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
+    | Comment(str) when List.mem(buffer_ids, secondary.id, ~equal=Id.equal) =>
       comment_text(~font_metrics, "in-unparsed-buffer", str)
     | Comment(str) => comment_text(~font_metrics, "comment", str)
     };
@@ -176,22 +178,23 @@ let view =
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
-              ();
-            | None => ()
-            };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
+      ~f=
+        fun
+        | Piece.Tile(t) => {
+            let _ =
+              switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+              | Some(_) =>
+                DeferredLinebreaks.update(2) |> ignore;
+                ();
+              | None => ()
+              };
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat;
+          }
+        | Grout(g) => [of_grout(g)]
+        | Secondary(s) => [of_secondary(s)]
+        | Projector(pr) => [of_projector(pr)],
       seg,
     );
 

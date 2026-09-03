@@ -4,10 +4,11 @@ open Util;
 open Util.WebUtil;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Check if an ID is in user code (present in info_map) */
 let is_in_user_code = (~info_map: Statics.Map.t, id: Id.t): bool =>
-  Statics.Map.lookup(id, info_map) != None;
+  Option.is_some(Statics.Map.lookup(id, info_map));
 
 /* Extract function info from an application ID by looking up in statics.
  *
@@ -31,7 +32,7 @@ let get_fn_info =
        * Skip for built-in names: their FixF patterns create context entries
        * with fresh IDs that aren't navigable tiles in the user's zipper. */
       let body_id: option(Id.t) =
-        if (Environment.lookup(Builtins.env_init, name) != None) {
+        if (Option.is_some(Environment.lookup(Builtins.env_init, name))) {
           None;
         } else {
           switch (Statics.Map.lookup(fn_id, info_map)) {
@@ -82,7 +83,7 @@ let find_nearest_user_app =
     if (i < 0) {
       None;
     } else {
-      let frame: CallStack.frame = List.nth(call_stack, i);
+      let frame: CallStack.frame = List.nth_exn(call_stack, i);
       is_in_user_code(~info_map, frame.id) ? Some(frame.id) : search(i - 1);
     };
   search(from_index);
@@ -95,7 +96,7 @@ let find_nearest_user_app =
 let get_call_site_target =
     (~info_map: Statics.Map.t, ~call_stack: CallStack.t, ~index: int)
     : option(Id.t) => {
-  let frame: CallStack.frame = List.nth(call_stack, index);
+  let frame: CallStack.frame = List.nth_exn(call_stack, index);
   is_in_user_code(~info_map, frame.id)
     ? Some(frame.id)
     : find_nearest_user_app(~info_map, ~call_stack, ~from_index=index - 1);
@@ -117,9 +118,9 @@ let get_definition_target =
     switch (stack_name) {
     | Some(n) =>
       let base =
-        String.ends_with(~suffix="+", n)
-          ? String.sub(n, 0, String.length(n) - 1) : n;
-      Environment.lookup(Builtins.env_init, base) != None;
+        String.is_suffix(n, ~suffix="+")
+          ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
+      Option.is_some(Environment.lookup(Builtins.env_init, base));
     | None => false
     };
   if (is_builtin_name) {
@@ -148,9 +149,9 @@ let get_param_target =
     switch (stack_name) {
     | Some(n) =>
       let base =
-        String.ends_with(~suffix="+", n)
-          ? String.sub(n, 0, String.length(n) - 1) : n;
-      Environment.lookup(Builtins.env_init, base) != None;
+        String.is_suffix(n, ~suffix="+")
+          ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
+      Option.is_some(Environment.lookup(Builtins.env_init, base));
     | None => false
     };
   if (is_builtin_name) {
@@ -205,15 +206,16 @@ let separator_chars = 3;
 let visible_char_cost =
     (items: list(visible_item), names: array(string)): int =>
   List.fold_left(
-    (acc, item) =>
-      acc
-      + (
-        switch (item) {
-        | Entry(i) => separator_chars + Unicode.length(names[i])
-        | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
-        }
-      ),
-    0,
+    ~f=
+      (acc, item) =>
+        acc
+        + (
+          switch (item) {
+          | Entry(i) => separator_chars + Unicode.length(names[i])
+          | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
+          }
+        ),
+    ~init=0,
     items,
   );
 
@@ -225,7 +227,7 @@ let compute_visible = (~n: int, ~focus: int, ~cap: int): list(visible_item) =>
   if (n == 0) {
     [];
   } else if (n <= cap) {
-    List.init(n, i => Entry(i));
+    List.init(n, ~f=i => Entry(i));
   } else if (cap <= 0) {
     [];
   } else if (cap == 1) {
@@ -237,12 +239,12 @@ let compute_visible = (~n: int, ~focus: int, ~cap: int): list(visible_item) =>
     let effective_focus = max(focus, 0);
     if (effective_focus <= cap - 2) {
       /* Case A: Focus near start — right ellipsis only */
-      List.init(cap - 1, i => Entry(i)) @ [Ellipsis];
+      List.init(cap - 1, ~f=i => Entry(i)) @ [Ellipsis];
     } else if (effective_focus >= n - (cap - 2)) {
       /* Case B: Focus near end — entry 0, left ellipsis, tail */
       let window_start = n - (cap - 2);
       [Entry(0), Ellipsis]
-      @ List.init(cap - 2, i => Entry(window_start + i));
+      @ List.init(cap - 2, ~f=i => Entry(window_start + i));
     } else if (cap == 3) {
       [
         /* Case C special: cap=3 middle — can only show entry 0 + focus */
@@ -266,7 +268,7 @@ let compute_visible = (~n: int, ~focus: int, ~cap: int): list(visible_item) =>
           (window_start, window_end);
         };
       [Entry(0), Ellipsis]
-      @ List.init(window_end - window_start + 1, i =>
+      @ List.init(window_end - window_start + 1, ~f=i =>
           Entry(window_start + i)
         )
       @ [Ellipsis];
@@ -352,9 +354,9 @@ let view =
     /* Check if there's a pinned stack and get the head app_id */
     let pinned_stack = sample_focus.pinned_stack;
     let pinned_head_id =
-      Option.bind(pinned_stack, stack =>
+      Option.bind(pinned_stack, ~f=stack =>
         Option.map(
-          (f: CallStack.frame) => f.id,
+          ~f=(f: CallStack.frame) => f.id,
           Util.ListUtil.hd_opt(stack),
         )
       );
@@ -364,7 +366,9 @@ let view =
 
     /* Pre-compute display names for width calculation and rendering */
     let names =
-      Array.of_list(List.map(resolve_display_name(~info_map), call_stack));
+      Array.of_list(
+        List.map(~f=resolve_display_name(~info_map), call_stack),
+      );
 
     /* Compute dynamic capacity based on actual bar width and entry names */
     let bar_width_px =
@@ -381,7 +385,7 @@ let view =
 
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */
     let build_single_entry = (i: int): list(Node.t) => {
-      let frame: CallStack.frame = List.nth(call_stack, i);
+      let frame: CallStack.frame = List.nth_exn(call_stack, i);
       let app_id = frame.id;
       let display_text = names[i];
       let is_unknown =
@@ -405,7 +409,7 @@ let view =
         @ (is_focused ? ["focused"] : [])
         @ (is_ghost ? ["ghost"] : [])
         @ (is_unknown ? ["unknown"] : [])
-        @ (position_class != "" ? [position_class] : []);
+        @ (!String.equal(position_class, "") ? [position_class] : []);
 
       let on_entry_click = evt =>
         switch (call_site_target) {
@@ -462,7 +466,7 @@ let view =
       let sep_classes =
         ["breadcrumb-separator"]
         @ (sep_ghost ? ["ghost"] : [])
-        @ (position_class != "" ? [position_class] : []);
+        @ (!String.equal(position_class, "") ? [position_class] : []);
       let sep =
         span(~attrs=[Attr.classes(sep_classes)], [text({js|❯|js})]);
 
@@ -495,11 +499,12 @@ let view =
         let cap = compute_dynamic_cap(~names, ~focus=index, ~budget);
         let visible = compute_visible(~n, ~focus=index, ~cap);
         List.concat_map(
-          item =>
-            switch (item) {
-            | Entry(i) => build_single_entry(i)
-            | Ellipsis => ellipsis_node
-            },
+          ~f=
+            item =>
+              switch (item) {
+              | Entry(i) => build_single_entry(i)
+              | Ellipsis => ellipsis_node
+              },
           visible,
         );
       };

@@ -110,7 +110,7 @@ let function_exp_coloring_ids =
 let function_exp_id: form_id = FunctionExp(Base);
 let function_exp_form = [mk_fun([[space(), p, space()]]), space(), e];
 let function_exp_explanation = (~pat_id: Id.t, ~body_id: Id.t): string =>
-  Printf.sprintf(
+  Stdlib.Printf.sprintf(
     "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
     Id.to_string(pat_id),
     Id.to_string(body_id),
@@ -149,7 +149,7 @@ let function_empty_hole_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: function_empty_hole_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [function_empty_hole_exp_expandable])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [empty hole pattern](%s) is filled.",
       Id.to_string(pat_id),
       Id.to_string(body_id),
@@ -173,7 +173,7 @@ let function_multi_hole_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: function_multi_hole_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("INVALID")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "When applied to an argument that matches the [*argument pattern*](%s), evaluates to the function [*body*](%s), after the [invalid argument pattern](%s) is corrected.",
       Id.to_string(pat_id),
       Id.to_string(body_id),
@@ -194,7 +194,7 @@ let function_wild_exp = (~body_id: Id.t): form => {
   colorings: function_wild_exp_coloring_ids(~body_id),
   expandable_id: Some((Piece.id(p), [pat("_")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "When applied to an argument that is ignored, evaluates to the function [*body*](%s).",
       Id.to_string(body_id),
     ),
@@ -216,7 +216,7 @@ let function_intlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~i: Bigint.t): form =>
   colorings: function_intlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       Bigint.to_string(i),
@@ -241,7 +241,7 @@ let function_sintlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~i: int): form => {
   colorings: function_sintlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("SIntLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is `%d`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       i,
@@ -267,7 +267,7 @@ let function_floatlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~f: float): form => 
   colorings: function_floatlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("FloatLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is `%f`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       f,
@@ -292,7 +292,7 @@ let function_boollit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~b: bool): form => {
   colorings: function_boollit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("BoolLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is `%b`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       b,
@@ -318,7 +318,7 @@ let function_strlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~s: string): form => {
   colorings: function_strlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("StringLit")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is `%s`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       s,
@@ -339,7 +339,7 @@ let function_triv_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: function_triv_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("()")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This is functionally equivalent to a zero argument function.",
       Id.to_string(pat_id),
       Id.to_string(pat_id),
@@ -363,7 +363,7 @@ let function_listnil_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   colorings: function_listnil_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("[]")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is the empty list `[]`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       Id.to_string(pat_id),
@@ -389,7 +389,7 @@ let function_listlit_exp = (~pat_id: Id.t, ~body_id: Id.t, ~n: int): form => {
   colorings: function_listlit_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [function_listlit_exp_expandable])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the [*argument pattern*](%s) are lists with %d-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       n,
@@ -426,7 +426,7 @@ let function_cons_exp = (~hd_id: Id.t, ~tl_id: Id.t, ~body_id: Id.t): form => {
       [pat("p_hd"), cons_pat(), pat("p_tl")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%s) and [*tail pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
       Id.to_string(hd_id),
       Id.to_string(tl_id),
@@ -446,7 +446,7 @@ let function_var_exp = (~pat_id: Id.t, ~body_id: Id.t, ~name: string): form => {
   colorings: function_var_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("x")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "When applied to an argument which is bound to the [*variable*](%s) `%s`, evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       name,
@@ -482,7 +482,7 @@ let function_labeled_exp =
   expandable_id:
     Some((Piece.id(lp'), [pat("x"), labeled_pat(), pat("y")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "A function with one [*labeled argument*]. Only labeled arguments that match the [*label*](%s) 'x' are accepted, and are bound to the [*parameter*](%s) 'y' in the function [*body*](%s).",
       Id.to_string(label_id),
       Id.to_string(pat_id),
@@ -507,7 +507,7 @@ let function_tuple_exp = (~pat_id: Id.t, ~body_id: Id.t, ~n: int): form => {
   expandable_id:
     Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the [*argument pattern*](%s) are %d-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       n,
@@ -547,7 +547,7 @@ let function_tuple2_exp =
       [pat("p1"), comma_pat(), pat("p2")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%s) and the second element matches the [*second element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
       Id.to_string(pat1_id),
       Id.to_string(pat2_id),
@@ -600,7 +600,7 @@ let function_tuple3_exp =
       [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the *argument pattern* are 3-tuples where the first element matches the [*first element pattern*](%s), the second element matches the [*second element pattern*](%s), and the third element matches the [*third element pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
       Id.to_string(pat1_id),
       Id.to_string(pat2_id),
@@ -621,7 +621,7 @@ let function_ctr_exp = (~pat_id: Id.t, ~body_id: Id.t, ~name: string): form => {
   colorings: function_ctr_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("C")])),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only value that matches the [*argument pattern*](%s) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).",
       Id.to_string(pat_id),
       name,
@@ -658,7 +658,7 @@ let function_ap_exp = (~con_id: Id.t, ~arg_id: Id.t, ~body_id: Id.t): form => {
       [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
     )),
   explanation:
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The only values that match the *argument pattern* are the [*constructor*](%s) where the *constructor argument* matches the [*constructor argument pattern*](%s). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
       Id.to_string(con_id),
       Id.to_string(arg_id),

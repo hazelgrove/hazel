@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 
 /* A "Cell" with user-editable text at the top, and evaluation results at the bottom. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -73,8 +74,9 @@ module Update = {
       /* If the editor has pending_probe_cursor, force recalculation so
          resolve_pending_probe_cursor can run with the new dynamics */
       let needs_recalc =
-        model.editor.editor.state.zipper.refractors.pending_probe_cursor
-        != None;
+        Option.is_some(
+          model.editor.editor.state.zipper.refractors.pending_probe_cursor,
+        );
       {
         ...updated,
         recalculate: updated.recalculate || needs_recalc,
@@ -129,15 +131,19 @@ module Update = {
     let dynamics_changed =
       switch (probes_before, probes_after) {
       | (None, None) => false
-      | (Some(a), Some(b)) => a !== b
+      | (Some(a), Some(b)) => !phys_equal(a, b)
       | _ => true
       };
     /* Second pass: if there's a pending focus, pending_probe_cursor waiting
        for dynamics, or dynamics changed since the first pass */
     let has_pending_focus =
-      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+      Option.is_some(
+        editor.editor.state.zipper.refractors.sample_focus.pending_focus,
+      );
     let has_pending_cursor =
-      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+      Option.is_some(
+        editor.editor.state.zipper.refractors.pending_probe_cursor,
+      );
     let needs_second_pass =
       has_pending_focus || has_pending_cursor || dynamics_changed;
     let editor =
@@ -194,7 +200,7 @@ module Selection = {
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     CodeEditable.Selection.jump_to_tile(tile, model.editor)
-    |> Option.map(x => (Update.MainEditor(x), MainEditor));
+    |> Option.map(~f=x => (Update.MainEditor(x), MainEditor));
   };
 };
 
