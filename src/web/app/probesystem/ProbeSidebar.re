@@ -512,7 +512,8 @@ let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
       clss(["run-button"]),
       Attr.title("Run and refresh print output"),
       Attr.on_click(_ => {
-        let entries = collect_print_entries(editor.dynamics, measured);
+        let entries =
+          collect_print_entries(editor.dynamics.probe_map, measured);
         cached_print_entries := List.is_empty(entries) ? None : Some(entries);
         explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
       }),
@@ -546,7 +547,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let entries =
     switch (eval_mode_ref^) {
     | Auto =>
-      let es = collect_print_entries(editor.dynamics, measured);
+      let es = collect_print_entries(editor.dynamics.probe_map, measured);
       List.is_empty(es) ? Option.none : Option.some(es);
     | Manual => cached_print_entries^
     };

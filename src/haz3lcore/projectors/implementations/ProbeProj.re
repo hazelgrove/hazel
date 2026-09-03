@@ -212,6 +212,14 @@ module SampleLength = {
     Hashtbl.replace(lengths, id, length);
 };
 
+let cur_ap = (info: info) =>
+  switch (info.statics) {
+  | Some(InfoExp({user_term: {term: Ap(_), _} as ap, _}))
+  | Some(InfoExp({user_term: {term: TypAp(_), _} as ap, _})) =>
+    Some(Exp.rep_id(ap))
+  | _ => None
+  };
+
 /* Select samples to display, using stateful window offset.
  * This wraps Sample.Selection with WindowState for offset persistence.
  * Optionally takes pre-filtered samples to avoid redundant filtering. */

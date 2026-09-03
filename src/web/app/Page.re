@@ -545,6 +545,12 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="tune",
+           ~action=inject(Globals(Set(LiveTyping))),
+           "Toggle Live Typing",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
            ~action=inject(Globals(Set(Elaborate))),
            "Toggle Show Elaboration",
          ),

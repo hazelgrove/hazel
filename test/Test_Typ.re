@@ -166,6 +166,86 @@ let meet_tests = (
   ],
 );
 
+// TODO We want this property but it's not currently passing for forall and rec types so it's not included below
+let join_precision_property =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Typ.join is less precise than inputs",
+      ~count=100000,
+      QCheck.(
+        QCheck_Util.(
+          pair(
+            arb_typ(~minimal_idents=true, 10),
+            arb_typ(~minimal_idents=true, 10),
+          )
+        )
+      ),
+      ((t1, t2)) => {
+        let ctx = Builtins.ctx_init(Some(Int));
+        let m = Typ.join(ctx, t1, t2);
+        Typ.is_more_precise(ctx, Typ.normalize(ctx, t1), m)
+        && Typ.is_more_precise(ctx, Typ.normalize(ctx, t2), m);
+      },
+    ),
+  );
+
+let join_tests = (
+  "Typ.join",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "equal atomic types",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), int(), int());
+        check(typ, "join of equal atomic types", int(), t);
+      },
+    ),
+    test_case(
+      "Unknown and atomic type",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), unknown(Internal), int());
+        check(typ, "join of Unknown and atomic type", unknown(Internal), t);
+      },
+    ),
+    test_case(
+      "Sum type with same variants",
+      `Quick,
+      () => {
+        let t =
+          Typ.join(
+            Builtins.ctx_init(None),
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+            ]),
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+            ]),
+          );
+        check(
+          typ,
+          "Join of sum types with same variants",
+          sum([
+            Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+            Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
+          ]),
+          t,
+        );
+      },
+    ),
+    test_case(
+      "Unbound variables",
+      `Quick,
+      () => {
+        let t = Typ.join(Builtins.ctx_init(None), var("a"), var("b"));
+        check(typ, "Join of unbound variables", unknown(Internal), t);
+      },
+    ),
+  ],
+);
+
 let fast_equal_tests = (
   "Typ.fast_equal",
   [
@@ -493,4 +573,4 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, diff_tests];
+let tests = [join_tests, fast_equal_tests, meet_tests, diff_tests];

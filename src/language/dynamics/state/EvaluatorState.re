@@ -24,6 +24,7 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
+  type_insts: Dynamics.TypeInstMap.t,
   step_count: int,
   incr_eval,
 }
@@ -33,7 +34,6 @@ and incr_eval = IncrEval.t(t);
 
 type effect =
   | RecordTest(TestMap.instance_report)
-  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   /* A pattern was matched against a value during evaluation. Carries the
    * pat and rhs so the incremental evaluator can decide which body-scoped
@@ -43,6 +43,8 @@ type effect =
       rhs: DHExp.t,
       samples: PatternMatch.sample_closures,
     })
+  | RecordTypeInstantiation(CallStack.t => Dynamics.TypeInstantiation.t)
+  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
@@ -50,6 +52,7 @@ let empty: t = {
   initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  type_insts: Dynamics.TypeInstMap.empty,
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
@@ -103,11 +106,27 @@ let append = (base: t, ext: t): t => {
       base.tests,
       ext.tests,
     );
+  /* Type instantiations carry wall-clock times, not step stamps, so no
+   * shifting is needed — just merge the per-binder entry lists. */
+  let type_insts =
+    Id.Map.fold(
+      (id, ext_entries, acc) => {
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, existing @ ext_entries, acc);
+      },
+      ext.type_insts,
+      base.type_insts,
+    );
   {
     ...base,
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
+    type_insts,
     theorems: ext.theorems @ base.theorems,
   };
 };
@@ -120,6 +139,7 @@ let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
 
+let get_type_insts = ({type_insts, _}) => type_insts;
 let get_theorems = ({theorems, _}) => theorems;
 
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
@@ -159,6 +179,12 @@ let add_sample = (state: t, sample: Sample.t) => {
       probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
     };
   };
+};
+
+let add_type_inst = (state: t, inst: Dynamics.TypeInstantiation.t) => {
+  ...state,
+  type_insts:
+    Dynamics.TypeInstMap.extend(inst.tpat_id, inst, state.type_insts),
 };
 
 let update =
@@ -229,26 +255,6 @@ let update =
           call_stack,
           add_test(state, instance_report),
         )
-      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
-        let step = state.step_count;
-        /* Substitute env so a Var body resolves to its runtime value. */
-        let ascribed_exp = Substitution.in_exp(env, ascribed_exp);
-        let sample =
-          Sample.mk(
-            ~step_start=step,
-            ~step_end=step,
-            id,
-            ascribed_exp,
-            env,
-            call_stack.stack,
-            capture_spec,
-          );
-        let state = add_sample(state, sample);
-        let state = {
-          ...state,
-          step_count: state.step_count + 1,
-        };
-        (call_stack, state);
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries
@@ -271,6 +277,30 @@ let update =
           step_count: state.step_count + 1,
         };
         (call_stack, state);
+      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
+        let step = state.step_count;
+        /* Substitute env so a Var body resolves to its runtime value. */
+        let ascribed_exp = Substitution.in_exp(env, ascribed_exp);
+        let sample =
+          Sample.mk(
+            ~step_start=step,
+            ~step_end=step,
+            id,
+            ascribed_exp,
+            env,
+            call_stack.stack,
+            capture_spec,
+          );
+        let state = add_sample(state, sample);
+        let state = {
+          ...state,
+          step_count: state.step_count + 1,
+        };
+        (call_stack, state);
+      | RecordTypeInstantiation(type_inst_closure) => (
+          call_stack,
+          add_type_inst(state, type_inst_closure(call_stack.stack)),
+        )
       | RecordPrint(value) =>
         /* Print happens in a single step */
         let step = state.step_count;

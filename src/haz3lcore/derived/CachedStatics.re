@@ -8,7 +8,9 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
-  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
+  targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  live_typing_info_map: Statics.Map.t,
+  live_typing_error_ids: list(Id.t),
 };
 
 let empty: t = {
@@ -24,6 +26,8 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
+  live_typing_info_map: Id.Map.empty,
+  live_typing_error_ids: [],
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -45,10 +49,30 @@ let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
     Id.Map.empty,
   );
 
+/* Collect IDs of expressions/patterns with partially unknown types.
+ * Used for live_typing to automatically probe terms that need dynamic type feedback.
+ * Note: We check elab_syn_ty (synthesized) rather than the fixed ty, because
+ * an expression like `1 : ?` analyzed against String would have ty=String
+ * but elab_syn_ty=Unknown - we need dynamic feedback for the Unknown part. */
+let ids_with_unknown_types = (info_map: Statics.Map.t): Id.Map.t(unit) =>
+  Id.Map.fold(
+    (id, info, acc) =>
+      switch (info) {
+      | Info.InfoExp({elab_syn_ty: ty, _}) when Typ.contains_unknown(ty) =>
+        Id.Map.add(id, (), acc)
+      | Info.InfoPat({elab_syn_ty: ty, _}) when Typ.contains_unknown(ty) =>
+        Id.Map.add(id, (), acc)
+      | _ => acc
+      },
+    info_map,
+    Id.Map.empty,
+  );
+
 /* Compute targets from probe_ids. For each ID, determine whether it's
  * an expression or pattern target, then look up the appropriate refs to capture.
  * When probe_all is enabled, we target everything in info_map that passes
- * should_probe, ignoring the passed probe_ids (which are a subset anyway). */
+ * should_probe, ignoring the passed probe_ids (which are a subset anyway).
+ * When live_typing is enabled, we also include expressions with unknown types. */
 let compute_targets =
     (
       ~settings: CoreSettings.t,
@@ -56,8 +80,26 @@ let compute_targets =
       ~probe_ids: Id.Map.t(unit),
     )
     : Sample.targets => {
+  /* Start with explicit probe IDs */
+  let base_ids = probe_ids;
+  /* If probe_all is enabled, include all probeable expressions */
+  let base_ids =
+    settings.probe_all
+      ? Id.Map.union(
+          (_, _, _) => Some(),
+          base_ids,
+          all_probeable_ids(info_map),
+        )
+      : base_ids;
+  /* If live_typing is enabled, include expressions with unknown types */
   let effective_probe_ids =
-    settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
+    settings.live_typing
+      ? Id.Map.union(
+          (_, _, _) => Some(),
+          base_ids,
+          ids_with_unknown_types(info_map),
+        )
+      : base_ids;
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
@@ -120,6 +162,8 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
+    live_typing_info_map: Statics.Map.empty,
+    live_typing_error_ids: [],
   };
 };
 

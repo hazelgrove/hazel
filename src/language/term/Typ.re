@@ -951,6 +951,95 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
 
+/* Lattice join on types — returns the LEAST precise (widest) type that
+   is at least as imprecise as both inputs. Unknown dominates:
+   join(Unknown, Int) = Unknown. This is the dual of meet. */
+let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
+  let join' = join(ctx);
+  switch (term_of(ty1), term_of(ty2)) {
+  | (_, Parens(ty2)) => join'(ty1, ty2)
+  | (Parens(ty1), _) => join'(ty1, ty2)
+  | (_, Projector(_, ty2)) => join'(ty1, ty2)
+  | (Projector(_, ty1), _) => join'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+  | (Unknown(p1), Unknown(p2)) =>
+    Unknown(meet_type_provenance(p1, p2)) |> temp
+  | (Unknown(_), _) => ty1
+  | (_, Unknown(_)) => ty2
+  | (Var(n1), Var(n2)) when n1 == n2 => ty1
+  | (Var(name), _) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) => join'(ty_name, ty2)
+    | None => Unknown(Internal) |> temp
+    }
+  | (_, Var(name)) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) => join'(ty_name, ty1)
+    | None => Unknown(Internal) |> temp
+    }
+  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | None => ty1
+      };
+    let ty_body = join(ctx, ty1', ty2);
+    Rec(tp1, ty_body) |> temp;
+  | (Rec(_), _) => Unknown(Internal) |> temp
+  | (Poly(x1, ty1), Poly(x2, ty2)) =>
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(x2)) {
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | None => ty1
+      };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let ty_body = join(ctx, ty1', ty2);
+    Poly(x2, ty_body) |> temp;
+  | (Poly(_), _) => Unknown(Internal) |> temp
+  | (Atom(c1), Atom(c2)) when c1 == c2 => ty1
+  | (Atom(_), _) => Unknown(Internal) |> temp
+  | (Label(_), Label("")) => ty1
+  | (Label(""), Label(_)) => ty2
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) => ty1
+  | (Label(_), _) => Unknown(Internal) |> temp
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    Arrow(join'(ty1, ty1'), join'(ty2, ty2')) |> temp
+  | (Arrow(_), _) => Unknown(Internal) |> temp
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    TupLabel(join'(lab1, lab2), join'(ty1', ty2')) |> temp
+  | (TupLabel(_), _) => Unknown(Internal) |> temp
+  | (Prod(tys1), Prod(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      Unknown(Internal) |> temp;
+    } else {
+      Prod(List.map2(join', tys1, tys2)) |> temp;
+    }
+  | (Prod(_), _) => Unknown(Internal) |> temp
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.semantic.exp(e1, e2) ? ty1 : Unknown(Internal) |> temp
+  | (ProofOf(_), _) => Unknown(Internal) |> temp
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    Sum(sm1) |> temp
+  | (Sum(_), _) => Unknown(Internal) |> temp
+  | (List(ty1), List(ty2)) => List(join'(ty1, ty2)) |> temp
+  | (List(_), _) => Unknown(Internal) |> temp
+  | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
+  | (Sig(_), _) => Unknown(Internal) |> temp
+  | (DrvQuoteTy(s1), DrvQuoteTy(s2)) when s1 == s2 => ty1
+  | (DrvQuoteTy(_), _) => Unknown(Internal) |> temp
+  };
+};
+
+let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+  ListUtil.reduce((acc, ty) => join(ctx, acc, ty), ts);
+
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
    *

@@ -54,7 +54,8 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
+let term_view =
+    (~globals: Globals.t, ~is_live_typing_error=false, ~force_error=false, ci) => {
   /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
      via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
      inspector header we prefer the terse form ("Jdmt", "Prop", ...),
@@ -83,6 +84,17 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
     ],
     [
       ctx_toggle(~globals),
+      is_live_typing_error
+        ? div(
+            ~attrs=[
+              Attr.title(
+                "Live typing error - this error is based on the actual types observed during program evaluation, which fill in unknown static types",
+              ),
+              clss(["dynamic-icon"]),
+            ],
+            [text({js|⚡|js})],
+          )
+        : div_empty,
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
@@ -120,10 +132,23 @@ let view_any = (~globals, any: Any.t) =>
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
-  typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+let view_type = (~globals, ~live_typing_info: option(Info.t)=?, typ: Typ.t) => {
+  let dyn_type =
+    switch (live_typing_info) {
+    | Some(InfoExp({elab_syn_ty, _})) => Some(elab_syn_ty)
+    | Some(InfoPat({elab_syn_ty, _})) => Some(elab_syn_ty)
+    | _ => None
+    };
+  let (classes, display_typ) =
+    switch (dyn_type) {
+    | Some(dynamic_typ) when !Typ.fast_equal(typ, dynamic_typ) =>
+      Haz3lcore.PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ, ())
+    | _ => ((_ => []), typ)
+    };
+  display_typ
+  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings, ~classes)
   |> code_box_container;
+};
 
 let core_mark_err_view =
     (
@@ -306,9 +331,11 @@ let common_ok_view =
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
+      ~live_typing_info: option(Info.t)=None,
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
+  let view_syn_type = view_type(~globals, ~live_typing_info?);
   let view_type = view_type(~globals);
   (
     switch (cls, ok) {
@@ -336,20 +363,23 @@ let common_ok_view =
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
+      | _ => colon_prefix(show_type_colon) @ [view_syn_type(syn)]
       }
     | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
       /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
          sugar (see FunctionSugar.re), where it denotes the function binder
-         as a whole. Render it the same way as a plain variable binder. */
-      colon_prefix(show_type_colon) @ [view_type(ana)]
+         as a whole. Render it the same way as a plain variable binder.
+         Use view_syn_type so that live typing refines the displayed type
+         (e.g. a `let x = ...` binder whose static type is `?` but whose
+         runtime samples synthesize a concrete type). */
+      colon_prefix(show_type_colon) @ [view_syn_type(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         colon_prefix(show_type_colon)
-        @ [view_type(syn)]
+        @ [view_syn_type(syn)]
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
@@ -383,7 +413,7 @@ let common_ok_view =
         | Label(l) => [code(l), text(" is a valid label")]
         | _ =>
           colon_prefix(show_type_colon)
-          @ [view_type(syn), text("consistent with expected type")]
+          @ [view_syn_type(syn), text("consistent with expected type")]
         }
       )
       @ [view_type(ana)]
@@ -771,6 +801,7 @@ let exp_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~live_typing_info: option(Info.t)=None,
       cls: Cls.t,
       message: Message.t,
       info: Info.exp,
@@ -807,6 +838,7 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~live_typing_info,
           cls,
           Message.Syn(info.elab_syn_ty),
         ),
@@ -823,6 +855,7 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~live_typing_info,
           cls,
           ok,
         ),
@@ -917,6 +950,7 @@ let pat_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~live_typing_info: option(Info.t)=None,
       cls: Cls.t,
       message: Message.t,
       info: Info.pat,
@@ -961,6 +995,7 @@ let pat_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~live_typing_info,
           cls,
           ok,
         );
@@ -1043,17 +1078,21 @@ let tpat_view =
   };
 };
 
-let view_of_info = (~globals, ci): list(Node.t) => {
-  let wrapper = status_view => [term_view(~globals, ci), status_view];
+let view_of_info =
+    (~globals, ~live_typing_info, ~is_live_typing_error, ci): list(Node.t) => {
+  let wrapper = status_view => [
+    term_view(~globals, ~is_live_typing_error, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
-    wrapper(exp_view(~globals, cls, message, ie))
+    wrapper(exp_view(~globals, ~live_typing_info, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
-    wrapper(pat_view(~globals, cls, message, ip))
+    wrapper(pat_view(~globals, ~live_typing_info, cls, message, ip))
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
@@ -1062,19 +1101,42 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ~live_typing_info, ci): Node.t => {
+  /* If the static info is error-free but the dynamic (live-typing) info
+     reports an error, show the dynamic info with the lightning badge.
+     Only live-reportable marks (Mark.is_live_reportable) count as live
+     typing errors — this must agree with
+     StaticsBase.Map.live_typing_error_ids, which drives the error
+     decorations and the Problems sidebar. */
+  let (display_info, is_live_typing_error) =
+    if (Info.is_error(ci)) {
+      (ci, false);
+    } else {
+      switch (live_typing_info) {
+      | Some(di) when Info.has_live_reportable_mark(di) => (di, true)
+      | _ => (ci, false)
+      };
+    };
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
       clss([
-        Info.is_error(ci)
+        Info.is_error(display_info)
           ? errc
-          : Info.is_warning(ci) && globals.settings.core.display_warnings
+          : Info.is_warning(display_info)
+            && globals.settings.core.display_warnings
               ? warnc : okc,
+        is_live_typing_error ? "live-typing-error" : "",
       ]),
     ],
-    view_of_info(~globals, ci),
+    view_of_info(
+      ~globals,
+      ~live_typing_info,
+      ~is_live_typing_error,
+      display_info,
+    ),
   );
+};
 
 let projector_error_inspector =
     (
@@ -1118,7 +1180,14 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     switch (projector_err) {
     | Some((_, err)) when !Info.is_error(ci) =>
       bar_view([projector_error_inspector(~globals, ci, err)])
-    | _ => bar_view([inspector_view(~globals, ci)])
+    | _ =>
+      bar_view([
+        inspector_view(
+          ~globals,
+          ~live_typing_info=cursor.live_typing_info,
+          ci,
+        ),
+      ])
     }
   };
 };

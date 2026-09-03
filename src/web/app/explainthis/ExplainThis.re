@@ -1622,8 +1622,10 @@ let view_doc =
         {
           editor,
           statics: CachedStatics.empty,
-          dynamics: Dynamics.Map.empty,
+          dynamics: Dynamics.empty,
           context_menu: None,
+          live_typing: Pending,
+          sample_focus: Pending,
         },
       );
     let example_view =

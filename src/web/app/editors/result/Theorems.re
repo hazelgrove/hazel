@@ -142,7 +142,7 @@ module Update = {
       (
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
-        ~dynamics: Calc.t(option(Dynamics.t)),
+        ~result: Calc.t(ProgramResult.t(ProgramResult.inner)),
         {thm_map, thms}: Model.t,
       ) => {
     let settings' = {
@@ -161,11 +161,11 @@ module Update = {
     let thms =
       thms
       |> {
-        let.calc dynamics = dynamics;
+        let.calc result = result;
         let theorems =
-          switch (dynamics) {
-          | None => []
-          | Some(d) => d.theorems
+          switch (result) {
+          | ResultOk({state, _}) => state.theorems
+          | _ => []
           };
         let theorems =
           List.map(
@@ -181,12 +181,12 @@ module Update = {
 
     // Calculate visible steppers
     let thm_map =
-      dynamics
+      result
       |> Calc.get_value
       |> (
         fun
-        | None => []
-        | Some(x) => x.theorems
+        | ResultOk({state, _}) => state.theorems
+        | _ => []
       )
       |> List.map(((a, b, c, d)) => {
            let d' =

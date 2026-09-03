@@ -42,6 +42,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  live_typing: bool,
   probe_all: bool,
   deep_reassociate: bool,
   flip_animations: bool,
@@ -60,6 +61,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  live_typing: false,
   probe_all: false,
   deep_reassociate: false,
   flip_animations: false,
@@ -73,6 +75,7 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  live_typing: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   deep_reassociate: false,
   flip_animations: true,

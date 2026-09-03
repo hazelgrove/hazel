@@ -309,11 +309,7 @@ let tests =
         "fun a, b : (Int, Int) -> a",
       ),
       full_parser_test("Integer Literal", int(8), "8"),
-      full_parser_test(
-        "Fun",
-        fn(Pat.var("x"), var("x"), None, None),
-        "fun x -> x",
-      ),
+      full_parser_test("Fun", fn(Pat.var("x"), var("x")), "fun x -> x"),
       /* () is an atomic pattern (editor parity); these pin positions the
          old hand-split grammar missed (MenhirFuzz seed-42 found the
          cons-chain one; the comma-element one fell out of the general fix) */
@@ -555,12 +551,7 @@ let tests =
       ),
       menhir_only_test(
         "named_function",
-        fn(
-          Pat.var("x"),
-          bin_op(Int(Plus), var("x"), int(5)),
-          None,
-          Some("f"),
-        ),
+        fn(Pat.var("x"), bin_op(Int(Plus), var("x"), int(5)), ~name="f"),
         "named_fun f x -> x + 5",
       ),
       full_parser_test(
@@ -612,8 +603,6 @@ let tests =
             ),
           ),
           empty_hole(),
-          None,
-          None,
         ),
         "fun (b : ? -> ?) -> ?",
       ),

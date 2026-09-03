@@ -1045,7 +1045,7 @@ let context_llm_snapshot_tests = [
       let eval_result = EvalResult.Model.init;
       let prog =
         CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
+          ~probe_map=cws.dynamics.probe_map,
           cws.editor,
           chat.agent_view,
         );
@@ -1056,7 +1056,7 @@ let context_llm_snapshot_tests = [
         |> String.concat("\n");
       let tests =
         Agent.Utils.test_results_for_context(
-          EvalResult.Model.test_results(eval_result),
+          EvalResult.Model.test_results(eval_result) |> Calc.get_value,
         );
       let wb =
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(

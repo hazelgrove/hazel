@@ -193,8 +193,29 @@ in [f(true), f(false)]|},
   ),
 ];
 
+/* === Scoping tests === */
+
+let scoping_tests = [
+  /* `f` closes over the outer `h : Int`, and the probe sits where `h` names
+     the annotated parameter instead. Typing the sampled closure against the
+     probe site's context would read its body's `h` as the parameter and give
+     `() -> () -> Int`; the closure has to be read against the environment it
+     captured. */
+  dynamic_typ_test(
+    "Closure sample is typed under its own env, not the probe site's",
+    {|let h = 3
+in let f = fun () -> h
+in let g = fun (h : () -> Int) -> ^^probe(h)
+in g(f)|},
+    /* `(())` is `typ_to_string`'s defensive parenthesization of the unit
+       argument, as in the "Arrow via function" case above. */
+    Some("(()) -> Int"),
+  ),
+];
+
 let tests = [
   ("DynamicTypInfer.Basic", basic_tests),
   ("DynamicTypInfer.Meet", meet_tests),
   ("DynamicTypInfer.UserTypes", user_type_tests),
+  ("DynamicTypInfer.Scoping", scoping_tests),
 ];

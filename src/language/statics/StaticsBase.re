@@ -30,6 +30,25 @@ module Map = {
       info_map,
       [],
     );
+
+  /* Live-typing errors: ids whose live-run info carries a live-reportable
+     mark (see Mark.is_live_reportable — witnessed misuses of observed
+     values' refined types) and which were not already static errors.
+     Deliberately excludes NoMeet join marks that arise when disjoint
+     runtime samples refine sibling branches to incompatible types
+     (heterogeneous data through case/if/list joins), and
+     exhaustiveness/redundancy marks recomputed from narrowed types. */
+  let live_typing_error_ids =
+      (~static_error_ids: list(Id.t), live_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        Info.has_live_reportable_mark(info)
+        && id == Info.id_of(info)
+        && !List.mem(id, static_error_ids)
+          ? [id, ...acc] : acc,
+      live_map,
+      [],
+    );
   let warning_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>
@@ -41,6 +60,20 @@ module Map = {
       info_map,
       [],
     );
+
+  let errors = (map: t): list((Id.t, list(Mark.t))) =>
+    Id.Map.fold(
+      (id, info: Info.t, acc) =>
+        switch (Info.marks_of(info)) {
+        | [] => acc
+        | ms => [(id, ms), ...acc]
+        },
+      map,
+      [],
+    );
+
+  let has_errors = (map: t): bool =>
+    Id.Map.exists((_: Uuidm.t, info: Info.t) => Info.is_error(info), map);
 
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
@@ -423,6 +456,7 @@ let fold_patterns_with_modes =
 module type ExpressionStatics = {
   let uexp_to_info_map:
     (
+      ~dynamics: LiveTyping.Map.t=?,
       ~ctx: Ctx.t,
       ~ana: Typ.t=?,
       ~is_in_filter: bool=?,
@@ -451,4 +485,8 @@ module type ExpressionStatics = {
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);
+
+  let dynamics: LiveTyping.Map.t;
+
+  let calculate_dynamic_type: Exp.t => option(Typ.t);
 };

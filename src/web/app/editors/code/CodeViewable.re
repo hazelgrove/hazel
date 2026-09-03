@@ -13,6 +13,7 @@ let view =
       ~shape_map,
       ~refractor_shape_map,
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+      ~classes=(_: Id.t) => [],
       segment,
     )
     : Node.t => {
@@ -26,12 +27,14 @@ let view =
       ~term_data,
       ~refine_sort,
       ~buffer_ids,
+      ~classes,
       segment,
     );
   div_c("code", [span_c("code-text", code)]);
 };
 
-let view_segment = (~globals: Globals.t, segment: Segment.t) => {
+let view_segment =
+    (~globals: Globals.t, ~classes=(_: Id.t) => [], segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
@@ -42,12 +45,29 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
     ~buffer_ids=[],
     ~shape_map,
     ~refractor_shape_map,
+    ~classes,
     segment,
   );
 };
 
-let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) =>
-  typ |> ExpToSegment.typ_to_segment(~settings) |> view_segment(~globals);
+let view_typ =
+    (
+      ~globals: Globals.t,
+      ~settings,
+      ~classes=(_: Id.t) => [],
+      typ: Language.Typ.t,
+    ) =>
+  typ
+  |> ExpToSegment.typ_to_segment(~settings)
+  |> view_segment(~globals, ~classes);
 
-let view_any = (~globals: Globals.t, ~settings, any: Language.Any.t) =>
-  any |> ExpToSegment.any_to_segment(~settings) |> view_segment(~globals);
+let view_any =
+    (
+      ~globals: Globals.t,
+      ~settings,
+      ~classes=(_: Id.t) => [],
+      any: Language.Any.t,
+    ) =>
+  any
+  |> ExpToSegment.any_to_segment(~settings)
+  |> view_segment(~globals, ~classes);

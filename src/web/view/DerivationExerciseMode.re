@@ -385,6 +385,8 @@ module Update = {
                   statics: cell.editor.statics,
                   dynamics: cell.editor.dynamics,
                   context_menu: cell.editor.context_menu,
+                  live_typing: cell.editor.live_typing,
+                  sample_focus: cell.editor.sample_focus,
                 },
                 result: cell.result,
               };
@@ -442,13 +444,13 @@ module Update = {
         prelude:
           calculate(
             cells.prelude.editor.statics,
-            cells.prelude.editor.dynamics,
+            cells.prelude.editor.dynamics.probe_map,
             model.editors.prelude,
           ),
         setup:
           calculate(
             cells.setup.editor.statics,
-            cells.setup.editor.dynamics,
+            cells.setup.editor.dynamics.probe_map,
             model.editors.setup,
           ),
         trees: {
@@ -467,7 +469,7 @@ module Update = {
                          jdmt:
                            calculate(
                              di.editor.statics,
-                             di.editor.dynamics,
+                             di.editor.dynamics.probe_map,
                              jdmt,
                            ),
                          rule,

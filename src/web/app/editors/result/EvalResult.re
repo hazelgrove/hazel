@@ -87,21 +87,43 @@ module Model = {
     };
   };
 
-  let probe_results = (model: t): option(Sample.Map.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+  /* Dynamics as of the last calculate: final on ResultOk, partial (built by
+   * StreamCollector from the streaming outbox) while the worker is still
+   * evaluating. Provenance note: the saved field can't carry freshness across
+   * actions, so these accessors are tagged OldValue; CellEditor.Update
+   * .calculate supplies freshness by physically comparing probe maps across
+   * its EvalResult.Update.calculate call (see dynamics_changed there). */
+  let dynamics = (model: t): Calc.t(option(Dynamics.t)) =>
+    Calc.OldValue(model.dynamics |> Calc.get_saved(None));
 
-  let test_results = (model: t): option(TestResults.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
+  let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
 
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
-    };
+  let test_results = (model: t): Calc.t(option(TestResults.t)) =>
+    model
+    |> dynamics
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+  let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(d) => d.type_inst_map
+         | None => Dynamics.TypeInstMap.empty
+         }
+       );
+
+  let dynamics_full = (model: t): Calc.t(Dynamics.t) =>
+    model
+    |> dynamics
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(m) => m
+         | None => Dynamics.empty
+         }
+       );
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
@@ -259,7 +281,8 @@ module Update = {
         ~targets=Calc.get_value(targets),
         statics.info_map,
       );
-    let result =
+    // Calculate the result
+    let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
       |> {
         let.calc_t elab = elab
@@ -364,6 +387,7 @@ module Update = {
         probe_map: state |> EvaluatorState.get_probes,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        type_inst_map: state |> EvaluatorState.get_type_insts,
         theorems: state |> EvaluatorState.get_theorems,
       };
     let dynamics =
@@ -431,7 +455,7 @@ module Update = {
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
-                   ~dynamics=Dynamics.Map.empty,
+                   ~dynamics=Calc.OldValue(Dynamics.empty),
                    ~is_edited=is_edited || result_changed,
                    editor,
                  ),
@@ -459,15 +483,14 @@ module Update = {
 
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (result) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
 
     let theorems =
       Calc.get_value(settings).dynamics
-        ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        ? theorems |> Theorems.Update.calculate(~settings, ~statics, ~result)
         : theorems;
 
     (
@@ -583,7 +606,7 @@ module View = {
                 focus: selected ? Some() : None,
               }),
             ~globals,
-            ~dynamics=editor.dynamics,
+            ~dynamics=editor.dynamics.probe_map,
             editor,
           ),
         editor,
@@ -724,7 +747,7 @@ module View = {
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
@@ -784,7 +807,7 @@ module View = {
         [node],
         (
           (editor: Haz3lcore.Editor.t) =>
-            switch (Model.test_results(model)) {
+            switch (Model.test_results(model) |> Calc.get_value) {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
@@ -799,9 +822,9 @@ module View = {
 
     // Just showing test results (school mode)
     | `TestResults =>
-      let test_results = Model.test_results(model);
+      let test_results = Model.test_results(model) |> Calc.get_value;
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,

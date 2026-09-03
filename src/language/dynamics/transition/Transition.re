@@ -646,7 +646,25 @@ module Transition = (EV: EV_MODE) => {
                 name,
               ),
             ),
-          side_effects: [],
+          side_effects:
+            [EvaluatorState.RecordStackFrame(name, None, None)]
+            @ (
+              switch (TPat.tyvar_of_utpat(utpat)) {
+              | Some(var_name) => [
+                  EvaluatorState.RecordTypeInstantiation(
+                    call_stack =>
+                      Dynamics.TypeInstantiation.{
+                        tpat_id: TPat.rep_id(utpat),
+                        type_var: var_name,
+                        instantiated_type: tau,
+                        call_stack: CallStack.ids_of_stack(call_stack),
+                        time: JsUtil.timestamp(),
+                      },
+                  ),
+                ]
+              | None => []
+              }
+            ),
           kind: TypFunAp,
           is_value: false,
         })
@@ -1194,7 +1212,7 @@ module Transition = (EV: EV_MODE) => {
          * and is_value: true to prevent re-evaluation (probes inside d' have
          * already fired via req_final above; re-evaluation would double-count
          * samples at a different call_stack). We still collect any ascription
-         * samples produced while distributing the ascription. */
+         * samples for the live-typing feature. */
         let (_peek_samples, peek) =
           Ascriptions.transition(~targets, Asc(d', t) |> rewrap);
         switch (peek) {

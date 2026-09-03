@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -16,8 +17,10 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.empty,
       context_menu: None,
+      live_typing: Pending,
+      sample_focus: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -105,12 +108,13 @@ module Update = {
         ~is_edited,
         ~statics_mode,
         ~stitch,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=EvalResult.Model.dynamics_full(result),
         ~is_dynamic_term=false,
         editor,
       );
     /* Save probe results reference before result calculation */
-    let probes_before = EvalResult.Model.probe_results(result);
+    let probes_before =
+      EvalResult.Model.probe_results(result) |> Calc.get_value;
     /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
@@ -125,7 +129,8 @@ module Update = {
       );
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
-    let probes_after = EvalResult.Model.probe_results(result);
+    let probes_after =
+      EvalResult.Model.probe_results(result) |> Calc.get_value;
     let dynamics_changed =
       switch (probes_before, probes_after) {
       | (None, None) => false
@@ -142,13 +147,21 @@ module Update = {
       has_pending_focus || has_pending_cursor || dynamics_changed;
     let editor =
       if (needs_second_pass) {
+        /* Supply dynamics freshness explicitly: EvalResult stores dynamics as
+         * a saved (provenance-less) value, so the physical comparison above
+         * is what detects a new final result or a new streamed slice. */
+        let dynamics_calc = {
+          let dyn = EvalResult.Model.dynamics_full(result) |> Calc.get_value;
+          dynamics_changed ? Calc.NewValue(dyn) : Calc.OldValue(dyn);
+        };
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=dynamics_calc,
+          ~eval_pending=EvalResult.Model.eval_is_pending(result),
           ~is_dynamic_term=false,
           editor,
         );
@@ -267,7 +280,10 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics=
+            EvalResult.Model.probe_results(model.result)
+            |> Util.Calc.get_value
+            |> Option.value(~default=Language.Dynamics.Map.empty),
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),

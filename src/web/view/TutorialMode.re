@@ -2,7 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 // open ExplainThisUpdate;
-// open Util;
+open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 /* This file follows conventions in [docs/ui-architecture.md] */
 module Model = {
@@ -57,7 +57,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         exercise.cells,
       );
 
@@ -237,8 +237,11 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              dynamics: EvalResult.Model.dynamics(cell.result),
+              dynamics:
+                EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
               context_menu: cell.editor.context_menu,
+              live_typing: cell.editor.live_typing,
+              sample_focus: cell.editor.sample_focus,
             },
             result: cell.result,
           }
@@ -290,7 +293,7 @@ module Update = {
         your_impl:
           calculate(
             cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
+            cells.user_impl.editor.dynamics.probe_map,
             model.editors.your_impl,
           ),
         display_hint: model.editors.display_hint,
@@ -298,7 +301,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
+              cells.hidden_tests.editor.dynamics.probe_map,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
@@ -394,7 +397,7 @@ module View = {
     let stitched_tests =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         model.cells,
       );
     let test_count =
