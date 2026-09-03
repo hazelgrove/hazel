@@ -118,7 +118,7 @@ let wrap_with_secondary =
 
 /* Lexeme validation: annotations may carry the surface spelling of
    single-token terms (IdTag.lexeme). Use it verbatim only when it still
-   denotes the term\'s value — terms rebuilt with stale annotations must
+   denotes the term's value — terms rebuilt with stale annotations must
    never misprint. */
 let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   switch (ann.lexeme) {
@@ -1258,7 +1258,7 @@ let mk_form =
 
    Padding and replacement ids are DERIVED (hash of ~base + counter),
    not minted: printing must be a pure function of the term. Fresh ids
-   here made double-prints of the same term differ. ~base defaults to
+   here would make double-prints of the same term differ. ~base defaults to
    the first id; pass it explicitly where ids can be empty. */
 let pad_ids =
     (
@@ -1599,6 +1599,7 @@ let rec drv_exp_to_pretty =
       let rule_ids =
         pad_ids(
           ~forbidden=[id],
+          ~base=id,
           2,
           switch (all_ids) {
           | [_, ...rest] => rest
@@ -1991,7 +1992,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(xs)),
     );
     let form = (x, xs) =>
       mk_form(
@@ -2058,9 +2061,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
   | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
-    /* Unknown infix operator (see MakeTerm's exp Bin fallthrough):
-       reconstruct the operator tile from the recorded lexeme, with the
-       same Any-sorted max-precedence bin mold Form gives unknown ops */
+    /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.get(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
     let+ l = any_to_pretty(~settings, l)
@@ -2369,10 +2370,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ es = es |> List.map(go) |> all;
     /* ids = [ap tile, comma tiles...]: n args have n-1 commas, so pad
        the tail to n-1 and use it directly (padding to n and dropping
-       the head minted a fresh id for the first comma) */
+       the head would mint a fresh id for the first comma) */
     let (id, comma_ids) = (
       IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es) - 1),
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(es) - 1),
     );
     wrap(
       exp,
@@ -2491,7 +2494,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       case_id,
       all_exp_ids
       |> List.tl
-      |> pad_ids(~forbidden=[case_id], List.length(rs)),
+      |> pad_ids(~forbidden=[case_id], ~base=case_id, List.length(rs)),
     );
     wrap(
       exp,
@@ -2583,7 +2586,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(exp)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(exp) |> List.hd, List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -2620,7 +2625,7 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
       @ [
         Tile({
           /* the Asc term's rep id IS the colon tile id from parsing;
-             a fresh id here churned identity on every print */
+             a fresh id here would churn identity on every print */
           id: MPat.rep_id(mp),
           label: [":"],
           mold:
@@ -2690,7 +2695,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
       IdTagged.ids(pat) |> List.hd,
-      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
+      IdTagged.ids(pat)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(pat) |> List.hd, List.length(xs)),
     );
     wrap(
       pat,
@@ -3193,7 +3200,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
-      IdTagged.ids(typ) |> List.tl |> pad_ids(List.length(items) - 1);
+      IdTagged.ids(typ)
+      |> List.tl
+      |> pad_ids(~base=IdTagged.ids(typ) |> List.hd, List.length(items) - 1);
     let body =
       switch (items_pretty) {
       | [] => []
@@ -3397,8 +3406,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
     wrap(rul, seg);
   | Rules(scrut, rules) =>
     /* A case-less rule chain (scrutinee followed by | p => e clauses),
-       reachable as a MultiHole kid. Previously printed as a single
-       convex grout, destroying the content. */
+       reachable as a MultiHole kid */
     let+ scrut = exp_to_pretty(~settings, scrut)
     and+ rs =
       rules
@@ -3463,10 +3471,11 @@ and label_to_pretty =
    Terms parsed from canonically completed segments record, per completed
    tile, the shard indices physically present in the visible segment
    (IdTag.incomplete). Printing emits complete tiles; this pass truncates
-   them back to their original shards, splicing the dropped shards\'
-   children into the parent segment, then regrouts. Applies in all print
+   them back to their original shards, splicing the dropped shards'
+   children into the parent segment (no regrout here — consumers parse
+   or measure the result, re-deriving grout). Applies in all print
    modes: the completion is a semantic device, not user-typed syntax.
-   V1 limitations: masks on Drv terms are not collected (drv has its own
+   Limitations: masks on Drv terms are not collected (drv has its own
    traversal machinery), and projector-internal syntax is left alone. */
 
 let collect_shard_masks =

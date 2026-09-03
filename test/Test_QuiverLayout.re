@@ -3,7 +3,7 @@ open Haz3lcore;
 open Language;
 
 /* Headless VISUAL-placement tests: the engine's anchors are covered
-   elsewhere; this drives QuiverLayout.resolve_position with
+   elsewhere; this drives QuiverLayout.layout with
    live-faithful inputs — the segment CachedSyntax actually uses
    (the DisplayFork segment, so suggestion/chip ghosts are part of
    the measured layout), real Measured, and the real caret point. */
@@ -33,14 +33,18 @@ let pins = (~tydi=true, code: string): string => {
   let measured = Measured.of_segment(display_seg, Id.Map.empty, Id.Map.empty);
   let caret = Zipper.Caret.point(measured, z);
   let seg = engine_seg;
-  CanonicalCompletion.for_editor(seg).insertions
-  |> List.filter_map(
-       QuiverLayout.resolve_position(
-         ~seg,
-         ~caret_pos=Some((caret.Util.Point.row, caret.Util.Point.col)),
-         measured,
-       ),
-     )
+  let insertions = CanonicalCompletion.for_editor(seg).insertions;
+  /* ownership from the one query the editor uses; the layout draws
+     it as the bubble at the caret */
+  QuiverLayout.layout(
+    ~measured,
+    ~col_width=10.0,
+    ~caret_pos=Some((caret.Util.Point.row, caret.Util.Point.col)),
+    ~owned=CompletionQuery.chips_owned(z, insertions),
+    ~seg,
+    insertions,
+  )
+  |> List.map(fst)
   |> List.map((pi: QuiverLayout.positioned_insertion) =>
        Printf.sprintf(
          "%s@%d:%d",
@@ -76,11 +80,11 @@ let probe2 = [
       check(
         string_testable,
         "states",
-        /* JUDGED shift (single-channel port): A resolves one col
-           right — the armed fork splices the caret-zone ghost into
-           the display segment, so placement measures against it
-           (live armed-frame behavior); MAT unchanged */
-        "A: )+=+in@1:11  MAT<let a = 2 in\nlet _: (  ?)=?in?>\n"
+        /* A's bubble sits AT the caret (1:10): the caret owns these
+           records (CompletionQuery.chips_owned) and the layout draws
+           them there, before the spliced ghost (it used to resolve one
+           col right, measured against the ghost); MAT unchanged */
+        "A: )+=+in@1:10  MAT<let a = 2 in\nlet _: (  ?)=?in?>\n"
         ++ "B: =+in@1:19  MAT<let a = 2 in\nlet _: (Int, Bool)=?in? >",
         "A: "
         ++ full("let a = 2 in\nlet _: (  ¦")

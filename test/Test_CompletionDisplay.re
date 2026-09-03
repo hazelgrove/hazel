@@ -217,7 +217,7 @@ let display_state_of =
        )
     |> String.concat("\n");
   /* suppression comes from THE one policy home */
-  let chips_shown = CanonicalCompletion.chips_displayed(~ghosted, assist);
+  let chips_shown = CompletionQuery.chips_displayed(~ghosted, assist);
   let chips_str =
     chips_shown
     |> List.map((i: CanonicalCompletion.insertion) =>
@@ -1287,10 +1287,10 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             let z =
               Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
             let (_, zc, _, _, _, assist, _) = display_parts(z);
-            switch (CanonicalCompletion.tab_chip(zc, assist)) {
+            switch (CompletionQuery.tab_chip(zc, assist)) {
             | None => "NONE"
             | Some(ins) =>
-              switch (CanonicalCompletion.tab_text(zc, ins)) {
+              switch (CompletionQuery.tab_text(zc, ins)) {
               | None => "NO-TEXT"
               | Some(t) => "<" ++ t ++ ">"
               }
@@ -1342,10 +1342,10 @@ case if | ¦   CHIPS[then+else | =>+end]|},
               |> List.fold_left((+), 0);
             let state =
               Printf.sprintf("%s   OWED[%d]", Test_Editing.printer(z), owed);
-            switch (CanonicalCompletion.tab_chip(zc, assist)) {
+            switch (CompletionQuery.tab_chip(zc, assist)) {
             | None => (state, None)
             | Some(ins) =>
-              switch (CanonicalCompletion.tab_text(zc, ins)) {
+              switch (CompletionQuery.tab_text(zc, ins)) {
               | None => (state, None)
               | Some(t) => (
                   state,

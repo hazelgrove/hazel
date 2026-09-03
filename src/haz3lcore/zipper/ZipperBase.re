@@ -212,24 +212,8 @@ module MapPiece = {
 module MapSegment = {
   type updater = Segment.t => Segment.t;
 
-  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    let seg = f(seg);
-    List.map(of_piece(f), seg);
-  }
-  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
-    switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
-    | Grout(_)
-    | Projector(_)
-    | Secondary(_) => piece
-    };
-  }
-  and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
-  };
+  let of_segment = (f: updater, seg: Segment.t): Segment.t =>
+    Segment.map_deep(f, seg);
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
     of_segment(f, fst(sibs)),

@@ -1,67 +1,52 @@
 open Util;
 
 /* QuiverLayout: the PURE placement layer for quiver chips — anchor
-   resolution, coincidence-first caret following, zone bounds, and
-   bubble de-collision. Lives in core (no vdom) so placement is
-   headlessly testable against real editing trajectories: engine
-   anchors are covered by Test_CanonicalCompletion; THIS layer is
-   covered by Test_QuiverLayout. */
+   resolution and bubble de-collision. Lives in core (no vdom) so
+   placement is headlessly testable against real editing trajectories:
+   engine anchors are covered by Test_CanonicalCompletion; THIS layer
+   by Test_QuiverLayout and Test_TabDispatch.
+
+   OWNERSHIP IS NOT DECIDED HERE. Which records the caret owns (the
+   bubble Tab acts on) comes in as `owned`, computed once by
+   CompletionQuery.chips_among; this layer draws that list as ONE
+   bubble at the caret and RESTS every other record at its anchor.
+   Re-deriving ownership from measured coordinates is how the display
+   and Tab drifted apart. */
 
 let chip_font_scale = 0.72;
 
 /* An insertion with its resolved position; shape = the caret shape
-   at the pin (the pole is a ghost caret). */
+   at the pin (the pole is a ghost caret). owned = the caret's bubble
+   (the only chip Tab acts on). */
 type positioned_insertion = {
   row: int,
   col: int,
   shape: option(Util.Direction.t),
+  owned: bool,
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
 /* Find a piece by id along with its containing segment and index */
-/* The anchor's sibling list, its index there, and — when that list
-   is a tile's child — the IMMEDIATE enclosing (tile, child index):
-   the zone bounds below need the parent's shards as walls. */
-type piece_ctx = {
-  sg: Segment.t,
-  i: int,
-  p: Piece.t,
-  parent: option((Tile.t, int)),
-};
-
-let rec find_piece_ctx = (sg: Segment.t, id: Id.t): option(piece_ctx) => {
-  let rec go = (i, ps): option(piece_ctx) =>
+let rec find_piece_ctx =
+        (sg: Segment.t, id: Id.t): option((Segment.t, int, Piece.t)) => {
+  let rec go = (i, ps) =>
     switch (ps) {
     | [] => None
     | [p, ...rest] =>
       if (Id.equal(Piece.id(p), id)) {
-        Some({
-          sg,
-          i,
-          p,
-          parent: None,
-        });
+        Some((sg, i, p));
       } else {
         let deeper =
           switch ((p: Piece.t)) {
           | Tile(t) =>
             List.fold_left(
-              (acc, (ci, ch)) =>
+              (acc, ch) =>
                 switch (acc) {
                 | Some(_) => acc
-                | None =>
-                  find_piece_ctx(ch, id)
-                  |> Option.map(ctx =>
-                       ctx.parent == None
-                         ? {
-                           ...ctx,
-                           parent: Some((t, ci)),
-                         }
-                         : ctx
-                     )
+                | None => find_piece_ctx(ch, id)
                 },
               None,
-              List.mapi((ci, ch) => (ci, ch), t.children),
+              t.children,
             )
           | _ => None
           };
@@ -75,16 +60,17 @@ let rec find_piece_ctx = (sg: Segment.t, id: Id.t): option(piece_ctx) => {
 };
 
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
-  find_piece_ctx(sg, id) |> Option.map(ctx => ctx.p);
+  find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
-/* Coincidence-first placement: a pin's position within its
-   inter-content whitespace region (linebreaks included) is
-   semantically free, so it FOLLOWS the caret inside that zone and
-   RESTS at the engine's spot otherwise. */
-let resolve_position =
+/* A record the caret does NOT own rests at the run's TRUE position
+   (the splice ref — grout and whitespace included), not the content
+   anchor: a chip for material landing after `..., ?` parks after the
+   hole, not after the comma. Content anchor is the fallback
+   (witnesses, unmeasured refs; shard refs use the tile's extent).
+   Snap: the left content edge when it shares the pin's line. */
+let rest_position =
     (
       ~seg: Segment.t,
-      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -97,11 +83,6 @@ let resolve_position =
       | Right => (pm.last.row, pm.last.col)
       | Left => (pm.origin.row, pm.origin.col)
       };
-    /* rest at the run's TRUE position (the splice ref — grout and
-       whitespace included), not the content anchor: a chip for
-       material landing after `..., ?` parks after the hole, not
-       after the comma. Content anchor is the fallback (witnesses,
-       unmeasured refs; shard refs use the tile's extent). */
     let (row, col) =
       switch (
         ins.splice
@@ -119,16 +100,16 @@ let resolve_position =
       | Secondary(_) => true
       | _ => false
       };
-    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
     switch (find_piece_ctx(seg, ins.adjacent_id)) {
     | None =>
       Some({
         row,
         col,
         shape: None,
+        owned: false,
         delimiters: ins.delimiters,
       })
-    | Some({sg, i, p, parent}) =>
+    | Some((sg, i, p)) =>
       let rec prev_content = (j: int): option(Piece.t) =>
         j <= 0
           ? None
@@ -138,92 +119,19 @@ let resolve_position =
             | q => Some(q)
             }
           );
-      let n = List.length(sg);
-      let rec next_content = (j: int): option(Piece.t) =>
-        j >= n
-          ? None
-          : (
-            switch (List.nth(sg, j)) {
-            | q when is_free(q) => next_content(j + 1)
-            | q => Some(q)
-            }
-          );
-      let measure_last = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.last.row, qm.last.col)
-           );
-      let measure_origin = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.origin.row, qm.origin.col)
-           );
-      /* Zone = the positions where this insertion lands
-         identically: the whitespace run around the anchor, bounded
-         by sibling content — or, in a tile's child, by the parent's
-         SHARDS (a comma owed inside parens must never follow the
-         caret past the `)`). Only at the top level does a missing
-         bound mean open frontier. Dispatch (obligation_at_caret /
-         TypeObligations.at_caret) matches this definition
-         structurally by walking the caret's own siblings. */
-      let parent_shard_wall = (which: Direction.t): option((int, int)) =>
-        switch (parent) {
-        | None => None
-        | Some((t, ci)) =>
-          let shard_idx =
-            switch (which) {
-            | Left => List.nth_opt(t.shards, ci)
-            | Right => List.nth_opt(t.shards, ci + 1)
-            };
-          switch (shard_idx) {
-          | None => None
-          | Some(si) =>
-            switch (Measured.find_shards(t, measured) |> List.assoc_opt(si)) {
-            | Some(sm: Measured.measurement) =>
-              switch (which) {
-              | Left => Some((sm.last.row, sm.last.col))
-              | Right => Some((sm.origin.row, sm.origin.col))
-              }
-            | None => None
-            }
-          };
-        };
-      let left_bound =
-        switch (is_free(p) ? prev_content(i) : Some(p)) {
-        | Some(q) => measure_last(q)
-        | None =>
-          switch (parent_shard_wall(Left)) {
-          | Some(_) as wall => wall
-          | None => Some((0, 0))
-          }
-        };
-      let right_bound =
-        switch (next_content(is_free(p) ? i : i + 1)) {
-        | Some(q) => measure_origin(q)
-        | None => parent_shard_wall(Right) /* None only at top level */
-        };
-      /* resting spot: the left content edge when it shares the pin's
-         line (the round-6 snap); the raw anchor position otherwise */
-      let rest =
-        switch (left_bound) {
+      let left_edge =
+        is_free(p)
+          ? prev_content(i)
+            |> Option.map(q => Measured.find_by_id(Piece.id(q), measured))
+            |> Option.join
+            |> Option.map((qm: Measured.measurement) =>
+                 (qm.last.row, qm.last.col)
+               )
+          : None;
+      let (row, col) =
+        switch (left_edge) {
         | Some((lr, lc)) when lr == row => (row, min(lc, col))
         | _ => (row, col)
-        };
-      let (row, col) =
-        switch (caret_pos, left_bound) {
-        | (Some((r, c)), Some(left))
-            when
-              leq(left, (r, c))
-              && (
-                switch (right_bound) {
-                | Some(right) => leq((r, c), right)
-                | None => true
-                }
-              ) => (
-            r,
-            c,
-          )
-        | _ => rest
         };
       /* ghost-caret shape at the pin: the shared-nib facing between
          the pieces around the insertion point. A side-Right insertion
@@ -233,9 +141,6 @@ let resolve_position =
          left neighborhood first — the chevron faces the content the
          pin docks to. */
       let shape = {
-        /* the insertion point is right of the anchor for side-Right,
-           left of it for side-Left — split so the anchor sits on the
-           material's side, then read the facing neighborhood */
         let (before, after) =
           Util.ListUtil.split_n(
             switch (ins.side) {
@@ -244,23 +149,16 @@ let resolve_position =
             },
             sg,
           );
-        switch (ins.side) {
-        | Right =>
-          switch (Segment.edge_direction_of(Left, after)) {
-          | None => Segment.edge_direction_of(Right, before)
-          | d => d
-          }
-        | Left =>
-          switch (Segment.edge_direction_of(Left, after)) {
-          | None => Segment.edge_direction_of(Right, before)
-          | d => d
-          }
+        switch (Segment.edge_direction_of(Left, after)) {
+        | None => Segment.edge_direction_of(Right, before)
+        | d => d
         };
       };
       Some({
         row,
         col,
         shape,
+        owned: false,
         delimiters: ins.delimiters,
       });
     };
@@ -277,10 +175,12 @@ let delimiters_len =
   |> (n => n + max(0, List.length(delimiters) - 1));
 
 /* Chips at the SAME point stack into one bubble — they insert at
-   the same place, in order. Nearby-but-distinct chips stay separate
-   (a comma inside the parens and an `in` outside must never read as
-   one drop): the later bubble slides right just enough to clear its
-   neighbor while its pole stays on the true insertion column. */
+   the same place, in order; the caret's OWNED bubble leads such a
+   merge (Tab acts on its first delimiter). Nearby-but-distinct chips
+   stay separate (a comma inside the parens and an `in` outside must
+   never read as one drop): the later bubble slides right just enough
+   to clear its neighbor while its pole stays on the true insertion
+   column. */
 let layout_overlaps =
     (~col_width: float, chips: list(positioned_insertion))
     : list((positioned_insertion, float)) => {
@@ -290,37 +190,35 @@ let layout_overlaps =
     *. col_width
     *. chip_font_scale
     +. 8.;
+  let stack = (a: positioned_insertion, b: positioned_insertion) => {
+    let (first, second) = b.owned && !a.owned ? (b, a) : (a, b);
+    {
+      ...first,
+      owned: a.owned || b.owned,
+      /* same-tile delimiters stack in shard order (= before in),
+         whatever order their records arrived in */
+      delimiters:
+        List.stable_sort(
+          (
+            x: CanonicalCompletion.delimiter_info,
+            y: CanonicalCompletion.delimiter_info,
+          ) =>
+            switch (x.of_shard, y.of_shard) {
+            | (Some((t1, i1)), Some((t2, i2))) when Id.equal(t1, t2) =>
+              compare(i1, i2)
+            | _ => 0
+            },
+          first.delimiters @ second.delimiters,
+        ),
+    };
+  };
   let rec merge_same = (acc, rest) =>
     switch (acc, rest) {
     | (_, []) => List.rev(acc)
     | ([], [c, ...tl]) => merge_same([c], tl)
     | ([prev, ...acc_tl], [c, ...tl]) =>
       prev.row == c.row && prev.col == c.col
-        ? merge_same(
-            [
-              {
-                ...prev,
-                /* same-tile delimiters stack in shard order (= before
-                   in), whatever order their records arrived in */
-                delimiters:
-                  List.stable_sort(
-                    (
-                      a: CanonicalCompletion.delimiter_info,
-                      b: CanonicalCompletion.delimiter_info,
-                    ) =>
-                      switch (a.of_shard, b.of_shard) {
-                      | (Some((t1, i1)), Some((t2, i2)))
-                          when Id.equal(t1, t2) =>
-                        compare(i1, i2)
-                      | _ => 0
-                      },
-                    prev.delimiters @ c.delimiters,
-                  ),
-              },
-              ...acc_tl,
-            ],
-            tl,
-          )
+        ? merge_same([stack(prev, c), ...acc_tl], tl)
         : merge_same([c, ...acc], tl)
     };
   let rec shift = (prev: option((int, float)), cs) =>
@@ -340,4 +238,58 @@ let layout_overlaps =
       ];
     };
   shift(None, merge_same([], chips));
+};
+
+/* The bubble list the view draws: the owned records as one bubble at
+   the caret, every other record resting at its anchor, sorted by
+   position, same-point stacks merged, neighbors slid apart. Shared
+   with the tests so what they pin is what renders. */
+let layout =
+    (
+      ~measured: Measured.t,
+      ~col_width: float,
+      ~caret_pos: option((int, int)),
+      ~owned: list(CanonicalCompletion.insertion),
+      ~seg: Segment.t,
+      insertions: list(CanonicalCompletion.insertion),
+    )
+    : list((positioned_insertion, float)) => {
+  /* the owned list is drawn from this same stream (physical identity
+     first; (anchor, side) as the structural fallback) */
+  let is_owned = (ins: CanonicalCompletion.insertion) =>
+    List.exists(
+      (o: CanonicalCompletion.insertion) =>
+        o === ins
+        || Id.equal(o.adjacent_id, ins.adjacent_id)
+        && o.side == ins.side,
+      owned,
+    );
+  let resting =
+    insertions
+    |> List.filter(ins => !is_owned(ins))
+    |> List.filter_map(rest_position(~seg, measured));
+  let caret_bubble =
+    switch (caret_pos, owned) {
+    | (Some((row, col)), [_, ..._]) => [
+        {
+          row,
+          col,
+          shape: None,
+          owned: true,
+          delimiters:
+            List.concat_map(
+              (ins: CanonicalCompletion.insertion) => ins.delimiters,
+              owned,
+            ),
+        },
+      ]
+    | _ => []
+    };
+  let sorted =
+    List.stable_sort(
+      (a: positioned_insertion, b: positioned_insertion) =>
+        compare((a.row, a.col), (b.row, b.col)),
+      caret_bubble @ resting,
+    );
+  layout_overlaps(~col_width, sorted);
 };

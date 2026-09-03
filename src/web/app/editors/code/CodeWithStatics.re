@@ -207,6 +207,7 @@ module View = {
               typed_lens,
               _,
             },
+          state: {zipper: z, _},
           _,
         },
       _,
@@ -226,11 +227,14 @@ module View = {
         ~refine_sort,
         segment,
       );
+    /* shared by the error and warning arms */
+    let completion = Arms.lazy_completion(z);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
+        ~completion,
         model.statics.error_ids,
       );
     let warning_ids =
@@ -241,6 +245,7 @@ module View = {
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
+        ~completion,
         warning_ids,
       );
     let container_classes =

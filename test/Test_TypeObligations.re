@@ -368,7 +368,7 @@ let ghost = (code: string): string => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
   let assist = TypeObligations.assist_stream(z, ~info_map, obs);
-  switch (CanonicalCompletion.chip_among(z, assist)) {
+  switch (CompletionQuery.chip_among(z, assist)) {
   | None => "NONE"
   | Some(ins) =>
     switch (TypeObligations.ghost_pieces(z, ins)) {

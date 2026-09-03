@@ -3,6 +3,7 @@
 @import "style/animations.css";
 @import "style/loading.css";
 @import "style/editor.css";
+@import "style/quiver.css";
 @import "style/projectors/proj-base.css";
 @import "style/nut-menu.css";
 @import "style/cursor-inspector.css";
@@ -102,7 +103,6 @@ select {
 }
 
 #main {
-  /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
   grid-row: 3 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;

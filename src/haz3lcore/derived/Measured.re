@@ -212,8 +212,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-/* Internal types for measurement pass accumulator.
- * Tracks current row's content bounds incrementally. */
+/* Content bounds of the row currently being measured */
 type row_content_ = {
   start_opt: option(int), /* column of first non-whitespace, None if none yet */
   end_col: int /* column after last non-whitespace */
@@ -221,9 +220,9 @@ type row_content_ = {
 
 type measure_acc = {
   seg: Segment.t, /* pieces accumulated on current row (reversed) */
-  pos: Point.t, /* current position */
-  map: t, /* accumulated measurements */
-  row_content: row_content_ /* content bounds for current row */
+  pos: Point.t,
+  map: t,
+  row_content: row_content_,
 };
 
 let empty_row_content_: row_content_ = {
@@ -231,7 +230,7 @@ let empty_row_content_: row_content_ = {
   end_col: 0,
 };
 
-/* Update row_content when processing a non-space content piece */
+/* Extend content bounds; call only for non-whitespace pieces */
 let update_row_content_ =
     (rc: row_content_, origin: Point.t, size: Point.t): row_content_ => {
   let col = origin.col;
@@ -246,7 +245,6 @@ let update_row_content_ =
   };
 };
 
-/* Create a Rows.shape from accumulated content bounds */
 let shape_of_row_content_ = (rc: row_content_, max_col: int): Rows.shape => {
   content_start:
     switch (rc.start_opt) {
@@ -310,7 +308,7 @@ let of_segment_inner =
     };
   };
 
-  /* Add row shape and return updated map + measurement */
+  /* Measure a piece, recording `shape` for each row it spans */
   let calc_with_shape =
       (shape: Rows.shape, origin: Point.t, map: t, size: Point.t) => {
     let last = Point.add(origin, size);
@@ -318,7 +316,7 @@ let of_segment_inner =
     (mk_measurement(origin, last), map);
   };
 
-  /* For pieces that don't cross rows, just compute measurement without adding rows */
+  /* Measure a piece that stays on its row; records no row shapes */
   let calc_inline = (origin: Point.t, map: t, size: Point.t) => {
     let last = Point.add(origin, size);
     (mk_measurement(origin, last), map);
@@ -404,7 +402,7 @@ let of_segment_inner =
         seg: [Piece.Secondary(w), ...acc.seg],
         pos: measure.last,
         map: add_w(w, measure, map),
-        row_content: acc.row_content /* spaces don't affect content bounds */
+        row_content: acc.row_content,
       };
     } else {
       /* Comment or other secondary: counts as content */
