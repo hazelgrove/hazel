@@ -60,6 +60,7 @@ let mk_sample =
 let mk_cursor =
     (
       ~pinned=None,
+      ~anti_pin=None,
       ~indicated_call=None,
       ~seq=0,
       ~step_range=None,
@@ -69,6 +70,7 @@ let mk_cursor =
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
+  anti_pin,
   indicated_call,
   time: None,
   seq,
@@ -587,6 +589,7 @@ let empty_status_tests = [
 let mk_cursor_at_index =
     (
       ~pinned=None,
+      ~anti_pin=None,
       ~indicated_call=None,
       ~seq=0,
       ~step_range=None,
@@ -597,6 +600,7 @@ let mk_cursor_at_index =
   call_stack: stack,
   index,
   pinned_stack: pinned,
+  anti_pin,
   indicated_call,
   time: None,
   seq,
@@ -905,6 +909,7 @@ let three_level_tests = [
         call_stack: [n0, m1, f_frame],
         index: 2,
         pinned_stack: None,
+        anti_pin: None,
         indicated_call: None,
         time: None,
         seq: 0,
@@ -1532,6 +1537,414 @@ let perspective_extension_tests = [
   ),
 ];
 
+/* --- Test: anti-pin (inner bound) filtering --- */
+
+let anti_pin_tests = [
+  test_case(
+    "anti-pin: no anti_pin passes everything",
+    `Quick,
+    () => {
+      let samples = [
+        mk_sample([]),
+        mk_sample([frame(id_a)]),
+        mk_sample([frame(id_b), frame(id_a)]),
+      ];
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=None,
+          samples,
+        );
+      check(int, "all samples pass", 3, List.length(filtered));
+    },
+  ),
+  test_case(
+    "anti-pin: depth 0 allows only depth-1 samples",
+    `Quick,
+    () => {
+      /* anti_pin=0 means max call_stack length = 1 */
+      let s_top = mk_sample([]);
+      let s_depth1 = mk_sample([frame(id_a)]);
+      let s_depth2 = mk_sample([frame(id_b), frame(id_a)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(0),
+          [s_top, s_depth1, s_depth2],
+        );
+      check(int, "should keep top + depth1", 2, List.length(filtered));
+    },
+  ),
+  test_case(
+    "anti-pin: depth 1 allows depth-1 and depth-2 samples",
+    `Quick,
+    () => {
+      let s_top = mk_sample([]);
+      let s_depth1 = mk_sample([frame(id_a)]);
+      let s_depth2 = mk_sample([frame(id_b), frame(id_a)]);
+      let s_depth3 = mk_sample([frame(id_c), frame(id_b), frame(id_a)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(1),
+          [s_top, s_depth1, s_depth2, s_depth3],
+        );
+      check(
+        int,
+        "should keep top + depth1 + depth2",
+        3,
+        List.length(filtered),
+      );
+    },
+  ),
+  test_case(
+    "anti-pin: combined with pin (both bounds active)",
+    `Quick,
+    () => {
+      /* Pin at [A] keeps samples at/below A.
+       * Anti-pin at depth 1 removes samples deeper than depth 2.
+       * So: only keep samples with stack matching A suffix and length <= 2. */
+      let pinned = Some([frame(id_a)]);
+      let s_match = mk_sample([frame(id_a)]);
+      let s_deeper = mk_sample([frame(id_b), frame(id_a)]);
+      let s_too_deep = mk_sample([frame(id_c), frame(id_b), frame(id_a)]);
+      let s_no_match = mk_sample([frame(id_d)]);
+      let filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned,
+          ~anti_pin=Some(1),
+          [s_match, s_deeper, s_too_deep, s_no_match],
+        );
+      check(
+        int,
+        "should keep match + deeper but not too_deep or no_match",
+        2,
+        List.length(filtered),
+      );
+    },
+  ),
+  test_case(
+    "anti-pin: select with anti_pin filters correctly",
+    `Quick,
+    () => {
+      /* End-to-end: Selection.select with anti_pin should limit depth */
+      let cursor = mk_cursor(~anti_pin=Some(0), [frame(id_a)]);
+      let s_depth1 = mk_sample(~seq=0, [frame(id_a)]);
+      let s_depth2 = mk_sample(~seq=1, [frame(id_b), frame(id_a)]);
+      let (selected, _) =
+        Sample.Selection.select(
+          ~mode=Many,
+          ~offset=0,
+          ~ap_id=None,
+          ~pinned=None,
+          ~anti_pin=Some(0),
+          ~cursor,
+          [s_depth1, s_depth2],
+        );
+      check(
+        int,
+        "should show only depth-1 sample",
+        1,
+        List.length(selected),
+      );
+    },
+  ),
+];
+
+/* --- Test: find_siblings (sibling branch discovery for Up/Down nav) --- */
+
+let sibling_tests = [
+  test_case(
+    "find_siblings: finds distinct frames at depth",
+    `Quick,
+    () => {
+      /* Three calls to f at top level: f(1), f(2), f(3)
+       * Samples: [named(A, f)], [named(B, f)], [named(C, f)]
+       * Sightline at [A] (outermost-first), view_index=0
+       * Should find siblings A, B, C */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([named_frame(id_a, "f")]),
+            mk_sample([named_frame(id_b, "f")]),
+            mk_sample([named_frame(id_c, "f")]),
+          ],
+        );
+      let call_stack_rev = [named_frame(id_a, "f")];
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=0,
+          probe_map,
+        );
+      check(int, "should find 3 siblings", 3, List.length(siblings));
+    },
+  ),
+  test_case(
+    "find_siblings: respects prefix match",
+    `Quick,
+    () => {
+      /* Two calls inside f: f->g and f->h
+       * Sightline: [f, g] (outermost-first), view_index=1
+       * Siblings at depth 1 with prefix [f]: g and h */
+      let f = named_frame(id_a, "f");
+      let g = named_frame(id_b, "g");
+      let h = named_frame(id_c, "h");
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([g, f]), /* innermost-first: g is inner, f is outer */
+            mk_sample([h, f]),
+          ],
+        );
+      /* outermost-first: [f, g], view_index=1 (looking at g/h position) */
+      let call_stack_rev = [f, g];
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=1,
+          probe_map,
+        );
+      check(
+        int,
+        "should find 2 siblings (g and h)",
+        2,
+        List.length(siblings),
+      );
+    },
+  ),
+  test_case(
+    "find_siblings: no siblings when alone",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([named_frame(id_a, "f")])],
+        );
+      let call_stack_rev = [named_frame(id_a, "f")];
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=0,
+          probe_map,
+        );
+      check(
+        int,
+        "should find 1 sibling (self only)",
+        1,
+        List.length(siblings),
+      );
+    },
+  ),
+  test_case(
+    "find_siblings: excludes different prefix",
+    `Quick,
+    () => {
+      /* f->g and h->g: at depth 1, prefix is different (f vs h) */
+      let f = named_frame(id_a, "f");
+      let h = named_frame(id_c, "h");
+      let g1 = named_frame(id_b, "g");
+      let g2 = named_frame(id_d, "g");
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([g1, f]), /* f->g1 */
+            mk_sample([g2, h]) /* h->g2 */
+          ],
+        );
+      let call_stack_rev = [f, g1];
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=1,
+          probe_map,
+        );
+      /* Only g1 matches prefix [f]; g2 has prefix [h] */
+      check(
+        int,
+        "should find 1 sibling (prefix mismatch filters g2)",
+        1,
+        List.length(siblings),
+      );
+    },
+  ),
+  test_case(
+    "find_siblings: empty at invalid index",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
+      let call_stack_rev = [frame(id_a)];
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index=-1,
+          probe_map,
+        );
+      check(int, "should find 0 at invalid index", 0, List.length(siblings));
+    },
+  ),
+];
+
+/* --- Test: CallTree (trie building and flattening for tree view) --- */
+
+let call_tree_tests = [
+  test_case(
+    "CallTree: empty probe_map produces empty tree",
+    `Quick,
+    () => {
+      let tree =
+        Sample.CallTree.of_probe_map(~sightline_rev=[], Id.Map.empty);
+      check(int, "empty tree", 0, List.length(tree));
+    },
+  ),
+  test_case(
+    "CallTree: single sample produces single-node tree",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
+      check(int, "one root node", 1, List.length(tree));
+      let root = List.hd(tree);
+      check(
+        bool,
+        "root frame matches",
+        true,
+        CallStack.equal_frame(root.frame, frame(id_a)),
+      );
+      check(int, "no children", 0, List.length(root.children));
+    },
+  ),
+  test_case(
+    "CallTree: shared prefix merges into one path",
+    `Quick,
+    () => {
+      /* Two samples: [B, A] and [C, A] (innermost-first)
+       * Outermost-first: [A, B] and [A, C]
+       * Tree: A -> {B, C} */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([frame(id_b), frame(id_a)]),
+            mk_sample([frame(id_c), frame(id_a)]),
+          ],
+        );
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
+      check(int, "one root (A)", 1, List.length(tree));
+      let root = List.hd(tree);
+      check(int, "two children (B and C)", 2, List.length(root.children));
+    },
+  ),
+  test_case(
+    "CallTree: flatten single path produces one line",
+    `Quick,
+    () => {
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([frame(id_b), frame(id_a)])],
+        );
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(int, "one line", 1, List.length(lines));
+      let line = List.hd(lines);
+      check(int, "two entries on the line", 2, List.length(line));
+    },
+  ),
+  test_case(
+    "CallTree: flatten branching produces multiple lines",
+    `Quick,
+    () => {
+      /* Tree: A -> {B, C}
+       * Line 1: A ── B (first child inline)
+       * Line 2: C (second child on new line) */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [
+            mk_sample([frame(id_b), frame(id_a)]),
+            mk_sample([frame(id_c), frame(id_a)]),
+          ],
+        );
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(
+        int,
+        "two lines (first child inline, second on new line)",
+        2,
+        List.length(lines),
+      );
+      /* Line 1 should have A and B */
+      let line1 = List.nth(lines, 0);
+      check(int, "line 1: 2 entries (A, B)", 2, List.length(line1));
+      /* Line 2 should have just C */
+      let line2 = List.nth(lines, 1);
+      check(int, "line 2: 1 entry (C)", 1, List.length(line2));
+    },
+  ),
+  test_case(
+    "CallTree: linear chain collapses to one line",
+    `Quick,
+    () => {
+      /* Deep linear path: A -> B -> C (no branching)
+       * Should be one line with 3 entries */
+      let probe_map =
+        Id.Map.singleton(
+          Id.invalid,
+          [mk_sample([frame(id_c), frame(id_b), frame(id_a)])],
+        );
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
+      let lines = Sample.CallTree.flatten(tree);
+      check(int, "one line (linear chain)", 1, List.length(lines));
+      let line = List.hd(lines);
+      check(int, "three entries", 3, List.length(line));
+    },
+  ),
+  test_case(
+    "CallTree: is_on_sightline identifies matching entries",
+    `Quick,
+    () => {
+      let sightline_rev = [frame(id_a), frame(id_b)];
+      let entry_on: Sample.CallTree.line_entry = {
+        depth: 0,
+        frame: frame(id_a),
+        path: [frame(id_a)],
+        is_last_child: true,
+        has_siblings: false,
+      };
+      let entry_off: Sample.CallTree.line_entry = {
+        depth: 0,
+        frame: frame(id_c),
+        path: [frame(id_c)],
+        is_last_child: true,
+        has_siblings: false,
+      };
+      check(
+        bool,
+        "matching frame at depth 0 is on sightline",
+        true,
+        Sample.CallTree.is_on_sightline(~sightline_rev, entry_on),
+      );
+      check(
+        bool,
+        "non-matching frame at depth 0 is off sightline",
+        false,
+        Sample.CallTree.is_on_sightline(~sightline_rev, entry_off),
+      );
+    },
+  ),
+];
+
 let tests = (
   "SampleSelection",
   List.concat([
@@ -1547,5 +1960,8 @@ let tests = (
     recursive_tests,
     call_click_alignment_tests,
     perspective_extension_tests,
+    anti_pin_tests,
+    sibling_tests,
+    call_tree_tests,
   ]),
 );

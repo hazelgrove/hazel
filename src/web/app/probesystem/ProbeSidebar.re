@@ -38,6 +38,7 @@ let legend_sample =
       call_stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,
+      anti_pin: None,
       indicated_call,
       time: None,
       seq: 0,

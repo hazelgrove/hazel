@@ -304,6 +304,32 @@ select {
   filter: brightness(1.2);
 }
 
+/* Anti-pin (inner bound) icon and styling */
+#sample-focus-bar .anti-pin-icon {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 1em;
+  border: 2px solid var(--B1);
+  background: transparent;
+  cursor: pointer;
+  margin-right: 0.3em;
+  vertical-align: middle;
+  position: absolute;
+  bottom: -0.1em;
+  right: -0.75em;
+  scale: 0.75;
+}
+
+#sample-focus-bar .anti-pin-icon:hover {
+  background: var(--B1);
+}
+
+#sample-focus-bar .breadcrumb-entry.anti-pinned {
+  outline: 1.5px dashed var(--B1);
+  border-radius: 3px;
+}
+
 #sample-focus-bar .breadcrumb-body {
   cursor: pointer;
   padding: 0 0.4em;
@@ -344,6 +370,110 @@ select {
 
 #sample-focus-bar .clear-all:hover {
   background-color: var(--Y1);
+}
+
+/* Tree view toggle button */
+#sample-focus-bar .tree-toggle {
+  cursor: pointer;
+  color: var(--BR3);
+  font-size: 0.85em;
+  padding: 0 0.4em;
+  border-radius: 3px;
+  transition: background-color 0.1s;
+  flex-shrink: 0;
+}
+
+#sample-focus-bar .tree-toggle:hover {
+  background-color: white;
+}
+
+#sample-focus-bar .tree-toggle.active {
+  color: var(--G0);
+  background-color: var(--G5);
+}
+
+/* Tree mode: expand height to fit multiple lines */
+#sample-focus-bar.tree-mode {
+  height: auto;
+  max-height: 12em;
+  overflow-y: auto;
+  align-items: flex-start;
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
+}
+
+/* Tree view container — single CSS grid for cross-line column alignment.
+ * All tree entries are placed into one grid by grid-area.
+ * justify-content: start packs columns left (no stretching). */
+#sample-focus-bar .tree-view {
+  display: grid;
+  align-items: center;
+  justify-content: start;
+  column-gap: 0;
+  row-gap: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.6;
+}
+
+#sample-focus-bar .tree-name-cell {
+  white-space: nowrap;
+}
+
+#sample-focus-bar .tree-entry {
+  cursor: pointer;
+  padding: 0 0.3em;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+}
+
+#sample-focus-bar .tree-entry:hover {
+  background-color: white;
+}
+
+/* Coloring matches single-mode breadcrumb scheme */
+#sample-focus-bar .tree-entry.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+#sample-focus-bar .tree-entry.above {
+  color: var(--sample-above-text);
+}
+
+#sample-focus-bar .tree-entry.below {
+  color: var(--sample-below-text);
+  opacity: 0.7;
+}
+
+#sample-focus-bar .tree-entry.off-path {
+  color: var(--BR1);
+}
+
+#sample-focus-bar .tree-branch {
+  color: var(--BR2);
+  font-family: monospace;
+  font-size: 0.85em;
+  user-select: none;
+  text-align: center;
+  padding: 0 0.1em;
+}
+
+#sample-focus-bar .tree-separator {
+  color: var(--BR2);
+  font-family: monospace;
+  font-size: 0.85em;
+  padding: 0 0.1em;
+  user-select: none;
+}
+
+#sample-focus-bar .tree-indent {
+  display: inline-block;
+  width: 1.2em;
+  user-select: none;
 }
 
 #bottom-bar {

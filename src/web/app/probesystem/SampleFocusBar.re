@@ -72,6 +72,20 @@ let unpin = (~globals: Globals.t, pinned_stack: CallStack.t, _) =>
     ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
   );
 
+/* Toggle anti-pin (inner bound) at a depth index */
+let toggle_anti_pin = (~globals: Globals.t, depth: int, _) =>
+  globals.inject_global(
+    ActiveEditor(Project(SampleFocus(ToggleAntiPin(depth)))),
+  );
+
+/* Tree view mode toggle: single-path (default) or tree */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type view_mode =
+  | SinglePath
+  | TreeView;
+
+let view_mode_ref: ref(view_mode) = ref(SinglePath);
+
 /* Walk up the call stack from a given index to find the nearest frame
  * whose app_id is in user code. Used as a fallback for separator clicks
  * when the separator's own app_id comes from built-in internal code. */
@@ -293,6 +307,40 @@ let compute_dynamic_cap =
   find(n);
 };
 
+/* Navigate to a sibling branch at the focused depth.
+ * Replaces the frame at view_index in the (outermost-first) call stack
+ * with the new sibling frame and dispatches SetSightline. */
+let switch_sibling =
+    (
+      ~globals: Globals.t,
+      ~call_stack_rev: CallStack.t,
+      ~view_index: int,
+      new_frame: CallStack.frame,
+    ) => {
+  let n = List.length(call_stack_rev);
+  if (view_index < 0 || view_index >= n) {
+    Effect.Ignore;
+  } else {
+    /* Build new outermost-first stack with the frame at view_index replaced */
+    let new_stack_rev =
+      List.mapi((i, f) => i == view_index ? new_frame : f, call_stack_rev);
+    /* Truncate the stack at the switch point: keep prefix + new frame,
+     * drop everything deeper since the subtree may differ */
+    let truncated_rev = Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
+    /* Convert back to innermost-first for SetSightline */
+    let new_stack = List.rev(truncated_rev);
+    let new_index = List.length(new_stack) - 1;
+    Effect.Many([
+      globals.inject_global(
+        ActiveEditor(
+          Project(SampleFocus(SetSightline(new_stack, new_index))),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+};
+
 /* Keyboard handler for navigation */
 let key_handler =
     (
@@ -300,20 +348,132 @@ let key_handler =
       ~index: int,
       ~max_index: int,
       ~call_stack: CallStack.t,
+      ~call_stack_rev: CallStack.t,
+      ~probe_map: Language.Dynamics.Map.t,
       ~info_map: Statics.Map.t,
       evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
     ) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
+  /* Jump to the call site at a given index in call_stack_rev (outermost-first).
+   * Falls back to nearest user-visible call site if the frame is internal. */
+  let jump_to_index = (i: int): Ui_effect.t(unit) =>
+    if (i >= 0 && i < List.length(call_stack_rev)) {
+      /* call_stack_rev is outermost-first; get_call_site_target expects
+       * the same ordering as call_stack (also outermost-first here) */
+      let target =
+        get_call_site_target(~info_map, ~call_stack=call_stack_rev, ~index=i);
+      switch (target) {
+      | Some(target_id) => jump_to(~globals, target_id, evt)
+      | None => Effect.Ignore
+      };
+    } else {
+      Effect.Ignore;
+    };
   switch (key.key) {
   | D("ArrowLeft") =>
     /* Move to shallower level (toward top-level) */
     let new_index = max(-1, index - 1);
-    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
+    Many([
+      set_focus_index(~globals, new_index, evt),
+      jump_to_index(new_index),
+      Stop_propagation,
+    ]);
   | D("ArrowRight") =>
-    /* Move to deeper level (toward innermost call) */
-    let new_index = min(max_index, index + 1);
-    Many([set_focus_index(~globals, new_index, evt), Stop_propagation]);
+    /* Move to deeper level (toward innermost call).
+     * In tree mode, if at the end of the sightline, extend by
+     * following the first child in the call tree. */
+    if (index < max_index) {
+      let new_index = index + 1;
+      Many([
+        set_focus_index(~globals, new_index, evt),
+        jump_to_index(new_index),
+        Stop_propagation,
+      ]);
+    } else if (view_mode_ref^ == TreeView) {
+      /* At boundary in tree mode: try to extend the sightline */
+      let tree =
+        Sample.CallTree.of_probe_map(
+          ~sightline_rev=call_stack_rev,
+          probe_map,
+        );
+      switch (Sample.CallTree.first_child_at(~path_rev=call_stack_rev, tree)) {
+      | Some(child_frame) =>
+        /* Extend the path and set sightline directly */
+        let extended_rev = call_stack_rev @ [child_frame];
+        let new_stack = List.rev(extended_rev);
+        let new_index = List.length(extended_rev) - 1;
+        let jump_effect =
+          is_in_user_code(~info_map, child_frame.id)
+            ? jump_to(~globals, child_frame.id, evt) : Effect.Ignore;
+        Many([
+          globals.inject_global(
+            ActiveEditor(
+              Project(SampleFocus(SetSightline(new_stack, new_index))),
+            ),
+          ),
+          jump_effect,
+          Stop_propagation,
+        ]);
+      | None => Many([Stop_propagation])
+      };
+    } else {
+      Many([Stop_propagation]);
+    }
+  | D("ArrowUp")
+  | D("ArrowDown") =>
+    /* Navigate between sibling branches at the focused depth. */
+    let n = List.length(call_stack_rev);
+    let view_index = index;
+    if (view_index < 0 || view_index >= n) {
+      Stop_propagation;
+    } else {
+      let siblings =
+        Sample.Selection.find_siblings(
+          ~call_stack_rev,
+          ~view_index,
+          probe_map,
+        );
+      let current_frame = List.nth(call_stack_rev, view_index);
+      let current_pos =
+        List.find_index(
+          f => CallStack.equal_frame(f, current_frame),
+          siblings,
+        );
+      let direction = key.key == D("ArrowUp") ? (-1) : 1;
+      switch (current_pos) {
+      | Some(pos) =>
+        let next_pos =
+          (pos + direction + List.length(siblings)) mod List.length(siblings);
+        let next_frame = List.nth(siblings, next_pos);
+        if (CallStack.equal_frame(next_frame, current_frame)) {
+          Stop_propagation;
+        } else {
+          /* switch_sibling sets the sightline; also jump to the new frame's call site */
+          let sibling_effect =
+            switch_sibling(
+              ~globals,
+              ~call_stack_rev,
+              ~view_index,
+              next_frame,
+            );
+          let jump_target =
+            is_in_user_code(~info_map, next_frame.id)
+              ? Some(next_frame.id)
+              : find_nearest_user_app(
+                  ~info_map,
+                  ~call_stack=call_stack_rev,
+                  ~from_index=view_index - 1,
+                );
+          switch (jump_target) {
+          | Some(target_id) =>
+            Many([sibling_effect, jump_to(~globals, target_id, evt)])
+          | None => sibling_effect
+          };
+        };
+      | None => Stop_propagation
+      };
+    };
   | D("Enter") =>
     /* Jump to call site of current entry, then refocus main editor. */
     JsUtil.focus_clipboard_shim();
@@ -327,8 +487,189 @@ let key_handler =
     } else {
       Stop_propagation;
     };
+  | D("a" | "A") =>
+    /* Toggle anti-pin at current focus depth */
+    let n = List.length(call_stack_rev);
+    if (index >= 0 && index < n) {
+      let original_depth = n - 1 - index;
+      Many([
+        toggle_anti_pin(~globals, original_depth, evt),
+        Stop_propagation,
+      ]);
+    } else {
+      Stop_propagation;
+    };
   | _ => Ignore
   };
+};
+
+/* Render a single tree-view entry */
+let tree_entry =
+    (
+      ~globals: Globals.t,
+      ~info_map: Statics.Map.t,
+      ~sightline_rev: CallStack.t,
+      ~index: int,
+      entry: Sample.CallTree.line_entry,
+    )
+    : Node.t => {
+  let frame = entry.frame;
+  let display_text = resolve_display_name(~info_map, frame);
+  let on_sightline = Sample.CallTree.is_on_sightline(~sightline_rev, entry);
+  let is_focused = on_sightline && entry.depth == index;
+  /* Position classes: match single-mode breadcrumb coloring.
+   * - focused (green): the entry at the focus depth on the sightline
+   * - above (pink): sightline entries shallower than focus
+   * - below/ghost (blue): sightline entries deeper than focus
+   * - off-path (brown): entries not on the current sightline */
+  let position_class =
+    if (is_focused) {
+      "focused";
+    } else if (on_sightline && entry.depth < index) {
+      "above";
+    } else if (on_sightline) {
+      "below";
+    } else {
+      "off-path";
+    };
+  let classes =
+    ["tree-entry", position_class] @ (on_sightline ? ["on-sightline"] : []);
+
+  /* Switch the sightline to this entry's branch via SetSightline.
+   * The path is outermost-first; SetSightline wants innermost-first. */
+  let on_click = evt => {
+    let new_stack = List.rev(entry.path);
+    let new_index = List.length(new_stack) - 1;
+    let sightline_effect =
+      globals.inject_global(
+        ActiveEditor(
+          Project(SampleFocus(SetSightline(new_stack, new_index))),
+        ),
+      );
+    let call_site_target =
+      is_in_user_code(~info_map, frame.id) ? Some(frame.id) : None;
+    switch (call_site_target) {
+    | Some(target_id) =>
+      Effect.Many([sightline_effect, jump_to(~globals, target_id, evt)])
+    | None => sightline_effect
+    };
+  };
+
+  span(
+    ~attrs=[
+      Attr.classes(classes),
+      Attr.title(display_text),
+      Attr.on_pointerdown(on_click),
+    ],
+    [text(display_text)],
+  );
+};
+
+/* Compute the maximum depth across all flattened lines */
+let max_depth = (lines: list(list(Sample.CallTree.line_entry))): int =>
+  List.fold_left(
+    (acc, line) =>
+      List.fold_left(
+        (acc, entry: Sample.CallTree.line_entry) => max(acc, entry.depth),
+        acc,
+        line,
+      ),
+    0,
+    lines,
+  );
+
+/* Render the tree view of the call tree.
+ * Uses a single CSS grid for the entire tree so that columns align
+ * across all lines. Each depth maps to a pair of grid columns
+ * (branch-char + entry name). Each line is a grid row. */
+let tree_view =
+    (
+      ~globals: Globals.t,
+      ~info_map: Statics.Map.t,
+      ~probe_map: Language.Dynamics.Map.t,
+      ~sightline_rev: CallStack.t,
+      ~index: int,
+    )
+    : Node.t => {
+  let tree = Sample.CallTree.of_probe_map(~sightline_rev, probe_map);
+  let lines = Sample.CallTree.flatten(tree);
+  let n_cols = max_depth(lines) + 1;
+  /* Each depth gets 2 grid columns: one for branch char, one for name.
+   * Total grid columns = n_cols * 2. */
+  let grid_template = String.concat(" ", List.init(n_cols, _ => "auto auto"));
+  /* Emit all cells for all lines into a single flat list.
+   * Each cell is placed by grid-row and grid-column. */
+  let all_cells =
+    List.mapi(
+      (row_idx, line: list(Sample.CallTree.line_entry)) =>
+        List.mapi(
+          (i, entry: Sample.CallTree.line_entry) => {
+            let row = row_idx + 1;
+            /* Branch character cell */
+            let branch_col = entry.depth * 2 + 1;
+            let branch_char =
+              if (i == 0 && entry.depth == 0) {
+                "";
+              } else if (i == 0 && entry.depth > 0) {
+                entry.is_last_child ? {js|└|js} : {js|├|js};
+              } else {
+                {js|─|js};
+              };
+            let pos = (r, c) =>
+              Css_gen.create(
+                ~field="grid-area",
+                ~value=
+                  string_of_int(r)
+                  ++ " / "
+                  ++ string_of_int(c)
+                  ++ " / "
+                  ++ string_of_int(r + 1)
+                  ++ " / "
+                  ++ string_of_int(c + 1),
+              );
+            let branch_cell =
+              span(
+                ~attrs=[
+                  Attr.classes(["tree-branch"]),
+                  Attr.style(pos(row, branch_col)),
+                ],
+                [text(branch_char)],
+              );
+            /* Entry name cell */
+            let name_col = entry.depth * 2 + 2;
+            let entry_cell =
+              span(
+                ~attrs=[
+                  Attr.classes(["tree-name-cell"]),
+                  Attr.style(pos(row, name_col)),
+                ],
+                [
+                  tree_entry(
+                    ~globals,
+                    ~info_map,
+                    ~sightline_rev,
+                    ~index,
+                    entry,
+                  ),
+                ],
+              );
+            [branch_cell, entry_cell];
+          },
+          line,
+        )
+        |> List.concat,
+      lines,
+    )
+    |> List.concat;
+  div(
+    ~attrs=[
+      Attr.classes(["tree-view"]),
+      Attr.style(
+        Css_gen.create(~field="grid-template-columns", ~value=grid_template),
+      ),
+    ],
+    all_cells,
+  );
 };
 
 /* Main view function */
@@ -337,6 +678,7 @@ let view =
       ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
       ~info_map: Statics.Map.t,
+      ~probe_map: Language.Dynamics.Map.t,
       ~indicated_id as _: option(Id.t),
     )
     : Node.t =>
@@ -379,6 +721,13 @@ let view =
       );
     let budget = available_chars - bar_overhead_chars;
 
+    /* Anti-pin state: convert from original (innermost-first) index
+     * to reversed (outermost-first) view index */
+    let anti_pin = sample_focus.anti_pin;
+    let n = List.length(call_stack);
+    let anti_pin_view_index = Option.map(depth => n - 1 - depth, anti_pin);
+    let has_pin = pinned_stack != None;
+
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */
     let build_single_entry = (i: int): list(Node.t) => {
       let frame: CallStack.frame = List.nth(call_stack, i);
@@ -400,12 +749,17 @@ let view =
           ? Some(app_id)
           : find_nearest_user_app(~info_map, ~call_stack, ~from_index=i - 1);
 
+      let is_anti_pinned = anti_pin_view_index == Some(i);
       let entry_classes =
         ["breadcrumb-entry"]
         @ (is_focused ? ["focused"] : [])
         @ (is_ghost ? ["ghost"] : [])
         @ (is_unknown ? ["unknown"] : [])
+        @ (is_anti_pinned ? ["anti-pinned"] : [])
         @ (position_class != "" ? [position_class] : []);
+
+      /* Convert view index i to original stack depth for anti-pin */
+      let original_depth = n - 1 - i;
 
       let on_entry_click = evt =>
         switch (call_site_target) {
@@ -438,8 +792,41 @@ let view =
         | _ => []
         };
 
+      /* Anti-pin icon: shown when this entry is the anti-pin point */
+      let anti_pin_icon =
+        if (is_anti_pinned) {
+          [
+            span(
+              ~attrs=[
+                Attr.class_("anti-pin-icon"),
+                Attr.title("Click to remove inner bound"),
+                Attr.on_pointerdown(evt =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    toggle_anti_pin(~globals, original_depth, evt),
+                  ])
+                ),
+              ],
+              [],
+            ),
+          ];
+        } else {
+          [];
+        };
+
       let entry_tooltip =
-        if (is_in_user_code(~info_map, app_id)) {
+        if (is_anti_pinned) {
+          "Anti-pinned (press A on focus bar to remove)";
+        } else if (has_pin) {
+          if (is_in_user_code(~info_map, app_id)) {
+            "Jump to call site (A key: set inner bound)";
+          } else {
+            switch (call_site_target) {
+            | Some(_) => {js|Internal call — jump to enclosing (A key: set inner bound)|js}
+            | None => "Internal call (A key: set inner bound)"
+            };
+          };
+        } else if (is_in_user_code(~info_map, app_id)) {
           "Jump to call site";
         } else {
           switch (call_site_target) {
@@ -455,7 +842,7 @@ let view =
             Attr.title(entry_tooltip),
             Attr.on_pointerdown(on_entry_click),
           ],
-          pin_icon @ [text(display_text)],
+          pin_icon @ anti_pin_icon @ [text(display_text)],
         );
 
       let sep_ghost = i > index + 1;
@@ -568,12 +955,56 @@ let view =
         [text("Clear all")],
       );
 
+    /* Tree view toggle button */
+    let is_tree_mode = view_mode_ref^ == TreeView;
+    let toggle_icon = is_tree_mode ? {js|≡|js} : {js|⊞|js};
+    let toggle_tooltip =
+      is_tree_mode ? "Switch to single path" : "Switch to tree view";
+    let tree_toggle =
+      span(
+        ~attrs=[
+          Attr.classes(["tree-toggle"] @ (is_tree_mode ? ["active"] : [])),
+          Attr.title(toggle_tooltip),
+          Attr.on_pointerdown(_ => {
+            view_mode_ref := is_tree_mode ? SinglePath : TreeView;
+            /* Force re-render by dispatching a no-op focus set */
+            globals.inject_global(
+              ActiveEditor(Project(SampleFocus(SetIndex(index)))),
+            );
+          }),
+        ],
+        [text(toggle_icon)],
+      );
+
+    /* Render content based on view mode */
+    let content =
+      if (is_tree_mode) {
+        tree_view(
+          ~globals,
+          ~info_map,
+          ~probe_map,
+          ~sightline_rev=call_stack,
+          ~index,
+        );
+      } else {
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon);
+      };
+
     div(
       ~attrs=[
         Attr.id("sample-focus-bar"),
+        Attr.classes([] @ (is_tree_mode ? ["tree-mode"] : [])),
         Attr.tabindex(0),
         Attr.on_keydown(
-          key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),
+          key_handler(
+            ~globals,
+            ~index,
+            ~max_index,
+            ~call_stack,
+            ~call_stack_rev=call_stack,
+            ~probe_map,
+            ~info_map,
+          ),
         ),
       ],
       [
@@ -584,7 +1015,8 @@ let view =
           ],
           [text("probe focus")],
         ),
-        div(~attrs=[Attr.class_("breadcrumbs")], entries @ body_icon),
+        tree_toggle,
+        content,
         clear_all_button,
       ],
     );

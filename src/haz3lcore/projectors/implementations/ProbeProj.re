@@ -231,6 +231,7 @@ let select_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         dynamics.samples,
       )
     };
@@ -1007,6 +1008,7 @@ let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     );
   switch (
@@ -1080,6 +1082,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     );
   let cursor_idx =
@@ -1126,6 +1129,7 @@ let num_samples_view = (~ap_id: option(Id.t), dynamics: Dynamics.Info.t) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       dynamics.samples,
     )
     |> List.length;
@@ -1265,6 +1269,18 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
       Many([focus_call(ctx), Stop_propagation, Prevent_default])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D("a") =>
+    /* Toggle anti-pin at the current sightline focus depth */
+    let focus = ctx.dynamics.sample_focus;
+    if (focus.pinned_stack != None && focus.index >= 0) {
+      Many([
+        parent(SampleFocus(ToggleAntiPin(focus.index))),
+        Stop_propagation,
+        Prevent_default,
+      ]);
+    } else {
+      Many([Stop_propagation, Prevent_default]);
+    };
   | D("Enter") =>
     /* Step into the indicated sample */
     switch (indicated_sample(ctx), ap_id) {
@@ -1344,6 +1360,7 @@ let offside_view =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         dynamics.samples,
       );
     let num_total = List.length(filtered_samples);

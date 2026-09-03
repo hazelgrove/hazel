@@ -56,7 +56,9 @@ type select =
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
   | TogglePin(Language.CallStack.t)
+  | ToggleAntiPin(int) /* Toggle anti-pin (inner bound) at a depth index */
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
+  | SetSightline(Language.CallStack.t, int) /* Set call_stack + index directly (no suffix preservation) */
   | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

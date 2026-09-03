@@ -276,7 +276,10 @@ module Focus = {
   /* Focus.t fields:
    * - call_stack: Full call context; may be deeper than effective cursor
    * - index: Effective depth in call_stack (-1 = top-level, 0+ = inside calls)
-   * - pinned_stack: If set, filters samples to those under this call context
+   * - pinned_stack: If set, filters samples to those under this call context (outer bound)
+   * - anti_pin: If set, an index into call_stack representing the depth ceiling (inner bound).
+   *     Samples whose call stack is deeper than anti_pin + 1 are filtered out.
+   *     Invariant: when both pin and anti_pin are set, anti_pin <= pin's effective depth.
    * - indicated_call: Syntax ID of function call under syntax cursor (for step-into)
    * - time: Timestamp of focused sample (for time-based correlation)
    * - seq: Sequence number of focused sample (for ordering-based correlation)
@@ -287,6 +290,7 @@ module Focus = {
     call_stack: CallStack.t,
     index: int,
     pinned_stack: option(CallStack.t),
+    anti_pin: option(int),
     indicated_call: option(Id.t),
     time: option(float),
     seq: int,
@@ -298,6 +302,7 @@ module Focus = {
     call_stack: [],
     index: (-1),
     pinned_stack: None,
+    anti_pin: None,
     indicated_call: None,
     time: None,
     seq: 0,
@@ -305,7 +310,7 @@ module Focus = {
     pending_focus: None,
   };
 
-  /* The above-focus portion of the sightline: call_stack sliced to
+  /* The above-focus portion of the sightline: CallStack.t sliced to
    * index + 1 elements from the outer end. This is where you ARE —
    * the active position used for tier 1 alignment. The full call_stack
    * extends deeper (below-focus) for tier 2 alignment. */
@@ -438,45 +443,62 @@ module Selection = {
       Some(NotAligned);
     };
 
-  /* Filter samples by pinned call stack.
-   * Print-origin samples are excluded — they are only for the Printarium. */
+  /* Filter samples by pinned call stack (outer bound) and anti-pin (inner bound).
+   * Print-origin samples are excluded — they are only for the Printarium.
+   *
+   * Pin (outer bound): only show samples within this calling context.
+   * Anti-pin (inner bound): don't show samples deeper than this depth.
+   *
+   * The anti_pin is an index into the sightline's call_stack. Samples whose
+   * call_stack length exceeds anti_pin + 1 are filtered out. */
   let filter_by_pin =
       (
         ~ap_id: option(Id.t),
         ~pinned: option(CallStack.t),
+        ~anti_pin: option(int)=None,
         samples: list(t),
       )
       : list(t) => {
     let samples = List.filter((s: t) => s.origin != Print, samples);
-    switch (pinned) {
-    | Some(pinned_stack) =>
-      /* Extract just the Id.t from head of pinned_stack for comparison */
-      let pinned_head_id =
-        Option.map(
-          (f: CallStack.frame) => f.id,
-          ListUtil.hd_opt(pinned_stack),
-        );
-      /* Compare by ID only - pinned_stack may have None for function names
-       * but actual samples have real names from evaluation */
-      let pinned_ids = CallStack.ids_of_stack(pinned_stack);
-      List.filter(
-        (sample: t) => {
-          let sample_ids = CallStack.ids_of_stack(sample.call_stack);
-          pinned_head_id == ap_id
-          /* Sample is at or below pin (current behavior) */
-          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
-          /* Probe is on an application in the pinned call chain,
-           * and sample is above pin on same ancestral path (breadcrumbs) */
-          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
-          && (
-            switch (ap_id) {
-            | Some(id) => List.mem(id, pinned_ids)
-            | None => false
-            }
+    let samples =
+      switch (pinned) {
+      | Some(pinned_stack) =>
+        /* Extract just the Id.t from head of pinned_stack for comparison */
+        let pinned_head_id =
+          Option.map(
+            (f: CallStack.frame) => f.id,
+            ListUtil.hd_opt(pinned_stack),
           );
-        },
+        /* Compare by ID only - pinned_stack may have None for function names
+         * but actual samples have real names from evaluation */
+        let pinned_ids = CallStack.ids_of_stack(pinned_stack);
+        List.filter(
+          (sample: t) => {
+            let sample_ids = CallStack.ids_of_stack(sample.call_stack);
+            pinned_head_id == ap_id
+            /* Sample is at or below pin (current behavior) */
+            || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+            /* Probe is on an application in the pinned call chain,
+             * and sample is above pin on same ancestral path (breadcrumbs) */
+            || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+            && (
+              switch (ap_id) {
+              | Some(id) => List.mem(id, pinned_ids)
+              | None => false
+              }
+            );
+          },
+          samples,
+        );
+      | None => samples
+      };
+    /* Anti-pin (inner bound): filter out samples deeper than the depth ceiling */
+    switch (anti_pin) {
+    | Some(depth) =>
+      List.filter(
+        (sample: t) => List.length(sample.call_stack) <= depth + 1,
         samples,
-      );
+      )
     | None => samples
     };
   };
@@ -597,6 +619,105 @@ module Selection = {
     group_by_call(samples),
   );
 
+  /* Find sibling branches at a given depth in the call tree.
+   *
+   * Given the current sightline (outermost-first call_stack and a view_index
+   * into it), find all distinct frames at that position across all samples
+   * in the probe_map, filtering to those that share the same prefix.
+   *
+   * Returns a deduplicated list of stack_frames that are valid alternatives
+   * at view_index. The current frame is included in the result.
+   *
+   * Parameters:
+   * - call_stack_rev: the sightline call_stack in outermost-first order
+   * - view_index: position in the outermost-first list to find siblings
+   * - probe_map: all samples across all probes */
+  /* Find sibling frames at a given depth, sorted to match tree display order
+   * (sightline-first, then by evaluation order / min seq). */
+  let find_siblings =
+      (
+        ~call_stack_rev: CallStack.t,
+        ~view_index: int,
+        probe_map: Id.Map.t(list(t)),
+      )
+      : list(CallStack.frame) => {
+    let n = List.length(call_stack_rev);
+    if (view_index < 0 || view_index >= n) {
+      [];
+    } else {
+      /* The prefix is everything before view_index in outermost-first order */
+      let prefix = ListUtil.slice(0, view_index, call_stack_rev);
+      let prefix_ids = CallStack.ids_of_stack(prefix);
+      /* Collect distinct frames with their min seq for sorting */
+      let frame_seqs: ref(list((CallStack.frame, int))) = ref([]);
+      Id.Map.iter(
+        (_, samples) =>
+          List.iter(
+            (sample: t) => {
+              let sample_rev = List.rev(sample.call_stack);
+              let sample_len = List.length(sample_rev);
+              if (sample_len > view_index) {
+                let sample_prefix = ListUtil.slice(0, view_index, sample_rev);
+                let sample_prefix_ids = CallStack.ids_of_stack(sample_prefix);
+                if (sample_prefix_ids == prefix_ids) {
+                  let frame_at_depth = List.nth(sample_rev, view_index);
+                  switch (
+                    List.find_opt(
+                      ((f, _)) => CallStack.equal_frame(f, frame_at_depth),
+                      frame_seqs^,
+                    )
+                  ) {
+                  | Some((_, existing_seq)) =>
+                    /* Update min_seq if this sample is earlier */
+                    if (sample.seq < existing_seq) {
+                      frame_seqs :=
+                        List.map(
+                          ((f, s)) =>
+                            CallStack.equal_frame(f, frame_at_depth)
+                              ? (f, sample.seq) : (f, s),
+                          frame_seqs^,
+                        );
+                    }
+                  | None =>
+                    frame_seqs :=
+                      frame_seqs^ @ [(frame_at_depth, sample.seq)]
+                  };
+                };
+              };
+            },
+            samples,
+          ),
+        probe_map,
+      );
+      /* Sort by min seq, then rotate to sightline (same cycle as tree) */
+      let sorted =
+        List.sort(
+          ((_, a_seq), (_, b_seq)) => compare(a_seq, b_seq),
+          frame_seqs^,
+        );
+      let current_frame =
+        view_index < n ? Some(List.nth(call_stack_rev, view_index)) : None;
+      let rotated =
+        switch (current_frame) {
+        | Some(cf) =>
+          switch (
+            List.find_index(
+              ((f, _)) => CallStack.equal_frame(f, cf),
+              sorted,
+            )
+          ) {
+          | Some(i) =>
+            let before = ListUtil.slice(0, i, sorted);
+            let after = ListUtil.slice(i, List.length(sorted) - i, sorted);
+            after @ before;
+          | None => sorted
+          }
+        | None => sorted
+        };
+      List.map(fst, rotated);
+    };
+  };
+
   /* Select samples to display based on cursor position and window mode.
    * Pure function - offset is passed in and new offset returned. */
   let select =
@@ -605,11 +726,12 @@ module Selection = {
         ~offset: int,
         ~ap_id: option(Id.t),
         ~pinned: option(CallStack.t),
+        ~anti_pin: option(int)=None,
         ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {
-    let filtered = filter_by_pin(~ap_id, ~pinned, samples);
+    let filtered = filter_by_pin(~ap_id, ~pinned, ~anti_pin, samples);
     let first_idx = most_aligned_index(~ap_id, cursor, filtered);
     if (first_idx == None && mode == Single) {
       ([], offset);
@@ -626,6 +748,271 @@ module Selection = {
         );
       let selected = ListUtil.slice(new_offset, max, filtered) |> List.rev;
       (selected, new_offset);
+    };
+  };
+};
+
+/* Call-stack trie for tree view display.
+ *
+ * Each node represents a frame in the call tree. Children are the
+ * distinct next frames across all samples. The trie is built from
+ * all samples' call stacks (union across all probes).
+ *
+ * Used by the SampleFocusBar tree view toggle to show all branches. */
+module CallTree = {
+  type node = {
+    frame: CallStack.frame,
+    children: list(node),
+    min_seq: int /* Earliest evaluation order among all samples through this node */
+  };
+
+  /* A forest (list of root nodes) representing the top-level call tree */
+  type t = list(node);
+
+  /* Insert an outermost-first path into the trie, tracking min seq */
+  let rec insert_path = (path: CallStack.t, seq: int, forest: t): t =>
+    switch (path) {
+    | [] => forest
+    | [frame, ...rest] =>
+      let found = ref(false);
+      let forest' =
+        List.map(
+          (node: node) =>
+            if (CallStack.equal_frame(node.frame, frame)) {
+              found := true;
+              {
+                ...node,
+                children: insert_path(rest, seq, node.children),
+                min_seq: min(node.min_seq, seq),
+              };
+            } else {
+              node;
+            },
+          forest,
+        );
+      if (found^) {
+        forest';
+      } else {
+        forest
+        @ [
+          {
+            frame,
+            children: insert_path(rest, seq, []),
+            min_seq: seq,
+          },
+        ];
+      };
+    };
+
+  /* Rotate a list to start at the element matching a predicate,
+   * preserving relative order (eval-order cycle). */
+  let rotate_to = (pred: 'a => bool, xs: list('a)): list('a) =>
+    switch (List.find_index(pred, xs)) {
+    | Some(i) =>
+      let before = ListUtil.slice(0, i, xs);
+      let after = ListUtil.slice(i, List.length(xs) - i, xs);
+      after @ before;
+    | None => xs
+    };
+
+  /* Sort children by evaluation order (min_seq), then rotate so the
+   * sightline child is first. Preserves relative cycle order. */
+  let sort_children =
+      (~sightline_rev: CallStack.t, ~depth: int, children: list(node))
+      : list(node) => {
+    let sorted =
+      List.sort(
+        (a: node, b: node) => compare(a.min_seq, b.min_seq),
+        children,
+      );
+    let on_sightline = (n: node): bool =>
+      depth < List.length(sightline_rev)
+      && CallStack.equal_frame(List.nth(sightline_rev, depth), n.frame);
+    rotate_to(on_sightline, sorted);
+  };
+
+  /* Recursively sort all children in the tree */
+  let rec sort_tree = (~sightline_rev: CallStack.t, ~depth: int, forest: t): t =>
+    List.map(
+      (node: node) => {
+        let sorted_children =
+          sort_children(~sightline_rev, ~depth=depth + 1, node.children);
+        {
+          ...node,
+          children:
+            sort_tree(~sightline_rev, ~depth=depth + 1, sorted_children),
+        };
+      },
+      sort_children(~sightline_rev, ~depth, forest),
+    );
+
+  /* Build a call tree from all samples in a probe_map.
+   * Sorted: sightline-first at each level, then by evaluation order. */
+  let of_probe_map =
+      (~sightline_rev: CallStack.t, probe_map: Id.Map.t(list(sample))): t => {
+    let forest =
+      Id.Map.fold(
+        (_, samples, forest) =>
+          List.fold_left(
+            (acc, s: sample) => {
+              let path = List.rev(s.call_stack);
+              insert_path(path, s.seq, acc);
+            },
+            forest,
+            samples,
+          ),
+        probe_map,
+        [],
+      );
+    sort_tree(~sightline_rev, ~depth=0, forest);
+  };
+
+  /* Flatten a tree into lines for display. Each line is a list of
+   * (depth, frame) pairs. Uses the "first child inline" rule:
+   * - Single-child nodes continue on the same line
+   * - Multi-child: first child stays on same line, rest start new lines
+   *
+   * Returns list of lines, where each line is a list of (depth, node) pairs
+   * representing the entries on that line. */
+  type line_entry = {
+    depth: int,
+    frame: CallStack.frame,
+    /* Full path from root to this entry (outermost-first). Used by the
+     * tree view to switch the sightline when clicking an entry. */
+    path: CallStack.t,
+    is_last_child: bool,
+    has_siblings: bool,
+  };
+
+  let flatten = (forest: t): list(list(line_entry)) => {
+    let lines = ref([]);
+    let current_line = ref([]);
+
+    let rec walk =
+            (
+              ~depth: int,
+              ~ancestors: CallStack.t,
+              ~is_last: bool,
+              ~has_siblings: bool,
+              node: node,
+            ) => {
+      let path = ancestors @ [node.frame];
+      current_line :=
+        current_line^
+        @ [
+          {
+            depth,
+            frame: node.frame,
+            path,
+            is_last_child: is_last,
+            has_siblings,
+          },
+        ];
+      switch (node.children) {
+      | [] => ()
+      | [single] =>
+        /* Single child: continue on same line */
+        walk(
+          ~depth=depth + 1,
+          ~ancestors=path,
+          ~is_last=true,
+          ~has_siblings=false,
+          single,
+        )
+      | [first, ...rest] =>
+        /* Multiple children: first stays on this line, rest get new lines */
+        walk(
+          ~depth=depth + 1,
+          ~ancestors=path,
+          ~is_last=false,
+          ~has_siblings=true,
+          first,
+        );
+        let n_rest = List.length(rest);
+        List.iteri(
+          (i, child) => {
+            /* Flush current line and start new */
+            lines := lines^ @ [current_line^];
+            current_line := [];
+            walk(
+              ~depth=depth + 1,
+              ~ancestors=path,
+              ~is_last=i == n_rest - 1,
+              ~has_siblings=true,
+              child,
+            );
+          },
+          rest,
+        );
+      };
+    };
+
+    let n_roots = List.length(forest);
+    List.iteri(
+      (i, node) => {
+        if (i > 0) {
+          lines := lines^ @ [current_line^];
+          current_line := [];
+        };
+        walk(
+          ~depth=0,
+          ~ancestors=[],
+          ~is_last=i == n_roots - 1,
+          ~has_siblings=n_roots > 1,
+          node,
+        );
+      },
+      forest,
+    );
+    /* Don't forget the last line */
+    if (current_line^ != []) {
+      lines := lines^ @ [current_line^];
+    };
+    lines^;
+  };
+
+  /* Check if a tree entry is on the sightline by comparing its full
+   * path (root to entry) against the sightline prefix up to that depth.
+   * This correctly handles recursive functions where the same frame ID
+   * appears on multiple branches at the same depth. */
+  let is_on_sightline = (~sightline_rev: CallStack.t, entry: line_entry): bool => {
+    let path_len = List.length(entry.path);
+    let sight_len = List.length(sightline_rev);
+    path_len <= sight_len
+    && List.for_all2(
+         CallStack.equal_frame,
+         entry.path,
+         ListUtil.slice(0, path_len, sightline_rev),
+       );
+  };
+
+  /* Follow a path (outermost-first) through the tree and return the
+   * first child frame at the next depth. Used by Right-arrow in tree
+   * mode to extend the sightline beyond its current depth. */
+  let first_child_at =
+      (~path_rev: CallStack.t, forest: t): option(CallStack.frame) => {
+    let rec find_node = (path: CallStack.t, nodes: list(node)): option(node) =>
+      switch (path) {
+      | [] => None
+      | [frame] =>
+        List.find_opt(
+          (n: node) => CallStack.equal_frame(n.frame, frame),
+          nodes,
+        )
+      | [frame, ...rest] =>
+        switch (
+          List.find_opt(
+            (n: node) => CallStack.equal_frame(n.frame, frame),
+            nodes,
+          )
+        ) {
+        | Some(n) => find_node(rest, n.children)
+        | None => None
+        }
+      };
+    switch (find_node(path_rev, forest)) {
+    | Some({children: [first, ..._], _}) => Some(first.frame)
+    | _ => None
     };
   };
 };
