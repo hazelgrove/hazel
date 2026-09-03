@@ -1,0 +1,58 @@
+@flags
+show_report version=1 id=b0000005-0005-0005-0005-000000000005
+
+@prompt
+A *tuple* groups values: `("moonleaf", 250)`. Access its pieces via a destructuring pattern:
+```hazelnostatics
+let (name, water) = ("moonleaf", 250) in
+name
+```
+A *labelled tuple* is a kind of *record*: each element gets a label, and you access members by name using the dot (`.`) operator:
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.water
+```
+
+# Tasks
+1. Probe the program's result on the last line: caret on `(caption, fern.water)`, then **Cmd/Ctrl+E**. As you fill the holes below, this sample updates live.
+2. Destructure `plant` apart into `name` and `water` (the parentheses around the pattern are optional but suggested for clarity), then build `caption` so it reads **"moonleaf needs 250ml"**. Notice that if you insert `water` straight into the caption it turns red (try it); the error bar at the bottom of the screen says why (here, type `Int` is inconsistent with the expected type `String`). You'll need `string_of_int` to convert.
+3. Build a `"fern"` record: ferns need **200 ml** each watering. The result sample now shows its `water` too.
+
+@hint
+Destructure a pair with `let (a, b) = pair in`. A record is `(field = value, ...)`; read with `record_name.field`.
+
+@reference
+### Tuples
+```hazel
+let (name, water) = ("moonleaf", 250) in
+water
+```
+
+### Tuple records
+```hazel
+let plant = (name = "moonleaf", water = 250) in
+plant.water
+```
+The type is written `(name = String, water = Int)`.
+
+### Strings
+- `++` joins strings
+- `string_of_int(250)` is `"250"`
+
+@hints
+caption should be "moonleaf needs 250ml"
+fern should be a Plant record with water 200
+
+@code
+let plant: (String, Int) = ("moonleaf", 250) in
+let ¿ = plant in
+let caption = name ++ " needs " ++ ¿ ++ "ml" in
+
+type Plant = (name = String, water = Int) in
+let fern: Plant = ¿ in
+
+(caption, fern.water)
+
+@test
+test caption == "moonleaf needs 250ml" end;
+test fern.water == 200 end

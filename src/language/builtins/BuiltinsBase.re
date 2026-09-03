@@ -47,8 +47,6 @@ let numeric_constants =
 
 let misc_fns: list(BuiltinsUtil.fn) = [
   {
-    /* Println for probes study */
-
     name: "print",
     arg: Unknown(Internal),
     ret: Prod([]),

@@ -3073,23 +3073,17 @@ and label_to_pretty =
 /* Display segments must never contain two tile pieces claiming the same
    (id, shard): Segment.reassemble (run by PrettySegment.format during
    drawer layout, and by editor init on result views) groups tile pieces
-   BY ID, and duplicated complete tiles make it die with
-   "Tile.reassemble: out-of-order shards [0,1,2,0,1,2,...]" — the study
-   tile-shard crash ("Exception during Calculate"; see
-   test/Test_ShardCrashRepro.re and the study's bug dossier).
+   BY ID, and duplicated complete tiles make it die (see
+   test/Test_ShardCrashRepro.re).
 
    Printed VALUES can legitimately embed the same source subterm more than
    once (shared substructure in captured probe samples, stale worker
-   results displayed against a newer program, adoption/absorption paths —
-   cf. the pad_ids HACK note above, which only de-dupes ids WITHIN one
-   term's id list, not across sibling subterms). The printer is not the
-   place to enforce evaluator invariants: after printing, freshen every
-   tile whose (id, shard) was already emitted, keeping the FIRST
-   occurrence's id so sample→source linking still works.
-
-   Keying on (id, shard) repeats — not bare id repeats — means a logical
-   tile legitimately split across pieces (distinct shard indices) is never
-   touched; only true duplicates are freshened. */
+   results, adoption/absorption paths — cf. the pad_ids HACK note above,
+   which only de-dupes ids WITHIN one term's id list). After printing,
+   freshen every tile whose (id, shard) was already emitted, keeping the
+   FIRST occurrence's id so sample→source linking still works. Keying on
+   (id, shard) repeats — not bare id repeats — leaves a tile legitimately
+   split across pieces untouched. */
 let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
   let seen: Hashtbl.t((Id.t, int), unit) = Hashtbl.create(64);
   let rec go_seg = (seg: Segment.t): Segment.t => List.map(go_piece, seg)

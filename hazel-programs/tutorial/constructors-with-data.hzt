@@ -1,0 +1,54 @@
+@flags
+wrapper show_report version=1 id=b0000017-0017-0017-0017-000000000017
+
+@prompt
+Sum type constructors can carry data: you can give a constructor a payload in its type, and bind that payload in a matching pattern.
+```hazelnostatics
+type Care = Water(Int) + Trim + Skip in "…"
+```
+Matching `Water(amount)` binds the carried value as `amount`.
+
+# Tasks
+1. Probe the program's result: caret on the `apply` call on the last line, then **Cmd/Ctrl+E**. As you build the pieces below, watch this sample.
+2. Put your caret on the `let` token of `apply` and add a multi-probe. The samples are only partially evaluated, because of the hole.
+3. On the first line, in the `type Care` definition, add a `Water(Int)` constructor.
+4. Fill the call to `apply` with `Water(50)`. Filling the call *before* writing the handler means live values are available while you write it: an outside-in, test-first order that is generally useful when using probes. The result stays partial for now as the `case` does not handle `Water` yet.
+5. Inside `apply`, in the `case` expression, handle the `Water` case. It should add the payload to the base amount.
+
+@hint
+Add `Water(Int)` to the type, a `| Water(amount) => base + amount` arm to the case, and add the value `Water(50)`.
+
+@reference
+### Constructors with data
+```hazel
+type Care = Water(Int) + Skip in
+case Water(50)
+| Water(n) => n
+| Skip => 0
+end
+```
+
+### Option
+`Option` is the built-in constructor for "maybe a value": `Some(value)` or `None`.
+```hazel
+case Some(7)
+| Some(n) => n
+| None => 0
+end
+```
+
+@hints
+apply(250, Water(50)) should be 300.
+
+@code
+type Care = Trim + Skip in
+let apply(base: Int, action: Care): Int =
+  case action
+  | Trim => base - 10
+  | Skip => base
+  end
+in
+apply(250, ¿)
+
+@test
+test answer == 300 end

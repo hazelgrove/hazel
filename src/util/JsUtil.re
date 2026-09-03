@@ -420,6 +420,23 @@ let scroll_cursor_into_view_if_needed = () =>
   | Assert_failure(_) => ()
   };
 
+/* main editor container scrollTop (read/write) — tutorial per-slide scroll memory */
+let main_scroll_top = (): float =>
+  try({
+    let main = get_elem_by_id("main");
+    float_of_int(main##.scrollTop);
+  }) {
+  | Assert_failure(_) => 0.
+  };
+
+let set_main_scroll_top = (top: float) =>
+  try({
+    let main = get_elem_by_id("main");
+    main##.scrollTop := int_of_float(top);
+  }) {
+  | Assert_failure(_) => ()
+  };
+
 module Fragment = {
   let get_current = () => {
     let fragment_of_url = (url: Url.url): string =>

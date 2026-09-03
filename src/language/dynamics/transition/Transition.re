@@ -797,7 +797,6 @@ module Transition = (EV: EV_MODE) => {
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
           if (ident == "print") {
-            /* Println for probes study */
             Step({
               expr: tuple([]),
               side_effects: [

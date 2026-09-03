@@ -58,7 +58,6 @@
   --highlight-e: oklch(from var(--highlight-a) l c calc(h - 3 * 60));
   --highlight-f: oklch(from var(--highlight-a) l c calc(h - 5 * 60));
 
-
   /* Incremental evaluator "frozen" tint: behind code reused from the
    * previous evaluation run (cache hit), left as-is by the worker. */
   --incremental-frozen: rgba(200, 230, 255, 0.55);
@@ -100,6 +99,7 @@
   --main-scroll-thumb: var(--BR1);
   --main-scroll-track: var(--NONE);
   --cell-selected-accent: var(--R1);
+  --cell-idle-accent: var(--BR1); /* unfocused cell accent line (pale brown) */
 
   /* CODE DECO */
 
@@ -237,7 +237,7 @@
   /* EXERCISE MODE UI */
 
   --cell-caption: var(--BR2);
-  --cell-result: var(--T3);
+  --cell-result: var(--T2);
   --cell-exercises-border: var(--BR2);
   --test-panel-bkg: var(--menu-bkg);
   --test-percent-text: var(--SAND);

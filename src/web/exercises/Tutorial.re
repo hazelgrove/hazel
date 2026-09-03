@@ -44,6 +44,7 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
+  task_reference: string,
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
   wrapper: bool,
@@ -73,6 +74,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     module_name: p.module_name,
     prompt: p.prompt,
     display_hint: p.display_hint,
+    task_reference: p.task_reference,
     your_impl: f(p.your_impl),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
@@ -366,6 +368,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     module_name: spec.module_name,
     prompt: spec.prompt,
     display_hint: spec.display_hint,
+    task_reference: spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
     your_impl,

@@ -57,7 +57,7 @@ type effect =
       samples: PatternMatch.sample_closures,
     })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
-  | RecordPrint(DHExp.t); /* Println for probes study */
+  | RecordPrint(DHExp.t);
 
 let empty: t = {
   initial_step_count: 0,
