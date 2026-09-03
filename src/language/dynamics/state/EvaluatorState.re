@@ -30,7 +30,7 @@ type t = {
    * path for expression samples. Balanced within each top-level
    * segment, so `append` keeps the base's opens. */
   obs_opens: list(ObsTrace.open_span),
-  /* The observation trace (plans/observation-trace.md): the event
+  /* The observation trace: the event
    * sequence whose fold (ObsTrace.fold_step, driven by record_event)
    * IS how `probes` gets populated. The retained list exists for
    * batch replay (ObsTrace.assemble ≡ probes, pinned by

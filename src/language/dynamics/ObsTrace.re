@@ -1,16 +1,15 @@
 open Util;
 
 /* Observation trace: the evaluator narrates what happened as a sequence
- * of events, and probe samples are a fold over it (slice 3 of
- * plans/observation-trace.md: the fold IS the minting path — the state's
- * probe map is maintained incrementally by `fold_step` as events are
- * recorded, and the batch `assemble` is the same transition replayed,
- * pinned equal by Test_ObsTraceShadow).
+ * of events, and probe samples are a fold over it: the fold IS the
+ * minting path — the state's probe map is maintained incrementally by
+ * `fold_step` as events are recorded, and the batch `assemble` is the
+ * same transition replayed (pinned equal by Test_ObsTraceShadow).
  *
  * Representation rules:
  * - Events reference IDENTITIES (syntax id + call-stack instance), never
- *   absolute trace positions (parallelism-proofing, design §9). Closes
- *   pair with opens by bracket structure.
+ *   absolute trace positions, so separately evaluated segments splice
+ *   without renumbering. Closes pair with opens by bracket structure.
  * - Enter-data (arg + call frame, observable only when the Ap steps)
  *   attaches to the matching OPEN span, so its lifetime is bracket-scoped
  *   — no side table. The delegation law (at most one open span per
