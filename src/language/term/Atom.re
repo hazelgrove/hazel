@@ -200,6 +200,9 @@ let convert =
   };
 };
 
+let is_valid_raw_string_body = (s: string): bool =>
+  !String.contains(s, '\n') && !String.contains(s, '\r');
+
 let to_literal = (e: t): string =>
   switch (e) {
   | Int(i) => i |> Bigint.to_string

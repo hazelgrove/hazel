@@ -38,7 +38,12 @@ let delete = (d: Direction.t, z: t): option(t) => {
  * its content character-by-character, as if the user had typed it.
  * This is the inverse of selection wrapping for quote delimiters. */
 let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
-  let content = String.sub(t, 1, String.length(t) - 2);
+  let content =
+    if (Token.is_raw_string(t)) {
+      Token.strip_raw_quotes(t);
+    } else {
+      String.sub(t, 1, String.length(t) - 2);
+    };
   let+ z = delete(d, z);
   if (String.length(content) == 0) {
     z;
@@ -72,12 +77,16 @@ let outer = (d: Direction.t, z: t, ~root): option(t) =>
 let rm_nth_right = (idx, t, z, ~root) =>
   Insert.replace_shard(Right, Token.rm_nth(t, idx), z, ~root);
 
+let is_first_inner_pos = (t, idx) =>
+  idx == 0 || Token.is_raw_string(t) && idx == 1;
+
 let inner_left = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
-  | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
+  | Some(t) when Token.is_string_or_comment(t) && is_first_inner_pos(t, idx) =>
     unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
-    let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
+    let z =
+      Caret.set(is_first_inner_pos(t, idx) ? Outer : Inner(idx - 1), z);
     let+ z_init = rm_nth_right(idx, t, z, ~root);
     let z_final = Zipper.remold_regrout(Left, z_init, ~root);
     Insert.adjust_caret_pos(~z_final, ~z_init);

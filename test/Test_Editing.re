@@ -415,6 +415,21 @@ let insertion_tests = [
     ~goal={|"¦"|},
   ),
   test(
+    ~name="Insert raw string start from 'r' token",
+    ~acts=mk({|r¦|}) @ [Insert("\"")],
+    ~goal={|r"¦"|},
+  ),
+  test(
+    ~name="Insert raw string from empty caret",
+    ~acts=mk({|¦|}) @ [Insert("r"), Insert("\"")],
+    ~goal={|r"¦"|},
+  ),
+  test(
+    ~name="Insert backslash into raw string at Inner caret",
+    ~acts=mk({|r"foo¦"|}) @ [Insert("\\")],
+    ~goal={|r"foo\¦"|},
+  ),
+  test(
     ~name="Insert string after concave grout",
     ~acts=mk({|1 ¦|}) @ [Insert({|"|})],
     ~goal={|1 ~"¦"|},
@@ -837,6 +852,21 @@ let destruct_tests = [
   test(
     ~name="Deleting string delimiter deletes string",
     ~acts=mk({|"¦"|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting raw string starting r deletes raw string",
+    ~acts=mk({|r¦""|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting raw string starting quote deletes raw string",
+    ~acts=mk({|r"¦"|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting raw string ending quote deletes raw string",
+    ~acts=mk({|r""¦|}) @ [Destruct(Left)],
     ~goal={|¦?|},
   ),
   test(
@@ -2342,6 +2372,22 @@ let paste_tests = [
 let y = 2 in
 x + y¦|},
   ),
+  /* RAW STRING PASTE */
+  test(
+    ~name="Paste into raw string at Inner caret",
+    ~acts=mk({|r"hel¦lo"|}) @ [Paste("abc")],
+    ~goal={|r"helabc¦lo"|},
+  ),
+  test(
+    ~name="Paste string with escape sequences into raw string",
+    ~acts=mk({|r"a¦b"|}) @ [Paste("\\n\\t")],
+    ~goal={|r"a\n\t¦b"|},
+  ),
+  test(
+    ~name="Paste raw string literal into empty caret",
+    ~acts=mk({|¦|}) @ [Paste({|r"foo"|})],
+    ~goal={|r"foo"¦|},
+  ),
 ];
 
 /* ===== MODULE EDITING TESTS =====
@@ -2984,6 +3030,11 @@ let unwrap_quote_tests = [
   test(
     ~name="Backspace string from right unwraps content",
     ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
+    ~name="Backspace raw string from right unwraps content",
+    ~acts=mk({|r"hello"¦|}) @ [Action.Destruct(Left)],
     ~goal={|hello¦|},
   ),
   test(

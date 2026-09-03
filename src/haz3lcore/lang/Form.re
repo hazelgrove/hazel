@@ -100,6 +100,7 @@ type atomic_form =
   | LLMHole
   | Wild
   | String
+  | RawString
   | QuotedLabel
   | IntLit
   | FloatLit
@@ -664,6 +665,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
   | String => (Token.is_string, [op(Exp), op(Pat)])
+  | RawString => (Token.is_raw_string, [op(Exp), op(Pat)])
   | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
   | IntLit => (
       Token.is_int,

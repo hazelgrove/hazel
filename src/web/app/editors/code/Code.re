@@ -13,6 +13,112 @@ let is_ref = (token: string, sort: Sort.t) =>
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
 
+let render_string_with_escapes =
+    (~font_metrics: FontMetrics.t, ~is_raw: bool=false, token: string)
+    : list(t) => {
+  let body =
+    if (is_raw) {
+      Token.strip_raw_quotes(token);
+    } else {
+      Token.strip_quotes(token);
+    };
+  let len = String.length(body);
+
+  /* Helper to check for valid hex digits */
+  let is_hex = (c: char): bool =>
+    c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
+
+  /* For raw strings, don't parse escape sequences */
+  if (is_raw) {
+    let open_q = text("r\"");
+    let close_q = text("\"");
+    let inner_nodes = GraphemeView.render(~font_metrics, body);
+    [open_q, ...inner_nodes] @ [close_q];
+  } else {
+    let rec split =
+            (i: int, acc: list((bool, string))): list((bool, string)) =>
+      if (i >= len) {
+        List.rev(acc);
+      } else if (body.[i] != '\\') {
+        let j = ref(i);
+        while (j.contents < len && body.[j.contents] != '\\') {
+          j := j.contents + 1;
+        };
+        let piece = String.sub(body, i, j.contents - i);
+        split(j.contents, [(false, piece), ...acc]);
+      } else if (i + 1 >= len) {
+        /* Trailing backslash - invalid escape */
+        split(
+          i + 1,
+          [(false, "\\"), ...acc],
+        );
+      } else if (body.[i + 1] == 'u' && i + 2 < len && body.[i + 2] == '{') {
+        let k = ref(i + 3);
+        let valid = ref(true);
+        while (k.contents < len && body.[k.contents] != '}') {
+          if (!is_hex(body.[k.contents])) {
+            valid := false;
+          };
+          k := k.contents + 1;
+        };
+        /* Must be properly closed with '}' and contain at least one valid hex digit */
+        if (k.contents < len && valid.contents && k.contents > i + 3) {
+          let esc = String.sub(body, i, k.contents - i + 1);
+          split(k.contents + 1, [(true, esc), ...acc]);
+        } else {
+          /* Invalid \u sequence. Treat just the \ as normal text */
+          split(
+            i + 1,
+            [(false, "\\"), ...acc],
+          );
+        };
+      } else if (body.[i + 1] == 'x'
+                 && i
+                 + 3 < len
+                 && is_hex(body.[i + 2])
+                 && is_hex(body.[i + 3])) {
+        let esc = String.sub(body, i, 4); /* Valid \xNN */
+        split(i + 4, [(true, esc), ...acc]);
+      } else {
+        /* Check against a whitelist of valid single-character escapes */
+        switch (body.[i + 1]) {
+        | '\\'
+        | '"'
+        | '\''
+        | 'n'
+        | 't'
+        | 'b'
+        | 'r'
+        | ' ' =>
+          let esc = String.sub(body, i, 2); /* backslash + next char */
+          split(i + 2, [(true, esc), ...acc]);
+        | _ =>
+          /* Invalid simple escape (e.g., \q or an incomplete \x).
+           * Push the backslash as normal text. The loop will process the next character
+           * (like the 'x' or 'q') as standard text on the next iteration. */
+          split(i + 1, [(false, "\\"), ...acc])
+        };
+      };
+
+    let pieces = split(0, []);
+
+    let open_q = text("\"");
+    let close_q = text("\"");
+
+    let inner_nodes =
+      pieces
+      |> List.concat_map(((is_esc, s)) =>
+           if (is_esc) {
+             [span(~attrs=[Attr.classes(["escape"])], [text(s)])];
+           } else {
+             GraphemeView.render(~font_metrics, s);
+           }
+         );
+
+    [open_q, ...inner_nodes] @ [close_q];
+  };
+};
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -33,6 +139,7 @@ let of_delim' =
         | _ when Token.is_llm_hole(token) => "llm-waiting"
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
+        | _ when Token.is_raw_string(token) => "raw-string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.class_of(sort)
         };
@@ -49,11 +156,23 @@ let of_delim' =
             @ keyword_class,
           ),
         ],
-        /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
-           occupies the two columns Measured gave it. Pure ASCII -- nearly
-           every token -- skips straight to a text node. */
-        Unicode.is_simple_ascii(token)
-          ? [text(token)] : GraphemeView.render(~font_metrics, token),
+        /* Currently only supporting emojis in strings; this is a
+           conservative choice to guard against perf regressions;
+           it can likely be relaxed. See also Token.bounding_box */
+        base_cls == "string-lit"
+          ? render_string_with_escapes(~font_metrics, token)
+          : base_cls == "raw-string-lit"
+              ? render_string_with_escapes(
+                  ~font_metrics,
+                  ~is_raw=true,
+                  token,
+                )
+              /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
+                 occupies the two columns Measured gave it. Pure ASCII -- nearly
+                 every token -- skips straight to a text node. */
+              : Unicode.is_simple_ascii(token)
+                  ? [text(token)]
+                  : GraphemeView.render(~font_metrics, token),
       );
     },
   );
