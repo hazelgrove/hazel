@@ -161,35 +161,44 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
       open Segment.Trim;
       let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
       let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
-      switch (ListUtil.split_last_opt(gs_l), gs_r) {
-      | (Some((_, g_l)), [g_r, ..._]) =>
-        Grout.fits(g_l, g_r)
+      /* Same junction principle as Trim.regrout, straddling the caret:
+       * if the neighboring shapes fit each other no grout belongs here,
+       * else exactly one grout of the complementary shape does. Judging
+       * kept grout against BOTH shapes matters because remold can change
+       * a neighbor out from under a previously-fitting grout (#2446:
+       * completing `use _ in` remolds a following infix `-` to prefix,
+       * whose convex nib no longer admits the convex grout). */
+      if (Nib.Shape.fits(s_l, s_r)) {
+        switch (gs_l, gs_r) {
+        | ([], []) => (seg_l, seg_r)
+        | _ => (ws(trim_l), ws(trim_r))
+        };
+      } else {
+        /* s_l and s_r are same-class here, so a grout fitting one fits
+         * both, and at most one shape of grout fits. */
+        let fits = g => Grout.fits_shape(g, s_l);
+        let g_l = Option.map(snd, ListUtil.split_last_opt(gs_l));
+        let g_r = ListUtil.hd_opt(gs_r);
+        switch (g_l, g_r) {
+        | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
           // note: assumes single grout invariant in un-caret-interrupted trim
-          ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
-          : (
-            switch (d) {
-            | Left => (ws(trim_l), seg_r)
-            | Right => (seg_l, ws(trim_r))
-            }
-          )
-      | (Some((_, g)), []) =>
-        Grout.fits_shape(g, s_r) ? (seg_l, seg_r) : (ws(trim_l), seg_r)
-      | (None, [g, ..._]) =>
-        Grout.fits_shape(g, s_l) ? (seg_l, seg_r) : (seg_l, ws(trim_r))
-      | (None, []) =>
-        Nib.Shape.fits(s_l, s_r)
-          ? (seg_l, seg_r)
-          // can modulate with directional arg
-          : (
-            switch (d) {
-            | Left =>
-              let trim = add_grout(s_r, trim_r);
-              (seg_l, to_seg(trim));
-            | Right =>
-              let trim = add_grout(s_l, trim_l);
-              (to_seg(trim), seg_r);
-            }
-          )
+          switch (d) {
+          | Left => (ws(trim_l), seg_r)
+          | Right => (seg_l, ws(trim_r))
+          }
+        | (Some(gl), _) when fits(gl) => (seg_l, ws(trim_r))
+        | (_, Some(gr)) when fits(gr) => (ws(trim_l), seg_r)
+        | _ =>
+          // no fitting grout present: mint one on the caret's side
+          switch (d) {
+          | Left =>
+            let trim = add_grout(s_r, strip_grout(trim_r));
+            (ws(trim_l), to_seg(trim));
+          | Right =>
+            let trim = add_grout(s_l, strip_grout(trim_l));
+            (to_seg(trim), ws(trim_r));
+          }
+        };
       };
     };
     (pre @ trim_l, trim_r @ suf);

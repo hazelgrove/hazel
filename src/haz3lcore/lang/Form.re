@@ -573,6 +573,23 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.map(Token.prefixes)
   |> List.concat;
 
+/* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
+ * of compound forms (`-` en route to `->`, `=` en route to `=>`), so
+ * that e.g. the `-` of a nascent `fun x ->` holds an infix mold rather
+ * than molding as unary minus and drawing junction grout. Stricter than
+ * the alphanumeric set above: leading delimiters and the complete
+ * tokens themselves are excluded, since complete symbolic operators
+ * have real molds that must govern. */
+let symbolic_delim_prefixes: list(Token.t) =
+  forms
+  |> List.filter_map(((_, {label, _}: t)) =>
+       List.length(label) >= 2 ? Some(List.tl(label)) : None
+     )
+  |> List.concat
+  |> List.filter(Token.is_potential_operator)
+  |> List.sort_uniq(compare)
+  |> List.concat_map(t => List.filter((!=)(t), Token.prefixes(t)));
+
 /* Hot predicate: runs per atomic-form candidate on every molding query
    (so, superlinearly during text parsing), so membership is a hash set
    rather than a List.mem scan with polymorphic compare. The table is
@@ -582,6 +599,7 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
 let is_infix_delimiter_op_prefix: Token.t => bool = {
   let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
   List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
   t => Hashtbl.mem(tbl, t);
 };
 
@@ -695,10 +713,14 @@ module Molds = {
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
-  /* Base: get molds from form definitions without sort filtering */
+  /* Base: get molds from form definitions without sort filtering.
+     Form-defined molds precede atomic backups: mold order breaks ties
+     among junction-fitting candidates during remolding, and a token
+     like `-` carries both real operator molds and a delimiter-prefix
+     backup that must not shadow them. */
   let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], Some(molds)) when atomic(t) != [] => molds @ atomic(t)
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     | _ => []

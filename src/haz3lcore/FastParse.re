@@ -281,67 +281,74 @@ let weave =
     | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
+    switch (weave_trigger(seg)) {
+    | Some((head, rest)) =>
+      /* bind before recursing: token consumption must follow order */
+      let tail = weave_seg(rest);
+      head @ tail;
+    | None =>
+      switch (seg) {
+      | [] => []
+      | [Tile({label: ["+"], mold, _}), ...rest]
+          when mold.out == Sort.Typ && peek(0) != Some("+") =>
+        /* the printer emits a leading + on sums; the source may not have
+           one (both spellings read as the same Sum) — skip the piece */
+        weave_seg(rest)
+      | [
+          Tile({
+            label: ["(", ")"],
+            children: [[Tile({label: ["()"], _}) as unit_tile]],
+            _,
+          }),
+          ...rest,
+        ]
+          when peek(0) == Some("()") =>
+        /* nullary ap: the term prints f(()) (the nullary flag id is lost
+           to fresh annotations); the source spells f() — land the POSTFIX
+           empty-ap tile (operand-molded unit would read as juxtaposition) */
+        let (gap, _) = expect("()");
+        let form =
+          switch (unit_tile) {
+          | Tile({mold, _}) when mold.out == Sort.Pat => Form.get(ApPatEmpty)
+          | _ => Form.get(ApExpEmpty)
+          };
+        let tail = weave_seg(rest);
+        gap_pieces(gap) @ [Piece.mk_tile(form, []), ...tail];
+      | [p, ...rest] =>
+        let head = weave_piece(p);
+        head @ weave_seg(rest);
+      }
+    };
+  }
+  /* Trigger at the head of a segment, shared by weave_seg and by the
+     grab inside consume_trigger — so triggers nest (^^probe(^^slider(1))).
+     Returns the pieces the trigger contributes and the segment left over;
+     None when the next source token is not a trigger this parse handles. */
+  and weave_trigger = (seg: Segment.t): option((list(Piece.t), Segment.t)) =>
     switch (seg) {
-    | [] => []
-    | [p, ...rest]
-        when
-          collect_refractors
-          && is_trigger_next()
-          && trigger_is_refractor(toks[idx^].text) =>
+    | [] => None
+    | [_, ..._] when !is_trigger_next() => None
+    | [_, ..._]
+        when collect_refractors && trigger_is_refractor(toks[idx^].text) =>
       /* refractor decoration: consume the trigger, splice the wrapped
          pieces bare, and record the target for the caller to re-pin */
-      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
+      let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
       refractors :=
         [
           (Segment.root_id(Segment.skel(inner), inner), trigger),
           ...refractors^,
         ];
-      /* bind before recursing: token consumption must follow order */
-      let tail = weave_seg(rest');
-      gap_pieces(trig_gap) @ inner @ tail;
-    | [p, ...rest]
-        when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
-      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
+      Some((gap_pieces(trig_gap) @ inner, rest));
+    | [_, ..._] when trigger_is_projector(toks[idx^].text) =>
+      let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
       switch (materialize(trigger, inner)) {
-      | Some(proj) =>
-        /* bind before recursing: @ and cons evaluate right-to-left, and
-           token consumption must follow piece order */
-        let tail = weave_seg(rest');
-        gap_pieces(trig_gap) @ [proj, ...tail];
+      | Some(proj) => Some((gap_pieces(trig_gap) @ [proj], rest))
       | None =>
         note("trigger '" ++ trigger ++ "' could not materialize");
         raise(Mismatch);
       };
-    | [Tile({label: ["+"], mold, _}), ...rest]
-        when mold.out == Sort.Typ && peek(0) != Some("+") =>
-      /* the printer emits a leading + on sums; the source may not have
-         one (both spellings read as the same Sum) — skip the piece */
-      weave_seg(rest)
-    | [
-        Tile({
-          label: ["(", ")"],
-          children: [[Tile({label: ["()"], _}) as unit_tile]],
-          _,
-        }),
-        ...rest,
-      ]
-        when peek(0) == Some("()") =>
-      /* nullary ap: the term prints f(()) (the nullary flag id is lost
-         to fresh annotations); the source spells f() — land the POSTFIX
-         empty-ap tile (operand-molded unit would read as juxtaposition) */
-      let (gap, _) = expect("()");
-      let form =
-        switch (unit_tile) {
-        | Tile({mold, _}) when mold.out == Sort.Pat => Form.get(ApPatEmpty)
-        | _ => Form.get(ApExpEmpty)
-        };
-      let tail = weave_seg(rest);
-      gap_pieces(gap) @ [Piece.mk_tile(form, []), ...tail];
-    | [p, ...rest] =>
-      let head = weave_piece(p);
-      head @ weave_seg(rest);
-    };
-  }
+    | [_, ..._] => None
+    }
   and weave_piece = (p: Piece.t): list(Piece.t) =>
     switch (p) {
     /* PreserveExact with empty annotations emits no secondaries; drop
@@ -414,9 +421,13 @@ let weave =
       if (peek(0) == Some(")")) {
         (List.rev(acc), ps);
       } else {
-        switch (ps) {
-        | [] => raise(Mismatch)
-        | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
+        switch (weave_trigger(ps)) {
+        | Some((head, rest)) => grab(rest, List.rev(head) @ acc)
+        | None =>
+          switch (ps) {
+          | [] => raise(Mismatch)
+          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
+          }
         };
       };
     let (wrapped, rest) = grab(seg, []);
