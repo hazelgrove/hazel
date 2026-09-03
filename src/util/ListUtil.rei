@@ -1,4 +1,3 @@
-let rev_if: (bool, list('a)) => list('a);
 let dedup_f: (('a, 'a) => bool, list('a)) => list('a);
 let dedup: list('a) => list('a);
 let group_by: ('x => 'k, list('x)) => list(('k, list('x)));
@@ -53,7 +52,6 @@ let insert: ('a, list('a), int) => list('a);
 let remove: (list('a), int) => list('a);
 let remove_nth: (int, list('a)) => option(list('a));
 let fold_left_opt: (('a, 'b) => option('a), 'a, list('b)) => option('a);
-let intersection_f: ('a => 'b, list('a), list('a)) => list('a);
 let map_with_history: ((list('y), 'x) => 'y, list('x)) => list('y);
 let forall2_opt:
   (('a, 'b) => option(bool), list('a), list('b)) => option(bool);

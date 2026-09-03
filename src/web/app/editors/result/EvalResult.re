@@ -752,7 +752,7 @@ module View = {
               model.theorems,
             );
       let theorems =
-        List.length(theorems) == 0
+        List.is_empty(theorems)
           ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 

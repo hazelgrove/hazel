@@ -919,10 +919,10 @@ let to_point =
     | ByToken => local
     | BySmart => local_smart
     };
-  switch (Zipper.do_towards_point(~measured, ~anchor, step, goal, z)) {
-  | None => Some(z)
-  | Some(z) => Some(z)
-  };
+  Some(
+    Zipper.do_towards_point(~measured, ~anchor, step, goal, z)
+    |> Option.value(~default=z),
+  );
 };
 
 let to_start: t => t = Zipper.do_to_extreme(local(Left));

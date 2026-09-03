@@ -429,7 +429,7 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
   | Tile({label: ["[", "]"], shards, children, _})
   | Tile({label: ["@<", ">"], shards, children, _}) =>
     /* Complete tile (has children) or opening shard (index 0) */
-    List.length(children) > 0 || shards == [0]
+    !List.is_empty(children) || shards == [0]
   | _ => false
   };
 
@@ -550,7 +550,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         when
           s.hanging_delimiters
           && (dt.label == ["(", ")"] || dt.label == ["[", "]"])
-          && List.length(dt.children) > 0 =>
+          && !List.is_empty(dt.children) =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s =
         Tile.to_piece(Tile.shard_of(dt, List.length(dt.label) - 1));
@@ -862,7 +862,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   | [p] =>
     switch (p) {
     /* Single tile with children: decompose */
-    | Tile(t) when List.length(t.children) > 0 =>
+    | Tile(t) when !List.is_empty(t.children) =>
       seg_finish(acc_rev, build_tile_doc(s, t, []))
     | _ => seg_finish(acc_rev, piece_doc(p))
     }
@@ -871,7 +871,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
-      when List.length(t.children) > 0 && is_semi(semi) =>
+      when !List.is_empty(t.children) && is_semi(semi) =>
     seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
@@ -945,7 +945,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     seg_finish(acc_rev, chain_doc);
 
   /* Tile with children: decompose on-demand */
-  | [Tile(t), ...rest] when List.length(t.children) > 0 =>
+  | [Tile(t), ...rest] when !List.is_empty(t.children) =>
     seg_finish(acc_rev, build_tile_doc(s, t, rest))
 
   /* Single-token prefix (leading +): keep attached via Space */

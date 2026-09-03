@@ -5,27 +5,6 @@ let tests = (
   "ListUtil",
   [
     test_case(
-      "rev_if with false",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(list(int), "Same list", xs, ListUtil.rev_if(false, xs));
-      },
-    ),
-    test_case(
-      "rev_if with true",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(
-          list(int),
-          "Reversed list",
-          [3, 2, 1],
-          ListUtil.rev_if(true, xs),
-        );
-      },
-    ),
-    test_case(
       "dedup",
       `Quick,
       () => {
@@ -200,36 +179,6 @@ let tests = (
           "Right longer",
           None,
           ListUtil.opt_zip(["a"], [1, 2]),
-        );
-      },
-    ),
-    test_case(
-      "intersection_f",
-      `Quick,
-      () => {
-        check(
-          list(int),
-          "Matching by identity",
-          [2, 3],
-          ListUtil.intersection_f(x => x, [1, 2, 3], [2, 3, 4]),
-        );
-        check(
-          list(int),
-          "Matching by mod 2",
-          [1, 3],
-          ListUtil.intersection_f(x => x mod 2, [1, 2, 3], [5, 7]),
-        );
-        check(
-          list(int),
-          "Empty first list",
-          [],
-          ListUtil.intersection_f(x => x, [], [1, 2]),
-        );
-        check(
-          list(int),
-          "No overlap",
-          [],
-          ListUtil.intersection_f(x => x, [1, 2], [3, 4]),
         );
       },
     ),

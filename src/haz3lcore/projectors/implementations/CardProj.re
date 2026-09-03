@@ -247,11 +247,7 @@ module SyntaxTerm = {
       info.syntax,
     );
 
-  let get_opt = (any: Any.t): option(state) =>
-    switch (any |> any_to_syntax) {
-    | Some(syntax) => Some(syntax)
-    | None => None
-    };
+  let get_opt = (any: Any.t): option(state) => any |> any_to_syntax;
 
   let get = (info: info): state =>
     switch (info.syntax |> info.utility.seg_to_term) {

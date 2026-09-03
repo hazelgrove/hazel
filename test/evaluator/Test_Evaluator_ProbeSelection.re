@@ -38,7 +38,7 @@ let get_all_samples = (code: string): list(Sample.t) =>
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
   List.partition_tf(
-    ~f=(s: Sample.t) => List.length(s.call_stack) == 0,
+    ~f=(s: Sample.t) => List.is_empty(s.call_stack),
     samples,
   );
 
@@ -139,7 +139,7 @@ in f(5)|};
           bool,
           "sample should have non-empty call stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         );
         /* Simulate step-into: cursor has same stack but with None name */
         let cursor_stack =
@@ -222,7 +222,7 @@ in f(5)|};
           List.length(s.call_stack) >= 1,
         );
         /* Cursor at the shallowest frame only */
-        let outermost_frame = List.rev(s.call_stack) |> List.hd_exn;
+        let outermost_frame = List.last_exn(s.call_stack);
         let shallow_stack = [
           {
             ...outermost_frame,
@@ -335,7 +335,7 @@ in ^^probe(f(5))|};
         bool,
         "should have top-level and inner samples",
         true,
-        List.length(top_samples) > 0 && List.length(inner_samples) > 0,
+        !List.is_empty(top_samples) && !List.is_empty(inner_samples),
       );
       /* Top-level cursor should see top samples as Same/related */
       let cursor = mk_cursor([]);

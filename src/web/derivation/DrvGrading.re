@@ -144,7 +144,7 @@ module VerifiedTree = {
               | _ =>
                 switch (RuleVerify.all_partial_correct(res)) {
                 | Some(specced) => PartialCorrect(specced)
-                | None => Incorrect(res |> List.rev |> List.hd_exn)
+                | None => Incorrect(List.last_exn(res))
                 }
               };
             | Error(e) => Pending(e)
