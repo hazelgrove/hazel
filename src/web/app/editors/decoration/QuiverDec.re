@@ -6,7 +6,14 @@
  *   - Offside boxes showing what delimiters will be inserted
  *
  * The quiver holds completion arrows.
- */
+ *
+ * OWNERSHIP IS NOT DECIDED HERE. Which records the caret owns (the
+ * bubble Tab acts on) comes in as `owned`, computed once by
+ * CompletionQuery.chips_at_caret from the zipper; this layer draws
+ * that list as ONE bubble at the caret and rests every other record
+ * at its anchor. Deriving ownership again from measured coordinates
+ * is how display and Tab drifted apart (a bubble reading "else ? end
+ * in" while Tab typed end; zones leaking past a child segment). */
 
 open Virtual_dom.Vdom;
 open Node;
@@ -16,20 +23,22 @@ open Util;
 /* An insertion with its resolved position; shape = the caret shape
    at the pin (the pole is a ghost caret). idx = the record's index in
    the engine's insertion list, which is landing-site order in the
-   COMPLETED program (the order tab applies) - display decisions that
-   need an order between chips use it, never pixel positions. */
+   COMPLETED program — display decisions that need an order between
+   resting chips use it, never pixel positions. owned = the caret's
+   bubble (the only chip Tab acts on). */
 type positioned_insertion = {
   idx: int,
   row: int,
   col: int,
   shape: option(Util.Direction.t),
+  owned: bool,
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
-/* Does this chip hold the shard tab would put down right now? */
 /* Chip text scale relative to the code font */
 let chip_font_scale = 0.72;
 
+/* Does this chip hold the shard Put_down would drop right now? */
 let matches_droppable =
     (
       droppable: option((Id.t, int)),
@@ -48,15 +57,14 @@ let matches_droppable =
        )
   };
 
-/* Coincidence-first placement: a pin's position within its
-   inter-content whitespace region (linebreaks included) is
-   semantically free, so it FOLLOWS the caret inside that zone and
-   RESTS at the engine's spot otherwise. */
-let resolve_position =
+/* A record the caret does NOT own rests at its anchor: the left
+   content edge when it shares the pin's line (the round-6 snap), the
+   raw anchor point otherwise. Openers anchored Left on content sit
+   at that content's origin. */
+let rest_position =
     (
       ~idx: int,
       ~seg: Segment.t,
-      ~caret_pos: option((int, int)),
       measured: Measured.t,
       ins: CanonicalCompletion.insertion,
     )
@@ -66,7 +74,6 @@ let resolve_position =
   | Some(anchor) =>
     let (row, col) = (anchor.row, anchor.col);
     let is_free = Segment.skip_secondary_and_grout;
-    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
     switch (Segment.find_ctx(seg, ins.adjacent_id)) {
     | None =>
       Some({
@@ -74,57 +81,24 @@ let resolve_position =
         row,
         col,
         shape: None,
+        owned: false,
         delimiters: ins.delimiters,
       })
     | Some((sg, i, p)) =>
-      let prev_content = (j: int): option(Piece.t) =>
-        Segment.prev_content(~skip=is_free, sg, j) |> Option.map(snd);
-      let next_content = (j: int): option(Piece.t) =>
-        Segment.next_content(~skip=is_free, sg, j) |> Option.map(snd);
-      let measure_last = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.last.row, qm.last.col)
-           );
-      let measure_origin = (q: Piece.t) =>
-        Measured.find_by_id(Piece.id(q), measured)
-        |> Option.map((qm: Measured.measurement) =>
-             (qm.origin.row, qm.origin.col)
-           );
-      /* zone bounds: previous/next content around the anchor's
-         whitespace run (whole-document edges when absent) */
-      let left_bound =
-        switch (is_free(p) ? prev_content(i) : Some(p)) {
-        | Some(q) => measure_last(q)
-        | None => Some((0, 0))
-        };
-      let right_bound =
-        switch (next_content(is_free(p) ? i : i + 1)) {
-        | Some(q) => measure_origin(q)
-        | None => None /* unbounded to the segment end */
-        };
-      /* resting spot: the left content edge when it shares the pin's
-         line (the round-6 snap); the raw anchor position otherwise */
-      let rest =
-        switch (left_bound) {
+      let left_edge =
+        is_free(p)
+          ? Segment.prev_content(~skip=is_free, sg, i)
+            |> Option.map(snd)
+            |> Option.map(q => Measured.find_by_id(Piece.id(q), measured))
+            |> Option.join
+            |> Option.map((qm: Measured.measurement) =>
+                 (qm.last.row, qm.last.col)
+               )
+          : None;
+      let (row, col) =
+        switch (left_edge) {
         | Some((lr, lc)) when lr == row => (row, min(lc, col))
         | _ => (row, col)
-        };
-      let (row, col) =
-        switch (caret_pos, left_bound) {
-        | (Some((r, c)), Some(left))
-            when
-              leq(left, (r, c))
-              && (
-                switch (right_bound) {
-                | Some(right) => leq((r, c), right)
-                | None => true
-                }
-              ) => (
-            r,
-            c,
-          )
-        | _ => rest
         };
       /* ghost-caret shape at the pin: the shared-nib facing between
          the pieces around the insertion point, mirroring
@@ -141,6 +115,7 @@ let resolve_position =
         row,
         col,
         shape,
+        owned: false,
         delimiters: ins.delimiters,
       });
     };
@@ -306,15 +281,15 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Overlapping same-row chips coalesce into ONE bubble. Overlap is
-   judged left-to-right on pin positions (chips arrive sorted), but
-   the merged bubble is DRAWN at the engine-first member's pin - the
-   next-applied delimiter's position, the only one that survives its
-   own application - with delimiters in engine order (landing-site
-   order in the completed program, the order tab applies). Pixel
-   order must never decide bubble text: a wandering pin would flip it
-   (typing the = of => made the end chip's pin rest BEHIND the typed
-   prefix and the bubble read "end =>"). */
+/* Overlapping same-row chips coalesce into ONE bubble. The merged
+   bubble's text never follows pixel order (a wandering pin would
+   flip it): the caret's OWNED bubble leads and the merge is drawn at
+   the caret — Tab acts on its first delimiter, so a resting neighbor
+   merged in by mere overlap trails; among resting chips, engine order
+   (landing-site order in the completed program) and the engine-first
+   member's pin. Overlap is judged on DRAWN extents and iterated to a
+   fixpoint: a merge can move the bubble to a member's pin and onto a
+   neighbor it was clear of before. */
 let coalesce_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
     : list(positioned_insertion) => {
@@ -322,47 +297,106 @@ let coalesce_overlaps =
     float_of_int(delimiters_len(c.delimiters) + 2)
     *. font_metrics.col_width
     *. chip_font_scale;
-  /* groups carry (geometry rep, members): the rep keeps today's
-     leftmost-anchored extent for overlap scanning; members finalize
-     into the drawn bubble */
-  let rec go = (acc, rest) =>
+  let left_px = (c: positioned_insertion) =>
+    float_of_int(c.col) *. font_metrics.col_width;
+  let finalize = (members: list(positioned_insertion)) => {
+    let by_idx =
+      List.sort(
+        (a: positioned_insertion, b: positioned_insertion) =>
+          Int.compare(a.idx, b.idx),
+        members,
+      );
+    let (owned, others) =
+      List.partition((c: positioned_insertion) => c.owned, by_idx);
+    let ordered = owned @ others;
+    {
+      ...List.hd(ordered),
+      delimiters: List.concat_map(m => m.delimiters, ordered),
+    };
+  };
+  let by_pos =
+      (bs: list((positioned_insertion, list(positioned_insertion)))) =>
+    List.sort(
+      ((a: positioned_insertion, _), (b: positioned_insertion, _)) =>
+        compare((a.row, a.col), (b.row, b.col)),
+      bs,
+    );
+  let rec pass = (acc, rest) =>
     switch (acc, rest) {
     | (_, []) => List.rev(acc)
-    | ([], [c, ...tl]) => go([(c, [c])], tl)
-    | ([(prev, members), ...acc_tl], [c, ...tl]) =>
-      let prev_right =
-        float_of_int(prev.col) *. font_metrics.col_width +. chip_w(prev);
-      let c_left = float_of_int(c.col) *. font_metrics.col_width;
-      prev.row == c.row && c_left < prev_right +. 4.
-        ? go(
-            [
-              (
-                {
-                  ...prev,
-                  delimiters: prev.delimiters @ c.delimiters,
-                },
-                [c, ...members],
-              ),
-              ...acc_tl,
-            ],
-            tl,
-          )
-        : go([(c, [c]), ...acc], tl);
+    | ([], [b, ...tl]) => pass([b], tl)
+    | ([(prev, pm), ...acc_tl], [(c, cm), ...tl]) =>
+      prev.row == c.row && left_px(c) < left_px(prev) +. chip_w(prev) +. 4.
+        ? {
+          let members = pm @ cm;
+          pass([(finalize(members), members), ...acc_tl], tl);
+        }
+        : pass([(c, cm), (prev, pm), ...acc_tl], tl)
     };
-  go([], chips)
-  |> List.map(((_, members)) => {
-       let members =
-         List.sort(
-           (a: positioned_insertion, b: positioned_insertion) =>
-             Int.compare(a.idx, b.idx),
-           members,
-         );
-       let head = List.hd(members);
-       {
-         ...head,
-         delimiters: List.concat_map(m => m.delimiters, members),
-       };
-     });
+  let rec fixpoint = bs => {
+    let bs' = pass([], by_pos(bs));
+    List.length(bs') < List.length(bs) ? fixpoint(bs') : bs';
+  };
+  chips |> List.map(c => (c, [c])) |> fixpoint |> List.map(fst);
+};
+
+/* The bubble list the view draws: the owned records as one bubble at
+   the caret, every other record resting at its anchor, sorted by
+   position, overlaps coalesced. Shared with the tests so what they
+   pin is what renders. */
+let bubbles =
+    (
+      ~measured: Measured.t,
+      ~font_metrics: FontMetrics.t,
+      ~caret_pos: option((int, int)),
+      ~owned: list(CanonicalCompletion.insertion),
+      seg: Segment.t,
+    )
+    : list(positioned_insertion) => {
+  let insertions = CanonicalCompletion.for_editor(seg).insertions;
+  /* records are unique per (anchor, side) after the engine's
+     coalesce_insertions — match on that, not physical identity */
+  let is_owned = (ins: CanonicalCompletion.insertion) =>
+    List.exists(
+      (o: CanonicalCompletion.insertion) =>
+        Id.equal(o.adjacent_id, ins.adjacent_id) && o.side == ins.side,
+      owned,
+    );
+  let resting =
+    insertions
+    |> List.mapi((idx, ins) =>
+         is_owned(ins)
+           ? (None: option(positioned_insertion))
+           : rest_position(~idx, ~seg, measured, ins)
+       )
+    |> List.filter_map(x => x);
+  let caret_bubble =
+    switch (caret_pos, owned) {
+    | (Some((row, col)), [_, ..._]) => [
+        {
+          idx: (-1),
+          row,
+          col,
+          shape: None,
+          owned: true,
+          delimiters:
+            List.concat_map(
+              (ins: CanonicalCompletion.insertion) => ins.delimiters,
+              owned,
+            ),
+        },
+      ]
+    | _ => []
+    };
+  let sorted =
+    List.sort(
+      (a: positioned_insertion, b: positioned_insertion) => {
+        let row_cmp = Int.compare(a.row, b.row);
+        row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
+      },
+      caret_bubble @ resting,
+    );
+  coalesce_overlaps(~font_metrics, sorted);
 };
 
 /* Main view function: renders quiver decorations for a segment */
@@ -374,12 +408,9 @@ let view =
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
       ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
-      /* the engine must see the user's REAL program: the display
-         segment (CachedSyntax) still contains the suggestion-buffer
-         ghost, which perturbs placement (an in anchoring at line
-         start while a ghost completes Bo -> Bool). Anchor pieces
-         exist in both segments, so engine insertions resolve fine
-         against the display's measured map. */
+      /* the caret's chips (CompletionQuery.chips_at_caret): what Tab
+         acts on, drawn as the bubble at the caret */
+      ~owned: list(CanonicalCompletion.insertion),
       /* the engine segment, not CachedSyntax's display segment: the
          display still contains the suggestion-buffer ghost, which
          perturbs placement. Anchor pieces exist in both, so engine
@@ -387,33 +418,17 @@ let view =
       seg: Segment.t,
     )
     : Node.t => {
-  let result = CanonicalCompletion.for_editor(seg);
-  let insertions = result.insertions;
-
   /* reset even when nothing draws: a vanished quiver must not leave
      stale row claims displacing probe offsides */
   RowOffsets.reset();
 
-  if (List.length(insertions) == 0) {
+  switch (bubbles(~measured, ~font_metrics, ~caret_pos, ~owned, seg)) {
+  | [] =>
     /* No completions needed */
-    div([]);
-  } else {
-    let positioned =
-      insertions
-      |> List.mapi((idx, ins) =>
-           resolve_position(~idx, ~seg, ~caret_pos, measured, ins)
-         )
-      |> List.filter_map(x => x);
-    let sorted =
-      List.sort(
-        (a, b) => {
-          let row_cmp = Int.compare(a.row, b.row);
-          row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
-        },
-        positioned,
-      );
+    div([])
+  | bs =>
     let chips =
-      coalesce_overlaps(~font_metrics, sorted)
+      bs
       |> List.map((ins: positioned_insertion) =>
            chip_view(
              ~font_metrics,
@@ -421,8 +436,13 @@ let view =
              ~col=ins.col,
              ~shape=ins.shape,
              ~caret_form,
-             ~live=matches_droppable(droppable, ins.delimiters),
-             ~at_caret=caret_pos == Some((ins.row, ins.col)),
+             /* live = what Tab does: the caret's bubble when there is
+                one, else the chip holding Put_down's shard */
+             ~live=
+               ins.owned
+               || owned == []
+               && matches_droppable(droppable, ins.delimiters),
+             ~at_caret=ins.owned,
              delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
            )
          );

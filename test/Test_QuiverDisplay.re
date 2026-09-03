@@ -21,28 +21,13 @@ let chips_of = (input: string): list((int, int, string)) => {
   let syntax = CachedSyntax.init(z);
   let engine_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let caret = Zipper.Caret.point(syntax.measured, z);
-  let result = CanonicalCompletion.for_editor(engine_seg);
-  let positioned =
-    result.insertions
-    |> List.mapi((idx, ins) =>
-         QuiverDec.resolve_position(
-           ~idx,
-           ~seg=engine_seg,
-           ~caret_pos=Some((caret.row, caret.col)),
-           syntax.measured,
-           ins,
-         )
-       )
-    |> List.filter_map(x => x);
-  let sorted =
-    List.sort(
-      (a: QuiverDec.positioned_insertion, b: QuiverDec.positioned_insertion) => {
-        let row_cmp = Int.compare(a.row, b.row);
-        row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
-      },
-      positioned,
-    );
-  QuiverDec.coalesce_overlaps(~font_metrics, sorted)
+  QuiverDec.bubbles(
+    ~measured=syntax.measured,
+    ~font_metrics,
+    ~caret_pos=Some((caret.row, caret.col)),
+    ~owned=CompletionQuery.chips_at_caret(~seg=engine_seg, z),
+    engine_seg,
+  )
   |> List.map((c: QuiverDec.positioned_insertion) =>
        (
          c.row,
@@ -95,9 +80,13 @@ let tests = [
         ~expected="(1,9)[=>~1 end in]",
       ),
       chip_case(
-        ~name="witness for outer in + inner closer (agreement case)",
+        /* the ) lands first in the completed program, but the caret
+           is pinned to the in-witness: Tab types `n`, so the bubble
+           sits at the caret and leads with in; the ) merged in by
+           pixel overlap trails (Test_TabDisplayParity) */
+        ~name="witness for outer in + inner closer: caret's chip leads",
         ~input="let x = (1 i",
-        ~expected="(0,10)[) in~1]",
+        ~expected="(0,12)[in~1 )]",
       ),
     ],
   ),

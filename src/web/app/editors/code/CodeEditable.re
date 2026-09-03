@@ -119,19 +119,12 @@ module Update = {
           ? Buffer(Accept)
           : (
             /* caret pinned to a quiver chip: Tab dispatches that
-               obligation, whether or not an inline buffer is showing
-               (buffers only appear on edits; the chip is always live) */
-            switch (CompletionQuery.chip_at_caret(z)) {
-            | Some(ins) =>
-              /* Tab = "type it for me": one chunk through the normal
-                 pipeline — spacing and caret land exactly as if the
-                 user typed it; the chip re-derives */
-              switch (CompletionQuery.tab_text(z, ins)) {
-              | Some(text) => Paste(text)
-              | None =>
-                Zipper.can_put_down(z)
-                  ? Put_down : Move(Goal(NextProblem(Right)))
-              }
+               obligation (CompletionQuery.tab_action — the same list
+               the quiver draws at the caret), whether or not an inline
+               buffer is showing (buffers only appear on edits; the
+               chip is always live) */
+            switch (CompletionQuery.tab_action(z)) {
+            | Some(a) => a
             | None =>
               Zipper.can_put_down(z)
                 ? Put_down : Move(Goal(NextProblem(Right)))
@@ -573,6 +566,9 @@ module View = {
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=
+              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
             Lazy.force(engine_seg),
           ),
         ]
