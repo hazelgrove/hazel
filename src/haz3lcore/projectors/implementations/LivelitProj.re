@@ -73,8 +73,27 @@ module M: Projector = {
      a missing element is simply nothing to focus. */
   let focus_pointer = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
-    | Some(elem) => elem##focus
     | None => ()
+    | Some(elem) =>
+      /* The id is on the projector's wrapper div, which is not focusable:
+         it has no tabindex. Focusing it would take focus off whatever the
+         click just landed on -- a livelit's own text field, say -- and drop
+         it on <body>, so the widget would stop receiving keys the instant
+         it was clicked. Prefer the widget's own control where there is one.
+
+         Compare TextAreaProj, which puts the projector id directly on its
+         textarea and so does not have this problem. */
+      let control =
+        Js_of_ocaml.Js.Opt.to_option(
+          elem##querySelector(
+            Js_of_ocaml.Js.string("input, textarea, select, button"),
+          ),
+        );
+      switch (control) {
+      | Some(control) =>
+        ignore(Js_of_ocaml.Js.Unsafe.meth_call(control, "focus", [||]))
+      | None => elem##focus
+      };
     };
 
   let focusable =
