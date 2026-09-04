@@ -122,6 +122,8 @@ let heading_of =
    reaches further for a long trip, as the mockup's did */
 let travel_len: ref(float) = ref(0.);
 let set_travel_len = (len: float): unit => travel_len := len;
+/* the beam fades in and out over a few frames (the demo's beamAlpha) */
+let beam_alpha: ref(float) = ref(0.);
 
 /* ---- the rig: three vertices on springs, driven every frame ----
    The mockup's body (plans/agent-canvas-mockups/avatar-concepts-4.html):
@@ -436,44 +438,40 @@ let step = (b, now_ms: float): unit => {
       Js.Unsafe.set(t, "textContent", Js.string(rig.emoji_cur[i]));
     };
   };
-  /* the beam and glow at the leading vertex, along the heading */
+  /* the beam: the demo's — a sector of spread 0.36 and length 150 at R 18
+     (so 8.3 R), filled by a radial gradient from the leading vertex
+     (#ffe58a 0.55 -> 0), eased in and out; the glow disc at the vertex */
   let lead = rig.v[0];
   let beam = item(q(b, ".rig-beam"), 0)
-  and glow = item(q(b, ".rig-glow"), 0);
-  let deg = rig.heading *. 180. /. Float.pi;
-  set(
-    beam,
-    "transform",
-    Printf.sprintf(
-      "translate(%s %s) rotate(%s)",
-      f1(lead.x),
-      f1(lead.y),
-      f1(deg),
-    ),
-  );
-  /* reach: a long trip throws a long beam; it tapers as the body slows */
-  let reach =
-    (10. +. min(90., 0.45 *. travel_len^))
-    *. max(0.35, min(1., rig.speed /. 160.));
+  and glow = item(q(b, ".rig-glow"), 0)
+  and grad = item(q(b, ".rig-beam-grad"), 0);
+  let want = traveling && !pen ? 1. : 0.;
+  beam_alpha := beam_alpha^ +. (want -. beam_alpha^) *. min(1., dt *. 8.);
+  let reach = base_r *. 150. /. 18.;
+  let h = rig.heading
+  and spread = 0.36;
   set(
     beam,
     "d",
     Printf.sprintf(
-      "M 4 0 L %s %s L %s %s Z",
+      "M %s %s L %s %s A %s %s 0 0 1 %s %s Z",
+      f1(lead.x),
+      f1(lead.y),
+      f1(lead.x +. cos(h -. spread) *. reach),
+      f1(lead.y +. sin(h -. spread) *. reach),
       f1(reach),
-      f1(-. reach *. 0.3),
       f1(reach),
-      f1(reach *. 0.3),
+      f1(lead.x +. cos(h +. spread) *. reach),
+      f1(lead.y +. sin(h +. spread) *. reach),
     ),
   );
-  set(
-    beam,
-    "opacity",
-    traveling && !pen ? f1(0.25 +. 0.55 *. stretch) : "0",
-  );
+  set(beam, "opacity", f1(beam_alpha^));
+  set(grad, "cx", f1(lead.x));
+  set(grad, "cy", f1(lead.y));
+  set(grad, "r", f1(reach));
   set(glow, "cx", f1(lead.x));
   set(glow, "cy", f1(lead.y));
-  set(glow, "opacity", traveling || pen ? "1" : "0");
+  set(glow, "opacity", f1(0.5 *. max(beam_alpha^, pen ? 1. : 0.)));
 };
 
 let rec loop = (now_ms: float): unit =>
@@ -526,16 +524,50 @@ let rig_view = (): Node.t => {
         ],
         [
           svg(
+            "defs",
+            [],
+            [
+              svg(
+                "radialGradient",
+                [
+                  Attr.id("rig-beam-grad"),
+                  Attr.classes(["rig-beam-grad"]),
+                  Attr.create("gradientUnits", "userSpaceOnUse"),
+                ],
+                [
+                  svg(
+                    "stop",
+                    [
+                      Attr.create("offset", "0"),
+                      Attr.create("stop-color", "#ffe58a"),
+                      Attr.create("stop-opacity", "0.55"),
+                    ],
+                    [],
+                  ),
+                  svg(
+                    "stop",
+                    [
+                      Attr.create("offset", "1"),
+                      Attr.create("stop-color", "#ffe58a"),
+                      Attr.create("stop-opacity", "0"),
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          svg(
             "path",
             [
               Attr.classes(["rig-beam"]),
-              Attr.create("d", "M 4 0 L 40 -11 L 40 11 Z"),
+              Attr.create("fill", "url(#rig-beam-grad)"),
             ],
             [],
           ),
           svg(
             "circle",
-            [Attr.classes(["rig-glow"]), Attr.create("r", "7")],
+            [Attr.classes(["rig-glow"]), Attr.create("r", "6")],
             [],
           ),
         ]

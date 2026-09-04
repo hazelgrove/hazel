@@ -1595,11 +1595,9 @@
   font-size: 8px;
   pointer-events: none;
 }
-.canvas-avatar.avatar-rig .rig-beam {
-  fill: rgba(243, 201, 75, 0.38);
-}
+/* the beam's fill is its radial gradient (a presentation attribute) */
 .canvas-avatar.avatar-rig .rig-glow {
-  fill: rgba(243, 201, 75, 0.5);
+  fill: #ffe58a;
 }
 .canvas-avatar.avatar-rig .avatar-body.mood-draw .rig-v0 {
   fill: #fff0b8;
