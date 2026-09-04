@@ -43,7 +43,7 @@ type raw_livelit = {
      [requires_annotation] is only expanded when that type is known, so it
      may rely on it rather than inventing one. */
   expand:
-    (~ana: TermBase.Typ.t, ~tools: type_tools, model_exp) =>
+    (~id: Id.t, ~ana: TermBase.Typ.t, ~tools: type_tools, model_exp) =>
     option(expansion_exp),
   /* When true, this livelit only expands in checking mode: without an
      expected type it cannot know what to produce, and says so rather than
@@ -72,8 +72,13 @@ module type BuiltinLivelit = {
      constructor names and unfolds aliases against the ambient context.
      A livelit that sets [requires_annotation] below is only asked to expand
      when [ana] is known. */
+  /* [id] identifies this occurrence of the livelit. A livelit that keeps
+     state outside Hazel uses it to tell one occurrence from another -- see
+     the fumola livelits, which name a thunk by it so that two of them in one
+     runtime do not overwrite each other. */
   let expand:
-    (~ana: TermBase.Typ.t, ~tools: type_tools, model_t) => expansion_t;
+    (~id: Id.t, ~ana: TermBase.Typ.t, ~tools: type_tools, model_t) =>
+    expansion_t;
   /* Set when the livelit cannot decide what to produce without an expected
      type -- see the fumola livelit, whose result shape depends on both the
      program it runs and the type asked of it. */
@@ -102,9 +107,10 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   model_t: B.hazel_model_t,
   model_default: B.model_to_hazel(B.model_default),
   expansion_t: B.hazel_expansion_t,
-  expand: (~ana: TermBase.Typ.t, ~tools: type_tools, exp: model_exp) =>
+  expand:
+    (~id: Id.t, ~ana: TermBase.Typ.t, ~tools: type_tools, exp: model_exp) =>
     switch (B.model_from_hazel(exp)) {
-    | Some(m) => Some(B.expand(~ana, ~tools, m) |> B.expand_to_hazel)
+    | Some(m) => Some(B.expand(~id, ~ana, ~tools, m) |> B.expand_to_hazel)
     | None => None
     },
   requires_annotation: B.requires_annotation,

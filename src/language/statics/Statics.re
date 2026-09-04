@@ -1650,7 +1650,13 @@ and uexp_to_info_map =
           // try to expand
           switch (
             requires_annotation && !annotated
-              ? None : expand(~ana=expansion_ty, ~tools, arg.user_term)
+              ? None
+              : expand(
+                  ~id=Exp.rep_id(uexp),
+                  ~ana=expansion_ty,
+                  ~tools,
+                  arg.user_term,
+                )
           ) {
           | Some(expanded) =>
             let (info, elab, m) =

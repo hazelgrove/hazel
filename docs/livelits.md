@@ -100,11 +100,26 @@ let livelits: list(raw_livelit) =
 | Model | `(String, String)` -- the JavaScript source, and the last result. |
 | Expansion | The stored result string. Pressing *Compute* evaluates the source and stores the result in the model. |
 
-### `^fumola`
+### `^fumola_thunk` and `^fumola_editor`
+
+Two livelits over the same kind of runtime. `^fumola_thunk` wraps its program
+as `force(<name> := thunk { ... })`, which is what gives an edit its
+incremental meaning; the thunk is named after the livelit's own Hazel id, so
+two of them in one runtime keep separate histories rather than overwriting
+each other.
+
+`^fumola_editor` evaluates at the top level instead. It is strictly more
+expressive -- you can write the `force(... := thunk { ... })` yourself -- and
+it is the only way to reach things the wrapper forbids: `Adapton.reset()`
+clears the store the enclosing force is still inside, `Adapton.peekForce`
+asserts there, and a binding made inside a thunk does not outlive it.
+
+Both name an instance, so two livelits carrying the same id **share one
+runtime** and see each other's state and bindings. An editor can set up state
+that a thunk then reads.
 
 | | |
 | --- | --- |
-| Expansion type | `Int` |
 | Model | `(Int, String)` -- an opaque Fumola instance id, and the Fumola source text. |
 | Expansion | The result of running the Fumola program, translated to a Hazel `Int`. A program that does not parse, or whose result is not an integer, expands to a hole. |
 | In scope | `pointer(s)`, `get(s)`, `peek(s)` -- see below. |

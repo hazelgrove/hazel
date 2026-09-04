@@ -32,9 +32,14 @@ module Slider: BuiltinLivelit = {
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
   let requires_annotation = false;
   let expand:
-    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    (
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model_t
+    ) =>
     expansion_t =
-    (~ana as _, ~tools as _, x: model_t) =>
+    (~id as _: Id.t, ~ana as _, ~tools as _, x: model_t) =>
       switch (x) {
       | n => n
       };
@@ -140,9 +145,14 @@ module Emotion: BuiltinLivelit = {
      - otherwise: "neutral" */
   let requires_annotation = false;
   let expand:
-    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    (
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model_t
+    ) =>
     expansion_t =
-    (~ana as _, ~tools as _, x: model_t) => {
+    (~id as _: Id.t, ~ana as _, ~tools as _, x: model_t) => {
       let n = int_of_string(Bigint.to_string(x));
       if (n < 40) {
         "sad";
@@ -332,9 +342,14 @@ module Js: BuiltinLivelit = {
   /* The expansion is just the current `result`. */
   let requires_annotation = false;
   let expand:
-    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    (
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model_t
+    ) =>
     expansion_t =
-    (~ana as _, ~tools as _, m: model_t) => m.result;
+    (~id as _: Id.t, ~ana as _, ~tools as _, m: model_t) => m.result;
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (res: expansion_t) => DHExp.fresh(Atom(String(res)));
@@ -479,8 +494,27 @@ module Js: BuiltinLivelit = {
    deliberately not a second source of truth in the model.
 
    See the design notes for the open questions this MVP does not settle. */
-module Fumola: BuiltinLivelit = {
-  let name = "fumola";
+/* The two Fumola livelits differ only in how they run their program, so they
+   share one implementation.
+
+   A thunk livelit wraps its program as `force(<name> := thunk { ... })`,
+   which is what gives an edit its incremental meaning. An editor livelit
+   evaluates at the top level instead: the wrapper puts a program inside a
+   force, and some things cannot run there -- Adapton.reset clears the store
+   the enclosing force is still inside, peekForce asserts, and a binding made
+   inside a thunk does not outlive it.
+
+   Both name an instance, so two livelits carrying the same id share one
+   runtime and can see each other's state and bindings. */
+module type FumolaConfig = {
+  let name: string;
+  /* Evaluate at the top level rather than inside a thunk. */
+  let top_level: bool;
+  let default_program: string;
+};
+
+module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
+  let name = C.name;
 
   type model_t = {
     /* Opaque name for an entry of sigma. Represented as an integer for now;
@@ -494,7 +528,16 @@ module Fumola: BuiltinLivelit = {
      error mid-edit, a Fumola value with no Hazel counterpart, or a runtime
      that has not finished loading) expands to a hole rather than to something
      misleading. The string carries the reason, for the widget to show. */
-  type expansion_t = result(expansion_exp, string);
+  /* A failure carries whether the program merely failed to parse. A
+     half-written program is a syntax error on nearly every keystroke, and
+     saying so in the expansion would be noise; a program that parsed and then
+     went wrong is worth surfacing. */
+  type failure = {
+    syntax: bool,
+    message: string,
+  };
+
+  type expansion_t = result(expansion_exp, failure);
 
   type action_t =
     | SetModel(model_t);
@@ -581,15 +624,38 @@ module Fumola: BuiltinLivelit = {
   };
 
   /* The rendering and the expansion, from one evaluation. */
+  /* The thunk this livelit's program is the body of.
+
+     Named from the livelit's own Hazel id, so that two thunk livelits sharing
+     a runtime do not overwrite each other's thunk and lose its history. A
+     Hazel id is a UUID, whose hyphens a Fumola symbol cannot contain, so they
+     are dropped and a letter is prefixed. */
+  let thunk_name = (id: Id.t): string =>
+    "t" ++ String.concat("", String.split_on_char('-', Id.to_string(id)));
+
   let observe_described =
-      (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model: model_t)
+      (
+        ~id: Id.t,
+        ~ana: TermBase.Typ.t,
+        ~tools: LivelitCtx.type_tools,
+        model: model_t,
+      )
       : (expansion_t, string) => {
     let response =
       switch (
-        shim(
-          "evalSync",
-          [|js_int(model.instance_id), js_string(model.program)|],
-        )
+        C.top_level
+          ? shim(
+              "evalTop",
+              [|js_int(model.instance_id), js_string(model.program)|],
+            )
+          : shim(
+              "evalSync",
+              [|
+                js_int(model.instance_id),
+                js_string(thunk_name(id)),
+                js_string(model.program),
+              |],
+            )
       ) {
       | exception _ => None
       | r =>
@@ -598,12 +664,24 @@ module Fumola: BuiltinLivelit = {
     switch (response) {
     | None =>
       let message = "no Fumola runtime available";
-      (Error(message), message);
+      (
+        Error({
+          syntax: false,
+          message,
+        }),
+        message,
+      );
     | Some(response) =>
       switch (Yojson.Safe.from_string(response)) {
       | exception _ =>
         let message = "could not read the Fumola runtime's response";
-        (Error(message), message);
+        (
+          Error({
+            syntax: false,
+            message,
+          }),
+          message,
+        );
       | `Assoc(obj) as json =>
         switch (List.assoc_opt("ok", obj)) {
         | Some(`Bool(true)) =>
@@ -617,7 +695,13 @@ module Fumola: BuiltinLivelit = {
             )
           ) {
           | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
-          | Error(message) => (Error(message), message)
+          | Error(message) => (
+              Error({
+                syntax: false,
+                message,
+              }),
+              message,
+            )
           }
         | _ =>
           let message =
@@ -625,11 +709,25 @@ module Fumola: BuiltinLivelit = {
             | Some(`String(message)) => message
             | _ => "the Fumola program did not produce a value"
             };
-          (Error(message), message);
+          let syntax =
+            List.assoc_opt("kind", obj) == Some(`String("syntax"));
+          (
+            Error({
+              syntax,
+              message,
+            }),
+            message,
+          );
         }
       | _ =>
         let message = "could not read the Fumola runtime's response";
-        (Error(message), message);
+        (
+          Error({
+            syntax: false,
+            message,
+          }),
+          message,
+        );
       }
     };
   };
@@ -670,7 +768,7 @@ module Fumola: BuiltinLivelit = {
      not claimed a runtime yet", and the first view claims a real one. */
   let model_default: model_t = {
     instance_id: 0,
-    program: "1 + 2",
+    program: C.default_program,
   };
 
   /* The result's shape depends on the program text -- 1 + 2 is an Int,
@@ -693,15 +791,26 @@ module Fumola: BuiltinLivelit = {
   };
 
   let expand:
-    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    (
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model_t
+    ) =>
     expansion_t =
-    (~ana, ~tools, m: model_t) => fst(observe_described(~ana, ~tools, m));
+    (~id, ~ana, ~tools, m: model_t) =>
+      fst(observe_described(~id, ~ana, ~tools, m));
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
       switch (x) {
       | Ok(exp) => exp
-      | Error(_) => DHExp.fresh(EmptyHole)
+      /* A half-written program is a syntax error on nearly every keystroke,
+         so that expands to a hole and says nothing. A program that parsed and
+         then went wrong expands to a description of what went wrong, which is
+         the only place the reader would otherwise see nothing at all. */
+      | Error({syntax: true, _}) => DHExp.fresh(EmptyHole)
+      | Error({syntax: false, message}) => DHExp.fresh(Invalid(message))
       };
 
   let update: (action_t, model_t) => model_t =
@@ -808,6 +917,7 @@ module Fumola: BuiltinLivelit = {
     let result =
       snd(
         observe_described(
+          ~id,
           ~ana=Typ.fresh(Unknown(Internal)),
           ~tools=view_tools,
           model,
@@ -853,6 +963,31 @@ module Fumola: BuiltinLivelit = {
   };
 };
 
+/* Runs its program inside a named thunk, so editing it reuses that thunk's
+   execution history. The default is arithmetic, which needs nothing else. */
+module FumolaThunk =
+  MakeFumola({
+    let name = "fumola_thunk";
+    let top_level = false;
+    let default_program = "1 + 2";
+  });
+
+/* Runs its program at the top level of the same kind of runtime: no thunk, so
+   no incremental reuse, but bindings outlive the program and the adapton
+   operations that cannot run inside a force will work. */
+module FumolaEditor =
+  MakeFumola({
+    let name = "fumola_editor";
+    let top_level = true;
+    let default_program = "1 := 2";
+  });
+
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js), (module Fumola)]
+  [
+    (module Slider),
+    (module Emotion),
+    (module Js),
+    (module FumolaThunk),
+    (module FumolaEditor),
+  ]
   |> List.map(raw_of_builtin);

@@ -151,18 +151,41 @@ window.fumola = (() => {
     return fresh;
   };
 
-  const evalSync = (id, src) => {
+  // Evaluate at the top level of the runtime, with no thunk around the
+  // program. Uncached, because it is used for programs whose point is their
+  // effect on the runtime rather than their value.
+  const evalTop = (id, src) => {
     if (!ready()) {
       return JSON.stringify({
         ok: false,
+        kind: "runtime",
+        error: "the Fumola runtime is not loaded",
+      });
+    }
+    if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
+    try {
+      return wasm.fumola_eval_top(id, src);
+    } catch (e) {
+      return JSON.stringify({ ok: false, kind: "runtime", error: String(e) });
+    }
+  };
+
+  const evalSync = (id, thunkName, src) => {
+    if (!ready()) {
+      return JSON.stringify({
+        ok: false,
+        kind: "runtime",
         error:
           loadError === null
             ? "the Fumola runtime is still loading"
             : "the Fumola runtime is unavailable",
       });
     }
+    // Keyed by thunk as well as program: two thunk livelits share a runtime
+    // but not a thunk, so one's result must not answer for the other.
+    const key = thunkName + "\u0000" + src;
     const last = lastEval.get(id);
-    if (last !== undefined && last.src === src) return last.result;
+    if (last !== undefined && last.key === key) return last.result;
 
     if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
 
@@ -172,11 +195,11 @@ window.fumola = (() => {
     // Hazel tuple or record rather than as something Hazel must take apart.
     let result;
     try {
-      result = wasm.fumola_eval(id, src);
+      result = wasm.fumola_eval(id, thunkName, src);
     } catch (e) {
       result = JSON.stringify({ ok: false, error: String(e) });
     }
-    lastEval.set(id, { src, result });
+    lastEval.set(id, { key, result });
     return result;
   };
 
@@ -199,11 +222,11 @@ window.fumola = (() => {
     }
     if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
     try {
-      return wasm.fumola_eval(id, src);
+      return wasm.fumola_eval_top(id, src);
     } catch (e) {
-      return JSON.stringify({ ok: false, error: String(e) });
+      return JSON.stringify({ ok: false, kind: "runtime", error: String(e) });
     }
   };
 
-  return { ready, source, claim, evalSync, evalFresh };
+  return { ready, source, claim, evalSync, evalTop, evalFresh };
 })();

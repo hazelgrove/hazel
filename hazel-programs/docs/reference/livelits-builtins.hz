@@ -29,7 +29,7 @@ let slider_val = ^^livelit(^slider(85)) in
 # Internal Model: Int                                           #
 let current_mood = ^^livelit(^emotion(0)) in
 
-# 3. ^fumola #
+# 3. ^fumola_thunk and ^fumola_editor #
 # Elaboration Type: Int                                                       #
 # Elaboration: The result of running the Fumola program held in the livelit,  #
 #              translated into a Hazel Int. A program that does not parse, or #
@@ -54,9 +54,15 @@ let current_mood = ^^livelit(^emotion(0)) in
 # only way to produce a string here, since a Hazel string cannot contain a    #
 # double quote and so neither can the program above.                          #
 #                                                                             #
+# ^fumola_thunk wraps its program in a thunk, so editing re-forces it and     #
+# reuses its history. ^fumola_editor evaluates at the top level instead: no    #
+# reuse, but bindings outlive the program and Adapton.reset() works, which it  #
+# cannot inside a thunk. Same instance id means the same runtime, so an        #
+# editor can set up state that a thunk reads.                                  #
+#                                                                             #
 # The Fumola module library is bound at the top level, so Gcd.gcd(12, 18)     #
 # works with no import:                                                       #
 #   Adapton  List  LazyList  PureList  LevelTree  HashMap                     #
 #   Counters  RandomInput  MergeSort  Gcd  DelayedPut                         #
 # Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.         #
-let fumola_val = ^^livelit(^fumola(0, "1 + 2")) in¿
+let fumola_val = ^^livelit(^fumola_thunk(0, "1 + 2")) in¿

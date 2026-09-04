@@ -101,7 +101,8 @@ let var_exps = (x: string): group => singleton(var_exp(x));
    so, since that changes what editing and copying it mean. */
 let livelit_name_explanation = (n: string): string =>
   switch (n) {
-  | "fumola" => "Runs a Fumola program and expands to its result as an `Int`; a program that does not parse, or whose result is not an integer, expands to a hole. Its model is a pair of an instance id and the program text. The id names an incremental Fumola runtime living outside Hazel, so state written in one edit is still there in the next: `1 := 2` in one edit, then `get(1)` in the next, gives 2. Three definitions are always in scope -- `pointer(s)`, `get(s)` and `peek(s)` -- because the adapton primitives need quotes, which a Hazel string cannot contain. Note that `:=` turns its left side into a pointer but `@` does not, so use `get` to read a cell back."
+  | "fumola_thunk" => "Runs a Fumola program inside a thunk named after this livelit, and expands to its result. Editing the program re-forces that thunk, so the edit reuses its execution history and state written in one edit is there in the next. Two of these in one runtime keep separate thunks. `pointer(s)`, `get(s)` and `peek(s)` are in scope, and the Fumola module library is bound at the top level. Note that `:=` turns its left side into a pointer but `@` does not, so read a cell back with `get`."
+  | "fumola_editor" => "Runs a Fumola program at the top level of a Fumola runtime, with no thunk around it, and expands to its result. Bindings it makes outlive it, and the adapton operations that cannot run inside a force -- `Adapton.reset()`, `Adapton.peekForce` -- work here. It shares its runtime with any livelit carrying the same instance id, so it can set up state that a `^fumola_thunk` then reads."
   | _ => "Expands to some value, and when projected, creates an interactable GUI widget."
   };
 

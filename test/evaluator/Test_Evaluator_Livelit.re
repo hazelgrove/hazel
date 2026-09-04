@@ -33,7 +33,8 @@ let tests = (
                  the livelit itself. Its actual round-trip behaviour -- and the
                  instance-id, reload and duplication semantics -- are covered by
                  the Rust tests in the Fumola repo, crates/fumola_wasm. */
-              | "fumola" => raise(Skip_livelit)
+              | "fumola_thunk"
+              | "fumola_editor" => raise(Skip_livelit)
               | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
               };
 
