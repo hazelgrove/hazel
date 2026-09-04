@@ -77,7 +77,7 @@ module Slider: BuiltinLivelit = {
       };
     };
 
-  let view = (model: model_t, send_action) => {
+  let view = (~id as _: Id.t, model: model_t, send_action) => {
     let n = model;
 
     Util.WebUtil.range(
@@ -196,7 +196,7 @@ module Emotion: BuiltinLivelit = {
       horizontal: 20,
     };
 
-  let view = (model: model_t, send_action) => {
+  let view = (~id as _: Id.t, model: model_t, send_action) => {
     let n = model;
     let n_int = int_of_string(Bigint.to_string(n));
     /* Calculate mouth curvature from the model value */
@@ -398,7 +398,7 @@ module Js: BuiltinLivelit = {
       };
 
   /* Render: show code input, a compute button, and the result. */
-  let view = (model: model_t, send_action) => {
+  let view = (~id as _: Id.t, model: model_t, send_action) => {
     let {code, result} = model;
 
     Node.div([
@@ -449,6 +449,302 @@ module Js: BuiltinLivelit = {
   };
 };
 
+/* The Fumola livelit.
+
+   Its Hazel-visible model is a pair `(instance_id, program_text)`. The
+   runtime that `instance_id` names does not live in Hazel's value domain at
+   all: it lives in a store held by the Fumola wasm module,
+
+       sigma : FumolaInstanceId -> FumolaRuntimeState
+
+   reached here through the `window.fumola` shim. Editing the livelit keeps
+   the same instance id and re-evaluates the new text against the same
+   persistent Fumola runtime, so that runtime's adapton store is carried
+   across the edit rather than being rebuilt. Expansion is an *observation*
+   of that external state, translated back into a Hazel value; the result is
+   deliberately not a second source of truth in the model.
+
+   See the design notes for the open questions this MVP does not settle. */
+module Fumola: BuiltinLivelit = {
+  let name = "fumola";
+
+  type model_t = {
+    /* Opaque name for an entry of sigma. Represented as an integer for now;
+       it is deliberately never used as an integer by the Hazel program. */
+    instance_id: int,
+    program: string,
+  };
+
+  /* The MVP translates only integer results. An untranslatable result (a
+     syntax error mid-edit, a Fumola value with no Hazel counterpart, or a
+     runtime that has not finished loading) expands to a hole rather than to
+     a misleading number. */
+  type expansion_t = result(Bigint.t, string);
+
+  type action_t =
+    | SetModel(model_t);
+
+  /* ---- the shim boundary -------------------------------------------- */
+
+  /* The shim is absent outside the browser (notably under the test runner),
+     and absent in the browser until the wasm artifacts have been built. Both
+     are reported rather than raised: a livelit whose runtime is missing should
+     degrade to a message, not take down evaluation. */
+  exception No_runtime;
+
+  /* Looked up as a property of the global object rather than with
+     [js_expr]: js_of_ocaml cannot compile a [js_expr] string ahead of time
+     and falls back to runtime evaluation, which it reports as an error on
+     every call. */
+  let runtime = () =>
+    switch (
+      Js_of_ocaml.Js.Optdef.to_option(
+        Js_of_ocaml.Js.Unsafe.get(Js_of_ocaml.Js.Unsafe.global, "fumola"),
+      )
+    ) {
+    | exception _ => None
+    | shim => shim
+    };
+
+  let shim = (method_name: string, args): Js_of_ocaml.Js.Unsafe.any =>
+    switch (runtime()) {
+    | Some(shim) => Js_of_ocaml.Js.Unsafe.meth_call(shim, method_name, args)
+    | None => raise(No_runtime)
+    };
+
+  let js_string = (s: string) =>
+    Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(s));
+  let js_int = (n: int) => Js_of_ocaml.Js.Unsafe.inject(n);
+
+  /* Ask the shim which instance this projector should be using. The shim
+     hands back the same id when this projector already owns it, and a fresh
+     one when the id is already owned by a different live projector -- which
+     is what makes duplicating a livelit generative rather than aliasing one
+     runtime between two copies. */
+  let claim = (~owner: string, instance_id: int): int =>
+    switch (shim("claim", [|js_int(instance_id), js_string(owner)|])) {
+    | exception _ => instance_id
+    | claimed =>
+      claimed
+      |> Js_of_ocaml.Js.Unsafe.coerce
+      |> Js_of_ocaml.Js.float_of_number
+      |> int_of_float
+    };
+
+  /* Evaluate against sigma(instance_id), realizing the runtime first if this
+     session has no entry for that id (the reload path). The shim answers with
+     a small tagged string: "Int:3", "Err:...", or "Pending". */
+  let observe = (model: model_t): expansion_t => {
+    let response =
+      switch (
+        shim(
+          "evalSync",
+          [|js_int(model.instance_id), js_string(model.program)|],
+        )
+      ) {
+      | exception _ => "Err:no Fumola runtime available"
+      | r => r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string
+      };
+    switch (String.index_opt(response, ':')) {
+    | Some(i) =>
+      let tag = String.sub(response, 0, i);
+      let body =
+        String.sub(response, i + 1, String.length(response) - i - 1);
+      switch (tag) {
+      | "Int" =>
+        switch (Bigint.of_string_opt(body)) {
+        | Some(n) => Ok(n)
+        | None => Error("Fumola returned an unreadable integer: " ++ body)
+        }
+      | _ => Error(body)
+      };
+    | None => Error(response)
+    };
+  };
+
+  /* ---- Hazel encodings ---------------------------------------------- */
+
+  let hazel_model_t: TermBase.Typ.t =
+    Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))]) |> Typ.fresh;
+
+  let model_to_hazel: model_t => model_exp =
+    (m: model_t) =>
+      DHExp.fresh(
+        Tuple([
+          DHExp.fresh(Atom(Int(Bigint.of_int(m.instance_id)))),
+          DHExp.fresh(Atom(String(m.program))),
+        ]),
+      );
+
+  let model_from_hazel: model_exp => option(model_t) =
+    (e: model_exp) =>
+      switch (e.term) {
+      | Tuple([
+          {term: Atom(Int(id)), _},
+          {term: Atom(String(program)), _},
+        ]) =>
+        switch (int_of_string_opt(Bigint.to_string(id))) {
+        | Some(instance_id) =>
+          Some({
+            instance_id,
+            program,
+          })
+        | None => None
+        }
+      | _ => None
+      };
+
+  /* Instance id 0 is never handed out by the shim; it means "this livelit has
+     not claimed a runtime yet", and the first view claims a real one. */
+  let model_default: model_t = {
+    instance_id: 0,
+    program: "1 + 2",
+  };
+
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+
+  let expand: model_t => expansion_t = (m: model_t) => observe(m);
+
+  let expand_to_hazel: expansion_t => expansion_exp =
+    (x: expansion_t) =>
+      switch (x) {
+      | Ok(n) => DHExp.fresh(Atom(Int(n)))
+      | Error(_) => DHExp.fresh(EmptyHole)
+      };
+
+  let update: (action_t, model_t) => model_t =
+    (action: action_t, _model: model_t) =>
+      switch (action) {
+      | SetModel(m) => m
+      };
+
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([
+      Variant(
+        "SetModel",
+        ConstructorMap.mk_variant_ann(~ids=[], ()),
+        Some(
+          Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))]) |> Typ.fresh,
+        ),
+      ),
+    ])
+    |> Typ.fresh;
+
+  let action_to_hazel: action_t => action_exp =
+    (action: action_t) =>
+      switch (action) {
+      | SetModel(m) =>
+        Ap(
+          Forward,
+          Constructor(
+            "SetModel",
+            Some(
+              Some(
+                Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))])
+                |> Typ.fresh,
+              ),
+            ),
+          )
+          |> DHExp.fresh,
+          model_to_hazel(m),
+        )
+        |> DHExp.fresh
+      };
+
+  let action_from_hazel: action_exp => option(action_t) =
+    (e: action_exp) =>
+      switch (e.term) {
+      | Ap(Forward, {term: Constructor("SetModel", _), _}, model) =>
+        switch (model_from_hazel(model)) {
+        | Some(m) => Some(SetModel(m))
+        | None => None
+        }
+      | _ => None
+      };
+
+  let view = (~id: Id.t, model: model_t, send_action) => {
+    /* Reconcile this projector's claim on sigma before rendering. A livelit
+       that was just duplicated, or one whose id was never claimed, gets a
+       fresh runtime here and rewrites its own model to name it. */
+    let owner = Id.to_string(id);
+    let claimed = claim(~owner, model.instance_id);
+    if (claimed != model.instance_id) {
+      /* Write the claimed id back into the model, so that the model keeps
+         naming the runtime it actually observes. This is deferred to a later
+         tick rather than run here: applying an action in the middle of
+         rendering would mutate the very state being rendered. */
+      let effect =
+        send_action(
+          SetModel({
+            ...model,
+            instance_id: claimed,
+          }),
+        );
+      let _ =
+        Js_of_ocaml.Js.Unsafe.fun_call(
+          Js_of_ocaml.Js.Unsafe.js_expr("window.setTimeout"),
+          [|
+            Js_of_ocaml.Js.Unsafe.inject(
+              Js_of_ocaml.Js.wrap_callback(() =>
+                Ui_effect.Expert.handle(effect)
+              ),
+            ),
+            Js_of_ocaml.Js.Unsafe.inject(0),
+          |],
+        );
+      ();
+    };
+
+    let result =
+      switch (
+        observe({
+          ...model,
+          instance_id: claimed,
+        })
+      ) {
+      | Ok(n) => Bigint.to_string(n)
+      | Error(message) => message
+      };
+
+    Node.div(
+      ~attrs=[Attr.class_("fumola-livelit")],
+      [
+        Node.input(
+          ~attrs=[
+            Attr.type_("text"),
+            Attr.value(model.program),
+            Attr.on_input((_, program: string)
+              /* The instance id is preserved across the edit: this is what
+                 makes the edit incremental rather than a fresh run. */
+              =>
+                send_action(
+                  SetModel({
+                    instance_id: claimed,
+                    program,
+                  }),
+                )
+              ),
+          ],
+          (),
+        ),
+        Node.div(
+          ~attrs=[Attr.class_("fumola-result")],
+          [Node.text(result)],
+        ),
+        Node.div(
+          ~attrs=[Attr.class_("fumola-id")],
+          [Node.text("#" ++ string_of_int(claimed))],
+        ),
+      ],
+    );
+  };
+
+  let size: Util.ProjectorShape.t = {
+    vertical: Inline,
+    horizontal: 40,
+  };
+};
+
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js)]
+  [(module Slider), (module Emotion), (module Js), (module Fumola)]
   |> List.map(raw_of_builtin);

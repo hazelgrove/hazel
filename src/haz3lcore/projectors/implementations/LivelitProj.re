@@ -113,7 +113,7 @@ module M: Projector = {
             };
           };
 
-          let list_contents = ll.view(model, action_callback);
+          let list_contents = ll.view(~id=info.id, model, action_callback);
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],

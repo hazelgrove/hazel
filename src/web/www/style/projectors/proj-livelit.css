@@ -30,3 +30,30 @@
     display: flex;
     flex-direction: column;
 }
+/* The fumola livelit: an editable Fumola program, its current result, and the
+   id of the external Fumola runtime the model names. */
+.livelit > .fumola-livelit {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    width: 100%;
+}
+.livelit > .fumola-livelit input {
+    flex: 1 1 auto;
+    min-width: 4em;
+    font-family: inherit;
+    outline: none;
+}
+.livelit > .fumola-livelit .fumola-result {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+/* The instance id is diagnostic, not something to read while programming. */
+.livelit > .fumola-livelit .fumola-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}

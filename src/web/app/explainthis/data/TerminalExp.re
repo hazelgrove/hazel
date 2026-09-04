@@ -96,12 +96,21 @@ let var_exp = (n: string): form => {
 };
 let var_exps = (x: string): group => singleton(var_exp(x));
 
+/* Most livelits are self-contained, and the generic explanation is the whole
+   story. A livelit whose model names state living outside Hazel needs to say
+   so, since that changes what editing and copying it mean. */
+let livelit_name_explanation = (n: string): string =>
+  switch (n) {
+  | "fumola" => "Runs a Fumola program and expands to its result as an `Int`; a program that does not parse, or whose result is not an integer, expands to a hole. Its model is a pair of an instance id and the program text. The id names an incremental Fumola runtime living outside Hazel: editing the program keeps the same id, so the edit re-uses that runtime's execution history rather than starting over, and duplicating the livelit gives the copy a fresh id so the two never share one history."
+  | _ => "Expands to some value, and when projected, creates an interactable GUI widget."
+  };
+
 let livelit_name_exp = (n: string): form => {
   id: LivelitName,
   syntactic_form: ["^" ++ n |> abbreviate |> exp],
   colorings: [],
   expandable_id: None,
-  explanation: "Expands to some value, and when projected, creates an interactable GUI widget.",
+  explanation: livelit_name_explanation(n),
   examples: [],
 };
 let livelit_name_exps = (x: string): group =>

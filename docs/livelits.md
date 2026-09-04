@@ -51,8 +51,13 @@ module type BuiltinLivelit = {
   let action_from_hazel: action_exp => option(action_t);
   let update: (action_t, model_t) => model_t;
 
-  // View/rendering function
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
+  // View/rendering function. [id] is the projector's persistent unique
+  // identifier: it distinguishes one live projector from another, and stays
+  // the same as the model is edited. Livelits with self-contained models
+  // ignore it; a livelit whose model names external state uses it to tell
+  // editing apart from duplication (see the fumola livelit below).
+  let view:
+    (~id: Id.t, model_t, action_t => Ui_effect.t(unit)) => node_or_list;
 
   // Size specification
   let size: ProjectorCore.Shape.t;
@@ -68,6 +73,91 @@ let livelits: list(raw_livelit) =
   [(module Slider), (module Emotion), (module YourNewLivelit)]
   |> List.map(raw_of_builtin);
 ```
+
+## The Built-in Livelits
+
+### `^slider`
+
+| | |
+| --- | --- |
+| Expansion type | `Int` |
+| Model | `Int` |
+| Expansion | The slider's current value, between 0 and 100. |
+
+### `^emotion`
+
+| | |
+| --- | --- |
+| Expansion type | `String` |
+| Model | `Int` |
+| Expansion | `"sad"` below 40, `"happy"` above 70, `"neutral"` otherwise. |
+
+### `^js`
+
+| | |
+| --- | --- |
+| Expansion type | `String` |
+| Model | `(String, String)` -- the JavaScript source, and the last result. |
+| Expansion | The stored result string. Pressing *Compute* evaluates the source and stores the result in the model. |
+
+### `^fumola`
+
+| | |
+| --- | --- |
+| Expansion type | `Int` |
+| Model | `(Int, String)` -- an opaque Fumola instance id, and the Fumola source text. |
+| Expansion | The result of running the Fumola program, translated to a Hazel `Int`. A program that does not parse, or whose result is not an integer, expands to a hole. |
+| Requires | The Fumola wasm runtime; build it with `scripts/build-fumola-wasm.sh`. |
+
+This is the first livelit whose model does not contain all of its own state,
+so it is worth spelling out how it differs from the others.
+
+The three livelits above are self-contained: `^slider`'s model *is* its value,
+and `^js` stores its last result in its own model. `^fumola` instead holds a
+**name for state that lives outside Hazel**. Its model is a pair
+
+```text
+(instance_id, program_text)
+```
+
+where `instance_id` identifies an entry of an external store
+
+```text
+sigma : FumolaInstanceId -> FumolaRuntimeState
+```
+
+held by the Fumola wasm module and reached through the `window.fumola` shim in
+`src/web/www/prebundle.js`. That runtime state -- the Fumola interpreter and
+its Adapton demanded computation graph -- is deliberately *not* serialized into
+the Hazel model; only the name is.
+
+Three consequences follow, and each is a thing the livelit has to do
+explicitly rather than get for free:
+
+- **Editing preserves the id.** Changing the program text keeps the same
+  `instance_id` and re-evaluates against the same live runtime, so Fumola can
+  reuse its prior computation instead of starting over. The edit is expressed
+  in Fumola rather than through any repair API: the source text is wrapped as
+  `force(`topLevel := thunk { <program text> })`, and re-assigning that name
+  and re-forcing it is what gives the edit its incremental meaning.
+
+- **Expansion is an observation, not stored state.** `expand` asks sigma for
+  the runtime's current result and translates it; the result is never a second
+  source of truth in the model. This relies on the invariant that `sigma(i)` is
+  synchronized with the model's `program_text`.
+
+- **Ids are generative.** Duplicating a livelit must not produce two widgets
+  sharing one execution history. The view uses its `~id` -- the projector's
+  persistent identity -- to claim its instance; when a copy turns up claiming
+  an id another live projector already owns, it is given a fresh runtime and
+  rewrites its own model to name it. The same mechanism covers reload: a saved
+  program naming an id this session has never seen has that runtime realized
+  on demand.
+
+Not settled by this implementation: `FumolaInstanceId` is an ordinary `Int` in
+the model rather than a distinct opaque value form, only first-order integer
+results are translated, and Fumola values whose meaning depends on the runtime
+(functions, thunks, references) have no Hazel representation at all.
 
 ## Styling Livelits
 

@@ -27,4 +27,19 @@ let slider_val = ^^livelit(^slider(85)) in
 #                if value > 70 then "happy"                     #
 #                otherwise "neutral"                            #
 # Internal Model: Int                                           #
-let current_mood = ^^livelit(^emotion(0)) in¿
+let current_mood = ^^livelit(^emotion(0)) in
+
+# 3. ^fumola #
+# Elaboration Type: Int                                                       #
+# Elaboration: The result of running the Fumola program held in the livelit,  #
+#              translated into a Hazel Int. A program that does not parse, or #
+#              whose result is not an integer, elaborates to a hole.          #
+# Internal Model: (Int, String)                                               #
+#   The String is the Fumola source text, which is editable in the widget.    #
+#   The Int is an opaque Fumola instance id: it names an incremental Fumola    #
+#   runtime living outside Hazel, not an ordinary number. Editing the program #
+#   keeps the same id, so the edit re-uses that runtime's execution history   #
+#   instead of starting over. Duplicating the livelit gives the copy a fresh  #
+#   id, so two copies never share one runtime.                                #
+# Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.         #
+let fumola_val = ^^livelit(^fumola(0, "1 + 2")) in¿
