@@ -356,6 +356,7 @@ let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
     let options =
       Animation.Js.options_unsafe({
         duration: dur(enter_duration),
+        delay: 0,
         /* NOT easeOutExpo: it front-loads so hard the entrance reads
            as a pop (91% visible at t=120ms); linear lets the grow
            register (andrew kept missing it) */
@@ -419,6 +420,7 @@ let animate_emerge =
   let options =
     Animation.Js.options_unsafe({
       duration: dur(duration),
+      delay: 0,
       easing,
     });
   switch (
@@ -457,6 +459,7 @@ let animate_node =
   let options =
     Animation.Js.options_unsafe({
       duration: dur(duration),
+      delay: 0,
       easing,
     });
   switch (
@@ -550,6 +553,7 @@ let shake_nodes = (nodes: list(Js.t(Dom.node))): unit => {
   let options =
     Animation.Js.options_unsafe({
       duration: 260,
+      delay: 0,
       easing: "ease-out",
     });
   nodes
@@ -631,6 +635,7 @@ let shake_insist = (): unit => {
   let options =
     Animation.Js.options_unsafe({
       duration: 220,
+      delay: 0,
       easing: "ease-out",
     });
   ids
@@ -834,6 +839,7 @@ let shake_dead_press =
        let options =
          Animation.Js.options_unsafe({
            duration: 280,
+           delay: 0,
            easing: "ease-in-out",
          });
        switch (
@@ -1026,6 +1032,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                            let options =
                              Animation.Js.options_unsafe({
                                duration: dur(duration),
+                               delay: 0,
                                easing,
                              });
                            switch (

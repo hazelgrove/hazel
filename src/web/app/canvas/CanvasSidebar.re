@@ -37,9 +37,8 @@ let anchor_target: ref((float, float)) = ref((pan_slack, pan_slack));
    preventDefault the browser's page zoom on ctrl+wheel), so it is
    installed raw on the scroll element; these refs carry the current
    zoom and dispatcher across renders */
-let zoom_now: ref(float) = ref(1.);
-let zoom_send: ref(option(float => unit)) =
-  ref(None: option(float => unit));
+let zoom_now = CanvasCamera.zoom_now;
+let zoom_send = CanvasCamera.zoom_send;
 let install_zoom_listener = (): unit => {
   Js_of_ocaml.(
     switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
@@ -60,7 +59,10 @@ let install_zoom_listener = (): unit => {
             [|
               Js.Unsafe.inject(Js.string("scroll")),
               Js.Unsafe.inject(
-                Js.Unsafe.callback(() => CanvasRipple.request_draw()),
+                Js.Unsafe.callback(() => {
+                  CanvasCamera.note_scroll();
+                  CanvasRipple.request_draw();
+                }),
               ),
               Js.Unsafe.inject(
                 Js.Unsafe.obj([|
@@ -185,6 +187,7 @@ let install_zoom_listener = (): unit => {
                       (st +. my -. pan_slack) *. r +. pan_slack -. my;
                     zoom_now := z;
                     CanvasRipple.zoom := z;
+                    CanvasCamera.note_user_zoom();
                     CanvasRipple.request_draw();
                     send(z);
                   };
@@ -213,91 +216,17 @@ let install_zoom_listener = (): unit => {
   );
 };
 
-/* fit: a single JS-driven animation moving zoom AND scroll together so
-   the graph center stays pinned at the pane center throughout — the
-   old flow (instant scroll snap, then the CSS zoom transition gliding)
-   read as a disorienting jump-then-zoom */
-let fit_anim_running: ref(bool) = ref(false);
+/* fit: one camera animation moving zoom AND scroll together so the
+   graph center stays pinned at the pane center throughout */
 let animate_fit =
     (~z_to: float, ~lw: float, ~lh: float, ~aw: float, ~ah: float): unit =>
-  Js_of_ocaml.(
-    if (! fit_anim_running^) {
-      fit_anim_running := true;
-      let z_from = zoom_now^;
-      let t0: ref(float) = ref(0.);
-      let dur = 320.;
-      let root_opt = () =>
-        Js.Opt.to_option(
-          Js.Unsafe.meth_call(
-            Js.Unsafe.global##.document,
-            "querySelector",
-            [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
-          ),
-        );
-      switch (root_opt()) {
-      | None => fit_anim_running := false
-      | Some(root) =>
-        let cl = Js.Unsafe.get(Js.Unsafe.coerce(root), "classList");
-        ignore(
-          Js.Unsafe.meth_call(
-            cl,
-            "add",
-            [|Js.Unsafe.inject(Js.string("no-zoom-anim"))|],
-          ),
-        );
-        let apply = (z: float) => {
-          Js.Unsafe.coerce(root)##.style##.zoom :=
-            Js.string(Printf.sprintf("%.4f", z));
-          zoom_now := z;
-          CanvasRipple.zoom := z;
-          switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
-          | None => ()
-          | Some(scroll) =>
-            let scroll = Js.Unsafe.coerce(scroll);
-            scroll##.scrollLeft := max(0., pan_slack +. (lw *. z -. aw) /. 2.);
-            scroll##.scrollTop := max(0., pan_slack +. (lh *. z -. ah) /. 2.);
-          };
-          CanvasRipple.request_draw();
-        };
-        let rec step = (now: float) => {
-          if (t0^ == 0.) {
-            t0 := now;
-          };
-          let t = min(1., (now -. t0^) /. dur);
-          let e = 1. -. (1. -. t) ** 3.; /* ease-out cubic */
-          apply(z_from +. (z_to -. z_from) *. e);
-          if (t < 1.) {
-            ignore(
-              Js.Unsafe.meth_call(
-                Js.Unsafe.global##.window,
-                "requestAnimationFrame",
-                [|Js.Unsafe.inject(Js.Unsafe.callback(step))|],
-              ),
-            );
-          } else {
-            ignore(
-              Js.Unsafe.meth_call(
-                cl,
-                "remove",
-                [|Js.Unsafe.inject(Js.string("no-zoom-anim"))|],
-              ),
-            );
-            fit_anim_running := false;
-            switch (zoom_send^) {
-            | Some(send) => send(z_to)
-            | None => ()
-            };
-          };
-        };
-        ignore(
-          Js.Unsafe.meth_call(
-            Js.Unsafe.global##.window,
-            "requestAnimationFrame",
-            [|Js.Unsafe.inject(Js.Unsafe.callback(step))|],
-          ),
-        );
-      };
-    }
+  CanvasCamera.animate(
+    ~aw,
+    ~ah,
+    ~zoom=Some(z_to),
+    ~dur=320.,
+    ~easing=CanvasCamera.EaseOut,
+    (lw /. 2., lh /. 2.),
   );
 let last_anchor_slide: ref(string) = ref("");
 /* anchor the scroll to the board (skipping the slack margin) whenever
@@ -316,6 +245,7 @@ let ensure_scroll_anchor = (slide: string): unit =>
               Js.Unsafe.set(el', "__panAnchored", Js.bool(true));
               last_anchor_slide := slide;
               pending_anchor := false;
+              CanvasCamera.mark_driving();
               let (tx, ty) = anchor_target^;
               el'##.scrollLeft := tx;
               el'##.scrollTop := ty;
@@ -504,6 +434,12 @@ let canvas_menu_node: ref(option((string, string))) =
   ref(None: option((string, string)));
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
+/* camera follow: the avatar position last handed to the camera, and
+   whether the agent was busy then (a resting avatar waking up = a hop
+   of attention even though it didn't move) */
+let last_followed: ref(option(CanvasLayout.pos)) =
+  ref(None: option(CanvasLayout.pos));
+let last_followed_busy: ref(bool) = ref(false);
 /* previous (site, state, busy) for transition logging only */
 let last_logged_avatar: ref((option(Id.t), string)) =
   ref((None: option(Id.t), "off"));
@@ -568,6 +504,23 @@ let viable_cached = (statics: CachedStatics.t): bool =>
     viable_cache := Some((statics, v));
     v;
   };
+/* beat weight for pacing: graph elements (by stable name) that differ
+   between two states — nodes by key, edges by qualified name */
+let graph_delta =
+    (
+      ~test_results: option(Language.TestResults.t),
+      a: CodeWithStatics.Model.t,
+      b: CodeWithStatics.Model.t,
+    )
+    : int => {
+  let keys = (g: CanvasGraph.t) =>
+    List.map((n: CanvasGraph.tynode) => n.key, g.nodes)
+    @ List.map((e: CanvasGraph.edge) => "e:" ++ e.e_name, g.edges);
+  let ka = keys(extract_cached(~test_results, a.statics))
+  and kb = keys(extract_cached(~test_results, b.statics));
+  List.length(List.filter(k => !List.mem(k, kb), ka))
+  + List.length(List.filter(k => !List.mem(k, ka), kb));
+};
 /* sample-volume telemetry: logged when the total moves meaningfully */
 let last_logged_sample_total: ref(int) = ref(0);
 /* per-edge output-sample counts, for firing data-flow pulses on growth
@@ -734,6 +687,7 @@ let view =
     CanvasBuffer.observe(
       ~enabled=globals.settings.canvas_pace,
       ~viable=(m: CodeWithStatics.Model.t) => viable_cached(m.statics),
+      ~weight=graph_delta(~test_results),
       ~schedule_tick,
       editor,
     );
@@ -777,6 +731,7 @@ let view =
         |> Bonsai.Effect.Expert.handle,
     );
   install_zoom_listener();
+  CanvasCamera.install_testers();
   let offsets =
     globals.settings.canvas_node_offsets
     |> List.filter_map((((s, k), d)) => s == slide ? Some((k, d)) : None);
@@ -971,37 +926,8 @@ let view =
           );
     };
   };
-  /* auto-fit while the agent works: if the (paced) graph has outgrown
-     the pane at the current zoom, ease the zoom down one step toward
-     fitting. Discrete steps, rate-limited; CSS transitions smooth the
-     hop where supported. */
-  if (globals.settings.canvas_pace && CanvasBuffer.in_burst()) {
-    switch (avail_width, avail_height) {
-    | (Some(aw), Some(ah)) =>
-      let need =
-        min(
-          (aw -. 10.) /. max(1., lay.width),
-          (ah -. 10.) /. max(1., lay.height),
-        );
-      if (need < zoom -. 0.05 && CanvasBuffer.autofit_due()) {
-        let target = max(0.4, need);
-        let stepped = max(target, zoom -. 0.15);
-        CanvasLog.log(
-          Printf.sprintf("auto-fit: zoom %.2f -> %.2f", zoom, stepped),
-        );
-        let send = () =>
-          globals.inject_global(Set(SetCanvasZoom(stepped)))
-          |> Bonsai.Effect.Expert.handle;
-        ignore(
-          Js_of_ocaml.Js.Unsafe.global##setTimeout(
-            Js_of_ocaml.Js.Unsafe.callback(send),
-            80,
-          ),
-        );
-      };
-    | _ => ()
-    };
-  };
+  /* zoom while the agent works is the camera's job now: CanvasCamera.follow
+     frames the sites touched this burst (with hysteresis) on each hop */
   /* canvas clicks SELECT the definition (caret at front, cell focused) */
   let inject_jump = (id: Id.t) =>
     Effect.Many([
@@ -2042,11 +1968,60 @@ let view =
     | Some((p, state)) =>
       /* busy with no fresh edit landing = thinking */
       Some((p, agent_busy && state == "" ? "think" : state))
-    | None =>
-      /* nothing ever resolved this session: while the agent works,
-         still embody it at the last known or a neutral spot */
-      agent_busy ? last_avatar_pos^ |> Option.map(p => (p, "think")) : None
+    | None when agent_busy =>
+      /* nothing resolved yet: embody the agent from the first thinking
+         token anyway — at its last known spot, else at the viewport
+         center (where the user is looking); its first hop then travels
+         from there. Without this the avatar AND its reasoning bubble
+         were invisible until the first tool landed. */
+      let p =
+        switch (last_avatar_pos^) {
+        | Some(p) => Some(p)
+        | None =>
+          switch (avail_width, avail_height) {
+          | (Some(aw), Some(ah)) =>
+            CanvasCamera.center(~aw, ~ah)
+            |> Option.map(((x, y)) =>
+                 CanvasLayout.{
+                   x,
+                   y,
+                 }
+               )
+          | _ =>
+            Some(
+              CanvasLayout.{
+                x: lay.width /. 2.,
+                y: lay.height /. 2.,
+              },
+            )
+          }
+        };
+      switch (p) {
+      | Some(p) =>
+        last_avatar_pos := Some(p);
+        Some((p, "think"));
+      | None => None
+      };
+    | None => None
     };
+  };
+  /* camera follow: a hop (or a resting avatar waking) hands the site to
+     the camera; the dead zone decides whether it actually moves */
+  switch (avatar, avail_width, avail_height) {
+  | (Some((p, _)), Some(aw), Some(ah)) when globals.settings.canvas_follow =>
+    let moved =
+      switch (last_followed^) {
+      | Some(lp: CanvasLayout.pos) =>
+        abs_float(lp.x -. p.x) > 1. || abs_float(lp.y -. p.y) > 1.
+      | None => true
+      };
+    let woke = agent_busy && ! last_followed_busy^;
+    if (moved || woke) {
+      last_followed := Some(p);
+      CanvasCamera.follow(~aw, ~ah, (p.x, p.y));
+    };
+    last_followed_busy := agent_busy;
+  | _ => ()
   };
   if (agent_busy != last_logged_busy^) {
     last_logged_busy := agent_busy;
@@ -2290,8 +2265,14 @@ let view =
         btn(
           ~cls=globals.settings.canvas_pace ? "tool-active" : "",
           "pace",
-          "play bursts of agent edits as separate animated beats (max ~1.4/s) instead of one jump-cut",
+          "play bursts of agent edits as separate animated beats (travel, act, settle; bigger edits dwell longer) instead of one jump-cut",
           globals.inject_global(Set(ToggleCanvasPace)),
+        ),
+        btn(
+          ~cls=globals.settings.canvas_follow ? "tool-active" : "",
+          "follow",
+          "keep the agent in view: the camera glides to its work site when it hops off-center and frames the sites touched this turn",
+          globals.inject_global(Set(ToggleCanvasFollow)),
         ),
         btn(
           ~on_press=

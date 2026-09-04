@@ -20,6 +20,9 @@ module Js = {
   type options = {
     duration: int,
     easing: string,
+    /* ms before the animation starts; the first keyframe holds meanwhile
+       (fill: backwards), so a delayed move/grow-in stays put, then goes */
+    delay: int,
   };
 
   /* Options for CSS Animations API animate method */
@@ -68,11 +71,20 @@ module Js = {
     |> Array.of_list
     |> Js.array;
 
-  let options_unsafe = ({duration, easing}: options): Js.t(Js.js_array('a)) =>
+  let options_unsafe =
+      ({duration, easing, delay}: options): Js.t(Js.js_array('a)) =>
     [
       ("duration", Js.Unsafe.inject(duration)),
       ("easing", Js.Unsafe.inject(Js.string(easing))),
     ]
+    @ (
+      delay > 0
+        ? [
+          ("delay", Js.Unsafe.inject(delay)),
+          ("fill", Js.Unsafe.inject(Js.string("backwards"))),
+        ]
+        : []
+    )
     |> Array.of_list
     |> Js.Unsafe.obj;
 
@@ -221,12 +233,13 @@ let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
 let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
 
 module Actions = {
-  let move = (~scale=1., id) => {
+  let move = (~scale=1., ~delay=0, id) => {
     id,
     animate: change => {
       options: {
         duration: 125,
         easing: easeOutExpo,
+        delay,
       },
       keyframes:
         switch (change) {
@@ -243,6 +256,7 @@ module Actions = {
       options: {
         duration: 450,
         easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+        delay: 0,
       },
       keyframes:
         switch (change) {

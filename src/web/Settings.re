@@ -55,6 +55,10 @@ module Model = {
        distinct animated beats instead of one jump-cut */
     [@sexp.default true] [@yojson.default true]
     canvas_pace: bool,
+    /* camera follow: glide the canvas viewport so the agent avatar stays
+       central-ish as it hops, framing the sites it touches this turn */
+    [@sexp.default true] [@yojson.default true]
+    canvas_follow: bool,
     /* bumped by the pacing timer purely to trigger a re-render while
        buffered beats remain (value itself is meaningless) */
     [@sexp.default 0] [@yojson.default 0]
@@ -149,6 +153,7 @@ module Model = {
     canvas_frames: [],
     canvas_zoom: 1.0,
     canvas_pace: true,
+    canvas_follow: true,
     canvas_tick: 0,
     simple_indication: false,
   };
@@ -233,6 +238,7 @@ module Update = {
     | SetCanvasFrame(string, float, float, float, float)
     | SetCanvasZoom(float)
     | ToggleCanvasPace
+    | ToggleCanvasFollow
     | CanvasTick
     | ClearCanvasNodeOffsets(string)
     | ExplainThis(ExplainThisModel.Settings.action)
@@ -629,6 +635,10 @@ module Update = {
       | ToggleCanvasPace => {
           ...settings,
           canvas_pace: !settings.canvas_pace,
+        }
+      | ToggleCanvasFollow => {
+          ...settings,
+          canvas_follow: !settings.canvas_follow,
         }
       | CanvasTick => {
           ...settings,

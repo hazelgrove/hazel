@@ -14,9 +14,29 @@
 
 open Js_of_ocaml;
 
-let cadence_ms = 700.; /* min interval between displayed beats */
+/* dwell = how long a shown beat holds before the next releases:
+   weighted by the size of the change it introduced (a five-definition
+   insert earns a look, a rename doesn't), then compressed elastically as
+   the backlog grows — the display speeds up BEFORE it drops anything */
+let dwell_base_ms = 450.;
+let dwell_per_unit_ms = 250.;
+let dwell_max_ms = 2000.;
+let dwell_min_ms = 250.;
+let dwell_of = (weight: int): float =>
+  min(
+    dwell_max_ms,
+    dwell_base_ms +. dwell_per_unit_ms *. float_of_int(weight),
+  );
+let elastic = (dwell: float, pending: int): float =>
+  max(
+    dwell_min_ms,
+    dwell /. (1. +. 0.5 *. float_of_int(max(0, pending - 1))),
+  );
+/* the graph's own elements move this long after the avatar sets off, so
+   a beat reads travel -> act -> settle instead of everything at once */
+let lead_ms = 260;
 let burst_window_ms = AgentPulse.burst_window_ms;
-let queue_cap = 4; /* max pending beats; middles coalesce away */
+let queue_cap = 8; /* max pending beats; middles coalesce away */
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
@@ -55,6 +75,8 @@ let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);
 /* (tool name, shown-at) of the most recent labeled beat, for the
    avatar's transient action toast */
 let toast_ms = 1100.;
+/* the toast lands in the settle phase, after the avatar has arrived */
+let toast_delay_ms = 380.;
 let last_toast: ref(option((string, float))) =
   ref(None: option((string, float)));
 /* the avatar site of the beat currently SHOWN (sticky across beats that
@@ -63,11 +85,16 @@ let beat_avatar: ref(option((Haz3lcore.Id.t, string))) =
   ref(None: option((Haz3lcore.Id.t, string)));
 let current_toast = (): option(string) =>
   switch (last_toast^) {
-  | Some((l, t)) when now() -. t < toast_ms => Some(l)
+  | Some((l, t))
+      when
+        now() -. t >= toast_delay_ms && now() -. t < toast_delay_ms +. toast_ms =>
+    Some(l)
   | _ => None
   };
 let last_seen: ref(option(CodeWithStatics.Model.t)) = ref(None);
 let last_beat: ref(float) = ref(0.);
+/* dwell owed by the beat currently shown */
+let cur_dwell: ref(float) = ref(dwell_base_ms);
 let tick_pending: ref(bool) = ref(false);
 
 let in_burst = (): bool => now() -. last_agent_action^ < burst_window_ms;
@@ -76,25 +103,18 @@ let in_burst = (): bool => now() -. last_agent_action^ < burst_window_ms;
    animations divide their deltas by it */
 let canvas_zoom: ref(float) = ref(1.);
 
-let last_autofit: ref(float) = ref(0.);
-let autofit_due = (): bool =>
-  if (now() -. last_autofit^ > 900.) {
-    last_autofit := now();
-    true;
-  } else {
-    false;
-  };
-
 /* FLIP staging for a beat: graph elements at edit pace, the avatar on
-   the slow action so its hop reads as travel */
-let stage_beat = (): unit => {
+   the slow action so its hop reads as travel. ~lead: agent beats hold
+   the graph still while the avatar (and camera) travel, then act */
+let stage_beat = (~lead: bool=false, ()): unit => {
   let scale = canvas_zoom^;
+  let delay = lead ? lead_ms : 0;
   Animation.request(
     (
       Util.JsUtil.ids_with_prefix("cnode-")
       @ Util.JsUtil.ids_with_prefix("cedge-")
       @ Util.JsUtil.ids_with_prefix("cval-")
-      |> List.map(Animation.Actions.move(~scale))
+      |> List.map(Animation.Actions.move(~scale, ~delay))
     )
     @ (
       Util.JsUtil.ids_with_prefix("canvas-avatar")
@@ -179,6 +199,13 @@ let observe =
       /* beats failing this test (e.g. a snapshot whose graph extraction
          comes up empty mid-burst) are dropped instead of rendered */
       ~viable: CodeWithStatics.Model.t => bool=_ => true,
+      /* size of the change between two states (graph elements that
+         differ), weighting the dwell of the beat that introduces it */
+      ~weight: (CodeWithStatics.Model.t, CodeWithStatics.Model.t) => int=(
+                                                                    _,
+                                                                    _,
+                                                                    ) =>
+                                                                    0,
       ~schedule_tick: float => unit,
       live: CodeWithStatics.Model.t,
     )
@@ -265,8 +292,9 @@ let observe =
         beat_avatar := None;
       };
     };
+    let due = elastic(cur_dwell^, List.length(queue^));
     switch (queue^) {
-    | [next, ...rest] when t -. last_beat^ >= cadence_ms =>
+    | [next, ...rest] when t -. last_beat^ >= due =>
       let shown_viable =
         switch (shown^) {
         | Some(sh) => viable(sh)
@@ -282,20 +310,31 @@ let observe =
         );
         queue := rest;
       } else {
-        stage_beat();
+        stage_beat(~lead=true, ());
+        let w =
+          switch (shown^) {
+          | Some(sh) => weight(sh, next.b_model)
+          | None => 0
+          };
+        cur_dwell := dwell_of(w);
         CanvasLog.log(
           Printf.sprintf(
-            "beat shown%s (%.1fs since last, %d still pending)",
+            "beat shown%s (%.1fs since last, weight %d -> dwell %.0fms, %d still pending)",
             switch (next.b_label) {
             | Some(l) => " [" ++ l ++ "]"
             | None => ""
             },
             (t -. last_beat^) /. 1000.,
+            w,
+            cur_dwell^,
             List.length(rest),
           ),
         );
         switch (next.b_label) {
-        | Some(l) => last_toast := Some((l, t))
+        | Some(l) =>
+          last_toast := Some((l, t));
+          /* repaint when the toast is due to appear */
+          schedule_tick(toast_delay_ms +. 20.);
         | None => ()
         };
         switch (next.b_avatar) {
@@ -310,7 +349,8 @@ let observe =
     };
     if (queue^ != [] && ! tick_pending^) {
       tick_pending := true;
-      schedule_tick(max(60., cadence_ms -. (t -. last_beat^) +. 20.));
+      let due = elastic(cur_dwell^, List.length(queue^));
+      schedule_tick(max(60., due -. (t -. last_beat^) +. 20.));
     };
     Option.value(~default=live, shown^);
   };

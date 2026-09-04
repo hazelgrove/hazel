@@ -123,7 +123,7 @@ let execute_direct =
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
-  CanvasBuffer.stage_beat();
+  CanvasBuffer.stage_beat(~lead=false, ());
   /* a manual canvas gesture, not agent activity: don't trip pacing */
   CanvasBuffer.suppress_stamp := true;
   let result =
@@ -181,7 +181,7 @@ let execute_one_tool_call =
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
   /* Stage canvas FLIP: measure graph-element boxes before the edit lands
      (agent edits bypass CodeEditable's staging site). */
-  CanvasBuffer.stage_beat();
+  CanvasBuffer.stage_beat(~lead=true, ());
   switch (
     CompositionUtils.Public.action_of(
       ~tool_name=tool_call.name,
