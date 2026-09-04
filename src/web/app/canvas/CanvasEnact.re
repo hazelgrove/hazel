@@ -479,6 +479,18 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
        first travel crawl and the middle rush */
     let frames =
       List.map(kf => kf @ [("easing", str("ease-in-out"))], frames);
+    {
+      let anims = Js.Unsafe.meth_call(av, "getAnimations", [||]);
+      let n: int = Js.Unsafe.get(anims, "length");
+      if (n > 0) {
+        CanvasLog.log(
+          Printf.sprintf(
+            "avatar: %d running animation(s) replaced by the new score",
+            n,
+          ),
+        );
+      };
+    };
     cancel_anims(av);
     animate(
       av,
@@ -923,6 +935,18 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           ("easing", str("ease-in-out")),
         ],
       ];
+    {
+      let anims = Js.Unsafe.meth_call(av, "getAnimations", [||]);
+      let n: int = Js.Unsafe.get(anims, "length");
+      if (n > 0) {
+        CanvasLog.log(
+          Printf.sprintf(
+            "avatar: %d running animation(s) replaced by the new score",
+            n,
+          ),
+        );
+      };
+    };
     cancel_anims(av);
     animate(
       av,

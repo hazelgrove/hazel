@@ -238,7 +238,23 @@ let is_held = (id: string): bool => {
      );
 };
 
+/* journal hook (set by Main to CanvasLog.log) */
+let slow_hook: ref(string => unit) = ref(_ => ());
+
 let request = (transitions: list(transition)): unit => {
+  /* the avatar's motion has one owner at a time; say when a generic hop is
+     requested for it (or dropped as held) so a replay can pin a teleport */
+  List.iter(
+    ({id, _}: transition) =>
+      if (id == "canvas-avatar") {
+        slow_hook^(
+          is_held(id)
+            ? "avatar: generic hop dropped (score owns it)"
+            : "avatar: generic hop requested",
+        );
+      },
+    transitions,
+  );
   let transitions =
     List.filter(({id, _}: transition) => !is_held(id), transitions);
   tracked_elems :=
@@ -384,7 +400,6 @@ let geom_css = (attr: string, v: string): string =>
 
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
-let slow_hook: ref(string => unit) = ref(_ => ());
 let go_impl = (): unit => {
   let visible =
     tracked_elems^ == [] ? [] : tracked_elems^ |> filter_visible_elements;
