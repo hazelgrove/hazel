@@ -278,6 +278,7 @@ let cached_avail_h: ref(option(float)) = ref(None: option(float));
 type frame_cache = {
   fc_slide: string,
   fc_burst: int, /* the burst it was derived in (CanvasLog turn) */
+  fc_nodes: int, /* nodes in the graph it was derived from */
   fc_origin: CanvasLayout.pos,
   fc_x_scale: float,
   fc_y_scale: float,
@@ -853,7 +854,11 @@ let view =
       avail_height;
     };
   let lay = {
-    let manual = offsets != [] || pins != [];
+    /* pins/offsets for nodes that no longer exist (another program on this
+       slide) must not keep a stale frame alive */
+    let node_keys = List.map((n: CanvasGraph.tynode) => n.key, graph.nodes);
+    let live = ((k, _)) => List.mem(k, node_keys);
+    let manual = List.exists(live, offsets) || List.exists(live, pins);
     let aw = Option.value(~default=0., avail_width);
     /* while beats play, small programs keep re-framing so new nodes spread
        to fill the pane (movers glide); only a program that has outgrown
@@ -866,6 +871,9 @@ let view =
       | Some(fc)
           when
             (manual || outgrown && fc.fc_burst == CanvasLog.turn_no())
+            /* a frame derived from an empty graph (the bare tool beat
+               before the first insertion) would spread the real one */
+            && fc.fc_nodes > 0
             && fc.fc_slide == slide
             && Float.abs(fc.fc_avail_w -. aw) < 2. =>
         Some((fc.fc_origin, fc.fc_x_scale, fc.fc_y_scale))
@@ -906,6 +914,7 @@ let view =
         Some({
           fc_slide: slide,
           fc_burst: CanvasLog.turn_no(),
+          fc_nodes: List.length(graph.nodes),
           fc_origin: origin,
           fc_x_scale: xs,
           fc_y_scale: ys,
@@ -956,6 +965,7 @@ let view =
         Some({
           fc_slide: slide,
           fc_burst: CanvasLog.turn_no(),
+          fc_nodes: List.length(graph.nodes),
           fc_origin: framed.origin,
           fc_x_scale: x_scale,
           fc_y_scale: y_scale,

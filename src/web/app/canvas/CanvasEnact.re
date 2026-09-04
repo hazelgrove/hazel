@@ -677,14 +677,25 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
          })
     | Here => None
     };
-  /* the actor: arrive after travel, hold through the effects */
+  /* the actor: arrive after travel, hold through the effects. An edge act
+     ends where the ride ends (the codomain), not where it started. */
+  let site_end = (site: CanvasScore.site): option((float, float)) =>
+    switch (site) {
+    | Edge(name) =>
+      by_id(CanvasView.path_dom_id(name))
+      |> Util.OptUtil.and_then(path => {
+           let (total, pts) = sample_path(path);
+           total < 1. ? None : Some(List.nth(pts, List.length(pts) - 1));
+         })
+    | site => site_screen(site)
+    };
   List.iter(
     ((t, a): (int, CanvasScore.act)) =>
-      switch (site_screen(a.at)) {
-      | Some(sp) =>
+      switch (site_screen(a.at), site_end(a.at)) {
+      | (Some(sp), Some(ep)) =>
         add(sp, float_of_int(t + a.travel_ms));
-        add(sp, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
-      | None => ()
+        add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
+      | _ => ()
       },
     s.acts,
   );
@@ -783,9 +794,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
        and the actor does not bounce back afterwards */
     let end_screen =
       List.rev(s.acts)
-      |> List.find_map(((_, a): (int, CanvasScore.act)) =>
-           site_screen(a.at)
-         );
+      |> List.find_map(((_, a): (int, CanvasScore.act)) => site_end(a.at));
     let (ax, ay) =
       switch (end_screen) {
       | Some(p) => p
