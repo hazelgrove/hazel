@@ -716,8 +716,15 @@ let drive_pos = (d: drive, t: float): (float, float) => {
     (x0 +. (x1 -. x0) *. u, y0 +. (y1 -. y0) *. u);
   };
 };
+/* the element the driver moves: the avatar's body (the anchor's style is
+   the view's) */
+let body_of = el =>
+  switch (Js.Opt.to_option(Js.Unsafe.get(el, "firstElementChild"))) {
+  | Some(b) => b
+  | None => el
+  };
 let set_transform = (el, (x, y): (float, float), (ex, ey): (float, float)) => {
-  let st = Js.Unsafe.get(el, "style");
+  let st = Js.Unsafe.get(body_of(el), "style");
   Js.Unsafe.set(
     st,
     "transform",
@@ -957,7 +964,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             Js.Unsafe.meth_call(
               Js.Unsafe.global##.window,
               "getComputedStyle",
-              [|Js.Unsafe.inject(av)|],
+              [|Js.Unsafe.inject(body_of(av))|],
             ),
             "transform",
           ),
@@ -1082,6 +1089,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     /* any leftover transform animation on the avatar would fight the
        driver: end it, then hand the path to our own clock */
     cancel_anims(av);
+    cancel_anims(body_of(av));
     ignore(frames);
     start_drive(av, ~start, ~pts=sorted, ~end_=(ex, ey), ~total=total_ms);
     CanvasLog.log(

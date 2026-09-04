@@ -1134,31 +1134,39 @@
 
 /* ---- the agent avatar ---- */
 
+/* the anchor: positioned by the view; its style attribute is rewritten on
+   every render, so nothing else may live on it */
 .canvas-avatar {
   position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* the body: the look, the state animations, and the driver's transform */
+.canvas-avatar .avatar-body {
+  display: inline-block;
   font-size: 15px;
   font-weight: bold;
-  z-index: 5;
   padding: 0 3px;
   border-radius: 4px;
   background: #2a2a2a;
   color: #ffd75e;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
+  will-change: transform;
 }
 
-.canvas-avatar.avatar-err {
+.canvas-avatar.avatar-err .avatar-body {
   background: #7a2020;
   color: #fff;
   animation: canvas-avatar-shake 0.4s;
 }
 
-.canvas-avatar.avatar-edit {
+.canvas-avatar.avatar-edit .avatar-body {
   animation: canvas-avatar-bob 1.2s ease-in-out infinite;
 }
 
 /* thinking: no edit landed yet — soft pulse instead of the work bob */
-.canvas-avatar.avatar-think {
+.canvas-avatar.avatar-think .avatar-body {
   animation: canvas-avatar-pulse 1.6s ease-in-out infinite;
   opacity: 0.85;
 }

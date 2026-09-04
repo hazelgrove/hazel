@@ -624,16 +624,24 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
       Attr.title("the agent is here"),
     ],
     [
-      text(
-        "@"
-        ++ (
-          switch (state) {
-          | "edit" => {js|✎|js}
-          | "wait" => {js|⌛|js}
-          | "err" => "!"
-          | _ => ""
-          }
-        ),
+      /* the outer div is only the anchor (its style attribute is
+         rewritten every render); the body carries the look and the
+         driver's transform */
+      span(
+        ~attrs=[clss(["avatar-body"])],
+        [
+          text(
+            "@"
+            ++ (
+              switch (state) {
+              | "edit" => {js|✎|js}
+              | "wait" => {js|⌛|js}
+              | "err" => "!"
+              | _ => ""
+              }
+            ),
+          ),
+        ],
       ),
     ],
   );

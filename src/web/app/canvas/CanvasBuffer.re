@@ -260,13 +260,18 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
          let st = Js.Unsafe.get(el, "style");
          let left = px(Js.to_string(Js.Unsafe.get(st, "left")))
          and top = px(Js.to_string(Js.Unsafe.get(st, "top")));
+         let body =
+           switch (Js.Opt.to_option(Js.Unsafe.get(el, "firstElementChild"))) {
+           | Some(b) => b
+           | None => el
+           };
          let tf: string =
            Js.to_string(
              Js.Unsafe.get(
                Js.Unsafe.meth_call(
                  Js.Unsafe.global##.window,
                  "getComputedStyle",
-                 [|Js.Unsafe.inject(el)|],
+                 [|Js.Unsafe.inject(body)|],
                ),
                "transform",
              ),
