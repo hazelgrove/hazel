@@ -1179,3 +1179,85 @@ let layout =
     };
   };
 };
+
+/* ---- routing for dependency links (the dotted "made of" arrows) ----
+   Dependencies rank the layout, so `Int -> Pos -> World` lands in one row and
+   the long link would run straight through Pos on top of the short ones.
+   Links get the same two rules as function arrows: arc away from any node
+   they would cross; bow sideways when both ends share a column. Pure, so the
+   drag follower can re-route from positions alone. */
+let link_offset =
+    (
+      ~nodes: list(node_layout),
+      ~from_key: string,
+      ~to_key: string,
+      a: pos,
+      b: pos,
+    )
+    : (float, float) => {
+  let dx = b.x -. a.x
+  and dy = b.y -. a.y;
+  let len = max(1., sqrt(dx *. dx +. dy *. dy));
+  let (ux, uy) = (dx /. len, dy /. len);
+  let (nx, ny) = (-. uy, ux); /* left normal */
+  /* nodes the straight segment would cross, with their signed side */
+  let hits =
+    List.filter_map(
+      (nl: node_layout) =>
+        if (nl.node.key == from_key || nl.node.key == to_key) {
+          None;
+        } else {
+          let px = nl.p.x -. a.x
+          and py = nl.p.y -. a.y;
+          let along = px *. ux +. py *. uy;
+          let side = px *. nx +. py *. ny;
+          along > 0. && along < len && abs_float(side) < nl.r +. 12.
+            ? Some((side, nl.r)) : None;
+        },
+      nodes,
+    );
+  let same_col = abs_float(dx) < 60. && abs_float(dy) > 40.;
+  let (lift, bow) =
+    switch (hits) {
+    | [] => (0., same_col ? max(40., min(120., abs_float(dy) *. 0.4)) : 0.)
+    | _ =>
+      let max_r = List.fold_left((m, (_, r)) => max(m, r), 0., hits);
+      let mean_side =
+        List.fold_left((s, (side, _)) => s +. side, 0., hits)
+        /. float_of_int(List.length(hits));
+      /* pass on the side the obstacles are NOT on */
+      let dir = mean_side >= 0. ? (-1.) : 1.;
+      (dir *. (max_r +. 34.), 0.);
+    };
+  (nx *. lift +. bow, ny *. lift);
+};
+
+let route_link =
+    (
+      ~nodes: list(node_layout),
+      ~from_key: string,
+      ~to_key: string,
+      a: pos,
+      b: pos,
+    )
+    : (pos, pos) => {
+  let (ox, oy) = link_offset(~nodes, ~from_key, ~to_key, a, b);
+  let c = (t: float) => {
+    x: a.x +. (b.x -. a.x) *. t +. ox,
+    y: a.y +. (b.y -. a.y) *. t +. oy,
+  };
+  (c(0.33), c(0.67));
+};
+
+let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
+  Printf.sprintf(
+    "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+    a.x,
+    a.y,
+    c1.x,
+    c1.y,
+    c2.x,
+    c2.y,
+    b.x,
+    b.y,
+  );

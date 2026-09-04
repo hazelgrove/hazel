@@ -254,7 +254,7 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
        geometry morphs on the movers' timing instead of snapping */
     Animation.request_beat(
       ~arrival_prefixes=["cnode-", "cedge-", "cval-"],
-      ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-"],
+      ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-", "cdep-"],
       ~delay,
       ~stagger,
       ~move_dur,

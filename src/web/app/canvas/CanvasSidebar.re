@@ -1406,21 +1406,30 @@ let view =
             Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
           ) {
           | Some(el) =>
+            let (ox, oy) =
+              CanvasLayout.link_offset(
+                ~nodes=l.nodes,
+                ~from_key=a,
+                ~to_key=b,
+                cp,
+                pp',
+              );
             set_attr(
               el,
               "d",
-              Printf.sprintf(
-                "M %f,%f C %f,%f %f,%f %f,%f",
-                cp.x,
-                cp.y,
-                mx,
-                cp.y,
-                mx,
-                pp.y,
-                pp'.x,
-                pp'.y,
+              CanvasLayout.link_d(
+                cp,
+                CanvasLayout.{
+                  x: mx +. ox,
+                  y: cp.y +. oy,
+                },
+                CanvasLayout.{
+                  x: mx +. ox,
+                  y: pp'.y +. oy,
+                },
+                pp',
               ),
-            )
+            );
           | None => ()
           };
         },
@@ -1441,10 +1450,15 @@ let view =
             Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))
           ) {
           | Some(el) =>
-            set_attr(el, "x1", fmt'(dp.x));
-            set_attr(el, "y1", fmt'(dp.y));
-            set_attr(el, "x2", fmt'(tp'.x));
-            set_attr(el, "y2", fmt'(tp'.y));
+            let (c1, c2) =
+              CanvasLayout.route_link(
+                ~nodes=l.nodes,
+                ~from_key=a,
+                ~to_key=b,
+                dp,
+                tp',
+              );
+            set_attr(el, "d", CanvasLayout.link_d(dp, c1, c2, tp'));
           | None => ()
           };
         },

@@ -147,11 +147,13 @@ let edge_svg =
 
 let formation_svg =
     (
+      ~nodes: list(CanvasLayout.node_layout),
       _i: int,
       (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
-  /* gentle curve from component toward its product */
+  /* gentle curve from component toward its product; shifted off any node
+     it would otherwise run through (a terminal sitting on the line) */
   let mx = (cp.x +. pp.x) /. 2.;
   let pp' =
     pull_back(
@@ -162,6 +164,18 @@ let formation_svg =
       },
       5.,
     );
+  let (ox, oy) =
+    CanvasLayout.link_offset(~nodes, ~from_key=a, ~to_key=b, cp, pp');
+  let c1 =
+    CanvasLayout.{
+      x: mx +. ox,
+      y: cp.y +. oy,
+    }
+  and c2 =
+    CanvasLayout.{
+      x: mx +. ox,
+      y: pp'.y +. oy,
+    };
   svg(
     "path",
     [
@@ -169,28 +183,12 @@ let formation_svg =
          renders (an index would pair different lines) */
       Attr.id(formation_dom_id(a, b)),
       clss(["canvas-formation"]),
-      Attr.create(
-        "d",
-        Printf.sprintf(
-          "M %s,%s C %s,%s %s,%s %s,%s",
-          fmt(cp.x),
-          fmt(cp.y),
-          fmt(mx),
-          fmt(cp.y),
-          fmt(mx),
-          fmt(pp.y),
-          fmt(pp'.x),
-          fmt(pp'.y),
-        ),
-      ),
-      Attr.create("marker-end", "url(#cnv-arrow-sm)"),
+      Attr.create("d", CanvasLayout.link_d(cp, c1, c2, pp')),
     ],
     [],
   );
 };
 
-/* faint dotted connector from a displaced label chip back to its curve,
-   so separation never orphans a name from its edge */
 let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
   let a = el.label_anchor
   and p = el.label_p;
@@ -217,20 +215,21 @@ let dep_dom_id = (a: string, b: string): string =>
 
 let dep_link_svg =
     (
+      ~nodes: list(CanvasLayout.node_layout),
       _i: int,
       (a, b, dp, np): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
   let np' = pull_back(np, dp, 5.);
+  /* routed like a function arrow: arcs over nodes it would cross */
+  let (c1, c2) =
+    CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, dp, np');
   svg(
-    "line",
+    "path",
     [
       Attr.id(dep_dom_id(a, b)),
       clss(["canvas-dep"]),
-      Attr.create("x1", fmt(dp.x)),
-      Attr.create("y1", fmt(dp.y)),
-      Attr.create("x2", fmt(np'.x)),
-      Attr.create("y2", fmt(np'.y)),
+      Attr.create("d", CanvasLayout.link_d(dp, c1, c2, np')),
       Attr.create("marker-end", "url(#cnv-arrow-dep)"),
     ],
     [],
@@ -761,8 +760,8 @@ let view =
         Attr.create("height", fmt(lay.height)),
       ],
       [defs]
-      @ List.mapi(dep_link_svg, lay.dep_links)
-      @ List.mapi(formation_svg, lay.formations)
+      @ List.mapi(dep_link_svg(~nodes=lay.nodes), lay.dep_links)
+      @ List.mapi(formation_svg(~nodes=lay.nodes), lay.formations)
       @ List.concat_map(leader_svg, lay.edges)
       @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
     );
