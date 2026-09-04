@@ -61,6 +61,7 @@ type t =
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | ModuleMissingMembers(list(Var.t))
+  | ModuleExtraMembers(list(Var.t))
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
