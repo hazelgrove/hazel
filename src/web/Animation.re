@@ -286,7 +286,14 @@ type beat_stage = {
   b_delay: int,
   b_stagger: int,
   b_move_dur: int,
+  /* when staged: a render that changes nothing (a dormant slide's empty
+     first frame, a tick) must not consume the beat — it is kept for the
+     next render, up to a short expiry */
+  b_staged_at: float,
 };
+let now_ms = (): float =>
+  Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+let beat_expiry_ms = 900.;
 let beat: ref(option(beat_stage)) = ref(None: option(beat_stage));
 /* the last `go`'s arrivals as (id, delay ms), for choreography that runs
    after the render (the avatar touring the new nodes as they bloom) */
@@ -331,6 +338,7 @@ let request_beat =
       b_delay: delay,
       b_stagger: stagger,
       b_move_dur: move_dur,
+      b_staged_at: now_ms(),
     });
 };
 /* CSS value for an SVG geometry attribute */
@@ -395,6 +403,7 @@ let go = (): unit => {
   switch (beat^) {
   | None => ()
   | Some(b) =>
+    let did_anything = ref(arrivals != [] || visible != []);
     let wait =
       b.b_stagger > 0 && stagger_total^ > 0
         ? stagger_span(b.b_stagger) + 120 : 0;
@@ -413,6 +422,7 @@ let go = (): unit => {
                  }
                );
           if (frames != []) {
+            did_anything := true;
             let kf = side =>
               List.map(
                 ((a, old, nw)) =>
@@ -457,6 +467,7 @@ let go = (): unit => {
            let total: float =
              Js_of_ocaml.Js.Unsafe.meth_call(el, "getTotalLength", [||]);
            if (total > 4.) {
+             did_anything := true;
              let marker = attr_of(el, "marker-end");
              set_attr(
                el,
@@ -495,7 +506,10 @@ let go = (): unit => {
          | None => ()
          }
        );
-    beat := None;
+    /* an idle render leaves a fresh beat staged for the next one */
+    if (did_anything^ || now_ms() -. b.b_staged_at > beat_expiry_ms) {
+      beat := None;
+    };
   };
 };
 
