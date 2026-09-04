@@ -6,6 +6,19 @@ open Typ;
    order: Typ.fast_equal compares signature items positionally. */
 let val_ = (x, ty) => Sig.sig_let(Pat.asc(Pat.var(x), ty));
 let type_ = (t, ty) => Sig.sig_type(TPat.var(t), ty);
+let mod_ = (x, ty) => Sig.sig_module(MPat.asc(MPat.var(x), ty));
+
+/* Assert that some mark in the program satisfies [pred]. */
+let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(name, true, List.exists(pred, marks));
+    },
+  );
 
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
@@ -207,7 +220,7 @@ let test_nested_type_member_through_variable =
   fully_consistent_typecheck(
     "Nested module type members through variable",
     {|module M = { module P = { type S = Int } } in M|},
-    Some(sig_([val_("P", sig_([type_("S", int())]))])),
+    Some(sig_([mod_("P", sig_([type_("S", int())]))])),
   );
 
 let test_sig_alias_stays_sig =
@@ -230,6 +243,36 @@ let test_dot_on_sig_with_type_member =
     "Member access substitutes the module's manifest type member",
     {|let m = { type T = Int; let x : T = 1 } in m.x + 1|},
     Some(int()),
+  );
+
+/* Module items report the member they declare, not the rest of the body. */
+let test_item_types =
+  Alcotest.test_case(
+    "Module items are typed as their member",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          {|{ module Db = { type Id = Int }; let x = 1; type T = Bool }|},
+        );
+      let s = statics(exp);
+      let item_types =
+        switch (exp.term) {
+        | Module(items) =>
+          List.map(
+            (item: Language.Mod.t) =>
+              Language.Statics.Map.ty_of(Language.Mod.rep_id(item), s),
+            items,
+          )
+        | _ => []
+        };
+      Alcotest.check(
+        Alcotest.list(Alcotest.option(testable_typ)),
+        "item types",
+        [Some(sig_([type_("Id", int())])), Some(int()), Some(bool())],
+        item_types,
+      );
+    },
   );
 
 /* ===== SIGNATURE ANNOTATION TESTS (well-typed) ===== */
@@ -265,6 +308,73 @@ let test_sig_type_member_matches =
     "Signature manifest type member matches the module's",
     {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
     Some(sig_([type_("T", int()), val_("x", var("T"))])),
+  );
+
+/* A capitalized sub-module is declared with `module M : S` in a signature */
+let test_sig_module_member =
+  fully_consistent_typecheck(
+    "Sub-module declared in a signature",
+    {|module M : { module Inner : { let x : Int }; let y : Int } = { module Inner = { let x = 1 }; let y = 2 } in M.Inner.x + M.y|},
+    Some(int()),
+  );
+
+let test_sig_module_member_binder_type =
+  fully_consistent_typecheck(
+    "Sub-module signature member is kept as written on the binder",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in M|},
+    Some(sig_([mod_("Inner", sig_([val_("x", int())]))])),
+  );
+
+let test_sig_lowercase_nested =
+  fully_consistent_typecheck(
+    "Lowercase sub-module declared with let in a signature",
+    {|let m : { let inner : { let x : Int } } = { let inner = { let x = 1 } } in m.inner.x|},
+    Some(int()),
+  );
+
+let test_error_sig_module_member_mismatch =
+  inconsistent_typecheck(
+    "Sub-module member type mismatch",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = true } } in M|}
+    |> parse_exp,
+  );
+
+/* ===== SPECIFIC MARKS ===== */
+
+let test_extra_member_mark =
+  has_mark_test(
+    "Extra member is reported as an extra member",
+    {|let m : { let x : Int } = { let x = 1; let y = 2 } in m|},
+    fun
+    | Language.Mark.ModuleExtraMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_extra_type_member_mark =
+  has_mark_test(
+    "Extra type member is reported as an extra member",
+    {|let m : { let x : Int } = { type T = Int; let x = 1 } in m|},
+    fun
+    | Language.Mark.ModuleExtraMembers(["T"]) => true
+    | _ => false,
+  );
+
+let test_missing_member_mark =
+  has_mark_test(
+    "Missing member is reported as a missing member",
+    {|let m : { let x : Int; let y : Bool } = { let x = 1 } in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_type_member_mismatch_mark =
+  has_mark_test(
+    "Differing type member is reported on the type item",
+    {|let m : { type T = Int; let x : T } = { type T = Bool; let x = true } in m|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
   );
 
 /* ===== TYPE ERROR TESTS ===== */
@@ -490,7 +600,7 @@ let test_module_keyword_in_mod =
     "Module keyword inside module body",
     {|{ module Inner = { let z = 42 }; let r = Inner.z }|},
     Some(
-      sig_([val_("Inner", sig_([val_("z", int())])), val_("r", int())]),
+      sig_([mod_("Inner", sig_([val_("z", int())])), val_("r", int())]),
     ),
   );
 
@@ -720,11 +830,21 @@ let tests = (
     test_sig_alias_stays_sig,
     test_unannotated_sig_member,
     test_dot_on_sig_with_type_member,
+    test_item_types,
     /* Sig annotation tests */
     test_empty_sig_annotation,
     test_matching_sig_annotation,
     test_matching_sig_multi,
     test_sig_type_member_matches,
+    test_sig_module_member,
+    test_sig_module_member_binder_type,
+    test_sig_lowercase_nested,
+    test_error_sig_module_member_mismatch,
+    /* Specific marks */
+    test_extra_member_mark,
+    test_extra_type_member_mark,
+    test_missing_member_mark,
+    test_type_member_mismatch_mark,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,

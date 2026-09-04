@@ -226,16 +226,39 @@ let reclassify_expanded_module_items =
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+      /* The wrapper's own type is the type of the rest of the chain, which
+         is meaningless for the item; show the member it declares instead. */
+      let pat_ty = id =>
+        StaticsBase.Map.lookup_pat(id, m)
+        |> Option.map((info: Info.pat) => info.ty);
+      let member_ty =
+        switch (item.term) {
+        | ModLet(p, _) => pat_ty(Pat.rep_id(p))
+        | ModuleMod(mp, _) => pat_ty(MPat.rep_id(mp))
+        | ModType(_, ty) => Some(ty)
+        | ModVal(_, _)
+        | ModExp(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => None
+        };
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
-        StaticsBase.Map.add_info(
-          ids,
-          Info.InfoExp({
-            ...info,
-            cls: mod_cls,
-          }),
-          m,
-        )
+        let info =
+          switch (member_ty) {
+          | Some(ty) => {
+              ...info,
+              cls: mod_cls,
+              elab_syn_ty: ty,
+              ty,
+              message: Message.Exp(Common(Syn(ty))),
+            }
+          | None => {
+              ...info,
+              cls: mod_cls,
+            }
+          };
+        StaticsBase.Map.add_info(ids, Info.InfoExp(info), m);
       | None => m
       };
     },
@@ -299,7 +322,11 @@ let module_sig_type =
                    Typ.normalize(~expand, pat_ctx, ty)
                  | None => Typ.temp(Unknown(Internal))
                  };
-               Sig.item_of_member(Val(name, ty));
+               /* A `module M = ...` item exports a `module M : S` member. */
+               switch (item.term) {
+               | ModuleMod(_, _) => Sig.module_item(name, ty)
+               | _ => Sig.item_of_member(Val(name, ty))
+               };
              });
         go(ctx, rest, List.rev_append(members, acc));
       | ModType(_, _)
@@ -326,6 +353,24 @@ let missing_members =
       Sig.type_names(want)
       |> List.filter(t => Sig.find_type_def(have, t) == None);
     missing_values @ missing_types;
+  | _ => []
+  };
+
+/* Members the module exports that the analyzed signature does not declare.
+   Until width subtyping lands, a signature must be precise. */
+let extra_members =
+    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
+  switch (ana_items, sig_ty.term) {
+  | (Some(ana_items), Sig(items)) =>
+    let have = Sig.members(items);
+    let want = Sig.members(ana_items);
+    let extra_values =
+      Sig.value_names(have)
+      |> List.filter(x => Sig.find_value(want, x) == None);
+    let extra_types =
+      Sig.type_names(have)
+      |> List.filter(t => Sig.find_type_def(want, t) == None);
+    extra_values @ extra_types;
   | _ => []
   };
 

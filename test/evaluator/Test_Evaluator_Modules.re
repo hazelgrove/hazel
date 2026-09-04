@@ -169,6 +169,15 @@ let test_sealing_drops_extras =
     )
   });
 
+/* Sealing applies to sub-modules declared in the signature */
+let test_sealing_nested =
+  test_case("Sealing applies to a sub-module member", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let x = 1 }",
+      {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1; let y = 2 } } in M.Inner|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -199,5 +208,6 @@ let tests = (
     test_module_keyword_sig_annotated,
     test_sig_type_member_erased,
     test_sealing_drops_extras,
+    test_sealing_nested,
   ],
 );
