@@ -1243,6 +1243,13 @@ and abbreviate_mod_item = (item: Mod.t): Mod.t => {
         available := available^ - 10; // "module " " = "
         ModuleMod(abbreviate_mpat(mp), abbreviate_exp(e));
       }
+    | ModVal(x, e) =>
+      if (available^ <= 5) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 6; // "let " " = "
+        ModVal(x, abbreviate_exp(e));
+      }
     };
   rewrap(term);
 }

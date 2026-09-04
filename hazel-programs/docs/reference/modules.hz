@@ -2,7 +2,7 @@
 
 # Modules use curly-brace syntax with semicolon-separated items. #
 # The `module` keyword supports capitalized module names. #
-# Modules are syntactic sugar for labeled tuples. #
+# Modules are first-class values; their types are signatures. #
 
 
 # A. MODULE CONSTRUCTION AND ACCESS #
@@ -137,26 +137,21 @@ module M : {
 type MT = {let x: Int} in
 let _ : MT = {let x = 4} in
 
-# D. SUGAR & LIMITATIONS #
+# D. SIGNATURES ARE TYPES, MODULES ARE VALUES #
 
-# Modules are syntactic sugar for labeled tuples. #
-# Module signatures are sugar for labeled tuple types. #
+# Modules are first-class values with signature types. #
+# A signature is distinct from a labeled tuple type. #
 
-# 18. Module values are labeled tuples #
-test () == {} end;
-test (x=1) == {let x = 1} end;
-test (x=1, y=true) == {let x = 1; let y = true} end;
-
-# 19. Signatures and tuple types are interchangeable #
-module Mm : {let x : Int} = {let x = 1} in
+# 18. Error: a module is not a labeled tuple #
 let mt : {let x : Int} = (x=1) in
 let tm : (x=Int) = {let x = 1} in
+
+# 19. Signatures and tuple types each check their own values #
+module Mm : {let x : Int} = {let x = 1} in
 let tt : (x=Int) = (x=1) in
 
-# 20. Type errors work regardless of which sugar is used #
+# 20. Error: type errors are caught for both #
 module Mm : {let x : Int} = {let x = true} in
-let mt : {let x : Int} = (x=true) in
-let tm : (x=Int) = {let x = true} in
 let tt : (x=Int) = (x=true) in
 
 # No width subtyping yet: signatures must be precise. #
@@ -170,17 +165,18 @@ module M : {let x : Int} = {
 # 22. Error: extra member not allowed by empty signature #
 module M : {} = {let x = 1} in
 
-# 23. Limitation: type declarations in signatures are ignored #
+# 23. Type declarations in signatures are checked: #
+# error, y violates T = Int #
 module M : {
   type T = Int;
   let x : T;
   let y : T
 } = {
+  type T = Int;
   let x = 4;
   let y = true
 } in
 
-# 24. Limitation: mismatched labels not caught in some cases #
+# 24. Error: mismatched member names are missing members #
 let m : {let x : ?} = {let y = 1} in
-let m : (x=?) = (y=1) in 
 ¿
