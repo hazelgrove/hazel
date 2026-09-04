@@ -13,29 +13,5 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /home/matthew/.opam/hazel-wasm/bin/ocamlc.opt -config > /tmp/dune_6c5896_output
-$ /home/matthew/.opam/hazel-wasm/bin/js_of_ocaml --version > /tmp/dune_3d799d_output
-$ (cd _build-wasm/default/bench/wasm && /home/matthew/.opam/hazel-wasm/bin/wasm_of_ocaml --no-source-map -o eval_bench.bc.wasm.js zarith_runtime.js base_runtime.js bin_prot_runtime.js eval_bench.bc-for-jsoo)
-> Warning [deprecated-joo-global-object]: /home/matthew/hazel/_build-wasm/default/bench/wasm/bin_prot_runtime.js:9: 'joo_global_object' is being deprecated, please use `globalThis` instead
-> Warning [deprecated-joo-global-object]: /home/matthew/hazel/_build-wasm/default/bench/wasm/bin_prot_runtime.js:31: 'joo_global_object' is being deprecated, please use `globalThis` instead
-> Warning [integer-overflow]: integer 0x40000000 (1073741824) truncated to 0xc0000000 (-1073741824); the generated code might be incorrect.
-> Warning [missing-primitive]: There are some missing Wasm primitives
-> Dummy implementations (raising an exception) will be provided.
-> Missing primitives:
-> Base_internalhash_fold_int
-> ml_z_formatcaml_csel_valueBase_internalhash_get_hash_valueml_z_compare
-> Base_int_math_int64_clzml_z_signml_z_numbitsBase_internalhash_fold_int64
-> Base_int_math_nativeint_clzBase_int_math_int_clzBase_int_math_int32_clz
-> ml_z_to_int64ml_z_to_bitsml_z_subml_z_shift_leftml_z_remml_z_of_float
-> ml_z_of_bitsml_z_equalml_z_divml_z_addml_z_abscaml_out_channel_pos_fd
-> Base_internalhash_fold_stringBase_int_math_int64_pow_stub
-> Base_int_math_int64_ctzBase_hash_string
-> time_now_nanoseconds_since_unix_epoch_or_zeroml_z_to_intml_z_succ
-> ml_z_shift_rightml_z_predml_z_powml_z_of_substring_baseml_z_neg
-> ml_z_mul_overflowsml_z_mulml_z_logorml_z_initml_z_fits_int
-> expect_test_collector_before_testexpect_test_collector_after_test
-> bin_prot_blit_string_buf_stubbin_prot_blit_buf_bytes_stub
-> Base_internalhash_fold_floatBase_int_math_nativeint_ctz
-> Base_int_math_int_pow_stubBase_int_math_int_popcountBase_int_math_int_ctz
-> Base_int_math_int32_ctzBase_hash_double
-> Base_am_testing
+$ /home/matthew/.opam/hazel-wasm/bin/ocamlc.opt -config > /tmp/dune_0e6a5d_output
+$ /home/matthew/.opam/hazel-wasm/bin/js_of_ocaml --version > /tmp/dune_a71c65_output

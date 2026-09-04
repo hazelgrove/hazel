@@ -62,36 +62,46 @@ To break `language`'s dependency on Virtual_dom, this branch:
 The `util` split is worth keeping. The livelit deletion is not — the
 principled version registers livelit views from the web layer instead.
 
-## RESULT: blocked on zarith
+## RESULT: blocked on missing C stubs
 
-The Wasm module **builds and loads**, then fails at link with 35 missing
-primitives. About thirty of them are `ml_z_*` -- zarith.
+The Wasm module **builds and loads**, then fails at link with **53 missing
+primitives**:
 
-Hazel's `Int` and `Nat` are arbitrary-precision: `language` reaches
-`Bigint` from six files, including `BuiltinsBase.re`, where the integer
-builtins are defined. So zarith is load-bearing for the *semantics*, not an
-incidental dependency that could be dropped for a benchmark.
+| group | count | what it is |
+|---|---|---|
+| `ml_z_*` | 27 | zarith (arbitrary-precision integers) |
+| `Base_*` | 19 | Jane Street Base: hashing, int math intrinsics |
+| `bin_prot_*` | 2 | Bin_prot blit stubs |
+| `expect_test_collector_*` | 2 | Jane Street test collector |
+| other | 3 | `caml_csel_value`, `caml_out_channel_pos_fd`, `time_now_*` |
 
-zarith has no C implementation available to `wasm_of_ocaml` here; under
-`js_of_ocaml` it is satisfied by `zarith_stubs_js`, a hand-written JS
-runtime (which Hazel further patches -- see `make setup-zarith`). Handing
-those JS runtimes to the wasm build via `(wasm_of_ocaml (javascript_files
-...))` does help -- it takes the missing list from 54 to 35, resolving the
-`bin_prot`, `expect_test_collector` and most `Base_*` stubs -- but the bulk
-of the zarith primitives remain.
+Passing the existing JS runtimes to the wasm build via `(wasm_of_ocaml
+(javascript_files ...))` made **essentially no difference** (54 to 53). Dune
+accepts the field, but the stubs were not satisfied; whether the files are
+honoured at all was not confirmed. The copy rules are left in place because
+they are the right shape for a fix, not because they worked.
+
+The root cause is that `bignum` -- needed because Hazel's `Int` and `Nat`
+are arbitrary-precision, with `language` reaching `Bigint` from six files
+including `BuiltinsBase.re` -- drags in zarith *and* the whole Jane Street
+`Core`/`Base` C-stub surface. Under `js_of_ocaml` these are satisfied by
+hand-written JS runtimes (`zarith_stubs_js`, which Hazel further patches --
+see `make setup-zarith`). Those do not port to `wasm_of_ocaml`.
 
 **This is the finding.** Compiling Hazel's evaluator to Wasm is blocked on
-arbitrary-precision integers, not on anything about the evaluator itself.
-Clearing it means one of:
+its numeric tower and the Jane Street runtime beneath it, not on anything
+about the evaluator itself. Clearing it means one of:
 
-  1. a `wasm_of_ocaml`-compatible zarith runtime (upstream work, or port
-     `zarith_stubs_js` to the wasm calling convention);
-  2. building real zarith/GMP for Wasm and linking it;
-  3. a Wasm-native bigint backend for `Bigint`, e.g. over JS `BigInt`.
+  1. wasm-compatible runtimes for all 53, most plausibly by porting the
+     existing JS stubs to wasm_of_ocaml's calling convention;
+  2. building real zarith/GMP for Wasm and linking it -- this addresses the
+     27 `ml_z_*` but not the 26 Jane Street ones;
+  3. removing `bignum` from the evaluator's cone: a `Bigint` backend over
+     JS `BigInt`, which would drop zarith *and* Core in one move.
 
-Note this same class of problem -- hand-written stubs not carrying across
-backends -- is what would also block an Internet Computer port, where there
-is no JS host to fall back on at all.
+Option 3 looks the most tractable and is the only one that also helps an
+Internet Computer port -- where this same class of problem is worse, since
+there is no JS host to fall back on at all.
 
 ## Caveat on the numbers
 
