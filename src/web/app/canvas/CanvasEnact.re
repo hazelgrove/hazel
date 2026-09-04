@@ -603,6 +603,13 @@ let formation =
   };
 
 let play = (~zoom: float, s: CanvasScore.score): unit => {
+  /* the score owns every canvas element's motion until it ends: editor
+     actions re-request FLIPs for all of them on each render, which would
+     replace pending grow-ins and the avatar's path */
+  Animation.hold(
+    ~prefixes=["cnode-", "cedge-", "cval-", CanvasView.avatar_dom_id],
+    ~until_ms=CanvasBuffer.now() +. float_of_int(s.total_ms) +. 300.,
+  );
   let wps: ref(list(waypoint)) = ref([]);
   let add = (p, t) => wps := [(p, t), ...wps^];
   let site_screen = (site: CanvasScore.site): option((float, float)) =>

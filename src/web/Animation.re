@@ -220,7 +220,27 @@ let stagger_span = (per: int): int =>
   min(stagger_span_cap, stagger_total^ * stagger_step(per));
 
 /* Request animations. Call this during the MVU update */
+/* ids under these prefixes belong to another timeline (the canvas score)
+   until the given time: a FLIP request for them would replace a pending
+   grow-in or the avatar's path mid-flight, so it is dropped */
+let held: ref((list(string), float)) = ref(([], 0.));
+let hold = (~prefixes: list(string), ~until_ms: float): unit =>
+  held := (prefixes, until_ms);
+let is_held = (id: string): bool => {
+  let (prefixes, until_ms) = held^;
+  Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now()
+  < until_ms
+  && List.exists(
+       p =>
+         String.length(id) >= String.length(p)
+         && String.sub(id, 0, String.length(p)) == p,
+       prefixes,
+     );
+};
+
 let request = (transitions: list(transition)): unit => {
+  let transitions =
+    List.filter(({id, _}: transition) => !is_held(id), transitions);
   tracked_elems :=
     List.map(
       ({id, animate}: transition) =>

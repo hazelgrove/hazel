@@ -59,6 +59,10 @@ let last_agent_action = AgentPulse.last_action;
    beats the tool-target hop, so the actor never bounces back to the
    enclosing definition between acts */
 let avatar_site: ref(option((float, float))) = ref(None);
+/* while a score plays, nothing else is released and the avatar's generic
+   hop is not restaged: the score owns the stage until this time */
+let hold_until: ref(float) = ref(0.);
+let score_playing = (): bool => now() < hold_until^;
 
 /* Canvas-authoring gestures (place/connect stubs) ride the agent's
    DirectEdit tool path; they must NOT read as agent activity or every
@@ -241,29 +245,37 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;
   let move_dur = lead || slow ? relayout_ms : 125;
-  /* elements that don't exist yet arrive staggered; edge/formation/orbit
-     geometry morphs on the movers' timing instead of snapping */
-  Animation.request_beat(
-    ~arrival_prefixes=["cnode-", "cedge-", "cval-"],
-    ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-"],
-    ~delay,
-    ~stagger,
-    ~move_dur,
-  );
-  Animation.request(
-    (
-      Util.JsUtil.ids_with_prefix("cnode-")
-      @ Util.JsUtil.ids_with_prefix("cedge-")
-      @ Util.JsUtil.ids_with_prefix("cval-")
-      |> List.map(
-           Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
-         )
-    )
-    @ (
-      Util.JsUtil.ids_with_prefix("canvas-avatar")
-      |> List.map(Animation.Actions.move_slow(~scale))
-    ),
-  );
+  /* while a score plays, nothing is staged: a staged beat makes the next
+     render re-run the position animation on every node, which replaces a
+     pending grow-in and flashes the node before its act. The beat that
+     ends the hold is staged again when it is released. */
+  if (!score_playing()) {
+    /* elements that don't exist yet arrive staggered; edge/formation/orbit
+       geometry morphs on the movers' timing instead of snapping */
+    Animation.request_beat(
+      ~arrival_prefixes=["cnode-", "cedge-", "cval-"],
+      ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-"],
+      ~delay,
+      ~stagger,
+      ~move_dur,
+    );
+    Animation.request(
+      (
+        Util.JsUtil.ids_with_prefix("cnode-")
+        @ Util.JsUtil.ids_with_prefix("cedge-")
+        @ Util.JsUtil.ids_with_prefix("cval-")
+        |> List.map(
+             Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
+           )
+      )
+      @ (
+        /* a playing score owns the avatar's path; a generic hop would
+           replace it mid-flight */
+        Util.JsUtil.ids_with_prefix("canvas-avatar")
+        |> List.map(Animation.Actions.move_slow(~scale))
+      ),
+    );
+  };
 };
 
 /* Drop middle beats when over cap: keep the oldest pending (continuity
@@ -474,6 +486,7 @@ let observe =
         when
           t
           -. last_beat^ >= due
+          && t >= hold_until^
           && !(next.b_pending && t -. next.b_queued < pending_hold_ms) =>
       let shown_viable =
         switch (shown^) {
@@ -536,7 +549,9 @@ let observe =
     if (queue^ != [] && ! tick_pending^) {
       tick_pending := true;
       let due = elastic(cur_dwell^, List.length(queue^));
-      schedule_tick(max(60., due -. (t -. last_beat^) +. 20.));
+      schedule_tick(
+        max(60., max(due -. (t -. last_beat^), hold_until^ -. t) +. 20.),
+      );
     };
     Option.value(~default=live, shown^);
   };
@@ -547,6 +562,8 @@ let tick_fired = (): unit => tick_pending := false;
 let extend_dwell = (ms: float): unit => {
   let before = cur_dwell^;
   cur_dwell := min(dwell_max_ms, max(cur_dwell^, ms));
+  /* the score's full length, uncompressible by the backlog */
+  hold_until := max(hold_until^, now() +. ms);
   switch (turn^) {
   | Some(t) => t.change_ms = t.change_ms +. (cur_dwell^ -. before)
   | None => ()
@@ -555,4 +572,4 @@ let extend_dwell = (ms: float): unit => {
 
 /* the canvas should trust beat-carried avatar sites while beats are
    what's on screen */
-let pacing_live = (): bool => in_burst() || queue^ != [];
+let pacing_live = (): bool => in_burst() || queue^ != [] || score_playing();
