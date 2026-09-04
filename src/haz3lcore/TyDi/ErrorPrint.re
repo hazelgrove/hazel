@@ -140,6 +140,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
+  | LivelitNeedsAnnotation(name) =>
+    "The " ++ name ++ " livelit needs a type annotation saying what it should expand to"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"

@@ -19,27 +19,74 @@ open Grammar;
  * the shape is whatever the program produced.
  */
 
-/* Hazel's Option constructors, annotated as BuiltinsADT.Option annotates
-   them. Built fresh on each call so two occurrences never share an id. */
-let none = (): TermBase.Exp.t =>
-  DHExp.fresh(Constructor("None", Some(Some(BuiltinsADT.Option.t))));
+/* Translation is type-directed: the expected type is pushed down through the
+   structure as it is rebuilt. This is what lets a Fumola variant become a
+   constructor of the sum type the program actually asked for -- Fumola tags
+   live in one flat namespace and carry no home type, so the expected type is
+   the only place that information can come from.
 
-let some = (): TermBase.Exp.t =>
-  DHExp.fresh(
-    Constructor(
-      "Some",
-      Some(
-        Some(
-          Typ.fresh(
-            Arrow(Typ.fresh(Unknown(SynSwitch)), BuiltinsADT.Option.t),
-          ),
-        ),
-      ),
-    ),
-  );
+   Where the expected type says nothing useful (Unknown, or a shape that does
+   not match what came back), translation falls back to resolving names
+   against the ambient context, and failing that leaves a constructor
+   unannotated for Hazel to mark. */
+
+let unknown = () => Typ.fresh(Unknown(Internal));
+
+/* The expected types of a tuple's elements, given the type expected of the
+   tuple. Arity has to agree; otherwise the expectation tells us nothing. */
+let element_anas =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, arity: int)
+    : list(TermBase.Typ.t) =>
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) when List.length(tys) == arity => tys
+  | _ => List.init(arity, _ => unknown())
+  };
+
+/* The expected type of a record field, by label. */
+let field_ana =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, name: string)
+    : TermBase.Typ.t => {
+  let labelled = (ty: TermBase.Typ.t) =>
+    switch (ty.term) {
+    | TupLabel({term: Label(l), _}, ty) when l == name => Some(ty)
+    | _ => None
+    };
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) =>
+    switch (List.filter_map(labelled, tys)) {
+    | [ty, ..._] => ty
+    | [] => unknown()
+    }
+  | _ => unknown()
+  };
+};
+
+/* A constructor, annotated with its type where that can be determined.
+   Returns the constructor expression and the type expected of its payload. */
+let constructor =
+    (~tools: LivelitCtx.type_tools, ~ana: TermBase.Typ.t, name: string)
+    : (TermBase.Exp.t, TermBase.Typ.t) =>
+  switch (tools.resolve_ctr(~ana, name)) {
+  | Some(ty) =>
+    /* A constructor carrying a payload resolves to an arrow from the payload
+       type, so the domain is what the payload is expected to be. */
+    let payload_ana =
+      switch (tools.normalize(ty).term) {
+      | Arrow(dom, _) => dom
+      | _ => unknown()
+      };
+    (DHExp.fresh(Constructor(name, Some(Some(ty)))), payload_ana);
+  | None =>
+    /* Unresolvable: leave it unannotated. Hazel marks it as a free
+       constructor, which is the honest outcome -- the name does not belong to
+       any sum type in scope. */
+    (DHExp.fresh(Constructor(name, None)), unknown())
+  };
 
 /* Build the Hazel value denoted by one {tag, value} node. */
-let rec exp_of_json = (json: Yojson.Safe.t): result(TermBase.Exp.t, string) => {
+let rec exp_of_json =
+        (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, json: Yojson.Safe.t)
+        : result(TermBase.Exp.t, string) => {
   let field = (name, obj) =>
     switch (List.assoc_opt(name, obj)) {
     | Some(v) => Ok(v)
@@ -52,7 +99,7 @@ let rec exp_of_json = (json: Yojson.Safe.t): result(TermBase.Exp.t, string) => {
     | Ok(`String(tag)) =>
       switch (field("value", obj)) {
       | Error(e) => Error(e)
-      | Ok(value) => exp_of_tagged(tag, value)
+      | Ok(value) => exp_of_tagged(~ana, ~tools, tag, value)
       }
     | Ok(_) => Error("Fumola result has a non-string tag")
     }
@@ -61,7 +108,13 @@ let rec exp_of_json = (json: Yojson.Safe.t): result(TermBase.Exp.t, string) => {
 }
 
 and exp_of_tagged =
-    (tag: string, value: Yojson.Safe.t): result(TermBase.Exp.t, string) =>
+    (
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      tag: string,
+      value: Yojson.Safe.t,
+    )
+    : result(TermBase.Exp.t, string) =>
   switch (tag, value) {
   | ("Int", `String(n)) =>
     switch (Bigint.of_string_opt(n)) {
@@ -72,34 +125,41 @@ and exp_of_tagged =
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
   /* Fumola's unit is Hazel's empty tuple. */
   | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
-  /* Fumola's option is Hazel's: `null` is None, `?(x)` is Some(x). The
-     constructors carry the same type annotations BuiltinsADT.Option gives
-     them, so they elaborate the way a hand-written None or Some(x) would.
-     They are rebuilt on each call rather than reusing the values in
-     BuiltinsADT, which would share one id across every occurrence. */
-  | ("Null", _) => Ok(none())
-  | ("Option", payload) =>
-    switch (exp_of_json(payload)) {
-    | Error(e) => Error(e)
-    | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some(), payload)))
-    }
   | ("Tuple", `List(items)) =>
-    switch (all(List.map(exp_of_json, items))) {
+    let anas = element_anas(~tools, ana, List.length(items));
+    let translated =
+      List.map2(
+        (ana, item) => exp_of_json(~ana, ~tools, item),
+        anas,
+        items,
+      );
+    switch (all(translated)) {
     | Error(e) => Error(e)
     | Ok(items) => Ok(DHExp.fresh(Tuple(items)))
-    }
-  /* A Hazel record is a tuple of labelled elements. Field order is fixed on
-     the Fumola side, so it does not shift between evaluations. */
+    };
+  /* A Hazel record is a tuple of labelled elements. */
   | ("Record", `Assoc(fields)) =>
-    let element = ((name, value)) =>
-      switch (exp_of_json(value)) {
+    let element = ((name, value)) => {
+      let ana = field_ana(~tools, ana, name);
+      switch (exp_of_json(~ana, ~tools, value)) {
       | Error(e) => Error(e)
       | Ok(value) =>
         Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
       };
+    };
     switch (all(List.map(element, fields))) {
     | Error(e) => Error(e)
     | Ok(elements) => Ok(DHExp.fresh(Tuple(elements)))
+    };
+  /* Fumola's option is Hazel's: `null` is None, `?(x)` is Some(x). These are
+     resolved like any other constructor rather than hard-coded, so they pick
+     up whichever Option-shaped type is expected here. */
+  | ("Null", _) => Ok(fst(constructor(~tools, ~ana, "None")))
+  | ("Option", payload) =>
+    let (some, payload_ana) = constructor(~tools, ~ana, "Some");
+    switch (exp_of_json(~ana=payload_ana, ~tools, payload)) {
+    | Error(e) => Error(e)
+    | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some, payload)))
     };
   | ("Variant", `Assoc(fields)) =>
     let name =
@@ -110,21 +170,19 @@ and exp_of_tagged =
     switch (name) {
     | Error(e) => Error(e)
     | Ok(name) =>
-      let ctr = DHExp.fresh(Constructor(name, None));
+      let (ctr, payload_ana) = constructor(~tools, ~ana, name);
       switch (List.assoc_opt("value", fields)) {
       | None
       | Some(`Null) => Ok(ctr)
       | Some(payload) =>
-        switch (exp_of_json(payload)) {
+        switch (exp_of_json(~ana=payload_ana, ~tools, payload)) {
         | Error(e) => Error(e)
         | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, ctr, payload)))
         }
       };
     };
   | (tag, _) =>
-    Error(
-      "Fumola returned a " ++ tag ++ ", which has no Hazel translation yet",
-    )
+    Error("Fumola returned a " ++ tag ++ ", which has no Hazel translation yet")
   }
 
 and all = (results: list(result('a, string))): result(list('a), string) =>

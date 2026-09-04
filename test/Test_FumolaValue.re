@@ -10,7 +10,64 @@ open Language;
 
 let json = Yojson.Safe.from_string;
 
-let translate = (src: string) => FumolaValue.exp_of_json(json(src));
+/* Translation is type-directed, so a test supplies the type expected of the
+   result. With no expectation and nothing resolvable, a constructor is left
+   unannotated for Hazel to mark -- the pre-annotation behaviour. */
+let no_tools: LivelitCtx.type_tools = {
+  resolve_ctr: (~ana as _, _) => None,
+  normalize: ty => ty,
+};
+
+let unknown = Typ.fresh(Unknown(Internal));
+
+let translate = (~ana=unknown, ~tools=no_tools, src: string) =>
+  FumolaValue.exp_of_json(~ana, ~tools, json(src));
+
+/* A sum type declaring Foo and Bar(Int), as
+   `type SomeThing = + Foo + Bar(Int)` would. */
+let something: Typ.t =
+  Typ.fresh(
+    Sum([
+      ConstructorMap.Variant(
+        "Foo",
+        ConstructorMap.mk_variant_ann(~ids=[], ()),
+        None,
+      ),
+      ConstructorMap.Variant(
+        "Bar",
+        ConstructorMap.mk_variant_ann(~ids=[], ()),
+        Some(Typ.fresh(Atom(Int))),
+      ),
+    ]),
+  );
+
+/* Resolves Hazel's builtin Option, as the context would. */
+let option_tools: LivelitCtx.type_tools = {
+  resolve_ctr: (~ana as _, name) =>
+    switch (name) {
+    | "None" => Some(BuiltinsADT.Option.t)
+    | "Some" =>
+      Some(
+        Typ.fresh(
+          Arrow(Typ.fresh(Unknown(Internal)), BuiltinsADT.Option.t),
+        ),
+      )
+    | _ => None
+    },
+  normalize: ty => ty,
+};
+
+/* Resolves constructors the way Statics does: one carrying a payload has an
+   arrow from the payload type to the sum. */
+let sum_tools: LivelitCtx.type_tools = {
+  resolve_ctr: (~ana as _, name) =>
+    switch (name) {
+    | "Foo" => Some(something)
+    | "Bar" => Some(Typ.fresh(Arrow(Typ.fresh(Atom(Int)), something)))
+    | _ => None
+    },
+  normalize: ty => ty,
+};
 
 /* Compare against the printed form of the expression, which is enough to
    pin down the shape without depending on ids. */
@@ -174,12 +231,20 @@ let tests = (
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    /* The Option constructors carry the annotations BuiltinsADT.Option gives
-       them, so they elaborate as a hand-written None or Some(x) would. */
-    test_case("the Option constructors are annotated", `Quick, () =>
-      switch (translate({|{"tag":"Null","value":null}|})) {
+    /* Option is no longer special-cased: None and Some resolve through the
+       same path as any other constructor, against whatever Option-shaped type
+       is expected here. */
+    test_case("the Option constructors resolve like any other", `Quick, () =>
+      switch (
+        translate(
+          ~ana=BuiltinsADT.Option.t,
+          ~tools=option_tools,
+          {|{"tag":"Null","value":null}|},
+        )
+      ) {
       | Ok({term: Constructor("None", Some(Some(_))), _}) => ()
-      | Ok(_) => Alcotest.fail("expected None to carry its type")
+      | Ok(_) =>
+        Alcotest.fail("expected None to carry the type it resolved to")
       | Error(m) => Alcotest.fail(m)
       }
     ),
@@ -247,6 +312,85 @@ let tests = (
     fails(
       "an untranslatable component fails the whole value",
       {|{"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Nope","value":null}]}|},
+    ),
+    /* Type-directed translation. A Fumola tag carries no home type, so the
+       expected type is the only place that information can come from. */
+    test_case("a variant resolves against the expected type", `Quick, () =>
+      switch (
+        translate(
+          ~ana=something,
+          ~tools=sum_tools,
+          {|{"tag":"Variant","value":{"name":"Bar","value":{"tag":"Int","value":"3"}}}|},
+        )
+      ) {
+      | Ok({term: Ap(Forward, {term: Constructor("Bar", ann), _}, _), _}) =>
+        switch (ann) {
+        | Some(Some(_)) => ()
+        | _ => Alcotest.fail("Bar should carry the type it resolved to")
+        }
+      | Ok(_) => Alcotest.fail("expected an applied Bar constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Unresolvable names are left unannotated rather than guessed at, so
+       Hazel marks them free -- the honest outcome. */
+    test_case("an unresolvable variant is left unannotated", `Quick, () =>
+      switch (
+        translate({|{"tag":"Variant","value":{"name":"Nope","value":null}}|})
+      ) {
+      | Ok({term: Constructor("Nope", None), _}) => ()
+      | Ok(_) => Alcotest.fail("expected an unannotated constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* The expectation reaches the payload, not just the tag. */
+    test_case("the expected type reaches a variant's payload", `Quick, () =>
+      switch (
+        translate(
+          ~ana=something,
+          ~tools=sum_tools,
+          {|{"tag":"Variant","value":{"name":"Bar","value":{"tag":"Int","value":"3"}}}|},
+        )
+      ) {
+      | Ok({term: Ap(Forward, _, {term: Atom(Int(n)), _}), _}) =>
+        Alcotest.check(Alcotest.string, "payload", "3", Bigint.to_string(n))
+      | Ok(_) => Alcotest.fail("expected an Int payload")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A tuple pushes its element types down, so a variant nested in a pair
+       still resolves. */
+    test_case("expectations reach into tuples", `Quick, () =>
+      switch (
+        translate(
+          ~ana=Typ.fresh(Prod([Typ.fresh(Atom(Int)), something])),
+          ~tools=sum_tools,
+          {|{"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Variant","value":{"name":"Foo","value":null}}]}|},
+        )
+      ) {
+      | Ok({
+          term: Tuple([_, {term: Constructor("Foo", Some(Some(_))), _}]),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected Foo to resolve inside the tuple")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Arity has to agree for an expectation to mean anything; a mismatched
+       one is ignored rather than misapplied. */
+    test_case("a mismatched tuple arity falls back", `Quick, () =>
+      switch (
+        translate(
+          ~ana=Typ.fresh(Prod([Typ.fresh(Atom(Int))])),
+          ~tools=sum_tools,
+          {|{"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Int","value":"2"}]}|},
+        )
+      ) {
+      | Ok({term: Tuple([_, _]), _}) => ()
+      | Ok(_) => Alcotest.fail("expected a two-element tuple")
+      | Error(m) => Alcotest.fail(m)
+      }
     ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
     fails("a missing tag", {|{"value":null}|}),

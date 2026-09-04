@@ -30,8 +30,9 @@ module Slider: BuiltinLivelit = {
      program. Unknown lets a livelit be used wherever its actual result fits,
      and mismatches surface as ordinary Hazel type errors. */
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
-  let expand: model_t => expansion_t =
-    (x: model_t) =>
+  let requires_annotation = false;
+  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+    (~ana as _, ~tools as _, x: model_t) =>
       switch (x) {
       | n => n
       };
@@ -135,8 +136,9 @@ module Emotion: BuiltinLivelit = {
      - less than 40: "sad"
      - greater than 70: "happy"
      - otherwise: "neutral" */
-  let expand: model_t => expansion_t =
-    (x: model_t) => {
+  let requires_annotation = false;
+  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+    (~ana as _, ~tools as _, x: model_t) => {
       let n = int_of_string(Bigint.to_string(x));
       if (n < 40) {
         "sad";
@@ -324,7 +326,9 @@ module Js: BuiltinLivelit = {
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
 
   /* The expansion is just the current `result`. */
-  let expand: model_t => expansion_t = (m: model_t) => m.result;
+  let requires_annotation = false;
+  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+    (~ana as _, ~tools as _, m: model_t) => m.result;
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (res: expansion_t) => DHExp.fresh(Atom(String(res)));
@@ -548,7 +552,9 @@ module Fumola: BuiltinLivelit = {
      apart. */
 
   /* The rendering and the expansion, from one evaluation. */
-  let observe_described = (model: model_t): (expansion_t, string) => {
+  let observe_described =
+      (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model: model_t)
+      : (expansion_t, string) => {
     let response =
       switch (
         shim(
@@ -572,7 +578,7 @@ module Fumola: BuiltinLivelit = {
       | `Assoc(obj) as json =>
         switch (List.assoc_opt("ok", obj)) {
         | Some(`Bool(true)) =>
-          switch (FumolaValue.exp_of_json(json)) {
+          switch (FumolaValue.exp_of_json(~ana, ~tools, json)) {
           | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
           | Error(message) => (Error(message), message)
           }
@@ -590,9 +596,6 @@ module Fumola: BuiltinLivelit = {
       }
     };
   };
-
-  let observe = (model: model_t): expansion_t =>
-    fst(observe_described(model));
 
   /* ---- Hazel encodings ---------------------------------------------- */
 
@@ -639,7 +642,21 @@ module Fumola: BuiltinLivelit = {
      and mismatches surface as ordinary Hazel type errors. */
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
 
-  let expand: model_t => expansion_t = (m: model_t) => observe(m);
+  /* The result's shape depends on both the program and the type asked of it,
+     so this livelit only expands in checking mode. */
+  let requires_annotation = true;
+
+  /* The widget renders outside of any typing context, so it resolves nothing
+     and unfolds nothing. Names it cannot resolve simply render as themselves,
+     which is all the widget needs -- it shows what the program produced, not
+     how it will be typed. */
+  let view_tools: LivelitCtx.type_tools = {
+    resolve_ctr: (~ana as _, _) => None,
+    normalize: ty => ty,
+  };
+
+  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+    (~ana, ~tools, m: model_t) => fst(observe_described(~ana, ~tools, m));
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
@@ -745,7 +762,18 @@ module Fumola: BuiltinLivelit = {
        display a result computed in a different runtime from the one the
        program evaluates in. A claim made during this render takes effect from
        the next one, once the model actually names it. */
-    let result = snd(observe_described(model));
+    /* The widget has no expected type of its own -- it is rendering what the
+       program produced, not what some enclosing annotation asked for -- so it
+       observes against Unknown. The expansion, which does have an expected
+       type, is computed separately by expand. */
+    let result =
+      snd(
+        observe_described(
+          ~ana=Typ.fresh(Unknown(Internal)),
+          ~tools=view_tools,
+          model,
+        ),
+      );
 
     Node.div(
       ~attrs=[Attr.class_("fumola-livelit")],
