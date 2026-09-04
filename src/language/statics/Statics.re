@@ -2713,10 +2713,12 @@ and uexp_to_info_map =
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
       let (m, mismatched_types) =
         ModuleHelpers.check_ana_type_members(~ana_items, items, m);
-      /* A hole among the items may still bind the members the signature
-         declares and the module lacks: they are assumed, not reported. Only a
-         hole where a member could be bound counts. */
-      let (sig_ty, missing_marks) =
+      /* Extra members are fine: the signature seals them away (width
+         subtyping, see Typ.ana_meet). A hole among the items may still bind
+         the members the signature declares and the module lacks: they are
+         assumed, not reported. Only a hole where a member could be bound
+         counts. */
+      let (sig_ty, marks) =
         switch (ModuleHelpers.missing_items(~ana_items, sig_ty)) {
         | [] => (sig_ty, [])
         | missing when ModuleHelpers.has_hole_binder(items) => (
@@ -2730,14 +2732,6 @@ and uexp_to_info_map =
             ],
           )
         };
-      let marks =
-        missing_marks
-        @ (
-          switch (ModuleHelpers.extra_members(~ana_items, sig_ty)) {
-          | [] => []
-          | names => [Mark.ModuleExtraMembers(names)]
-          }
-        );
       add(
         ~elab_term=
           Module(ModuleHelpers.refold_module_elab(items, expanded_elab))
@@ -2860,7 +2854,7 @@ and upat_to_info_map =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+        switch (expectation_mismatch_mark_pat(ctx, ana, elab_syn_ty)) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -2871,11 +2865,12 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
+            | _ =>
+              Message.Common(syn_ana_ok_common_pat(ctx, ana, elab_syn_ty))
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ_pat(ctx, ana, elab_syn_ty);
     let warning_acc =
       warnings
       @ (
