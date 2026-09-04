@@ -2671,10 +2671,18 @@ and uexp_to_info_map =
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
       let m = ModuleHelpers.check_ana_type_members(~ana_items, items, m);
       let marks =
-        switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
-        | [] => []
-        | names => [Mark.ModuleMissingMembers(names)]
-        };
+        (
+          switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
+          | [] => []
+          | names => [Mark.ModuleMissingMembers(names)]
+          }
+        )
+        @ (
+          switch (ModuleHelpers.extra_members(~ana_items, sig_ty)) {
+          | [] => []
+          | names => [Mark.ModuleExtraMembers(names)]
+          }
+        );
       add(
         ~elab_term=
           Module(ModuleHelpers.refold_module_elab(items, expanded_elab))
@@ -4328,6 +4336,9 @@ and sig_to_info_map =
   | SigType(tp, t) =>
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
+    (CoCtx.empty, Sig(s_term), add_sig_info(m));
+  | SigModule(mp) =>
+    let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   };
 }

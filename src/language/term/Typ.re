@@ -765,13 +765,12 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
       List.fold_left(
         ((ctx, acc), item: Sig.t) =>
           switch (Sig.member_of_item(item)) {
-          | Some(Val(x, ty)) => (
+          | Some(Val(_)) => (
               ctx,
-              [Sig.item_of_member(Val(x, normalize(ctx, ty))), ...acc],
+              [Sig.map_typ(normalize(ctx), item), ...acc],
             )
-          | Some(TypeManifest(name, def)) =>
-            let item' =
-              Sig.item_of_member(TypeManifest(name, normalize(ctx, def)));
+          | Some(TypeManifest(_)) =>
+            let item' = Sig.map_typ(normalize(ctx), item);
             (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
           | None => (ctx, acc)
           },
@@ -1054,7 +1053,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     /* Exact consistency: the same value-member names and the same
        type-member names (order-insensitive), members pairwise consistent.
        Subtyping between signatures lives in ana_meet, not here. */
-    let mx = Sig.members(xs) |> Sig.dedup_last;
+    let xs = Sig.dedup_last_items(xs);
+    let mx = Sig.members(xs);
     let my = Sig.members(ys) |> Sig.dedup_last;
     let same_names = (a, b) =>
       List.sort_uniq(compare, a) == List.sort_uniq(compare, b);
@@ -1062,24 +1062,29 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         || !same_names(Sig.type_names(mx), Sig.type_names(my))) {
       None;
     } else {
-      let rec go_members = (ctx, ms: list(Sig.member), acc) =>
-        switch (ms) {
+      /* Rebuild from the left operand's items so each keeps its form. */
+      let rec go_items = (ctx, items: list(Sig.t), acc) =>
+        switch (items) {
         | [] => Some(List.rev(acc))
-        | [Sig.Val(x, t1), ...ms] =>
-          let* t2 = Sig.find_value(my, x);
-          let* t = meet(ctx, t1, t2);
-          go_members(ctx, ms, [Sig.Val(x, t), ...acc]);
-        | [Sig.TypeManifest(n, d1), ...ms] =>
-          let* d2 = Sig.find_type_def(my, n);
-          let* d = meet(ctx, d1, d2);
-          go_members(
-            Ctx.extend_alias(ctx, n, Id.invalid, d),
-            ms,
-            [Sig.TypeManifest(n, d), ...acc],
-          );
+        | [item, ...items] =>
+          switch (Sig.member_of_item(item)) {
+          | Some(Val(x, t1)) =>
+            let* t2 = Sig.find_value(my, x);
+            let* t = meet(ctx, t1, t2);
+            go_items(ctx, items, [Sig.map_typ(_ => t, item), ...acc]);
+          | Some(TypeManifest(n, d1)) =>
+            let* d2 = Sig.find_type_def(my, n);
+            let* d = meet(ctx, d1, d2);
+            go_items(
+              Ctx.extend_alias(ctx, n, Id.invalid, d),
+              items,
+              [Sig.map_typ(_ => d, item), ...acc],
+            );
+          | None => go_items(ctx, items, acc)
+          }
         };
-      let+ ms = go_members(ctx, mx, []);
-      Sig(Sig.of_members(ms)) |> temp;
+      let+ items = go_items(ctx, xs, []);
+      Sig(items) |> temp;
     };
   | (Sig(_), _) => None
   };
@@ -1370,6 +1375,16 @@ let rec pretty_print = (ty: t): string =>
         )
       | SigType(tp, t) =>
         "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | SigModule(mp) =>
+        let rec mpat_str = (mp: TermBase.MPat.t) =>
+          switch (IdTagged.term_of(mp)) {
+          | Var(x) => x
+          | Asc(inner, t) => mpat_str(inner) ++ " : " ++ pretty_print(t)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => "?"
+          };
+        "module " ++ mpat_str(mp);
       | EmptyHole => "?"
       | Invalid(s) => s
       | MultiHole(_) => "?"
