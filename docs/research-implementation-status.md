@@ -3,7 +3,10 @@
 > Analysis of `dev` at `0943461829` (2026-09-02). Every code claim cites a
 > file and line range in that tree; every historical claim cites a commit,
 > PR, branch, or tag. Line numbers will drift; the cited identifiers will
-> not. Where something was inferred rather than verified, the text says so.
+> not. Dates attached to a bare commit hash are author dates and may precede
+> the commit's arrival on `dev` by weeks or months; dates attached to a PR
+> number are merge dates, which is when the change landed. Where something
+> was inferred rather than verified, the text says so.
 
 ## Purpose
 
@@ -38,7 +41,7 @@ Status vocabulary:
 | 2021 | PLDI | Filling Typed Holes with Live GUIs (livelits) | Partial (about one third) | Three builtin livelits over the projector substrate. No definitions, parameters, or splices; expansion type is asserted, not checked. User-defined livelits and expansion typing are on an open PR chain ending in #2488. |
 | 2023 | OOPSLA | Live Pattern Matching with Typed Holes | Implemented in behaviour, Diverged in formulation | Errors only when necessarily inexhaustive or redundant, tested against the paper's figures; but via a Maranget matrix, not the paper's constraints, and hole patterns now match at run time. |
 | 2024 | POPL | Total Type Error Localization and Recovery with Holes | Part 1 Implemented (about 90 percent); Part 2 Missing | Marking is the architecture of `Statics.re`, fused with elaboration. Type hole inference has never been on `dev` (branch only, five closed or open PRs). |
-| 2024 | OOPSLA | Statically Contextualizing LLMs with Typed Holes (ChatLSP) | Superseded | Merged 2025-07, deleted 2025-12; replaced by a tool-using structure-editor agent with type-checker-gated edits. |
+| 2024 | OOPSLA | Statically Contextualizing LLMs with Typed Holes (ChatLSP) | Superseded | On `dev` from 2025-07-09 to 2026-03-19; replaced by a tool-using structure-editor agent with type-checker-gated edits. |
 | 2025 | POPL | Grove: Collaborative Structure Editor Calculus | Separate repo | `hazelgrove/GRV`; nothing in this repository, no collaboration on `dev`. |
 | 2025 | OOPSLA | Incremental Bidirectional Typing via Order Maintenance | Separate repo | Whole-program statics on every edit; incremental evaluation was built instead. |
 | 2025 | OOPSLA | Syntactic Completions with Material Obligations | Separate repo; Hazel-native successor Branch only | tylr's data model is the editor's backbone; the completion algorithm is in `hazelgrove/tylr`, with a Hazel-native engine on three open PRs. |
@@ -527,14 +530,14 @@ methods. VL/HCC 2022 describes an assistant architecture (analyzers,
 synthesizers, scorers, ranker, presenter) prototyped as the Hazel Assistant.
 Onward! 2022 describes ExplainThis, contextualized documentation.
 
-**Overall status: ChatLSP Superseded (merged 2025-07, deleted 2025-12);
+**Overall status: ChatLSP Superseded (on `dev` 2025-07-09 to 2026-03-19);
 VL/HCC architecture Branch only, with TyDi as a narrow descendant;
 ExplainThis Implemented.**
 
 | Mechanism | Status on `dev` | Evidence |
 | --- | --- | --- |
 | Expected type at the hole in the prompt | Missing. The agent receives a whole-program snapshot with folded bindings, static errors and test results every turn; no inferred types are printed into it. | `src/web/view/agentCore/Message.re:284-343`, `CompositionCore/CompositionView.re:150-184` |
-| Type-directed retrieval of definitions and headers | Missing on `dev`. `RelevantTypes.re` and `RelevantValues.re` were merged in PR #1575 (2025-07-09) and deleted in `00d7656fcb` (2025-12-01). The substitute is agent-driven `expand`/`collapse` over a binding-path tree. | `git show 2b4a189132:src/web/app/helpful-assistant/ChatLSP.re`; `ToolJsonDefinitions/ViewTools.re`, `HighLevelNodeMap.re:885-921` |
+| Type-directed retrieval of definitions and headers | Missing on `dev`. `RelevantTypes.re` and `RelevantValues.re` were merged in PR #1575 (2025-07-09) and removed from `dev` by PR #2131 (2026-03-19; the deleting commit `00d7656fcb` was authored 2025-12-01 on the agent branch). The substitute is agent-driven `expand`/`collapse` over a binding-path tree. | `git show 2b4a189132:src/web/app/helpful-assistant/ChatLSP.re`; `ToolJsonDefinitions/ViewTools.re`, `HighLevelNodeMap.re:885-921` |
 | Error-correction rounds (max 2) | Diverged. Instead of repairing a candidate completion, every structural edit tool re-runs statics and refuses edits that raise the local error count; diagnostics are re-sent each turn; the agentic loop is open-ended. | `CompositionGo.re:125-190`, `test/Test_AgentTools.re` (244 cases) |
 | ChatLSP protocol / language server | Missing. `src/CLI` (2026-01) is a batch tool for external agents (`analyze`, `format`, `probe`, `grade-*`), not a server. The `??` LLM-hole token survives as a dead form. | `src/CLI/Cli.re:510-634`, `lang/Token.re:341`, `Form.re:664` |
 | What is there instead: "Filbert", a tool-using structure-editor agent | Implemented (about 12k lines): structural edit tools over binding paths, probe/statics/projector overlay tools, workbench tasks, session modes, compaction, streaming, floor-only prompt caching. Sole provider: OpenRouter. | `CompositionCore/prompt_factory/CompositionPrompt.re:6,383-396`, `src/util/OpenRouter.re:463`, `agent-docs/prompt-caching-findings.md` |
@@ -549,8 +552,10 @@ merged 2023-12-05). The OOPSLA 2024 artifact is `origin/llama-lsp-lookahead`
 `ChatLSP.re`, `Filler.re`, MVUBench, OpenAI and Azure GPT-4 calls), never
 merged. A single-file port (`ChatLSP.re`, PR #1492) reached `dev` via PR #1575
 "LLM Hole fillings and Assistant Sidebar" (Russell Rozenbaum, 2025-07-09), and
-was removed in `00d7656fcb` (2025-12-01) as the team pivoted to the coding
-agent (PR #2131 "Coding Agent", 2026-03-19; PR #2210, 2026-07-29).
+was removed from `dev` by PR #2131 "Coding Agent" (2026-03-19; deletion
+authored 2025-12-01 as `00d7656fcb`) as the team pivoted to the coding agent
+(PR #2210 followed on 2026-07-29). The ChatLSP shell and the agent work
+therefore overlapped for about three months rather than handing off.
 ExplainThis: Hannah Potter, 2022-08 onward ("LangDoc"), refactor PR #993
 (2024-01), simplification PR #2424 (2026-08-17).
 
@@ -913,7 +918,7 @@ PRs #1020, #1788, #2123; discussion #1558.
 **Merged, then removed.** Several paper mechanisms were on `dev` for a
 while: the Peanut constraint checker (2024-05 to 2025-02), hole-instance
 numbering and postprocessing (until 2024-02), the ChatLSP port (2025-07 to
-2025-12), a separate elaborator (until 2026-04). Readers of the papers
+2026-03), a separate elaborator (until 2026-04). Readers of the papers
 should not expect to find these by name.
 
 **Stale documentation and dead code worth fixing.**
