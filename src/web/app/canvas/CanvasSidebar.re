@@ -680,6 +680,16 @@ let view_impl =
     : Node.t => {
   let test_results = test_results_of(editors);
   let slide = current_slide(editors);
+  /* a run's trace records where it started: the slide and its program
+     (printed only when a run begins) */
+  CanvasTrajectory.slide_name := slide;
+  CanvasTrajectory.program_text :=
+    (
+      () =>
+        Some(
+          Haz3lcore.Printer.of_zipper(~holes="?", editor.editor.state.zipper),
+        )
+    );
   {
     /* the layout frame is frozen while beats play and re-derives when
        they stop: that re-frame must glide, not snap */
@@ -2483,6 +2493,7 @@ let view_impl =
         ),
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
+        CanvasReplayView.rec_dot(),
         split_btn,
       ],
     );
@@ -3080,6 +3091,7 @@ let view_impl =
     [
       header,
       hint_row,
+      CanvasReplayView.overlay(),
       div(
         ~attrs=[Attr.id("canvas-scroll"), clss(["canvas-scroll"])],
         [

@@ -223,6 +223,41 @@ let start = default_model => {
             ),
           )
       );
+    CanvasTrajectory.dispatch_new_slide :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(ScratchMode.Update.AddSlide),
+            ),
+          )
+      );
+    CanvasTrajectory.dispatch_paste :=
+      (
+        text =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.CellAction(
+                  CellEditor.Update.MainEditor(
+                    CodeEditable.Update.Perform(
+                      Haz3lcore.Action.Paste(text),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.on_change :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Globals(
+              Globals.Update.Set(Settings.Update.CanvasTick),
+            ),
+          )
+      );
     CanvasTrajectory.dispatch_tick :=
       (
         () =>

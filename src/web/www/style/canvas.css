@@ -1389,3 +1389,165 @@
 .cmenu-icon.cmenu-base:hover {
   background: var(--Y0, #f6efd8);
 }
+
+/* ---- replay HUD + traces panel (CanvasReplayView) ---- */
+
+/* zero-height row: the HUD/panel float over the canvas without moving it */
+.canvas-replay-row {
+  flex: 0 0 auto;
+  height: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 7;
+  font-family: var(--ui-font, sans-serif);
+  font-size: 11px;
+}
+
+.canvas-rec-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--BR1, #d8c9a3);
+  opacity: 0.55;
+  cursor: pointer;
+  margin: 0 3px;
+}
+.canvas-rec-dot:hover,
+.canvas-rec-dot.rec-open {
+  opacity: 1;
+}
+.canvas-rec-dot.rec-on {
+  background: #d9483b;
+  opacity: 0.9;
+  animation: canvas-rec-pulse 1.6s ease-in-out infinite;
+}
+@keyframes canvas-rec-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+}
+
+.canvas-replay-hud {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: var(--Y0, #f6efd8);
+  border: 1px solid var(--BR1, #d8c9a3);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+.canvas-replay-hud.replay-done {
+  opacity: 0.8;
+}
+.canvas-replay-hud .replay-btn {
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.canvas-replay-hud .replay-clock {
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  min-width: 46px;
+  text-align: right;
+}
+.canvas-replay-hud .replay-step {
+  font-family: var(--code-font, monospace);
+  font-size: 10px;
+  opacity: 0.75;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.canvas-replay-hud .replay-note {
+  width: 130px;
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--BR1, #d8c9a3);
+  border-radius: 3px;
+  background: white;
+}
+
+.canvas-traces-panel {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  width: min(440px, calc(100% - 20px));
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--Y0, #f6efd8);
+  border: 1px solid var(--BR1, #d8c9a3);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 4px 6px 6px;
+}
+.traces-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 4px;
+}
+.traces-head.traces-sub {
+  margin-top: 6px;
+  border-top: 1px solid var(--BR1, #d8c9a3);
+  padding-top: 5px;
+}
+.traces-title {
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--ui-header-text, #6b5330);
+}
+.traces-note {
+  flex: 1 1 auto;
+  font-size: 10px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 4px 2px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  align-items: center;
+}
+.trace-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  opacity: 0.8;
+  grid-column: 1 / 3;
+}
+.trace-when {
+  font-family: var(--code-font, monospace);
+}
+.trace-slide {
+  font-weight: bold;
+}
+.trace-prompt {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-actions {
+  display: flex;
+  gap: 3px;
+}
+.trace-actions .replay-btn {
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 15px;
+}
+.trace-empty {
+  font-size: 10px;
+  opacity: 0.6;
+  padding: 4px 2px;
+}

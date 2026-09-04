@@ -257,6 +257,9 @@ let install = (): unit =>
     );
   };
 
+/* set by CanvasTrajectory: the trace time while a replay runs */
+let trace_clock: ref(unit => option(string)) = ref(() => None);
+
 let log = (msg: string): unit => {
   install();
   let t = now();
@@ -271,6 +274,13 @@ let log = (msg: string): unit => {
   };
   last_t := t;
   let tlabel = turn^ == 0 ? "  " : Printf.sprintf("T%d", turn^);
+  /* while a replay runs every line also carries the TRACE time, so an
+     observation "at 38.2" lands on the same clock as the score */
+  let msg =
+    switch (trace_clock^()) {
+    | Some(tc) => "[R " ++ tc ++ "] " ++ msg
+    | None => msg
+    };
   push(Printf.sprintf("%8.2fs %-3s %s", (t -. t0^) /. 1000., tlabel, msg));
 };
 
