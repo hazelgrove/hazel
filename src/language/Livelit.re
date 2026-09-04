@@ -25,7 +25,11 @@ module Slider: BuiltinLivelit = {
     };
   let model_default: model_t = Bigint.of_int(50);
 
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  /* The result's shape depends on the program text -- 1 + 2 is an Int,
+     (get(1), get(2)) is a pair -- so no single static type is right for every
+     program. Unknown lets a livelit be used wherever its actual result fits,
+     and mismatches surface as ordinary Hazel type errors. */
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
   let expand: model_t => expansion_t =
     (x: model_t) =>
       switch (x) {
@@ -475,11 +479,12 @@ module Fumola: BuiltinLivelit = {
     program: string,
   };
 
-  /* The MVP translates only integer results. An untranslatable result (a
-     syntax error mid-edit, a Fumola value with no Hazel counterpart, or a
-     runtime that has not finished loading) expands to a hole rather than to
-     a misleading number. */
-  type expansion_t = result(Bigint.t, string);
+  /* A Fumola result becomes a Hazel value of whatever shape it has: an
+     integer, a tuple, a record, a variant. An untranslatable result (a syntax
+     error mid-edit, a Fumola value with no Hazel counterpart, or a runtime
+     that has not finished loading) expands to a hole rather than to something
+     misleading. The string carries the reason, for the widget to show. */
+  type expansion_t = result(expansion_exp, string);
 
   type action_t =
     | SetModel(model_t);
@@ -533,8 +538,17 @@ module Fumola: BuiltinLivelit = {
 
   /* Evaluate against sigma(instance_id), realizing the runtime first if this
      session has no entry for that id (the reload path). The shim answers with
-     a small tagged string: "Int:3", "Err:...", or "Pending". */
-  let observe = (model: model_t): expansion_t => {
+     the runtime's JSON verbatim:
+
+       {"ok": true,  "tag": <tag>, "value": <json>}
+       {"ok": false, "error": <message>}
+
+     Structure is preserved on the way across, so that a Fumola tuple can be
+     rebuilt here as a Hazel tuple rather than as a wrapper Hazel has to take
+     apart. */
+
+  /* The rendering and the expansion, from one evaluation. */
+  let observe_described = (model: model_t): (expansion_t, string) => {
     let response =
       switch (
         shim(
@@ -542,25 +556,43 @@ module Fumola: BuiltinLivelit = {
           [|js_int(model.instance_id), js_string(model.program)|],
         )
       ) {
-      | exception _ => "Err:no Fumola runtime available"
-      | r => r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string
+      | exception _ => None
+      | r =>
+        Some(r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string)
       };
-    switch (String.index_opt(response, ':')) {
-    | Some(i) =>
-      let tag = String.sub(response, 0, i);
-      let body =
-        String.sub(response, i + 1, String.length(response) - i - 1);
-      switch (tag) {
-      | "Int" =>
-        switch (Bigint.of_string_opt(body)) {
-        | Some(n) => Ok(n)
-        | None => Error("Fumola returned an unreadable integer: " ++ body)
+    switch (response) {
+    | None =>
+      let message = "no Fumola runtime available";
+      (Error(message), message);
+    | Some(response) =>
+      switch (Yojson.Safe.from_string(response)) {
+      | exception _ =>
+        let message = "could not read the Fumola runtime's response";
+        (Error(message), message);
+      | `Assoc(obj) as json =>
+        switch (List.assoc_opt("ok", obj)) {
+        | Some(`Bool(true)) =>
+          switch (FumolaValue.exp_of_json(json)) {
+          | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
+          | Error(message) => (Error(message), message)
+          }
+        | _ =>
+          let message =
+            switch (List.assoc_opt("error", obj)) {
+            | Some(`String(message)) => message
+            | _ => "the Fumola program did not produce a value"
+            };
+          (Error(message), message);
         }
-      | _ => Error(body)
-      };
-    | None => Error(response)
+      | _ =>
+        let message = "could not read the Fumola runtime's response";
+        (Error(message), message);
+      }
     };
   };
+
+  let observe = (model: model_t): expansion_t =>
+    fst(observe_described(model));
 
   /* ---- Hazel encodings ---------------------------------------------- */
 
@@ -601,14 +633,18 @@ module Fumola: BuiltinLivelit = {
     program: "1 + 2",
   };
 
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  /* The result's shape depends on the program text -- 1 + 2 is an Int,
+     (get(1), get(2)) is a pair -- so no single static type is right for every
+     program. Unknown lets a livelit be used wherever its actual result fits,
+     and mismatches surface as ordinary Hazel type errors. */
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
 
   let expand: model_t => expansion_t = (m: model_t) => observe(m);
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
       switch (x) {
-      | Ok(n) => DHExp.fresh(Atom(Int(n)))
+      | Ok(exp) => exp
       | Error(_) => DHExp.fresh(EmptyHole)
       };
 
@@ -709,11 +745,7 @@ module Fumola: BuiltinLivelit = {
        display a result computed in a different runtime from the one the
        program evaluates in. A claim made during this render takes effect from
        the next one, once the model actually names it. */
-    let result =
-      switch (observe(model)) {
-      | Ok(n) => Bigint.to_string(n)
-      | Error(message) => message
-      };
+    let result = snd(observe_described(model));
 
     Node.div(
       ~attrs=[Attr.class_("fumola-livelit")],

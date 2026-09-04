@@ -151,40 +151,30 @@ window.fumola = (() => {
     return fresh;
   };
 
-  // Fumola syntax errors carry the parser's full expected-token set, which
-  // runs to well over a thousand characters. That is useless in a livelit the
-  // width of an expression, so keep only the head of the message.
-  const summarize = (message) => {
-    const text = String(message).replace(/\s+/g, " ").trim();
-    const cut = text.indexOf(", expected:");
-    const head = cut === -1 ? text : text.slice(0, cut) + " }";
-    return head.length > 160 ? head.slice(0, 157) + "..." : head;
-  };
-
   const evalSync = (id, src) => {
     if (!ready()) {
-      return loadError === null
-        ? "Pending:Fumola runtime is still loading"
-        : "Err:Fumola runtime unavailable (run scripts/build-fumola-wasm.sh)";
+      return JSON.stringify({
+        ok: false,
+        error:
+          loadError === null
+            ? "the Fumola runtime is still loading"
+            : "the Fumola runtime is unavailable",
+      });
     }
     const last = lastEval.get(id);
     if (last !== undefined && last.src === src) return last.result;
 
     if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
 
+    // The raw JSON from the runtime, passed through verbatim. Flattening it
+    // to a tagged string here would not survive structure: a Fumola tuple or
+    // record has to reach Hazel as a tree, so that it can be rebuilt as a
+    // Hazel tuple or record rather than as something Hazel must take apart.
     let result;
     try {
-      const parsed = JSON.parse(wasm.fumola_eval(id, src));
-      if (parsed.ok && parsed.tag === "Int") {
-        result = "Int:" + parsed.value;
-      } else if (parsed.ok) {
-        result = "Err:Fumola returned a " + parsed.tag +
-          ", which this livelit cannot yet translate";
-      } else {
-        result = "Err:" + summarize(parsed.error);
-      }
+      result = wasm.fumola_eval(id, src);
     } catch (e) {
-      result = "Err:" + String(e);
+      result = JSON.stringify({ ok: false, error: String(e) });
     }
     lastEval.set(id, { src, result });
     return result;
