@@ -507,6 +507,26 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       );
+    /* A reference synthesizes the type of the value it carries, which came
+       from dereferencing the cell in the runtime. So a reference to a cell
+       holding an Int is an Int, and no annotation is needed anywhere: the
+       type is established rather than asserted. */
+    | FumolaPeek({instance_id, reads, value}) =>
+      let (value_info, value_elab, m) = go(~ana, value, m);
+      add(
+        ~elab_term=
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: value_elab,
+          })
+          |> rewrap,
+        ~elab_syn_ty=value_info.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=value_info.co_ctx,
+        ~probe_targets=value_info.probe_targets,
+        m,
+      );
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);

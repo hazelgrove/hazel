@@ -239,6 +239,7 @@ let rec exp_of_json =
         (
           ~instance_id: int,
           ~eval: string => Yojson.Safe.t,
+          ~seen: list(string)=[],
           ~ana: TermBase.Typ.t,
           ~tools: LivelitCtx.type_tools,
           json: Yojson.Safe.t,
@@ -257,7 +258,7 @@ let rec exp_of_json =
       switch (field("value", obj)) {
       | Error(e) => Error(e)
       | Ok(value) =>
-        exp_of_tagged(~instance_id, ~eval, ~ana, ~tools, tag, value)
+        exp_of_tagged(~instance_id, ~eval, ~seen, ~ana, ~tools, tag, value)
       }
     | Ok(_) => Error("Fumola result has a non-string tag")
     }
@@ -269,6 +270,7 @@ and exp_of_tagged =
     (
       ~instance_id: int,
       ~eval: string => Yojson.Safe.t,
+      ~seen: list(string),
       ~ana: TermBase.Typ.t,
       ~tools: LivelitCtx.type_tools,
       tag: string,
@@ -298,31 +300,56 @@ and exp_of_tagged =
   | ("AdaptonPointer", `Assoc(fields)) =>
     switch (List.assoc_opt("source", fields)) {
     | Some(`String(source)) =>
-      /* The ascription comes from following the pointer: the runtime is asked
-         what the cell holds, and the type of that answer is the type of this
-         reference. Without it the generated livelit would be asking for an
-         annotation nobody can write, since it is code the user never typed. */
-      let pointed = eval(reading(source));
-      let typ = typ_of_json(~eval, ~seen=[source], pointed);
-      Ok(
-        DHExp.fresh(
-          Asc(
-            DHExp.fresh(
-              Ap(
-                Forward,
-                DHExp.fresh(LivelitName("fumola")),
-                DHExp.fresh(
-                  Tuple([
-                    DHExp.fresh(Atom(Int(Bigint.of_int(instance_id)))),
-                    DHExp.fresh(Atom(String(reading(source)))),
-                  ]),
-                ),
-              ),
-            ),
-            typ,
+      /* Read the cell and translate what it holds, so the reference carries
+         its value. That is what lets evaluation continue through it -- a
+         reference to a cell holding an Int is usable as an Int -- while the
+         reference itself stays visible.
+
+         [seen] stops a cell that holds a pointer back to itself from being
+         followed forever; a repeat yields a hole, whose type is Unknown. */
+      let reads = reading(source);
+      if (List.mem(source, seen)) {
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value: DHExp.fresh(EmptyHole),
+            }),
           ),
-        ),
-      );
+        );
+      } else {
+        let value =
+          switch (eval(reads)) {
+          | `Assoc(result) as pointed
+              when List.assoc_opt("ok", result) == Some(`Bool(true)) =>
+            switch (
+              exp_of_json(
+                ~instance_id,
+                ~eval,
+                ~seen=[source, ...seen],
+                ~ana=unknown(),
+                ~tools,
+                pointed,
+              )
+            ) {
+            | Ok(value) => value
+            /* A cell whose contents have no Hazel translation still has a
+               reference worth showing; the value is simply unknown. */
+            | Error(_) => DHExp.fresh(EmptyHole)
+            }
+          | _ => DHExp.fresh(EmptyHole)
+          };
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value,
+            }),
+          ),
+        );
+      };
     | _ => Error("Fumola pointer has no source text")
     }
   /* A symbol becomes its text. Hazel has no symbol of its own, and the text
@@ -336,7 +363,8 @@ and exp_of_tagged =
     let anas = element_anas(~tools, ana, List.length(items));
     let translated =
       List.map2(
-        (ana, item) => exp_of_json(~instance_id, ~eval, ~ana, ~tools, item),
+        (ana, item) =>
+          exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, item),
         anas,
         items,
       );
@@ -348,7 +376,7 @@ and exp_of_tagged =
   | ("Record", `Assoc(fields)) =>
     let element = ((name, value)) => {
       let ana = field_ana(~tools, ana, name);
-      switch (exp_of_json(~instance_id, ~eval, ~ana, ~tools, value)) {
+      switch (exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, value)) {
       | Error(e) => Error(e)
       | Ok(value) =>
         Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
@@ -365,7 +393,14 @@ and exp_of_tagged =
   | ("Option", payload) =>
     let (some, payload_ana) = constructor(~tools, ~ana, "Some");
     switch (
-      exp_of_json(~instance_id, ~eval, ~ana=payload_ana, ~tools, payload)
+      exp_of_json(
+        ~instance_id,
+        ~eval,
+        ~seen,
+        ~ana=payload_ana,
+        ~tools,
+        payload,
+      )
     ) {
     | Error(e) => Error(e)
     | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some, payload)))
@@ -385,7 +420,14 @@ and exp_of_tagged =
       | Some(`Null) => Ok(ctr)
       | Some(payload) =>
         switch (
-          exp_of_json(~instance_id, ~eval, ~ana=payload_ana, ~tools, payload)
+          exp_of_json(
+            ~instance_id,
+            ~eval,
+            ~seen,
+            ~ana=payload_ana,
+            ~tools,
+            payload,
+          )
         ) {
         | Error(e) => Error(e)
         | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, ctr, payload)))

@@ -523,6 +523,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | ExplicitNonlabel => ExplicitNonlabel
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
+      /* Abbreviated by the value it denotes: the reference text is
+         incidental to reading a shortened result. */
+      | FumolaPeek({instance_id, reads, value}) =>
+        FumolaPeek({
+          instance_id,
+          reads,
+          value: abbreviate_exp(value),
+        })
 
       // Other atomic cases
       | EmptyHole =>

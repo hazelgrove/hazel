@@ -130,6 +130,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
+  | FumolaPeek(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -358,6 +359,7 @@ let rec parenthesize =
   | DrvQuote(_)
   | EmptyHole
   | LivelitName(_)
+  | FumolaPeek(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | ExplicitNonlabel
@@ -1920,6 +1922,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | LivelitName(s) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s))
+  /* Shows both halves: the cell being referenced, and what it holds.
+
+     There is no concrete syntax for this form -- it is only ever produced by
+     translating a Fumola result, never written or parsed -- so the rendering
+     is free to be whatever reads best, and this is a first cut rather than a
+     settled choice. */
+  | FumolaPeek({reads, value, _}) =>
+    let id = exp |> Exp.rep_id;
+    let+ value = go(value);
+    wrap(exp, text_to_pretty(id, Sort.Exp, reads ++ " = ") @ value);
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

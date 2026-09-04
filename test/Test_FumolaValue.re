@@ -471,131 +471,44 @@ let tests = (
       "a symbol form with no text yet",
       {|{"tag":"Symbol","value":{"tag":"BinOp","value":null}}|},
     ),
-    /* A pointer becomes the livelit that reads it: the same instance, running
-       peek(<the name it points at>)!. So a livelit that returns a pointer
-       returns a simpler livelit. */
-    test_case("a pointer becomes the livelit that reads it", `Quick, () =>
+    /* A pointer becomes a reference carrying the value it points at, so
+       evaluation continues through it while the reference stays visible. */
+    test_case("a pointer carries the value it points at", `Quick, () =>
       switch (
         translate(
           ~instance_id=7,
-          {|{"tag":"AdaptonPointer","value":{"source":"`counter","symbol":{"tag":"Name","value":"counter"}}}|},
-        )
-      ) {
-      | Ok({
-          term:
-            Asc(
-              {
-                term:
-                  Ap(
-                    Forward,
-                    {term: LivelitName("fumola"), _},
-                    {term: Tuple([id, program]), _},
-                  ),
-                _,
-              },
-              _,
-            ),
-          _,
-        }) =>
-        switch (id.term, program.term) {
-        | (Atom(Int(n)), Atom(String(text))) =>
-          Alcotest.check(
-            Alcotest.string,
-            "same instance",
-            "7",
-            Bigint.to_string(n),
-          );
-          Alcotest.check(
-            Alcotest.string,
-            "reads the pointer",
-            "peek(`counter)!",
-            text,
-          );
-        | _ => Alcotest.fail("model is not (Int, String)")
-        }
-      | Ok(_) => Alcotest.fail("expected a fumola livelit application")
-      | Error(m) => Alcotest.fail(m)
-      }
-    ),
-    /* A numeric name is a name too. */
-    test_case("a numerically named pointer reads the same way", `Quick, () =>
-      switch (
-        translate(
-          ~instance_id=2,
-          {|{"tag":"AdaptonPointer","value":{"source":"7","symbol":{"tag":"Num","value":"7"}}}|},
-        )
-      ) {
-      | Ok({
-          term:
-            Asc(
-              {
-                term:
-                  Ap(
-                    Forward,
-                    _,
-                    {term: Tuple([_, {term: Atom(String(text)), _}]), _},
-                  ),
-                _,
-              },
-              _,
-            ),
-          _,
-        }) =>
-        Alcotest.check(Alcotest.string, "reads the pointer", "peek(7)!", text)
-      | Ok(_) => Alcotest.fail("expected a fumola livelit application")
-      | Error(m) => Alcotest.fail(m)
-      }
-    ),
-    /* Pointers nested in structures translate like any other component, and
-       each carries the instance it came from. */
-    test_case("pointers translate inside tuples", `Quick, () =>
-      switch (
-        translate(
-          ~instance_id=3,
-          {|{"tag":"Tuple","value":[{"tag":"AdaptonPointer","value":{"source":"`a"}},{"tag":"Int","value":"1"}]}|},
-        )
-      ) {
-      | Ok({
-          term:
-            Tuple([
-              {
-                term:
-                  Asc(
-                    {
-                      term: Ap(Forward, {term: LivelitName("fumola"), _}, _),
-                      _,
-                    },
-                    _,
-                  ),
-                _,
-              },
-              _,
-            ]),
-          _,
-        }) =>
-        ()
-      | Ok(_) => Alcotest.fail("expected a livelit inside the tuple")
-      | Error(m) => Alcotest.fail(m)
-      }
-    ),
-    /* The ascription comes from following the pointer: the runtime is asked
-       what the cell holds, and the type of that answer types the reference. */
-    test_case(
-      "a pointer is ascribed the type of what it points at", `Quick, () =>
-      switch (
-        translate(
           ~eval=
-            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"41"}|})]),
-          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
+            store([
+              ("peek(`counter)!", {|{"ok":true,"tag":"Int","value":"41"}|}),
+            ]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`counter"}}|},
         )
       ) {
-      | Ok({term: Asc(_, {term: Atom(Int), _}), _}) => ()
-      | Ok(_) => Alcotest.fail("expected an Int ascription")
+      | Ok({term: FumolaPeek({instance_id, reads, value}), _}) =>
+        Alcotest.check(Alcotest.int, "same instance", 7, instance_id);
+        Alcotest.check(
+          Alcotest.string,
+          "reads the cell",
+          "peek(`counter)!",
+          reads,
+        );
+        switch (value.term) {
+        | Atom(Int(n)) =>
+          Alcotest.check(
+            Alcotest.string,
+            "the value it holds",
+            "41",
+            Bigint.to_string(n),
+          )
+        | _ => Alcotest.fail("expected the carried value to be an Int")
+        };
+      | Ok(_) => Alcotest.fail("expected a FumolaPeek")
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    test_case(
-      "a pointer to a structure is ascribed that structure", `Quick, () =>
+    /* The carried value is translated like any other, so a pointer to a
+       structure carries that structure. */
+    test_case("a pointer to a structure carries it", `Quick, () =>
       switch (
         translate(
           ~eval=
@@ -608,24 +521,14 @@ let tests = (
           {|{"tag":"AdaptonPointer","value":{"source":"`p"}}|},
         )
       ) {
-      | Ok({
-          term:
-            Asc(
-              _,
-              {
-                term: Prod([{term: Atom(Int), _}, {term: Atom(Bool), _}]),
-                _,
-              },
-            ),
-          _,
-        }) =>
+      | Ok({term: FumolaPeek({value: {term: Tuple([_, _]), _}, _}), _}) =>
         ()
-      | Ok(_) => Alcotest.fail("expected a (Int, Bool) ascription")
+      | Ok(_) => Alcotest.fail("expected a carried pair")
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    /* A pointer to a pointer is typed by following the whole chain. */
-    test_case("dereferencing follows a chain of pointers", `Quick, () =>
+    /* A pointer to a pointer nests, each level keeping its own reference. */
+    test_case("pointers nest", `Quick, () =>
       switch (
         translate(
           ~eval=
@@ -639,13 +542,25 @@ let tests = (
           {|{"tag":"AdaptonPointer","value":{"source":"`a"}}|},
         )
       ) {
-      | Ok({term: Asc(_, {term: Atom(String), _}), _}) => ()
-      | Ok(_) => Alcotest.fail("expected a String ascription")
+      | Ok({
+          term:
+            FumolaPeek({
+              value:
+                {
+                  term:
+                    FumolaPeek({value: {term: Atom(String("hi")), _}, _}),
+                  _,
+                },
+              _,
+            }),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected nested references")
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    /* A cell holding a pointer back to itself must terminate rather than
-       dereferencing forever. */
+    /* A cell holding a pointer back to itself must terminate. */
     test_case("a pointer cycle terminates", `Quick, () =>
       switch (
         translate(
@@ -659,69 +574,43 @@ let tests = (
           {|{"tag":"AdaptonPointer","value":{"source":"`loop"}}|},
         )
       ) {
-      | Ok({term: Asc(_, {term: Unknown(_), _}), _}) => ()
-      | Ok(_) => Alcotest.fail("expected Unknown for a cycle")
+      | Ok({
+          term: FumolaPeek({value: {term: FumolaPeek({value, _}), _}, _}),
+          _,
+        }) =>
+        switch (value.term) {
+        | EmptyHole => ()
+        | _ => Alcotest.fail("expected the cycle to stop at a hole")
+        }
+      | Ok(_) => Alcotest.fail("expected nested references")
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    /* A cell that cannot be read tells us nothing about its type, and an
-       unreadable one must not fail the whole translation. */
-    test_case("an unreadable cell is ascribed Unknown", `Quick, () =>
+    /* An unreadable cell still has a reference worth showing. */
+    test_case("an unreadable cell keeps its reference", `Quick, () =>
       switch (
         translate({|{"tag":"AdaptonPointer","value":{"source":"`gone"}}|})
       ) {
-      | Ok({term: Asc(_, {term: Unknown(_), _}), _}) => ()
-      | Ok(_) => Alcotest.fail("expected an Unknown ascription")
+      | Ok({term: FumolaPeek({reads, value, _}), _}) =>
+        Alcotest.check(Alcotest.string, "reads", "peek(`gone)!", reads);
+        switch (value.term) {
+        | EmptyHole => ()
+        | _ => Alcotest.fail("expected an unknown value")
+        };
+      | Ok(_) => Alcotest.fail("expected a FumolaPeek")
       | Error(m) => Alcotest.fail(m)
       }
     ),
-    /* The pointer itself survives the ascription -- the reference is
-       preserved, not replaced by the value it points at. */
-    test_case("the pointer survives being typed", `Quick, () =>
+    test_case("pointers translate inside tuples", `Quick, () =>
       switch (
         translate(
-          ~instance_id=5,
           ~eval=
-            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"1"}|})]),
-          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
+            store([("peek(`a)!", {|{"ok":true,"tag":"Int","value":"1"}|})]),
+          {|{"tag":"Tuple","value":[{"tag":"AdaptonPointer","value":{"source":"`a"}},{"tag":"Int","value":"1"}]}|},
         )
       ) {
-      | Ok({
-          term:
-            Asc(
-              {
-                term:
-                  Ap(
-                    Forward,
-                    {term: LivelitName("fumola"), _},
-                    {
-                      term:
-                        Tuple([
-                          {term: Atom(Int(n)), _},
-                          {term: Atom(String(text)), _},
-                        ]),
-                      _,
-                    },
-                  ),
-                _,
-              },
-              _,
-            ),
-          _,
-        }) =>
-        Alcotest.check(
-          Alcotest.string,
-          "same instance",
-          "5",
-          Bigint.to_string(n),
-        );
-        Alcotest.check(
-          Alcotest.string,
-          "still reads the pointer",
-          "peek(`n)!",
-          text,
-        );
-      | Ok(_) => Alcotest.fail("expected the pointer to survive")
+      | Ok({term: Tuple([{term: FumolaPeek(_), _}, _]), _}) => ()
+      | Ok(_) => Alcotest.fail("expected a reference inside the tuple")
       | Error(m) => Alcotest.fail(m)
       }
     ),

@@ -47,6 +47,22 @@ and exp_term('a) =
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
+  /* The translation of a Fumola pointer: the instance it lives in, the
+     program that reads it, and the value that program produced.
+
+     A value, not something that steps to one. It carries its result so that
+     evaluation continues through it -- a pointer to an Int is usable as an
+     Int -- while keeping the reference, so a reader can still see which cell
+     the value came from.
+
+     The carried value is a snapshot, and that is only sound because it is
+     regenerated on every expansion. It must never be persisted into a saved
+     model, where it would silently disagree with the runtime. */
+  | FumolaPeek({
+      instance_id: int,
+      reads: string,
+      value: exp_t('a),
+    })
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
@@ -186,6 +202,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
+        | FumolaPeek({instance_id, reads, value}) =>
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: map_exp_annotation(f, value),
+          })
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -658,6 +680,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let livelit_name = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: LivelitName(s),
+      annotation: default_annotation(ann),
+    };
+    let fumola_peek =
+        (~ann=?, ~instance_id, ~reads, value): exp_t(DefaultAnnotation.t) => {
+      term:
+        FumolaPeek({
+          instance_id,
+          reads,
+          value,
+        }),
       annotation: default_annotation(ann),
     };
     let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {

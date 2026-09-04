@@ -277,6 +277,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (DeferredAp(_), _)
     | (Deferral(_), _)
     | (LivelitName(_), _)
+    | (FumolaPeek(_), _)
     | (TupleExtension(_, _), _)
     | (ListConcat(_), _) => None
     // These are handled above and must have the wrong type

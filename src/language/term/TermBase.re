@@ -217,6 +217,12 @@ and Exp: {
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
+        | FumolaPeek({instance_id, reads, value}) =>
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: exp_map_term(value),
+          })
         | Fun(p, e, t, f) =>
           Fun(
             pat_map_term(p),

@@ -754,6 +754,12 @@ let decide =
         )
       | BuiltinFun(_) => Prose("Internal expression")
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
+      | FumolaPeek({reads, _}) =>
+        Prose(
+          "A reference to the Fumola cell read by `"
+          ++ reads
+          ++ "`, carrying the value it held. It is a value, so a program can use it as that value while still showing which cell it came from.",
+        )
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>

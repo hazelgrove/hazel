@@ -22,6 +22,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DynamicErrorHole(_)
   | Undefined
   | Deferral(_)
+  | FumolaPeek(_)
   | Atom(_)
   | DrvQuote(_)
   | ListLit(_)
