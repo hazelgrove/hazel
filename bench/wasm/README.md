@@ -33,7 +33,7 @@ bench/wasm/setup-switch.sh          # one-time; ~20-60 min of compiling
 bench/wasm/run.sh hazel-wasm 20
 ```
 
-`run.sh` builds both backends from the *same* compiler version (6.4.1) and
+`run.sh` builds both backends from the *same* compiler version (6.2.0) and
 runs both on node 22, so a measured delta is the backend and not the
 toolchain. Node 22 is required: Wasm GC did not ship until well after
 node 18, which is what this repo otherwise builds against.

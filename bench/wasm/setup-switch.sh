@@ -11,7 +11,14 @@
 set -euo pipefail
 
 SWITCH="${1:-hazel-wasm}"
-JSOO=6.4.1
+
+# Why 6.2.0 and not the latest 6.4.1: js_of_ocaml-compiler >= 6.3.0 requires
+# cmdliner >= 2.0, while Hazel pins uuidm = 0.9.8 (0.9.9 has breaking
+# deprecated changes), and uuidm 0.9.8 builds with topkg, which caps
+# cmdliner < 2.0. 6.2.0 needs only cmdliner >= 1.1.0, so it keeps the uuidm
+# pin intact. Both backends still come from one compiler version, which is
+# what the comparison actually requires.
+JSOO=6.2.0
 
 if ! opam switch list --short | grep -qx "$SWITCH"; then
   opam switch create "$SWITCH" 5.2.0 --no-switch
