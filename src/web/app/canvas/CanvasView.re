@@ -637,7 +637,9 @@ let value_view =
    with the same offset so a render never shifts it */
 let avatar_dx = CanvasBuffer.avatar_dx;
 let avatar_dy = CanvasBuffer.avatar_dy;
-let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
+let avatar_view =
+    (~bubbles: list(Node.t)=[], (p, state): (CanvasLayout.pos, string))
+    : Node.t =>
   div(
     ~key="avatar",
     ~attrs=[
@@ -657,23 +659,30 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
       /* the outer div is only the anchor (its style attribute is
          rewritten every render); the body carries the look and the
          driver's transform */
+      /* the bubbles are CHILDREN of the body: they ride its transform,
+         so they are always beside the visible actor and the speech tail
+         always points at it (positioned from the anchor they sat at the
+         score's end site while the body dwelt elsewhere) */
       span(
         ~attrs=[clss(["avatar-body"])],
-        CanvasAvatar.is_rig()
-          ? [CanvasAvatar.rig_view()]
-          : [
-            text(
-              "@"
-              ++ (
-                switch (state) {
-                | "edit" => {js|✎|js}
-                | "wait" => {js|⌛|js}
-                | "err" => "!"
-                | _ => ""
-                }
+        (
+          CanvasAvatar.is_rig()
+            ? [CanvasAvatar.rig_view()]
+            : [
+              text(
+                "@"
+                ++ (
+                  switch (state) {
+                  | "edit" => {js|✎|js}
+                  | "wait" => {js|⌛|js}
+                  | "err" => "!"
+                  | _ => ""
+                  }
+                ),
               ),
-            ),
-          ],
+            ]
+        )
+        @ bubbles,
       ),
     ],
   );
@@ -1351,90 +1360,70 @@ let view =
         @ (
           switch (avatar) {
           | Some((p, _) as a) =>
-            [avatar_view(a)]
-            /* the bubble/toast anchor to the avatar ICON (which sits at
-               p + (14, -34)), not the node; flip sides when the icon is
-               too close to the top or right edge of the board */
-            @ {
-              let ax = p.x +. 14.
-              and ay = p.y -. 34.;
-              let near_top = ay -. 76. < 4.;
-              let near_right = ax +. 220. > lay.width -. 4.;
-              let left = near_right ? ax -. 14. : ax +. 30.;
-              let top = near_top ? ay +. 30. : ay -. 40.;
-              let flips =
-                (near_right ? ["b-left"] : [])
-                @ (near_top ? ["b-below"] : []);
-              let place =
-                Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "left: %spx; top: %spx;",
-                    fmt(left),
-                    fmt(top),
-                  ),
-                );
-              /* the speech bubble calls out the landed action (text and
-                 visibility written by CanvasBubble); the thought cloud
-                 shows while the model streams, its text windowed by the
-                 same driver — both render EMPTY here so a re-render never
-                 fights the driver. Both hide while the avatar travels
-                 (CSS, from the body's mood class). */
-              [
-                div(
-                  ~key="avatar-say",
-                  ~attrs=[clss(["canvas-avatar-say"] @ flips), place],
-                  [
-                    div(~attrs=[clss(["say-text"])], []),
-                    div(~attrs=[clss(["say-tail"])], []),
-                  ],
-                ),
-              ]
-              @ (
-                switch (avatar_bubble) {
-                | Some(_) => [
-                    div(
-                      ~key="avatar-bubble",
-                      ~attrs=[
-                        clss(["canvas-avatar-bubble"] @ flips),
-                        place,
-                      ],
-                      [
-                        div(~attrs=[clss(["bubble-trail", "t1"])], []),
-                        div(~attrs=[clss(["bubble-trail", "t2"])], []),
-                        div(
-                          ~attrs=[clss(["bubble-cloud"])],
-                          [
-                            svg(
-                              "svg",
-                              [
-                                clss(["bubble-shape"]),
-                                Attr.create("viewBox", "0 0 160 60"),
-                                Attr.create("preserveAspectRatio", "none"),
-                              ],
-                              [
-                                svg(
-                                  "path",
-                                  [
-                                    Attr.create(
-                                      "d",
-                                      "M 26 52 C 10 54 4 40 14 32 C 4 22 16 8 30 14 C 34 2 56 0 64 10 C 72 0 96 0 102 12 C 116 4 134 12 130 26 C 146 26 150 44 136 50 C 138 60 118 62 110 56 C 100 62 78 62 70 56 C 60 62 38 62 32 54 Z",
-                                    ),
-                                  ],
-                                  [],
-                                ),
-                              ],
-                            ),
-                            div(~attrs=[clss(["bubble-text"])], []),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ]
-                | None => []
-                }
+            /* flip the bubbles to the other side when the icon (at
+               p + (14, -34)) is near the top or right edge of the board */
+            let ax = p.x +. 14.
+            and ay = p.y -. 34.;
+            let near_top = ay -. 76. < 4.;
+            let near_right = ax +. 220. > lay.width -. 4.;
+            let flips =
+              (near_right ? ["b-left"] : []) @ (near_top ? ["b-below"] : []);
+            /* the speech bubble calls out the landed action (text and
+               visibility written by CanvasBubble); the thought cloud
+               shows while the model streams, its text windowed by the
+               same driver — both render EMPTY here so a re-render never
+               fights the driver. The speech bubble hides while the body
+               travels (CSS, from its mood class); the cloud rides along. */
+            let say =
+              div(
+                ~key="avatar-say",
+                ~attrs=[clss(["canvas-avatar-say"] @ flips)],
+                [
+                  div(~attrs=[clss(["say-text"])], []),
+                  div(~attrs=[clss(["say-tail"])], []),
+                ],
               );
-            }
+            let cloud =
+              switch (avatar_bubble) {
+              | Some(_) => [
+                  div(
+                    ~key="avatar-bubble",
+                    ~attrs=[clss(["canvas-avatar-bubble"] @ flips)],
+                    [
+                      div(~attrs=[clss(["bubble-trail", "t1"])], []),
+                      div(~attrs=[clss(["bubble-trail", "t2"])], []),
+                      div(
+                        ~attrs=[clss(["bubble-cloud"])],
+                        [
+                          svg(
+                            "svg",
+                            [
+                              clss(["bubble-shape"]),
+                              Attr.create("viewBox", "0 0 160 60"),
+                              Attr.create("preserveAspectRatio", "none"),
+                            ],
+                            [
+                              svg(
+                                "path",
+                                [
+                                  Attr.create(
+                                    "d",
+                                    "M 26 52 C 10 54 4 40 14 32 C 4 22 16 8 30 14 C 34 2 56 0 64 10 C 72 0 96 0 102 12 C 116 4 134 12 130 26 C 146 26 150 44 136 50 C 138 60 118 62 110 56 C 100 62 78 62 70 56 C 60 62 38 62 32 54 Z",
+                                  ),
+                                ],
+                                [],
+                              ),
+                            ],
+                          ),
+                          div(~attrs=[clss(["bubble-text"])], []),
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
+              | None => []
+              };
+            [avatar_view(~bubbles=[say, ...cloud], a)];
           | None => []
           }
         ),

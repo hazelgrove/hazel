@@ -1144,6 +1144,7 @@
 
 /* the body: the look, the state animations, and the driver's transform */
 .canvas-avatar .avatar-body {
+  position: relative; /* the bubbles hang off the body */
   display: inline-block;
   font-size: 15px;
   font-weight: bold;
@@ -1191,8 +1192,11 @@
    flavor, not reading material. */
 .canvas-avatar-bubble {
   position: absolute;
+  left: calc(100% + 9px);
+  bottom: calc(100% + 3px);
   z-index: 5;
   pointer-events: none;
+  font-weight: normal;
   animation: bubble-in 0.25s ease-out;
   transition: opacity 160ms;
 }
@@ -1248,8 +1252,12 @@
 /* the speech bubble: the landed action, at the thought bubble's anchor */
 .canvas-avatar-say {
   position: absolute;
+  left: calc(100% + 9px);
+  bottom: calc(100% + 3px);
   z-index: 6;
   pointer-events: none;
+  font-weight: normal;
+  font-style: normal;
   opacity: 0;
   transition: opacity 140ms;
   background: #f8dc7a;
@@ -1277,27 +1285,46 @@
   transform: rotate(45deg) skew(12deg, 12deg);
 }
 .canvas-avatar-say.b-left {
-  transform: translateX(-100%);
+  left: auto;
+  right: calc(100% + 9px);
 }
 .canvas-avatar-say.b-left .say-tail {
   left: auto;
   right: 9px;
+}
+.canvas-avatar-say.b-below {
+  bottom: auto;
+  top: calc(100% + 3px);
 }
 .canvas-avatar-say.b-below .say-tail {
   bottom: auto;
   top: -5.5px;
   transform: rotate(225deg) skew(12deg, 12deg);
 }
+/* the rig body has no box of its own: offsets clear its vertices */
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say,
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble {
+  left: 18px;
+  bottom: 16px;
+}
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say.b-left,
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble.b-left {
+  left: auto;
+  right: 18px;
+}
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say.b-below,
+.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble.b-below {
+  bottom: auto;
+  top: 16px;
+}
 /* while speaking, the thought cloud yields the anchor */
 .canvas-avatar-say.say-on ~ .canvas-avatar-bubble {
   opacity: 0;
 }
-/* while the avatar travels or lands, both bubbles vanish (they sit at
-   the score's end site, not on the moving body) */
-.canvas-avatar:has(.avatar-body.mood-travel) ~ .canvas-avatar-say,
-.canvas-avatar:has(.avatar-body.mood-travel) ~ .canvas-avatar-bubble,
-.canvas-avatar:has(.avatar-body.mood-arrive) ~ .canvas-avatar-say,
-.canvas-avatar:has(.avatar-body.mood-arrive) ~ .canvas-avatar-bubble {
+/* the speech bubble is about the landed act: it hides while the body
+   travels; the thought cloud rides along (it is a child of the body) */
+.avatar-body.mood-travel > .canvas-avatar-say,
+.avatar-body.mood-arrive > .canvas-avatar-say {
   opacity: 0;
 }
 
@@ -1357,7 +1384,12 @@
 /* orientation flips: near the right edge the bubble sits LEFT of the
    icon (trail on its right); near the top it sits BELOW (trail on top) */
 .canvas-avatar-bubble.b-left {
-  transform: translateX(-100%);
+  left: auto;
+  right: calc(100% + 9px);
+}
+.canvas-avatar-bubble.b-below {
+  bottom: auto;
+  top: calc(100% + 3px);
 }
 
 .canvas-avatar-bubble.b-left .bubble-trail.t1 {
