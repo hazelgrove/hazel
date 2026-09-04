@@ -146,6 +146,9 @@ and sig_term('a) =
   | MultiHole(list(any_t('a)))
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
+  /* `module M : S` declares a sub-module member (the MPat carries the
+     optional signature). */
+  | SigModule(mpat_t('a))
 and sig_t('a) = Annotated.t(sig_term('a), 'a)
 and mpat_term('a) =
   | Invalid(string)
@@ -474,6 +477,7 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | SigModule(mp) => SigModule(map_mpat_annotation(f, mp))
         },
       annotation: new_annotation,
     };
@@ -1062,6 +1066,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_type = (~ann=?, tp, t): sig_t(DefaultAnnotation.t) => {
       term: SigType(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let sig_module = (~ann=?, mp): sig_t(DefaultAnnotation.t) => {
+      term: SigModule(mp),
       annotation: default_annotation(ann),
     };
   };
