@@ -256,9 +256,20 @@ module Local = {
 
     /* Zipper after applying the same collapse rules as [print] (before stringification). */
     let zipper_for_agent_context =
-        (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
+        (
+          ~info_map: option(Statics.Map.t)=?,
+          editor: Editor.t,
+          agent_context: AgentContext.Model.t,
+        )
+        : Zipper.t => {
       let z = editor.state.zipper;
-      let info_map = CompositionGo.Public.mk_statics(z);
+      /* callers that already hold this program's statics pass them: a
+         fresh run here was most of a tool call's cost */
+      let info_map =
+        switch (info_map) {
+        | Some(m) => m
+        | None => CompositionGo.Public.mk_statics(z)
+        };
       switch (HighLevelNodeMap.build(z, info_map)) {
       | None => z
       | Some(node_map) =>
@@ -283,11 +294,12 @@ module Local = {
     let print =
         (
           ~probe_map: Language.Sample.Map.t=Language.Sample.Map.empty,
+          ~info_map: option(Statics.Map.t)=?,
           editor: Editor.t,
           agent_context: AgentContext.Model.t,
         )
         : string => {
-      let z' = zipper_for_agent_context(editor, agent_context);
+      let z' = zipper_for_agent_context(~info_map?, editor, agent_context);
       let has_probes = !List.is_empty(z'.refractors.manuals);
       if (has_probes) {
         ProbeText.of_zipper(~projector_to_segment, ~probe_map, z');
