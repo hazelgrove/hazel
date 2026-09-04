@@ -71,4 +71,18 @@ let current_mood = ^^livelit(^emotion(0)) in
 #   Adapton  List  LazyList  PureList  LevelTree  HashMap                   #
 #   Counters  RandomInput  MergeSort  Gcd  DelayedPut                       #
 # Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.        #
-let fumola_val = ^^livelit(^fumola_thunk(0, "`thunk", "1 + 2")) in¿
+# An example of the three together. All three name instance 0, so they      #
+# share one Fumola runtime.                                                 #
+#                                                                          #
+# The thunk writes a cell and returns 137. The first editor asks for a      #
+# pointer to that cell, which comes back as a peek value showing both the   #
+# reference and what it holds -- and typing as Int, so the annotation is    #
+# satisfied and evaluation continues through it. The second editor forces   #
+# the thunk the first livelit made, by its name `t, which is why naming a   #
+# thunk explicitly matters: you can refer to it from somewhere else.        #
+#                                                                          #
+# The result is (137, peek(`x)! = 274, 137).                                #
+let x : Int = ^fumola_thunk(0, "`t", "`x := 137 + 137; 137") in
+let x_ : Int = ^fumola_editor(0, "pointer(`x)") in
+let y : Int = ^fumola_editor(0, "force(pointer(`t))") in
+(x, x_, y)
