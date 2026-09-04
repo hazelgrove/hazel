@@ -89,9 +89,9 @@ window.fumola = (() => {
   dynamicImport("./fumola/fumola_wasm.js")
     .then(async (mod) => {
       try {
-        await mod.default(LOCAL_WASM);
+        await mod.default({ module_or_path: LOCAL_WASM });
       } catch (localError) {
-        await mod.default(CDN_WASM);
+        await mod.default({ module_or_path: CDN_WASM });
       }
       wasm = mod;
     })
@@ -102,27 +102,16 @@ window.fumola = (() => {
 
   const ready = () => wasm !== null;
 
-  // Decide which runtime this projector should use, given the id currently in
-  // its model and its own persistent identity.
+  // Give a livelit that has never named a runtime one of its own.
+  //
+  // Called only for id 0. Reclaiming an already-named livelit is what would
+  // let a duplicated one be given a fresh runtime, but doing that from the
+  // view makes rendering rewrite its own syntax, which can loop. So a copy
+  // currently inherits its original's id and therefore shares its execution
+  // history -- a known gap, waiting on a projector identity that is stable
+  // across model edits.
   const claim = (id, owner) => {
-    if (!ready()) return id;
-    if (id === 0) {
-      // Never claimed a runtime before.
-      const fresh = wasm.fumola_create();
-      owners.set(fresh, owner);
-      return fresh;
-    }
-    const existing = owners.get(id);
-    if (existing === undefined) {
-      // Reload: a saved program names an id this session has never seen.
-      wasm.fumola_realize(id);
-      owners.set(id, owner);
-      return id;
-    }
-    if (existing === owner) return id;
-    // Duplication: another live projector already owns this runtime, so this
-    // one is a copy. Ids are generative -- give the copy its own runtime
-    // rather than letting two livelits share one execution history.
+    if (!ready() || id !== 0) return id;
     const fresh = wasm.fumola_create();
     owners.set(fresh, owner);
     return fresh;

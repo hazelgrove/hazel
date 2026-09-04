@@ -67,9 +67,15 @@ module M: Projector = {
     | _ => print_endline("Warning - LivelitProj.update: No action")
     };
 
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-  };
+  /* The projector only carries this id when its view found a model to
+     render; the "No livelit found" fallback below is a bare text node with
+     no id at all. Asserting here would turn that into a crash on click, so
+     a missing element is simply nothing to focus. */
+  let focus_pointer = (id: Id.t) =>
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+    | Some(elem) => elem##focus
+    | None => ()
+    };
 
   let focusable =
     Focusable.{

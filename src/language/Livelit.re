@@ -663,37 +663,46 @@ module Fumola: BuiltinLivelit = {
       };
 
   let view = (~id: Id.t, model: model_t, send_action) => {
-    /* Reconcile this projector's claim on sigma before rendering. A livelit
-       that was just duplicated, or one whose id was never claimed, gets a
-       fresh runtime here and rewrites its own model to name it. */
-    let owner = Id.to_string(id);
-    let claimed = claim(~owner, model.instance_id);
-    if (claimed != model.instance_id) {
-      /* Write the claimed id back into the model, so that the model keeps
-         naming the runtime it actually observes. This is deferred to a later
-         tick rather than run here: applying an action in the middle of
-         rendering would mutate the very state being rendered. */
-      let effect =
-        send_action(
-          SetModel({
-            ...model,
-            instance_id: claimed,
-          }),
-        );
-      let _ =
-        Js_of_ocaml.Js.Unsafe.fun_call(
-          Js_of_ocaml.Js.Unsafe.js_expr("window.setTimeout"),
-          [|
-            Js_of_ocaml.Js.Unsafe.inject(
-              Js_of_ocaml.Js.wrap_callback(() =>
-                Ui_effect.Expert.handle(effect)
-              ),
-            ),
-            Js_of_ocaml.Js.Unsafe.inject(0),
-          |],
-        );
-      ();
-    };
+    /* A model whose instance id is still 0 has never named a runtime, so it
+       claims one here and writes the id back.
+
+       This fires only in that one case, deliberately. An earlier version
+       re-claimed on every render so that a duplicated livelit could be given
+       a fresh runtime, but that makes rendering rewrite the very syntax being
+       rendered: the projector's id is the id of its syntax root, so the
+       rewrite can change the owner, which invalidates the next claim, which
+       rewrites again. Claiming once, and only from 0, cannot loop. */
+    let claimed =
+      if (model.instance_id == 0) {
+        let claimed = claim(~owner=Id.to_string(id), 0);
+        if (claimed != 0) {
+          /* Deferred rather than run here: applying an action in the middle
+             of rendering would mutate the state being rendered. */
+          let effect =
+            send_action(
+              SetModel({
+                ...model,
+                instance_id: claimed,
+              }),
+            );
+          let _ =
+            Js_of_ocaml.Js.Unsafe.fun_call(
+              Js_of_ocaml.Js.Unsafe.js_expr("window.setTimeout"),
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  Js_of_ocaml.Js.wrap_callback(() =>
+                    Ui_effect.Expert.handle(effect)
+                  ),
+                ),
+                Js_of_ocaml.Js.Unsafe.inject(0),
+              |],
+            );
+          ();
+        };
+        claimed;
+      } else {
+        model.instance_id;
+      };
 
     let result =
       switch (
