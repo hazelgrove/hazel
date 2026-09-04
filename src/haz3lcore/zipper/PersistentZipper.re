@@ -8,9 +8,11 @@ type t = {
 
 /* Lossless: holes print as the ¿ marker (MarkerParse destructs them on
    read), so crash-recovery text and share links keep hole positions.
-   This branch's edit state stores no grout, so nothing prints ¿ —
-   markers only ever arrive from legacy blobs and upstream-authored
-   slide sources, and are dropped on read (see strip_zipper). */
+   This branch's edit state stores no grout; saving derives the holes
+   (GroutPlace, see MarkerParse.to_text) and prints them as ¿, and
+   every read destructs markers back to grout and strips it (see
+   strip_zipper) — from our own saves, legacy blobs and upstream-
+   authored slide sources alike. */
 let to_string = z => MarkerParse.to_text(z);
 
 /* Stored text = printed content + one final newline; readers strip

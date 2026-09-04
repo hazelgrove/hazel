@@ -113,31 +113,20 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
-      /* caret pinned to a quiver chip: Tab dispatches one chunk of
-         THE assist stream (A1) — type-it-for-me through the normal
-         pipeline; spacing and caret land as if typed. tab_chip
-         prefers a witness remainder (the nearest promise) over
-         sibling chips. */
+      /* caret pinned to a quiver chip: Tab dispatches the first of the
+         caret's OWNED records (CompletionQuery.tab_action — the same
+         list the quiver draws at the caret, witness first): type it
+         through the normal pipeline, or materialize an opener */
       let action: Action.t =
-        switch (CanonicalCompletion.tab_chip(z, model.editor.syntax.assist)) {
-        /* Inner caret (e.g. inside a string literal): the zone
-           matches for display, but Paste would land INSIDE the
-           token — fall through to hole navigation */
-        | Some(ins) when z.caret == Outer =>
-          switch (
-            CanonicalCompletion.tab_text(
-              ~display=model.editor.syntax.segment,
-              ~marks=model.editor.syntax.ghost_marks,
-              z,
-              ins,
-            )
-          ) {
-          | Some(text) => Paste(text)
-          | None =>
-            Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(NextProblem(Right)))
-          }
-        | Some(_)
+        switch (
+          CompletionQuery.tab_action(
+            ~display=model.editor.syntax.segment,
+            ~marks=model.editor.syntax.ghost_marks,
+            z,
+            model.editor.syntax.assist,
+          )
+        ) {
+        | Some(a) => a
         | None =>
           Zipper.can_put_down(z)
             ? Put_down : Move(Goal(NextProblem(Right)))
@@ -505,7 +494,16 @@ module View = {
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) =>
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
     [
       CaretDec.view(
         ~measured=syntax.measured,
@@ -519,6 +517,7 @@ module View = {
             Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
         ~font_metrics=globals.font_metrics,
         ~syntax,
+        ~completion,
         z,
       ),
       (
@@ -565,6 +564,8 @@ module View = {
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=CompletionQuery.chips_owned(z, obligations),
             syntax.segment,
           ),
         ]
@@ -575,6 +576,7 @@ module View = {
           [];
         }
     );
+  };
 
   let view =
       (
@@ -693,7 +695,7 @@ module View = {
        ghost or a TyDi witness — never also shows as a chip (ONE
        policy home, shared with the harness) */
     let obligations =
-      CanonicalCompletion.chips_displayed(
+      CompletionQuery.chips_displayed(
         ~ghosted=model.editor.syntax.ghosted,
         model.editor.syntax.assist,
       );
@@ -713,6 +715,7 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
+              ~completion=Arms.lazy_completion(model.editor.state.zipper),
               ~dynamics,
               model.editor.state.zipper,
             ),

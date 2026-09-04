@@ -77,9 +77,7 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   };
 };
 
-/* Calculate indentation for a newly inserted linebreak and insert spaces */
 let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
-  /* Get the full segment to calculate indentation */
   let seg = Zipper.unselect_and_zip(z);
   /* The level is what CONTENT TYPED HERE would get: anchor the derived
      hole at this linebreak (where the caret is) rather than at the
@@ -117,7 +115,6 @@ let insert_shard_core =
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
     let z = put_down([Piece.mk_secondary(id, t)], z);
-    /* Auto-insert indentation after linebreaks (only when auto_indent=true) */
     if (auto_indent && t == Token.linebreak) {
       insert_indentation_spaces(~linebreak_id=id, z);
     } else {

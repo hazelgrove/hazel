@@ -1,0 +1,113 @@
+/* Quiver deco: completion-visualization chips, poles, and rest markers */
+
+.quiver-decorations {
+  pointer-events: none;
+}
+
+.quiver-chip {
+  pointer-events: none;
+  --quiver-chip: var(--token-incomplete);
+}
+
+/* wedge at the canonical spot while its chip is elsewhere */
+.quiver-rest-marker {
+  position: absolute;
+  z-index: 14;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  margin-top: -5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--token-incomplete);
+  pointer-events: none;
+}
+
+/* bubble centered on the line boundary, overlapping the pole's top */
+.quiver-chip-anchor {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+}
+
+.quiver-chip-body {
+  position: absolute;
+  transform: translateY(-50%);
+  /* pointer events only to test the modifier; unmodified clicks
+     bubble through to the editor */
+  pointer-events: auto;
+  padding: 0px 4px 1px 4px;
+  border-radius: 4px;
+  background: var(--quiver-chip);
+  color: var(--quiver-chip-text);
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  line-height: 1.25;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* pointer cursor only while meta is held (the ref-underline state) */
+.code-container.meta-down .quiver-chip-body .chip-seg {
+  cursor: pointer;
+}
+
+/* the pole is a ghost caret (SVG, true shape at its position) */
+.quiver-chip-pole {
+  z-index: 14;
+}
+
+/* per-bend corner control: if the round bottom-left artifacts
+   against a particular chevron, square it selectively, e.g.
+   .quiver-chip.chip-bend-left .quiver-chip-body {
+     border-bottom-left-radius: 0;
+   } */
+
+.quiver-chip-pole-path {
+  fill: var(--quiver-chip);
+  stroke: none;
+}
+
+.quiver-chip.chip-live .quiver-chip-pole-path {
+  fill: var(--shard-selected);
+}
+
+/* colorways: DEFAULT (other segment, loud) = solid gold/knockout;
+   LIVE (caret where this shard pairs) = pale backing, gold text */
+.quiver-chip.chip-live .quiver-chip-body {
+  background: var(--shard-selected);
+  color: var(--token-incomplete);
+}
+
+/* typed prefix stands out from the remainder in every scheme (white
+   was too low-contrast on the pale live backing — andrew 2026-09-01) */
+.quiver-chip .chip-frac-typed {
+  color: var(--BR4);
+}
+
+.quiver-chip:not(.chip-live) .chip-frac-rest {
+  color: var(--shard-selected);
+}
+
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-live .chip-seg-later {
+  color: var(--quiver-chip-text-faded-atcaret);
+}
+
+/* at-caret the real caret is authoritative; the chip's pole steps
+   aside and the flag docks above it */
+.quiver-chip.chip-at-caret .quiver-chip-pole {
+  display: none;
+}
+
+.quiver-chip .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* the hole's hairline stroke reads as blur at chip scale */
+.quiver-chip .empty-hole > path {
+  stroke: none;
+}

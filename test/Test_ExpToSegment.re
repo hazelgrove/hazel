@@ -1714,6 +1714,35 @@ let pad_ids_tests = (
         );
       },
     ),
+    /* Terms carrying a single id (as evaluation produces) have an empty ids
+       tail, so call sites must pass ~base explicitly: falling back to
+       Id.invalid made every case's k-th rule tile derive the same id. */
+    Alcotest.test_case(
+      "rule tile ids differ across single-id cases",
+      `Quick,
+      () => {
+        let int_lit = n => Exp.fresh(Atom(Int(Util.Bigint.of_int(n))));
+        let case = (a, b) =>
+          Exp.fresh(
+            Match(
+              int_lit(0),
+              [
+                (Pat.fresh(Wild), int_lit(a)),
+                (Pat.fresh(Wild), int_lit(b)),
+              ],
+            ),
+          );
+        let ids =
+          Exp.fresh(Tuple([case(1, 2), case(3, 4)]))
+          |> exp_to_segment
+          |> tile_ids;
+        Alcotest.(check(int))(
+          "no duplicate tile ids",
+          List.length(ids),
+          List.length(List.sort_uniq(compare, ids)),
+        );
+      },
+    ),
   ],
 );
 

@@ -6,6 +6,10 @@
  *   - Offside boxes showing what delimiters will be inserted
  *
  * The quiver holds completion arrows.
+ *
+ * OWNERSHIP IS NOT DECIDED HERE: the caret's records come in as
+ * `owned` (CompletionQuery.chips_among — the list Tab dispatches) and
+ * QuiverLayout draws them as one bubble at the caret.
  */
 
 open Virtual_dom.Vdom;
@@ -214,6 +218,9 @@ let view =
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
       ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
       ~assist: list(CanonicalCompletion.insertion),
+      /* the caret's chips (CompletionQuery.chips_among over the same
+         stream): what Tab acts on, drawn as the bubble at the caret */
+      ~owned: list(CanonicalCompletion.insertion),
       /* the engine must see the user's REAL program: the display
          segment (CachedSyntax) still contains the suggestion-buffer
          ghost, which perturbs placement (an in anchoring at line
@@ -234,25 +241,22 @@ let view =
      stale row claims displacing probe offsides */
   RowOffsets.reset();
 
-  if (List.length(insertions) == 0) {
+  switch (
+    QuiverLayout.layout(
+      ~measured,
+      ~col_width=font_metrics.col_width,
+      ~caret_pos,
+      ~owned,
+      ~seg,
+      insertions,
+    )
+  ) {
+  | [] =>
     /* No completions needed */
-    div([]);
-  } else {
-    let positioned =
-      List.filter_map(
-        resolve_position(~seg, ~caret_pos, measured),
-        insertions,
-      );
-    let sorted =
-      List.sort(
-        (a, b) => {
-          let row_cmp = Int.compare(a.row, b.row);
-          row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
-        },
-        positioned,
-      );
+    div([])
+  | bubbles =>
     let chips =
-      layout_overlaps(~col_width=font_metrics.col_width, sorted)
+      bubbles
       |> List.map(((ins: positioned_insertion, body_shift)) =>
            chip_view(
              ~font_metrics,
@@ -260,8 +264,13 @@ let view =
              ~col=ins.col,
              ~shape=ins.shape,
              ~caret_form,
-             ~live=matches_droppable(droppable, ins.delimiters),
-             ~at_caret=caret_pos == Some((ins.row, ins.col)),
+             /* live = what Tab does: the caret's bubble when there is
+                one, else the chip holding Put_down's shard */
+             ~live=
+               ins.owned
+               || owned == []
+               && matches_droppable(droppable, ins.delimiters),
+             ~at_caret=ins.owned,
              ~body_shift,
              delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
            )

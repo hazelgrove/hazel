@@ -223,7 +223,7 @@ let extend_t2 =
     let engine_witness_at = (id: Id.t) =>
       List.exists(
         (ins: CanonicalCompletion.insertion) =>
-          CanonicalCompletion.is_pure_witness(ins)
+          CompletionQuery.is_pure_witness(ins)
           && Id.equal(ins.adjacent_id, id),
         assist,
       );
@@ -422,13 +422,13 @@ let ghost_selection =
     /* at most ONE witness ghost per anchor id (stream order wins:
        engine witnesses precede T2) */
     let zone =
-      CanonicalCompletion.chip_zone_all(z, assist)
+      CompletionQuery.chips_among(z, assist)
       |> List.fold_left(
            (acc, ins: CanonicalCompletion.insertion) =>
-             CanonicalCompletion.is_pure_witness(ins)
+             CompletionQuery.is_pure_witness(ins)
              && List.exists(
                   (w: CanonicalCompletion.insertion) =>
-                    CanonicalCompletion.is_pure_witness(w)
+                    CompletionQuery.is_pure_witness(w)
                     && Id.equal(w.adjacent_id, ins.adjacent_id),
                   acc,
                 )
