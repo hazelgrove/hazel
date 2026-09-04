@@ -641,6 +641,7 @@ and Mod: {
         | ModType(tp, t) => ModType(tpat_map_term(tp), typ_map_term(t))
         | ModExp(e) => ModExp(exp_map_term(e))
         | ModuleMod(mp, e) => ModuleMod(mpat_map_term(mp), exp_map_term(e))
+        | ModVal(x, e) => ModVal(x, exp_map_term(e))
         },
     };
     x |> rec_call;

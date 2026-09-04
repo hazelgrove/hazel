@@ -1005,6 +1005,10 @@ let ex5 = list_of_mylist(x) in
         {|type S = { type T = Int; let x : Int } in 1|},
       ),
       menhir_maketerm_equivalent_test(
+        "Sig manifest type member used by a member",
+        {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Sig type unannotated member",
         {|let m : { let x } = { let x = 1 } in m|},
       ),

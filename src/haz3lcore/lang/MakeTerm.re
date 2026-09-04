@@ -81,6 +81,7 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModType(_, _)
   | ModExp(_)
   | ModuleMod(_, _)
+  | ModVal(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };

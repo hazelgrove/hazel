@@ -68,6 +68,70 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
+        | Module(items) =>
+          /* Items scope sequentially. Names bound by evaluated bindings and
+             module declarations cannot be renamed (they are member names), so
+             they shadow the substitution for the items that follow. */
+          let shadow = (env, x) =>
+            Environment.extend(env, (x, Exp.fresh(Var(x))));
+          let rec mpat_name = (mp: MPat.t) =>
+            switch (mp.term) {
+            | Var(x) => Some(x)
+            | Asc(inner, _) => mpat_name(inner)
+            | _ => None
+            };
+          let (_, rev_items) =
+            List.fold_left(
+              ((env, acc), item: Mod.t) => {
+                let (env', item') =
+                  switch (item.term) {
+                  | ModLet(p, e) =>
+                    let (env', p') = in_pat(env, env, p);
+                    (
+                      env',
+                      {
+                        ...item,
+                        term: (ModLet(p', in_exp(env, e)): Mod.term),
+                      },
+                    );
+                  | ModuleMod(mp, e) =>
+                    let env' =
+                      switch (mpat_name(mp)) {
+                      | Some(x) => shadow(env, x)
+                      | None => env
+                      };
+                    (
+                      env',
+                      {
+                        ...item,
+                        term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
+                      },
+                    );
+                  | ModVal(x, e) => (
+                      shadow(env, x),
+                      {
+                        ...item,
+                        term: (ModVal(x, in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModExp(e) => (
+                      env,
+                      {
+                        ...item,
+                        term: (ModExp(in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModType(_, _)
+                  | Invalid(_)
+                  | EmptyHole
+                  | MultiHole(_) => (env, item)
+                  };
+                (env', [item', ...acc]);
+              },
+              (env, []),
+              items,
+            );
+          Module(List.rev(rev_items)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)
@@ -107,7 +171,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | LivelitName(_)
         | ProofObject(_)
         | Undefined
-        | Module(_)
         | ModuleExp(_) => cont(e)
         };
       },
@@ -223,8 +286,9 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
-        | Sig(_)
         | DrvQuoteTy(_) => cont(t)
+        // Signature items carry patterns, which this traversal cannot visit
+        | Sig(_) => t
         };
       },
     typ,
