@@ -182,5 +182,28 @@ window.fumola = (() => {
 
   const source = () => loadedFrom;
 
-  return { ready, source, claim, evalSync };
+  /* Run a program without touching the cache, in either direction.
+     
+     Used for dereferencing pointers while translating a result. Those calls
+     must not be cached: a later edit can change what a cell holds, and a
+     stale answer would give the pointer the wrong type. They must not evict
+     the cached main program either -- the cache holds only the last program
+     per instance, so alternating between the two would make every render
+     re-run everything. */
+  const evalFresh = (id, src) => {
+    if (!ready()) {
+      return JSON.stringify({
+        ok: false,
+        error: "the Fumola runtime is not loaded",
+      });
+    }
+    if (!wasm.fumola_has(id)) wasm.fumola_realize(id);
+    try {
+      return wasm.fumola_eval(id, src);
+    } catch (e) {
+      return JSON.stringify({ ok: false, error: String(e) });
+    }
+  };
+
+  return { ready, source, claim, evalSync, evalFresh };
 })();

@@ -557,6 +557,29 @@ module Fumola: BuiltinLivelit = {
      rebuilt here as a Hazel tuple rather than as a wrapper Hazel has to take
      apart. */
 
+  /* Run a program in this instance and hand back its JSON, for translation
+     to dereference pointers with. Uncached in both directions: a later edit
+     can change what a cell holds, and these calls must not evict the cached
+     main program either. */
+  let eval_in = (instance_id: int, program: string): Yojson.Safe.t => {
+    let response =
+      switch (
+        shim("evalFresh", [|js_int(instance_id), js_string(program)|])
+      ) {
+      | exception _ => None
+      | r =>
+        Some(r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string)
+      };
+    switch (response) {
+    | None => `Null
+    | Some(response) =>
+      switch (Yojson.Safe.from_string(response)) {
+      | exception _ => `Null
+      | json => json
+      }
+    };
+  };
+
   /* The rendering and the expansion, from one evaluation. */
   let observe_described =
       (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model: model_t)
@@ -587,6 +610,7 @@ module Fumola: BuiltinLivelit = {
           switch (
             FumolaValue.exp_of_json(
               ~instance_id=model.instance_id,
+              ~eval=eval_in(model.instance_id),
               ~ana,
               ~tools,
               json,

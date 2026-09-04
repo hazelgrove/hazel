@@ -20,8 +20,25 @@ let no_tools: LivelitCtx.type_tools = {
 
 let unknown = Typ.fresh(Unknown(Internal));
 
-let translate = (~instance_id=1, ~ana=unknown, ~tools=no_tools, src: string) =>
-  FumolaValue.exp_of_json(~instance_id, ~ana, ~tools, json(src));
+/* A stand-in runtime. Tests that involve pointers say what each cell holds,
+   so translation can dereference exactly as it would against Fumola. */
+let store = (cells: list((string, string)), program: string): Yojson.Safe.t =>
+  switch (List.assoc_opt(program, cells)) {
+  | Some(result) => json(result)
+  | None => json({|{"ok":false,"error":"no such cell"}|})
+  };
+
+let no_eval = _ => json({|{"ok":false,"error":"no runtime"}|});
+
+let translate =
+    (
+      ~instance_id=1,
+      ~eval=no_eval,
+      ~ana=unknown,
+      ~tools=no_tools,
+      src: string,
+    ) =>
+  FumolaValue.exp_of_json(~instance_id, ~eval, ~ana, ~tools, json(src));
 
 /* A sum type declaring Foo and Bar(Int), as
    `type SomeThing = + Foo + Bar(Int)` would. */
@@ -466,10 +483,17 @@ let tests = (
       ) {
       | Ok({
           term:
-            Ap(
-              Forward,
-              {term: LivelitName("fumola"), _},
-              {term: Tuple([id, program]), _},
+            Asc(
+              {
+                term:
+                  Ap(
+                    Forward,
+                    {term: LivelitName("fumola"), _},
+                    {term: Tuple([id, program]), _},
+                  ),
+                _,
+              },
+              _,
             ),
           _,
         }) =>
@@ -503,10 +527,17 @@ let tests = (
       ) {
       | Ok({
           term:
-            Ap(
-              Forward,
+            Asc(
+              {
+                term:
+                  Ap(
+                    Forward,
+                    _,
+                    {term: Tuple([_, {term: Atom(String(text)), _}]), _},
+                  ),
+                _,
+              },
               _,
-              {term: Tuple([_, {term: Atom(String(text)), _}]), _},
             ),
           _,
         }) =>
@@ -527,13 +558,170 @@ let tests = (
       | Ok({
           term:
             Tuple([
-              {term: Ap(Forward, {term: LivelitName("fumola"), _}, _), _},
+              {
+                term:
+                  Asc(
+                    {
+                      term: Ap(Forward, {term: LivelitName("fumola"), _}, _),
+                      _,
+                    },
+                    _,
+                  ),
+                _,
+              },
               _,
             ]),
           _,
         }) =>
         ()
       | Ok(_) => Alcotest.fail("expected a livelit inside the tuple")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* The ascription comes from following the pointer: the runtime is asked
+       what the cell holds, and the type of that answer types the reference. */
+    test_case(
+      "a pointer is ascribed the type of what it points at", `Quick, () =>
+      switch (
+        translate(
+          ~eval=
+            store([("get(`n)", {|{"ok":true,"tag":"Int","value":"41"}|})]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
+        )
+      ) {
+      | Ok({term: Asc(_, {term: Atom(Int), _}), _}) => ()
+      | Ok(_) => Alcotest.fail("expected an Int ascription")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case(
+      "a pointer to a structure is ascribed that structure", `Quick, () =>
+      switch (
+        translate(
+          ~eval=
+            store([
+              (
+                "get(`p)",
+                {|{"ok":true,"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Bool","value":true}]}|},
+              ),
+            ]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`p"}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Asc(
+              _,
+              {
+                term: Prod([{term: Atom(Int), _}, {term: Atom(Bool), _}]),
+                _,
+              },
+            ),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected a (Int, Bool) ascription")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A pointer to a pointer is typed by following the whole chain. */
+    test_case("dereferencing follows a chain of pointers", `Quick, () =>
+      switch (
+        translate(
+          ~eval=
+            store([
+              (
+                "get(`a)",
+                {|{"ok":true,"tag":"AdaptonPointer","value":{"source":"`b"}}|},
+              ),
+              ("get(`b)", {|{"ok":true,"tag":"String","value":"hi"}|}),
+            ]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`a"}}|},
+        )
+      ) {
+      | Ok({term: Asc(_, {term: Atom(String), _}), _}) => ()
+      | Ok(_) => Alcotest.fail("expected a String ascription")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A cell holding a pointer back to itself must terminate rather than
+       dereferencing forever. */
+    test_case("a pointer cycle terminates", `Quick, () =>
+      switch (
+        translate(
+          ~eval=
+            store([
+              (
+                "get(`loop)",
+                {|{"ok":true,"tag":"AdaptonPointer","value":{"source":"`loop"}}|},
+              ),
+            ]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`loop"}}|},
+        )
+      ) {
+      | Ok({term: Asc(_, {term: Unknown(_), _}), _}) => ()
+      | Ok(_) => Alcotest.fail("expected Unknown for a cycle")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A cell that cannot be read tells us nothing about its type, and an
+       unreadable one must not fail the whole translation. */
+    test_case("an unreadable cell is ascribed Unknown", `Quick, () =>
+      switch (
+        translate({|{"tag":"AdaptonPointer","value":{"source":"`gone"}}|})
+      ) {
+      | Ok({term: Asc(_, {term: Unknown(_), _}), _}) => ()
+      | Ok(_) => Alcotest.fail("expected an Unknown ascription")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* The pointer itself survives the ascription -- the reference is
+       preserved, not replaced by the value it points at. */
+    test_case("the pointer survives being typed", `Quick, () =>
+      switch (
+        translate(
+          ~instance_id=5,
+          ~eval=
+            store([("get(`n)", {|{"ok":true,"tag":"Int","value":"1"}|})]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Asc(
+              {
+                term:
+                  Ap(
+                    Forward,
+                    {term: LivelitName("fumola"), _},
+                    {
+                      term:
+                        Tuple([
+                          {term: Atom(Int(n)), _},
+                          {term: Atom(String(text)), _},
+                        ]),
+                      _,
+                    },
+                  ),
+                _,
+              },
+              _,
+            ),
+          _,
+        }) =>
+        Alcotest.check(
+          Alcotest.string,
+          "same instance",
+          "5",
+          Bigint.to_string(n),
+        );
+        Alcotest.check(
+          Alcotest.string,
+          "still reads the pointer",
+          "get(`n)",
+          text,
+        );
+      | Ok(_) => Alcotest.fail("expected the pointer to survive")
       | Error(m) => Alcotest.fail(m)
       }
     ),

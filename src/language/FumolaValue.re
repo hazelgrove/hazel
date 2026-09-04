@@ -130,10 +130,102 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
   };
 };
 
+/* The Hazel type of a Fumola result.
+ *
+ * A pointer's type is the type of what it points at, so this dereferences --
+ * running get(<name>) in the same instance -- and keeps going for as long as
+ * it finds further pointers. That is what lets a pointer be translated with
+ * an honest ascription instead of a guess: the type comes from the runtime
+ * rather than from anything Hazel could have known.
+ *
+ * [seen] holds the pointers already followed on this path, so a cell holding
+ * a pointer back to itself terminates rather than dereferencing forever.
+ * Anything unresolvable becomes Unknown, which is always a sound ascription.
+ */
+let rec typ_of_json =
+        (
+          ~eval: string => Yojson.Safe.t,
+          ~seen: list(string),
+          json: Yojson.Safe.t,
+        )
+        : TermBase.Typ.t => {
+  let tagged = (obj, name) => List.assoc_opt(name, obj);
+  switch (json) {
+  | `Assoc(obj) =>
+    let value = Option.value(tagged(obj, "value"), ~default=`Null);
+    switch (tagged(obj, "tag")) {
+    | Some(`String("Int")) => Typ.fresh(Atom(Int))
+    | Some(`String("Bool")) => Typ.fresh(Atom(Bool))
+    | Some(`String("String")) => Typ.fresh(Atom(String))
+    /* A symbol becomes its text, so its type is String. */
+    | Some(`String("Symbol")) => Typ.fresh(Atom(String))
+    | Some(`String("Unit")) => Typ.fresh(Prod([]))
+    | Some(`String("Tuple")) =>
+      switch (value) {
+      | `List(items) =>
+        Typ.fresh(Prod(List.map(typ_of_json(~eval, ~seen), items)))
+      | _ => unknown()
+      }
+    | Some(`String("Record")) =>
+      switch (value) {
+      | `Assoc(fields) =>
+        Typ.fresh(
+          Prod(
+            List.map(
+              ((name, v)) =>
+                Typ.fresh(
+                  TupLabel(
+                    Typ.fresh(Label(name)),
+                    typ_of_json(~eval, ~seen, v),
+                  ),
+                ),
+              fields,
+            ),
+          ),
+        )
+      | _ => unknown()
+      }
+    /* Hazel's own Option, rather than a synthesized one-variant sum: a
+       synthesized type would not be the type Hazel programs actually use, so
+       it would typecheck here and fail to interoperate anywhere else. Its
+       payload is Unknown, which is all Hazel can express. */
+    | Some(`String("Null"))
+    | Some(`String("Option")) => BuiltinsADT.Option.t
+    /* A variant's home type cannot be recovered from the value: Fumola tags
+       live in one flat namespace and name no type. */
+    | Some(`String("Variant")) => unknown()
+    /* A pointer's type is the type of what it points at. */
+    | Some(`String("AdaptonPointer")) =>
+      switch (value) {
+      | `Assoc(fields) =>
+        switch (List.assoc_opt("source", fields)) {
+        | Some(`String(source)) when !List.mem(source, seen) =>
+          switch (eval("get(" ++ source ++ ")")) {
+          | `Assoc(result) as pointed =>
+            switch (List.assoc_opt("ok", result)) {
+            | Some(`Bool(true)) =>
+              typ_of_json(~eval, ~seen=[source, ...seen], pointed)
+            /* A cell that cannot be read tells us nothing about its type. */
+            | _ => unknown()
+            }
+          | _ => unknown()
+          }
+        /* Already followed on this path: a cycle. */
+        | _ => unknown()
+        }
+      | _ => unknown()
+      }
+    | _ => unknown()
+    };
+  | _ => unknown()
+  };
+};
+
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
         (
           ~instance_id: int,
+          ~eval: string => Yojson.Safe.t,
           ~ana: TermBase.Typ.t,
           ~tools: LivelitCtx.type_tools,
           json: Yojson.Safe.t,
@@ -151,7 +243,8 @@ let rec exp_of_json =
     | Ok(`String(tag)) =>
       switch (field("value", obj)) {
       | Error(e) => Error(e)
-      | Ok(value) => exp_of_tagged(~instance_id, ~ana, ~tools, tag, value)
+      | Ok(value) =>
+        exp_of_tagged(~instance_id, ~eval, ~ana, ~tools, tag, value)
       }
     | Ok(_) => Error("Fumola result has a non-string tag")
     }
@@ -162,6 +255,7 @@ let rec exp_of_json =
 and exp_of_tagged =
     (
       ~instance_id: int,
+      ~eval: string => Yojson.Safe.t,
       ~ana: TermBase.Typ.t,
       ~tools: LivelitCtx.type_tools,
       tag: string,
@@ -191,20 +285,31 @@ and exp_of_tagged =
   | ("AdaptonPointer", `Assoc(fields)) =>
     switch (List.assoc_opt("source", fields)) {
     | Some(`String(source)) =>
+      /* The ascription comes from following the pointer: the runtime is asked
+         what the cell holds, and the type of that answer is the type of this
+         reference. Without it the generated livelit would be asking for an
+         annotation nobody can write, since it is code the user never typed. */
+      let pointed = eval("get(" ++ source ++ ")");
+      let typ = typ_of_json(~eval, ~seen=[source], pointed);
       Ok(
         DHExp.fresh(
-          Ap(
-            Forward,
-            DHExp.fresh(LivelitName("fumola")),
+          Asc(
             DHExp.fresh(
-              Tuple([
-                DHExp.fresh(Atom(Int(Bigint.of_int(instance_id)))),
-                DHExp.fresh(Atom(String("get(" ++ source ++ ")"))),
-              ]),
+              Ap(
+                Forward,
+                DHExp.fresh(LivelitName("fumola")),
+                DHExp.fresh(
+                  Tuple([
+                    DHExp.fresh(Atom(Int(Bigint.of_int(instance_id)))),
+                    DHExp.fresh(Atom(String("get(" ++ source ++ ")"))),
+                  ]),
+                ),
+              ),
             ),
+            typ,
           ),
         ),
-      )
+      );
     | _ => Error("Fumola pointer has no source text")
     }
   /* A symbol becomes its text. Hazel has no symbol of its own, and the text
@@ -218,7 +323,7 @@ and exp_of_tagged =
     let anas = element_anas(~tools, ana, List.length(items));
     let translated =
       List.map2(
-        (ana, item) => exp_of_json(~instance_id, ~ana, ~tools, item),
+        (ana, item) => exp_of_json(~instance_id, ~eval, ~ana, ~tools, item),
         anas,
         items,
       );
@@ -230,7 +335,7 @@ and exp_of_tagged =
   | ("Record", `Assoc(fields)) =>
     let element = ((name, value)) => {
       let ana = field_ana(~tools, ana, name);
-      switch (exp_of_json(~instance_id, ~ana, ~tools, value)) {
+      switch (exp_of_json(~instance_id, ~eval, ~ana, ~tools, value)) {
       | Error(e) => Error(e)
       | Ok(value) =>
         Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
@@ -246,7 +351,9 @@ and exp_of_tagged =
   | ("Null", _) => Ok(fst(constructor(~tools, ~ana, "None")))
   | ("Option", payload) =>
     let (some, payload_ana) = constructor(~tools, ~ana, "Some");
-    switch (exp_of_json(~instance_id, ~ana=payload_ana, ~tools, payload)) {
+    switch (
+      exp_of_json(~instance_id, ~eval, ~ana=payload_ana, ~tools, payload)
+    ) {
     | Error(e) => Error(e)
     | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some, payload)))
     };
@@ -264,7 +371,9 @@ and exp_of_tagged =
       | None
       | Some(`Null) => Ok(ctr)
       | Some(payload) =>
-        switch (exp_of_json(~instance_id, ~ana=payload_ana, ~tools, payload)) {
+        switch (
+          exp_of_json(~instance_id, ~eval, ~ana=payload_ana, ~tools, payload)
+        ) {
         | Error(e) => Error(e)
         | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, ctr, payload)))
         }
