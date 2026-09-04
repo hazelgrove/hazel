@@ -97,7 +97,7 @@ let bad : M.Fake = 1 in
 # C. MODULE SIGNATURES #
 
 # Signatures use curly-brace syntax in type position: #
-# { let name : Type; ... } #
+# { let name : Type; type T = Type; module Name : Signature } #
 
 # 12. Module matching its signature #
 module M : {let x : Int} = {let x = 42} in
@@ -105,10 +105,39 @@ module M : {let x : Int} = {let x = 42} in
 # 13. Empty signature #
 module M : {} = {} in
 
-# 14. Error: member type doesn't match signature #
+# 14. Type members in a signature are checked #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Int;
+  let x = 4
+} in
+
+# 15. Nested module declared in a signature #
+module Outer : {
+  module Inner : {let x : Int};
+  let y : Int
+} = {
+  module Inner = {let x = 1};
+  let y = 2
+} in
+let v = Outer.Inner.x + Outer.y in
+
+# 16. Lowercase nested module in a signature #
+let outer : {let inner : {let x : Int}} = {let inner = {let x = 1}} in
+
+# 17. Signature bound to a type alias #
+type MT = {let x : Int} in
+let m : MT = {let x = 4} in
+
+
+# D. SIGNATURE ERRORS #
+
+# 18. Error: member type doesn't match signature #
 module M : {let x : Int} = {let x = true} in
 
-# 15. Error: one matching, one non-matching member #
+# 19. Error: one matching, one non-matching member #
 module M : {
   let x : Int;
   let y : Bool
@@ -117,7 +146,7 @@ module M : {
   let y = 2
 } in
 
-# 16. Error: module is missing a required member #
+# 20. Error: module is missing a required member #
 module M : {
   let x : Int;
   let y : Bool;
@@ -127,56 +156,32 @@ module M : {
   let y = true
 } in
 
-# 17. Error: empty module missing all members #
+# 21. Error: empty module missing all members #
 module M : {
   let x : Int;
   let y : Bool
 } = {} in
 
-# Module sig as alias #
-type MT = {let x: Int} in
-let _ : MT = {let x = 4} in
-
-# D. SIGNATURES ARE TYPES, MODULES ARE VALUES #
-
-# Modules are first-class values with signature types. #
-# A signature is distinct from a labeled tuple type. #
-
-# 18. Error: a module is not a labeled tuple #
-let mt : {let x : Int} = (x=1) in
-let tm : (x=Int) = {let x = 1} in
-
-# 19. Signatures and tuple types each check their own values #
-module Mm : {let x : Int} = {let x = 1} in
-let tt : (x=Int) = (x=1) in
-
-# 20. Error: type errors are caught for both #
-module Mm : {let x : Int} = {let x = true} in
-let tt : (x=Int) = (x=true) in
+# 22. Error: type member differs from the signature's #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Bool;
+  let x = true
+} in
 
 # No width subtyping yet: signatures must be precise. #
 
-# 21. Error: extra member not allowed by signature #
+# 23. Error: extra member not declared by the signature #
 module M : {let x : Int} = {
   let x = 1;
   let y = 2
 } in
 
-# 22. Error: extra member not allowed by empty signature #
+# 24. Error: extra member not allowed by empty signature #
 module M : {} = {let x = 1} in
 
-# 23. Type declarations in signatures are checked: #
-# error, y violates T = Int #
-module M : {
-  type T = Int;
-  let x : T;
-  let y : T
-} = {
-  type T = Int;
-  let x = 4;
-  let y = true
-} in
-
-# 24. Error: mismatched member names are missing members #
+# 25. Error: a hole-typed member is still required #
 let m : {let x : ?} = {let y = 1} in
 ¿

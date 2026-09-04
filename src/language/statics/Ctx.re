@@ -91,6 +91,7 @@ let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
     extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
   | SigType(_, _)
   | SigLet(_)
+  | SigModule(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => ctx
