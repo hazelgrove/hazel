@@ -27,9 +27,7 @@ let builtins =
 let _ = to_map(builtins);
 
 let ctx_entries =
-  List.map(ctx_entry_of_builtin, builtins)
-  @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
-  @ BuiltinsADT.constructor_entries;
+  List.map(ctx_entry_of_builtin, builtins) @ BuiltinsADT.constructor_entries;
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {

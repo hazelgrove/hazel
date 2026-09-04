@@ -137,7 +137,7 @@ module M: Projector = {
           Ui_effect.t(unit),
       ) => {
     Node.(
-      Util.WebUtil.(
+      Util_web.WebUtil.(
         /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
         label([
           // ~attrs=[Attr.for_(id)],

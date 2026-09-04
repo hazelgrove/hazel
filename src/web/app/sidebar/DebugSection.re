@@ -3,5 +3,5 @@
    its collapsible `section` driver, so `view` returns just the fields. */
 module type S = {
   let title: string;
-  let view: (~globals: Globals.t) => list(Util.WebUtil.Node.t);
+  let view: (~globals: Globals.t) => list(Util_web.WebUtil.Node.t);
 };

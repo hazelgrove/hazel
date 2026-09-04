@@ -1,5 +1,5 @@
-open Util;
-open WebUtil;
+open Util_web;
+open Util_web.WebUtil;
 
 module Profile = {
   type t = {

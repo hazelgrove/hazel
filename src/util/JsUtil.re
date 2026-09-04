@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Virtual_dom.Vdom;
 open Js_of_ocaml.Url;
 
 let get_elem_by_id = id => {
@@ -126,10 +125,6 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
-let clipboard_shim = {
-  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
-};
-
 let copy = (str: string) => {
   focus_clipboard_shim();
   Dom_html.document##execCommand(
@@ -185,67 +180,6 @@ let show_copy_toast = (): unit => {
     },
   );
 };
-/* Clipboard access as Effects. Both directions go through the async
-   Clipboard API, because the editor's key handlers run with focus on a
-   non-editable div and Firefox refuses to dispatch native copy/paste
-   events there.
-
-   Defined with Ui_effect.Define1 — the same mechanism Bonsai builds
-   Effect.of_deferred_fun from — so callers compose these like any other
-   Effect rather than side-effecting on their own and scheduling the
-   result by hand. Both must be dispatched from an event handler: the
-   Clipboard API only grants access under a user gesture. */
-let has_clipboard_api = (): bool =>
-  Js.to_bool(
-    Js.Unsafe.fun_call(
-      Js.Unsafe.pure_js_expr(
-        "(function(){return typeof navigator.clipboard !== 'undefined';})",
-      ),
-      [||],
-    ),
-  );
-
-module ClipboardHandler = {
-  module Action = {
-    type t(_) =
-      | Read_text: t(string)
-      | Write_text(string): t(unit);
-  };
-  let handle = (type a, action: Action.t(a), ~on_response: a => unit) =>
-    switch (action) {
-    | Read_text =>
-      let cb = Js.wrap_callback(text => on_response(Js.to_string(text)));
-      Js.Unsafe.fun_call(
-        Js.Unsafe.pure_js_expr(
-          "(function(cb){navigator.clipboard.readText().then(cb);})",
-        ),
-        [|Js.Unsafe.inject(cb)|],
-      );
-    | Write_text(str) =>
-      /* Older browsers with no Clipboard API fall through to the
-         execCommand shim. */
-      if (has_clipboard_api()) {
-        Js.Unsafe.fun_call(
-          Js.Unsafe.pure_js_expr(
-            "(function(s){navigator.clipboard.writeText(s);})",
-          ),
-          [|Js.Unsafe.inject(Js.string(str))|],
-        );
-      } else {
-        copy(str);
-      };
-      on_response();
-    };
-};
-module Clipboard = Ui_effect.Define1(ClipboardHandler);
-
-let write_clipboard = (str: string): Effect.t(unit) =>
-  Clipboard.inject(Write_text(str));
-
-/* Never completes when the browser has no Clipboard API — there is no
-   text to deliver, so there is no Paste to dispatch. */
-let read_clipboard = (): Effect.t(string) =>
-  has_clipboard_api() ? Clipboard.inject(Read_text) : Effect.never;
 
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);

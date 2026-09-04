@@ -29,10 +29,6 @@ type tvar_entry = {
   kind,
 };
 
-type node_or_list =
-  | Node(Virtual_dom.Vdom.Node.t)
-  | List(list(Virtual_dom.Vdom.Node.t));
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)

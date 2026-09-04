@@ -7,7 +7,6 @@ let tests =
   ]
   @ Test_Evaluator_Probes.tests
   @ [
-    Test_Evaluator_Livelit.tests,
     Test_Evaluator_Builtins.tests,
     Test_Evaluator_Builtins_Lists.tests,
     Test_Evaluator_Builtins_OptionType.tests,

@@ -1,5 +1,5 @@
 open Util;
-open WebUtil;
+open Util_web.WebUtil;
 open Calc.Syntax;
 open Language;
 

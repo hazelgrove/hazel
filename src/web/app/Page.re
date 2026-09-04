@@ -1,7 +1,7 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 
 /* The top-level UI component of Hazel */
 
@@ -628,7 +628,7 @@ module View = {
         model.globals.meta_down == meta_down
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
-       * each editor's own Key.handler and won't bubble here
+       * each editor's own KeyHandlers.handler and won't bubble here
        * (they call Stop_propagation). */
       let page_action =
         switch (key) {
@@ -717,7 +717,7 @@ module View = {
       );
     };
     [
-      Key.listener(~f=handle_key_event),
+      KeyHandlers.listener(~f=handle_key_event),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         model.globals.meta_down
@@ -925,7 +925,7 @@ module View = {
     NinjaKeys.initialize(cursor.contextual_actions);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view, ClipboardUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

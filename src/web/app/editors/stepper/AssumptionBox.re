@@ -1,6 +1,5 @@
-open Util;
 open Language;
-open WebUtil;
+open Util_web.WebUtil;
 
 type proof_event =
   | EqualityLeft(string)

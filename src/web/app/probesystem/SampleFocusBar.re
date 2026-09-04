@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util;
-open Util.WebUtil;
+open Util_web.WebUtil;
 open Haz3lcore;
 open Language;
 

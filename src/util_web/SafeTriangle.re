@@ -1,3 +1,4 @@
+open Util;
 /* SafeTriangle: Prevents hover menus from closing when moving toward them.
  *
  * When a user hovers over a trigger element to reveal a dropdown menu,

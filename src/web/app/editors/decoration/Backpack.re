@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 
 let shard =
     (x_off: float, y_off: float, scale: float, opacity: float, s: string) =>

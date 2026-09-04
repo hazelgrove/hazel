@@ -1,4 +1,4 @@
-open Util.WebUtil;
+open Util_web.WebUtil;
 open Haz3lcore;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
@@ -8,11 +8,11 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+  /* Context menu state lives in Util_web.Menu — None = closed, Some({…})
    * holds the selected item index and (unused for the editor menu) the
    * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = Util.Menu.t;
+  type context_menu_state = Util_web.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -24,7 +24,7 @@ module Model = {
   };
 
   let context_menu_is_open = (model: t): bool =>
-    Util.Menu.is_open(model.context_menu);
+    Util_web.Menu.is_open(model.context_menu);
 
   let mk =
       (

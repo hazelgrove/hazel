@@ -113,7 +113,11 @@ module M: Projector = {
             };
           };
 
-          let list_contents = ll.view(model, action_callback);
+          /* SPIKE (wasm-eval-bench): livelit views were removed from
+             [language] to break its Virtual_dom dependency. */
+          ignore(action_callback);
+          let list_contents =
+            Node.text("livelit views disabled (wasm-eval-bench spike)");
           Node.div(
             ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
             [list_contents],

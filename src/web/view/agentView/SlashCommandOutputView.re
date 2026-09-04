@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 
 /** Format a USD amount with up to 6 decimals; trims for tiny values. */
 let format_usd = (n: float): string =>

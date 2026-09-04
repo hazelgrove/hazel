@@ -1,5 +1,4 @@
-open Util;
-open WebUtil;
+open Util_web.WebUtil;
 
 module F = (Stepper: StepInterface.STEPPER) => {
   let target_box =

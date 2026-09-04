@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 
 type dims = {
   width: int,

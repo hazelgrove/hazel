@@ -1,13 +1,6 @@
 (library
  (name util)
- (libraries
-  ptmap
-  bonsai.web
-  virtual_dom.input_widgets
-  bignum
-  uuidm
-  unionFind
-  csv)
+ (libraries ptmap bignum uuidm unionFind csv)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
@@ -18,8 +11,7 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
-   ppx_deriving.eq
-   bonsai.ppx_bonsai)))
+   ppx_deriving.eq)))
 
 (env
  (dev

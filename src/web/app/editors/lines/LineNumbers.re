@@ -1,7 +1,7 @@
 open Haz3lcore;
 //open Virtual_dom.Vdom;
 open Util;
-open WebUtil;
+open Util_web.WebUtil;
 
 /*
  Used to display line numbering alongside cells

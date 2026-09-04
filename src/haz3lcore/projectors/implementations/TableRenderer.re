@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
@@ -32,7 +32,7 @@ type action = a;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type value = v;
 
-/* Column menu items use the shared `Util.Menu` framework. */
+/* Column menu items use the shared `Util_web.Menu` framework. */
 type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
 /* Parse an expression into table structure */
@@ -51,7 +51,7 @@ let submenu = (~tooltip, label, children) =>
   Menu.submenu_item(~tooltip, label, children);
 
 /* Build the column menu as a single tree. Submenus carry their children
- * inline; `Util.Menu` walks the path and synthesises the Back row. */
+ * inline; `Util_web.Menu` walks the path and synthesises the Back row. */
 let build_column_menu =
     (
       info: info,

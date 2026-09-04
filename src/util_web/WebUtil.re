@@ -1,11 +1,10 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv;
 open Virtual_dom.Vdom;
 
 module Node = Node;
 module Attr = Attr;
 open Node;
-open JsUtil;
+open Util;
+open Util.JsUtil;
 open Js_of_ocaml;
 
 let clss = Attr.classes;

@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 open Util;
 open Js_of_ocaml;
 open Haz3lcore;

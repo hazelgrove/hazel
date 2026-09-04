@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util.WebUtil;
+open Util_web.WebUtil;
 
 /* RefractorView handles the display of refractors (probes).
  *

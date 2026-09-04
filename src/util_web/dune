@@ -1,0 +1,28 @@
+; SPIKE (wasm-eval-bench): the Bonsai/Virtual_dom half of the old [util]
+; library. Split out so that [util] -- and therefore [language] -- can be
+; built by wasm_of_ocaml, which requires js_of_ocaml >= 6.0.0 and so cannot
+; coexist with virtual_dom v0.16 (capped at js_of_ocaml < 6.0.0).
+
+(library
+ (name util_web)
+ (libraries util bonsai bonsai.web virtual_dom.input_widgets)
+ (js_of_ocaml)
+ (instrumentation
+  (backend bisect_ppx))
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_deriving.eq
+   bonsai.ppx_bonsai)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))

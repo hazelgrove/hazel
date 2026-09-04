@@ -1,7 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 open Js_of_ocaml;
 open Widgets;
 

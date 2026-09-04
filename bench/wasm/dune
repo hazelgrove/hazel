@@ -1,0 +1,29 @@
+; SPIKE (wasm-eval-bench): a Bonsai-free evaluator benchmark.
+;
+; This links only [language] + [menhirParser], deliberately avoiding
+; [haz3lcore] and [web]: virtual_dom v0.16 caps js_of_ocaml < 6.0.0, while
+; wasm_of_ocaml requires >= 6.0.1, so anything in the Bonsai cone cannot be
+; compiled to Wasm at all. Parsing therefore goes through menhirParser
+; rather than the zipper path the CLI uses.
+;
+; `(modes js)` here so the target stays green in the ordinary Hazel switch.
+; In the wasm switch, bench/wasm/setup-switch.sh rewrites this to
+; `(modes js wasm)`. Both artifacts are then produced by the SAME compiler
+; version, so a measured delta is the backend and not the toolchain.
+
+(executable
+ (name eval_bench)
+ (libraries language menhirParser)
+ (modes js)
+ (preprocess
+  (pps
+   ppx_blob
+   js_of_ocaml-ppx
+   ppx_yojson_conv
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_deriving.eq))
+ (preprocessor_deps
+  (file eval-bench.hz)))
+
+(copy_files ../eval-bench.hz)

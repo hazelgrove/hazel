@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 
 /** Only allow navigable links we expect from assistant output. */
 let href_if_safe = (destination: string): option(string) => {

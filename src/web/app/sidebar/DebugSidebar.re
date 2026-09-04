@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 open Language;
 
 /* Debug sidebar panel: dumps the statics Info metadata for the term under the
@@ -54,7 +54,7 @@ let copy_segment = (segment: Haz3lcore.Segment.t): Effect.t(unit) => {
       () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
       (),
     ),
-    Util.JsUtil.write_clipboard(str),
+    Util_web.ClipboardUtil.write_clipboard(str),
   ]);
 };
 
@@ -138,7 +138,10 @@ let field_str = (label: string, body: string): Node.t =>
   div(
     ~attrs=[clss(["debug-field"])],
     [
-      label_row(~copy=Some(() => Util.JsUtil.write_clipboard(body)), label),
+      label_row(
+        ~copy=Some(() => Util_web.ClipboardUtil.write_clipboard(body)),
+        label,
+      ),
       pre(~attrs=[clss(["debug-field-value", "raw"])], [text(body)]),
     ],
   );
@@ -193,7 +196,7 @@ let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
     ~copy=
       () =>
         raw
-          ? Util.JsUtil.write_clipboard(Any.show(any))
+          ? Util_web.ClipboardUtil.write_clipboard(Any.show(any))
           : copy_segment(
               Haz3lcore.ExpToSegment.any_to_segment(
                 ~settings=code_settings_ml,
@@ -338,7 +341,9 @@ let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
     ~globals,
     ~copy=
       () =>
-        Util.JsUtil.write_clipboard(raw ? Ctx.show(ctx) : ctx_to_text(ctx)),
+        Util_web.ClipboardUtil.write_clipboard(
+          raw ? Ctx.show(ctx) : ctx_to_text(ctx),
+        ),
     ~body=
       () =>
         raw
@@ -358,7 +363,7 @@ let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
     ~globals,
     ~copy=
       () =>
-        Util.JsUtil.write_clipboard(
+        Util_web.ClipboardUtil.write_clipboard(
           raw ? CoCtx.show(co_ctx) : co_ctx_to_text(co_ctx),
         ),
     ~body=

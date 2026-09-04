@@ -38,6 +38,7 @@
   bonsai.web
   virtual_dom.input_widgets
   util
+  util_web
   ppx_yojson_conv.expander
   haz3lcore
   b2t2

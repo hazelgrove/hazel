@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Calc.Syntax;
 open Language;
 
@@ -298,7 +298,7 @@ module Focus = {
 };
 
 module View = {
-  open WebUtil;
+  open Util_web.WebUtil;
 
   let view =
       (

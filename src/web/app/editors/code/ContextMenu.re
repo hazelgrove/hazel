@@ -1,12 +1,12 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 open Util.OptUtil.Syntax;
-open WebUtil;
+open Util_web.WebUtil;
 open Node;
 
 /* Editor right-click context menu.
  *
- * State, rendering, and keyboard handling all live in `Util.Menu`. This
+ * State, rendering, and keyboard handling all live in `Util_web.Menu`. This
  * file is the editor-specific *contents*: builders for the rows (probe,
  * statics, goto, introduce, select term, projectors) plus caret-anchored
  * positioning. Each `*_data` builder returns a `list(Menu.item(command))`

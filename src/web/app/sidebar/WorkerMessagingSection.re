@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util.WebUtil;
+open Util_web.WebUtil;
 
 /* The "Worker Messaging" debug sidebar section: how the main thread talks to
    the eval Web Worker. Per-request benchmarks of the candidate encodings

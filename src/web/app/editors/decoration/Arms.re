@@ -1,7 +1,7 @@
-open Util;
+open Util_web;
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open SvgUtil;
+open Util_web.SvgUtil;
 open Measured;
 open SvgUtil.Path;
 
@@ -372,7 +372,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   };
 };
 
-open Util.WebUtil;
+open Util_web.WebUtil;
 
 module Errors = {
   let of_id =

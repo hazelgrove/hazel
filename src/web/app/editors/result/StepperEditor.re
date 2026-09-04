@@ -42,7 +42,7 @@ module View = {
         signal: event => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    open WebUtil;
+    open Util_web.WebUtil;
 
     let next_steps =
         (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>

@@ -1,7 +1,7 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Util;
+open Util_web;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -582,10 +582,10 @@ module View = {
               (),
             )
           : Effect.Ignore;
-      Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
+      Effect.Many([cache_for_paste, ClipboardUtil.write_clipboard(str)]);
     };
     let paste_from_clipboard = () =>
-      Effect.bind(JsUtil.read_clipboard(), ~f=text =>
+      Effect.bind(ClipboardUtil.read_clipboard(), ~f=text =>
         inject(
           Perform(
             Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text)),
@@ -948,7 +948,7 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
-        Key.handler(~f=key => {
+        KeyHandlers.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
