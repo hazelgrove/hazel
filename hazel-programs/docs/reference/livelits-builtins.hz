@@ -29,40 +29,46 @@ let slider_val = ^^livelit(^slider(85)) in
 # Internal Model: Int                                           #
 let current_mood = ^^livelit(^emotion(0)) in
 
-# 3. ^fumola_thunk and ^fumola_editor #
-# Elaboration Type: Int                                                       #
-# Elaboration: The result of running the Fumola program held in the livelit,  #
-#              translated into a Hazel Int. A program that does not parse, or #
-#              whose result is not an integer, elaborates to a hole.          #
-# Internal Model: (Int, String)                                               #
-#   The String is the Fumola source text, which is editable in the widget.    #
-#   The Int is an opaque Fumola instance id: it names an incremental Fumola    #
-#   runtime living outside Hazel, not an ordinary number. Editing the program #
-#   keeps the same id, so the edit re-uses that runtime's execution history   #
-#   instead of starting over. State survives the edit: write `1 := 2` in one  #
-#   edit, then `get(1)` in the next, and the result is 2.                     #
-#                                                                             #
-# Always in scope, since Hazel strings cannot contain the quotes that the     #
-# adapton primitives need:                                                    #
-#   pointer(s)  the pointer that symbol s names                               #
-#   get(s)      the value in that cell, recording a dependency                #
-#   peek(s)     the value as an option, without recording a dependency        #
-# `:=` turns its left side into a pointer, but `@` does not, so a cell is     #
-# read back with `get(s)` rather than `@(s)`.                                 #
-#                                                                             #
-# A symbol arrives in Hazel as its text: `x becomes "x". That is also the     #
-# only way to produce a string here, since a Hazel string cannot contain a    #
-# double quote and so neither can the program above.                          #
-#                                                                             #
-# ^fumola_thunk wraps its program in a thunk, so editing re-forces it and     #
-# reuses its history. ^fumola_editor evaluates at the top level instead: no    #
-# reuse, but bindings outlive the program and Adapton.reset() works, which it  #
-# cannot inside a thunk. Same instance id means the same runtime, so an        #
-# editor can set up state that a thunk reads.                                  #
-#                                                                             #
-# The Fumola module library is bound at the top level, so Gcd.gcd(12, 18)     #
-# works with no import:                                                       #
-#   Adapton  List  LazyList  PureList  LevelTree  HashMap                     #
-#   Counters  RandomInput  MergeSort  Gcd  DelayedPut                         #
-# Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.         #
-let fumola_val = ^^livelit(^fumola_thunk(0, "1 + 2")) in¿
+# 3. ^fumola_thunk #
+# Expansion Type: whatever the annotation says; it needs one               #
+# Model: (Int, String, String) -- instance, thunk name, program            #
+#                                                                          #
+# Wraps its program as force(<name> := thunk { ... }). That is what makes   #
+# an edit incremental: re-forcing the same name reuses the thunk's history, #
+# so state written in one edit is there in the next. Write `1 := 2` in one  #
+# edit, then `get(1)` in the next, and the result is 2.                     #
+#                                                                          #
+# The thunk name is Fumola source for a symbol, parsed by Fumola itself, so #
+# `myThunk, 7 and `a(`b) all work. Two thunks in one runtime must not share #
+# a name, or each overwrites the other.                                     #
+#                                                                          #
+# 4. ^fumola_editor #
+# Expansion Type: whatever the annotation says; it needs one               #
+# Model: (Int, String) -- instance, program                                #
+#                                                                          #
+# Evaluates at the top level, with no thunk. No reuse, but bindings outlive #
+# the program, and Adapton.reset() and Adapton.peekForce work -- they       #
+# cannot run inside a force. Strictly more expressive than ^fumola_thunk:   #
+# you can write the force(... := thunk { ... }) yourself.                   #
+#                                                                          #
+# Same instance id means the same runtime, so an editor can set up state    #
+# that a thunk reads.                                                       #
+#                                                                          #
+# 5. The peek value (not a livelit) #
+# A program returning a pointer produces a value carrying the reference and #
+# what it points at: 1 := 2 gives a reference reading peek(1)! holding 2.   #
+# Evaluation continues through it, so a reference to an Int is usable as an #
+# Int, while the reference stays visible.                                   #
+#                                                                          #
+# Always in scope: pointer(s), get(s), peek(s), since Hazel strings cannot  #
+# contain the quotes the adapton primitives need. `:=` turns its left side  #
+# into a pointer but `@` does not, so read a cell back with get(s).         #
+#                                                                          #
+# A symbol arrives in Hazel as its text: `x becomes "x".                    #
+#                                                                          #
+# The Fumola module library is bound at the top level, so Gcd.gcd(12, 18)   #
+# works with no import:                                                     #
+#   Adapton  List  LazyList  PureList  LevelTree  HashMap                   #
+#   Counters  RandomInput  MergeSort  Gcd  DelayedPut                       #
+# Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.        #
+let fumola_val = ^^livelit(^fumola_thunk(0, "`thunk", "1 + 2")) in¿

@@ -100,97 +100,85 @@ let livelits: list(raw_livelit) =
 | Model | `(String, String)` -- the JavaScript source, and the last result. |
 | Expansion | The stored result string. Pressing *Compute* evaluates the source and stores the result in the model. |
 
-### `^fumola_thunk` and `^fumola_editor`
+### The Fumola livelits, and the value they produce
 
-Two livelits over the same kind of runtime. `^fumola_thunk` wraps its program
-as `force(<name> := thunk { ... })`, which is what gives an edit its
-incremental meaning; the thunk is named after the livelit's own Hazel id, so
-two of them in one runtime keep separate histories rather than overwriting
-each other.
+Three things, two of which are livelits.
 
-`^fumola_editor` evaluates at the top level instead. It is strictly more
-expressive -- you can write the `force(... := thunk { ... })` yourself -- and
-it is the only way to reach things the wrapper forbids: `Adapton.reset()`
-clears the store the enclosing force is still inside, `Adapton.peekForce`
-asserts there, and a binding made inside a thunk does not outlive it.
-
-Both name an instance, so two livelits carrying the same id **share one
-runtime** and see each other's state and bindings. An editor can set up state
-that a thunk then reads.
+#### `^fumola_thunk`
 
 | | |
 | --- | --- |
-| Model | `(Int, String)` -- an opaque Fumola instance id, and the Fumola source text. |
-| Expansion | The result of running the Fumola program, translated to a Hazel `Int`. A program that does not parse, or whose result is not an integer, expands to a hole. |
-| In scope | `pointer(s)`, `get(s)`, `peek(s)` -- see below. |
-| Requires | The Fumola wasm runtime; build it with `scripts/build-fumola-wasm.sh`. |
+| Model | `(Int, String, String)` -- instance id, thunk name, program |
+| Expansion type | whatever the annotation says; it requires checking mode |
+| Default | `^fumola_thunk(0, "`thunk", "1 + 2")` |
 
-This is the first livelit whose model does not contain all of its own state,
-so it is worth spelling out how it differs from the others.
+Wraps its program as `force(<name> := thunk { ... })`. That wrapper is what
+gives an edit its incremental meaning: re-assigning the same name and forcing
+it again reuses the thunk's execution history, so state written in one edit is
+still there in the next.
 
-The three livelits above are self-contained: `^slider`'s model *is* its value,
-and `^js` stores its last result in its own model. `^fumola` instead holds a
-**name for state that lives outside Hazel**. Its model is a pair
+The **thunk name** is Fumola source for a symbol, evaluated by Fumola itself
+in a runtime kept only for that purpose. So you write a name the way Fumola
+spells one -- `` `myThunk ``, `7`, `` `a(`b) `` -- and every form the language
+supports works without Hazel knowing about any of them. Naming happens in a
+runtime of its own, so a name that happens to have an effect cannot touch the
+instance it names a thunk in.
 
-```text
-(instance_id, program_text)
-```
+It is written rather than derived, and that is the point: a name taken from a
+Hazel id would start a *new* thunk whenever that id changed, quietly losing
+the history the thunk exists to keep. Two thunk livelits sharing a runtime
+must not share a name, or each overwrites the other's thunk.
 
-where `instance_id` identifies an entry of an external store
-
-```text
-sigma : FumolaInstanceId -> FumolaRuntimeState
-```
-
-held by the Fumola wasm module and reached through the `window.fumola` shim in
-`src/web/www/prebundle.js`. That runtime state -- the Fumola interpreter and
-its Adapton demanded computation graph -- is deliberately *not* serialized into
-the Hazel model; only the name is.
-
-Three consequences follow, and each is a thing the livelit has to do
-explicitly rather than get for free:
-
-- **Editing preserves the id.** Changing the program text keeps the same
-  `instance_id` and re-evaluates against the same live runtime, so Fumola can
-  reuse its prior computation instead of starting over. The edit is expressed
-  in Fumola rather than through any repair API: the source text is wrapped as
-  `force(`topLevel := thunk { <program text> })`, and re-assigning that name
-  and re-forcing it is what gives the edit its incremental meaning.
-
-- **Expansion is an observation, not stored state.** `expand` asks sigma for
-  the runtime's current result and translates it; the result is never a second
-  source of truth in the model. This relies on the invariant that `sigma(i)` is
-  synchronized with the model's `program_text`.
-
-- **Ids are generative.** Duplicating a livelit must not produce two widgets
-  sharing one execution history. The view uses its `~id` -- the projector's
-  persistent identity -- to claim its instance; when a copy turns up claiming
-  an id another live projector already owns, it is given a fresh runtime and
-  rewrites its own model to name it. The same mechanism covers reload: a saved
-  program naming an id this session has never seen has that runtime realized
-  on demand.
-
-Every program runs after a small prelude, for two reasons that are easy to
-trip over.
-
-First, a livelit's program text is stored as a Hazel string literal, and Hazel
-strings have no escapes -- `Token.is_string` permits at most two quote
-characters in the whole token. So `prim "adaptonPointer"` cannot be written
-inside a livelit at all, and every adapton primitive needs quotes.
-
-Second, `:=` coerces its left side into a pointer but `@` does not: `@` wants
-something that already *is* a pointer. So the way to read back what `1 := 2`
-wrote is not `@(1)`.
-
-The prelude supplies:
+#### `^fumola_editor`
 
 | | |
 | --- | --- |
-| `pointer(s)` | the pointer that symbol `s` names |
-| `get(s)` | the value in that cell, recording a dependency |
-| `peek(s)` | the value as an option, without recording a dependency; `null` if never written |
+| Model | `(Int, String)` -- instance id, program |
+| Expansion type | whatever the annotation says; it requires checking mode |
+| Default | `^fumola_editor(0, "1 := 2")` |
 
-so that `1 := 2` in one edit and `get(1)` in the next reads back `2`.
+Evaluates its program at the top level, with no thunk around it. No
+incremental reuse, but bindings it makes outlive it, and the operations the
+wrapper forbids work here: `Adapton.reset()` clears the store the enclosing
+force would still be inside, and `Adapton.peekForce` asserts there.
+
+It is strictly more expressive than `^fumola_thunk` -- you can write the
+`force(... := thunk { ... })` yourself -- so the thunk livelit's value is that
+it generates that wrapper, and generates a distinct name for it.
+
+Both livelits name an instance, so **two livelits carrying the same id share
+one runtime** and see each other's state and bindings. An editor can set up
+state that a thunk then reads.
+
+#### The peek value
+
+Not a livelit: a value form, `FumolaPeek`, produced when a program returns a
+*pointer*. It carries the instance, the program that reads the cell, and the
+value that program produced:
+
+```text
+1 := 2   ->   FumolaPeek({instance_id, reads: "peek(1)!", value: 2})
+```
+
+A value rather than something that steps to one, so the reference stays
+visible instead of collapsing into what it refers to. Carrying the result is
+what lets evaluation continue through it: a reference to a cell holding an
+`Int` is usable as an `Int`, and statics synthesizes that type from the
+carried value rather than needing an annotation.
+
+`peek` rather than `get`, so that translating a result does not record a
+dependency in the runtime being translated; the `!` unwraps peek's option,
+assuming the cell is defined.
+
+Pointers nest, each level keeping its own reference. A cell holding a pointer
+back to itself stops at a hole rather than being followed forever, and an
+unreadable cell keeps its reference with an unknown value.
+
+The carried value is a **snapshot**, sound only because it is regenerated on
+every expansion. It must never be persisted into a saved model, where it
+would silently disagree with the runtime.
+
+### What is in scope
 
 The Fumola module library is compiled into the runtime, and eleven modules
 are bound at the top level of every instance:

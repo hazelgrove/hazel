@@ -510,6 +510,9 @@ module type FumolaConfig = {
   let name: string;
   /* Evaluate at the top level rather than inside a thunk. */
   let top_level: bool;
+  /* A thunk livelit's model carries the name of its thunk; the editor has no
+     thunk and carries none. */
+  let default_thunk_name: option(string);
   let default_program: string;
 };
 
@@ -520,6 +523,16 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     /* Opaque name for an entry of sigma. Represented as an integer for now;
        it is deliberately never used as an integer by the Hazel program. */
     instance_id: int,
+    /* Fumola source for the symbol naming this livelit's thunk, for a thunk
+       livelit; absent for the editor, which has no thunk.
+
+       Source text rather than an encoded symbol, so Fumola's own parser
+       decides what a symbol is: every form the language spells as one works
+       and Hazel needs to know about none of them. Written by the programmer
+       rather than derived, so it is stable across edits -- a name taken from
+       a Hazel id would start a new thunk whenever that id changed, losing the
+       history the thunk exists to keep. */
+    thunk_name: option(string),
     program: string,
   };
 
@@ -624,22 +637,8 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
   };
 
   /* The rendering and the expansion, from one evaluation. */
-  /* The thunk this livelit's program is the body of.
-
-     Named from the livelit's own Hazel id, so that two thunk livelits sharing
-     a runtime do not overwrite each other's thunk and lose its history. A
-     Hazel id is a UUID, whose hyphens a Fumola symbol cannot contain, so they
-     are dropped and a letter is prefixed. */
-  let thunk_name = (id: Id.t): string =>
-    "t" ++ String.concat("", String.split_on_char('-', Id.to_string(id)));
-
   let observe_described =
-      (
-        ~id: Id.t,
-        ~ana: TermBase.Typ.t,
-        ~tools: LivelitCtx.type_tools,
-        model: model_t,
-      )
+      (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model: model_t)
       : (expansion_t, string) => {
     let response =
       switch (
@@ -652,7 +651,12 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
               "evalSync",
               [|
                 js_int(model.instance_id),
-                js_string(thunk_name(id)),
+                js_string(
+                  switch (model.thunk_name) {
+                  | Some(name) => name
+                  | None => "`topLevel"
+                  },
+                ),
                 js_string(model.program),
               |],
             )
@@ -734,40 +738,87 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
 
   /* ---- Hazel encodings ---------------------------------------------- */
 
+  /* A thunk livelit's model is (instance, thunk name, program); the editor
+     has no thunk, so its model is (instance, program). Both name an instance,
+     so two livelits carrying the same id share one runtime. */
   let hazel_model_t: TermBase.Typ.t =
-    Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))]) |> Typ.fresh;
+    (
+      switch (C.default_thunk_name) {
+      | Some(_) =>
+        Prod([
+          Typ.temp(Atom(Int)),
+          Typ.temp(Atom(String)),
+          Typ.temp(Atom(String)),
+        ])
+      | None => Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))])
+      }
+    )
+    |> Typ.fresh;
 
   let model_to_hazel: model_t => model_exp =
-    (m: model_t) =>
+    (m: model_t) => {
+      let instance = DHExp.fresh(Atom(Int(Bigint.of_int(m.instance_id))));
+      let program = DHExp.fresh(Atom(String(m.program)));
       DHExp.fresh(
-        Tuple([
-          DHExp.fresh(Atom(Int(Bigint.of_int(m.instance_id)))),
-          DHExp.fresh(Atom(String(m.program))),
-        ]),
+        Tuple(
+          switch (m.thunk_name) {
+          | Some(thunk_name) => [
+              instance,
+              DHExp.fresh(Atom(String(thunk_name))),
+              program,
+            ]
+          | None => [instance, program]
+          },
+        ),
       );
+    };
 
   let model_from_hazel: model_exp => option(model_t) =
-    (e: model_exp) =>
-      switch (e.term) {
-      | Tuple([
-          {term: Atom(Int(id)), _},
-          {term: Atom(String(program)), _},
-        ]) =>
+    (e: model_exp) => {
+      let instance = (id, rest) =>
         switch (int_of_string_opt(Bigint.to_string(id))) {
-        | Some(instance_id) =>
-          Some({
-            instance_id,
-            program,
-          })
+        | Some(instance_id) => Some(rest(instance_id))
         | None => None
-        }
+        };
+      switch (e.term, C.default_thunk_name) {
+      | (
+          Tuple([
+            {term: Atom(Int(id)), _},
+            {term: Atom(String(thunk_name)), _},
+            {term: Atom(String(program)), _},
+          ]),
+          Some(_),
+        ) =>
+        instance(id, instance_id =>
+          {
+            instance_id,
+            thunk_name: Some(thunk_name),
+            program,
+          }
+        )
+      | (
+          Tuple([
+            {term: Atom(Int(id)), _},
+            {term: Atom(String(program)), _},
+          ]),
+          None,
+        ) =>
+        instance(id, instance_id =>
+          {
+            instance_id,
+            thunk_name: None,
+            program,
+          }
+        )
       | _ => None
       };
+    };
 
   /* Instance id 0 is never handed out by the shim; it means "this livelit has
      not claimed a runtime yet", and the first view claims a real one. */
   let model_default: model_t = {
     instance_id: 0,
+    thunk_name: C.default_thunk_name,
     program: C.default_program,
   };
 
@@ -798,8 +849,8 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
       model_t
     ) =>
     expansion_t =
-    (~id, ~ana, ~tools, m: model_t) =>
-      fst(observe_described(~id, ~ana, ~tools, m));
+    (~id as _, ~ana, ~tools, m: model_t) =>
+      fst(observe_described(~ana, ~tools, m));
 
   let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
@@ -917,7 +968,6 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     let result =
       snd(
         observe_described(
-          ~id,
           ~ana=Typ.fresh(Unknown(Internal)),
           ~tools=view_tools,
           model,
@@ -937,6 +987,7 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
               =>
                 send_action(
                   SetModel({
+                    ...model,
                     instance_id: claimed,
                     program,
                   }),
@@ -969,6 +1020,7 @@ module FumolaThunk =
   MakeFumola({
     let name = "fumola_thunk";
     let top_level = false;
+    let default_thunk_name = Some("`thunk");
     let default_program = "1 + 2";
   });
 
@@ -979,6 +1031,7 @@ module FumolaEditor =
   MakeFumola({
     let name = "fumola_editor";
     let top_level = true;
+    let default_thunk_name = None;
     let default_program = "1 := 2";
   });
 
