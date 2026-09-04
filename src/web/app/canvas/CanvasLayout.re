@@ -123,7 +123,7 @@ type dock =
    ~offsets are user drag deltas keyed by node key, applied after auto
    placement (edges/rims then derive from the moved positions, and the
    final normalization translates deltas and auto positions together). */
-let layout =
+let layout_impl =
     (
       ~x_scale=1.,
       ~y_scale=1.,
@@ -1261,3 +1261,35 @@ let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
     b.x,
     b.y,
   );
+
+/* ---- instrumentation: how often and how long a render lays out ---- */
+let layout_calls: ref(int) = ref(0);
+let layout_ms: ref(float) = ref(0.);
+let layout =
+    (
+      ~x_scale=1.,
+      ~y_scale=1.,
+      ~center_within: option(float)=None,
+      ~origin_override: option(pos)=None,
+      ~offsets: list((string, (float, float)))=[],
+      ~pins: list((string, (float, float)))=[],
+      g: CanvasGraph.t,
+    )
+    : t => {
+  let now = () =>
+    Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+  let t0 = now();
+  let r =
+    layout_impl(
+      ~x_scale,
+      ~y_scale,
+      ~center_within,
+      ~origin_override,
+      ~offsets,
+      ~pins,
+      g,
+    );
+  incr(layout_calls);
+  layout_ms := layout_ms^ +. (now() -. t0);
+  r;
+};

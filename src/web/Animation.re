@@ -384,7 +384,8 @@ let geom_css = (attr: string, v: string): string =>
 
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
-let go = (): unit => {
+let slow_hook: ref(string => unit) = ref(_ => ());
+let go_impl = (): unit => {
   let visible =
     tracked_elems^ == [] ? [] : tracked_elems^ |> filter_visible_elements;
   let arrivals =
@@ -712,5 +713,16 @@ module Actions = {
         | Existing(init, final) => Keyframes.translate(~scale, init, final)
         },
     },
+  };
+};
+
+let go = (): unit => {
+  let now = () =>
+    Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+  let t0 = now();
+  go_impl();
+  let ms = now() -. t0;
+  if (ms > 60.) {
+    slow_hook^(Printf.sprintf("slow: animation pass %.0fms", ms));
   };
 };

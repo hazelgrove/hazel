@@ -315,7 +315,7 @@ let edge_act =
         n.key == e.dst
           ? Some({
               effect: Appear(n.key),
-              at: t_draw + ride - 120,
+              at: t_draw + ride,
               dur: tempo.effect,
             })
           : n.key == e.src

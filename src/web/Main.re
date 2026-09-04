@@ -226,6 +226,7 @@ let start = default_model => {
     CanvasTrajectory.set_busy :=
       (b => CanvasBuffer.fake_busy_until := b ? CanvasBuffer.now() +. 1e9 : 0.);
     CanvasTrajectory.install_testers();
+    Animation.slow_hook := CanvasLog.log;
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to

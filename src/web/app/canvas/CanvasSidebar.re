@@ -666,7 +666,7 @@ let locate =
   };
 };
 
-let view =
+let view_impl =
     (
       ~globals: Globals.t,
       ~editors: Editors.Model.t,
@@ -697,6 +697,7 @@ let view =
     last_avatar_id := None;
     last_followed := None;
     CanvasCamera.reset_exposure();
+    CanvasBuffer.avatar_site := None;
     last_followed_busy := false;
     CanvasBuffer.beat_avatar := None;
     CanvasCamera.roi := [];
@@ -2074,7 +2075,7 @@ let view =
            }
          );
     let resolved =
-      switch (CanvasBuffer.pacing_live() ? CanvasBuffer.avatar_site^ : None) {
+      switch (CanvasBuffer.avatar_site^) {
       | Some((x, y)) =>
         let p =
           CanvasLayout.{
@@ -3129,4 +3130,41 @@ let view =
     @ focus_strip
     @ [legend, menu_layer],
   );
+};
+
+/* ---- instrumentation (E1): a slow canvas render says where the time went ---- */
+let view =
+    (
+      ~globals: Globals.t,
+      ~editors: Editors.Model.t,
+      ~editors_inject: Editors.Update.t => Effect.t(unit),
+      ~editor: CodeWithStatics.Model.t,
+      ~use_sidebar_width=true,
+      (),
+    )
+    : Node.t => {
+  let t0 = CanvasBuffer.now();
+  CanvasLayout.layout_calls := 0;
+  CanvasLayout.layout_ms := 0.;
+  let r =
+    view_impl(
+      ~globals,
+      ~editors,
+      ~editors_inject,
+      ~editor,
+      ~use_sidebar_width,
+      (),
+    );
+  let ms = CanvasBuffer.now() -. t0;
+  if (ms > 120.) {
+    CanvasLog.log(
+      Printf.sprintf(
+        "slow: canvas view %.0fms (layout %d call(s) %.0fms)",
+        ms,
+        CanvasLayout.layout_calls^,
+        CanvasLayout.layout_ms^,
+      ),
+    );
+  };
+  r;
 };

@@ -145,6 +145,7 @@ let handle_llm_response =
                 let msg = Message.Utils.mk_tool_result_message(skipped);
                 (m, ce_model, [msg, ...msgs], ce_updated, true);
               } else {
+                let t_tool = CanvasBuffer.now();
                 let (m2, step_u, msg) =
                   AgentToolExec.execute_one_tool_call(
                     ~tool_call=tc,
@@ -153,9 +154,18 @@ let handle_llm_response =
                     ~settings,
                     ~chat_id,
                   );
-                /* each applied call is its own canvas beat: the whole
-                   multi-tool reply is ONE app action, so intermediate
-                   states must be captured here or never seen */
+                {
+                  /* each applied call is its own canvas beat: the whole
+                     multi-tool reply is ONE app action, so intermediate
+                     states must be captured here or never seen */
+
+                  let ms = CanvasBuffer.now() -. t_tool;
+                  if (ms > 100.) {
+                    CanvasLog.log(
+                      Printf.sprintf("slow: tool %s %.0fms", tc.name, ms),
+                    );
+                  };
+                };
                 /* the tool's snapshot carries its OWN statics (computed
                    here, synchronously) so the beat shows exactly this
                    tool's change and never borrows the next one's */

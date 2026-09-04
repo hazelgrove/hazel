@@ -806,28 +806,6 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       | Some(p) => p
       | None => fst(List.nth(sorted, List.length(sorted) - 1))
       };
-    CanvasBuffer.avatar_site := Some((ex, ey));
-    let st = Js.Unsafe.get(av, "style");
-    Js.Unsafe.set(
-      st,
-      "left",
-      Js.string(Printf.sprintf("%.1fpx", ex +. CanvasView.avatar_dx)),
-    );
-    Js.Unsafe.set(
-      st,
-      "top",
-      Js.string(Printf.sprintf("%.1fpx", ey +. CanvasView.avatar_dy)),
-    );
-    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
-    let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
-    let frame = ((x, y), at) => [
-      (
-        "transform",
-        str(Printf.sprintf("translate(%.1fpx, %.1fpx)", x -. ex, y -. ey)),
-      ),
-      ("offset", num(max(0., min(1., at /. total_ms)))),
-      ("easing", str("ease-in-out")),
-    ];
     /* where the avatar visibly is NOW (static anchor + in-flight
        translate, minus the box offset), measured here rather than at
        staging so a render nobody staged cannot leave a stale start */
@@ -884,6 +862,28 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
         );
       };
     };
+    CanvasBuffer.avatar_site := Some((ex, ey));
+    let st = Js.Unsafe.get(av, "style");
+    Js.Unsafe.set(
+      st,
+      "left",
+      Js.string(Printf.sprintf("%.1fpx", ex +. CanvasView.avatar_dx)),
+    );
+    Js.Unsafe.set(
+      st,
+      "top",
+      Js.string(Printf.sprintf("%.1fpx", ey +. CanvasView.avatar_dy)),
+    );
+    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
+    let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
+    let frame = ((x, y), at) => [
+      (
+        "transform",
+        str(Printf.sprintf("translate(%.1fpx, %.1fpx)", x -. ex, y -. ey)),
+      ),
+      ("offset", num(max(0., min(1., at /. total_ms)))),
+      ("easing", str("ease-in-out")),
+    ];
     /* E1: a timeline that asks the avatar to cover a long way in almost no
        time is a jump; say so in the journal with where and when */
     ignore(
