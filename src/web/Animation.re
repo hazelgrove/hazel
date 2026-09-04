@@ -305,6 +305,10 @@ let set_arrival_schedule = (s: list((string, int))): unit =>
   arrival_schedule := s;
 /* how long movers wait for arrivals when a schedule stretched them */
 let arrival_span_override: ref(int) = ref(0);
+/* when set, movers and geometry wait until this beat-relative ms (the
+   score's Drift act) instead of the arrivals' span */
+let movers_at: ref(option(int)) = ref(None);
+let set_movers_at = (ms: option(int)): unit => movers_at := ms;
 let geom_attrs = ["d", "cx", "cy"];
 /* (module Js above shadows Js_of_ocaml.Js: qualify explicitly) */
 let attr_of =
@@ -419,8 +423,12 @@ let go = (): unit => {
   | Some(b) =>
     let did_anything = ref(arrivals != [] || visible != []);
     let wait =
-      b.b_stagger > 0 && stagger_total^ > 0
-        ? max(stagger_span(b.b_stagger), arrival_span_override^) + 120 : 0;
+      switch (movers_at^) {
+      | Some(ms) => max(0, ms - b.b_delay)
+      | None =>
+        b.b_stagger > 0 && stagger_total^ > 0
+          ? max(stagger_span(b.b_stagger), arrival_span_override^) + 120 : 0
+      };
     /* morph tracked geometry on the movers' timing */
     List.iter(
       ((id, olds)) =>
@@ -534,6 +542,7 @@ let go = (): unit => {
     if (did_anything^ || now_ms() -. b.b_staged_at > beat_expiry_ms) {
       beat := None;
       arrival_schedule := [];
+      movers_at := None;
     };
   };
 };
@@ -561,9 +570,14 @@ module Actions = {
             delay:
               delay
               + (
-                stagger > 0 && stagger_total^ > 0
-                  ? max(stagger_span(stagger), arrival_span_override^) + 120
-                  : 0
+                switch (movers_at^) {
+                | Some(ms) => max(0, ms - delay)
+                | None =>
+                  stagger > 0 && stagger_total^ > 0
+                    ? max(stagger_span(stagger), arrival_span_override^)
+                      + 120
+                    : 0
+                }
               ),
           },
           keyframes: Keyframes.translate(~scale, init, final),

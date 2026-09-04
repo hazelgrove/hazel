@@ -112,6 +112,99 @@ let last_beat: ref(float) = ref(0.);
 /* dwell owed by the beat currently shown */
 let cur_dwell: ref(float) = ref(dwell_base_ms);
 let tick_pending: ref(bool) = ref(false);
+/* the tool label of the beat now on screen, for attribution */
+let shown_label: ref(option(string)) = ref(None);
+
+/* manual trials (__canvasBurst) embody an avatar for a while */
+let fake_busy_until: ref(float) = ref(0.);
+let fake_busy = (): bool => now() < fake_busy_until^;
+
+/* ---- per-turn statistics (A4/E1): where the agent's time goes ---- */
+type turn_stats = {
+  mutable t_busy: float,
+  mutable t_first_tool: option(float),
+  mutable tools: int,
+  mutable change_ms: float, /* time the canvas showed a structural change */
+  mutable last_change: option(float),
+  mutable longest_quiet: float,
+  mutable lags: list(float), /* queued -> shown, per content beat */
+  mutable turn_no: int,
+};
+let turn: ref(option(turn_stats)) = ref(None);
+let turn_summaries: ref(list(string)) = ref([]);
+let note_agent_busy = (busy: bool): unit =>
+  switch (busy, turn^) {
+  | (true, None) =>
+    turn :=
+      Some({
+        t_busy: now(),
+        t_first_tool: None,
+        tools: 0,
+        change_ms: 0.,
+        last_change: None,
+        longest_quiet: 0.,
+        lags: [],
+        turn_no: CanvasLog.turn_no(),
+      })
+  | (false, Some(t)) =>
+    let end_ = now();
+    let quiet_tail =
+      switch (t.last_change) {
+      | Some(lc) => end_ -. lc
+      | None => end_ -. t.t_busy
+      };
+    let longest = max(t.longest_quiet, quiet_tail);
+    let busy_s = (end_ -. t.t_busy) /. 1000.;
+    let n = List.length(t.lags);
+    let summary =
+      Printf.sprintf(
+        "turn %d summary: busy %.1fs | think before first tool %s | %d tool(s) | canvas change %.1fs (%.0f%%) | longest quiet %.1fs | lag %s",
+        t.turn_no,
+        busy_s,
+        switch (t.t_first_tool) {
+        | Some(f) => Printf.sprintf("%.1fs", (f -. t.t_busy) /. 1000.)
+        | None => "-"
+        },
+        t.tools,
+        t.change_ms /. 1000.,
+        busy_s > 0. ? 100. *. t.change_ms /. 1000. /. busy_s : 0.,
+        longest /. 1000.,
+        n == 0
+          ? "-"
+          : Printf.sprintf(
+              "avg %.1fs max %.1fs",
+              List.fold_left((+.), 0., t.lags) /. float_of_int(n) /. 1000.,
+              List.fold_left(max, 0., t.lags) /. 1000.,
+            ),
+      );
+    CanvasLog.log(summary);
+    turn_summaries := [summary, ...turn_summaries^];
+    turn := None;
+  | _ => ()
+  };
+let note_tool = (): unit =>
+  switch (turn^) {
+  | Some(t) =>
+    t.tools = t.tools + 1;
+    if (t.t_first_tool == None) {
+      t.t_first_tool = Some(now());
+    };
+  | None => ()
+  };
+/* a content beat is on screen for dwell ms, queued lag ms ago */
+let note_change = (~dwell: float, ~lag: float): unit =>
+  switch (turn^) {
+  | Some(t) =>
+    let tnow = now();
+    switch (t.last_change) {
+    | Some(lc) => t.longest_quiet = max(t.longest_quiet, tnow -. lc)
+    | None => t.longest_quiet = max(t.longest_quiet, tnow -. t.t_busy)
+    };
+    t.last_change = Some(tnow);
+    t.change_ms = t.change_ms +. dwell;
+    t.lags = [lag, ...t.lags];
+  | None => ()
+  };
 
 let in_burst = (): bool => now() -. last_agent_action^ < burst_window_ms;
 
@@ -203,6 +296,7 @@ let push_snapshot =
     )
     : unit => {
   note_agent_action();
+  note_tool();
   let before = List.length(queue^) + 1;
   queue :=
     coalesce(
@@ -411,6 +505,10 @@ let observe =
             List.length(rest),
           ),
         );
+        shown_label := next.b_label;
+        if (w > 0) {
+          note_change(~dwell=cur_dwell^, ~lag=t -. next.b_queued);
+        };
         switch (next.b_label) {
         | Some(l) =>
           last_toast := Some((l, t));
@@ -439,8 +537,14 @@ let observe =
 let tick_fired = (): unit => tick_pending := false;
 
 /* the choreography for the beat just shown needs at least this long */
-let extend_dwell = (ms: float): unit =>
+let extend_dwell = (ms: float): unit => {
+  let before = cur_dwell^;
   cur_dwell := min(dwell_max_ms, max(cur_dwell^, ms));
+  switch (turn^) {
+  | Some(t) => t.change_ms = t.change_ms +. (cur_dwell^ -. before)
+  | None => ()
+  };
+};
 
 /* the canvas should trust beat-carried avatar sites while beats are
    what's on screen */

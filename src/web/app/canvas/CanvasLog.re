@@ -21,6 +21,7 @@ let next_turn = (): int => {
   turn := turn^ + 1;
   turn^;
 };
+let turn_no = (): int => turn^;
 let entries: ref(list(string)) = ref([]); /* newest first */
 let count: ref(int) = ref(0);
 let t0: ref(float) = ref(0.);

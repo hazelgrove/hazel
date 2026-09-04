@@ -469,6 +469,370 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
 let enact_edges = (~zoom: float, edges: list(new_edge)): unit =>
   enact_beat(~zoom, edges);
 
+/* ======================= the score player =======================
+   CanvasScore decides WHAT happens WHEN; this only maps its acts onto
+   the rendered DOM (Web Animations), one frame after the beat lands.
+   Node/pill arrivals are Animation's (fed the score's times before the
+   render); rides, formations, ripples, the camera and the avatar's own
+   path are scheduled here from the same score. */
+
+let screen_of_board =
+    (~zoom: float, p: CanvasLayout.pos): option((float, float)) =>
+  switch (
+    Js.Opt.to_option(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.document,
+        "querySelector",
+        [|str(".canvas-root")|],
+      ),
+    )
+  ) {
+  | None => None
+  | Some(root) =>
+    let r = Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+    let left: float = Js.Unsafe.get(r, "left")
+    and top: float = Js.Unsafe.get(r, "top");
+    Some((left +. p.x *. zoom, top +. p.y *. zoom));
+  };
+
+let node_screen = (k: string): option((float, float)) =>
+  by_id(CanvasView.node_dom_id(k)) |> Option.map(center_of);
+
+let mean = (ps: list((float, float))): option((float, float)) =>
+  switch (ps) {
+  | [] => None
+  | _ =>
+    let n = float_of_int(List.length(ps));
+    Some((
+      List.fold_left((s, (x, _)) => s +. x, 0., ps) /. n,
+      List.fold_left((s, (_, y)) => s +. y, 0., ps) /. n,
+    ));
+  };
+
+/* the arrow pulled along its path from t for dur ms; returns the
+   avatar's waypoints along the ride */
+let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
+  switch (by_id(CanvasView.path_dom_id(name))) {
+  | None => []
+  | Some(path) =>
+    cancel_anims(path);
+    let (total, pts) = sample_path(path);
+    if (total < 8.) {
+      [];
+    } else {
+      let marker = get_attr(path, "marker-end");
+      switch (marker) {
+      | Some(_) => set_attr(path, "marker-end", "none")
+      | None => ()
+      };
+      set_attr(
+        path,
+        "stroke-dasharray",
+        Printf.sprintf("%.1f %.1f", total, total),
+      );
+      animate(
+        path,
+        [
+          [("strokeDashoffset", num(total))],
+          [("strokeDashoffset", num(0.))],
+        ],
+        [
+          ("duration", num(dur)),
+          ("delay", num(t)),
+          ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
+          ("fill", str("backwards")),
+        ],
+      );
+      later(
+        t +. dur,
+        () => {
+          switch (marker) {
+          | Some(m) => set_attr(path, "marker-end", m)
+          | None => ()
+          };
+          clear_dash(path);
+        },
+      );
+      let n = float_of_int(List.length(pts) - 1);
+      List.mapi((i, p) => (p, t +. dur *. float_of_int(i) /. n), pts);
+    };
+  };
+
+/* a product dot forming from its parts: the avatar visits each part,
+   the lines draw into the dot, the dot grows */
+let formation =
+    (~t: float, ~dur: float, pk: string, parts: list(string))
+    : list(waypoint) =>
+  switch (by_id(CanvasView.node_dom_id(pk))) {
+  | None => []
+  | Some(dot) =>
+    let part_pts = List.filter_map(node_screen, parts);
+    let n = List.length(part_pts);
+    let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
+    let t_visited = t +. visit *. float_of_int(n);
+    cancel_anims(dot);
+    animate(
+      dot,
+      [
+        [("transform", str("scale(0)"))],
+        [("transform", str("scale(1)"))],
+      ],
+      [
+        ("duration", num(220.)),
+        ("delay", num(t_visited +. form_ms -. 160.)),
+        ("easing", str("cubic-bezier(0.34, 1.4, 0.64, 1)")),
+        ("fill", str("backwards")),
+      ],
+    );
+    List.iter(
+      k =>
+        switch (by_id(CanvasView.formation_dom_id(k, pk))) {
+        | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
+        | None => ()
+        },
+      parts,
+    );
+    List.mapi((i, p) => (p, t +. visit *. float_of_int(i + 1)), part_pts)
+    @ [(center_of(dot), t_visited +. form_ms)];
+  };
+
+let play = (~zoom: float, s: CanvasScore.score): unit => {
+  let wps: ref(list(waypoint)) = ref([]);
+  let add = (p, t) => wps := [(p, t), ...wps^];
+  let site_screen = (site: CanvasScore.site): option((float, float)) =>
+    switch (site) {
+    | Node(k) => node_screen(k)
+    | Centroid(ks) => mean(List.filter_map(node_screen, ks))
+    | Point(p) => screen_of_board(~zoom, p)
+    | Edge(name) =>
+      by_id(CanvasView.path_dom_id(name))
+      |> Util.OptUtil.and_then(path => {
+           let (total, pts) = sample_path(path);
+           total < 1. ? None : Some(List.hd(pts));
+         })
+    | Here => None
+    };
+  /* the actor: arrive after travel, hold through the effects */
+  List.iter(
+    ((t, a): (int, CanvasScore.act)) =>
+      switch (site_screen(a.at)) {
+      | Some(sp) =>
+        add(sp, float_of_int(t + a.travel_ms));
+        add(sp, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
+      | None => ()
+      },
+    s.acts,
+  );
+  /* the effects */
+  let vanish = ref(0);
+  List.iter(
+    ((t, a, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+      let tf = float_of_int(t);
+      switch (e.effect) {
+      | Ripple(site) =>
+        let erase = a.emote == CanvasScore.Erase;
+        later(tf, () =>
+          switch (
+            site_screen(site) |> Util.OptUtil.and_then(to_board(~zoom))
+          ) {
+          | Some(bp) =>
+            erase
+              ? CanvasRipple.suction(bp) : CanvasRipple.splash(~amp=4., bp)
+          | None => ()
+          }
+        );
+      | Draw(name) =>
+        List.iter(
+          ((p, t)) => add(p, t),
+          ride(~t=tf, ~dur=float_of_int(e.dur), name),
+        )
+      | Form(pk, parts) =>
+        List.iter(
+          ((p, t)) => add(p, t),
+          formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts),
+        )
+      | Vanish(_)
+      | Erase(_) => incr(vanish)
+      | Appear(_)
+      | Pill(_)
+      | Change(_)
+      | Drift
+      | Say(_) => ()
+      };
+    },
+    CanvasScore.effects_abs(s),
+  );
+  if (vanish^ > 0) {
+    CanvasLog.log(
+      Printf.sprintf("vanish: %d removal(s) not yet choreographed", vanish^),
+    );
+  };
+  /* the camera: the score's frames, each leading its act's travel */
+  List.iter(
+    ((t, f): (int, CanvasScore.frame)) =>
+      later(float_of_int(t), () =>
+        switch (CanvasCamera.pane()) {
+        | Some((aw, ah)) =>
+          CanvasLog.log(
+            Printf.sprintf(
+              "camera: scored frame -> (%.0f, %.0f)%s",
+              f.center.x,
+              f.center.y,
+              abs_float(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+                ? Printf.sprintf(
+                    " zoom %.2f -> %.2f",
+                    CanvasCamera.zoom_now^,
+                    f.zoom,
+                  )
+                : "",
+            ),
+          );
+          CanvasCamera.animate(
+            ~aw,
+            ~ah,
+            ~zoom=
+              abs_float(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+                ? Some(f.zoom) : None,
+            ~dur=450.,
+            ~easing=EaseInOut,
+            (f.center.x, f.center.y),
+          );
+        | None => ()
+        }
+      ),
+    s.frames,
+  );
+  CanvasCamera.scored_until :=
+    CanvasBuffer.now() +. float_of_int(s.total_ms) +. 500.;
+  /* the avatar: one timeline through every waypoint, sorted, so the
+     keyframe offsets can never run backwards */
+  let sorted =
+    List.stable_sort(
+      ((_, t1), (_, t2)) => compare(t1, t2),
+      List.rev(wps^),
+    );
+  switch (by_id(CanvasView.avatar_dom_id)) {
+  | Some(av) when sorted != [] =>
+    let (ax, ay) = center_of(av);
+    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
+    let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
+    let frame = ((x, y), at) => [
+      (
+        "transform",
+        str(
+          Printf.sprintf(
+            "translate(%.1fpx, %.1fpx)",
+            (x -. ax) /. zoom,
+            (y -. ay) /. zoom,
+          ),
+        ),
+      ),
+      ("offset", num(max(0., min(1., at /. total_ms)))),
+    ];
+    let start =
+      switch (CanvasBuffer.avatar_prev^) {
+      | Some(p) => p
+      | None => fst(List.hd(sorted))
+      };
+    let frames =
+      [frame(start, 0.)]
+      @ List.map(((p, at)) => frame(p, at), sorted)
+      @ [
+        [("transform", str("translate(0px, 0px)")), ("offset", num(1.))],
+      ];
+    cancel_anims(av);
+    animate(
+      av,
+      frames,
+      [("duration", num(total_ms)), ("easing", str("ease-in-out"))],
+    );
+    CanvasLog.log(
+      Printf.sprintf(
+        "play: %d act(s), avatar through %d waypoint(s) over %.1fs",
+        List.length(s.acts),
+        List.length(sorted),
+        total_ms /. 1000.,
+      ),
+    );
+  | _ =>
+    CanvasLog.log(
+      Printf.sprintf(
+        "play: %d act(s), no avatar on stage%s",
+        List.length(s.acts),
+        sorted == [] ? " (no waypoints)" : "",
+      ),
+    )
+  };
+};
+
+/* ---- the jump detector (B1): positions before a paced render vs after,
+   in board space so camera motion does not count; a move with no
+   animation covering it is a JUMP ---- */
+let jump_prev: ref(list((string, (float, float)))) = ref([]);
+let jump_scroll: ref(option((float, float))) = ref(None);
+let jump_snapshot = (~zoom: float): unit => {
+  let ids =
+    Util.JsUtil.ids_with_prefix("cnode-")
+    @ Util.JsUtil.ids_with_prefix("cedge-")
+    @ [CanvasView.avatar_dom_id];
+  jump_prev :=
+    List.filter_map(
+      id =>
+        by_id(id)
+        |> Util.OptUtil.and_then(el => to_board(~zoom, center_of(el)))
+        |> Option.map(p => (id, p)),
+      ids,
+    );
+  jump_scroll :=
+    (
+      switch (CanvasCamera.scroll_el()) {
+      | Some(el) =>
+        let el = Js.Unsafe.coerce(el);
+        Some((el##.scrollLeft, el##.scrollTop));
+      | None => None
+      }
+    );
+};
+let check_jumps = (~zoom: float): unit => {
+  let jumps =
+    List.filter_map(
+      ((id, (x0, y0))) =>
+        switch (by_id(id)) {
+        | Some(el) =>
+          switch (to_board(~zoom, center_of(el))) {
+          | Some((x1, y1)) =>
+            let d =
+              sqrt((x1 -. x0) *. (x1 -. x0) +. (y1 -. y0) *. (y1 -. y0));
+            let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+            let n: int = Js.Unsafe.get(anims, "length");
+            d > 3. && n == 0
+              ? Some(Printf.sprintf("%s %.0fpx", id, d)) : None;
+          | None => None
+          }
+        | None => None
+        },
+      jump_prev^,
+    );
+  if (jumps != []) {
+    CanvasLog.log("JUMP: " ++ String.concat(", ", jumps));
+  };
+  switch (jump_scroll^, CanvasCamera.scroll_el()) {
+  | (Some((sl0, st0)), Some(el)) =>
+    let el = Js.Unsafe.coerce(el);
+    let sl: float = el##.scrollLeft
+    and st: float = el##.scrollTop;
+    if ((abs_float(sl -. sl0) > 2. || abs_float(st -. st0) > 2.)
+        && CanvasCamera.inflight^ == None) {
+      CanvasLog.log(
+        Printf.sprintf("JUMP: camera (%.0f, %.0f) px", sl -. sl0, st -. st0),
+      );
+    };
+  | _ => ()
+  };
+  jump_prev := [];
+  jump_scroll := None;
+};
+
 /* run after the current render has been patched into the DOM */
 let after_render = (f: unit => unit): unit =>
   later(0., () =>
@@ -498,7 +862,19 @@ let install_testers = (): unit => {
     Js.Unsafe.set(
       g,
       "__canvasBurst",
-      Js.Unsafe.callback(() => CanvasBuffer.note_agent_action()),
+      Js.Unsafe.callback(() => {
+        CanvasBuffer.note_agent_action();
+        CanvasBuffer.fake_busy_until := CanvasBuffer.now() +. 12000.;
+      }),
+    );
+    Js.Unsafe.set(
+      g,
+      "__constellationStats",
+      Js.Unsafe.callback(() =>
+        Js.string(
+          String.concat("\n", List.rev(CanvasBuffer.turn_summaries^)),
+        )
+      ),
     );
     Js.Unsafe.set(
       g,

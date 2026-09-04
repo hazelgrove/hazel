@@ -694,6 +694,7 @@ let view =
     last_avatar_pos := None;
     last_avatar_id := None;
     last_followed := None;
+    CanvasCamera.reset_exposure();
     last_followed_busy := false;
     CanvasBuffer.beat_avatar := None;
     CanvasCamera.roi := [];
@@ -1981,6 +1982,7 @@ let view =
       )
     | None => (false, "")
     };
+  let agent_busy = agent_busy || CanvasBuffer.fake_busy();
   let avatar = {
     /* while beats are on screen, the avatar target rides them (captured
        per tool at exec time) instead of reading live agent state and
@@ -2084,10 +2086,25 @@ let view =
         )
       }
     );
+  switch (avail_width, avail_height) {
+  | (Some(aw), Some(ah)) =>
+    CanvasCamera.note_exposure(
+      ~aw,
+      ~ah,
+      List.map(
+        (nl: CanvasLayout.node_layout) => (nl.node.key, (nl.p.x, nl.p.y)),
+        lay.nodes,
+      ),
+    )
+  | _ => ()
+  };
   /* camera follow: a hop (or a resting avatar waking) hands the site to
      the camera; the dead zone decides whether it actually moves */
   switch (avatar, avail_width, avail_height) {
-  | (Some((p, _)), Some(aw), Some(ah)) when globals.settings.canvas_follow =>
+  | (Some((p, _)), Some(aw), Some(ah))
+      when
+        globals.settings.canvas_follow
+        && CanvasBuffer.now() >= CanvasCamera.scored_until^ =>
     let moved =
       switch (last_followed^) {
       | Some(lp: CanvasLayout.pos) =>
@@ -2104,6 +2121,7 @@ let view =
   };
   if (agent_busy != last_logged_busy^) {
     last_logged_busy := agent_busy;
+    CanvasBuffer.note_agent_busy(agent_busy);
     CanvasLog.log(
       agent_busy ? "agent: busy (awaiting reply)" : "agent: idle",
     );
@@ -2429,6 +2447,7 @@ let view =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
     if (prev_slide == slide
         && removed != []
+        && !(CanvasBuffer.pacing_live() && globals.settings.canvas_pace)
         && CanvasBuffer.now() > collapse_fx_until^) {
       if (List.length(removed) <= 4) {
         List.iter(((_, (x, y))) => CanvasRipple.suction((x, y)), removed);
@@ -2458,80 +2477,159 @@ let view =
           && !List.mem_assoc(nl.node.key, last_placed^),
         lay.nodes,
       );
-    if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
-      if (List.length(added) <= 12) {
-        /* splashes and the avatar's visits ride the exact arrival
-           schedule, post-render (CanvasEnact.enact_beat) */
-        List.iter(
-          (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
-          added,
-        );
-        {
-          /* the arrival schedule: each NEW type/product gets its own clear
-             moment; its terminals bloom with it; new pills come last */
-
-          let primaries =
-            List.filter(
-              (nl: CanvasLayout.node_layout) => nl.node.sat == None,
-              added,
-            );
-          let at = (i: int) =>
-            CanvasBuffer.lead_ms + i * CanvasBuffer.arrival_step_ms;
-          let prim_delay = (key: string): option(int) => {
-            let rec find =
-                    (i, ls: list(CanvasLayout.node_layout)): option(int) =>
-              switch (ls) {
-              | [] => Option.none
-              | [nl, ..._] when nl.node.key == key => Option.some(at(i))
-              | [_, ...rest] => find(i + 1, rest)
-              };
-            find(0, primaries);
-          };
-          let last = at(max(0, List.length(primaries) - 1));
-          let nodes_sched =
+    /* ---- the beat's score (A1): ONE plan from this render's diff. The
+       actor visits each new definition, pulls each new arrow, and the
+       rest of the graph drifts last. Arrival times feed Animation before
+       the render lands; the player runs one frame after it. ---- */
+    let (_, prev_edges) = last_edge_snapshot^;
+    let new_edges =
+      lay.edges
+      |> List.filter_map((el: CanvasLayout.edge_layout) =>
+           if (List.mem(el.edge.e_name, prev_edges)) {
+             None;
+           } else {
+             let product =
+               lay.nodes
+               |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                    nl.node.key == el.edge.e_src
+                  )
+               |> Util.OptUtil.and_then((nl: CanvasLayout.node_layout) =>
+                    nl.node.kind == CanvasGraph.Product
+                    && nl.node.parts != []
+                    && !List.mem_assoc(nl.node.key, prev_nodes)
+                      ? Some((nl.node.key, nl.node.parts)) : None
+                  );
+             Some(
+               CanvasScore.{
+                 name: el.edge.e_name,
+                 src: el.edge.e_src,
+                 dst: el.edge.dst,
+                 product,
+               },
+             );
+           }
+         );
+    let moved =
+      lay.nodes
+      |> List.filter_map((nl: CanvasLayout.node_layout) =>
+           switch (List.assoc_opt(nl.node.key, prev_nodes)) {
+           | Some((px, py))
+               when
+                 abs_float(px -. nl.p.x) > 1. || abs_float(py -. nl.p.y) > 1. =>
+             Some((
+               nl.node.key,
+               CanvasLayout.{
+                 x: px,
+                 y: py,
+               },
+               nl.p,
+             ))
+           | _ => None
+           }
+         );
+    let scored =
+      prev_slide == slide
+      && CanvasBuffer.pacing_live()
+      && globals.settings.canvas_pace
+      && (added != [] || new_edges != [] || removed != []);
+    if (scored) {
+      List.iter(
+        (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
+        added,
+      );
+      let pos_of = k =>
+        lay.nodes
+        |> List.find_opt((nl: CanvasLayout.node_layout) => nl.node.key == k)
+        |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+      let diff =
+        CanvasScore.{
+          d_cause: Option.value(~default="edit", CanvasBuffer.shown_label^),
+          added:
             List.map(
-              (nl: CanvasLayout.node_layout) => {
-                let d =
-                  switch (nl.node.sat) {
-                  | None =>
-                    Option.value(~default=last, prim_delay(nl.node.key))
-                  | Some((anchor, _)) =>
-                    Option.value(~default=last, prim_delay(anchor))
-                  };
-                (CanvasView.node_dom_id(nl.node.key), d);
-              },
+              (nl: CanvasLayout.node_layout) =>
+                CanvasScore.{
+                  key: nl.node.key,
+                  anchor: Option.map(fst, nl.node.sat),
+                  p: nl.p,
+                },
               added,
-            );
-          let (_, prev_edges) = last_edge_snapshot^;
-          let pills_sched =
-            lay.edges
-            |> List.filter((el: CanvasLayout.edge_layout) =>
-                 !List.mem(el.edge.e_name, prev_edges)
-               )
-            |> List.map((el: CanvasLayout.edge_layout) =>
-                 (CanvasView.edge_dom_id(el.edge.e_name), last + 400)
-               );
-          Animation.set_arrival_schedule(nodes_sched @ pills_sched);
-          CanvasBuffer.extend_dwell(float_of_int(last + 400) +. 900.);
-        };
-        CanvasLog.log(
-          Printf.sprintf(
-            "+%d node(s): %s (rainfall + grow-in)",
-            List.length(added),
-            String.concat(
-              ", ",
-              List.map((nl: CanvasLayout.node_layout) => nl.node.key, added),
             ),
-          ),
-        );
-      } else {
-        CanvasLog.log(
-          Printf.sprintf(
-            "+%d nodes at once (arrival effects skipped)",
-            List.length(added),
-          ),
-        );
-      };
+          edges: new_edges,
+          removed:
+            List.map(
+              ((k, (x, y))) =>
+                (
+                  k,
+                  CanvasLayout.{
+                    x,
+                    y,
+                  },
+                ),
+              removed,
+            ),
+          moved,
+          actor: last_avatar_pos^,
+        };
+      let score = CanvasScore.plan(~pos_of, diff);
+      let score =
+        switch (avail_width, avail_height) {
+        | (Some(aw), Some(ah)) when globals.settings.canvas_follow =>
+          switch (CanvasCamera.center(~aw, ~ah)) {
+          | Some((cx, cy)) =>
+            CanvasScore.with_frames(
+              ~pane=(aw, ah),
+              ~cur=
+                CanvasScore.{
+                  center:
+                    CanvasLayout.{
+                      x: cx,
+                      y: cy,
+                    },
+                  zoom: CanvasCamera.zoom_now^,
+                },
+              ~pos_of,
+              ~all_keys=cur_keys,
+              ~exposed=CanvasCamera.exposed_keys(),
+              score,
+            )
+          | None => score
+          }
+        | _ => score
+        };
+      /* Appear/Pill times drive Animation's arrivals; movers wait for
+         the drift act */
+      let pills =
+        CanvasScore.effects_abs(score)
+        |> List.filter_map(((t, _, e: CanvasScore.timed_effect)) =>
+             switch (e.effect) {
+             | Pill(name) => Some((CanvasView.edge_dom_id(name), t))
+             | _ => None
+             }
+           );
+      Animation.set_arrival_schedule(
+        List.map(
+          ((k, t)) => (CanvasView.node_dom_id(k), t),
+          CanvasScore.appear_times(score),
+        )
+        @ pills,
+      );
+      Animation.set_movers_at(CanvasScore.drift_at(score));
+      CanvasBuffer.extend_dwell(float_of_int(score.total_ms) +. 600.);
+      CanvasLog.log(CanvasScore.to_string(score));
+      List.iter(
+        v => CanvasLog.log("SCORE: " ++ v),
+        CanvasScore.validate(score),
+      );
+      let zoom = CanvasCamera.zoom_now^;
+      CanvasEnact.jump_snapshot(~zoom);
+      CanvasEnact.after_render(() => {
+        CanvasEnact.check_jumps(~zoom);
+        CanvasEnact.play(~zoom, score);
+      });
+    } else if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
+      CanvasLog.log(
+        Printf.sprintf("+%d node(s) (unscored render)", List.length(added)),
+      );
     };
     {
       /* data-flow pulses: when a function's output samples GROW, send a
@@ -2621,53 +2719,10 @@ let view =
         ),
       );
 
-    /* new function edges during a paced agent beat: enact them (the
-       avatar pulls each arrow from domain to codomain) once the DOM
-       for this render exists */
-    let (prev_slide, prev_edges) = last_edge_snapshot^;
+    /* the edge set for the next render's diff (edges are enacted by the
+       score planned above) */
     let cur_edges =
       List.map((el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
-    /* new edges, each with its source product when that product is
-       itself new this beat (a multi-argument function being created) */
-    let added_edges =
-      lay.edges
-      |> List.filter_map((el: CanvasLayout.edge_layout) =>
-           if (List.mem(el.edge.e_name, prev_edges)) {
-             None;
-           } else {
-             let product =
-               lay.nodes
-               |> List.find_opt((nl: CanvasLayout.node_layout) =>
-                    nl.node.key == el.edge.e_src
-                  )
-               |> Util.OptUtil.and_then((nl: CanvasLayout.node_layout) =>
-                    nl.node.kind == CanvasGraph.Product
-                    && nl.node.parts != []
-                    && !List.mem_assoc(nl.node.key, prev_nodes)
-                      ? Some((nl.node.key, nl.node.parts)) : None
-                  );
-             Some(
-               CanvasEnact.{
-                 ne_name: el.edge.e_name,
-                 ne_product: product,
-               },
-             );
-           }
-         );
-    let any_new_nodes =
-      List.exists(
-        (nl: CanvasLayout.node_layout) =>
-          !List.mem_assoc(nl.node.key, prev_nodes),
-        lay.nodes,
-      );
-    if (prev_slide == slide
-        && (added_edges != [] || any_new_nodes)
-        && CanvasBuffer.pacing_live()
-        && globals.settings.canvas_pace) {
-      CanvasEnact.after_render(() =>
-        CanvasEnact.enact_beat(~zoom=CanvasCamera.zoom_now^, added_edges)
-      );
-    };
     last_edge_snapshot := (slide, cur_edges);
   };
   /* telegraph state for CanvasView: rubber-band anchors + grow-in key */

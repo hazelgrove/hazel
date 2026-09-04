@@ -40,6 +40,24 @@ let driving_until: ref(float) = ref(0.);
 let mark_driving = (): unit => driving_until := now() +. 220.;
 /* a manual wheel zoom pins the zoom against ROI adjustments for a while */
 let user_zoom_until: ref(float) = ref(0.);
+/* while a score drives the camera, the generic follow stands down */
+let scored_until: ref(float) = ref(0.);
+
+/* ---- exposure (C2): how long each node has been in frame. New until
+   it has been seen for exposed_after_ms; only then may the camera let
+   it go. ---- */
+let exposure: ref(list((string, float))) = ref([]);
+let exposed_after_ms = 2000.;
+let last_exposure_tick: ref(float) = ref(0.);
+let exposed_keys = (): list(string) =>
+  List.filter_map(
+    ((k, ms)) => ms >= exposed_after_ms ? Some(k) : None,
+    exposure^,
+  );
+let reset_exposure = (): unit => {
+  exposure := [];
+  last_exposure_tick := 0.;
+};
 let note_user_zoom = (): unit => user_zoom_until := now() +. 10000.;
 /* user scrolled since the last glide (informational; the dead-zone rule
    already lets manual panning win between hops) */
@@ -378,6 +396,32 @@ and follow_site = (~aw: float, ~ah: float, dest: (float, float)): unit => {
 
 /* console testers: __canvasCameraTo(x, y[, z]) and __canvasFollowTo(x, y)
    drive the camera against the live pane (pane size from the DOM) */
+/* called per render with the nodes' board positions; credits the time
+   since the last render (capped) to every node inside the viewport */
+let note_exposure =
+    (~aw: float, ~ah: float, nodes: list((string, (float, float)))): unit =>
+  switch (center(~aw, ~ah)) {
+  | None => ()
+  | Some((cx, cy)) =>
+    let t = now();
+    let dt =
+      last_exposure_tick^ == 0. ? 0. : min(500., t -. last_exposure_tick^);
+    last_exposure_tick := t;
+    let z = zoom_now^;
+    let hw = aw /. 2. /. z
+    and hh = ah /. 2. /. z;
+    exposure :=
+      List.map(
+        ((k, (x, y))) => {
+          let inside =
+            x >= cx -. hw && x <= cx +. hw && y >= cy -. hh && y <= cy +. hh;
+          let prev = Option.value(~default=0., List.assoc_opt(k, exposure^));
+          (k, inside ? prev +. dt : prev);
+        },
+        nodes,
+      );
+  };
+
 let pane = (): option((float, float)) =>
   switch (scroll_el()) {
   | Some(el) =>

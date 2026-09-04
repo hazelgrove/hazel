@@ -149,6 +149,25 @@ let handle_llm_response =
                 /* each applied call is its own canvas beat: the whole
                    multi-tool reply is ONE app action, so intermediate
                    states must be captured here or never seen */
+                /* the tool's snapshot carries its OWN statics (computed
+                   here, synchronously) so the beat shows exactly this
+                   tool's change and never borrows the next one's */
+                let snap = {
+                  let ed = step_u.model.editor;
+                  Haz3lcore.Id.Map.is_empty(ed.statics.info_map)
+                    ? {
+                      ...ed,
+                      statics:
+                        Haz3lcore.CachedStatics.init(
+                          ~settings=settings.core,
+                          ~is_dynamic_term=false,
+                          ~stitch=x => x,
+                          ~root=ed.editor.root,
+                          ed.editor.state.zipper,
+                        ),
+                    }
+                    : ed;
+                };
                 CanvasBuffer.push_snapshot(
                   ~label=tc.name,
                   /* capture the tool's work site NOW so the avatar hops
@@ -156,7 +175,7 @@ let handle_llm_response =
                   ~avatar={
                     switch (msg.role) {
                     | ToolResult(tr) when !tr.skipped =>
-                      let ed = step_u.model.editor;
+                      let ed = snap;
                       let node_map =
                         Haz3lcore.HighLevelNodeMap.build(
                           ed.editor.state.zipper,
@@ -173,7 +192,7 @@ let handle_llm_response =
                     | _ => None
                     };
                   },
-                  step_u.model.editor,
+                  snap,
                 );
                 let failed =
                   switch (msg.role) {
