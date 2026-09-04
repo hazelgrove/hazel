@@ -768,9 +768,17 @@ module ChatMessagesScrollHook = {
       state.listener_id = Some(id);
     };
 
+    /* every render while pinned, not only when the stamp changes: streamed
+       reasoning grows the list between stamps, and the first stretch of a
+       run would not scroll until a message landed */
     let update =
-        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
-      if (old_input != new_input && state.stick_to_bottom) {
+        (
+          ~old_input as _: Input.t,
+          ~new_input as _: Input.t,
+          state: State.t,
+          element,
+        ) =>
+      if (state.stick_to_bottom) {
         scroll_to_bottom(element);
         schedule_scroll_to_bottom(element);
       };

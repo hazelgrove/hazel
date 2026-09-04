@@ -708,6 +708,9 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     ~prefixes=["cnode-", "cedge-", "cval-", CanvasView.avatar_dom_id],
     ~until_ms=CanvasBuffer.now() +. float_of_int(s.total_ms) +. 300.,
   );
+  /* the mood ends with the score: between scores the agent's state class
+     (thinking while busy) decides the rig's look */
+  later(float_of_int(s.total_ms) +. 200., () => CanvasAvatar.set_mood(""));
   /* at rest every line is visible with its arrowhead: a line hidden for
      an act that never rode it (its path did not exist yet, or the act was
      cut) would otherwise stay dashed away with its marker stashed */

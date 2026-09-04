@@ -585,20 +585,28 @@ let avatar_target =
         |> List.rev
         |> List.find_map((m: Message.Model.t) =>
              switch (m.role) {
-             | ToolResult(tr) => Some(tr)
+             | ToolResult(tr) => Some((tr, m.timestamp))
              | _ => None
              }
            );
       switch (last_tool) {
       | None => None
-      | Some(tr) =>
+      | Some((tr, landed_at)) =>
         let busy =
           agent.awaiting_response == Some(cs.current)
-          || agent.pending_dispatch_send == Some(cs.current);
+          || agent.pending_dispatch_send == Some(cs.current)
+          || CanvasBuffer.fake_busy(); /* a replay's agent */
+        /* "edit" only around a landed edit (a score playing it, or one
+           just landed); a busy agent is otherwise THINKING — before this,
+           any earlier success kept it in edit for the rest of the run */
+        let editing =
+          CanvasBuffer.score_playing()
+          || CanvasBuffer.now()
+          -. landed_at < 1500.;
         let state =
           if (!tr.success) {
             "err";
-          } else if (busy) {
+          } else if (busy && editing) {
             "edit";
           } else {
             "";
@@ -2093,7 +2101,14 @@ let view_impl =
             y,
           };
         last_avatar_pos := Some(p);
-        Some((p, agent_busy ? "edit" : ""));
+        /* the state comes from the last tool result (edit only around a
+           landed edit, thinking otherwise) — busy alone is not editing */
+        let st =
+          switch (resolved_from_target) {
+          | Some((_, st)) => st
+          | None => ""
+          };
+        Some((p, agent_busy ? st : ""));
       | None => resolved_from_target
       };
     switch (resolved) {
