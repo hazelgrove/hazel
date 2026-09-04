@@ -588,7 +588,7 @@ module View = {
       Effect.bind(ClipboardUtil.read_clipboard(), ~f=text =>
         inject(
           Perform(
-            Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text)),
+            Haz3lcore.Action.Paste(Util_web.StringUtil.trim_leading(text)),
           ),
         )
       );

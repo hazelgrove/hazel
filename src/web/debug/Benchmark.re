@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let sample_1 = {|# Hazel Language Quick Reference #
 

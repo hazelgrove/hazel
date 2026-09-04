@@ -35,7 +35,7 @@ let abbreviate_and_render = (~available: int, src: string): string => {
 
 /* Measure rendered string length (display chars, matching ProbeProj.len_seg) */
 let rendered_length = (~available: int, src: string): int => {
-  Util.Unicode.length(abbreviate_and_render(~available, src));
+  Util_web.Unicode.length(abbreviate_and_render(~available, src));
 };
 
 /* Full-length render (no abbreviation) */
@@ -47,7 +47,7 @@ let full_render = (src: string): string => {
 };
 
 let full_length = (src: string): int => {
-  Util.Unicode.length(full_render(src));
+  Util_web.Unicode.length(full_render(src));
 };
 
 /* Check monotonicity: sweeping budget from 0 to full_len,
@@ -60,7 +60,7 @@ let check_monotonicity = (name: string, src: string): unit => {
       ();
     } else {
       let rendered = abbreviate_and_render(~available=budget, src);
-      let len = Util.Unicode.length(rendered);
+      let len = Util_web.Unicode.length(rendered);
       if (len < prev_len && violation^ == None) {
         violation :=
           Some(
@@ -299,7 +299,7 @@ let check_hard_cap = (name: string, src: string): unit => {
       ();
     } else {
       let rendered = abbreviate_and_render(~available=budget, src);
-      let len = Util.Unicode.length(rendered);
+      let len = Util_web.Unicode.length(rendered);
       if (len > budget && violation^ == None) {
         violation :=
           Some(

@@ -1,10 +1,10 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 
 let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
 let meta = (): string => {
-  let sys = Util.Os.is_mac^ ? Util.Key.Mac : PC;
+  let sys = Util_web.Os.is_mac^ ? Util_web.Key.Mac : PC;
   switch (sys) {
   | Mac => "cmd"
   | PC => "ctrl"

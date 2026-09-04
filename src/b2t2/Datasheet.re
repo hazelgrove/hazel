@@ -7,4 +7,4 @@
 let content = [%blob "Datasheet.md"];
 
 let slide_text: string =
-  "^^text(\"" ++ Util.StringUtil.escape_linebreaks(content) ++ "\")";
+  "^^text(\"" ++ Util_web.StringUtil.escape_linebreaks(content) ++ "\")";

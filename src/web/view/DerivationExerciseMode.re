@@ -1,6 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Util;
+open Util_web;
 open Language;
 open Node;
 
@@ -452,9 +452,9 @@ module Update = {
             model.editors.setup,
           ),
         trees: {
-          List.map2(Util.Tree.combine, cells.trees, model.editors.trees)
+          List.map2(Util_web.Tree.combine, cells.trees, model.editors.trees)
           |> List.map(
-               Util.Tree.map(
+               Util_web.Tree.map(
                  fun
                  | (
                      Some(di: CellEditor.Model.t),

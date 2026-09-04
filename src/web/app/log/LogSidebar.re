@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util_web.WebUtil;
-open Util;
+open Util_web;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -93,7 +93,7 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
             ~tooltip="Import log file and reset state",
             ~onclick=
               _ => {
-                let elem = Util.JsUtil.get_elem_by_id("log-import-input");
+                let elem = Util_web.JsUtil.get_elem_by_id("log-import-input");
                 elem##click;
                 Ui_effect.Ignore;
               },

@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 /* This file handles the pagenation of Exercise Mode, and switching between
    exercises. CodeExerciseMode.re / DerivationExerciseMode.re /

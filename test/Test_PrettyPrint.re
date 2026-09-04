@@ -27,7 +27,7 @@ let format =
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
     Printer.of_segment(~holes="?", ~indent="  ", pretty)
-    |> Util.StringUtil.trim_trailing_whitespace;
+    |> Util_web.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
 };
@@ -41,7 +41,7 @@ let format_seg =
   | Some(segment) =>
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
     Printer.of_segment(~holes="?", ~indent=" ", pretty)
-    |> Util.StringUtil.trim_trailing_whitespace;
+    |> Util_web.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
   };
 };

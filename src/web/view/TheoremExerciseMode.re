@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 
 /* The exercises mode interface for a theorem exercise. Composed of multiple editors and results. */
 

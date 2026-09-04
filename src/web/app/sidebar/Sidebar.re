@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util_web.WebUtil;
 open Js_of_ocaml;
-open Util.JsUtil;
+open Util_web.JsUtil;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);

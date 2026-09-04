@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 
 let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   editor:

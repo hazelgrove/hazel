@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 open Util_web.WebUtil;
 open Haz3lcore;
 open Language;
@@ -355,7 +355,7 @@ let view =
       Option.bind(pinned_stack, stack =>
         Option.map(
           (f: CallStack.frame) => f.id,
-          Util.ListUtil.hd_opt(stack),
+          Util_web.ListUtil.hd_opt(stack),
         )
       );
 

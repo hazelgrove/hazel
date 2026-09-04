@@ -5,7 +5,11 @@
 
 include Util;
 
+module API = API;
 module BonsaiUtil = BonsaiUtil;
+module FloatingElement = FloatingElement;
+module JsUtil = JsUtil;
+module OpenRouter = OpenRouter;
 module ClipboardUtil = ClipboardUtil;
 module ColumnMenuListener = ColumnMenuListener;
 module ContextMenuListener = ContextMenuListener;

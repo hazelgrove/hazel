@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

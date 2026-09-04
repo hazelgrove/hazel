@@ -1,5 +1,5 @@
 open Zipper;
-open Util;
+open Util_web;
 open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */

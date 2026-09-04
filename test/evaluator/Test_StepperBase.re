@@ -1,7 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
-open Util;
+open Util_web;
 open Haz3lcore;
 
 // Import StepperBase types from web module

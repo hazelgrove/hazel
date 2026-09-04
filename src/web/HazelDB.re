@@ -39,21 +39,21 @@ let with_db = (f): unit => {
 
 /* === In-memory cache (private) === */
 
-let cache: ref(Util.Maps.StringMap.t(string)) =
-  ref(Util.Maps.StringMap.empty);
+let cache: ref(Util_web.Maps.StringMap.t(string)) =
+  ref(Util_web.Maps.StringMap.empty);
 
 /* === KV operations === */
 
 let kv_save = (key: string, value: string): unit => {
-  cache := Util.Maps.StringMap.add(key, value, cache^);
+  cache := Util_web.Maps.StringMap.add(key, value, cache^);
   with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
 };
 
 let kv_get = (key: string): option(string) =>
-  Util.Maps.StringMap.find_opt(key, cache^);
+  Util_web.Maps.StringMap.find_opt(key, cache^);
 
 let kv_clear = (~callback=() => (), ()): unit => {
-  cache := Util.Maps.StringMap.empty;
+  cache := Util_web.Maps.StringMap.empty;
   let error = _ => print_endline("ERROR: HazelDB.kv_clear");
   with_db(db => IDBStore.clear(~error, ~callback, kv_store(db)));
 };
@@ -71,8 +71,8 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       pairs => {
         cache :=
           List.fold_left(
-            (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
-            Util.Maps.StringMap.empty,
+            (m, (k, v)) => Util_web.Maps.StringMap.add(k, v, m),
+            Util_web.Maps.StringMap.empty,
             pairs,
           );
         callback(pairs);
@@ -109,7 +109,7 @@ let clear_all = (~callback=() => (), ()): unit => {
   }) {
   | _ => ()
   };
-  cache := Util.Maps.StringMap.empty;
+  cache := Util_web.Maps.StringMap.empty;
   let remaining = ref(2);
   let on_done = () => {
     decr(remaining);

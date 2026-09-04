@@ -2,7 +2,7 @@
     and matching [[ApiErrorResponse]] ignore paths — deterministic (no HTTP). */
 open Alcotest;
 open Haz3lcore;
-open Util;
+open Util_web;
 open Web;
 
 let mk_reply =

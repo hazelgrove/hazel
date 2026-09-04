@@ -5,7 +5,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
-open Util;
+open Util_web;
 
 /* ----------------------- parsing helpers ----------------------- */
 

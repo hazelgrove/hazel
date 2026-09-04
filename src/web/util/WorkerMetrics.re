@@ -73,9 +73,9 @@ let structured_clone: 'a. 'a => 'a =
 
 let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
   f => {
-    let t0 = Util.JsUtil.precise_timestamp();
+    let t0 = Util_web.JsUtil.precise_timestamp();
     let x = f();
-    (Core.Time_ns.Span.of_ms(Util.JsUtil.precise_timestamp() -. t0), x);
+    (Core.Time_ns.Span.of_ms(Util_web.JsUtil.precise_timestamp() -. t0), x);
   };
 
 /* Measure encode -> size -> structuredClone -> decode for one direction. Each
@@ -123,7 +123,7 @@ let measure:
   };
 
 let push = (r: record): unit =>
-  history := [r, ...Util.ListUtil.take(history_limit - 1, history^)];
+  history := [r, ...Util_web.ListUtil.take(history_limit - 1, history^)];
 
 let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit => {
   let request =

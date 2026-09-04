@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
@@ -64,7 +64,7 @@ module Scratchpad = {
             ~refractors=current_zipper.refractors.manuals,
             current_segment,
           )
-          == Util.StringUtil.strip_final_newline(
+          == Util_web.StringUtil.strip_final_newline(
                pce.editor.zipper.backup_text,
              )
         };
@@ -392,7 +392,7 @@ module Persist = {
       {
         ...model,
         scratchpads:
-          Util.ListUtil.put_nth(
+          Util_web.ListUtil.put_nth(
             model.current,
             load_scratchpad(~settings, prefix, sp.name),
             model.scratchpads,

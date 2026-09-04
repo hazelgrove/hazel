@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Virtual_dom.Vdom;
 open Vdom_input_widgets;
 open ProjectorBase;

@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 
 /* For Unicode graphemes (emoji, CJK, fullwidth forms) which do not conform
    to the character grid, we render them as a single cell with a width

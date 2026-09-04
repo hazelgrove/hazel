@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let update_definition_description = {|
 Replaces the definition (the right-hand side of `=`, before `in`) of the binding at the given path.

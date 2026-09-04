@@ -3,7 +3,7 @@
     [prompt_factory/]. The live agent system prompt excerpt is appended at
     runtime so the summarizer shares the same language guide, few-shot
     examples, and tool documentation as Filbert — up to a character budget. */
-open Util;
+open Util_web;
 
 let compaction_system_prompt_max_chars = 12000;
 

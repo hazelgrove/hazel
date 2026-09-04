@@ -1,5 +1,5 @@
 open Zipper;
-open Util;
+open Util_web;
 open OptUtil.Syntax;
 
 /* Captures the UUID of a single grout or tile about to be deleted

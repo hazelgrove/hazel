@@ -2,7 +2,7 @@
  * This file contains tests to validate the `MakeTerm` module's ability to convert
  * zippers into expressions.
  */
-open Util;
+open Util_web;
 open Alcotest;
 open Haz3lcore;
 open Action;

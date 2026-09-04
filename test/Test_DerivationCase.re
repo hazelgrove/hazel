@@ -345,7 +345,9 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   let z =
     switch (id_opt) {
     | Some(id) =>
-      switch (Haz3lcore.Move.jump_to_side_of_id(Util.Direction.Left, z, id)) {
+      switch (
+        Haz3lcore.Move.jump_to_side_of_id(Util_web.Direction.Left, z, id)
+      ) {
       | Some(z) => z
       | None => z
       }

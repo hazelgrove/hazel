@@ -1,0 +1,160 @@
+type token =
+    WILD
+  | VOID_TYPE
+  | USE
+  | UNKNOWN
+  | UNIT
+  | UNDEF
+  | T_TYP
+  | TYP_FUN
+  | TYP_AP_SYMBOL
+  | TYP
+  | TURNSTILE
+  | TUPLE_EXTENSION
+  | TRUE
+  | TP_TPAT
+  | TIMES_FLOAT
+  | TIMES
+  | TILDE
+  | THEN
+  | TEST
+  | STRING_TYPE
+  | STRING_CONCAT
+  | STRING of string
+  | SLASH_TILDE
+  | SINT_TYPE
+  | SINGLE_EQUAL
+  | SEMI_COLON
+  | REC
+  | QUOTED_LABEL of string
+  | QUESTION
+  | P_PAT
+  | PROJECTOR_INVOKE of string
+  | POWER_FLOAT
+  | POWER
+  | POLY
+  | PLUS_FLOAT
+  | PLUS
+  | PIPELINE
+  | PAUSE
+  | OPEN_TRIPLE_CURLY
+  | OPEN_SQUARE_BRACKET
+  | OPEN_PAREN
+  | OPEN_CURLY
+  | NOT_EQUAL_FLOAT
+  | NOT_EQUAL
+  | NAT_TYPE
+  | NAMED_FUN
+  | MOD_SEMI
+  | MODULE
+  | MINUS_FLOAT
+  | MINUS
+  | L_OR
+  | L_NOT
+  | L_AND
+  | LIVELIT_IDENT of string
+  | LET
+  | LESS_THAN_FLOAT
+  | LESS_THAN_EQUAL_FLOAT
+  | LESS_THAN_EQUAL
+  | LESS_THAN
+  | INT_TYPE
+  | INTERNAL
+  | INT of Bigint.t
+  | IN
+  | IF
+  | IDENT of string
+  | HINT
+  | HIDE
+  | GREATER_THAN_FLOAT
+  | GREATER_THAN_EQUAL_FLOAT
+  | GREATER_THAN_EQUAL
+  | GREATER_THAN
+  | FUN
+  | FLOAT_TYPE
+  | FLOAT of float
+  | FIX
+  | FALSE
+  | E_EXP
+  | EVAL
+  | EQUAL_ARROW
+  | EOF
+  | END
+  | ELSE
+  | DOUBLE_EQUAL_FLOAT
+  | DOUBLE_EQUAL
+  | DOT
+  | DIVIDE_FLOAT
+  | DIVIDE
+  | DEBUG
+  | DASH_ARROW
+  | CONSTRUCTOR_IDENT of string
+  | CONS
+  | COMMA
+  | COLON
+  | CLOSE_TRIPLE_CURLY
+  | CLOSE_SQUARE_BRACKET
+  | CLOSE_PAREN
+  | CLOSE_CURLY
+  | CASE
+  | BOOL_TYPE
+  | AT_SYMBOL
+val menhir_begin_marker : int
+val xv_unExp : AST.exp
+val xv_typ : AST.typ
+val xv_tupleType : AST.typ
+val xv_tupTypeEntry : AST.typ
+val xv_tupPatEntry : AST.pat
+val xv_tupExpEntry : AST.exp
+val xv_tpat : AST.tpat
+val xv_sumTyp : AST.sumtype
+val xv_sumTerm : AST.sumterm
+val xv_stringOp : AST.bin_op
+val xv_sigItem : AST.sig_item
+val xv_separated_nonempty_list_PLUS_sumTerm_ : AST.sumterm list
+val xv_separated_nonempty_list_MOD_SEMI_sigItem_ : AST.sig_item list
+val xv_separated_nonempty_list_MOD_SEMI_modItem_ : AST.mod_item list
+val xv_separated_nonempty_list_COMMA_tupTypeEntry_ : AST.typ list
+val xv_separated_nonempty_list_COMMA_tupPatEntry_ : AST.pat list
+val xv_separated_nonempty_list_COMMA_tupExpEntry_ : AST.exp list
+val xv_separated_nonempty_list_COMMA_pat_ : AST.pat list
+val xv_separated_nonempty_list_COMMA_funAscElem_ : AST.pat list
+val xv_separated_nonempty_list_COMMA_exp_ : AST.exp list
+val xv_separated_list_MOD_SEMI_sigItem_ : AST.sig_item list
+val xv_separated_list_MOD_SEMI_modItem_ : AST.mod_item list
+val xv_separated_list_COMMA_tupTypeEntry_ : AST.typ list
+val xv_separated_list_COMMA_tupPatEntry_ : AST.pat list
+val xv_separated_list_COMMA_tupExpEntry_ : AST.exp list
+val xv_separated_list_COMMA_pat_ : AST.pat list
+val xv_separated_list_COMMA_exp_ : AST.exp list
+val xv_rul : AST.pat * AST.exp
+val xv_program : AST.exp
+val xv_polyOp : AST.bin_op
+val xv_pat : AST.pat
+val xv_nonAscriptingPat : AST.pat
+val xv_modItemExp : AST.exp
+val xv_modItem : AST.mod_item
+val xv_loption_separated_nonempty_list_MOD_SEMI_sigItem__ : AST.sig_item list
+val xv_loption_separated_nonempty_list_MOD_SEMI_modItem__ : AST.mod_item list
+val xv_loption_separated_nonempty_list_COMMA_tupTypeEntry__ : AST.typ list
+val xv_loption_separated_nonempty_list_COMMA_tupPatEntry__ : AST.pat list
+val xv_loption_separated_nonempty_list_COMMA_tupExpEntry__ : AST.exp list
+val xv_loption_separated_nonempty_list_COMMA_pat__ : AST.pat list
+val xv_loption_separated_nonempty_list_COMMA_exp__ : AST.exp list
+val xv_list_rul_ : (AST.pat * AST.exp) list
+val xv_label : string
+val xv_intOp : AST.bin_op
+val xv_ifExp : AST.exp
+val xv_funPat : AST.pat
+val xv_funExp : AST.exp
+val xv_funConsPat : AST.pat
+val xv_funAscElem : AST.pat
+val xv_floatOp : AST.bin_op
+val xv_filterAction : AST.filter_action
+val xv_exp : AST.exp
+val xv_case : AST.exp
+val xv_boolOp : AST.bin_op
+val xv_binOp : AST.bin_op
+val xv_binExp : AST.exp
+val xv_ascTyp : AST.typ
+val menhir_end_marker : int

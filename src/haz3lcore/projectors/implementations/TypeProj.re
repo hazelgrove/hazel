@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
 open Language;
-open Util;
+open Util_web;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {

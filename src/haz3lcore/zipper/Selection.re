@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
@@ -73,7 +73,7 @@ let empty = mk(Segment.empty);
 
 let toggle_focus = selection => {
   ...selection,
-  focus: Util.Direction.toggle(selection.focus),
+  focus: Util_web.Direction.toggle(selection.focus),
 };
 
 let is_empty = (selection: t) => selection.content == Segment.empty;

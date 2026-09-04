@@ -37,7 +37,7 @@ let mk_data =
       ~editor_active: bool,
     )
     : list(ProjectorView.Model.projector_data) => {
-  open Util.OptUtil.Syntax;
+  open Util_web.OptUtil.Syntax;
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   List.filter_map(
     ((id, entry)) => {

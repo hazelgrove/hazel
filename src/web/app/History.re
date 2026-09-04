@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let capped_undo_stack_size = 250;
 

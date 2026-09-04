@@ -26,7 +26,7 @@ let evaluate_term = (term: Exp.t): option(Exp.t) => {
 /* Count (correct, total) nodes across every tree in the verified proof.
    Total includes every node; correct counts only nodes with res = Correct. */
 let count_verified_tree = (verified: DrvGrading.VerifiedTree.t): (int, int) => {
-  let all_nodes = verified |> List.concat_map(Util.Tree.flatten);
+  let all_nodes = verified |> List.concat_map(Util_web.Tree.flatten);
   List.fold_left(
     ((c, t), info: DrvGrading.VerifiedTree.info) =>
       switch (info.res) {

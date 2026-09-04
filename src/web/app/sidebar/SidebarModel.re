@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]

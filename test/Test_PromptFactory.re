@@ -20,7 +20,7 @@ let statics_errors = (z: Zipper.t): list(string) =>
   |> ErrorPrint.all;
 
 let squish = (s: string): string =>
-  Util.StringUtil.replace(Util.StringUtil.regexp("[\\s]+"), s, "");
+  Util_web.StringUtil.replace(Util_web.StringUtil.regexp("[\\s]+"), s, "");
 
 /* A program is identifier-safe iff it parses, roundtrips (no token
    expanded into a form), and has no static errors. */
@@ -260,7 +260,7 @@ let doc_examples_clean = () =>
 
 /* Fenced ``` blocks inside a prompt string. */
 let fenced_blocks = (s: string): list(string) => {
-  let parts = Util.StringUtil.plain_split(s, "```");
+  let parts = Util_web.StringUtil.plain_split(s, "```");
   List.filteri((i, _) => i mod 2 == 1, parts);
 };
 
@@ -277,7 +277,8 @@ let big_samples_clean = () => {
     HazelDocumentation.polymorphism_documentation
     |> String.split_on_char('\n')
     |> List.filter(l =>
-         Util.StringUtil.plain_search("polymorphismDocumentation", l, 0) < 0
+         Util_web.StringUtil.plain_search("polymorphismDocumentation", l, 0)
+         < 0
        )
     |> String.concat("\n");
   assert_parses_clean(poly_doc);

@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Virtual_dom.Vdom;
 open Language;
 
@@ -21,10 +21,10 @@ type external_action =
   | SampleFocus(Action.sample_focus)
   | Probe(Action.probe) /* Probe actions like StepInto */
   | Remove /* Remove projector entirely */
-  | Escape(Util.Direction.t) /* Pass focus to parent editor */
+  | Escape(Util_web.Direction.t) /* Pass focus to parent editor */
   | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
   | SetSyntax(Base.segment) /* Set underlying syntax */
-  | FocusById(Util.Id.t); /* Focus a projector by its term id */
+  | FocusById(Util_web.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */

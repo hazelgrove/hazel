@@ -920,7 +920,7 @@ let three_level_tests = [
         step_end: 0,
       };
       let is_suffix =
-        Util.ListUtil.is_suffix_of(
+        Util_web.ListUtil.is_suffix_of(
           ~eq=CallStack.equal_frame,
           mid_data.call_stack,
           cursor_inner.call_stack,
@@ -948,7 +948,7 @@ let three_level_tests = [
         step_end: 0,
       };
       let is_suffix2 =
-        Util.ListUtil.is_suffix_of(
+        Util_web.ListUtil.is_suffix_of(
           ~eq=CallStack.equal_frame,
           top_data.call_stack,
           cursor_mid.call_stack,

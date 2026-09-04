@@ -1,4 +1,4 @@
-open Util.OptUtil.Syntax;
+open Util_web.OptUtil.Syntax;
 open TyDiSuggestion;
 open Language;
 
@@ -156,7 +156,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
   let* tok_to_left = token_to_left(z);
   /* Only show completions after typing enough characters */
   /* Graphemes, not bytes: a single `é` or `日` must not clear a 2-char gate. */
-  let* _ = Util.Unicode.length(tok_to_left) >= min_prefix_len ? Some() : None;
+  let* _ =
+    Util_web.Unicode.length(tok_to_left) >= min_prefix_len ? Some() : None;
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions
@@ -173,7 +174,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
       suggestions,
     );
   let* _ = has_exact_match ? None : Some();
-  let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
+  let* top_suggestion = suggestions |> Util_web.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);

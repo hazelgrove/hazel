@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 exception Empty_segment;
 
@@ -1102,7 +1102,7 @@ let sort_of = (skel: Skel.t, seg: t): Sort.t =>
   Skel.root(skel) |> Aba.first_a |> List.nth(seg) |> Piece.sort |> fst;
 
 let root_id = (skel: Skel.t, seg: t): Id.t =>
-  skel |> Skel.root |> Util.Aba.first_a |> List.nth(seg) |> Piece.id;
+  skel |> Skel.root |> Util_web.Aba.first_a |> List.nth(seg) |> Piece.id;
 
 let rec deep_tile_complete = (seg: t): bool =>
   List.for_all(

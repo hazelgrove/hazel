@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Language;
 
 /* This file follows conventions in [docs/ui-architecture.md] */

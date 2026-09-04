@@ -3,7 +3,7 @@ open Haz3lcore;
 open Language;
 open Action;
 open CompositionActions;
-open Util;
+open Util_web;
 
 let mk_zipper = (code: string): Zipper.t => {
   switch (Parser.to_zipper(~root=Exp, code)) {
@@ -1336,19 +1336,19 @@ let invalid_path_tests = (
           bool,
           "error mentions 'Available paths'",
           true,
-          Util.StringUtil.plain_search("Available paths", msg, 0) >= 0,
+          Util_web.StringUtil.plain_search("Available paths", msg, 0) >= 0,
         );
         check(
           bool,
           "error lists binding 'a'",
           true,
-          Util.StringUtil.plain_search("a", msg, 0) >= 0,
+          Util_web.StringUtil.plain_search("a", msg, 0) >= 0,
         );
         check(
           bool,
           "error lists binding 'b'",
           true,
-          Util.StringUtil.plain_search("b", msg, 0) >= 0,
+          Util_web.StringUtil.plain_search("b", msg, 0) >= 0,
         );
       }
     }),
@@ -1372,7 +1372,7 @@ let invalid_path_tests = (
           bool,
           "error includes 'outer/inner' suggestion",
           true,
-          Util.StringUtil.plain_search("outer/inner", msg, 0) >= 0,
+          Util_web.StringUtil.plain_search("outer/inner", msg, 0) >= 0,
         );
       }
     }),
@@ -3900,7 +3900,7 @@ let ascribed_binding_tests = (
           bool,
           "delete Piece did not emit 'not found in node map' failure",
           false,
-          Util.StringUtil.plain_search("not found in node map", result, 0)
+          Util_web.StringUtil.plain_search("not found in node map", result, 0)
           >= 0,
         );
       },

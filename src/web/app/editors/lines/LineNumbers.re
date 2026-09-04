@@ -1,6 +1,6 @@
 open Haz3lcore;
 //open Virtual_dom.Vdom;
-open Util;
+open Util_web;
 open Util_web.WebUtil;
 
 /*

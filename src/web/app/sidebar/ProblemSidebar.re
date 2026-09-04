@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 open Util_web.WebUtil;
 open Haz3lcore.ProblemCollection;
 
@@ -244,7 +244,7 @@ let problem_row =
 let nav_btn =
     (
       ~globals: Globals.t,
-      ~direction: Util.Direction.t,
+      ~direction: Util_web.Direction.t,
       ~label: string,
       ~tooltip: string,
     )

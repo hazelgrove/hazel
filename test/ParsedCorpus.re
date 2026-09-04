@@ -12,7 +12,9 @@
  * caller cannot observe a segment parsed from anything but its own input. */
 
 let normalize = (s: string): string =>
-  s |> Util.StringUtil.trim_leading |> Util.StringUtil.strip_final_newline;
+  s
+  |> Util_web.StringUtil.trim_leading
+  |> Util_web.StringUtil.strip_final_newline;
 
 let cache:
   Hashtbl.t((Haz3lcore.Sort.t, string), option(Haz3lcore.Segment.t)) =

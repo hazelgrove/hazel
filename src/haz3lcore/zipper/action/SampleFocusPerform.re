@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Language;
 
 let update = (z: Zipper.t, f: Sample.Focus.t => Sample.Focus.t) =>

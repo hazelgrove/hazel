@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let allowed_kinds_line =
   "kind must be one of: fold, slider, sliderf, check, text, card, table, csv, livelit (same as the editor projector menu). "

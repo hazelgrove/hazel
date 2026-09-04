@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -176,7 +176,7 @@ let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
   | HiddenBugs(n) => {
       ...eds,
       hidden_bugs:
-        Util.ListUtil.put_nth(
+        Util_web.ListUtil.put_nth(
           n,
           {
             ...List.nth(eds.hidden_bugs, n),
@@ -495,7 +495,7 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     }
   | HiddenBugs(i) => {
       ...s,
-      hidden_bugs: Util.ListUtil.put_nth(i, x, s.hidden_bugs),
+      hidden_bugs: Util_web.ListUtil.put_nth(i, x, s.hidden_bugs),
     }
   | HiddenTests => {
       ...s,

@@ -1,7 +1,7 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
-open Util;
+open Util_web;
 
 let tests = (
   "Statics.Sums",

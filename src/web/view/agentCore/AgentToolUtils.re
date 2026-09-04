@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let get_name = (tool: API.Json.t): option(string) => {
   switch (API.Json.dot("function", tool)) {

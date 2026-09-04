@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util_web.WebUtil;
-open Util;
+open Util_web;
 open Icons;
 
 let view =

@@ -5,7 +5,7 @@
  * share. Also covers the token classes whose regexes must range over
  * codepoints rather than UTF-8 bytes. */
 open Alcotest;
-open Util;
+open Util_web;
 open Haz3lcore;
 open Js_of_ocaml;
 

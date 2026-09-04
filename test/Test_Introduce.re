@@ -28,7 +28,7 @@ let find_hole_id = (e: Exp.t): option(Id.t) => {
 };
 
 let introduction_test = (before: string, expected: string) => {
-  open Util.OptUtil.Syntax;
+  open Util_web.OptUtil.Syntax;
 
   let serialized = {
     open Haz3lcore;

@@ -27,19 +27,22 @@ let make_caret_line = (col: int, len: int): string => {
    from being cut mid-cluster. */
 let slice_columns = (line: string, start_col: int, end_col: int): string => {
   let index_of_col = col =>
-    Util.Unicode.Width.column_to_grapheme_index(line, max(0, col));
+    Util_web.Unicode.Width.column_to_grapheme_index(line, max(0, col));
   let start_idx = index_of_col(start_col);
   let end_idx = max(start_idx, index_of_col(end_col));
-  let (_, rest) = Util.Unicode.split_nth(line, start_idx);
-  fst(Util.Unicode.split_nth(rest, end_idx - start_idx));
+  let (_, rest) = Util_web.Unicode.split_nth(line, start_idx);
+  fst(Util_web.Unicode.split_nth(rest, end_idx - start_idx));
 };
 
 /* Everything in `line` from `start_col` onwards. */
 let suffix_from_column = (line: string, start_col: int): string =>
   snd(
-    Util.Unicode.split_nth(
+    Util_web.Unicode.split_nth(
       line,
-      Util.Unicode.Width.column_to_grapheme_index(line, max(0, start_col)),
+      Util_web.Unicode.Width.column_to_grapheme_index(
+        line,
+        max(0, start_col),
+      ),
     ),
   );
 
@@ -60,7 +63,7 @@ let format_diagnostic_with_location =
       ~source: string,
       ~path: string,
       measured: Haz3lcore.Measured.t,
-      id: Util.Id.t,
+      id: Util_web.Id.t,
     )
     : string => {
   let header = severity ++ ": " ++ message;

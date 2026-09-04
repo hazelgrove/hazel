@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let place_statics_description = {|
 Places the **statics** refractor on the bindings at the given paths: a GUI type-ascription overlay (offside type cell) for human-readable types on expressions.

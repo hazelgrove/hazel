@@ -5,7 +5,7 @@ open Language;
 /* Build a zipper with caret at the indicated position (¦),
  * compute statics, and return TyDi's suggestion buffer. */
 let tydi_suggest = (code: string): option(string) => {
-  open Util.OptUtil.Syntax;
+  open Util_web.OptUtil.Syntax;
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);

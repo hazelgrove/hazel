@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 open Util_web.WebUtil;
 open Haz3lcore;
 open CodeViewable;

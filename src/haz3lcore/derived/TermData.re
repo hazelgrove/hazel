@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -92,7 +92,7 @@ let get_term_rows =
   let term_rows =
     measured.piece_rows
     |> List.rev
-    |> Util.ListUtil.sublist((start.row, final.row + 1))
+    |> Util_web.ListUtil.sublist((start.row, final.row + 1))
     |> List.map(List.rev);
   (start.row, term_rows);
 };

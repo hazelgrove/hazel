@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Haz3lcore;
 
 // A dynamic, runtime converter of our chat messages to a UI-friendly format

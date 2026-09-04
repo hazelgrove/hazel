@@ -3,7 +3,7 @@
     workbench completion semantics.
     (Structural tool-call editing tests: [[Test_AgentTools]]; multi-tool LLM replies: [[Test_AgentMultiTool]].) */
 open Alcotest;
-open Util;
+open Util_web;
 open Haz3lcore;
 open Web;
 

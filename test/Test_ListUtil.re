@@ -1,5 +1,5 @@
 open Alcotest;
-open Util;
+open Util_web;
 
 let tests = (
   "ListUtil",

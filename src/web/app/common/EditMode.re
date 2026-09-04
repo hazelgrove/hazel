@@ -17,7 +17,7 @@ type t('action, 'focus) =
   | ReadOnly
   | Editable({
       inject: 'action => Effect.t(unit),
-      escape: Util.Direction.t => Effect.t(unit),
+      escape: Util_web.Direction.t => Effect.t(unit),
       take_focus: 'focus => Effect.t(unit),
       focus: option('focus),
     });

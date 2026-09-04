@@ -630,7 +630,7 @@ let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
   let backpack = Haz3lcore.Zipper.local_backpack(z);
   [
     field_str("caret", Haz3lcore.CaretBase.show(z.caret)),
-    field_str("selection.focus", Util.Direction.show(sel.focus)),
+    field_str("selection.focus", Util_web.Direction.show(sel.focus)),
     field_str("selection.pieces", string_of_int(List.length(sel.content))),
     field_str(
       "selection.empty",

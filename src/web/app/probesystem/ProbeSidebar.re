@@ -293,7 +293,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
               ~attrs=[clss(["toggle-label"])],
               [
                 text("Auto Probe"),
-                kbd(Util.Os.is_mac^ ? {js|⌘P|js} : "Ctrl+P"),
+                kbd(Util_web.Os.is_mac^ ? {js|⌘P|js} : "Ctrl+P"),
               ],
             ),
             div(
@@ -628,7 +628,7 @@ let quick_ref_view =
       ~indicated_has_probe: bool,
       ~indicated_has_manual: bool,
     ) => {
-  let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
+  let meta = Util_web.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
   div(
     ~attrs=[
       clss(

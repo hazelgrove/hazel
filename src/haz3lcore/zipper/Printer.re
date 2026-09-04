@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let remove_projector: Piece.t => Segment.t =
   fun

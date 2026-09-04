@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 /* Projector dependencies are currently somewhat convoluted.
  * This is the lowermost projectors module; Base depends on
@@ -32,6 +32,6 @@ let mk = (~id=Id.mk(), kind, syntax, model) => {
   model,
 };
 
-module Shape = Util.ProjectorShape;
+module Shape = Util_web.ProjectorShape;
 /* Projectors currently are all convex */
 let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);

@@ -9,7 +9,7 @@ type cursor('update) = {
   undo_action: option('update),
   redo_action: option('update),
   /* Global statics summary for status indicator */
-  error_ids: list(Util.Id.t),
+  error_ids: list(Util_web.Id.t),
   /* Context-sensitive actions for command palette and keyboard shortcuts */
   contextual_actions: list(ContextualAction.t),
 };

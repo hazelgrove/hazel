@@ -223,11 +223,13 @@ module Make =
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
     |> move_right_until_id(id, _)
-    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id);
+    |> (
+      move_left ? Util_web.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id
+    );
   };
 
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
-    open Util.OptUtil.Syntax;
+    open Util_web.OptUtil.Syntax;
     let selection = z.selection.content;
     let selected_term = I.parse(selection);
 

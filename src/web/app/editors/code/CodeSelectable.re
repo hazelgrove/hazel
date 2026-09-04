@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 
 /* A CodeEditor that's been restricted to only performing selection with
    mouse/keyboard, no edits to the actual code. */
@@ -12,7 +12,7 @@ module Update = {
   type t =
     | Move(Action.move)
     | Select(Action.select)
-    | Unselect(option(Util.Direction.t))
+    | Unselect(option(Util_web.Direction.t))
     | Copy;
 
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {

@@ -85,7 +85,7 @@ let tests =
                   Variant(
                     "A",
                     Language.ConstructorMap.mk_variant_ann(
-                      ~ids=[Util.Id.mk()],
+                      ~ids=[Util_web.Id.mk()],
                       (),
                     ),
                     None,
@@ -93,7 +93,7 @@ let tests =
                   Variant(
                     "A",
                     Language.ConstructorMap.mk_variant_ann(
-                      ~ids=[Util.Id.mk()],
+                      ~ids=[Util_web.Id.mk()],
                       (),
                     ),
                     None,

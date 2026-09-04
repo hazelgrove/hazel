@@ -344,7 +344,7 @@ let tests = (
           bool,
           "model selects the table renderer",
           true,
-          Util.StringUtil.plain_search("table", entry.model, 0) >= 0,
+          Util_web.StringUtil.plain_search("table", entry.model, 0) >= 0,
         );
         check(
           string,
@@ -374,7 +374,7 @@ let tests = (
         check(
           string,
           "print equals stored text minus final newline",
-          Util.StringUtil.strip_final_newline(text),
+          Util_web.StringUtil.strip_final_newline(text),
           MarkerParse.seg_to_text(~refractors=z.refractors.manuals, seg),
         );
       },

@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Language;
 open Js_of_ocaml;
 

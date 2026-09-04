@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
@@ -75,7 +75,7 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
-  | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Focus(int, ProjectorCore.Kind.t, option(Util_web.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
 

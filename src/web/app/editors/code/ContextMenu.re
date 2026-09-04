@@ -1,6 +1,6 @@
 open Haz3lcore;
 open Util_web;
-open Util.OptUtil.Syntax;
+open Util_web.OptUtil.Syntax;
 open Util_web.WebUtil;
 open Node;
 

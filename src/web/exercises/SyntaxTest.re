@@ -1,5 +1,5 @@
 open Language;
-open Util;
+open Util_web;
 
 /*
   These are the syntax test functions used for the syntax validation
@@ -502,7 +502,7 @@ let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
 let check = (uexp: Exp.t, predicates: list(Exp.t => bool)): syntax_result => {
   let results = List.map(pred => {uexp |> pred}, predicates);
   let length = List.length(predicates);
-  let passing = Util.ListUtil.count_pred(res => res, results);
+  let passing = Util_web.ListUtil.count_pred(res => res, results);
 
   {
     results,

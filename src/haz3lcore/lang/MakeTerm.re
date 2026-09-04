@@ -10,7 +10,7 @@
      WARNING: This module is still structurally in flux.
    */
 
-open Util;
+open Util_web;
 open Language;
 
 // TODO make less hacky

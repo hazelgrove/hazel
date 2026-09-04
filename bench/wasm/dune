@@ -15,6 +15,11 @@
  (name eval_bench)
  (libraries language menhirParser)
  (modes js)
+ ; Jane Street's C stubs (base, bin_prot, zarith) ship JS implementations
+ ; that dune only wires into the js build. Try handing them to the wasm
+ ; build explicitly.
+ (wasm_of_ocaml
+  (javascript_files zarith_runtime.js base_runtime.js bin_prot_runtime.js))
  (preprocess
   (pps
    ppx_blob
@@ -27,3 +32,16 @@
   (file eval-bench.hz)))
 
 (copy_files ../eval-bench.hz)
+
+; Jane Street's C stubs (base, bin_prot) and zarith's ship JS
+; implementations that dune wires only into the js build. Copy them in so
+; the wasm build can be handed them explicitly.
+
+(rule
+ (copy %{lib:zarith_stubs_js:runtime.js} zarith_runtime.js))
+
+(rule
+ (copy %{lib:base:runtime.js} base_runtime.js))
+
+(rule
+ (copy %{lib:bin_prot:runtime.js} bin_prot_runtime.js))

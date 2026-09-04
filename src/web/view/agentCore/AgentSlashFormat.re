@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Haz3lcore;
 
 /* Slash-command result formatters and fetchers. Payload builders and their

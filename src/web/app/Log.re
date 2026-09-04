@@ -1,6 +1,6 @@
 /* Logging system for actions. Persists log via HazelDB shared database. */
 
-open Util;
+open Util_web;
 
 module DB = {
   let add = (key: string, value: string): unit => {

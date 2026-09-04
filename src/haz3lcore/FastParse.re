@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 /* Linear-time text→segment for agent chunk inserts.
 

@@ -8,7 +8,7 @@
                   -- VerifiedTree.verify -->  trees annotated with [info].
  */
 open Haz3lcore;
-open Util;
+open Util_web;
 
 /* Errors that arise from the surrounding exercise context rather than from
    rule verification itself (missing rule choice, unparseable conclusion, …). */

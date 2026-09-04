@@ -1,5 +1,5 @@
 open Js_of_ocaml;
-open Util;
+open Util_web;
 
 /*
  Configuration of the command palette using the https://github.com/ssleptsov/ninja-keys web component.

@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;

@@ -1,5 +1,5 @@
 open Language;
-open Util;
+open Util_web;
 open Virtual_dom.Vdom;
 open Node;
 open Tutorial;
@@ -72,7 +72,7 @@ module ImplGradingReport = {
       switch (test_results) {
       | Some(test_results) =>
         let statuses = test_results.statuses;
-        Util.ListUtil.zip_defaults(
+        Util_web.ListUtil.zip_defaults(
           statuses,
           hints,
           Language.TestStatus.Indet,
@@ -80,7 +80,7 @@ module ImplGradingReport = {
         );
 
       | None =>
-        Util.ListUtil.zip_defaults(
+        Util_web.ListUtil.zip_defaults(
           [],
           hints,
           Language.TestStatus.Indet,

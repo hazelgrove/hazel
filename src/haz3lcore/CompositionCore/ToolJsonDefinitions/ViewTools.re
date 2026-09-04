@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 
 let expand_description = {|
 Reveals the definitions of collapsed bindings so their code is visible.

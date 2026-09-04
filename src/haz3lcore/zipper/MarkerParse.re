@@ -19,7 +19,7 @@
    recovering parser has no notion of `¿`, and incomplete programs —
    the grout-heavy ones — are exactly what falls back to it. Sits
    below PersistentZipper so persistence loading can fall back to it. */
-open Util;
+open Util_web;
 open Base;
 
 let default_implicit_hole = Token.implicit_hole_marker;

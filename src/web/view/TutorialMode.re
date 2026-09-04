@@ -523,7 +523,7 @@ module View = {
           switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
           | Some(test_results) =>
             let inner_result = hidden_tests.result.result;
-            let result = inner_result |> Util.Calc.get_value;
+            let result = inner_result |> Util_web.Calc.get_value;
             switch (result) {
             | ResultPending(_) =>
               div(

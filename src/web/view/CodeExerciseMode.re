@@ -1,7 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Util;
+open Util_web;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 

@@ -1,5 +1,5 @@
 open Language;
-open Util;
+open Util_web;
 
 let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
   Statics.mk(

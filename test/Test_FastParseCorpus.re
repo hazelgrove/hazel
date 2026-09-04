@@ -56,8 +56,8 @@ let tests = (
                  final newline — other edge whitespace is content) */
               let src =
                 read_file(path)
-                |> Util.StringUtil.trim_leading
-                |> Util.StringUtil.strip_final_newline;
+                |> Util_web.StringUtil.trim_leading
+                |> Util_web.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
               let r =

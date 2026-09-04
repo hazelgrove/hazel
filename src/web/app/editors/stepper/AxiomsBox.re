@@ -1,4 +1,4 @@
-open Util;
+open Util_web;
 open Util_web.WebUtil;
 open Calc.Syntax;
 open Language;

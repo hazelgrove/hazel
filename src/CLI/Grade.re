@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Util;
+open Util_web;
 open Core;
 open Language;
 open Web.CodeExercise;

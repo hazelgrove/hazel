@@ -3,7 +3,6 @@
    pieces that need Virtual_dom (the shim node and the Effect-based clipboard
    API) are here. */
 open Js_of_ocaml;
-open Util;
 open Virtual_dom.Vdom;
 
 let clipboard_shim = {

@@ -1,5 +1,5 @@
 open Zipper;
-open Util;
+open Util_web;
 open OptUtil.Syntax;
 
 /* Get the form label a token expands into, and the direction

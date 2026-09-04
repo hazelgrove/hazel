@@ -187,7 +187,7 @@ let analyze_hazel =
 
 /* Extract source text for a given ID from the source file */
 let extract_source_text =
-    (~source: string, ~measured: Haz3lcore.Measured.t, id: Util.Id.t)
+    (~source: string, ~measured: Haz3lcore.Measured.t, id: Util_web.Id.t)
     : option(string) => {
   switch (Haz3lcore.Measured.find_by_id(id, measured)) {
   | Some({origin, last}) =>
@@ -218,7 +218,7 @@ let format_test_result =
       ~source: string,
       ~measured: Haz3lcore.Measured.t,
       ~verbose: bool,
-      id: Util.Id.t,
+      id: Util_web.Id.t,
       reports: list(Language.TestMap.instance_report),
     )
     : option(string) => {

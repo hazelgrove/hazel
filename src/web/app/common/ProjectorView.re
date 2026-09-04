@@ -2,8 +2,8 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
-open Util;
-open Util.OptUtil.Syntax;
+open Util_web;
+open Util_web.OptUtil.Syntax;
 open Util_web.WebUtil;
 
 /* Re-export visible_rows type from Globals for convenience */

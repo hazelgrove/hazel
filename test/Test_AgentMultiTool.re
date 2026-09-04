@@ -10,7 +10,7 @@
     Full structural tool suite: `./run_tests test 'AgentTools' -q`. */
 open Alcotest;
 open Haz3lcore;
-open Util;
+open Util_web;
 open Web;
 
 let yo_assoc = pairs => `Assoc(pairs);

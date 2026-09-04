@@ -1,4 +1,4 @@
-open Util.OptUtil.Syntax;
+open Util_web.OptUtil.Syntax;
 
 /* Segment cache for paste optimization. When a copy/cut captures a
    complete segment, it's cached here. On paste, if the clipboard text
@@ -22,7 +22,7 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
   | [] => false
   | _ =>
     let first_char = List.hd(chars);
-    let last_char = Util.ListUtil.last(chars);
+    let last_char = Util_web.ListUtil.last(chars);
     let left =
       switch (Zipper.neighbor_token(Left, z)) {
       | None => false
@@ -42,7 +42,7 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
    The segment gets fresh IDs to support multiple pastes. */
 let try_segment_paste =
     (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
-  let trim = Util.StringUtil.trim_leading;
+  let trim = Util_web.StringUtil.trim_leading;
   switch (segment_cache^) {
   | Some((cached, seg)) when trim(cached) == trim(clipboard) =>
     if (z.caret != Outer) {
