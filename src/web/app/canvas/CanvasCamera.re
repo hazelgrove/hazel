@@ -205,16 +205,19 @@ let roi_pad = 110.;
    ALL of it in view rather than centering the avatar in empty canvas */
 let graph_bbox: ref(option((float, float, float, float))) =
   ref(None: option((float, float, float, float)));
+let fit_pad = 12.;
 let fits_whole = (~aw, ~ah): option(((float, float), float)) =>
   switch (graph_bbox^) {
   | None => None
   | Some((x0, y0, x1, y1)) =>
     let gw = max(1., x1 -. x0)
     and gh = max(1., y1 -. y0);
-    let fit = min((aw -. 2. *. roi_pad) /. gw, (ah -. 2. *. roi_pad) /. gh);
+    /* the layout itself fills the pane, so framing pads only a sliver */
+    let fit = min((aw -. 2. *. fit_pad) /. gw, (ah -. 2. *. fit_pad) /. gh);
+    /* framing only ever zooms OUT to fit: a small program sits at 1:1 so
+       the viewport holds still while it grows (layout fills the pane) */
     fit >= zoom_min
-      ? Some((((x0 +. x1) /. 2., (y0 +. y1) /. 2.), min(zoom_max, fit)))
-      : None;
+      ? Some((((x0 +. x1) /. 2., (y0 +. y1) /. 2.), min(1., fit))) : None;
   };
 /* is the whole graph already inside the viewport (with a margin)? */
 let whole_visible = (~aw, ~ah): bool =>
@@ -225,16 +228,16 @@ let whole_visible = (~aw, ~ah): bool =>
     and hh = ah /. 2. /. z;
     x0 >= cx
     -. hw
-    +. 20.
+    +. 4.
     && x1 <= cx
     +. hw
-    -. 20.
+    -. 4.
     && y0 >= cy
     -. hh
-    +. 20.
+    +. 4.
     && y1 <= cy
     +. hh
-    -. 20.;
+    -. 4.;
   | _ => false
   };
 

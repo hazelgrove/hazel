@@ -853,11 +853,25 @@ let view =
   let lay = {
     let manual = offsets != [] || pins != [];
     let aw = Option.value(~default=0., avail_width);
+    /* while beats play, small programs keep re-framing so new nodes spread
+       to fill the pane (movers glide); only a program that has outgrown
+       the pane freezes its frame until the burst settles */
+    let outgrown =
+      CanvasBuffer.pacing_live()
+      && !manual
+      && (
+        switch (avail_width, avail_height) {
+        | (Some(w), Some(h)) =>
+          let v = CanvasLayout.layout(graph);
+          v.width > w -. 16. || v.height > h -. 40.;
+        | _ => true
+        }
+      );
     let runtime_frame =
       switch (cached_frame^) {
       | Some(fc)
           when
-            (manual || CanvasBuffer.pacing_live())
+            (manual || outgrown)
             && fc.fc_slide == slide
             && Float.abs(fc.fc_avail_w -. aw) < 2. =>
         Some((fc.fc_origin, fc.fc_x_scale, fc.fc_y_scale))
@@ -916,7 +930,8 @@ let view =
       let x_scale =
         switch (avail_width) {
         | Some(avail) =>
-          let target = avail -. 16.;
+          /* fill the pane, less a margin the camera can see as "all in" */
+          let target = avail -. 56.;
           let s1 = min(1.8, max(0.7, target /. virgin.width));
           if (s1 >= 1.8 || s1 <= 0.7) {
             s1;
@@ -1169,6 +1184,33 @@ let view =
     open Js_of_ocaml;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
+    /* a beat may still be morphing or revealing geometry (dash arrays
+       left on paths would truncate them as they stretch): the drag takes
+       over cleanly */
+    List.iter(
+      id =>
+        switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+        | Some(el) =>
+          let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+          let len: int = Js.Unsafe.get(anims, "length");
+          for (i in 0 to len - 1) {
+            ignore(
+              Js.Unsafe.meth_call(Js.Unsafe.get(anims, i), "cancel", [||]),
+            );
+          };
+          ignore(
+            Js.Unsafe.meth_call(
+              el,
+              "removeAttribute",
+              [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
+            ),
+          );
+        | None => ()
+        },
+      Util.JsUtil.ids_with_prefix("cpath-")
+      @ Util.JsUtil.ids_with_prefix("cform-")
+      @ Util.JsUtil.ids_with_prefix("corbit-"),
+    );
     /* pinned nodes update their pin; others accumulate a drag delta */
     let pin = List.assoc_opt(n.key, pins);
     let base =
@@ -1341,8 +1383,8 @@ let view =
       );
       List.iteri(
         (
-          i,
-          (_, _, cp, pp): (
+          _i,
+          (a, b, cp, pp): (
             string,
             string,
             CanvasLayout.pos,
@@ -1360,7 +1402,7 @@ let view =
               5.,
             );
           switch (
-            Util.JsUtil.get_elem_by_id_opt("cform-" ++ string_of_int(i))
+            Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
           ) {
           | Some(el) =>
             set_attr(
@@ -2020,7 +2062,28 @@ let view =
     | None => None
     };
   };
-  CanvasCamera.graph_bbox := Some((0., 0., lay.width, lay.height));
+  /* the camera judges "fits"/"all visible" against the nodes themselves,
+     not the pane-sized layout box (which never fits with a margin) */
+  CanvasCamera.graph_bbox :=
+    (
+      switch (lay.nodes) {
+      | [] => None
+      | ns =>
+        Some(
+          List.fold_left(
+            ((x0, y0, x1, y1), nl: CanvasLayout.node_layout) =>
+              (
+                min(x0, nl.p.x -. nl.r),
+                min(y0, nl.p.y -. nl.r),
+                max(x1, nl.p.x +. nl.r),
+                max(y1, nl.p.y +. nl.r +. 18.),
+              ),
+            (infinity, infinity, neg_infinity, neg_infinity),
+            ns,
+          ),
+        )
+      }
+    );
   /* camera follow: a hop (or a resting avatar waking) hands the site to
      the camera; the dead zone decides whether it actually moves */
   switch (avatar, avail_width, avail_height) {
@@ -2403,6 +2466,54 @@ let view =
           (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
           added,
         );
+        {
+          /* the arrival schedule: each NEW type/product gets its own clear
+             moment; its terminals bloom with it; new pills come last */
+
+          let primaries =
+            List.filter(
+              (nl: CanvasLayout.node_layout) => nl.node.sat == None,
+              added,
+            );
+          let at = (i: int) =>
+            CanvasBuffer.lead_ms + i * CanvasBuffer.arrival_step_ms;
+          let prim_delay = (key: string): option(int) => {
+            let rec find =
+                    (i, ls: list(CanvasLayout.node_layout)): option(int) =>
+              switch (ls) {
+              | [] => Option.none
+              | [nl, ..._] when nl.node.key == key => Option.some(at(i))
+              | [_, ...rest] => find(i + 1, rest)
+              };
+            find(0, primaries);
+          };
+          let last = at(max(0, List.length(primaries) - 1));
+          let nodes_sched =
+            List.map(
+              (nl: CanvasLayout.node_layout) => {
+                let d =
+                  switch (nl.node.sat) {
+                  | None =>
+                    Option.value(~default=last, prim_delay(nl.node.key))
+                  | Some((anchor, _)) =>
+                    Option.value(~default=last, prim_delay(anchor))
+                  };
+                (CanvasView.node_dom_id(nl.node.key), d);
+              },
+              added,
+            );
+          let (_, prev_edges) = last_edge_snapshot^;
+          let pills_sched =
+            lay.edges
+            |> List.filter((el: CanvasLayout.edge_layout) =>
+                 !List.mem(el.edge.e_name, prev_edges)
+               )
+            |> List.map((el: CanvasLayout.edge_layout) =>
+                 (CanvasView.edge_dom_id(el.edge.e_name), last + 400)
+               );
+          Animation.set_arrival_schedule(nodes_sched @ pills_sched);
+          CanvasBuffer.extend_dwell(float_of_int(last + 400) +. 900.);
+        };
         CanvasLog.log(
           Printf.sprintf(
             "+%d node(s): %s (rainfall + grow-in)",

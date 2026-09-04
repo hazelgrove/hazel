@@ -298,6 +298,13 @@ let beat: ref(option(beat_stage)) = ref(None: option(beat_stage));
 /* the last `go`'s arrivals as (id, delay ms), for choreography that runs
    after the render (the avatar touring the new nodes as they bloom) */
 let last_arrivals: ref(list((string, int))) = ref([]);
+/* an explicit arrival schedule (id -> delay ms) set by the canvas after
+   layout, overriding the generic stagger for the ids it names */
+let arrival_schedule: ref(list((string, int))) = ref([]);
+let set_arrival_schedule = (s: list((string, int))): unit =>
+  arrival_schedule := s;
+/* how long movers wait for arrivals when a schedule stretched them */
+let arrival_span_override: ref(int) = ref(0);
 let geom_attrs = ["d", "cx", "cy"];
 /* (module Js above shadows Js_of_ocaml.Js: qualify explicitly) */
 let attr_of =
@@ -369,9 +376,16 @@ let go = (): unit => {
   | Some(b) when arrivals != [] =>
     let step = stagger_step(b.b_stagger);
     last_arrivals := [];
+    arrival_span_override := 0;
     List.iter(
       ((id, el)) => {
-        let delay = b.b_delay + stagger_index^ * step;
+        let delay =
+          switch (List.assoc_opt(id, arrival_schedule^)) {
+          | Some(d) => d
+          | None => b.b_delay + stagger_index^ * step
+          };
+        arrival_span_override :=
+          max(arrival_span_override^, delay - b.b_delay);
         last_arrivals := last_arrivals^ @ [(id, delay)];
         Js.animate(
           {
@@ -406,7 +420,7 @@ let go = (): unit => {
     let did_anything = ref(arrivals != [] || visible != []);
     let wait =
       b.b_stagger > 0 && stagger_total^ > 0
-        ? stagger_span(b.b_stagger) + 120 : 0;
+        ? max(stagger_span(b.b_stagger), arrival_span_override^) + 120 : 0;
     /* morph tracked geometry on the movers' timing */
     List.iter(
       ((id, olds)) =>
@@ -490,18 +504,28 @@ let go = (): unit => {
                },
                el,
              );
-             switch (marker) {
-             | Some(m) =>
-               ignore(
-                 Js_of_ocaml.Js.Unsafe.global##setTimeout(
-                   Js_of_ocaml.Js.Unsafe.callback(() =>
-                     set_attr(el, "marker-end", m)
-                   ),
-                   b.b_delay + wait + b.b_move_dur,
-                 ),
-               )
-             | None => ()
-             };
+             ignore(
+               Js_of_ocaml.Js.Unsafe.global##setTimeout(
+                 Js_of_ocaml.Js.Unsafe.callback(() => {
+                   switch (marker) {
+                   | Some(m) => set_attr(el, "marker-end", m)
+                   | None => ()
+                   };
+                   ignore(
+                     Js_of_ocaml.Js.Unsafe.meth_call(
+                       el,
+                       "removeAttribute",
+                       [|
+                         Js_of_ocaml.Js.Unsafe.inject(
+                           Js_of_ocaml.Js.string("stroke-dasharray"),
+                         ),
+                       |],
+                     ),
+                   );
+                 }),
+                 b.b_delay + wait + b.b_move_dur,
+               ),
+             );
            };
          | None => ()
          }
@@ -509,6 +533,7 @@ let go = (): unit => {
     /* an idle render leaves a fresh beat staged for the next one */
     if (did_anything^ || now_ms() -. b.b_staged_at > beat_expiry_ms) {
       beat := None;
+      arrival_schedule := [];
     };
   };
 };
@@ -537,7 +562,8 @@ module Actions = {
               delay
               + (
                 stagger > 0 && stagger_total^ > 0
-                  ? stagger_span(stagger) + 120 : 0
+                  ? max(stagger_span(stagger), arrival_span_override^) + 120
+                  : 0
               ),
           },
           keyframes: Keyframes.translate(~scale, init, final),

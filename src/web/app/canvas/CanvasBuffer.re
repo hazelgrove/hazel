@@ -39,6 +39,9 @@ let lead_ms = 260;
 /* agent beats: new elements arrive one by one, then existing ones make
    room slowly (a relayout that lands with the new thing hides it) */
 let arrival_stagger_ms = 320;
+/* a combined insertion's types bloom this far apart (the canvas's own
+   schedule; terminals ride with their type) */
+let arrival_step_ms = 700;
 let relayout_ms = 550;
 /* a tool's snapshot is captured before statics run, so its content is
    the NEXT distinct state; hold the labeled beat at most this long for
@@ -434,6 +437,10 @@ let observe =
   };
 
 let tick_fired = (): unit => tick_pending := false;
+
+/* the choreography for the beat just shown needs at least this long */
+let extend_dwell = (ms: float): unit =>
+  cur_dwell := min(dwell_max_ms, max(cur_dwell^, ms));
 
 /* the canvas should trust beat-carried avatar sites while beats are
    what's on screen */

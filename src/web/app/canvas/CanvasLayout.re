@@ -702,13 +702,60 @@ let layout =
             y: dst_p.y,
           };
           let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));
+          /* a terminal sits in its anchor's column */
+          let rank_of = k =>
+            switch (List.assoc_opt(k, res.ranks)) {
+            | Some(r) => Some(r)
+            | None =>
+              switch (
+                List.find_opt((m: CanvasGraph.tynode) => m.key == k, g.nodes)
+              ) {
+              | Some({CanvasGraph.sat: Some((anchor, _)), _}) =>
+                List.assoc_opt(anchor, res.ranks)
+              | _ => None
+              }
+            };
+          /* an edge spanning several ranks arcs over the nodes it would
+             otherwise run straight through; one within a single column
+             bows out sideways instead of running down the column */
+          let lift =
+            switch (rank_of(e.e_src), rank_of(e.dst)) {
+            | (Some(r0), Some(r1)) when abs(r1 - r0) >= 2 =>
+              let lo = min(r0, r1)
+              and hi = max(r0, r1);
+              /* bow away from the side of the chord where the skipped
+                 ranks' nodes mostly sit */
+              let chord_y = x =>
+                abs_float(d.x -. s.x) < 1.
+                  ? s.y : s.y +. (d.y -. s.y) *. (x -. s.x) /. (d.x -. s.x);
+              let offs =
+                List.filter_map(
+                  ((k, r)) =>
+                    r > lo && r < hi
+                      ? Option.map(
+                          (p: pos) => p.y -. chord_y(p.x),
+                          pos_of(k),
+                        )
+                      : None,
+                  res.ranks,
+                );
+              let above = List.length(List.filter(o => o < 0., offs));
+              let below = List.length(offs) - above;
+              let mag = min(110., 48. +. 20. *. float_of_int(hi - lo - 2));
+              above > below ? mag : -. mag;
+            | _ => 0.
+            };
+          let same_col = abs_float(d.x -. s.x) < 60.;
+          let bow =
+            same_col
+              ? max(40., min(140., abs_float(d.y -. s.y) *. 0.45)) : 0.;
           let c1 = {
-            x: s.x +. sign *. bend,
-            y: s.y,
+            x: same_col ? s.x +. bow : s.x +. sign *. bend,
+            y: s.y +. lift,
           };
           let c2 = {
-            x: d.x -. sign *. bend,
-            y: d.y,
+            x: same_col ? d.x +. bow : d.x -. sign *. bend,
+            y: d.y +. lift,
           };
           {
             edge: e,

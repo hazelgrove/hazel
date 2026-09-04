@@ -112,6 +112,11 @@ let animate =
   );
 };
 
+let clear_dash = (el): unit =>
+  ignore(
+    Js.Unsafe.meth_call(el, "removeAttribute", [|str("stroke-dasharray")|]),
+  );
+
 /* draw a stroke on from its start over dur ms starting at delay */
 let reveal = (~delay: float, ~dur: float, el): unit => {
   cancel_anims(el);
@@ -121,6 +126,8 @@ let reveal = (~delay: float, ~dur: float, el): unit => {
     "stroke-dasharray",
     Printf.sprintf("%.1f %.1f", total, total),
   );
+  /* a stale dash array would truncate the path once it later stretches */
+  later(delay +. dur +. 30., () => clear_dash(el));
   animate(
     el,
     [
@@ -225,11 +232,16 @@ let enact_edge =
           ("fill", str("backwards")),
         ],
       );
-      switch (marker) {
-      | Some(m) =>
-        later(t_edge +. travel_ms, () => set_attr(path, "marker-end", m))
-      | None => ()
-      };
+      later(
+        t_edge +. travel_ms,
+        () => {
+          switch (marker) {
+          | Some(m) => set_attr(path, "marker-end", m)
+          | None => ()
+          };
+          clear_dash(path);
+        },
+      );
       /* the pill appears once the arrow is drawn */
       switch (by_id(CanvasView.edge_dom_id(ne.ne_name))) {
       | Some(pill) =>
@@ -480,6 +492,13 @@ let install_testers = (): unit => {
       g,
       "__canvasStage",
       Js.Unsafe.callback(() => CanvasBuffer.stage_beat(~lead=true, ())),
+    );
+    /* __canvasBurst() marks an agent action so the next edit is paced
+       and choreographed as an agent's would be */
+    Js.Unsafe.set(
+      g,
+      "__canvasBurst",
+      Js.Unsafe.callback(() => CanvasBuffer.note_agent_action()),
     );
     Js.Unsafe.set(
       g,
