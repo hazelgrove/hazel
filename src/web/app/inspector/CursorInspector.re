@@ -207,6 +207,14 @@ let core_mark_err_view =
         text("but expected label"),
         code(an_label),
       ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
+      ]
     | _ =>
       let together = [syn, ana, ...Option.to_list(lifted_ty)];
       colon_prefix(show_type_colon)
@@ -330,7 +338,6 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
-    | ModuleExtraMembers(_)
     | ModuleMemberNotFound(_)
     | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
@@ -865,13 +872,6 @@ let exp_mark_err_view =
       parts_view(
         ~view_type,
         Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
-      ),
-    )
-  | ModuleExtraMembers(names) =>
-    div_err(
-      parts_view(
-        ~view_type,
-        Haz3lcore.ErrorPrint.module_extra_members_parts(names),
       ),
     )
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
