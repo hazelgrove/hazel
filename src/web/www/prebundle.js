@@ -71,12 +71,30 @@ window.fumola = (() => {
   // invariant that sigma(i) is synchronized with the model's program text.
   const lastEval = new Map();
 
+  // Where the .wasm is fetched from. The local copy is what
+  // scripts/build-fumola-wasm.sh writes, and is used when working locally.
+  //
+  // Branch previews cannot use it: the preview site is a directory in
+  // hazelgrove/build, and committing a 5MB binary there made GitHub Pages
+  // fail to build the entire site, which blocks previews for every branch.
+  // So the deployed page falls back to the copy in the Hazel repo, served
+  // with CORS and the right content type by jsDelivr.
+  const LOCAL_WASM = "./fumola/fumola_wasm_bg.wasm";
+  const CDN_WASM =
+    "https://cdn.jsdelivr.net/gh/hazelgrove/hazel@fumola-livelit-mvp" +
+    "/assets/fumola/fumola_wasm_bg.wasm";
+
   // Hidden from the bundler so that Hazel builds without the generated files.
   const dynamicImport = new Function("p", "return import(p)");
   dynamicImport("./fumola/fumola_wasm.js")
-    .then((mod) => mod.default("./fumola/fumola_wasm_bg.wasm").then(() => {
+    .then(async (mod) => {
+      try {
+        await mod.default(LOCAL_WASM);
+      } catch (localError) {
+        await mod.default(CDN_WASM);
+      }
       wasm = mod;
-    }))
+    })
     .catch((e) => {
       loadError = String(e);
       console.warn("Fumola livelit: wasm runtime unavailable:", e);

@@ -11,8 +11,12 @@
 set -euo pipefail
 
 FUMOLA_REPO="${FUMOLA_REPO:-$HOME/fumola}"
-HAZEL_WWW="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/src/web/www"
-OUT_DIR="$HAZEL_WWW/fumola"
+HAZEL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT_DIR="$HAZEL_ROOT/src/web/www/fumola"
+# The .wasm is also kept here, outside the deployed directory, because branch
+# previews cannot carry a 5MB binary (see .gitignore). This copy is the one
+# served to deployed pages via CDN.
+ASSET_DIR="$HAZEL_ROOT/assets/fumola"
 
 if [ ! -d "$FUMOLA_REPO" ]; then
   echo "Fumola repo not found at $FUMOLA_REPO." >&2
@@ -36,5 +40,9 @@ mkdir -p "$OUT_DIR"
 wasm-bindgen --target web --out-dir "$OUT_DIR" \
   target/wasm32-unknown-unknown/release/fumola_wasm.wasm
 
+echo "Copying the .wasm to $ASSET_DIR (the copy served to deployed pages)..."
+mkdir -p "$ASSET_DIR"
+cp "$OUT_DIR/fumola_wasm_bg.wasm" "$ASSET_DIR/fumola_wasm_bg.wasm"
+
 echo "Done. Built:"
-ls -la "$OUT_DIR"
+ls -la "$OUT_DIR" "$ASSET_DIR"
