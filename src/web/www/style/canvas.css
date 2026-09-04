@@ -477,18 +477,16 @@
    type purple, like the former nodes it replaces); name sits below */
 .canvas-node.node-former .canvas-node-glyph {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
-  border-radius: 50%;
-  background: var(--token-typ, #9457c9);
-  color: var(--df-bg, #fdfdf4);
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  /* just the glyph, in the type purple — no disc behind it */
+  color: var(--token-typ, #9457c9);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  padding-bottom: 3px;
   font-family: var(--code-font, monospace);
   pointer-events: none;
 }
@@ -538,6 +536,9 @@
   justify-content: center;
   font-weight: normal;
   font-size: 12px;
+  line-height: 1;
+  /* parentheses hang below the x-height: lift the glyph to optical center */
+  padding-bottom: 3px;
   letter-spacing: 0.5px;
   text-shadow: none;
 }

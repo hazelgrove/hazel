@@ -261,6 +261,15 @@ let after_render = (f: unit => unit): unit =>
    existing edge (pass the pill's label as shown, e.g. "quiz") */
 let install_testers = (): unit => {
   let g = Js.Unsafe.global;
+  if (!Js.Optdef.test(Js.Unsafe.get(g, "__canvasStage"))) {
+    /* __canvasStage(): stage the next render as an agent beat (arrival
+       stagger + geometry morph) — then change the layout to watch it */
+    Js.Unsafe.set(
+      g,
+      "__canvasStage",
+      Js.Unsafe.callback(() => CanvasBuffer.stage_beat(~lead=true, ())),
+    );
+  };
   if (!Js.Optdef.test(Js.Unsafe.get(g, "__canvasEnact"))) {
     Js.Unsafe.set(
       g,

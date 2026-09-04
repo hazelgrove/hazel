@@ -88,6 +88,38 @@ module Js = {
     |> Array.of_list
     |> Js.Unsafe.obj;
 
+  /* keyframes with several properties each (the single-property form
+     above encodes one property per keyframe) */
+  let animate_multi =
+      (
+        frames: list(list((string, string))),
+        options: options,
+        elem: Js.t(Dom_html.element),
+      )
+      : unit => {
+    let kf =
+      frames
+      |> List.map(props =>
+           Js.Unsafe.obj(
+             props
+             |> List.map(((p, v)) => (p, Js.Unsafe.inject(Js.string(v))))
+             |> Array.of_list,
+           )
+         )
+      |> Array.of_list
+      |> Js.array;
+    ignore(
+      Js.Unsafe.meth_call(
+        elem,
+        "animate",
+        [|
+          Js.Unsafe.inject(kf),
+          Js.Unsafe.inject(options_unsafe(options)),
+        |],
+      ),
+    );
+  };
+
   let animate_unsafe =
       (
         keyframes: list(keyframe),
@@ -187,24 +219,6 @@ let stagger_step = (per: int): int =>
 let stagger_span = (per: int): int =>
   min(stagger_span_cap, stagger_total^ * stagger_step(per));
 
-/* Execute animations. This is called during the
- * render phase, after recalc but before repaint */
-let go = (): unit =>
-  if (tracked_elems^ != []) {
-    let visible = tracked_elems^ |> filter_visible_elements;
-    stagger_total :=
-      List.length(List.filter(((tr, _, _)) => tr.box == None, visible));
-    stagger_index := 0;
-    visible
-    |> List.iter(((tr, _, _) as x) => {
-         animate_elem(x);
-         if (tr.box == None) {
-           incr(stagger_index);
-         };
-       });
-    tracked_elems := [];
-  };
-
 /* Request animations. Call this during the MVU update */
 let request = (transitions: list(transition)): unit => {
   tracked_elems :=
@@ -254,6 +268,191 @@ module Keyframes = {
 let easeOutExpo = "cubic-bezier(0.16, 1, 0.3, 1)";
 let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
 let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
+
+/* (beats and `go` live below Keyframes/easings, which they use) */
+/* ---- beats: arrivals + SVG geometry ----
+   Elements that don't exist yet when a beat is staged can't be tracked
+   by box, so the beat records which ids exist per prefix; at `go`, ids
+   that appeared are ARRIVALS and grow in one by one (staggered), and
+   tracked SVG geometry (edge paths, formation lines, orbit rings) MORPHS
+   from its old attributes to the new ones on the movers' timing instead
+   of snapping while the nodes glide. */
+type beat_stage = {
+  arrival_prefixes: list(string),
+  existing: list(string),
+  geom_prefixes: list(string),
+  /* id -> (attribute, old value) for the geometry we morph */
+  geom_old: list((string, list((string, string)))),
+  b_delay: int,
+  b_stagger: int,
+  b_move_dur: int,
+};
+let beat: ref(option(beat_stage)) = ref(None: option(beat_stage));
+let geom_attrs = ["d", "cx", "cy"];
+/* (module Js above shadows Js_of_ocaml.Js: qualify explicitly) */
+let attr_of =
+    (el: Js_of_ocaml.Js.t(Dom_html.element), name: string): option(string) =>
+  Js_of_ocaml.Js.Opt.to_option(
+    el##getAttribute(Js_of_ocaml.Js.string(name)),
+  )
+  |> Option.map(Js_of_ocaml.Js.to_string);
+let request_beat =
+    (
+      ~arrival_prefixes: list(string),
+      ~geom_prefixes: list(string),
+      ~delay: int,
+      ~stagger: int,
+      ~move_dur: int,
+    )
+    : unit => {
+  let ids = prefixes => List.concat_map(JsUtil.ids_with_prefix, prefixes);
+  beat :=
+    Some({
+      arrival_prefixes,
+      existing: ids(arrival_prefixes),
+      geom_prefixes,
+      geom_old:
+        ids(geom_prefixes)
+        |> List.filter_map(id =>
+             JsUtil.get_elem_by_id_opt(id)
+             |> Option.map(el =>
+                  (
+                    id,
+                    geom_attrs
+                    |> List.filter_map(a =>
+                         attr_of(el, a) |> Option.map(v => (a, v))
+                       ),
+                  )
+                )
+           ),
+      b_delay: delay,
+      b_stagger: stagger,
+      b_move_dur: move_dur,
+    });
+};
+/* CSS value for an SVG geometry attribute */
+let geom_css = (attr: string, v: string): string =>
+  attr == "d" ? "path(\"" ++ v ++ "\")" : v ++ "px";
+
+/* Execute animations. This is called during the
+ * render phase, after recalc but before repaint */
+let go = (): unit => {
+  let visible =
+    tracked_elems^ == [] ? [] : tracked_elems^ |> filter_visible_elements;
+  let arrivals =
+    switch (beat^) {
+    | None => []
+    | Some(b) =>
+      List.concat_map(JsUtil.ids_with_prefix, b.arrival_prefixes)
+      |> List.filter(id => !List.mem(id, b.existing))
+      |> List.filter_map(id =>
+           JsUtil.get_elem_by_id_opt(id) |> Option.map(el => (id, el))
+         )
+    };
+  /* movers wait for ALL arrivals, tracked or not */
+  stagger_total :=
+    List.length(arrivals)
+    + List.length(List.filter(((tr, _, _)) => tr.box == None, visible));
+  stagger_index := 0;
+  switch (beat^) {
+  | Some(b) when arrivals != [] =>
+    let step = stagger_step(b.b_stagger);
+    List.iter(
+      ((_, el)) => {
+        Js.animate(
+          {
+            options: {
+              duration: 220,
+              easing: easeOutExpo,
+              delay: b.b_delay + stagger_index^ * step,
+            },
+            keyframes: Keyframes.scale_from_zero,
+          },
+          el,
+        );
+        incr(stagger_index);
+      },
+      arrivals,
+    );
+  | _ => ()
+  };
+  if (visible != []) {
+    visible
+    |> List.iter(((tr, _, _) as x) => {
+         animate_elem(x);
+         if (tr.box == None) {
+           incr(stagger_index);
+         };
+       });
+    tracked_elems := [];
+  };
+  switch (beat^) {
+  | None => ()
+  | Some(b) =>
+    let wait =
+      b.b_stagger > 0 && stagger_total^ > 0
+        ? stagger_span(b.b_stagger) + 120 : 0;
+    /* morph tracked geometry on the movers' timing */
+    List.iter(
+      ((id, olds)) =>
+        switch (JsUtil.get_elem_by_id_opt(id)) {
+        | None => ()
+        | Some(el) =>
+          let frames =
+            olds
+            |> List.filter_map(((a, old)) =>
+                 switch (attr_of(el, a)) {
+                 | Some(nw) when nw != old => Some((a, old, nw))
+                 | _ => None
+                 }
+               );
+          if (frames != []) {
+            let kf = side =>
+              List.map(
+                ((a, old, nw)) =>
+                  (a, geom_css(a, side == `From ? old : nw)),
+                frames,
+              );
+            Js.animate_multi(
+              [kf(`From), kf(`To)],
+              {
+                duration: b.b_move_dur,
+                easing: easeOutExpo,
+                delay: b.b_delay + wait,
+              },
+              el,
+            );
+          };
+        },
+      b.geom_old,
+    );
+    /* new geometry (fresh formation lines, orbit rings) appears once the
+       arrivals it belongs to have grown in; new edge paths are drawn by
+       the canvas's own enactment, so they are left alone */
+    let known = List.map(fst, b.geom_old);
+    List.concat_map(JsUtil.ids_with_prefix, b.geom_prefixes)
+    |> List.filter(id =>
+         !List.mem(id, known)
+         && !(String.length(id) >= 6 && String.sub(id, 0, 6) == "cpath-")
+       )
+    |> List.iter(id =>
+         switch (JsUtil.get_elem_by_id_opt(id)) {
+         | Some(el) =>
+           Js.animate_multi(
+             [[("opacity", "0")], [("opacity", "1")]],
+             {
+               duration: 200,
+               easing: "ease-out",
+               delay: b.b_delay + wait,
+             },
+             el,
+           )
+         | None => ()
+         }
+       );
+    beat := None;
+  };
+};
 
 module Actions = {
   /* ~stagger: ms between successive NEW elements' arrivals (0 = all at

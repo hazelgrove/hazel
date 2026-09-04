@@ -145,8 +145,8 @@ let edge_svg =
 
 let formation_svg =
     (
-      i: int,
-      (_, _, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      _i: int,
+      (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
   /* gentle curve from component toward its product */
@@ -163,7 +163,9 @@ let formation_svg =
   svg(
     "path",
     [
-      Attr.id("cform-" ++ string_of_int(i)),
+      /* keyed by endpoints so a beat can morph the same line across
+         renders (an index would pair different lines) */
+      Attr.id("cform-" ++ sanitize(a) ++ "--" ++ sanitize(b)),
       clss(["canvas-formation"]),
       Attr.create(
         "d",

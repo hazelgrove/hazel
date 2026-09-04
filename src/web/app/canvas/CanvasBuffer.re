@@ -124,6 +124,15 @@ let stage_beat = (~lead: bool=false, ()): unit => {
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;
   let move_dur = lead ? relayout_ms : 125;
+  /* elements that don't exist yet arrive staggered; edge/formation/orbit
+     geometry morphs on the movers' timing instead of snapping */
+  Animation.request_beat(
+    ~arrival_prefixes=["cnode-", "cedge-", "cval-"],
+    ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-"],
+    ~delay,
+    ~stagger,
+    ~move_dur,
+  );
   Animation.request(
     (
       Util.JsUtil.ids_with_prefix("cnode-")

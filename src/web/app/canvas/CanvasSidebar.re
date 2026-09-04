@@ -2384,10 +2384,27 @@ let view =
         lay.nodes,
       );
     if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
-      if (List.length(added) <= 6) {
-        List.iter(
-          (nl: CanvasLayout.node_layout) => {
-            CanvasRipple.splash(~amp=4., (nl.p.x, nl.p.y));
+      if (List.length(added) <= 12) {
+        /* splashes land with each node's staggered arrival */
+        let n = List.length(added);
+        let step =
+          min(
+            CanvasBuffer.arrival_stagger_ms,
+            Animation.stagger_span_cap / max(1, n),
+          );
+        List.iteri(
+          (i, nl: CanvasLayout.node_layout) => {
+            let (x, y) = (nl.p.x, nl.p.y);
+            Js_of_ocaml.(
+              ignore(
+                Js.Unsafe.global##setTimeout(
+                  Js.Unsafe.callback(() =>
+                    CanvasRipple.splash(~amp=4., (x, y))
+                  ),
+                  CanvasBuffer.lead_ms + i * step,
+                ),
+              )
+            );
             note_placed(nl.node.key);
           },
           added,
