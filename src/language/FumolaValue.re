@@ -130,6 +130,19 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
   };
 };
 
+/* The program that reads the cell a pointer names.
+ *
+ * peek rather than get: reading a cell to translate it should not change the
+ * runtime being translated, and get records a dependency in the adapton
+ * graph. Translation runs on every statics pass, so a dependency-recording
+ * read would grow the graph as a side effect of merely looking.
+ *
+ * The `!` unwraps peek's option, assuming the cell is defined. It is, in the
+ * case that matters -- the pointer came from a value the runtime just
+ * produced -- and a pointer to a cell that has since gone away reads as an
+ * error rather than silently as None. */
+let reading = (source: string): string => "peek(" ++ source ++ ")!";
+
 /* The Hazel type of a Fumola result.
  *
  * A pointer's type is the type of what it points at, so this dereferences --
@@ -200,7 +213,7 @@ let rec typ_of_json =
       | `Assoc(fields) =>
         switch (List.assoc_opt("source", fields)) {
         | Some(`String(source)) when !List.mem(source, seen) =>
-          switch (eval("get(" ++ source ++ ")")) {
+          switch (eval(reading(source))) {
           | `Assoc(result) as pointed =>
             switch (List.assoc_opt("ok", result)) {
             | Some(`Bool(true)) =>
@@ -289,7 +302,7 @@ and exp_of_tagged =
          what the cell holds, and the type of that answer is the type of this
          reference. Without it the generated livelit would be asking for an
          annotation nobody can write, since it is code the user never typed. */
-      let pointed = eval("get(" ++ source ++ ")");
+      let pointed = eval(reading(source));
       let typ = typ_of_json(~eval, ~seen=[source], pointed);
       Ok(
         DHExp.fresh(
@@ -301,7 +314,7 @@ and exp_of_tagged =
                 DHExp.fresh(
                   Tuple([
                     DHExp.fresh(Atom(Int(Bigint.of_int(instance_id)))),
-                    DHExp.fresh(Atom(String("get(" ++ source ++ ")"))),
+                    DHExp.fresh(Atom(String(reading(source)))),
                   ]),
                 ),
               ),
@@ -419,7 +432,7 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Unit", _) => "()"
     | ("AdaptonPointer", `Assoc(fields)) =>
       switch (List.assoc_opt("source", fields)) {
-      | Some(`String(source)) => "get(" ++ source ++ ")"
+      | Some(`String(source)) => reading(source)
       | _ => "<pointer>"
       }
     | ("Symbol", symbol) =>

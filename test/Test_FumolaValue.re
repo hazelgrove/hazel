@@ -472,7 +472,7 @@ let tests = (
       {|{"tag":"Symbol","value":{"tag":"BinOp","value":null}}|},
     ),
     /* A pointer becomes the livelit that reads it: the same instance, running
-       get(<the name it points at>). So a livelit that returns a pointer
+       peek(<the name it points at>)!. So a livelit that returns a pointer
        returns a simpler livelit. */
     test_case("a pointer becomes the livelit that reads it", `Quick, () =>
       switch (
@@ -508,7 +508,7 @@ let tests = (
           Alcotest.check(
             Alcotest.string,
             "reads the pointer",
-            "get(`counter)",
+            "peek(`counter)!",
             text,
           );
         | _ => Alcotest.fail("model is not (Int, String)")
@@ -541,7 +541,7 @@ let tests = (
             ),
           _,
         }) =>
-        Alcotest.check(Alcotest.string, "reads the pointer", "get(7)", text)
+        Alcotest.check(Alcotest.string, "reads the pointer", "peek(7)!", text)
       | Ok(_) => Alcotest.fail("expected a fumola livelit application")
       | Error(m) => Alcotest.fail(m)
       }
@@ -585,7 +585,7 @@ let tests = (
       switch (
         translate(
           ~eval=
-            store([("get(`n)", {|{"ok":true,"tag":"Int","value":"41"}|})]),
+            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"41"}|})]),
           {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
         )
       ) {
@@ -601,7 +601,7 @@ let tests = (
           ~eval=
             store([
               (
-                "get(`p)",
+                "peek(`p)!",
                 {|{"ok":true,"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Bool","value":true}]}|},
               ),
             ]),
@@ -631,10 +631,10 @@ let tests = (
           ~eval=
             store([
               (
-                "get(`a)",
+                "peek(`a)!",
                 {|{"ok":true,"tag":"AdaptonPointer","value":{"source":"`b"}}|},
               ),
-              ("get(`b)", {|{"ok":true,"tag":"String","value":"hi"}|}),
+              ("peek(`b)!", {|{"ok":true,"tag":"String","value":"hi"}|}),
             ]),
           {|{"tag":"AdaptonPointer","value":{"source":"`a"}}|},
         )
@@ -652,7 +652,7 @@ let tests = (
           ~eval=
             store([
               (
-                "get(`loop)",
+                "peek(`loop)!",
                 {|{"ok":true,"tag":"AdaptonPointer","value":{"source":"`loop"}}|},
               ),
             ]),
@@ -682,7 +682,7 @@ let tests = (
         translate(
           ~instance_id=5,
           ~eval=
-            store([("get(`n)", {|{"ok":true,"tag":"Int","value":"1"}|})]),
+            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"1"}|})]),
           {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
         )
       ) {
@@ -718,7 +718,7 @@ let tests = (
         Alcotest.check(
           Alcotest.string,
           "still reads the pointer",
-          "get(`n)",
+          "peek(`n)!",
           text,
         );
       | Ok(_) => Alcotest.fail("expected the pointer to survive")

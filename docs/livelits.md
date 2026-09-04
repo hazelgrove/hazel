@@ -177,6 +177,18 @@ The prelude supplies:
 
 so that `1 := 2` in one edit and `get(1)` in the next reads back `2`.
 
+A Fumola pointer arrives as the livelit that reads it, ascribed with the type
+of what it points at:
+
+```text
+1 := 2   ->   (^fumola(<same instance>, "peek(1)!") : Int)
+```
+
+The type is found by dereferencing: translation runs `peek(<name>)!` in the
+same instance and takes the type of the answer, following a chain of pointers
+for as long as it finds one. `peek` rather than `get`, so that translating a
+result does not record a dependency in the runtime being translated.
+
 A Fumola symbol arrives in Hazel as its text, with the backticks dropped at
 every depth:
 
