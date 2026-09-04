@@ -136,6 +136,9 @@ and mod_term('a) =
   | ModType(tpat_t('a), typ_t('a))
   | ModExp(exp_t('a))
   | ModuleMod(mpat_t('a), exp_t('a))
+  /* Dynamics only: a binding whose definition has been evaluated. A module
+     whose items are all ModVal is a module value. */
+  | ModVal(Var.t, exp_t('a))
 and mod_t('a) = Annotated.t(mod_term('a), 'a)
 and sig_term('a) =
   | Invalid(string)
@@ -452,6 +455,7 @@ and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
         | ModExp(e) => ModExp(map_exp_annotation(f, e))
         | ModuleMod(mp, e) =>
           ModuleMod(map_mpat_annotation(f, mp), map_exp_annotation(f, e))
+        | ModVal(x, e) => ModVal(x, map_exp_annotation(f, e))
         },
       annotation: new_annotation,
     };
@@ -922,6 +926,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Prod(l),
+      annotation: default_annotation(ann),
+    };
+    let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
+      term: Sig(items),
       annotation: default_annotation(ann),
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
