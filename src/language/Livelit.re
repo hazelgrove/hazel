@@ -31,7 +31,9 @@ module Slider: BuiltinLivelit = {
      and mismatches surface as ordinary Hazel type errors. */
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Unknown(Internal));
   let requires_annotation = false;
-  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+  let expand:
+    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    expansion_t =
     (~ana as _, ~tools as _, x: model_t) =>
       switch (x) {
       | n => n
@@ -137,7 +139,9 @@ module Emotion: BuiltinLivelit = {
      - greater than 70: "happy"
      - otherwise: "neutral" */
   let requires_annotation = false;
-  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+  let expand:
+    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    expansion_t =
     (~ana as _, ~tools as _, x: model_t) => {
       let n = int_of_string(Bigint.to_string(x));
       if (n < 40) {
@@ -327,7 +331,9 @@ module Js: BuiltinLivelit = {
 
   /* The expansion is just the current `result`. */
   let requires_annotation = false;
-  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+  let expand:
+    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    expansion_t =
     (~ana as _, ~tools as _, m: model_t) => m.result;
 
   let expand_to_hazel: expansion_t => expansion_exp =
@@ -655,7 +661,9 @@ module Fumola: BuiltinLivelit = {
     normalize: ty => ty,
   };
 
-  let expand: (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) => expansion_t =
+  let expand:
+    (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model_t) =>
+    expansion_t =
     (~ana, ~tools, m: model_t) => fst(observe_described(~ana, ~tools, m));
 
   let expand_to_hazel: expansion_t => expansion_exp =

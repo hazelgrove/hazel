@@ -733,7 +733,11 @@ let exp_mark_err_view =
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | LivelitNeedsAnnotation(name) =>
     div_err([
-      text("The " ++ name ++ " livelit needs a type annotation saying what it should expand to"),
+      text(
+        "The "
+        ++ name
+        ++ " livelit needs a type annotation saying what it should expand to",
+      ),
     ])
   | BadTheorem(typ) =>
     div_err([

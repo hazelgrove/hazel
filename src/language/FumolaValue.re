@@ -83,9 +83,60 @@ let constructor =
     (DHExp.fresh(Constructor(name, None)), unknown())
   };
 
+/* The text of a Fumola symbol.
+
+   Symbols are structured -- `x is an identifier, 1 is a number, and they
+   compose as `a(`b) and `a.`b -- so this renders the whole structure, without
+   the backticks Fumola writes them with:
+
+     `x                    -> "x"
+     1                     -> "1"
+     `adapton(`settings)   -> "adapton(settings)"
+
+   Backticks are dropped throughout rather than kept on the leaves, so one
+   convention holds at every depth.
+
+   This is the one way to get a string out of a livelit without writing a
+   quote: Hazel string literals admit no escapes, so a program in a livelit
+   cannot contain a double quote at all. Naming a symbol produces the text instead. */
+let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
+  let sub = (name, obj) =>
+    switch (List.assoc_opt(name, obj)) {
+    | Some(v) => symbol_text(v)
+    | None => Error("Fumola symbol is missing field `" ++ name ++ "`")
+    };
+  switch (json) {
+  | `Assoc(obj) =>
+    switch (List.assoc_opt("tag", obj), List.assoc_opt("value", obj)) {
+    | (Some(`String("Name")), Some(`String(name))) => Ok(name)
+    | (Some(`String("Num")), Some(`String(n))) => Ok(n)
+    | (Some(`String("Call")), _) =>
+      switch (sub("fun", obj), sub("arg", obj)) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(f), Ok(a)) => Ok(f ++ "(" ++ a ++ ")")
+      }
+    | (Some(`String("Dot")), _) =>
+      switch (sub("left", obj), sub("right", obj)) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(l), Ok(r)) => Ok(l ++ "." ++ r)
+      }
+    | (Some(`String(tag)), _) =>
+      Error("Fumola symbol form `" ++ tag ++ "` has no text yet")
+    | _ => Error("Fumola symbol has no tag")
+    }
+  | _ => Error("Fumola symbol is not an object")
+  };
+};
+
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
-        (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, json: Yojson.Safe.t)
+        (
+          ~ana: TermBase.Typ.t,
+          ~tools: LivelitCtx.type_tools,
+          json: Yojson.Safe.t,
+        )
         : result(TermBase.Exp.t, string) => {
   let field = (name, obj) =>
     switch (List.assoc_opt(name, obj)) {
@@ -125,6 +176,13 @@ and exp_of_tagged =
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
   /* Fumola's unit is Hazel's empty tuple. */
   | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
+  /* A symbol becomes its text. Hazel has no symbol of its own, and the text
+     is the part a Hazel program can act on. */
+  | ("Symbol", symbol) =>
+    switch (symbol_text(symbol)) {
+    | Error(e) => Error(e)
+    | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
+    }
   | ("Tuple", `List(items)) =>
     let anas = element_anas(~tools, ana, List.length(items));
     let translated =
@@ -182,7 +240,9 @@ and exp_of_tagged =
       };
     };
   | (tag, _) =>
-    Error("Fumola returned a " ++ tag ++ ", which has no Hazel translation yet")
+    Error(
+      "Fumola returned a " ++ tag ++ ", which has no Hazel translation yet",
+    )
   }
 
 and all = (results: list(result('a, string))): result(list('a), string) =>
@@ -217,6 +277,11 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Bool", `Bool(b)) => b ? "true" : "false"
     | ("String", `String(str)) => "\"" ++ str ++ "\""
     | ("Unit", _) => "()"
+    | ("Symbol", symbol) =>
+      switch (symbol_text(symbol)) {
+      | Ok(text) => "\"" ++ text ++ "\""
+      | Error(_) => "<symbol>"
+      }
     | ("Null", _) => "None"
     | ("Option", payload) => "Some(" ++ describe(payload) ++ ")"
     | ("Tuple", `List(items)) =>

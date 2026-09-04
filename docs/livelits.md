@@ -177,6 +177,18 @@ The prelude supplies:
 
 so that `1 := 2` in one edit and `get(1)` in the next reads back `2`.
 
+A Fumola symbol arrives in Hazel as its text, with the backticks dropped at
+every depth:
+
+```text
+`x                    ->  "x"
+`adapton(`settings)   ->  "adapton(settings)"
+```
+
+This is also the only way to produce a string from a livelit at all, since
+Hazel string literals admit no escapes and so a livelit's program can never
+contain a double quote.
+
 Not settled by this implementation: `FumolaInstanceId` is an ordinary `Int` in
 the model rather than a distinct opaque value form, only first-order integer
 results are translated, and Fumola values whose meaning depends on the runtime

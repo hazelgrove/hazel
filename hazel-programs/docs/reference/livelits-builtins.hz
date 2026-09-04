@@ -49,5 +49,9 @@ let current_mood = ^^livelit(^emotion(0)) in
 #   peek(s)     the value as an option, without recording a dependency        #
 # `:=` turns its left side into a pointer, but `@` does not, so a cell is     #
 # read back with `get(s)` rather than `@(s)`.                                 #
+#                                                                             #
+# A symbol arrives in Hazel as its text: `x becomes "x". That is also the     #
+# only way to produce a string here, since a Hazel string cannot contain a    #
+# double quote and so neither can the program above.                          #
 # Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.         #
 let fumola_val = ^^livelit(^fumola(0, "1 + 2")) in¿

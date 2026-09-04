@@ -16,7 +16,7 @@ type send_action = action_exp => Ui_effect.t(unit);
 
 /* What a livelit needs from the typing context in order to expand in
    checking mode, packaged as closures.
-   
+
    Closures rather than a Ctx.t because Ctx already depends on this module --
    Ctx.entry has a LivelitEntry of raw_livelit -- so naming Ctx.t here would
    be circular. This is also the tighter interface: a livelit needs to resolve
@@ -72,7 +72,8 @@ module type BuiltinLivelit = {
      constructor names and unfolds aliases against the ambient context.
      A livelit that sets [requires_annotation] below is only asked to expand
      when [ana] is known. */
-  let expand: (~ana: TermBase.Typ.t, ~tools: type_tools, model_t) => expansion_t;
+  let expand:
+    (~ana: TermBase.Typ.t, ~tools: type_tools, model_t) => expansion_t;
   /* Set when the livelit cannot decide what to produce without an expected
      type -- see the fumola livelit, whose result shape depends on both the
      program it runs and the type asked of it. */

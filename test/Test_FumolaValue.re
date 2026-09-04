@@ -392,6 +392,68 @@ let tests = (
       | Error(m) => Alcotest.fail(m)
       }
     ),
+    /* A symbol becomes its text. This is the one way to get a string out of a
+       livelit without writing a quote, since Hazel string literals admit no
+       escapes and so a livelit's program cannot contain one. */
+    test_case("a symbol becomes its text", `Quick, () =>
+      switch (
+        translate({|{"tag":"Symbol","value":{"tag":"Name","value":"x"}}|})
+      ) {
+      | Ok({term: Atom(String("x")), _}) => ()
+      | Ok(_) => Alcotest.fail("expected the string \"x\"")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case("a numeric symbol becomes its digits", `Quick, () =>
+      switch (
+        translate({|{"tag":"Symbol","value":{"tag":"Num","value":"7"}}|})
+      ) {
+      | Ok({term: Atom(String("7")), _}) => ()
+      | Ok(_) => Alcotest.fail("expected the string \"7\"")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Backticks are dropped at every depth, so one convention holds
+       throughout rather than being kept on the leaves. */
+    test_case("a structured symbol renders without backticks", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Symbol","value":{"tag":"Call","fun":{"tag":"Name","value":"adapton"},"arg":{"tag":"Name","value":"settings"}}}|},
+        )
+      ) {
+      | Ok({term: Atom(String(text)), _}) =>
+        Alcotest.check(Alcotest.string, "rendered", "adapton(settings)", text)
+      | Ok(_) => Alcotest.fail("expected a string")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case("a dotted symbol renders with a dot", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Symbol","value":{"tag":"Dot","left":{"tag":"Name","value":"a"},"right":{"tag":"Name","value":"b"}}}|},
+        )
+      ) {
+      | Ok({term: Atom(String("a.b")), _}) => ()
+      | Ok(_) => Alcotest.fail("expected the string \"a.b\"")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A symbol nested in a structure is translated like any other value. */
+    test_case("symbols translate inside tuples", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Tuple","value":[{"tag":"Symbol","value":{"tag":"Name","value":"a"}},{"tag":"Int","value":"1"}]}|},
+        )
+      ) {
+      | Ok({term: Tuple([{term: Atom(String("a")), _}, _]), _}) => ()
+      | Ok(_) => Alcotest.fail("expected a string in the tuple")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    fails(
+      "a symbol form with no text yet",
+      {|{"tag":"Symbol","value":{"tag":"BinOp","value":null}}|},
+    ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
     fails("a missing tag", {|{"value":null}|}),
     fails("an unreadable integer", {|{"tag":"Int","value":"twelve"}|}),
