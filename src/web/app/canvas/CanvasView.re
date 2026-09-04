@@ -27,6 +27,7 @@ let sanitize = (s: string): string =>
 
 let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
 let edge_dom_id = (name: string): string => "cedge-" ++ sanitize(name);
+let path_dom_id = (name: string): string => "cpath-" ++ sanitize(name);
 let value_dom_id = (name: string): string => "cval-" ++ sanitize(name);
 let avatar_dom_id = "canvas-avatar";
 
@@ -118,7 +119,7 @@ let edge_svg =
       svg(
         "path",
         [
-          Attr.id("cpath-" ++ sanitize(e.e_name)),
+          Attr.id(path_dom_id(e.e_name)),
           clss(["canvas-line", "edge-arrow", ...cls]),
           Attr.create(
             "d",

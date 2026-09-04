@@ -298,6 +298,9 @@ let note_placed = (key: string): unit =>
    Slide switches and wholesale rewrites are gated by the removal count. */
 let last_node_snapshot: ref((string, list((string, (float, float))))) =
   ref(("", []));
+/* previous render's function edges (by name), for the arrival
+   choreography: new edges during an agent beat are drawn by the avatar */
+let last_edge_snapshot: ref((string, list(string))) = ref(("", []));
 
 /* collapsed module hulls (root module names); toggled from the hull
    label, repaints ride Set(CanvasTick) */
@@ -745,6 +748,7 @@ let view =
     );
   install_zoom_listener();
   CanvasCamera.install_testers();
+  CanvasEnact.install_testers();
   let offsets =
     globals.settings.canvas_node_offsets
     |> List.filter_map((((s, k), d)) => s == slide ? Some((k, d)) : None);
@@ -2494,6 +2498,23 @@ let view =
           lay.nodes,
         ),
       );
+
+    /* new function edges during a paced agent beat: enact them (the
+       avatar pulls each arrow from domain to codomain) once the DOM
+       for this render exists */
+    let (prev_slide, prev_edges) = last_edge_snapshot^;
+    let cur_edges =
+      List.map((el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
+    let added_edges = List.filter(e => !List.mem(e, prev_edges), cur_edges);
+    if (prev_slide == slide
+        && added_edges != []
+        && CanvasBuffer.pacing_live()
+        && globals.settings.canvas_pace) {
+      CanvasEnact.after_render(() =>
+        CanvasEnact.enact_edges(~zoom=CanvasCamera.zoom_now^, added_edges)
+      );
+    };
+    last_edge_snapshot := (slide, cur_edges);
   };
   /* telegraph state for CanvasView: rubber-band anchors + grow-in key */
   let connect_pts: list(CanvasLayout.pos) =
