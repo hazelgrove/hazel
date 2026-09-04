@@ -74,34 +74,38 @@ window.fumola = (() => {
   // invariant that sigma(i) is synchronized with the model's program text.
   const lastEval = new Map();
 
-  // Where the .wasm is fetched from. The local copy is what
-  // scripts/build-fumola-wasm.sh writes, and is used when working locally.
+  // Where the runtime is fetched from.
   //
-  // Branch previews cannot use it: the preview site is a directory in
-  // hazelgrove/build, and committing a 5MB binary there made GitHub Pages
-  // fail to build the entire site, which blocks previews for every branch.
-  // So the deployed page falls back to the copy in the Hazel repo, served
-  // with CORS and the right content type by jsDelivr.
-  // Resolved against the page explicitly. Code built with `new Function` has
-  // no active script, so a bare relative specifier inside it does not reliably
-  // resolve against this page -- it can be fetched from whatever base the
-  // browser picks, which is not necessarily where Hazel is being served from.
+  // The local pair is what scripts/build-fumola-wasm.sh writes, and is used
+  // when working on Fumola and Hazel together. Otherwise the canonical build
+  // is used: it is published to GitHub Pages from the Fumola repo, which
+  // serves it with CORS and the correct application/wasm content type.
+  // (A GitHub release asset cannot be used -- release downloads carry no
+  // Access-Control-Allow-Origin header, so a browser cannot fetch one.)
+  //
+  // The glue and the .wasm are always taken from the same place. They are
+  // generated together by wasm-bindgen and will not load if their versions
+  // disagree.
   const here = (path) => new URL(path, document.baseURI).href;
-  const LOCAL_GLUE = here("./fumola/fumola_wasm.js");
-  const LOCAL_WASM = here("./fumola/fumola_wasm_bg.wasm");
-  const CDN_WASM =
-    "https://cdn.jsdelivr.net/gh/hazelgrove/hazel@fumola-livelit-mvp" +
-    "/assets/fumola/fumola_wasm_bg.wasm";
+  const LOCAL = {
+    glue: here("./fumola/fumola_wasm.js"),
+    wasm: here("./fumola/fumola_wasm_bg.wasm"),
+  };
+  const PUBLISHED = {
+    glue: "https://adapton.github.io/fumola/fumola_wasm.js",
+    wasm: "https://adapton.github.io/fumola/fumola_wasm_bg.wasm",
+  };
 
   // Hidden from the bundler so that Hazel builds without the generated files.
   const dynamicImport = new Function("p", "return import(p)");
-  dynamicImport(LOCAL_GLUE)
-    .then(async (mod) => {
-      try {
-        await mod.default({ module_or_path: LOCAL_WASM });
-      } catch (localError) {
-        await mod.default({ module_or_path: CDN_WASM });
-      }
+  const load = async (from) => {
+    const mod = await dynamicImport(from.glue);
+    await mod.default({ module_or_path: from.wasm });
+    return mod;
+  };
+  load(LOCAL)
+    .catch(() => load(PUBLISHED))
+    .then((mod) => {
       wasm = mod;
     })
     .catch((e) => {
