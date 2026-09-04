@@ -112,26 +112,82 @@ let animate =
   );
 };
 
-let clear_dash = (el): unit =>
+let clear_dash = (el): unit => {
+  let st = Js.Unsafe.get(el, "style");
+  Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
+  Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
   ignore(
     Js.Unsafe.meth_call(el, "removeAttribute", [|str("stroke-dasharray")|]),
   );
+  ignore(
+    Js.Unsafe.meth_call(
+      el,
+      "removeAttribute",
+      [|str("stroke-dashoffset")|],
+    ),
+  );
+};
+
+/* one dash the length of the path, on the INLINE style (a dotted line's
+   CSS pattern beats the attribute); dotted lines keep their dots. Returns
+   the "on" length the offset animates from. */
+let arm_dash = (el, total: float): float => {
+  let css: string =
+    Js.to_string(
+      Js.Unsafe.get(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(el)|],
+        ),
+        "strokeDasharray",
+      ),
+    );
+  let strip_px = s => {
+    let s = String.trim(s);
+    let n = String.length(s);
+    n > 2 && String.sub(s, n - 2, 2) == "px" ? String.sub(s, 0, n - 2) : s;
+  };
+  let nums =
+    css
+    |> String.split_on_char(',')
+    |> List.concat_map(String.split_on_char(' '))
+    |> List.filter_map(s => float_of_string_opt(strip_px(s)));
+  let (pattern, on_len) =
+    switch (nums) {
+    | [dot, gap, ..._] when dot +. gap > 0. && dot +. gap < 40. =>
+      let period = dot +. gap;
+      let n = int_of_float(ceil(total /. period));
+      let on_len = float_of_int(n) *. period;
+      (
+        String.concat(
+          " ",
+          List.init(n, _ => Printf.sprintf("%.2f %.2f", dot, gap)),
+        )
+        ++ Printf.sprintf(" 0 %.1f", on_len),
+        on_len,
+      );
+    | _ => (Printf.sprintf("%.1f %.1f", total, total), total)
+    };
+  Js.Unsafe.set(
+    Js.Unsafe.get(el, "style"),
+    "strokeDasharray",
+    Js.string(pattern),
+  );
+  on_len;
+};
 
 /* draw a stroke on from its start over dur ms starting at delay */
 let reveal = (~delay: float, ~dur: float, el): unit => {
   cancel_anims(el);
   let total: float = Js.Unsafe.meth_call(el, "getTotalLength", [||]);
-  set_attr(
-    el,
-    "stroke-dasharray",
-    Printf.sprintf("%.1f %.1f", total, total),
-  );
+  let on_len = arm_dash(el, total);
   /* a stale dash array would truncate the path once it later stretches */
   later(delay +. dur +. 30., () => clear_dash(el));
   animate(
     el,
     [
-      [("strokeDashoffset", num(total))],
+      [("strokeDashoffset", num(on_len))],
       [("strokeDashoffset", num(0.))],
     ],
     [
@@ -214,15 +270,11 @@ let enact_edge =
       | Some(_) => set_attr(path, "marker-end", "none")
       | None => ()
       };
-      set_attr(
-        path,
-        "stroke-dasharray",
-        Printf.sprintf("%.1f %.1f", total, total),
-      );
+      let on_len = arm_dash(path, total);
       animate(
         path,
         [
-          [("strokeDashoffset", num(total))],
+          [("strokeDashoffset", num(on_len))],
           [("strokeDashoffset", num(0.))],
         ],
         [
@@ -423,11 +475,15 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
       @ [
         [("transform", str("translate(0px, 0px)")), ("offset", num(1.))],
       ];
+    /* per-keyframe easing: one ease over the whole timeline made the
+       first travel crawl and the middle rush */
+    let frames =
+      List.map(kf => kf @ [("easing", str("ease-in-out"))], frames);
     cancel_anims(av);
     animate(
       av,
       frames,
-      [("duration", num(total_ms)), ("easing", str("ease-in-out"))],
+      [("duration", num(total_ms)), ("easing", str("linear"))],
     );
   | _ => ()
   };
@@ -531,15 +587,11 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
       | Some(m) when m != "none" => set_attr(path, "marker-end", "none")
       | _ => ()
       };
-      set_attr(
-        path,
-        "stroke-dasharray",
-        Printf.sprintf("%.1f %.1f", total, total),
-      );
+      let on_len = arm_dash(path, total);
       animate(
         path,
         [
-          [("strokeDashoffset", num(total))],
+          [("strokeDashoffset", num(on_len))],
           [("strokeDashoffset", num(0.))],
         ],
         [
@@ -773,11 +825,15 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       @ [
         [("transform", str("translate(0px, 0px)")), ("offset", num(1.))],
       ];
+    /* per-keyframe easing: one ease over the whole timeline made the
+       first travel crawl and the middle rush */
+    let frames =
+      List.map(kf => kf @ [("easing", str("ease-in-out"))], frames);
     cancel_anims(av);
     animate(
       av,
       frames,
-      [("duration", num(total_ms)), ("easing", str("ease-in-out"))],
+      [("duration", num(total_ms)), ("easing", str("linear"))],
     );
     CanvasLog.log(
       Printf.sprintf(

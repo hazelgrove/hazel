@@ -495,6 +495,81 @@ let go = (): unit => {
        (The canvas's enactment re-stages new function edges with the
        avatar riding them; it cancels this first.) */
     let known = List.map(fst, b.geom_old);
+    /* the draw-on trick needs ONE dash the length of the path; a dotted
+       line's CSS dash pattern would override a presentation attribute, so
+       the pattern goes on the inline style and, for dotted lines, keeps
+       the dots: n x (dot gap) covering the length, then a gap of the same
+       length. Returns the "on" length the dashoffset animates from. */
+    let arm_dash = (el, total: float): float => {
+      let css: string =
+        Js_of_ocaml.Js.to_string(
+          Js_of_ocaml.Js.Unsafe.get(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              Js_of_ocaml.Js.Unsafe.global##.window,
+              "getComputedStyle",
+              [|Js_of_ocaml.Js.Unsafe.inject(el)|],
+            ),
+            "strokeDasharray",
+          ),
+        );
+      let strip_px = s => {
+        let s = String.trim(s);
+        let n = String.length(s);
+        n > 2 && String.sub(s, n - 2, 2) == "px"
+          ? String.sub(s, 0, n - 2) : s;
+      };
+      let nums =
+        css
+        |> String.split_on_char(',')
+        |> List.concat_map(String.split_on_char(' '))
+        |> List.filter_map(s => float_of_string_opt(strip_px(s)));
+      let (pattern, on_len) =
+        switch (nums) {
+        | [dot, gap, ..._] when dot +. gap > 0. && dot +. gap < 40. =>
+          let period = dot +. gap;
+          let n = int_of_float(ceil(total /. period));
+          let on_len = float_of_int(n) *. period;
+          (
+            String.concat(
+              " ",
+              List.init(n, _ => Printf.sprintf("%.2f %.2f", dot, gap)),
+            )
+            ++ Printf.sprintf(" 0 %.1f", on_len),
+            on_len,
+          );
+        | _ => (Printf.sprintf("%.1f %.1f", total, total), total)
+        };
+      Js_of_ocaml.Js.Unsafe.set(
+        Js_of_ocaml.Js.Unsafe.get(el, "style"),
+        "strokeDasharray",
+        Js_of_ocaml.Js.string(pattern),
+      );
+      on_len;
+    };
+    let disarm_dash = el => {
+      let st = Js_of_ocaml.Js.Unsafe.get(el, "style");
+      Js_of_ocaml.Js.Unsafe.set(
+        st,
+        "strokeDasharray",
+        Js_of_ocaml.Js.string(""),
+      );
+      Js_of_ocaml.Js.Unsafe.set(
+        st,
+        "strokeDashoffset",
+        Js_of_ocaml.Js.string(""),
+      );
+      List.iter(
+        a =>
+          ignore(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              el,
+              "removeAttribute",
+              [|Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(a))|],
+            ),
+          ),
+        ["stroke-dasharray", "stroke-dashoffset"],
+      );
+    };
     let set_attr = (el, a: string, v: string) =>
       ignore(
         Js_of_ocaml.Js.Unsafe.meth_call(
@@ -516,11 +591,7 @@ let go = (): unit => {
            if (total > 4.) {
              did_anything := true;
              let marker = attr_of(el, "marker-end");
-             set_attr(
-               el,
-               "stroke-dasharray",
-               Printf.sprintf("%.1f %.1f", total, total),
-             );
+             let on_len = arm_dash(el, total);
              switch (marker) {
              | Some(_) => set_attr(el, "marker-end", "none")
              | None => ()
@@ -538,10 +609,10 @@ let go = (): unit => {
              if (owned) {
                /* hidden until its act: the offset sits at full length; the
                   arrowhead is stashed for the player to restore */
-               set_attr(
-                 el,
-                 "stroke-dashoffset",
-                 Printf.sprintf("%.1f", total),
+               Js_of_ocaml.Js.Unsafe.set(
+                 Js_of_ocaml.Js.Unsafe.get(el, "style"),
+                 "strokeDashoffset",
+                 Js_of_ocaml.Js.string(Printf.sprintf("%.1f", on_len)),
                );
                switch (marker) {
                | Some(m) when m != "none" => set_attr(el, "data-marker", m)
@@ -550,7 +621,7 @@ let go = (): unit => {
              } else {
                Js.animate_multi(
                  [
-                   [("strokeDashoffset", Printf.sprintf("%.1f", total))],
+                   [("strokeDashoffset", Printf.sprintf("%.1f", on_len))],
                    [("strokeDashoffset", "0")],
                  ],
                  {
@@ -567,17 +638,7 @@ let go = (): unit => {
                      | Some(m) => set_attr(el, "marker-end", m)
                      | None => ()
                      };
-                     ignore(
-                       Js_of_ocaml.Js.Unsafe.meth_call(
-                         el,
-                         "removeAttribute",
-                         [|
-                           Js_of_ocaml.Js.Unsafe.inject(
-                             Js_of_ocaml.Js.string("stroke-dasharray"),
-                           ),
-                         |],
-                       ),
-                     );
+                     disarm_dash(el);
                    }),
                    delay + duration,
                  ),

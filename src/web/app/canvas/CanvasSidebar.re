@@ -277,6 +277,7 @@ let cached_avail_h: ref(option(float)) = ref(None: option(float));
    here — re-derived only on pane resize, slide switch, or reset layout. */
 type frame_cache = {
   fc_slide: string,
+  fc_burst: int, /* the burst it was derived in (CanvasLog turn) */
   fc_origin: CanvasLayout.pos,
   fc_x_scale: float,
   fc_y_scale: float,
@@ -864,7 +865,7 @@ let view =
       switch (cached_frame^) {
       | Some(fc)
           when
-            (manual || outgrown)
+            (manual || outgrown && fc.fc_burst == CanvasLog.turn_no())
             && fc.fc_slide == slide
             && Float.abs(fc.fc_avail_w -. aw) < 2. =>
         Some((fc.fc_origin, fc.fc_x_scale, fc.fc_y_scale))
@@ -904,6 +905,7 @@ let view =
       cached_frame :=
         Some({
           fc_slide: slide,
+          fc_burst: CanvasLog.turn_no(),
           fc_origin: origin,
           fc_x_scale: xs,
           fc_y_scale: ys,
@@ -953,6 +955,7 @@ let view =
       cached_frame :=
         Some({
           fc_slide: slide,
+          fc_burst: CanvasLog.turn_no(),
           fc_origin: framed.origin,
           fc_x_scale: x_scale,
           fc_y_scale: y_scale,
@@ -1206,6 +1209,9 @@ let view =
               [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
             ),
           );
+          let st = Js.Unsafe.get(el, "style");
+          Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
+          Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
         | None => ()
         },
       Util.JsUtil.ids_with_prefix("cpath-")
