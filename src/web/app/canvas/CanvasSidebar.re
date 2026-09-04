@@ -2491,6 +2491,15 @@ let view_impl =
             ? Effect.Ignore
             : globals.inject_global(Set(ClearCanvasNodeOffsets(slide))),
         ),
+        btn(
+          ~cls=CanvasAvatar.is_rig() ? "tool-active" : "",
+          ~on_press=CanvasAvatar.toggle_look,
+          {js|◬|js},
+          CanvasAvatar.is_rig()
+            ? "agent look: constellation rig with moods — click for the minimal @ glyph"
+            : "agent look: minimal @ glyph — click for the constellation rig with moods",
+          globals.inject_global(Set(CanvasTick)),
+        ),
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         CanvasReplayView.rec_dot(),

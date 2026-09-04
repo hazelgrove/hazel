@@ -820,6 +820,24 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
         add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
       | _ => ()
       };
+      /* the rig's moods follow the act: travel, land, then the emote */
+      let tf = float_of_int(t);
+      let mood_after =
+        switch (a.emote) {
+        | Edit => "edit"
+        | Erase => "erase"
+        | Think => "think"
+        | Tidy => "tidy"
+        | Look
+        | Rest => ""
+        };
+      later(tf, () => CanvasAvatar.set_mood("travel"));
+      later(tf +. float_of_int(a.travel_ms), () =>
+        CanvasAvatar.set_mood("arrive")
+      );
+      later(tf +. float_of_int(a.travel_ms) +. 420., () =>
+        CanvasAvatar.set_mood(mood_after)
+      );
     },
     s.acts,
   );
@@ -840,10 +858,15 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           }
         );
       | Draw(name) =>
+        later(tf, () =>
+          CanvasAvatar.set_mood(
+            a.emote == CanvasScore.Erase ? "erase" : "draw",
+          )
+        );
         List.iter(
           ((p, t)) => add(p, t),
           ride(~t=tf, ~dur=float_of_int(e.dur), name),
-        )
+        );
       | Form(pk, parts) =>
         List.iter(
           ((p, t)) => add(p, t),
@@ -911,6 +934,24 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       ((_, t1), (_, t2)) => compare(t1, t2),
       List.rev(wps^),
     );
+  /* the rig steers: at each moving segment's start it turns to face
+     where that segment goes (the CSS transition does the turning) */
+  let rec headings = (ws: list(waypoint)): unit =>
+    switch (ws) {
+    | [((x0, y0), t0), ((x1, y1), _) as next, ...rest] =>
+      if (Float.hypot(x1 -. x0, y1 -. y0) > 6.) {
+        later(t0, () =>
+          CanvasAvatar.set_heading(
+            CanvasAvatar.heading_of((x0, y0), (x1, y1)),
+          )
+        );
+      };
+      headings([next, ...rest]);
+    | _ => ()
+    };
+  if (CanvasAvatar.is_rig()) {
+    headings(sorted);
+  };
   switch (by_id(CanvasView.avatar_dom_id)) {
   | Some(av) when sorted != [] =>
     let end_site =

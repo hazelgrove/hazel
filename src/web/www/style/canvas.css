@@ -1551,3 +1551,197 @@
   opacity: 0.6;
   padding: 4px 2px;
 }
+
+/* ---- the constellation rig (CanvasAvatar): the agent's second look ---- */
+
+/* the glyph look's box styling does not apply to the rig body */
+.canvas-avatar.avatar-rig .avatar-body {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-weight: normal;
+  animation: none !important;
+  opacity: 1 !important;
+  /* the rig is centered on the anchor point (the glyph box hung to its
+     right and above); --heading is written by the player */
+  --heading: 0deg;
+  --rig-scale: 1;
+  --rig-dx: -10px;
+  --rig-dy: 8px;
+}
+.canvas-avatar.avatar-rig .rig-heading {
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading))
+    scale(var(--rig-scale));
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.canvas-avatar.avatar-rig .rig {
+  display: block;
+  overflow: visible;
+}
+.canvas-avatar.avatar-rig .rig-spin {
+  transform-origin: 0 0;
+  transform-box: view-box;
+  animation:
+    rig-breathe 3.4s ease-in-out infinite,
+    rig-turn 48s linear infinite;
+}
+.canvas-avatar.avatar-rig .rig-edges {
+  fill: rgba(255, 215, 94, 0.12);
+  stroke: #6e4bd1;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  transition: stroke 300ms, opacity 300ms, fill 300ms;
+}
+.canvas-avatar.avatar-rig .rig-dot {
+  fill: #2a2a2a;
+  stroke: #ffd75e;
+  stroke-width: 1.4;
+  transition: fill 300ms, r 300ms, stroke 300ms;
+}
+.canvas-avatar.avatar-rig .rig-emo {
+  font-size: 7px;
+  opacity: 0;
+  transition: opacity 300ms;
+  pointer-events: none;
+}
+.canvas-avatar.avatar-rig .rig-beam {
+  fill: url(#none);
+  fill: rgba(255, 215, 94, 0.32);
+  opacity: 0;
+  transition: opacity 260ms;
+}
+.canvas-avatar.avatar-rig .rig-glow {
+  fill: rgba(255, 215, 94, 0.45);
+  opacity: 0;
+  transition: opacity 260ms;
+}
+
+@keyframes rig-breathe {
+  0%, 100% { transform: scale(0.94); }
+  50% { transform: scale(1.07); }
+}
+@keyframes rig-turn {
+  to { transform: rotate(360deg); }
+}
+@keyframes rig-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes rig-stretch {
+  0% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(1, 1); }
+  40% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(1.28, 0.82); }
+  100% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(1.12, 0.92); }
+}
+@keyframes rig-land {
+  0% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(0.82, 1.18); }
+  60% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(1.06, 0.96); }
+  100% { transform: translate(var(--rig-dx), var(--rig-dy)) rotate(var(--heading)) scale(1, 1); }
+}
+@keyframes rig-jitter {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, -2px); }
+  80% { transform: translate(1px, 2px); }
+}
+@keyframes rig-flicker {
+  0%, 100% { opacity: 1; }
+  30% { opacity: 0.1; }
+  55% { opacity: 0.9; }
+  70% { opacity: 0.2; }
+}
+
+/* thinking: spin at the pace of thought, emoji on the vertices */
+.canvas-avatar.avatar-rig.avatar-think .rig-spin,
+.canvas-avatar.avatar-rig .avatar-body.mood-think .rig-spin {
+  animation: rig-spin 3.9s linear infinite;
+}
+.canvas-avatar.avatar-rig.avatar-think .rig-dot,
+.canvas-avatar.avatar-rig .avatar-body.mood-think .rig-dot {
+  fill: #f6efd8;
+  r: 6;
+}
+.canvas-avatar.avatar-rig.avatar-think .rig-emo,
+.canvas-avatar.avatar-rig .avatar-body.mood-think .rig-emo {
+  opacity: 1;
+}
+
+/* travel: face the destination, beam ahead, stretch along the way */
+.canvas-avatar.avatar-rig .avatar-body.mood-travel .rig-heading,
+.canvas-avatar.avatar-rig .avatar-body.mood-tidy .rig-heading {
+  animation: rig-stretch 700ms ease-in-out forwards;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-travel .rig-beam,
+.canvas-avatar.avatar-rig .avatar-body.mood-tidy .rig-beam {
+  opacity: 1;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-travel .rig-glow,
+.canvas-avatar.avatar-rig .avatar-body.mood-draw .rig-glow,
+.canvas-avatar.avatar-rig .avatar-body.mood-erase .rig-glow {
+  opacity: 1;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-travel .rig-spin,
+.canvas-avatar.avatar-rig .avatar-body.mood-draw .rig-spin,
+.canvas-avatar.avatar-rig .avatar-body.mood-erase .rig-spin {
+  /* no spin while steering: the leading vertex must keep pointing */
+  animation: none;
+}
+
+/* arrival: squash and settle */
+.canvas-avatar.avatar-rig .avatar-body.mood-arrive .rig-heading {
+  animation: rig-land 450ms ease-out forwards;
+}
+
+/* editing: grow onto the node, turn slowly with it, edges fade */
+.canvas-avatar.avatar-rig .avatar-body.mood-edit {
+  --rig-scale: 1.45;
+  --rig-dx: -14px;
+  --rig-dy: 34px;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-edit .rig-spin {
+  animation: rig-spin 7s linear infinite;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-edit .rig-edges {
+  opacity: 0.35;
+  fill: rgba(255, 215, 94, 0.05);
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-edit .rig-dot {
+  fill: rgba(42, 42, 42, 0.75);
+}
+
+/* drawing / erasing: the leading vertex is the pen */
+.canvas-avatar.avatar-rig .avatar-body.mood-draw,
+.canvas-avatar.avatar-rig .avatar-body.mood-erase {
+  --rig-scale: 0.9;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-draw .rig-v0 .rig-dot {
+  fill: #ffd75e;
+  stroke: #2a2a2a;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-erase .rig-v0 .rig-dot,
+.canvas-avatar.avatar-rig .avatar-body.mood-erase .rig-glow {
+  fill: #d9483b;
+}
+.canvas-avatar.avatar-rig .avatar-body.mood-erase .rig-edges {
+  stroke: #b0433a;
+}
+
+/* error: jitter, one edge flickers, red tint */
+.canvas-avatar.avatar-rig.avatar-err .rig {
+  animation: rig-jitter 0.45s ease-in-out 2;
+}
+.canvas-avatar.avatar-rig.avatar-err .rig-edges {
+  stroke: #c9382b;
+  fill: rgba(217, 72, 59, 0.15);
+}
+.canvas-avatar.avatar-rig.avatar-err .rig-v2 {
+  animation: rig-flicker 0.6s ease-in-out 2;
+}
+
+/* waiting: dim */
+.canvas-avatar.avatar-rig.avatar-wait .rig {
+  opacity: 0.55;
+}

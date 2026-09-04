@@ -618,7 +618,11 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
     ~key="avatar",
     ~attrs=[
       Attr.id(avatar_dom_id),
-      clss(["canvas-avatar"] @ (state == "" ? [] : ["avatar-" ++ state])),
+      clss(
+        ["canvas-avatar"]
+        @ (state == "" ? [] : ["avatar-" ++ state])
+        @ (CanvasAvatar.is_rig() ? ["avatar-rig"] : []),
+      ),
       anchor_style({
         x: p.x +. avatar_dx,
         y: p.y +. avatar_dy,
@@ -631,19 +635,21 @@ let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
          driver's transform */
       span(
         ~attrs=[clss(["avatar-body"])],
-        [
-          text(
-            "@"
-            ++ (
-              switch (state) {
-              | "edit" => {js|✎|js}
-              | "wait" => {js|⌛|js}
-              | "err" => "!"
-              | _ => ""
-              }
+        CanvasAvatar.is_rig()
+          ? [CanvasAvatar.rig_view()]
+          : [
+            text(
+              "@"
+              ++ (
+                switch (state) {
+                | "edit" => {js|✎|js}
+                | "wait" => {js|⌛|js}
+                | "err" => "!"
+                | _ => ""
+                }
+              ),
             ),
-          ),
-        ],
+          ],
       ),
     ],
   );
