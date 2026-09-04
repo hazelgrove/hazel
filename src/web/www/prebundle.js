@@ -64,8 +64,11 @@ window.fumola = (() => {
   let wasm = null;
   let loadError = null;
 
-  // instance_id -> owner token (a projector's persistent Hazel id)
+  // instance_id -> owner token (a projector's Hazel id)
   const owners = new Map();
+  // owner token -> the instance it was given, so that repeating a claim is
+  // idempotent rather than allocating a fresh runtime every render.
+  const claimedByOwner = new Map();
   // instance_id -> {src, result}: the last program evaluated in that runtime.
   // Re-running is skipped when the text has not changed, which is exactly the
   // invariant that sigma(i) is synchronized with the model's program text.
@@ -79,14 +82,20 @@ window.fumola = (() => {
   // fail to build the entire site, which blocks previews for every branch.
   // So the deployed page falls back to the copy in the Hazel repo, served
   // with CORS and the right content type by jsDelivr.
-  const LOCAL_WASM = "./fumola/fumola_wasm_bg.wasm";
+  // Resolved against the page explicitly. Code built with `new Function` has
+  // no active script, so a bare relative specifier inside it does not reliably
+  // resolve against this page -- it can be fetched from whatever base the
+  // browser picks, which is not necessarily where Hazel is being served from.
+  const here = (path) => new URL(path, document.baseURI).href;
+  const LOCAL_GLUE = here("./fumola/fumola_wasm.js");
+  const LOCAL_WASM = here("./fumola/fumola_wasm_bg.wasm");
   const CDN_WASM =
     "https://cdn.jsdelivr.net/gh/hazelgrove/hazel@fumola-livelit-mvp" +
     "/assets/fumola/fumola_wasm_bg.wasm";
 
   // Hidden from the bundler so that Hazel builds without the generated files.
   const dynamicImport = new Function("p", "return import(p)");
-  dynamicImport("./fumola/fumola_wasm.js")
+  dynamicImport(LOCAL_GLUE)
     .then(async (mod) => {
       try {
         await mod.default({ module_or_path: LOCAL_WASM });
@@ -112,8 +121,15 @@ window.fumola = (() => {
   // across model edits.
   const claim = (id, owner) => {
     if (!ready() || id !== 0) return id;
+    // A claim only takes effect once the model has been rewritten to name the
+    // new runtime. Until that lands the livelit still reads as id 0 and will
+    // claim again on the next render, so answer with the runtime this owner
+    // was already given rather than allocating another one each time.
+    const already = claimedByOwner.get(owner);
+    if (already !== undefined) return already;
     const fresh = wasm.fumola_create();
     owners.set(fresh, owner);
+    claimedByOwner.set(owner, fresh);
     return fresh;
   };
 

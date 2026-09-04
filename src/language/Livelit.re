@@ -704,13 +704,13 @@ module Fumola: BuiltinLivelit = {
         model.instance_id;
       };
 
+    /* Observe the instance the *model* names, which is the one `expand` will
+       use. Observing the newly claimed instance instead would let the widget
+       display a result computed in a different runtime from the one the
+       program evaluates in. A claim made during this render takes effect from
+       the next one, once the model actually names it. */
     let result =
-      switch (
-        observe({
-          ...model,
-          instance_id: claimed,
-        })
-      ) {
+      switch (observe(model)) {
       | Ok(n) => Bigint.to_string(n)
       | Error(message) => message
       };
@@ -742,7 +742,7 @@ module Fumola: BuiltinLivelit = {
         ),
         Node.div(
           ~attrs=[Attr.class_("fumola-id")],
-          [Node.text("#" ++ string_of_int(claimed))],
+          [Node.text("#" ++ string_of_int(model.instance_id))],
         ),
       ],
     );

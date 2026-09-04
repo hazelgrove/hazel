@@ -53,6 +53,41 @@ export function fumola_eval(id, program_text) {
 }
 
 /**
+ * Read the cell named by `symbol_json` in the runtime named by `id`, and
+ * return its current value the same way `fumola_eval` does.
+ *
+ * This is the engine behind addressing Fumola's store from a Hazel program:
+ * Hazel builds a symbol, and gets back whatever that name currently holds.
+ *
+ * `@` dereferences a pointer, not a symbol, so the symbol is converted
+ * explicitly with `prim "adaptonPointer"`. (Fumola coerces implicitly where
+ * a symbol is required, as `:=` does, but a read is not such a position.)
+ * The read goes through `@` rather than `adaptonPeek` so that it records a
+ * dependency, which is the point of reading from an incremental store.
+ * @param {number} id
+ * @param {string} symbol_json
+ * @returns {string}
+ */
+export function fumola_get(id, symbol_json) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(symbol_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.fumola_get(retptr, id, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred2_0 = r0;
+        deferred2_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Whether sigma currently has an entry for `id`.
  * @param {number} id
  * @returns {boolean}
@@ -86,6 +121,31 @@ export function fumola_instance_count() {
 export function fumola_realize(id) {
     const ret = wasm.fumola_realize(id);
     return ret !== 0;
+}
+
+/**
+ * Render a symbol, given as JSON, into the Fumola source text that denotes
+ * it. Exposed so the Hazel side can check a symbol it built before using it.
+ * @param {string} symbol_json
+ * @returns {string}
+ */
+export function fumola_symbol_source(symbol_json) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(symbol_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.fumola_symbol_source(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred2_0 = r0;
+        deferred2_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
+    }
 }
 
 function __wbg_get_imports() {
