@@ -496,6 +496,13 @@ let equality =
        so compare literally, not with alpha-equiv. */
     | (ModLet(p1, e1), ModLet(p2, e2)) =>
       pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
+    /* An evaluated binding equals the literal binding `let x = e`. */
+    | (ModVal(x1, e1), ModLet(p2, e2))
+    | (ModLet(p2, e2), ModVal(x1, e1)) =>
+      switch (Annotated.term_of(p2)) {
+      | Var(x2) => x1 == x2 && exp'(e1, e2)
+      | _ => false
+      }
     | (ModLet(_, _), _) => false
     | (ModType(tp1, t1), ModType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
@@ -505,6 +512,8 @@ let equality =
     | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
       mpat'(mp1, mp2) && exp'(e1, e2)
     | (ModuleMod(_, _), _) => false
+    | (ModVal(x1, e1), ModVal(x2, e2)) => x1 == x2 && exp'(e1, e2)
+    | (ModVal(_, _), _) => false
     };
   }
   and pat =
