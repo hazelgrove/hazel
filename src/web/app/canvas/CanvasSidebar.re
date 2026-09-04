@@ -2983,12 +2983,14 @@ let view_impl =
     } else {
       Effect.Ignore;
     };
+  /* clicking a value: focus it AND select its definition, as functions do */
   let on_value_click = (v: CanvasGraph.value) => {
     focused_value := Some(v.v_name);
     Effect.Many([
       globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
       globals.inject_global(Set(Sidebar(SetCanvasFocus(None)))),
       globals.inject_global(Set(CanvasTick)),
+      globals.inject_global(SelectTile(v.v_id)),
       Effect.Stop_propagation,
     ]);
   };

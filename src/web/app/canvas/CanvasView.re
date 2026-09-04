@@ -184,6 +184,8 @@ let formation_svg =
       Attr.id(formation_dom_id(a, b)),
       clss(["canvas-formation"]),
       Attr.create("d", CanvasLayout.link_d(cp, c1, c2, pp')),
+      /* the end is pulled back for this arrowhead (lost in round 105) */
+      Attr.create("marker-end", "url(#cnv-arrow-sm)"),
     ],
     [],
   );

@@ -44,6 +44,11 @@ let set_attr = (el, a: string, v: string): unit =>
 let get_attr = (el, a: string): option(string) =>
   Js.Opt.to_option(Js.Unsafe.meth_call(el, "getAttribute", [|str(a)|]))
   |> Option.map(Js.to_string);
+let has_running_anims = (el): bool => {
+  let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+  let n: int = Js.Unsafe.get(anims, "length");
+  n > 0;
+};
 let cancel_anims = (el): unit => {
   let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
   let len: int = Js.Unsafe.get(anims, "length");
@@ -109,6 +114,24 @@ let animate =
         Js.Unsafe.inject(Js.Unsafe.obj(Array.of_list(opts))),
       |],
     ),
+  );
+};
+
+/* a line's arrowhead, wherever the beat pass left it: stashed in
+   data-marker while hidden, else on marker-end (never the "none" itself) */
+let stashed_marker = (el): option(string) =>
+  switch (get_attr(el, "data-marker"), get_attr(el, "marker-end")) {
+  | (Some(m), _) => Some(m)
+  | (None, Some("none")) => None
+  | (None, m) => m
+  };
+let restore_marker = (el, marker: option(string)): unit => {
+  switch (marker) {
+  | Some(m) => set_attr(el, "marker-end", m)
+  | None => ()
+  };
+  ignore(
+    Js.Unsafe.meth_call(el, "removeAttribute", [|str("data-marker")|]),
   );
 };
 
@@ -265,10 +288,12 @@ let enact_edge =
         | None => t0
         };
       /* ---- the ride ---- */
-      let marker = get_attr(path, "marker-end");
-      switch (marker) {
-      | Some(_) => set_attr(path, "marker-end", "none")
-      | None => ()
+      /* the beat pass may have hidden this path already (marker stashed):
+         reading marker-end alone restored "none" and lost the arrowhead */
+      let marker = stashed_marker(path);
+      switch (get_attr(path, "marker-end")) {
+      | Some(m) when m != "none" => set_attr(path, "marker-end", "none")
+      | _ => ()
       };
       let on_len = arm_dash(path, total);
       animate(
@@ -287,10 +312,7 @@ let enact_edge =
       later(
         t_edge +. travel_ms,
         () => {
-          switch (marker) {
-          | Some(m) => set_attr(path, "marker-end", m)
-          | None => ()
-          };
+          restore_marker(path, marker);
           clear_dash(path);
         },
       );
@@ -595,12 +617,7 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
       [];
     } else {
       /* the beat pass may have hidden this path already (marker stashed) */
-      let marker =
-        switch (get_attr(path, "data-marker"), get_attr(path, "marker-end")) {
-        | (Some(m), _) => Some(m)
-        | (None, Some("none")) => None
-        | (None, m) => m
-        };
+      let marker = stashed_marker(path);
       switch (get_attr(path, "marker-end")) {
       | Some(m) when m != "none" => set_attr(path, "marker-end", "none")
       | _ => ()
@@ -622,10 +639,7 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
       later(
         t +. dur,
         () => {
-          switch (marker) {
-          | Some(m) => set_attr(path, "marker-end", m)
-          | None => ()
-          };
+          restore_marker(path, marker);
           clear_dash(path);
         },
       );
@@ -693,6 +707,69 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
   Animation.hold(
     ~prefixes=["cnode-", "cedge-", "cval-", CanvasView.avatar_dom_id],
     ~until_ms=CanvasBuffer.now() +. float_of_int(s.total_ms) +. 300.,
+  );
+  /* at rest every line is visible with its arrowhead: a line hidden for
+     an act that never rode it (its path did not exist yet, or the act was
+     cut) would otherwise stay dashed away with its marker stashed */
+  later(float_of_int(s.total_ms) +. 350., () =>
+    List.iter(
+      ((prefix, default)) =>
+        Util.JsUtil.ids_with_prefix(prefix)
+        |> List.iter(id =>
+             switch (by_id(id)) {
+             | None => ()
+             | Some(el) =>
+               let hidden_off =
+                 switch (
+                   Js.to_string(
+                     Js.Unsafe.get(
+                       Js.Unsafe.get(el, "style"),
+                       "strokeDashoffset",
+                     ),
+                   )
+                 ) {
+                 | "" => 0.
+                 | v => Option.value(float_of_string_opt(v), ~default=0.)
+                 };
+               let marker =
+                 switch (stashed_marker(el)) {
+                 | Some(m) => Some(m)
+                 | None =>
+                   get_attr(el, "marker-end") == Some("none")
+                     ? Some(default) : None
+                 };
+               let stuck = hidden_off > 0.5 && !has_running_anims(el);
+               if (stuck) {
+                 /* draw it on now rather than pop it */
+                 animate(
+                   el,
+                   [
+                     [("strokeDashoffset", num(hidden_off))],
+                     [("strokeDashoffset", num(0.))],
+                   ],
+                   [
+                     ("duration", num(320.)),
+                     ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
+                   ],
+                 );
+                 later(
+                   340.,
+                   () => {
+                     restore_marker(el, marker);
+                     clear_dash(el);
+                   },
+                 );
+               } else if (marker != None) {
+                 restore_marker(el, marker);
+               };
+             }
+           ),
+      [
+        ("cform-", "url(#cnv-arrow-sm)"),
+        ("cdep-", "url(#cnv-arrow-dep)"),
+        ("cpath-", "url(#cnv-arrow)"),
+      ],
+    )
   );
   let wps: ref(list(waypoint)) = ref([]);
   let add = (p, t) => wps := [(p, t), ...wps^];

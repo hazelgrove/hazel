@@ -940,20 +940,34 @@ let extract =
             | Projector(_, p) => plain_var(p)
             | _ => false
             };
+          /* an ascribed name is the author's word: `start : World` docks at
+             World even though the definition's own type is the joined,
+             alias-free tuple (which made a structural Derived node) */
+          let rec asc_of = (p: Pat.t): option(Typ.t) =>
+            switch (p.term) {
+            | Asc(_, ann) => Some(ann)
+            | Parens(p)
+            | Projector(_, p) => asc_of(p)
+            | _ => None
+            };
           let member_ty = (name: string): option(Typ.t) => {
             let looked = () =>
               path == [] ? lookup_type(name) : lookup_path_type(path, name);
-            plain_var(pat)
-              ? switch (def_ty()) {
-                | Some(ty) => Some(ty)
-                | None => looked()
-                }
-              : (
-                switch (looked()) {
-                | Some(ty) => Some(ty)
-                | None => def_ty()
-                }
-              );
+            switch (plain_var(pat) ? asc_of(pat) : None) {
+            | Some(ann) => Some(ann)
+            | None =>
+              plain_var(pat)
+                ? switch (def_ty()) {
+                  | Some(ty) => Some(ty)
+                  | None => looked()
+                  }
+                : (
+                  switch (looked()) {
+                  | Some(ty) => Some(ty)
+                  | None => def_ty()
+                  }
+                )
+            };
           };
           pat_names(pat)
           |> List.filter_map(name =>
