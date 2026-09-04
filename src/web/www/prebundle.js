@@ -63,6 +63,10 @@ hotkeys.filter = event => {
 window.fumola = (() => {
   let wasm = null;
   let loadError = null;
+  // "local" or "published", once something has loaded. Worth being able to
+  // ask: the two are indistinguishable in behaviour, so without this there is
+  // no way to tell which one a page is actually running.
+  let loadedFrom = null;
 
   // instance_id -> owner token (a projector's Hazel id)
   const owners = new Map();
@@ -104,9 +108,19 @@ window.fumola = (() => {
     return mod;
   };
   load(LOCAL)
-    .catch(() => load(PUBLISHED))
+    .then((mod) => {
+      loadedFrom = "local";
+      return mod;
+    })
+    .catch(() =>
+      load(PUBLISHED).then((mod) => {
+        loadedFrom = "published";
+        return mod;
+      })
+    )
     .then((mod) => {
       wasm = mod;
+      console.info("Fumola livelit: runtime loaded from the " + loadedFrom + " build");
     })
     .catch((e) => {
       loadError = String(e);
@@ -176,5 +190,7 @@ window.fumola = (() => {
     return result;
   };
 
-  return { ready, claim, evalSync };
+  const source = () => loadedFrom;
+
+  return { ready, source, claim, evalSync };
 })();
