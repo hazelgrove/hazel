@@ -70,3 +70,17 @@ a spread. Treat the result as a first signal, not a characterization — and
 note that under `wasm_of_ocaml` the OCaml heap is managed by the browser's
 GC rather than OCaml's, so allocation behavior differs in kind, not just
 degree.
+
+## Isolation
+
+`run.sh` edits `bench/wasm/dune` in place (restoring it on exit) and builds
+into `_build-wasm` rather than the shared `_build`, so it will not force a
+full rebuild of your normal switch's artifacts. If you are working on other
+branches in this checkout at the same time, run it from a linked worktree:
+
+```
+git worktree add --detach ../hazel-wasm-bench wasm-eval-bench-spike
+cd ../hazel-wasm-bench && bench/wasm/run.sh hazel-wasm 20
+```
+
+Remove it afterwards with `git worktree remove ../hazel-wasm-bench`.

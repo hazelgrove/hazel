@@ -1,31 +1,54 @@
 #!/usr/bin/env bash
 # SPIKE (wasm-eval-bench): build the evaluator benchmark with BOTH backends
 # from the SAME compiler version, run each on node 22, print both results.
+#
+# Isolation: this uses its own build dir (_build-wasm) so it does not force
+# the shared _build to be rebuilt under a different opam switch, and it
+# temporarily rewrites bench/wasm/dune. Prefer running it from a dedicated
+# git worktree -- see bench/wasm/README.md -- so concurrent work on other
+# branches in the primary checkout is unaffected.
 set -euo pipefail
 
 SWITCH="${1:-hazel-wasm}"
 ITERS="${2:-20}"
+BUILD_DIR="${BUILD_DIR:-_build-wasm}"
+
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+
+if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ]; then
+  echo "WARNING: running in the primary checkout, not a linked worktree." >&2
+  echo "         bench/wasm/dune is edited in place and restored on exit;" >&2
+  echo "         switching branches here mid-run will confuse the build." >&2
+fi
 
 export NVM_DIR="$HOME/.nvm"
 # shellcheck disable=SC1091
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 NODE="$(nvm which 22)"
-"$NODE" --version
+echo "node: $("$NODE" --version)"
 
 eval "$(opam env --switch="$SWITCH" --set-switch)"
+echo "switch: $SWITCH"
+echo "js_of_ocaml:   $(js_of_ocaml --version 2>/dev/null || echo MISSING)"
+echo "wasm_of_ocaml: $(wasm_of_ocaml --version 2>/dev/null || echo MISSING)"
 
-# Enable the wasm mode only inside this switch; restored on exit so the
-# committed dune stays green in the ordinary Hazel switch.
+# Enable the wasm mode only for this run; restored on exit so the committed
+# dune stays green in the ordinary Hazel switch.
 cleanup() { sed -i 's/^ (modes js wasm)$/ (modes js)/' bench/wasm/dune; }
 trap cleanup EXIT
 sed -i 's/^ (modes js)$/ (modes js wasm)/' bench/wasm/dune
 
-dune build bench/wasm/eval_bench.bc.js      --profile release
-dune build bench/wasm/eval_bench.bc.wasm.js --profile release
+dune build --build-dir="$BUILD_DIR" bench/wasm/eval_bench.bc.js      --profile release
+dune build --build-dir="$BUILD_DIR" bench/wasm/eval_bench.bc.wasm.js --profile release
 
+echo
+ls -l "$BUILD_DIR"/default/bench/wasm/eval_bench.bc.js \
+      "$BUILD_DIR"/default/bench/wasm/eval_bench.bc.wasm.js 2>/dev/null \
+  | awk '{printf "%12d  %s\n", $5, $9}'
+
+echo
 echo "=== js_of_ocaml ==="
-"$NODE" _build/default/bench/wasm/eval_bench.bc.js "$ITERS"
+"$NODE" "$BUILD_DIR/default/bench/wasm/eval_bench.bc.js" "$ITERS"
 echo "=== wasm_of_ocaml ==="
-"$NODE" _build/default/bench/wasm/eval_bench.bc.wasm.js "$ITERS"
+"$NODE" "$BUILD_DIR/default/bench/wasm/eval_bench.bc.wasm.js" "$ITERS"
