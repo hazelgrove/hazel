@@ -41,6 +41,29 @@ module Either = {
     Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
 };
 
+/* Adapton spaces and times, shaped as Fumola defines them.
+
+   Each is mostly just a symbol -- a name for a place, or for a moment -- with
+   one case that is not: `here` and `now` are relative to where evaluation is,
+   and name nothing. A symbol arrives in Hazel as its text, so that is what
+   the Symbol case carries.
+
+   Fumola's Space has a third case, an expression rather than a name. It is
+   left out: nothing on this side has a use for it, and a value carrying one
+   fails to translate rather than arriving mis-shapen. */
+module Space = {
+  let t: Typ.t =
+    sum_type([
+      ("Symbol", Some(Typ.fresh(Atom(String)))),
+      ("Here", None),
+    ]);
+};
+
+module Time = {
+  let t: Typ.t =
+    sum_type([("Symbol", Some(Typ.fresh(Atom(String)))), ("Now", None)]);
+};
+
 module Option = {
   let t: Typ.t =
     sum_type([
@@ -198,6 +221,8 @@ module JSON = {
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
+  ("Space", Space.t),
+  ("Time", Time.t),
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
