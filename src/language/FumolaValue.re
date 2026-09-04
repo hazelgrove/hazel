@@ -133,6 +133,7 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
         (
+          ~instance_id: int,
           ~ana: TermBase.Typ.t,
           ~tools: LivelitCtx.type_tools,
           json: Yojson.Safe.t,
@@ -150,7 +151,7 @@ let rec exp_of_json =
     | Ok(`String(tag)) =>
       switch (field("value", obj)) {
       | Error(e) => Error(e)
-      | Ok(value) => exp_of_tagged(~ana, ~tools, tag, value)
+      | Ok(value) => exp_of_tagged(~instance_id, ~ana, ~tools, tag, value)
       }
     | Ok(_) => Error("Fumola result has a non-string tag")
     }
@@ -160,6 +161,7 @@ let rec exp_of_json =
 
 and exp_of_tagged =
     (
+      ~instance_id: int,
       ~ana: TermBase.Typ.t,
       ~tools: LivelitCtx.type_tools,
       tag: string,
@@ -176,6 +178,35 @@ and exp_of_tagged =
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
   /* Fumola's unit is Hazel's empty tuple. */
   | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
+  /* A pointer becomes the livelit that reads it: the same Fumola instance,
+     running get(<the name it points at>).
+
+     So a livelit that returns a pointer returns a simpler livelit. The term
+     is inert where it lands -- statics splices an expansion in without
+     traversing it, so a livelit inside one is never expanded, and widgets
+     come from projectors over editor syntax, which an expansion is not. What
+     it gives you is a faithful reading of what a pointer is: not a value, but
+     the expression that would fetch one. Copied into a program it becomes a
+     real livelit. */
+  | ("AdaptonPointer", `Assoc(fields)) =>
+    switch (List.assoc_opt("source", fields)) {
+    | Some(`String(source)) =>
+      Ok(
+        DHExp.fresh(
+          Ap(
+            Forward,
+            DHExp.fresh(LivelitName("fumola")),
+            DHExp.fresh(
+              Tuple([
+                DHExp.fresh(Atom(Int(Bigint.of_int(instance_id)))),
+                DHExp.fresh(Atom(String("get(" ++ source ++ ")"))),
+              ]),
+            ),
+          ),
+        ),
+      )
+    | _ => Error("Fumola pointer has no source text")
+    }
   /* A symbol becomes its text. Hazel has no symbol of its own, and the text
      is the part a Hazel program can act on. */
   | ("Symbol", symbol) =>
@@ -187,7 +218,7 @@ and exp_of_tagged =
     let anas = element_anas(~tools, ana, List.length(items));
     let translated =
       List.map2(
-        (ana, item) => exp_of_json(~ana, ~tools, item),
+        (ana, item) => exp_of_json(~instance_id, ~ana, ~tools, item),
         anas,
         items,
       );
@@ -199,7 +230,7 @@ and exp_of_tagged =
   | ("Record", `Assoc(fields)) =>
     let element = ((name, value)) => {
       let ana = field_ana(~tools, ana, name);
-      switch (exp_of_json(~ana, ~tools, value)) {
+      switch (exp_of_json(~instance_id, ~ana, ~tools, value)) {
       | Error(e) => Error(e)
       | Ok(value) =>
         Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
@@ -215,7 +246,7 @@ and exp_of_tagged =
   | ("Null", _) => Ok(fst(constructor(~tools, ~ana, "None")))
   | ("Option", payload) =>
     let (some, payload_ana) = constructor(~tools, ~ana, "Some");
-    switch (exp_of_json(~ana=payload_ana, ~tools, payload)) {
+    switch (exp_of_json(~instance_id, ~ana=payload_ana, ~tools, payload)) {
     | Error(e) => Error(e)
     | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some, payload)))
     };
@@ -233,7 +264,7 @@ and exp_of_tagged =
       | None
       | Some(`Null) => Ok(ctr)
       | Some(payload) =>
-        switch (exp_of_json(~ana=payload_ana, ~tools, payload)) {
+        switch (exp_of_json(~instance_id, ~ana=payload_ana, ~tools, payload)) {
         | Error(e) => Error(e)
         | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, ctr, payload)))
         }
@@ -277,6 +308,11 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Bool", `Bool(b)) => b ? "true" : "false"
     | ("String", `String(str)) => "\"" ++ str ++ "\""
     | ("Unit", _) => "()"
+    | ("AdaptonPointer", `Assoc(fields)) =>
+      switch (List.assoc_opt("source", fields)) {
+      | Some(`String(source)) => "get(" ++ source ++ ")"
+      | _ => "<pointer>"
+      }
     | ("Symbol", symbol) =>
       switch (symbol_text(symbol)) {
       | Ok(text) => "\"" ++ text ++ "\""

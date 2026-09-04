@@ -584,7 +584,14 @@ module Fumola: BuiltinLivelit = {
       | `Assoc(obj) as json =>
         switch (List.assoc_opt("ok", obj)) {
         | Some(`Bool(true)) =>
-          switch (FumolaValue.exp_of_json(~ana, ~tools, json)) {
+          switch (
+            FumolaValue.exp_of_json(
+              ~instance_id=model.instance_id,
+              ~ana,
+              ~tools,
+              json,
+            )
+          ) {
           | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
           | Error(message) => (Error(message), message)
           }

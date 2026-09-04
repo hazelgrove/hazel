@@ -20,8 +20,8 @@ let no_tools: LivelitCtx.type_tools = {
 
 let unknown = Typ.fresh(Unknown(Internal));
 
-let translate = (~ana=unknown, ~tools=no_tools, src: string) =>
-  FumolaValue.exp_of_json(~ana, ~tools, json(src));
+let translate = (~instance_id=1, ~ana=unknown, ~tools=no_tools, src: string) =>
+  FumolaValue.exp_of_json(~instance_id, ~ana, ~tools, json(src));
 
 /* A sum type declaring Foo and Bar(Int), as
    `type SomeThing = + Foo + Bar(Int)` would. */
@@ -453,6 +453,93 @@ let tests = (
     fails(
       "a symbol form with no text yet",
       {|{"tag":"Symbol","value":{"tag":"BinOp","value":null}}|},
+    ),
+    /* A pointer becomes the livelit that reads it: the same instance, running
+       get(<the name it points at>). So a livelit that returns a pointer
+       returns a simpler livelit. */
+    test_case("a pointer becomes the livelit that reads it", `Quick, () =>
+      switch (
+        translate(
+          ~instance_id=7,
+          {|{"tag":"AdaptonPointer","value":{"source":"`counter","symbol":{"tag":"Name","value":"counter"}}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Ap(
+              Forward,
+              {term: LivelitName("fumola"), _},
+              {term: Tuple([id, program]), _},
+            ),
+          _,
+        }) =>
+        switch (id.term, program.term) {
+        | (Atom(Int(n)), Atom(String(text))) =>
+          Alcotest.check(
+            Alcotest.string,
+            "same instance",
+            "7",
+            Bigint.to_string(n),
+          );
+          Alcotest.check(
+            Alcotest.string,
+            "reads the pointer",
+            "get(`counter)",
+            text,
+          );
+        | _ => Alcotest.fail("model is not (Int, String)")
+        }
+      | Ok(_) => Alcotest.fail("expected a fumola livelit application")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* A numeric name is a name too. */
+    test_case("a numerically named pointer reads the same way", `Quick, () =>
+      switch (
+        translate(
+          ~instance_id=2,
+          {|{"tag":"AdaptonPointer","value":{"source":"7","symbol":{"tag":"Num","value":"7"}}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Ap(
+              Forward,
+              _,
+              {term: Tuple([_, {term: Atom(String(text)), _}]), _},
+            ),
+          _,
+        }) =>
+        Alcotest.check(Alcotest.string, "reads the pointer", "get(7)", text)
+      | Ok(_) => Alcotest.fail("expected a fumola livelit application")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Pointers nested in structures translate like any other component, and
+       each carries the instance it came from. */
+    test_case("pointers translate inside tuples", `Quick, () =>
+      switch (
+        translate(
+          ~instance_id=3,
+          {|{"tag":"Tuple","value":[{"tag":"AdaptonPointer","value":{"source":"`a"}},{"tag":"Int","value":"1"}]}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Tuple([
+              {term: Ap(Forward, {term: LivelitName("fumola"), _}, _), _},
+              _,
+            ]),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected a livelit inside the tuple")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    fails(
+      "a pointer with no source text",
+      {|{"tag":"AdaptonPointer","value":{"symbol":{"tag":"Name","value":"x"}}}|},
     ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
     fails("a missing tag", {|{"value":null}|}),
