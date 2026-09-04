@@ -98,6 +98,12 @@ let rec matches =
       | Theorem(dp, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Theorem(dp, d1, ctx) |> rewrap;
+      | ModuleItem(prefix, item, ctx, suffix) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ModuleItem(prefix, item, ctx, suffix) |> rewrap;
+      | ModuleVal(items, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ModuleVal(items, ctx, ds) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
