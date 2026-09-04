@@ -290,7 +290,8 @@ let edge_act =
   let (form, t_draw) =
     switch (e.product) {
     | Some((pk, parts)) =>
-      let dur = 240 * List.length(parts) + 320;
+      /* 400 ms per part visited, then the lines draw in (form_ms) */
+      let dur = 400 * List.length(parts) + 320;
       (
         [
           {

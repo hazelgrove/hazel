@@ -710,14 +710,32 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     | site => site_board(site)
     };
   /* the actor: arrive after travel, hold through the effects */
+  let first_part = (a: CanvasScore.act): option((float, float)) =>
+    List.find_map(
+      (e: CanvasScore.timed_effect) =>
+        switch (e.effect) {
+        | Form(_, [p, ..._]) => node_board(p)
+        | _ => None
+        },
+      a.effects,
+    );
   List.iter(
-    ((t, a): (int, CanvasScore.act)) =>
-      switch (site_board(a.at), site_end(a.at)) {
+    ((t, a): (int, CanvasScore.act)) => {
+      /* an act that forms a product arrives at its first part (the visits
+         start there); arriving at the arrow first meant a zig-zag out to
+         the parts and back */
+      let arrive =
+        switch (first_part(a)) {
+        | Some(p) => Some(p)
+        | None => site_board(a.at)
+        };
+      switch (arrive, site_end(a.at)) {
       | (Some(sp), Some(ep)) =>
         add(sp, float_of_int(t + a.travel_ms));
         add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
       | _ => ()
-      },
+      };
+    },
     s.acts,
   );
   /* the effects */
