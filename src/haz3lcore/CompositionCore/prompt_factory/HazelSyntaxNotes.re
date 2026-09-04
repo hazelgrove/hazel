@@ -168,7 +168,7 @@ let self = [
   "",
   "## Modules",
   "",
-  "Modules use curly braces `{ }` with semicolon-separated items. They are syntactic sugar for labeled tuples.",
+  "Modules use curly braces `{ }` with semicolon-separated items. A module is a first-class value whose type is a signature such as `{ let x : Int; type T = Int }`; signatures are distinct from labeled tuple types.",
   "",
   "```",
   "# Basic module #",

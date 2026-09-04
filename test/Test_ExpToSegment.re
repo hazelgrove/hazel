@@ -836,6 +836,10 @@ end|}),
       {|Sig: multiple lets|},
       {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
     ),
+    roundtrip_test(
+      {|Sig: type member|},
+      {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+    ),
   ],
 );
 

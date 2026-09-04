@@ -147,6 +147,11 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
   let collect_subtree = (root: Exp.t): unit => {
     let f_exp = (continue, e: Exp.t): Exp.t => {
       acc := [Exp.rep_id(e), ...acc^];
+      /* Module items carry surface ids of their own. */
+      switch (e.term) {
+      | Module(items) => acc := List.map(Mod.rep_id, items) @ acc^
+      | _ => ()
+      };
       continue(e);
     };
     let _ = TermBase.Exp.map_term(~f_exp, root);

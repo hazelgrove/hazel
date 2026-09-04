@@ -60,6 +60,7 @@ type t =
   | DotOperatorRequiresTuple
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | ModuleMissingMembers(list(Var.t))
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
@@ -70,6 +71,11 @@ type t =
   | ExpectationMismatch({
       ana: Typ.t,
       syn: Typ.t,
+    })
+  | ModuleTypeMemberMismatch({
+      name: Var.t,
+      expected: Typ.t,
+      actual: Typ.t,
     })
   | BadToken(string)
   | BadLabel(Any.t)

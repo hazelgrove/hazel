@@ -409,8 +409,7 @@ and uexp_to_info_map =
       );
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
-      /* Desugar any Sig types in the annotation without full normalization */
-      let t_ty = Typ.desugar_sig(ctx, t.user_term);
+      let t_ty = t.user_term;
       let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
@@ -1276,6 +1275,7 @@ and uexp_to_info_map =
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
         | List({term: Prod(ts), _}) =>
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
+        | Sig(items) => Sig.value_names(Sig.members(items))
         | _ => []
         };
       };
@@ -1373,6 +1373,55 @@ and uexp_to_info_map =
               m,
             )
           };
+        | EmptyHole =>
+          add(
+            ~elab_term=dot_elab,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~marks=[],
+            ~dot_labels=available_labels,
+            ~co_ctx=dot_co_ctx,
+            ~probe_targets=dot_probe_targets,
+            m,
+          )
+        | _ =>
+          add(
+            ~elab_term=dot_elab,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~marks=[BadLabel(Exp(e2))],
+            ~dot_labels=available_labels,
+            ~co_ctx=dot_co_ctx,
+            ~probe_targets=dot_probe_targets,
+            m,
+          )
+        };
+      | Sig(items) =>
+        /* Value member of a module. Manifest type members declared in the
+           signature are substituted into the member's type. */
+        let labels = Sig.value_names(Sig.members(items));
+        switch (e2.term) {
+        | Label(name) =>
+          switch (Typ.sig_project_value(items, name)) {
+          | Some(typ) =>
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=typ,
+              ~marks=[],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              ~probe_targets=dot_probe_targets,
+              m,
+            )
+          | None =>
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~marks=[LabelNotFound(name, labels)],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              ~probe_targets=dot_probe_targets,
+              m,
+            )
+          }
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
@@ -1962,7 +2011,7 @@ and uexp_to_info_map =
          delegate to the regular Let machinery by recursing; patch up
          the info map for pattern ids that vanish in the rewrite
          (the Ap wrapper and optional outer Asc). Same structural
-         pattern as `ModuleExp` expansion above and `Typ.desugar_sig`. */
+         pattern as `ModuleExp` expansion above. */
       let (f_name, args, ret_ty) = Option.get(FunctionSugar.detect(p));
       let rewritten =
         FunctionSugar.rewrite(
@@ -2000,18 +2049,6 @@ and uexp_to_info_map =
         | _ => false
         };
       };
-      /* Save module items and RHS variable name before def is shadowed */
-      let module_items =
-        switch (def.term) {
-        | Module(items) => Some(items)
-        | _ => None
-        };
-      let def_rhs_var =
-        switch (def.term) {
-        | Var(v) => Some(v)
-        | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
-        | _ => None
-        };
       let (p_syn, _, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def_term, def_rewrap) = Exp.unwrap(def);
@@ -2083,34 +2120,6 @@ and uexp_to_info_map =
             };
           let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
-        };
-      /* Inject module type exports into body context */
-      let p_ana_ctx =
-        switch (module_items) {
-        | Some(items) =>
-          switch (ModuleHelpers.single_bound_var(p)) {
-          | Some(name) =>
-            let exports_ty =
-              ModuleHelpers.collect_type_exports(ctx, items)
-              |> ModuleHelpers.type_exports_alias_type;
-            switch (exports_ty) {
-            | Some(exports_ty) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
-            | None => p_ana_ctx
-            };
-          | None => p_ana_ctx
-          }
-        | None =>
-          /* Phase 1b: variable aliasing — propagate TVarEntry from RHS */
-          switch (ModuleHelpers.single_bound_var(p), def_rhs_var) {
-          | (Some(name), Some(rhs)) =>
-            switch (Ctx.lookup_tvar(ctx, rhs)) {
-            | Some(Singleton(exports_ty)) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
-            | _ => p_ana_ctx
-            }
-          | _ => p_ana_ctx
-          }
         };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
@@ -2490,10 +2499,6 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
         |> snd;
-      /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
-         store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
-         This ensures meet/join can unify them with module expression types. */
-      let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
@@ -2503,25 +2508,19 @@ and uexp_to_info_map =
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
-          switch (utyp_desugared.term) {
-          | _ when List.mem(name, Typ.free_vars(utyp_desugared)) =>
+          switch (utyp.term) {
+          | _ when List.mem(name, Typ.free_vars(utyp)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec =
-              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
+            let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
             let ctx_def =
               Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
             (ty_rec, ctx_def, ctx_def);
           | _ => (
-              utyp_desugared,
+              utyp,
               ctx,
-              Ctx.extend_alias(
-                ctx,
-                name,
-                TPat.rep_id(typat),
-                utyp_desugared,
-              ),
+              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
             )
           /* NOTE(yuchen): Below is an alternative implementation that attempts to
              add a rec whenever type alias is present. It may cause trouble to the
@@ -2654,33 +2653,34 @@ and uexp_to_info_map =
         )
       };
     | Module(items) =>
-      /* Expand module to nested let/type + labeled tuple, then type-check expansion.
-         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions.
-         Pass ~ana to expand so it can add sig type annotations to patterns.
-         Process expansion in syn mode: definition errors are caught via pattern
-         annotations, and the Module's own add() checks the overall type against
-         ana. Using ~ana here would double-count type inconsistencies (once on
-         the expansion's inner tuple, once on the Module expression). */
-      let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
-      let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
+      /* Type-check the body through its lowering to nested Let/TyAlias
+         wrappers (which carry the Mod item ids), read the module's signature
+         back from the recorded pattern infos, and refold the elaboration into
+         a Module, which dynamics evaluates directly. The lowering is checked
+         in syn mode: per-member expectations are added as pattern
+         annotations by `lower` (so mismatches land on definitions), and the
+         module's own add() checks the whole signature against ana. */
+      let ana_items =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
+        | Sig(items) => Some(items)
+        | _ => None
+        };
+      let expanded = ModuleHelpers.lower(~ana_items, items);
+      let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
-      /* Build actual Prod type from module's exported bindings, rather than
-         using expanded_info.ty which masks width errors via fixed_typ. */
-      let actual_ty =
-        ModuleHelpers.module_actual_type(
-          ~local_names=List.map(fst, lowered.type_exports),
-          lowered.value_exports,
-          m,
-        );
-      let module_elab =
-        ModuleHelpers.module_elab(
-          ~module_exp_id=Exp.rep_id(uexp),
-          expanded_elab,
-        );
+      let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
+      let m = ModuleHelpers.check_ana_type_members(~ana_items, items, m);
+      let marks =
+        switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
+        | [] => []
+        | names => [Mark.ModuleMissingMembers(names)]
+        };
       add(
-        ~elab_term=module_elab,
-        ~elab_syn_ty=actual_ty,
-        ~marks=[],
+        ~elab_term=
+          Module(ModuleHelpers.refold_module_elab(items, expanded_elab))
+          |> rewrap,
+        ~elab_syn_ty=sig_ty,
+        ~marks,
         ~co_ctx=expanded_info.co_ctx,
         ~probe_targets=expanded_info.probe_targets,
         m,
@@ -3618,8 +3618,7 @@ and upat_to_info_map =
     | Asc(p, ann) =>
       let (ann, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
-      /* Desugar any Sig types in the annotation without full normalization */
-      let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
+      let ann_ty = ann.user_term;
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
@@ -3692,9 +3691,18 @@ and utyp_to_info_map =
     | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
     | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
-      switch (Typ.weak_head_normalize(ctx, pty), l.term) {
-      | ({term: Prod(tys), _}, Label(l)) =>
-        switch (Typ.project_type(tys, l)) {
+      let whole_path =
+        switch (expects) {
+        | ProductExpected => Typ.path_sig(ctx, utyp)
+        | _ => None
+        };
+      switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
+      | (Some(items), _, _) =>
+        /* A module path (`M.P`) used as the left of a further projection. */
+        ok(Message.Type(Sig(items) |> Typ.temp))
+      | (None, Some(items), Label(l)) =>
+        /* `M.T`: a type member of a module path or signature alias. */
+        switch (Typ.sig_project_type(items, l)) {
         | Some(ty') =>
           ok(
             Message.WHNormalizedTo({
@@ -3707,32 +3715,63 @@ and utyp_to_info_map =
             Message.TypeUnderdetermined(
               Message.ProdProjectionMissingLabel(
                 l,
-                List.filter_map(
-                  t => Typ.match_tup_label(t) |> Option.map(fst),
-                  tys,
-                ),
+                Sig.type_names(Sig.members(items)),
               ),
             ),
           )
         }
-      | (t1, _) =>
+      | (None, Some(_), _) =>
         ok(
           Message.TypeUnderdetermined(
             Message.ProdProjectionBadArgs({
-              product:
-                switch (t1.term) {
-                | Prod(_) => None
-                | _ => Some(Typ.weak_head_normalize(ctx, utyp))
-                },
-              label:
-                switch (l.term) {
-                | Label(_) => None
-                | _ => Some(l)
-                },
+              product: None,
+              label: Some(l),
             }),
           ),
         )
-      }
+      | (None, None, _) =>
+        switch (Typ.weak_head_normalize(ctx, pty), l.term) {
+        | ({term: Prod(tys), _}, Label(l)) =>
+          switch (Typ.project_type(tys, l)) {
+          | Some(ty') =>
+            ok(
+              Message.WHNormalizedTo({
+                unnormalized: utyp,
+                whnormalized: ty',
+              }),
+            )
+          | None =>
+            ok(
+              Message.TypeUnderdetermined(
+                Message.ProdProjectionMissingLabel(
+                  l,
+                  List.filter_map(
+                    t => Typ.match_tup_label(t) |> Option.map(fst),
+                    tys,
+                  ),
+                ),
+              ),
+            )
+          }
+        | (t1, _) =>
+          ok(
+            Message.TypeUnderdetermined(
+              Message.ProdProjectionBadArgs({
+                product:
+                  switch (t1.term) {
+                  | Prod(_) => None
+                  | _ => Some(Typ.weak_head_normalize(ctx, utyp))
+                  },
+                label:
+                  switch (l.term) {
+                  | Label(_) => None
+                  | _ => Some(l)
+                  },
+              }),
+            ),
+          )
+        }
+      };
     | (TypeExpected | ProductExpected, ProdExtension(t1, t2)) =>
       switch (
         Typ.weak_head_normalize(ctx, t1).term,
@@ -3765,9 +3804,15 @@ and utyp_to_info_map =
         )
       }
     | (ProductExpected, _) =>
-      switch (Typ.weak_head_normalize(ctx, utyp)) {
-      | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
-      | ty_n => err(TypWantProduct(ty_n))
+      switch (Typ.path_sig(ctx, utyp)) {
+      | Some(items) =>
+        /* A module variable used as the left of a type projection. */
+        ok(Message.Type(Sig(items) |> Typ.temp))
+      | None =>
+        switch (Typ.weak_head_normalize(ctx, utyp)) {
+        | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
+        | ty_n => err(TypWantProduct(ty_n))
+        }
       }
     | (_, Unknown(Hole(EmptyHole))) => ok(Message.Type(utyp))
     | (_, Unknown(Hole(MultiHole(_tms)))) => err(TypParseFailure)
@@ -3880,15 +3925,25 @@ and utyp_to_info_map =
     add(m);
   | ProdProjection(t, label) =>
     let labels =
-      switch (Typ.weak_head_normalize(ctx, t).term) {
-      | Prod(ts) =>
-        Some(
-          List.filter_map(
-            t => Typ.match_tup_label(t) |> Option.map(fst),
-            ts,
-          ),
-        )
-      | _ => None
+      switch (Typ.path_sig(ctx, t)) {
+      | Some(items) =>
+        /* In the middle of a path (`M.P.T`) the label names a sub-module;
+           at the end it names a type member. */
+        switch (expects) {
+        | ProductExpected => Some(Typ.sig_module_member_names(ctx, items))
+        | _ => Some(Sig.type_names(Sig.members(items)))
+        }
+      | None =>
+        switch (Typ.weak_head_normalize(ctx, t).term) {
+        | Prod(ts) =>
+          Some(
+            List.filter_map(
+              t => Typ.match_tup_label(t) |> Option.map(fst),
+              ts,
+            ),
+          )
+        | _ => None
+        }
       };
     let m = go(~expects=LabelProjectionExpected(labels), label, m) |> snd;
     let m = go(~expects=ProductExpected, t, m) |> snd;
@@ -4030,9 +4085,10 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Sig(items) =>
-    let m =
+    /* Items scope sequentially: a type member is in scope for later items. */
+    let (_, m) =
       List.fold_left(
-        (m, item: Sig.t) => {
+        ((ctx, m), item: Sig.t) => {
           let (_, _, m) =
             any_to_info_map(
               ~ctx,
@@ -4040,9 +4096,9 @@ and utyp_to_info_map =
               Sig(item),
               m,
             );
-          m;
+          (Ctx.extend_sig_item(ctx, item), m);
         },
-        m,
+        (ctx, m),
         items,
       );
     add(m);
@@ -4210,6 +4266,10 @@ and mod_to_info_map =
   | ModuleMod(mp, e) =>
     let (_, _, m) =
       any_to_info_map(~ctx, ~ancestors, ~probe_ids, MPat(mp), m);
+    let (co_ctx, _, m) =
+      any_to_info_map(~ctx, ~ancestors, ~probe_ids, Exp(e), m);
+    (co_ctx, Mod(m_term), add_mod_info(m));
+  | ModVal(_, e) =>
     let (co_ctx, _, m) =
       any_to_info_map(~ctx, ~ancestors, ~probe_ids, Exp(e), m);
     (co_ctx, Mod(m_term), add_mod_info(m));
