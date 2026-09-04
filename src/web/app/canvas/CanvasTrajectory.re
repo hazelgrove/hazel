@@ -177,6 +177,9 @@ let dispatch_reply: ref(list((string, Yojson.Safe.t)) => unit) =
   ref(_ => ());
 let set_busy: ref(bool => unit) = ref(_ => ());
 let dispatch_tick: ref(unit => unit) = ref(() => ());
+/* opens the replay as a user turn: the chat display assumes agent
+   messages answer one, and the chat is autosaved */
+let dispatch_begin: ref(string => unit) = ref(_ => ());
 
 let later = (ms: float, f: unit => unit): unit =>
   ignore(Js.Unsafe.global##setTimeout(Js.Unsafe.callback(f), ms));
@@ -211,6 +214,15 @@ let replay = (~speed: float=1., text: string): unit =>
       ),
     );
     replaying := true;
+    dispatch_begin^(
+      Printf.sprintf(
+        "[replay] %d repl%s over %.1fs, at %.1fx",
+        n_replies,
+        n_replies == 1 ? "y" : "ies",
+        last /. 1000.,
+        speed,
+      ),
+    );
     List.iter(
       s =>
         later(s.t /. speed, () =>

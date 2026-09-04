@@ -210,6 +210,19 @@ let start = default_model => {
             ),
           )
       );
+    CanvasTrajectory.dispatch_begin :=
+      (
+        label =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayBegin(label),
+                ),
+              ),
+            ),
+          )
+      );
     CanvasTrajectory.dispatch_tick :=
       (
         () =>

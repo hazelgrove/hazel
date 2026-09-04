@@ -110,6 +110,14 @@ let update =
       },
       editor |> Updated.return_quiet,
     )
+  | ReplayBegin(label) => (
+      Utils.append_message(
+        ~chat_id=model.chat_system.current,
+        Message.Utils.mk_user_message(label),
+        model,
+      ),
+      editor |> Updated.return_quiet,
+    )
   | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
     let (m, e) =
       AgentCompaction.handle_compaction_reply(

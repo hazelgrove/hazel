@@ -40,6 +40,7 @@ type t =
     )
   | /** Replay one streamed-reasoning render (canvas trajectory replay). */
     ReplayStreamTick
+  | ReplayBegin(string) /* a replayed trajectory opens as a user turn */
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
   | RetryApiError(Id.t, int)
