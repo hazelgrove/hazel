@@ -1716,6 +1716,59 @@ let test_asc_edit_invalidates_binding = () => {
   );
 };
 
+/* Drop the value member [name] from every signature type in [exp],
+ * preserving every other id. Simulates editing a `module M : { ... }`
+ * annotation in place. */
+let drop_sig_member = (~name: string, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    switch (t.term) {
+    | Sig(items) =>
+      let items =
+        List.filter(
+          (item: Sig.t) =>
+            switch (Sig.member_of_item(item)) {
+            | Some(Val(x, _)) => x != name
+            | _ => true
+            },
+          items,
+        );
+      {
+        ...t,
+        term: (Sig(items): Typ.term),
+      };
+    | _ => continue(t)
+    };
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* Sealing is part of a binding's value: the same module definition bound
+ * under a narrower signature no longer has the member. Removing `default`
+ * from Stack's signature must invalidate the cached `Stack.default`, which
+ * previously reused the value computed under the wider signature. */
+let test_sig_edit_invalidates_sealed_member = () => {
+  let src = {|module Stack : { let default : Int; let x : Int } = {
+  let default = 0;
+  let x = 1
+} in Stack.default|};
+  let exp1 = parse_exp(src);
+  let exp2 = drop_sig_member(~name="default", exp1);
+  check(
+    bool,
+    "drop_sig_member actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1923,6 +1976,11 @@ let tests = (
       "ASCRIPTION: retyping `x : Int` as `x : Bool` in place invalidates the cached x",
       `Quick,
       test_asc_edit_invalidates_binding,
+    ),
+    test_case(
+      "SEALING: dropping a member from a module's signature invalidates its use",
+      `Quick,
+      test_sig_edit_invalidates_sealed_member,
     ),
   ],
 );
