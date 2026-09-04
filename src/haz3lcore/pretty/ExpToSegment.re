@@ -2866,6 +2866,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                item,
                [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t,
              );
+           | SigModule(mp) =>
+             p_just(
+               wrap_item(
+                 item,
+                 [mk_form(SigModule, item |> Sig.rep_id, [])]
+                 @ mpat_to_seg(~settings, mp),
+               ),
+             )
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              p_just(
@@ -3016,6 +3024,14 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ tp = tpat_to_pretty(~settings, tp)
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(SigType, item |> Sig.rep_id, [tp])] @ t);
+  | SigModule(mp) =>
+    p_just(
+      wrap_item(
+        item,
+        [mk_form(SigModule, item |> Sig.rep_id, [])]
+        @ mpat_to_seg(~settings, mp),
+      ),
+    )
   | EmptyHole =>
     p_just(
       wrap_item(
