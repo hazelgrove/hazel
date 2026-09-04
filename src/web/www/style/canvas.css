@@ -1194,38 +1194,111 @@
   z-index: 5;
   pointer-events: none;
   animation: bubble-in 0.25s ease-out;
+  transition: opacity 160ms;
 }
 
+/* the cloud: an svg outline stretched over the box, text windowed by
+   CanvasBubble on a quick cadence (3 lines of ~28 chars) */
 .bubble-cloud {
+  position: relative;
   width: 150px;
-  padding: 5px 12px;
-  background: #f8dc7a;
-  border: 1.3px solid #3a2a12;
-  /* wobbly ellipse reads cloud-ish without puff geometry */
-  border-radius: 55% 45% 60% 40% / 70% 60% 45% 55%;
-  box-shadow: 0 1px 3px rgba(90, 70, 30, 0.15);
+  height: 54px;
   color: #3a2a12;
   font-size: 9px;
   line-height: 1.3;
   font-style: italic;
 }
-
-.bubble-ticker {
-  display: flex;
-  justify-content: flex-end; /* right-anchor: overflow clips LEFT */
+.bubble-cloud .bubble-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.bubble-cloud .bubble-shape path {
+  fill: #f8dc7a;
+  stroke: #3a2a12;
+  stroke-width: 1.3;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 1px rgba(90, 70, 30, 0.2));
+}
+.bubble-cloud .bubble-text {
+  position: absolute;
+  left: 17px;
+  right: 15px;
+  top: 10px;
+  bottom: 9px;
   overflow: hidden;
-  white-space: nowrap;
-  /* old text dissolves as it slides toward the left edge */
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    black 22px,
-    black calc(100% - 3px)
-  );
+  word-break: break-all;
+}
+.bubble-cloud .bubble-text.flip {
+  animation: bubble-flip 0.29s ease-out;
+}
+@keyframes bubble-flip {
+  from {
+    opacity: 0.5;
+    translate: 0 2px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
-.bubble-ticker span {
-  flex: 0 0 auto;
+/* the speech bubble: the landed action, at the thought bubble's anchor */
+.canvas-avatar-say {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms;
+  background: #f8dc7a;
+  border: 1.3px solid #3a2a12;
+  color: #3a2a12;
+  border-radius: 9px;
+  padding: 3px 8px;
+  font-family: var(--code-font, monospace);
+  font-size: 9px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(90, 70, 30, 0.15);
+}
+.canvas-avatar-say.say-on {
+  opacity: 1;
+}
+.canvas-avatar-say .say-tail {
+  position: absolute;
+  left: 9px;
+  bottom: -5.5px;
+  width: 8px;
+  height: 8px;
+  background: #f8dc7a;
+  border-right: 1.3px solid #3a2a12;
+  border-bottom: 1.3px solid #3a2a12;
+  transform: rotate(45deg) skew(12deg, 12deg);
+}
+.canvas-avatar-say.b-left {
+  transform: translateX(-100%);
+}
+.canvas-avatar-say.b-left .say-tail {
+  left: auto;
+  right: 9px;
+}
+.canvas-avatar-say.b-below .say-tail {
+  bottom: auto;
+  top: -5.5px;
+  transform: rotate(225deg) skew(12deg, 12deg);
+}
+/* while speaking, the thought cloud yields the anchor */
+.canvas-avatar-say.say-on ~ .canvas-avatar-bubble {
+  opacity: 0;
+}
+/* while the avatar travels or lands, both bubbles vanish (they sit at
+   the score's end site, not on the moving body) */
+.canvas-avatar:has(.avatar-body.mood-travel) ~ .canvas-avatar-say,
+.canvas-avatar:has(.avatar-body.mood-travel) ~ .canvas-avatar-bubble,
+.canvas-avatar:has(.avatar-body.mood-arrive) ~ .canvas-avatar-say,
+.canvas-avatar:has(.avatar-body.mood-arrive) ~ .canvas-avatar-bubble {
+  opacity: 0;
 }
 
 .canvas-avatar-bubble .bubble-trail {

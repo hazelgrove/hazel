@@ -838,8 +838,28 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       later(tf +. float_of_int(a.travel_ms), () =>
         CanvasAvatar.set_mood("arrive")
       );
-      later(tf +. float_of_int(a.travel_ms) +. 420., () =>
-        CanvasAvatar.set_mood(mood_after)
+      later(
+        tf +. float_of_int(a.travel_ms) +. 420.,
+        () => {
+          CanvasAvatar.set_mood(mood_after);
+          /* the speech bubble calls the action out for the act's stay */
+          let site =
+            switch (a.at) {
+            | Node(k) => CanvasGraph.display_label(k)
+            | Edge(n) => {js|ƒ|js} ++ n
+            | Centroid(ks) => Printf.sprintf("%d nodes", List.length(ks))
+            | Point(_)
+            | Here => ""
+            };
+          let stay =
+            float_of_int(CanvasScore.act_len(a) - a.travel_ms) -. 420.;
+          if (a.cause != "" && stay > 200.) {
+            CanvasBubble.say(
+              a.cause ++ (site == "" ? "" : {js| · |js} ++ site),
+              ~ms=stay,
+            );
+          };
+        },
       );
     },
     s.acts,

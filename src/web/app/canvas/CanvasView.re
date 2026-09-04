@@ -716,7 +716,6 @@ let view =
       /* streaming reasoning tail shown in a small bubble by the avatar */
       ~avatar_bubble: option(string)=None,
       /* tool name of the beat just shown; briefly replaces the bubble */
-      ~avatar_toast: option(string)=None,
       /* hover/focus dependency fan: subdued curves from a function's
          pill to the pills/nodes of the bindings it references */
       ~dep_fan: list((CanvasLayout.pos, CanvasLayout.pos))=[],
@@ -1375,36 +1374,66 @@ let view =
                     fmt(top),
                   ),
                 );
-              switch (avatar_toast, avatar_bubble) {
-              | (Some(name), _) => [
-                  /* just-landed tool call: brief action chip in the
-                     bubble's spot */
-                  div(
-                    ~attrs=[clss(["canvas-avatar-toast"] @ flips), place],
-                    [text(name)],
-                  ),
-                ]
-              | (None, Some(txt)) => [
-                  div(
-                    ~key="avatar-bubble",
-                    ~attrs=[clss(["canvas-avatar-bubble"] @ flips), place],
-                    [
-                      div(~attrs=[clss(["bubble-trail", "t1"])], []),
-                      div(~attrs=[clss(["bubble-trail", "t2"])], []),
-                      div(
-                        ~attrs=[clss(["bubble-cloud"])],
-                        [
-                          div(
-                            ~attrs=[clss(["bubble-ticker"])],
-                            [span([text(txt)])],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ]
-              | (None, None) => []
-              };
+              /* the speech bubble calls out the landed action (text and
+                 visibility written by CanvasBubble); the thought cloud
+                 shows while the model streams, its text windowed by the
+                 same driver — both render EMPTY here so a re-render never
+                 fights the driver. Both hide while the avatar travels
+                 (CSS, from the body's mood class). */
+              [
+                div(
+                  ~key="avatar-say",
+                  ~attrs=[clss(["canvas-avatar-say"] @ flips), place],
+                  [
+                    div(~attrs=[clss(["say-text"])], []),
+                    div(~attrs=[clss(["say-tail"])], []),
+                  ],
+                ),
+              ]
+              @ (
+                switch (avatar_bubble) {
+                | Some(_) => [
+                    div(
+                      ~key="avatar-bubble",
+                      ~attrs=[
+                        clss(["canvas-avatar-bubble"] @ flips),
+                        place,
+                      ],
+                      [
+                        div(~attrs=[clss(["bubble-trail", "t1"])], []),
+                        div(~attrs=[clss(["bubble-trail", "t2"])], []),
+                        div(
+                          ~attrs=[clss(["bubble-cloud"])],
+                          [
+                            svg(
+                              "svg",
+                              [
+                                clss(["bubble-shape"]),
+                                Attr.create("viewBox", "0 0 160 60"),
+                                Attr.create("preserveAspectRatio", "none"),
+                              ],
+                              [
+                                svg(
+                                  "path",
+                                  [
+                                    Attr.create(
+                                      "d",
+                                      "M 26 52 C 10 54 4 40 14 32 C 4 22 16 8 30 14 C 34 2 56 0 64 10 C 72 0 96 0 102 12 C 116 4 134 12 130 26 C 146 26 150 44 136 50 C 138 60 118 62 110 56 C 100 62 78 62 70 56 C 60 62 38 62 32 54 Z",
+                                    ),
+                                  ],
+                                  [],
+                                ),
+                              ],
+                            ),
+                            div(~attrs=[clss(["bubble-text"])], []),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ]
+                | None => []
+                }
+              );
             }
           | None => []
           }

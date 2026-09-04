@@ -2260,40 +2260,16 @@ let view_impl =
       last_logged_avatar := (cur_id, cur_state);
     };
   };
-  /* transient action toast: the tool name of the beat just shown,
-     briefly displacing the thought bubble at the same anchor */
-  let avatar_toast = CanvasBuffer.current_toast();
-  switch (avatar_toast) {
-  | Some(_) when ! toast_tick_scheduled^ =>
-    toast_tick_scheduled := true;
-    Js_of_ocaml.(
-      ignore(
-        Js.Unsafe.global##setTimeout(
-          Js.Unsafe.callback(() => {
-            toast_tick_scheduled := false;
-            globals.inject_global(Set(CanvasTick))
-            |> Bonsai.Effect.Expert.handle;
-          }),
-          1150,
-        ),
-      )
-    );
-  | _ => ()
-  };
-  /* streaming chain-of-thought tail for the avatar's bubble: a longer
-     window than fits the cloud — the ticker clips it left, so newest
-     text rides the right edge and streaming pushes older text leftward
-     (marquee motion paced by the model's actual thinking) */
+  /* the thought bubble shows while the model streams; its text is
+     driven outside the vdom (CanvasBubble) from the full streamed text.
+     Actions are called out by the speech bubble, fed by the player. */
+  CanvasBubble.source := reasoning_tail;
+  CanvasBubble.ensure_loop();
   let avatar_bubble =
-    if (agent_busy
-        && globals.settings.canvas_pace
-        && String.length(reasoning_tail) > 0) {
-      let n = String.length(reasoning_tail);
-      let tail_len = min(240, n);
-      Some(String.sub(reasoning_tail, n - tail_len, tail_len));
-    } else {
-      None;
-    };
+    agent_busy
+    && globals.settings.canvas_pace
+    && String.length(reasoning_tail) > 0
+      ? Some("") : None;
   let split_btn = {
     let split = globals.settings.canvas_split;
     div(
@@ -2474,23 +2450,41 @@ let view_impl =
             () => {
               /* slack: equality lets sub-pixel rounding re-summon the
                  scrollbar the fit was meant to remove */
-              let zw =
-                switch (avail_width) {
-                | Some(w) => (w -. 24.) /. max(1., lay.width)
-                | None => 1.
-                };
-              let zh =
-                switch (avail_height) {
-                | Some(h) => (h -. 24.) /. max(1., lay.height)
-                | None => 1.
-                };
-              animate_fit(
-                ~z_to=max(0.4, min(2.5, min(zw, zh))),
-                ~lw=lay.width,
-                ~lh=lay.height,
-                ~aw=Option.value(~default=lay.width, avail_width),
-                ~ah=Option.value(~default=lay.height, avail_height),
-              );
+              /* fit the NODES' extent, not the layout box: nodes pinned
+                 or dragged above/left of the frame origin sit outside
+                 the box (a board of only such nodes has a 0-high box) */
+              let aw = Option.value(~default=lay.width, avail_width)
+              and ah = Option.value(~default=lay.height, avail_height);
+              switch (CanvasCamera.graph_bbox^) {
+              | Some((x0, y0, x1, y1)) =>
+                let pad = 28.;
+                let gw = max(1., x1 -. x0 +. 2. *. pad)
+                and gh = max(1., y1 -. y0 +. 2. *. pad);
+                CanvasCamera.animate(
+                  ~aw,
+                  ~ah,
+                  ~zoom=
+                    Some(
+                      max(
+                        0.4,
+                        min(2.5, min((aw -. 24.) /. gw, (ah -. 24.) /. gh)),
+                      ),
+                    ),
+                  ~dur=320.,
+                  ~easing=CanvasCamera.EaseOut,
+                  ((x0 +. x1) /. 2., (y0 +. y1) /. 2.),
+                );
+              | None =>
+                let zw = (aw -. 24.) /. max(1., lay.width)
+                and zh = (ah -. 24.) /. max(1., lay.height);
+                animate_fit(
+                  ~z_to=max(0.4, min(2.5, min(zw, zh))),
+                  ~lw=lay.width,
+                  ~lh=lay.height,
+                  ~aw,
+                  ~ah,
+                );
+              };
             },
           "fit",
           "zoom so the whole graph fits the pane",
@@ -3152,7 +3146,6 @@ let view_impl =
             ~on_canvas_click,
             ~zoom,
             ~avatar_bubble,
-            ~avatar_toast,
             ~min_size=(
               (Option.value(~default=0., avail_width) -. 2.) /. zoom,
               (Option.value(~default=0., avail_height) -. 2.) /. zoom,
