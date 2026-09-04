@@ -177,6 +177,21 @@ The prelude supplies:
 
 so that `1 := 2` in one edit and `get(1)` in the next reads back `2`.
 
+The Fumola module library is compiled into the runtime, and eleven modules
+are bound at the top level of every instance:
+
+| | |
+| --- | --- |
+| `Adapton` | the adapton library itself |
+| `List`, `LazyList`, `PureList` | list structures |
+| `LevelTree`, `HashMap` | trees and maps |
+| `Counters`, `RandomInput` | counters, and generated input |
+| `MergeSort`, `Gcd`, `DelayedPut` | worked examples |
+
+So `Gcd.gcd(12, 18)` works with no import. Everything else in the library is
+still reachable by importing its path, e.g.
+`import D "fumola/examples/deriveCompare";`.
+
 A Fumola pointer arrives as the livelit that reads it, ascribed with the type
 of what it points at:
 
