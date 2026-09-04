@@ -677,108 +677,13 @@ let formation =
     );
   };
 
-/* ---- the avatar driver (B1: one writer, our own clock). A long WAAPI
-   timeline on the avatar was observed to jump its currentTime forward by
-   400–850 ms within a single frame under load (replay 10, 10× per run),
-   teleporting the actor. So the avatar's transform is written from a
-   requestAnimationFrame loop over the score's waypoints instead; nothing
-   else animates the avatar's transform. ---- */
-type drive = {
-  d_t0: float, /* performance.now() at start */
-  d_pts: array(((float, float), float)), /* board site, ms from start */
-  d_end: (float, float), /* the static site (translate 0 there) */
-  d_total: float,
-  d_el: Js.t(Dom_html.element),
-};
-let drive: ref(option(drive)) = ref(None);
-let driving: ref(bool) = ref(false);
-let perf_now = (): float =>
-  Js.Unsafe.meth_call(Js.Unsafe.global##.performance, "now", [||]);
-let ease_in_out = (u: float): float =>
-  u < 0.5
-    ? 2. *. u *. u : 1. -. ((-2.) *. u +. 2.) *. ((-2.) *. u +. 2.) /. 2.;
-let drive_pos = (d: drive, t: float): (float, float) => {
-  let n = Array.length(d.d_pts);
-  if (n == 0) {
-    d.d_end;
-  } else if (t <= snd(d.d_pts[0])) {
-    fst(d.d_pts[0]);
-  } else if (t >= snd(d.d_pts[n - 1])) {
-    fst(d.d_pts[n - 1]);
-  } else {
-    let i = ref(0);
-    while (i^ < n - 2 && snd(d.d_pts[i^ + 1]) < t) {
-      incr(i);
-    };
-    let ((x0, y0), t0) = d.d_pts[i^]
-    and ((x1, y1), t1) = d.d_pts[i^ + 1];
-    let u = t1 > t0 ? ease_in_out((t -. t0) /. (t1 -. t0)) : 1.;
-    (x0 +. (x1 -. x0) *. u, y0 +. (y1 -. y0) *. u);
-  };
-};
-/* the element the driver moves: the avatar's body (the anchor's style is
-   the view's) */
+/* the element the avatar's motion is written to: the body (the anchor's
+   style attribute is the view's and is rewritten every render) */
 let body_of = el =>
   switch (Js.Opt.to_option(Js.Unsafe.get(el, "firstElementChild"))) {
   | Some(b) => b
   | None => el
   };
-let set_transform = (el, (x, y): (float, float), (ex, ey): (float, float)) => {
-  let st = Js.Unsafe.get(body_of(el), "style");
-  Js.Unsafe.set(
-    st,
-    "transform",
-    Js.string(Printf.sprintf("translate(%.1fpx, %.1fpx)", x -. ex, y -. ey)),
-  );
-};
-let rec drive_tick = (): unit =>
-  switch (drive^) {
-  | None => driving := false
-  | Some(d) =>
-    let t = perf_now() -. d.d_t0;
-    if (t >= d.d_total) {
-      /* the static anchor IS the end site: identity, and hand back */
-      Js.Unsafe.set(
-        Js.Unsafe.get(d.d_el, "style"),
-        "transform",
-        Js.string(""),
-      );
-      drive := None;
-      driving := false;
-    } else {
-      set_transform(d.d_el, drive_pos(d, t), d.d_end);
-      ignore(
-        Js.Unsafe.meth_call(
-          Js.Unsafe.global##.window,
-          "requestAnimationFrame",
-          [|Js.Unsafe.inject(Js.Unsafe.callback(() => drive_tick()))|],
-        ),
-      );
-    };
-  };
-let start_drive =
-    (
-      el,
-      ~start: (float, float),
-      ~pts: list(((float, float), float)),
-      ~end_: (float, float),
-      ~total: float,
-    )
-    : unit => {
-  drive :=
-    Some({
-      d_t0: perf_now(),
-      d_pts: Array.of_list([(start, 0.)] @ pts @ [(end_, total)]),
-      d_end: end_,
-      d_total: total,
-      d_el: el,
-    });
-  set_transform(el, start, end_);
-  if (! driving^) {
-    driving := true;
-    drive_tick();
-  };
-};
 
 let play = (~zoom: float, s: CanvasScore.score): unit => {
   ignore(zoom);
@@ -1086,12 +991,17 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           ("easing", str("ease-in-out")),
         ],
       ];
-    /* any leftover transform animation on the avatar would fight the
-       driver: end it, then hand the path to our own clock */
+    /* WAAPI on the BODY: a compositor-run transform keeps moving through a
+       main-thread stall (a rAF-driven one froze, then jumped — replay 11/12),
+       and the body's style is never rewritten by the view */
+    let body = body_of(av);
     cancel_anims(av);
-    cancel_anims(body_of(av));
-    ignore(frames);
-    start_drive(av, ~start, ~pts=sorted, ~end_=(ex, ey), ~total=total_ms);
+    cancel_anims(body);
+    animate(
+      body,
+      frames,
+      [("duration", num(total_ms)), ("easing", str("linear"))],
+    );
     CanvasLog.log(
       Printf.sprintf(
         "play: %d act(s), avatar through %d waypoint(s) over %.1fs",
