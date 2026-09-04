@@ -23,6 +23,18 @@ let zoom_send: ref(option(float => unit)) =
 
 /* a newer animation supersedes a running one */
 let gen: ref(int) = ref(0);
+/* the glide in flight (target center, target zoom): a request for the
+   same place while it runs is a no-op instead of a restart */
+let inflight: ref(option(((float, float), float))) =
+  ref(None: option(((float, float), float)));
+let same_target = ((cx, cy): (float, float), z: float): bool =>
+  switch (inflight^) {
+  | Some(((ix, iy), iz)) =>
+    abs_float(ix -. cx) < 2.
+    && abs_float(iy -. cy) < 2.
+    && abs_float(iz -. z) < 0.01
+  | None => false
+  };
 /* while we write scroll (plus a grace tail) scroll events are ours */
 let driving_until: ref(float) = ref(0.);
 let mark_driving = (): unit => driving_until := now() +. 220.;
@@ -128,6 +140,7 @@ let animate =
     let g = gen^;
     let z0 = zoom_now^;
     let z1 = Option.value(~default=z0, zoom);
+    inflight := Some(((cx1, cy1), z1));
     /* the CSS zoom transition would fight the per-frame writes */
     class_toggle("no-zoom-anim", true);
     let t0: ref(float) = ref(0.);
@@ -154,6 +167,9 @@ let animate =
           );
         } else {
           class_toggle("no-zoom-anim", false);
+          if (same_target((cx1, cy1), z1)) {
+            inflight := None;
+          };
           if (z1 != z0) {
             switch (zoom_send^) {
             | Some(send) => send(z1)
@@ -184,6 +200,44 @@ let zoom_max = 1.3;
 /* board-px padding around the region of interest when fitting it */
 let roi_pad = 110.;
 
+/* the graph's extent in board coords, set each render by CanvasSidebar:
+   when the whole program fits the pane at a legible zoom, follow keeps
+   ALL of it in view rather than centering the avatar in empty canvas */
+let graph_bbox: ref(option((float, float, float, float))) =
+  ref(None: option((float, float, float, float)));
+let fits_whole = (~aw, ~ah): option(((float, float), float)) =>
+  switch (graph_bbox^) {
+  | None => None
+  | Some((x0, y0, x1, y1)) =>
+    let gw = max(1., x1 -. x0)
+    and gh = max(1., y1 -. y0);
+    let fit = min((aw -. 2. *. roi_pad) /. gw, (ah -. 2. *. roi_pad) /. gh);
+    fit >= zoom_min
+      ? Some((((x0 +. x1) /. 2., (y0 +. y1) /. 2.), min(zoom_max, fit)))
+      : None;
+  };
+/* is the whole graph already inside the viewport (with a margin)? */
+let whole_visible = (~aw, ~ah): bool =>
+  switch (graph_bbox^, center(~aw, ~ah)) {
+  | (Some((x0, y0, x1, y1)), Some((cx, cy))) =>
+    let z = zoom_now^;
+    let hw = aw /. 2. /. z
+    and hh = ah /. 2. /. z;
+    x0 >= cx
+    -. hw
+    +. 20.
+    && x1 <= cx
+    +. hw
+    -. 20.
+    && y0 >= cy
+    -. hh
+    +. 20.
+    && y1 <= cy
+    +. hh
+    -. 20.;
+  | _ => false
+  };
+
 /* sites touched during the current burst (dest points); reset when the
    burst window lapses */
 let roi: ref(list((float, float))) = ref([]);
@@ -199,7 +253,12 @@ let touch = ((x, y): (float, float)): unit => {
 };
 
 let in_dead_zone = (~aw, ~ah, (px, py): (float, float)): bool =>
-  switch (center(~aw, ~ah)) {
+  switch (
+    switch (inflight^) {
+    | Some((c, _)) => Some(c) /* judge against where the camera is heading */
+    | None => center(~aw, ~ah)
+    }
+  ) {
   | None => true
   | Some((cx, cy)) =>
     let z = zoom_now^;
@@ -251,8 +310,38 @@ let roi_center = (): option((float, float)) =>
   };
 
 /* the avatar hopped to (or started working at) dest */
-let follow = (~aw: float, ~ah: float, dest: (float, float)): unit => {
+let rec follow = (~aw: float, ~ah: float, dest: (float, float)): unit => {
   touch(dest);
+  switch (fits_whole(~aw, ~ah)) {
+  | Some((gc, zfit)) =>
+    /* small program: keep all of it in view. Re-frame only when part of
+       it is off-screen or the zoom is clearly off (hysteresis); a manual
+       wheel zoom pins the zoom */
+    let z = zoom_now^;
+    let want_zoom =
+      now() < user_zoom_until^ || abs_float(zfit -. z) < 0.08
+        ? None : Some(zfit);
+    let target_z = Option.value(~default=z, want_zoom);
+    if ((!whole_visible(~aw, ~ah) || want_zoom != None)
+        && !same_target(gc, target_z)) {
+      CanvasLog.log(
+        Printf.sprintf(
+          "camera: frame whole program -> (%.0f, %.0f)%s",
+          fst(gc),
+          snd(gc),
+          switch (want_zoom) {
+          | Some(zz) => Printf.sprintf(" zoom %.2f -> %.2f", z, zz)
+          | None => ""
+          },
+        ),
+      );
+      animate(~aw, ~ah, ~zoom=want_zoom, ~dur=450., ~easing=EaseInOut, gc);
+    };
+  | None => follow_site(~aw, ~ah, dest)
+  };
+}
+/* the program outgrows the pane: follow the site with the dead zone */
+and follow_site = (~aw: float, ~ah: float, dest: (float, float)): unit => {
   let zoom = roi_zoom(~aw, ~ah);
   switch (center(~aw, ~ah), in_dead_zone(~aw, ~ah, dest), zoom) {
   | (None, _, _) => ()

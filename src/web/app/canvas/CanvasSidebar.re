@@ -445,6 +445,8 @@ let last_followed: ref(option(CanvasLayout.pos)) =
 let last_followed_busy: ref(bool) = ref(false);
 /* slide the avatar/camera state above belongs to */
 let last_seen_slide: ref(string) = ref("");
+/* whether beats were playing at the previous render (frame freeze) */
+let last_pacing_live: ref(bool) = ref(false);
 /* previous (site, state, busy) for transition logging only */
 let last_logged_avatar: ref((option(Id.t), string)) =
   ref((None: option(Id.t), "off"));
@@ -676,6 +678,15 @@ let view =
     : Node.t => {
   let test_results = test_results_of(editors);
   let slide = current_slide(editors);
+  {
+    /* the layout frame is frozen while beats play and re-derives when
+       they stop: that re-frame must glide, not snap */
+    let pl = CanvasBuffer.pacing_live();
+    if (last_pacing_live^ && !pl) {
+      CanvasBuffer.stage_beat(~slow=true, ());
+    };
+    last_pacing_live := pl;
+  };
   if (last_seen_slide^ != slide) {
     /* per-slide state: a site remembered from the previous slide put the
        avatar off the new board (the blank-canvas start in andrew's run) */
@@ -2009,6 +2020,7 @@ let view =
     | None => None
     };
   };
+  CanvasCamera.graph_bbox := Some((0., 0., lay.width, lay.height));
   /* camera follow: a hop (or a resting avatar waking) hands the site to
      the camera; the dead zone decides whether it actually moves */
   switch (avatar, avail_width, avail_height) {

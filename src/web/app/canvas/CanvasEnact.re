@@ -255,6 +255,34 @@ let enact_edge =
     };
   };
 
+/* screen -> board coords, via the zoomed root's box */
+let to_board =
+    (~zoom: float, (sx, sy): (float, float)): option((float, float)) =>
+  switch (
+    Js.Opt.to_option(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.document,
+        "querySelector",
+        [|str(".canvas-root")|],
+      ),
+    )
+  ) {
+  | None => None
+  | Some(root) =>
+    let r = Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+    let left: float = Js.Unsafe.get(r, "left")
+    and top: float = Js.Unsafe.get(r, "top");
+    Some(((sx -. left) /. zoom, (sy -. top) /. zoom));
+  };
+/* the camera follows a waypoint when its time comes (dead zone applies) */
+let camera_at = (~zoom: float, at: float, sp: (float, float)): unit =>
+  later(at, () =>
+    switch (CanvasCamera.pane(), to_board(~zoom, sp)) {
+    | (Some((aw, ah)), Some(bp)) => CanvasCamera.follow(~aw, ~ah, bp)
+    | _ => ()
+    }
+  );
+
 /* board coords of a node element's center (its style is the layout) */
 let board_center = (el): option((float, float)) => {
   let st = Js.Unsafe.get(el, "style");
@@ -329,6 +357,30 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
       ([], t_after_tour, []);
     };
   let waypoints = tour @ edge_wps;
+  /* the camera keeps the avatar in view along the whole timeline: each
+     visited node as it blooms, each edge's far end as the ride starts */
+  List.iter(
+    ((c, d)) => camera_at(~zoom, d, c),
+    List.filteri((i, _) => i mod 2 == 0, tour),
+  );
+  ignore(
+    List.fold_left(
+      (t, ne) => {
+        switch (by_id(CanvasView.path_dom_id(ne.ne_name))) {
+        | Some(path) =>
+          let (_, pts) = sample_path(path);
+          switch (List.rev(pts)) {
+          | [far, ..._] => camera_at(~zoom, t, far)
+          | [] => ()
+          };
+        | None => ()
+        };
+        t;
+      },
+      t_after_tour,
+      List.rev(done_),
+    ),
+  );
   /* the avatar: from where it was, through every waypoint, back to the
      spot the beat gave it (its own FLIP hop is replaced) */
   switch (by_id(CanvasView.avatar_dom_id)) {

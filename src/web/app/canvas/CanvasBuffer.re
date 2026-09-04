@@ -43,7 +43,7 @@ let relayout_ms = 550;
 /* a tool's snapshot is captured before statics run, so its content is
    the NEXT distinct state; hold the labeled beat at most this long for
    that state to attach */
-let pending_hold_ms = 1500.;
+let pending_hold_ms = 4000.;
 let burst_window_ms = AgentPulse.burst_window_ms;
 let queue_cap = 8; /* max pending beats; middles coalesce away */
 
@@ -123,7 +123,9 @@ let canvas_zoom: ref(float) = ref(1.);
    enacts the beat starts from here (its FLIP hop is replaced) */
 let avatar_prev: ref(option((float, float))) =
   ref(None: option((float, float)));
-let stage_beat = (~lead: bool=false, ()): unit => {
+/* ~slow: a non-agent relayout that should still glide (the frame
+   re-deriving when a burst settles) */
+let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
   let scale = canvas_zoom^;
   avatar_prev :=
     Util.JsUtil.get_elem_by_id_opt("canvas-avatar")
@@ -137,7 +139,7 @@ let stage_beat = (~lead: bool=false, ()): unit => {
        });
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;
-  let move_dur = lead ? relayout_ms : 125;
+  let move_dur = lead || slow ? relayout_ms : 125;
   /* elements that don't exist yet arrive staggered; edge/formation/orbit
      geometry morphs on the movers' timing instead of snapping */
   Animation.request_beat(
