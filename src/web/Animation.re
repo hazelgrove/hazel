@@ -255,8 +255,12 @@ let request = (transitions: list(transition)): unit => {
       },
     transitions,
   );
+  /* the avatar's transform has one writer (CanvasEnact's driver) */
   let transitions =
-    List.filter(({id, _}: transition) => !is_held(id), transitions);
+    List.filter(
+      ({id, _}: transition) => id != "canvas-avatar" && !is_held(id),
+      transitions,
+    );
   tracked_elems :=
     List.map(
       ({id, animate}: transition) =>
