@@ -220,7 +220,7 @@ let sig_tests = {
           Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
         )
       ),
-      test_case("meet refines an tu member", `Quick, () =>
+      test_case("meet refines an unknown member", `Quick, () =>
         check(
           opt_typ,
           "refined",
@@ -395,4 +395,163 @@ let sig_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, sig_tests];
+/* ana_meet: exact meet first, then signature width subtyping and
+   contravariant function domains, only at analysis positions. */
+let ana_meet_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tb = F.Typ.bool();
+  let tu = F.Typ.unknown(Internal);
+  let ctx = Builtins.ctx_init(None);
+  let opt_typ = option(typ);
+  let ana_meet = (ana, syn) => Typ.ana_meet(ctx, ~ana, ~syn);
+  (
+    "Typ.AnaMeet",
+    [
+      test_case("wider module fits a narrower signature", `Quick, () =>
+        check(
+          opt_typ,
+          "sealed to ana",
+          Some(sg([sv("x", ti)])),
+          ana_meet(sg([sv("x", ti)]), sg([sv("x", ti), sv("y", tb)])),
+        )
+      ),
+      test_case("narrower module does not fit a wider signature", `Quick, () =>
+        check(
+          opt_typ,
+          "missing member",
+          None,
+          ana_meet(sg([sv("x", ti), sv("y", tb)]), sg([sv("x", ti)])),
+        )
+      ),
+      test_case("member types must fit", `Quick, () =>
+        check(
+          opt_typ,
+          "wrong member type",
+          None,
+          ana_meet(sg([sv("x", ti)]), sg([sv("x", tb)])),
+        )
+      ),
+      test_case("unknown member type refines, extras dropped", `Quick, () =>
+        check(
+          opt_typ,
+          "refined",
+          Some(sg([sv("x", tu)])),
+          ana_meet(sg([sv("x", tu)]), sg([sv("x", ti), sv("y", tb)])),
+        )
+      ),
+      test_case(
+        "manifest type members must agree",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "same manifest",
+            Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+            ana_meet(
+              sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+              sg([st("T", ti), sv("x", F.Typ.var("T")), sv("y", tb)]),
+            ),
+          );
+          check(
+            opt_typ,
+            "different manifest",
+            None,
+            ana_meet(sg([st("T", ti)]), sg([st("T", tb), sv("y", tb)])),
+          );
+        },
+      ),
+      test_case(
+        "signatures never fit labeled tuples",
+        `Quick,
+        () => {
+          let prod = F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]);
+          check(
+            opt_typ,
+            "sig vs prod",
+            None,
+            ana_meet(sg([sv("x", ti)]), prod),
+          );
+          check(
+            opt_typ,
+            "prod vs sig",
+            None,
+            ana_meet(prod, sg([sv("x", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "unknown on either side",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "? ana",
+            Some(sg([sv("x", ti)])),
+            ana_meet(tu, sg([sv("x", ti)])),
+          );
+          check(
+            opt_typ,
+            "? syn",
+            Some(sg([sv("x", ti)])),
+            ana_meet(sg([sv("x", ti)]), tu),
+          );
+        },
+      ),
+      test_case(
+        "functions are contravariant in their domain",
+        `Quick,
+        () => {
+          let narrow = sg([sv("x", ti)]);
+          let wide = sg([sv("x", ti), sv("y", ti)]);
+          check(
+            opt_typ,
+            "wide -> Int expected, narrow -> Int given",
+            Some(F.Typ.arrow(wide, ti)),
+            ana_meet(F.Typ.arrow(wide, ti), F.Typ.arrow(narrow, ti)),
+          );
+          check(
+            opt_typ,
+            "narrow -> Int expected, wide -> Int given",
+            None,
+            ana_meet(F.Typ.arrow(narrow, ti), F.Typ.arrow(wide, ti)),
+          );
+        },
+      ),
+      test_case(
+        "agrees with meet away from signatures",
+        `Quick,
+        () => {
+          let pairs = [
+            (ti, ti),
+            (ti, tb),
+            (F.Typ.list(ti), F.Typ.list(tu)),
+            (F.Typ.arrow(ti, tb), F.Typ.arrow(ti, tb)),
+            (
+              F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]),
+              F.Typ.prod([
+                F.Typ.tup_label(F.Typ.label("x"), ti),
+                F.Typ.tup_label(F.Typ.label("y"), ti),
+              ]),
+            ),
+          ];
+          List.iter(
+            ((a, b)) =>
+              check(
+                opt_typ,
+                "same as meet",
+                Typ.meet(ctx, a, b),
+                ana_meet(a, b),
+              ),
+            pairs,
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [meet_tests, fast_equal_tests, sig_tests, ana_meet_tests];

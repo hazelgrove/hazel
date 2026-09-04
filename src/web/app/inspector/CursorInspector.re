@@ -261,7 +261,6 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
-    | ModuleExtraMembers(_)
     | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | BadOperator(_)
@@ -791,11 +790,6 @@ let exp_mark_err_view =
         ),
       );
     }
-  | ModuleExtraMembers(names) =>
-    div_err([
-      text("Module has members its signature does not declare: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err([
       text("Type member "),

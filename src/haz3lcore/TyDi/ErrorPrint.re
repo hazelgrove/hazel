@@ -145,11 +145,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | LabelNotFound(_, _) => "Label not found"
   | ModuleMissingMembers(names) =>
     prn("Module is missing members: %s", String.concat(", ", names))
-  | ModuleExtraMembers(names) =>
-    prn(
-      "Module has members its signature does not declare: %s",
-      String.concat(", ", names),
-    )
   | ModuleMemberNotFound({name, members, type_member}) =>
     if (type_member) {
       prn(

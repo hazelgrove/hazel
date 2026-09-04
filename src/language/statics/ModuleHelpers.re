@@ -376,24 +376,6 @@ let missing_members =
   | _ => []
   };
 
-/* Members the module exports that the analyzed signature does not declare.
-   Until width subtyping lands, a signature must be precise. */
-let extra_members =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
-  switch (ana_items, sig_ty.term) {
-  | (Some(ana_items), Sig(items)) =>
-    let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let extra_values =
-      Sig.value_names(have)
-      |> List.filter(x => Sig.find_value(want, x) == None);
-    let extra_types =
-      Sig.type_names(have)
-      |> List.filter(t => Sig.find_type_def(want, t) == None);
-    extra_values @ extra_types;
-  | _ => []
-  };
-
 /* Mark each exported `type T = ...` whose definition differs from the
    manifest type the analyzed signature declares for T. Definitions with
    holes are not compared, to stay gradual. The mark lands on the item's
