@@ -426,27 +426,66 @@ let go = (): unit => {
         },
       b.geom_old,
     );
-    /* new geometry (fresh formation lines, orbit rings) appears once the
-       arrivals it belongs to have grown in; new edge paths are drawn by
-       the canvas's own enactment, so they are left alone */
+    /* new geometry (fresh formation lines, orbit rings, edges) DRAWS ON
+       from its source end once the arrivals it belongs to have grown
+       in — a dash reveal along the stroke, arrowhead held until the end.
+       (The canvas's enactment re-stages new function edges with the
+       avatar riding them; it cancels this first.) */
     let known = List.map(fst, b.geom_old);
+    let set_attr = (el, a: string, v: string) =>
+      ignore(
+        Js_of_ocaml.Js.Unsafe.meth_call(
+          el,
+          "setAttribute",
+          [|
+            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(a)),
+            Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(v)),
+          |],
+        ),
+      );
     List.concat_map(JsUtil.ids_with_prefix, b.geom_prefixes)
-    |> List.filter(id =>
-         !List.mem(id, known)
-         && !(String.length(id) >= 6 && String.sub(id, 0, 6) == "cpath-")
-       )
+    |> List.filter(id => !List.mem(id, known))
     |> List.iter(id =>
          switch (JsUtil.get_elem_by_id_opt(id)) {
          | Some(el) =>
-           Js.animate_multi(
-             [[("opacity", "0")], [("opacity", "1")]],
-             {
-               duration: 200,
-               easing: "ease-out",
-               delay: b.b_delay + wait,
-             },
-             el,
-           )
+           let total: float =
+             Js_of_ocaml.Js.Unsafe.meth_call(el, "getTotalLength", [||]);
+           if (total > 4.) {
+             let marker = attr_of(el, "marker-end");
+             set_attr(
+               el,
+               "stroke-dasharray",
+               Printf.sprintf("%.1f %.1f", total, total),
+             );
+             switch (marker) {
+             | Some(_) => set_attr(el, "marker-end", "none")
+             | None => ()
+             };
+             Js.animate_multi(
+               [
+                 [("strokeDashoffset", Printf.sprintf("%.1f", total))],
+                 [("strokeDashoffset", "0")],
+               ],
+               {
+                 duration: b.b_move_dur,
+                 easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+                 delay: b.b_delay + wait,
+               },
+               el,
+             );
+             switch (marker) {
+             | Some(m) =>
+               ignore(
+                 Js_of_ocaml.Js.Unsafe.global##setTimeout(
+                   Js_of_ocaml.Js.Unsafe.callback(() =>
+                     set_attr(el, "marker-end", m)
+                   ),
+                   b.b_delay + wait + b.b_move_dur,
+                 ),
+               )
+             | None => ()
+             };
+           };
          | None => ()
          }
        );

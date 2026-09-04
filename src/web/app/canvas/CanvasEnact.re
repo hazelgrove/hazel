@@ -89,6 +89,13 @@ let enact_edge =
   switch (by_id(CanvasView.path_dom_id(name))) {
   | None => false
   | Some(path) =>
+    /* the beat pass may already be revealing this path generically;
+       the ride replaces it */
+    let prior = Js.Unsafe.meth_call(path, "getAnimations", [||]);
+    let n_prior: int = Js.Unsafe.get(prior, "length");
+    for (i in 0 to n_prior - 1) {
+      ignore(Js.Unsafe.meth_call(Js.Unsafe.get(prior, i), "cancel", [||]));
+    };
     let (total, pts) = sample_path(path);
     if (total < 8.) {
       false;
