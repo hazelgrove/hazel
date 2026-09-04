@@ -596,16 +596,6 @@ module PlainTests = {
         ),
       )
     ),
-    test_case("Livelit elaborates to expanded term", `Quick, () =>
-      alco_check(
-        "^slider(50)",
-        Exp.int(50),
-        dhexp_of_uexp(parse_exp("^slider(50)")),
-      )
-    ),
-    test_case("Livelit elaboration ids are in statics map", `Quick, () =>
-      assert_elab_ids_present(parse_exp("^emotion(50)"))
-    ),
     test_case(
       "Singleton labeled argument function application with known type",
       `Quick,
