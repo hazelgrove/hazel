@@ -26,6 +26,30 @@ let sanitize = (s: string): string =>
   );
 
 let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
+
+/* A geometry layer (edges, hulls, ...) covers the board AND the pan slack
+   around it: nodes pinned or dragged above/left of the frame origin sit at
+   negative coordinates, and a board whose every node is up there has a
+   zero-height box — an SVG of zero area paints nothing, overflow or not
+   (labels, being HTML, still showed; the edges did not). The viewBox keeps
+   user units = board units, with (0,0) at the board origin. */
+let layer_box = (lay: CanvasLayout.t): list(Attr.t) => {
+  let s = CanvasRipple.pan_slack;
+  let w = lay.width +. 2. *. s
+  and h = lay.height +. 2. *. s;
+  [
+    Attr.create("width", Printf.sprintf("%.1f", w)),
+    Attr.create("height", Printf.sprintf("%.1f", h)),
+    Attr.create(
+      "viewBox",
+      Printf.sprintf("%.1f %.1f %.1f %.1f", -. s, -. s, w, h),
+    ),
+    Attr.create(
+      "style",
+      Printf.sprintf("left: %.1fpx; top: %.1fpx;", -. s, -. s),
+    ),
+  ];
+};
 let edge_dom_id = (name: string): string => "cedge-" ++ sanitize(name);
 let path_dom_id = (name: string): string => "cpath-" ++ sanitize(name);
 let formation_dom_id = (a: string, b: string): string =>
@@ -781,11 +805,7 @@ let view =
   let edges_svg =
     svg(
       "svg",
-      [
-        clss(["canvas-edges"]),
-        Attr.create("width", fmt(lay.width)),
-        Attr.create("height", fmt(lay.height)),
-      ],
+      [clss(["canvas-edges"])] @ layer_box(lay),
       [defs]
       @ List.mapi(dep_link_svg(~nodes=lay.nodes), lay.dep_links)
       @ List.mapi(formation_svg(~nodes=lay.nodes), lay.formations)
@@ -1005,11 +1025,7 @@ let view =
     ),
     svg(
       "svg",
-      [
-        clss(["connect-preview"]),
-        Attr.create("width", fmt(lay.width)),
-        Attr.create("height", fmt(lay.height)),
-      ],
+      [clss(["connect-preview"])] @ layer_box(lay),
       List.mapi(
         (i, p: CanvasLayout.pos) =>
           svg(
@@ -1087,11 +1103,7 @@ let view =
             let hull_layer =
               Node.create_svg(
                 "svg",
-                ~attrs=[
-                  clss(["canvas-hulls"]),
-                  Attr.create("width", fmt(lay.width)),
-                  Attr.create("height", fmt(lay.height)),
-                ],
+                ~attrs=[clss(["canvas-hulls"])] @ layer_box(lay),
                 [
                   Node.create_svg(
                     "defs",
@@ -1272,11 +1284,7 @@ let view =
             let depfan_svg =
               Node.create_svg(
                 "svg",
-                ~attrs=[
-                  clss(["canvas-depfan"]),
-                  Attr.create("width", fmt'(lay.width)),
-                  Attr.create("height", fmt'(lay.height)),
-                ],
+                ~attrs=[clss(["canvas-depfan"])] @ layer_box(lay),
                 List.map(
                   ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
                     let mx = (a.x +. b.x) /. 2.
