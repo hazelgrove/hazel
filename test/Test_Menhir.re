@@ -1009,6 +1009,14 @@ let ex5 = list_of_mylist(x) in
         {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
       ),
       menhir_maketerm_equivalent_test(
+        "Sig with module member",
+        {|let m : { module Inner : { let x : Int }; let y : Int } = { module Inner = { let x = 1 }; let y = 2 } in m.y|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with unannotated module member",
+        {|type S = { module Inner; let y : Int } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Sig type unannotated member",
         {|let m : { let x } = { let x = 1 } in m|},
       ),
