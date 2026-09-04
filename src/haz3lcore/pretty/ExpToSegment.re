@@ -2551,6 +2551,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                ]
                @ e,
              );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
+               @ e,
+             );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
@@ -3272,6 +3281,11 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
+  | ModVal(x, e) =>
+    /* An evaluated binding (dynamics only) displays as `let x = e`. */
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {

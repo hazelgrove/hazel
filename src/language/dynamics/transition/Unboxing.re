@@ -98,6 +98,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
+    | (LabeledTupleProjection(l), Module(items)) =>
+      Mod.modval_lookup(items, l) != None ? Matches(expr) : IndetMatch
     | (TupleElementPivot(l), Tuple(ds)) =>
       let found_pivot: option((string, list(Exp.t))) =
         ListUtil.find_with_rest(

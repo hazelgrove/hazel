@@ -910,23 +910,19 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * "frozen" decoration set.
  *
  * Background:
- *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
- *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
- *   inverts surface nesting: the surface-outer Module M becomes the
- *   elab-innermost Tuple, and surface-sibling ModLets become elab-
- *   ancestors of one another.
+ *   A module elaborates to a `Module` whose items keep their surface ids
+ *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
+ *   `c` on run 2 and finds its cached entry, it short-circuits via
+ *   `Evaluator.re:158-164` and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
+ *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
+ *   so the UI must derive frozen ids by walking the reuse plan rather than
+ *   visited output.
  *
- *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
- *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
- *   marks only that one id as reused (`IncrEval.mark_reused`). The
- *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited during evaluation, so the UI must
- *   derive frozen ids by walking the reuse plan rather than visited output.
- *
- *   The fix is to derive a "frozen set" from the ACK reuse plan by walking
- *   each entry's `prev_elab` and unioning all rep_ids encountered.
- *   That set is what the UI should paint as frozen. This test pins down
- *   the desired contents of that set. */
+ *   The "frozen set" is derived from the ACK reuse plan by walking each
+ *   entry's `prev_elab` and unioning all rep_ids encountered, including the
+ *   ids of module items. That set is what the UI should paint as frozen.
+ *   This test pins down the desired contents of that set. */
 let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
