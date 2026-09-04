@@ -569,6 +569,18 @@ let test_sig_too_narrow_rejected =
     |> parse_exp,
   );
 
+/* TODO: a signature member whose NAME is a hole, `{ let ? : ? }`, should be
+   able to stand for any module member (`y` here): filling the hole could make
+   the module match. Today the hole-named item is dropped from the signature's
+   members, so `y` is reported as an extra member. Once width subtyping lands,
+   a signature with hole-named members should probably be treated as open, and
+   a hole-named member should not count as missing. */
+let test_hole_named_member_matches_any =
+  skip_known_bug(
+    "signature member with a hole for its name should match a module member",
+    {|let m : { let ? : ? } = { let y = 1 } in m|},
+  );
+
 /* A hole-typed member is still a required member */
 let test_label_mismatch_hole =
   inconsistent_typecheck(
@@ -876,6 +888,7 @@ let tests = (
     test_extra_member_multi_rejected,
     test_sig_too_narrow_rejected,
     test_label_mismatch_hole,
+    test_hole_named_member_matches_any,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
