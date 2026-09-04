@@ -680,6 +680,9 @@ and ModItem: {
     | ModExp(e) => ModItemExp(Exp.of_core(e))
     | ModuleMod(mp, e) =>
       ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
+    | ModVal(x, e) =>
+      /* Evaluated binding (dynamics only): print as `let x = e`. */
+      ModItemLet(Pat.of_core(IndicatedG.Pat.var(x)), Exp.of_core(e))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) => ModItemExp(EmptyHole)

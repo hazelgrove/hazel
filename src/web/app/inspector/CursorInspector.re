@@ -260,6 +260,8 @@ let core_mark_err_view =
     | DotOperatorRequiresTuple
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
+    | ModuleMissingMembers(_)
+    | ModuleTypeMemberMismatch(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -728,6 +730,20 @@ let exp_mark_err_view =
       label_view(name),
       text(" not found in tuple's labels: "),
       ...List.map(label_view, labels),
+    ])
+  | ModuleMissingMembers(names) =>
+    div_err([
+      text("Module is missing members required by its signature: "),
+      ...ListUtil.join(text(", "), List.map(code, names)),
+    ])
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    div_err([
+      text("Type member "),
+      code(name),
+      text(" is defined as "),
+      view_type(actual),
+      text(" but its signature declares "),
+      view_type(expected),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>

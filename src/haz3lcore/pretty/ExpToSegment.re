@@ -2344,6 +2344,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                item,
                [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
              );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+             );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
@@ -2972,6 +2980,11 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
+  | ModVal(x, e) =>
+    /* An evaluated binding (dynamics only) displays as `let x = e`. */
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | EmptyHole =>
     p_just(
       wrap_item(
@@ -3085,9 +3098,6 @@ let exp_to_segment =
 };
 
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
-  /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
-     instead of {sig}. Uses empty ctx since we're just displaying. */
-  let typ = Typ.desugar_sig(Ctx.empty, typ);
   let typ =
     typ
     |> parenthesize_typ(

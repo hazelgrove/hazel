@@ -104,10 +104,30 @@ let bound_constructor_aps =
     ctx.entries,
   );
 
-/* Suggest qualified module member access: for variables with labeled tuple
- * (module) types, suggest Name.label for fields consistent with the expected
- * type. E.g., if String has type (empty=String, length=String->Int), and we
- * expect String, suggest "String.empty".
+/* The named fields of a labeled tuple type or the value members of a
+ * signature type, with their types (a signature's own manifest type members
+ * are substituted into its member types). */
+let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
+  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
+  | Sig(items) =>
+    Sig.members(items)
+    |> Sig.dedup_last
+    |> List.filter_map((m: Sig.member) =>
+         switch (m) {
+         | Val(label, _) =>
+           Typ.sig_project_value(items, label)
+           |> Option.map(field_ty => (label, field_ty))
+         | TypeManifest(_) => None
+         }
+       )
+  | _ => []
+  };
+
+/* Suggest qualified member access: for variables with labeled tuple or
+ * module types, suggest Name.label for fields consistent with the expected
+ * type. E.g., if String has type { let empty : String; let length : String
+ * -> Int } and we expect String, suggest "String.empty".
  *
  * TODO: Only goes one level deep. Nested qualified access (A.B.x) would
  * require recursive expansion. See also: List(Prod) types could generate
@@ -116,23 +136,17 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
     fun
     | Ctx.VarEntry({typ, name, _}) =>
-      switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
-      | Prod(ts) =>
-        List.filter_map(
-          label_ty =>
-            switch (Typ.match_tup_label(label_ty)) {
-            | Some((label, field_ty))
-                when Typ.is_consistent(ctx, ty_expect, field_ty) =>
-              Some({
-                content: name ++ "." ++ label,
-                strategy: Exp(Common(FromCtx(field_ty))),
-              })
-            | _ => None
-            },
-          ts,
-        )
-      | _ => []
-      }
+      named_fields(ctx, typ)
+      |> List.filter_map(((label, field_ty)) =>
+           Typ.is_consistent(ctx, ty_expect, field_ty)
+             ? Some(
+                 TyDiSuggestion.{
+                   content: name ++ "." ++ label,
+                   strategy: Exp(Common(FromCtx(field_ty))),
+                 },
+               )
+             : None
+         )
     | _ => [],
     ctx.entries,
   );
@@ -146,25 +160,22 @@ let bound_qualified_aps =
   List.concat_map(
     fun
     | Ctx.VarEntry({typ, name, _}) =>
-      switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
-      | Prod(ts) =>
-        List.filter_map(
-          label_ty =>
-            switch (Typ.match_tup_label(label_ty)) {
-            | Some((label, {term: Arrow(_, ty_out), _} as field_ty))
-                when
-                  Typ.is_consistent(ctx, ty_expect, ty_out)
-                  && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
-              Some({
-                content: name ++ "." ++ label ++ "(",
-                strategy: Exp(Common(FromCtxAp(ty_out))),
-              })
-            | _ => None
-            },
-          ts,
-        )
-      | _ => []
-      }
+      named_fields(ctx, typ)
+      |> List.filter_map(((label, field_ty: Typ.t)) =>
+           switch (field_ty.term) {
+           | Arrow(_, ty_out)
+               when
+                 Typ.is_consistent(ctx, ty_expect, ty_out)
+                 && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
+             Some(
+               TyDiSuggestion.{
+                 content: name ++ "." ++ label ++ "(",
+                 strategy: Exp(Common(FromCtxAp(ty_out))),
+               },
+             )
+           | _ => None
+           }
+         )
     | _ => [],
     ctx.entries,
   );

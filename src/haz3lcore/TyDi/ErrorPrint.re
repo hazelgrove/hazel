@@ -143,6 +143,15 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
+  | ModuleMissingMembers(names) =>
+    prn("Module is missing members: %s", String.concat(", ", names))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    prn(
+      "Type member %s is %s but its signature declares %s",
+      name,
+      Print.typ(actual),
+      Print.typ(expected),
+    )
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"

@@ -60,6 +60,39 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       )
+    | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
+      /* Sealing: keep the signature's value members, in signature order,
+         ascribing each to its declared type. Type members have no runtime
+         content. A member the module lacks leaves the ascription stuck;
+         statics has already marked it. */
+      let members =
+        Sig.members(sig_items)
+        |> Sig.dedup_last
+        |> List.filter_map((m: Sig.member) =>
+             switch (m) {
+             | Val(x, ty) => Some((x, ty))
+             | TypeManifest(_) => None
+             }
+           );
+      let picked =
+        members
+        |> List.map(((x, ty)) =>
+             Mod.modval_lookup(items, x)
+             |> Option.map(v =>
+                  Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
+                )
+           )
+        |> Util.OptUtil.sequence;
+      switch (picked) {
+      | Some(items') =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Module(items') |> DHExp.fresh,
+          ),
+        )
+      | None => None
+      };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       Some(
         IdTagged.fast_copy(

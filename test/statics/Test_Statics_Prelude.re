@@ -101,6 +101,12 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TupleExtensionRequiresTuples, TupleExtensionRequiresTuples) => true
     | (LabelNotFound(l1, ls1), LabelNotFound(l2, ls2)) =>
       l1 == l2 && ls1 == ls2
+    | (ModuleMissingMembers(ns1), ModuleMissingMembers(ns2)) => ns1 == ns2
+    | (
+        ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),
+        ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),
+      ) =>
+      n1 == n2 && Typ.fast_equal(e1, e2) && Typ.fast_equal(a1, a2)
     | (BadOperator(s1), BadOperator(s2)) => s1 == s2
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
