@@ -2522,7 +2522,33 @@ let view =
     let (prev_slide, prev_edges) = last_edge_snapshot^;
     let cur_edges =
       List.map((el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
-    let added_edges = List.filter(e => !List.mem(e, prev_edges), cur_edges);
+    /* new edges, each with its source product when that product is
+       itself new this beat (a multi-argument function being created) */
+    let added_edges =
+      lay.edges
+      |> List.filter_map((el: CanvasLayout.edge_layout) =>
+           if (List.mem(el.edge.e_name, prev_edges)) {
+             None;
+           } else {
+             let product =
+               lay.nodes
+               |> List.find_opt((nl: CanvasLayout.node_layout) =>
+                    nl.node.key == el.edge.e_src
+                  )
+               |> Util.OptUtil.and_then((nl: CanvasLayout.node_layout) =>
+                    nl.node.kind == CanvasGraph.Product
+                    && nl.node.parts != []
+                    && !List.mem_assoc(nl.node.key, prev_nodes)
+                      ? Some((nl.node.key, nl.node.parts)) : None
+                  );
+             Some(
+               CanvasEnact.{
+                 ne_name: el.edge.e_name,
+                 ne_product: product,
+               },
+             );
+           }
+         );
     if (prev_slide == slide
         && added_edges != []
         && CanvasBuffer.pacing_live()

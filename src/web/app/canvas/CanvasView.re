@@ -28,6 +28,8 @@ let sanitize = (s: string): string =>
 let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
 let edge_dom_id = (name: string): string => "cedge-" ++ sanitize(name);
 let path_dom_id = (name: string): string => "cpath-" ++ sanitize(name);
+let formation_dom_id = (a: string, b: string): string =>
+  "cform-" ++ sanitize(a) ++ "--" ++ sanitize(b);
 let value_dom_id = (name: string): string => "cval-" ++ sanitize(name);
 let avatar_dom_id = "canvas-avatar";
 
@@ -165,7 +167,7 @@ let formation_svg =
     [
       /* keyed by endpoints so a beat can morph the same line across
          renders (an index would pair different lines) */
-      Attr.id("cform-" ++ sanitize(a) ++ "--" ++ sanitize(b)),
+      Attr.id(formation_dom_id(a, b)),
       clss(["canvas-formation"]),
       Attr.create(
         "d",
