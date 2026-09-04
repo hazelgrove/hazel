@@ -1279,6 +1279,13 @@ and abbreviate_sig_item = (item: Sig.t): Sig.t => {
         let t' = abbreviate_typ(t);
         SigType(tp', t');
       }
+    | SigModule(mp) =>
+      if (available^ <= 6) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 7; /* "module " */
+        SigModule(abbreviate_mpat(mp));
+      }
     };
   rewrap(term);
 }
