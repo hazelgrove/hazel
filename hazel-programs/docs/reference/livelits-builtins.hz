@@ -39,7 +39,15 @@ let current_mood = ^^livelit(^emotion(0)) in
 #   The Int is an opaque Fumola instance id: it names an incremental Fumola    #
 #   runtime living outside Hazel, not an ordinary number. Editing the program #
 #   keeps the same id, so the edit re-uses that runtime's execution history   #
-#   instead of starting over. Duplicating the livelit gives the copy a fresh  #
-#   id, so two copies never share one runtime.                                #
+#   instead of starting over. State survives the edit: write `1 := 2` in one  #
+#   edit, then `get(1)` in the next, and the result is 2.                     #
+#                                                                             #
+# Always in scope, since Hazel strings cannot contain the quotes that the     #
+# adapton primitives need:                                                    #
+#   pointer(s)  the pointer that symbol s names                               #
+#   get(s)      the value in that cell, recording a dependency                #
+#   peek(s)     the value as an option, without recording a dependency        #
+# `:=` turns its left side into a pointer, but `@` does not, so a cell is     #
+# read back with `get(s)` rather than `@(s)`.                                 #
 # Requires the Fumola wasm runtime; see scripts/build-fumola-wasm.sh.         #
 let fumola_val = ^^livelit(^fumola(0, "1 + 2")) in¿

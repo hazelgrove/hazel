@@ -101,7 +101,7 @@ let var_exps = (x: string): group => singleton(var_exp(x));
    so, since that changes what editing and copying it mean. */
 let livelit_name_explanation = (n: string): string =>
   switch (n) {
-  | "fumola" => "Runs a Fumola program and expands to its result as an `Int`; a program that does not parse, or whose result is not an integer, expands to a hole. Its model is a pair of an instance id and the program text. The id names an incremental Fumola runtime living outside Hazel: editing the program keeps the same id, so the edit re-uses that runtime's execution history rather than starting over, and duplicating the livelit gives the copy a fresh id so the two never share one history."
+  | "fumola" => "Runs a Fumola program and expands to its result as an `Int`; a program that does not parse, or whose result is not an integer, expands to a hole. Its model is a pair of an instance id and the program text. The id names an incremental Fumola runtime living outside Hazel, so state written in one edit is still there in the next: `1 := 2` in one edit, then `get(1)` in the next, gives 2. Three definitions are always in scope -- `pointer(s)`, `get(s)` and `peek(s)` -- because the adapton primitives need quotes, which a Hazel string cannot contain. Note that `:=` turns its left side into a pointer but `@` does not, so use `get` to read a cell back."
   | _ => "Expands to some value, and when projected, creates an interactable GUI widget."
   };
 

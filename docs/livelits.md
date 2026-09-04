@@ -107,6 +107,7 @@ let livelits: list(raw_livelit) =
 | Expansion type | `Int` |
 | Model | `(Int, String)` -- an opaque Fumola instance id, and the Fumola source text. |
 | Expansion | The result of running the Fumola program, translated to a Hazel `Int`. A program that does not parse, or whose result is not an integer, expands to a hole. |
+| In scope | `pointer(s)`, `get(s)`, `peek(s)` -- see below. |
 | Requires | The Fumola wasm runtime; build it with `scripts/build-fumola-wasm.sh`. |
 
 This is the first livelit whose model does not contain all of its own state,
@@ -153,6 +154,28 @@ explicitly rather than get for free:
   rewrites its own model to name it. The same mechanism covers reload: a saved
   program naming an id this session has never seen has that runtime realized
   on demand.
+
+Every program runs after a small prelude, for two reasons that are easy to
+trip over.
+
+First, a livelit's program text is stored as a Hazel string literal, and Hazel
+strings have no escapes -- `Token.is_string` permits at most two quote
+characters in the whole token. So `prim "adaptonPointer"` cannot be written
+inside a livelit at all, and every adapton primitive needs quotes.
+
+Second, `:=` coerces its left side into a pointer but `@` does not: `@` wants
+something that already *is* a pointer. So the way to read back what `1 := 2`
+wrote is not `@(1)`.
+
+The prelude supplies:
+
+| | |
+| --- | --- |
+| `pointer(s)` | the pointer that symbol `s` names |
+| `get(s)` | the value in that cell, recording a dependency |
+| `peek(s)` | the value as an option, without recording a dependency; `null` if never written |
+
+so that `1 := 2` in one edit and `get(1)` in the next reads back `2`.
 
 Not settled by this implementation: `FumolaInstanceId` is an ordinary `Int` in
 the model rather than a distinct opaque value form, only first-order integer
