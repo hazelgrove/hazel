@@ -288,6 +288,9 @@ type beat_stage = {
   b_move_dur: int,
 };
 let beat: ref(option(beat_stage)) = ref(None: option(beat_stage));
+/* the last `go`'s arrivals as (id, delay ms), for choreography that runs
+   after the render (the avatar touring the new nodes as they bloom) */
+let last_arrivals: ref(list((string, int))) = ref([]);
 let geom_attrs = ["d", "cx", "cy"];
 /* (module Js above shadows Js_of_ocaml.Js: qualify explicitly) */
 let attr_of =
@@ -357,14 +360,17 @@ let go = (): unit => {
   switch (beat^) {
   | Some(b) when arrivals != [] =>
     let step = stagger_step(b.b_stagger);
+    last_arrivals := [];
     List.iter(
-      ((_, el)) => {
+      ((id, el)) => {
+        let delay = b.b_delay + stagger_index^ * step;
+        last_arrivals := last_arrivals^ @ [(id, delay)];
         Js.animate(
           {
             options: {
               duration: 220,
               easing: easeOutExpo,
-              delay: b.b_delay + stagger_index^ * step,
+              delay,
             },
             keyframes: Keyframes.scale_from_zero,
           },

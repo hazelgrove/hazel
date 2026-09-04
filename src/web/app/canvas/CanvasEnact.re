@@ -136,41 +136,40 @@ let reveal = (~delay: float, ~dur: float, el): unit => {
   );
 };
 
-/* one edge: (visit the domain types, form the product dot,) reveal the
-   stroke while the avatar rides it, then let the pill in */
+/* screen-space waypoint the avatar passes at a time (ms into the beat) */
+type waypoint = ((float, float), float);
+
+/* one edge, starting at t0: (visit the domain types, form the product
+   dot,) reveal the stroke while the avatar rides it, let the pill in.
+   Returns the avatar's waypoints and when the ride is over. */
 let enact_edge =
-    (~zoom: float, ~avatar: option(Js.t(Dom_html.element)), ne: new_edge)
-    : bool =>
+    (~t0: float, ne: new_edge): option((list(waypoint), float)) =>
   switch (by_id(CanvasView.path_dom_id(ne.ne_name))) {
-  | None => false
+  | None => None
   | Some(path) =>
     /* the beat pass may already be revealing this path generically;
        the ride replaces it */
     cancel_anims(path);
     let (total, pts) = sample_path(path);
     if (total < 8.) {
-      false;
+      None;
     } else {
       /* ---- multi-arg prelude: visits + formation ---- */
-      /* waypoints the avatar passes before the ride: (screen point, at ms) */
-      let prelude: ref(list(((float, float), float))) = ref([]);
+      let prelude: ref(list(waypoint)) = ref([]);
       let t_edge =
         switch (ne.ne_product) {
         | Some((pk, parts)) =>
           switch (by_id(CanvasView.node_dom_id(pk))) {
-          | None => lead_ms
+          | None => t0
           | Some(dot) =>
             let part_els =
               List.filter_map(k => by_id(CanvasView.node_dom_id(k)), parts);
             let n = float_of_int(List.length(part_els));
-            let t_visited = lead_ms +. visit_ms *. n;
+            let t_visited = t0 +. visit_ms *. n;
             prelude :=
               List.mapi(
                 (i, el) =>
-                  (
-                    center_of(el),
-                    lead_ms +. visit_ms *. float_of_int(i + 1),
-                  ),
+                  (center_of(el), t0 +. visit_ms *. float_of_int(i + 1)),
                 part_els,
               )
               @ [(center_of(dot), t_visited +. form_ms)];
@@ -200,7 +199,7 @@ let enact_edge =
             );
             t_visited +. form_ms +. 80.;
           }
-        | None => lead_ms
+        | None => t0
         };
       /* ---- the ride ---- */
       let marker = get_attr(path, "marker-end");
@@ -246,82 +245,165 @@ let enact_edge =
         );
       | None => ()
       };
-      /* ---- the avatar: hold, (visit, visit, dot,) ride, step back ---- */
-      switch (avatar) {
-      | Some(av) =>
-        let (ax, ay) = center_of(av);
-        let total_ms = t_edge +. travel_ms +. settle_ms;
-        let frame = ((x, y), at) => [
-          (
-            "transform",
-            str(
-              Printf.sprintf(
-                "translate(%.1fpx, %.1fpx)",
-                (x -. ax) /. zoom,
-                (y -. ay) /. zoom,
-              ),
-            ),
-          ),
-          ("offset", num(min(1., at /. total_ms))),
-        ];
-        let n = float_of_int(List.length(pts) - 1);
-        let ride =
-          List.mapi(
-            (i, p) => frame(p, t_edge +. travel_ms *. float_of_int(i) /. n),
-            pts,
-          );
-        let hold_at = List.hd(pts);
-        let frames =
-          [frame(prelude^ == [] ? hold_at : fst(List.hd(prelude^)), 0.)]
-          @ List.map(((p, at)) => frame(p, at), prelude^)
-          @ ride
-          @ [
-            [
-              ("transform", str("translate(0px, 0px)")),
-              ("offset", num(1.)),
-            ],
-          ];
-        cancel_anims(av);
-        animate(
-          av,
-          frames,
-          [("duration", num(total_ms)), ("easing", str("ease-in-out"))],
+      let n = float_of_int(List.length(pts) - 1);
+      let ride =
+        List.mapi(
+          (i, p) => (p, t_edge +. travel_ms *. float_of_int(i) /. n),
+          pts,
         );
-      | None => ()
-      };
-      true;
+      Some((prelude^ @ ride, t_edge +. travel_ms));
     };
   };
 
-/* enact the new edges of a beat (called one frame after it renders) */
-let enact_edges = (~zoom: float, edges: list(new_edge)): unit =>
-  if (edges != [] && List.length(edges) <= max_edges) {
-    let avatar = by_id(CanvasView.avatar_dom_id);
-    let done_ = List.filter(ne => enact_edge(~zoom, ~avatar, ne), edges);
-    if (done_ != []) {
-      CanvasLog.log(
-        Printf.sprintf(
-          "enact: %d edge(s) drawn by the avatar (%s)",
-          List.length(done_),
-          String.concat(
-            ", ",
-            List.map(
-              ne =>
-                ne.ne_name
-                ++ (
-                  switch (ne.ne_product) {
-                  | Some((_, parts)) =>
-                    Printf.sprintf(" via %d-ary product", List.length(parts))
-                  | None => ""
-                  }
-                ),
-              done_,
-            ),
+/* board coords of a node element's center (its style is the layout) */
+let board_center = (el): option((float, float)) => {
+  let st = Js.Unsafe.get(el, "style");
+  let px = (v: string) =>
+    try(Some(float_of_string(String.sub(v, 0, String.length(v) - 2)))) {
+    | _ => None
+    };
+  switch (
+    px(Js.to_string(Js.Unsafe.get(st, "left"))),
+    px(Js.to_string(Js.Unsafe.get(st, "top"))),
+  ) {
+  | (Some(x), Some(y)) => Some((x, y))
+  | _ => None
+  };
+};
+
+/* how long the avatar lingers on an arrival before heading to the next */
+let visit_hold_ms = 140.;
+/* more than this many arrivals is a rewrite, not a tour */
+let max_tour = 12;
+
+/* enact a whole beat, one frame after it renders: the avatar tours the
+   new nodes as they bloom (splashing each), then performs each new
+   edge's gesture, then steps back to wherever the beat put it */
+let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
+  let arrivals =
+    Animation.last_arrivals^
+    |> List.filter(((id, _)) =>
+         String.length(id) >= 6 && String.sub(id, 0, 6) == "cnode-"
+       )
+    |> List.filter_map(((id, d)) =>
+         by_id(id) |> Option.map(el => (el, float_of_int(d)))
+       );
+  Animation.last_arrivals := [];
+  /* splashes land as each node blooms */
+  List.iter(
+    ((el, d)) =>
+      switch (board_center(el)) {
+      | Some(p) => later(d +. 60., () => CanvasRipple.splash(~amp=4., p))
+      | None => ()
+      },
+    arrivals,
+  );
+  let tour: list(waypoint) =
+    List.length(arrivals) > max_tour
+      ? []
+      : List.concat_map(
+          ((el, d)) => {
+            let c = center_of(el);
+            [(c, d), (c, d +. visit_hold_ms)];
+          },
+          arrivals,
+        );
+  let t_after_tour =
+    switch (List.rev(tour)) {
+    | [(_, t), ..._] => t +. 200.
+    | [] => lead_ms
+    };
+  /* edges, one after another, after the tour */
+  let (edge_wps, t_end, done_) =
+    if (List.length(edges) <= max_edges) {
+      List.fold_left(
+        ((wps, t, done_), ne) =>
+          switch (enact_edge(~t0=t, ne)) {
+          | Some((w, t')) => (wps @ w, t', [ne, ...done_])
+          | None => (wps, t, done_)
+          },
+        ([], t_after_tour, []),
+        edges,
+      );
+    } else {
+      ([], t_after_tour, []);
+    };
+  let waypoints = tour @ edge_wps;
+  /* the avatar: from where it was, through every waypoint, back to the
+     spot the beat gave it (its own FLIP hop is replaced) */
+  switch (by_id(CanvasView.avatar_dom_id)) {
+  | Some(av) when waypoints != [] =>
+    let (ax, ay) = center_of(av);
+    let total_ms = t_end +. settle_ms;
+    let frame = ((x, y), at) => [
+      (
+        "transform",
+        str(
+          Printf.sprintf(
+            "translate(%.1fpx, %.1fpx)",
+            (x -. ax) /. zoom,
+            (y -. ay) /. zoom,
           ),
         ),
-      );
-    };
+      ),
+      ("offset", num(max(0., min(1., at /. total_ms)))),
+    ];
+    let start =
+      switch (CanvasBuffer.avatar_prev^) {
+      | Some(p) => p
+      | None => fst(List.hd(waypoints))
+      };
+    let frames =
+      [frame(start, 0.)]
+      @ List.map(((p, at)) => frame(p, at), waypoints)
+      @ [
+        [("transform", str("translate(0px, 0px)")), ("offset", num(1.))],
+      ];
+    cancel_anims(av);
+    animate(
+      av,
+      frames,
+      [("duration", num(total_ms)), ("easing", str("ease-in-out"))],
+    );
+  | _ => ()
   };
+  if (arrivals != [] || done_ != []) {
+    CanvasLog.log(
+      Printf.sprintf(
+        "enact: tour of %d arrival(s)%s",
+        List.length(arrivals),
+        done_ == []
+          ? ""
+          : Printf.sprintf(
+              ", %d edge(s) drawn (%s)",
+              List.length(done_),
+              String.concat(
+                ", ",
+                List.rev_map(
+                  ne =>
+                    ne.ne_name
+                    ++ (
+                      switch (ne.ne_product) {
+                      | Some((_, parts)) =>
+                        Printf.sprintf(
+                          " via %d-ary product",
+                          List.length(parts),
+                        )
+                      | None => ""
+                      }
+                    ),
+                  done_,
+                ),
+              ),
+            ),
+      ),
+    );
+  };
+};
+
+/* edges only (testers): the beat's arrivals, if any, are still toured */
+let enact_edges = (~zoom: float, edges: list(new_edge)): unit =>
+  enact_beat(~zoom, edges);
 
 /* run after the current render has been patched into the DOM */
 let after_render = (f: unit => unit): unit =>

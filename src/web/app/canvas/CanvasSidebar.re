@@ -2385,28 +2385,10 @@ let view =
       );
     if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
       if (List.length(added) <= 12) {
-        /* splashes land with each node's staggered arrival */
-        let n = List.length(added);
-        let step =
-          min(
-            CanvasBuffer.arrival_stagger_ms,
-            Animation.stagger_span_cap / max(1, n),
-          );
-        List.iteri(
-          (i, nl: CanvasLayout.node_layout) => {
-            let (x, y) = (nl.p.x, nl.p.y);
-            Js_of_ocaml.(
-              ignore(
-                Js.Unsafe.global##setTimeout(
-                  Js.Unsafe.callback(() =>
-                    CanvasRipple.splash(~amp=4., (x, y))
-                  ),
-                  CanvasBuffer.lead_ms + i * step,
-                ),
-              )
-            );
-            note_placed(nl.node.key);
-          },
+        /* splashes and the avatar's visits ride the exact arrival
+           schedule, post-render (CanvasEnact.enact_beat) */
+        List.iter(
+          (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
           added,
         );
         CanvasLog.log(
@@ -2549,12 +2531,18 @@ let view =
              );
            }
          );
+    let any_new_nodes =
+      List.exists(
+        (nl: CanvasLayout.node_layout) =>
+          !List.mem_assoc(nl.node.key, prev_nodes),
+        lay.nodes,
+      );
     if (prev_slide == slide
-        && added_edges != []
+        && (added_edges != [] || any_new_nodes)
         && CanvasBuffer.pacing_live()
         && globals.settings.canvas_pace) {
       CanvasEnact.after_render(() =>
-        CanvasEnact.enact_edges(~zoom=CanvasCamera.zoom_now^, added_edges)
+        CanvasEnact.enact_beat(~zoom=CanvasCamera.zoom_now^, added_edges)
       );
     };
     last_edge_snapshot := (slide, cur_edges);

@@ -119,8 +119,22 @@ let canvas_zoom: ref(float) = ref(1.);
 /* FLIP staging for a beat: graph elements at edit pace, the avatar on
    the slow action so its hop reads as travel. ~lead: agent beats hold
    the graph still while the avatar (and camera) travel, then act */
+/* the avatar's screen center just before a beat renders: the tour that
+   enacts the beat starts from here (its FLIP hop is replaced) */
+let avatar_prev: ref(option((float, float))) =
+  ref(None: option((float, float)));
 let stage_beat = (~lead: bool=false, ()): unit => {
   let scale = canvas_zoom^;
+  avatar_prev :=
+    Util.JsUtil.get_elem_by_id_opt("canvas-avatar")
+    |> Option.map(el => {
+         let r = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
+         let x: float =
+           Js.Unsafe.get(r, "left") +. Js.Unsafe.get(r, "width") /. 2.
+         and y: float =
+           Js.Unsafe.get(r, "top") +. Js.Unsafe.get(r, "height") /. 2.;
+         (x, y);
+       });
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;
   let move_dur = lead ? relayout_ms : 125;
