@@ -50,16 +50,29 @@ type MSig = { let x : Int }
 let m : MSig = { let x = 1 }
 ```
 
-Signature items are `let name : Type` (value member) and `type T = Type`
-(manifest type member). Items scope sequentially: `let x : T` may mention a
-`type T` declared earlier in the same signature. A member written `let x`
-without a type has type `?`.
+Signature items are `let name : Type` (value member), `type T = Type`
+(manifest type member) and `module Name : Signature` (sub-module member,
+which may be capitalized). Items scope sequentially: `let x : T` may mention
+a `type T` declared earlier in the same signature. A member written `let x`
+or `module M` without a type has type `?`.
 
-A module analyzed against a signature must define every member the signature
-declares, each value member must have the declared type (with the signature's
-own type members substituted), and each type member must be defined as the
-declared type. Errors are reported on the offending definition; a missing
-member is reported on the module.
+```
+module Outer : { module Inner : { let x : Int }; let y : Int } =
+  { module Inner = { let x = 1 }; let y = 2 }
+let outer : { let inner : { let x : Int } } = { let inner = { let x = 1 } }
+```
+
+A module synthesizes `module Inner : { … }` for a `module Inner = …` item and
+`let inner : { … }` for a `let inner = { … }` item.
+
+A module analyzed against a signature must define exactly the members the
+signature declares, each value member must have the declared type (with the
+signature's own type members substituted), and each type member must be
+defined as the declared type. A member's type error is reported on its
+definition; missing members (`ModuleMissingMembers`) and, until width
+subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
+module; a differing type member is reported on the `type` item
+(`ModuleTypeMemberMismatch`).
 
 ### Member Access and `module`
 
@@ -147,7 +160,8 @@ Three sorts implement the surface syntax:
 dynamics-only `ModVal(name, exp)` — an evaluated binding.
 
 **Signature items** (`sig_term`): `SigLet(pat)` (the pattern carries the
-optional `: Type`), `SigType(tpat, typ)`, holes.
+optional `: Type`), `SigType(tpat, typ)`, `SigModule(mpat)` (the module name
+pattern carries the optional `: Signature`), holes.
 
 **Expression level**: `Module(list(mod_t))`, `ModuleExp(mpat, exp, exp)`.
 **Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`).
@@ -190,8 +204,8 @@ mismatches land on definitions. After checking:
   compact and inlining only shadowed ones.
 - `ModuleHelpers.check_ana_type_members` marks a `type T = ...` item whose
   definition differs from the signature's (`Mark.ModuleTypeMemberMismatch`).
-- `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on the
-  module node.
+- `ModuleHelpers.missing_members` / `extra_members` produce
+  `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -230,8 +244,11 @@ Menhir parser's `ModuleExp`/`ModItemModule` structure with `Conversion.re`'s
 ### Cursor Inspector and Statics Info
 
 Mod items inside `Module` expressions are stored as `InfoExp` with a
-`Cls.Mod(...)` class (the expanded `Let`/`TyAlias` shares the item id; the
-class is rewritten after checking). Sig items are `InfoSig`. `InfoMod` is
+`Cls.Mod(...)` class (the expanded `Let`/`TyAlias` shares the item id). After
+checking, `ModuleHelpers.reclassify_expanded_module_items` rewrites the class
+and replaces the wrapper's type (the type of the rest of the chain) with the
+member the item declares: the bound pattern's type for `let`/`module` items,
+the declared type for `type` items. Sig items are `InfoSig`. `InfoMod` is
 used only for mispositioned items.
 
 ---
@@ -249,7 +266,7 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`                 |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |

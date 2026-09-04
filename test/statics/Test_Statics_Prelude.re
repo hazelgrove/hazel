@@ -102,6 +102,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (LabelNotFound(l1, ls1), LabelNotFound(l2, ls2)) =>
       l1 == l2 && ls1 == ls2
     | (ModuleMissingMembers(ns1), ModuleMissingMembers(ns2)) => ns1 == ns2
+    | (ModuleExtraMembers(ns1), ModuleExtraMembers(ns2)) => ns1 == ns2
     | (
         ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),
         ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),
