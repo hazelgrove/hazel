@@ -468,6 +468,12 @@ let node_view =
     (n.kind == Product ? n.key : n.label)
     ++ (n.ctrs == [] ? "" : " = " ++ String.concat(" + ", n.ctrs))
     ++ (
+      switch (n.former, n.ctrs, n.n_ty) {
+      | (Some(_), [], Some(body)) => " = " ++ body
+      | _ => ""
+      }
+    )
+    ++ (
       switch (n.n_doc) {
       | Some(doc) => "\n" ++ doc
       | None => ""
@@ -489,18 +495,20 @@ let node_view =
   ];
   let is_module =
     String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@";
+  /* module types show their {} glyph inside with the NAME below; an
+     alias whose body is a former ("()", "[]", "+") wears that glyph as
+     a badge the same way */
+  let glyph = is_module ? Some("{}") : n.former;
   let label_nodes =
-    if (is_module) {
-      [
-        /* the implicit module type: {} glyph inside, NAME below like a
-           type node */
-        span(~attrs=[clss(["canvas-node-glyph"])], [text("{}")]),
+    switch (glyph) {
+    | Some(g) => [
+        span(~attrs=[clss(["canvas-node-glyph"])], [text(g)]),
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
-      ];
-    } else if (n.label == "") {
-      [];
-    } else {
-      [span(~attrs=[clss(["canvas-node-label"])], [text(n.label)])];
+      ]
+    | None when n.label == "" => []
+    | None => [
+        span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
+      ]
     };
   div(
     ~attrs=
@@ -509,6 +517,7 @@ let node_view =
         clss(
           ["canvas-node", kind_cls(n.kind)]
           @ (is_module ? ["node-module"] : [])
+          @ (!is_module && n.former != None ? ["node-former"] : [])
           @ (n.n_err ? ["node-err"] : [])
           /* grows out of the placement-preview dot */
           @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),

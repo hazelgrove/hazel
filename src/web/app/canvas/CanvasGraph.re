@@ -42,8 +42,11 @@ type tynode = {
   /* deps that are displayed through former nodes instead of plain dep
      links (they still participate in layer ordering) */
   hidden_deps: list(string),
-  parts: list(string), /* Product: component node keys (formation lines) */
-  sat: option((string, bool)) /* satellite: (anchor node key, output side) */
+  parts: list(string), /* Product / folded alias: component node keys (formation lines) */
+  sat: option((string, bool)), /* satellite: (anchor node key, output side) */
+  /* glyph of the type former an alias body IS ("()", "[]", "+"): the
+     former is folded into the alias node — one object, drawn once */
+  former: option(string),
 };
 
 type test_info = {
@@ -119,6 +122,7 @@ let mk_node =
       ~hidden_deps=[],
       ~parts=[],
       ~sat=None,
+      ~former=None,
       ~kind,
       ~label,
       key,
@@ -137,6 +141,7 @@ let mk_node =
   hidden_deps,
   parts,
   sat,
+  former,
 };
 
 /* ---------- spine walk ---------- */
@@ -819,19 +824,22 @@ let extract =
     key;
   };
 
-  /* ---- alias-body former expansion ----
-     An alias whose body is a tuple or list renders its structure through
-     former nodes instead of a bare "made of" link: components feed a
-     docked former ("()" / "[]") which feeds the alias — so Model =
-     ([Todo], Int) reads Todo ┈▶ [] ┈▶ () ┈▶ Model. The replaced deps
-     go to hidden_deps (still ordering the columns, no longer drawn). */
+  /* ---- alias-body former folding ----
+     An alias whose body is a tuple / list / sum IS that former: one
+     object with a name. Its components feed the alias node directly
+     (formation lines) and the node wears the former's glyph — no
+     separate "()" / "[]" node. The replaced deps go to hidden_deps
+     (still ordering the columns, no longer drawn). Anonymous formers
+     (a tuple written inline in a signature) keep their own nodes. */
   let expanded_aliases: Hashtbl.t(string, unit) = Hashtbl.create(8);
-  let resolve_former_comp = (~path, ~former_key, ~anchor, comp: Typ.t): string => {
+  let alias_former: Hashtbl.t(string, (string, list(string))) =
+    Hashtbl.create(8);
+  let resolve_former_comp = (~path, ~alias_key, ~anchor, comp: Typ.t): string => {
     let (k, kind) = ty_ref_at(~path, ~anchor, comp);
     switch (kind) {
     | Builtin =>
       /* dup by the per-component anchor: (Int, Int) = two terminals */
-      ensure_sat(~anchor_key=former_key, ~output=false, ~dup=anchor, k)
+      ensure_sat(~anchor_key=alias_key, ~output=false, ~dup=anchor, k)
     | _ =>
       ensure_grid(~hole_path=path, k, kind);
       k;
@@ -848,44 +856,30 @@ let extract =
         let key = path == [] ? name : qname(path, name);
         switch (unwrap_ty(ty).term) {
         | Prod(comps) when List.length(comps) > 1 =>
-          let former_key = "()@" ++ key;
           let parts =
             List.mapi(
               (i, c) =>
                 resolve_former_comp(
                   ~path,
-                  ~former_key,
+                  ~alias_key=key,
                   ~anchor=key ++ "c" ++ string_of_int(i),
                   c,
                 ),
               comps,
             );
-          ensure(
-            mk_node(
-              ~kind=Product,
-              ~m_path=path,
-              ~label="()",
-              ~parts,
-              ~sat=Some((key, false)),
-              former_key,
-            ),
-          );
+          Hashtbl.replace(alias_former, key, ("()", parts));
           Hashtbl.replace(expanded_aliases, key, ());
         | List(el) =>
-          let former_key = "[]@" ++ key;
           let part =
-            resolve_former_comp(~path, ~former_key, ~anchor=key ++ "el", el);
-          ensure(
-            mk_node(
-              ~kind=Product,
-              ~m_path=path,
-              ~label="[]",
-              ~parts=[part],
-              ~sat=Some((key, false)),
-              former_key,
-            ),
-          );
+            resolve_former_comp(
+              ~path,
+              ~alias_key=key,
+              ~anchor=key ++ "el",
+              el,
+            );
+          Hashtbl.replace(alias_former, key, ("[]", [part]));
           Hashtbl.replace(expanded_aliases, key, ());
+        | Sum(_) => Hashtbl.replace(alias_former, key, ("+", []))
         | _ => ()
         };
       }
@@ -1249,13 +1243,23 @@ let extract =
     );
   let alias_nodes =
     List.map(
-      (n: tynode) =>
-        Hashtbl.mem(expanded_aliases, n.key)
-          ? {
+      (n: tynode) => {
+        let n =
+          Hashtbl.mem(expanded_aliases, n.key)
+            ? {
+              ...n,
+              hidden_deps: n.deps,
+            }
+            : n;
+        switch (Hashtbl.find_opt(alias_former, n.key)) {
+        | Some((glyph, parts)) => {
             ...n,
-            hidden_deps: n.deps,
+            former: Some(glyph),
+            parts,
           }
-          : n,
+        | None => n
+        };
+      },
       alias_nodes,
     );
   {

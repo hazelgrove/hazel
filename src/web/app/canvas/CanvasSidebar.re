@@ -842,7 +842,7 @@ let view =
       switch (cached_frame^) {
       | Some(fc)
           when
-            manual
+            (manual || CanvasBuffer.pacing_live())
             && fc.fc_slide == slide
             && Float.abs(fc.fc_avail_w -. aw) < 2. =>
         Some((fc.fc_origin, fc.fc_x_scale, fc.fc_y_scale))
@@ -1667,30 +1667,10 @@ let view =
             |> Option.map((nl: CanvasLayout.node_layout) => nl.p),
           comps,
         );
+      /* the former is folded into the alias node now (glyph badge), so
+         there is no separate former node to pin */
       switch (comp_pts, kind) {
-      | ([], _)
-      | (_, "type") => []
-      | (pts, _) =>
-        let count = float_of_int(List.length(pts));
-        let cx =
-          List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., pts)
-          /. count;
-        let cy =
-          List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., pts)
-          /. count;
-        let former_key = (kind == "list" ? "[]@" : "()@") ++ name;
-        [
-          globals.inject_global(
-            Set(
-              SetCanvasNodePin(
-                slide,
-                former_key,
-                CanvasLayout.snap((cx +. x) /. 2.) -. lay.origin.x,
-                CanvasLayout.snap((cy +. y) /. 2.) -. lay.origin.y,
-              ),
-            ),
-          ),
-        ];
+      | _ => []
       };
     };
     Effect.Many(

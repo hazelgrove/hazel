@@ -52,6 +52,12 @@ module Spec = {
     x_stretch: float,
     y_stretch: float,
     order_sweeps: int,
+    /* within-rank ordering is damped: a node passes a neighbor only when
+       its barycenter beats the neighbor's by more than this (in row
+       positions). Ties and weak pulls keep the current order — which
+       starts as program order — so a new edge moves the nodes it
+       genuinely pulls, not whole branches. 0 = plain barycenter sort. */
+    order_hysteresis: float,
   };
 
   let default: t = {
@@ -64,6 +70,7 @@ module Spec = {
     x_stretch: 1.,
     y_stretch: 1.,
     order_sweeps: 4,
+    order_hysteresis: 0.6,
   };
 };
 
@@ -256,16 +263,29 @@ let layout = (spec: Spec.t): result => {
             },
             col,
           );
-        let sorted =
-          List.stable_sort(
-            ((k1, i1, _), (k2, i2, _)) =>
-              switch (compare(k1, k2)) {
-              | 0 => compare(i1, i2)
-              | c => c
-              },
-            keyed,
-          );
-        columns[l] := List.map(((_, _, id)) => id, sorted);
+        /* damped adjacent exchange (see Spec.order_hysteresis): bubble
+           passes swap a pair only on a clear barycenter win, so the
+           result is the current order minus genuine inversions */
+        let arr = Array.of_list(keyed);
+        let n = Array.length(arr);
+        let eps = spec.order_hysteresis;
+        let swapped = ref(true);
+        let passes = ref(0);
+        while (swapped^ && passes^ < n) {
+          swapped := false;
+          incr(passes);
+          for (i in 0 to n - 2) {
+            let (k1, _, _) = arr[i]
+            and (k2, _, _) = arr[i + 1];
+            if (k1 > k2 +. eps) {
+              let tmp = arr[i];
+              arr[i] = arr[i + 1];
+              arr[i + 1] = tmp;
+              swapped := true;
+            };
+          };
+        };
+        columns[l] := Array.to_list(arr) |> List.map(((_, _, id)) => id);
       },
       ranks_seq,
     );

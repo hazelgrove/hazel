@@ -54,6 +54,8 @@ let (suite, _) =
     @ [Test_SampleSelection.tests]
     @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
     @ [("Canvas values", Test_CanvasValue.tests)]
+    @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
+    @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
     @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
     @ Test_CanonicalCompletion.tests

@@ -447,6 +447,7 @@
 
 /* module nodes: type-styled name below, {} glyph centered inside
    (beats the product-kind centering rule) */
+.canvas-node.canvas-node.node-former .canvas-node-label,
 .canvas-node.canvas-node.node-module .canvas-node-label {
   position: absolute;
   top: 100%;
@@ -467,6 +468,27 @@
   justify-content: center;
   color: var(--df-bg, #fdfdf4);
   font-size: 11px;
+  font-family: var(--code-font, monospace);
+  pointer-events: none;
+}
+
+/* folded former badge: an alias whose body IS a tuple/list/sum wears the
+   former's glyph as a small filled disc centered in the node (white on the
+   type purple, like the former nodes it replaces); name sits below */
+.canvas-node.node-former .canvas-node-glyph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: var(--token-typ, #9457c9);
+  color: var(--df-bg, #fdfdf4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
   font-family: var(--code-font, monospace);
   pointer-events: none;
 }

@@ -68,7 +68,11 @@ module Spec: {
     margin: float, /* top-left padding */
     x_stretch: float, /* multiplies column x-centers (panel fitting) */
     y_stretch: float, /* multiplies row y-centers (pane-height filling) */
-    order_sweeps: int /* barycenter iterations (0 = input order) */
+    order_sweeps: int, /* barycenter iterations (0 = input order) */
+    /* damped ordering: a node passes a neighbor only when its barycenter
+       beats the neighbor's by more than this many row positions; ties
+       keep the current (initially input/program) order. 0 = plain sort. */
+    order_hysteresis: float,
   };
 
   /* Sensible defaults; override fields as needed. */

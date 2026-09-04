@@ -334,6 +334,17 @@ let layout =
               },
             n.parts,
           )
+        /* folded former: the alias's own components rank before it */
+        | (Alias, _) when n.parts != [] =>
+          List.map(
+            pk =>
+              Util.GraphLayout.Spec.{
+                src: pk,
+                dst: n.key,
+                ranked: true,
+              },
+            n.parts,
+          )
         | _ => []
         },
       g.nodes,
@@ -344,6 +355,8 @@ let layout =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
         n.kind == CanvasGraph.Product
+        || n.kind == CanvasGraph.Alias
+        && n.parts != []
           ? List.map(
               pk =>
                 Util.GraphLayout.Spec.{
@@ -442,6 +455,7 @@ let layout =
       x_stretch: x_scale,
       y_stretch: y_scale,
       order_sweeps: 4,
+      order_hysteresis: 0.6,
     });
   let placed_layouts: list(node_layout) =
     List.filter_map(
@@ -554,6 +568,9 @@ let layout =
             | None => []
             }
           )
+        /* folded former: components feed the alias node directly */
+        | Alias when n.parts != [] =>
+          n.parts |> List.filter_map(pk => rim_pair(pk, n.key))
         | Derived =>
           /* a docked [T] node forms from its element type */
           switch (strip_brackets(n.key)) {
