@@ -103,6 +103,13 @@ let update =
       settings,
       schedule_action,
     );
+  | ReplayStreamTick => (
+      {
+        ...model,
+        pending_assistant_reasoning: model.pending_assistant_reasoning ++ " ",
+      },
+      editor |> Updated.return_quiet,
+    )
   | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
     let (m, e) =
       AgentCompaction.handle_compaction_reply(
@@ -392,6 +399,7 @@ let update =
       editor |> Updated.return,
     );
   | StreamDelta(_chat_id, flight_seq, content_delta, reasoning_delta) =>
+    CanvasTrajectory.tick();
     /* Late deltas from a stream the user Stopped or superseded are
        dropped. The same seq-gate protects HandleLLMResponse / ApiError. */
     switch (model.pending_ignore_main_reply_seq) {
@@ -409,6 +417,6 @@ let update =
         },
         editor |> Updated.return_quiet,
       )
-    }
+    };
   };
 };

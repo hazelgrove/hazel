@@ -38,6 +38,8 @@ type t =
     ReplayToolCalls(
       list(OpenRouter.Reply.Model.tool_call),
     )
+  | /** Replay one streamed-reasoning render (canvas trajectory replay). */
+    ReplayStreamTick
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
   | RetryApiError(Id.t, int)

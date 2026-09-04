@@ -210,6 +210,19 @@ let start = default_model => {
             ),
           )
       );
+    CanvasTrajectory.dispatch_tick :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayStreamTick,
+                ),
+              ),
+            ),
+          )
+      );
     CanvasTrajectory.set_busy :=
       (b => CanvasBuffer.fake_busy_until := b ? CanvasBuffer.now() +. 1e9 : 0.);
     CanvasTrajectory.install_testers();

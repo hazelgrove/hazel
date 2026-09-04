@@ -13,7 +13,8 @@ open Js_of_ocaml;
 
 type event =
   | Reply(list((string, Yojson.Safe.t))) /* (tool name, arguments) */
-  | Busy(bool);
+  | Busy(bool)
+  | Tick; /* a streamed-reasoning chunk arrived (a render while thinking) */
 
 type stamped = {
   t: float, /* ms since the recording's first event */
@@ -49,6 +50,16 @@ let stamp = (ev: event): unit =>
 let reply = (calls: list((string, Yojson.Safe.t))): unit =>
   stamp(Reply(calls));
 let busy = (b: bool): unit => stamp(Busy(b));
+/* stream chunks arrive many times a second; one tick per 100 ms is enough
+   to reproduce the renders they cause */
+let last_tick: ref(float) = ref(0.);
+let tick = (): unit => {
+  let t = now();
+  if (t -. last_tick^ >= 100.) {
+    last_tick := t;
+    stamp(Tick);
+  };
+};
 let clear = (): unit => {
   events := [];
   t0 := None;
@@ -80,6 +91,7 @@ let to_json = (): Yojson.Safe.t =>
             ("kind", `String("busy")),
             ("on", `Bool(b)),
           ])
+        | Tick => `Assoc([("t", `Float(t)), ("kind", `String("tick"))])
         },
       events^,
     ),
@@ -142,6 +154,11 @@ let of_json = (j: Yojson.Safe.t): list(stamped) => {
               t,
               ev: Busy(on),
             });
+          | Some(`String("tick")) =>
+            Some({
+              t,
+              ev: Tick,
+            })
           | _ => None
           };
         | _ => None
@@ -159,6 +176,7 @@ let of_json = (j: Yojson.Safe.t): list(stamped) => {
 let dispatch_reply: ref(list((string, Yojson.Safe.t)) => unit) =
   ref(_ => ());
 let set_busy: ref(bool => unit) = ref(_ => ());
+let dispatch_tick: ref(unit => unit) = ref(() => ());
 
 let later = (ms: float, f: unit => unit): unit =>
   ignore(Js.Unsafe.global##setTimeout(Js.Unsafe.callback(f), ms));
@@ -175,7 +193,8 @@ let replay = (~speed: float=1., text: string): unit =>
           s =>
             switch (s.ev) {
             | Reply(_) => true
-            | Busy(_) => false
+            | Busy(_)
+            | Tick => false
             },
           steps,
         ),
@@ -207,6 +226,7 @@ let replay = (~speed: float=1., text: string): unit =>
           | Busy(b) =>
             CanvasLog.log("replay: agent " ++ (b ? "busy" : "idle"));
             set_busy^(b);
+          | Tick => dispatch_tick^()
           }
         ),
       steps,
