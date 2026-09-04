@@ -62,25 +62,64 @@ To break `language`'s dependency on Virtual_dom, this branch:
 The `util` split is worth keeping. The livelit deletion is not — the
 principled version registers livelit views from the web layer instead.
 
-## RESULT: ~4x faster, on fixed-precision workloads
+## RESULT: ~3.5x faster, on fixed-precision workloads
 
-Both backends built from js_of_ocaml **6.2.0**, run on node 22, 20
-iterations. **Result checksums match across backends**, so this measures the
-same computation rather than a silently-stuck one.
+Both backends built from js_of_ocaml **6.2.0**, same source, same settings,
+same switch, run on node 22, 20 iterations. **Result checksums match across
+backends**, so this measures the same computation rather than a silently
+stuck one.
 
-| workload | js_of_ocaml | wasm_of_ocaml | speedup |
-|---|---|---|---|
-| `sint-fib` plain | 1050 ms | 285 ms | 3.7x |
-| `sint-fib` incr | 1053 ms | 276 ms | 3.8x |
-| `float-numeric` plain | 290 ms | 74 ms | 3.9x |
-| `float-numeric` incr | 303 ms | 71 ms | 4.3x |
-| `sint-list` plain | 168 ms | 42 ms | 4.0x |
-| `sint-list` incr | 162 ms | 41 ms | 3.9x |
+| workload | profile | js_of_ocaml | wasm_of_ocaml | speedup |
+|---|---|---|---|---|
+| `sint-fib` plain | probes-off | 1020 ms | 341 ms | 3.0x |
+| `sint-fib` plain | probes-on | 1016 ms | 273 ms | 3.7x |
+| `float-numeric` plain | probes-off | 269 ms | 78 ms | 3.5x |
+| `float-numeric` plain | probes-on | 277 ms | 75 ms | 3.7x |
+| `sint-list` plain | probes-off | 151 ms | 43 ms | 3.5x |
+| `sint-list` plain | probes-on | 174 ms | 42 ms | 4.1x |
 
-The differences *between* workloads are not resolvable from this data: across
-two runs the ordering flipped (`sint-list` was the lowest ratio in one and
-the highest in the other). The ~4x headline is solid; do not read a profile
-effect into the breakdown without more runs.
+Incremental (`incr`) variants track the plain ones within noise. Across
+runs the range is **3.0x - 4.1x**; call it ~3.5x. Differences *between*
+workloads are not resolvable from this data -- the ordering flips run to
+run -- so do not read a profile effect into the breakdown.
+
+## Is a lean benchmark a fair one?
+
+Worth separating two questions that are easy to conflate.
+
+**Is the comparison between backends fair?** Yes, and that is what this
+harness is built to guarantee. One source tree, one settings record, one
+opam switch, one compiler version; the only thing that differs is the
+backend flag. The result checksums confirm both sides computed the same
+answer. Nothing about the path being lean threatens this.
+
+**Does ~3.5x predict how much faster the Hazel app would feel?** No, and
+this benchmark cannot answer that. It deliberately measures the evaluator
+alone: no zipper, no vdom, no editor. End-to-end app speedup would be
+diluted by whatever share of real time is spent outside this path.
+
+Two things were added to probe the gap rather than assume it away:
+
+  * **A settings axis.** `probe_all` governs how much per-expression
+    information statics and evaluation record for the UI, and it is OFF
+    even in `CoreSettings.on` -- so measuring only the default would have
+    measured a leaner path than the editor runs. Both profiles are now
+    reported. **They are indistinguishable on these workloads**, so the
+    probe machinery is not what is slow here.
+  * **A cold statics sample.** `Statics.mk` is memoized (via `Util.Memo`),
+    so it can only be timed cold; a loop measures cache hits. The harness
+    emits `statics-cold-1shot`, but be warned: it is a single unrepeated
+    sample and is visibly dominated by JIT warm-up (the same program
+    measured 16.6 ms in one profile and 3.2 ms in another). **Do not draw
+    conclusions from it.** All it supports qualitatively is that statics is
+    single-digit milliseconds here while evaluation is hundreds.
+
+And the honest limitation behind that last point: these workloads are
+*compute-heavy programs that are textually tiny* -- the opposite shape from
+the editor, where programs are large and each evaluation is short. That
+shape is what makes evaluation dominate statics here, and it is exactly why
+this number should be read as "the evaluator is ~3.5x faster" and not as
+"Hazel is ~3.5x faster".
 
 ### Why fixed precision
 

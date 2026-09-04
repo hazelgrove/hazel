@@ -23,7 +23,9 @@ type t = int;
 
 let unimplemented = op =>
   failwith(
-    "Bigint." ++ op ++ ": arbitrary precision is unimplemented in the "
+    "Bigint."
+    ++ op
+    ++ ": arbitrary precision is unimplemented in the "
     ++ "wasm-eval-bench spike. Use SInt or Float (see bench/fixed-*.hz).",
   );
 

@@ -36,9 +36,20 @@ let parse = (text: string): Exp.t =>
     ),
   );
 
-let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
+/* Two settings profiles. `probe_all` governs how much per-expression
+   information statics and evaluation record for the UI to display, and it
+   is OFF in CoreSettings.on -- so measuring only that profile would measure
+   a leaner path than the editor actually runs. Both are reported, for both
+   backends, so the recording overhead is visible rather than assumed. */
+let settings_profiles = [
+  ("probes-off", CoreSettings.{...on, probe_all: false}),
+  ("probes-on", CoreSettings.{...on, probe_all: true}),
+];
+
+let statics_and_elab =
+    (~settings: CoreSettings.t, exp: Exp.t): (Statics.Map.t, Exp.t) =>
   Statics.mk(
-    CoreSettings.on,
+    settings,
     Builtins.ctx_init(Some(Operators.default_mode)),
     exp,
   );
@@ -69,12 +80,20 @@ let () = {
 
   let results =
     List.concat_map(
-      ((name, source)) => {
+      (((name, source), (profile, settings))) => {
         let exp = parse(source);
-        let (info_map, elab) = statics_and_elab(exp);
+        /* Statics is memoized (Statics.mk goes through Memo.general), so it
+           can only be timed cold -- a loop would measure cache hits. This is
+           a single unrepeated sample: treat it as an order of magnitude, not
+           a measurement. It is here because much of what makes Hazel slow in
+           practice is the per-expression information statics records for the
+           UI, and an eval-only benchmark would miss it entirely. */
+        let t_statics0 = now_ms();
+        let (info_map, elab) = statics_and_elab(~settings, exp);
+        let statics_cold = (now_ms() -. t_statics0) *. 1_000_000.;
         let eval_info =
           EvalInfo.of_info_map(
-            ~probe_all=CoreSettings.on.probe_all,
+            ~probe_all=settings.CoreSettings.probe_all,
             ~targets=Id.Map.empty,
             info_map,
           );
@@ -89,23 +108,35 @@ let () = {
           );
         [
           Printf.sprintf(
-            {|{"name":"%s/plain/eval","time_ns":%.0f}|},
+            {|{"name":"%s/%s/statics-cold-1shot","time_ns":%.0f}|},
             name,
+            profile,
+            statics_cold,
+          ),
+          Printf.sprintf(
+            {|{"name":"%s/%s/plain/eval","time_ns":%.0f}|},
+            name,
+            profile,
             plain,
           ),
           Printf.sprintf(
-            {|{"name":"%s/incr/eval","time_ns":%.0f}|},
+            {|{"name":"%s/%s/incr/eval","time_ns":%.0f}|},
             name,
+            profile,
             incr,
           ),
           Printf.sprintf(
-            {|{"name":"%s/result","sha":"%08x"}|},
+            {|{"name":"%s/%s/result","sha":"%08x"}|},
             name,
+            profile,
             Hashtbl.hash(result) land 0xFFFFFFFF,
           ),
         ];
       },
-      workloads,
+      List.concat_map(
+        w => List.map(p => (w, p), settings_profiles),
+        workloads,
+      ),
     );
 
   print_endline("[" ++ String.concat(",", results) ++ "]");
