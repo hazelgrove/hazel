@@ -896,8 +896,38 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       ("offset", num(max(0., min(1., at /. total_ms)))),
       ("easing", str("ease-in-out")),
     ];
-    /* E1: a timeline that asks the avatar to cover a long way in almost no
-       time is a jump; say so in the journal with where and when */
+    {
+      /* E1: a timeline that asks the avatar to cover a long way in almost no
+         time is a jump; say so in the journal with where and when. The whole
+         path is journaled compactly too (a replay reads it back). */
+
+      let (_, t_last0) = List.nth(sorted, List.length(sorted) - 1);
+      let total0 = max(float_of_int(s.total_ms), t_last0) +. settle_ms;
+      let (ex0, ey0) =
+        switch (end_site) {
+        | Some(p) => p
+        | None => fst(List.nth(sorted, List.length(sorted) - 1))
+        };
+      let pts = [(start, 0.)] @ sorted @ [((ex0, ey0), total0)];
+      let show =
+        List.map(
+          (((x, y), t)) =>
+            Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
+          pts,
+        );
+      let n = List.length(show);
+      CanvasLog.log(
+        "path: "
+        ++ String.concat(
+             " ",
+             n <= 24
+               ? show
+               : List.filteri((i, _) => i < 12, show)
+                 @ [Printf.sprintf("...%d more...", n - 24)]
+                 @ List.filteri((i, _) => i >= n - 12, show),
+           ),
+      );
+    };
     ignore(
       List.fold_left(
         (((px0, py0), t0), ((px1, py1), t1)) => {
@@ -905,7 +935,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             sqrt(
               (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
             );
-          if (d > 40. && d /. max(1., t1 -. t0) > 3.) {
+          if (d > 40. && d /. max(1., t1 -. t0) > 2.) {
             CanvasLog.log(
               Printf.sprintf(
                 "TIMELINE-JUMP: %.0fpx in %.0fms at %.1fs (%.0f,%.0f)->(%.0f,%.0f)",
