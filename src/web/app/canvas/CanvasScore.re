@@ -528,8 +528,13 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
   let drift =
     diff.moved == []
       ? [] : [mk(from => drift_act(~tempo, ~cause, ~from, diff.moved))];
+  /* existing nodes make room FIRST when something new arrives, so a new
+     node's lines meet nodes that are already where they will be; a beat
+     that only moves things is a closing tidy */
   let (acts, total_ms) =
-    sequence(removals @ additions @ edge_acts @ leftover_orphans @ drift);
+    additions @ edge_acts @ leftover_orphans == []
+      ? sequence(removals @ drift)
+      : sequence(removals @ drift @ additions @ edge_acts @ leftover_orphans);
   {
     cause,
     acts,

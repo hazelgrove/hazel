@@ -75,8 +75,9 @@ let note_agent_action = (): unit =>
     if (now() -. last_agent_action^ >= burst_window_ms) {
       CanvasLog.log(
         Printf.sprintf("burst start -> turn %d", CanvasLog.next_turn()),
+        /* the avatar stays where the last score left it; a new burst's bare
+           tool beats must not hop it back to their enclosing definition */
       );
-      avatar_site := None;
     };
     last_agent_action := now();
   };

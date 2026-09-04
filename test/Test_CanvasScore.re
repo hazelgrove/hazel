@@ -169,11 +169,12 @@ let drift_last = () => {
     };
   let s = S.plan(~pos_of, d);
   no_violations("drift", s);
-  let (_, last) = List.nth(s.acts, List.length(s.acts) - 1);
-  check(bool, "tidy act last", true, last.emote == S.Tidy);
+  /* existing nodes make room before the arrival */
+  let (_, first) = List.hd(s.acts);
+  check(bool, "tidy act first", true, first.emote == S.Tidy);
   switch (S.drift_at(s)) {
   | Some(t) =>
-    check(bool, "drift after the arrival", true, t > appear(s, "A") + 200)
+    check(bool, "drift before the arrival", true, t < appear(s, "A"))
   | None => fail("no drift")
   };
 };
@@ -241,6 +242,6 @@ let tests = [
   test_case("the actor precedes every effect", `Quick, actor_first),
   test_case("edges after types, pill after arrow", `Quick, edge_after_types),
   test_case("more than 12 definitions is one batch act", `Quick, batch),
-  test_case("a tidy drift comes last", `Quick, drift_last),
+  test_case("a drift makes room before arrivals", `Quick, drift_last),
   test_case("framing: hold, frame whole, minimal pan", `Quick, framing),
 ];

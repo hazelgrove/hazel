@@ -866,11 +866,28 @@ let view =
     /* the frame stays frozen for the whole burst (B2: a node keeps its
        place unless an act moves it); the burst-end re-frame is one tidy */
     let outgrown = CanvasBuffer.pacing_live() && !manual;
+    /* a frozen frame that would push the new content past the pane is
+       re-fit at this beat instead (the drift makes room first, so the
+       whole graph glides to the new fit before anything blooms) */
+    let fits_cached =
+      switch (cached_frame^, avail_height) {
+      | (Some(fc), Some(ah)) when !manual =>
+        let l =
+          CanvasLayout.layout(
+            ~x_scale=fc.fc_x_scale,
+            ~y_scale=fc.fc_y_scale,
+            ~origin_override=Some(fc.fc_origin),
+            graph,
+          );
+        l.height <= ah -. 8. && l.width <= aw +. 40.;
+      | _ => true
+      };
     let runtime_frame =
       switch (cached_frame^) {
       | Some(fc)
           when
-            (
+            fits_cached
+            && (
               manual
               || outgrown
               /* a new burst keeps the frozen frame until it adds nodes;

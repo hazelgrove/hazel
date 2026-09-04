@@ -642,8 +642,8 @@ let formation =
         [("transform", str("scale(1)"))],
       ],
       [
-        ("duration", num(220.)),
-        ("delay", num(t_visited +. form_ms -. 160.)),
+        ("duration", num(form_ms)),
+        ("delay", num(t_visited)),
         ("easing", str("cubic-bezier(0.34, 1.4, 0.64, 1)")),
         ("fill", str("backwards")),
       ],
@@ -659,7 +659,7 @@ let formation =
     List.mapi((i, p) => (p, t +. visit *. float_of_int(i + 1)), part_pts)
     @ (
       switch (board_center(dot)) {
-      | Some(c) => [(c, t_visited +. form_ms)]
+      | Some(c) => [(c, t_visited +. 120.)]
       | None => []
       }
     );
@@ -828,11 +828,91 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       ("offset", num(max(0., min(1., at /. total_ms)))),
       ("easing", str("ease-in-out")),
     ];
-    let start =
-      switch (CanvasBuffer.avatar_prev^) {
-      | Some(p) => p
-      | None => fst(List.hd(sorted))
+    /* where the avatar visibly is NOW (static anchor + in-flight
+       translate, minus the box offset), measured here rather than at
+       staging so a render nobody staged cannot leave a stale start */
+    let start = {
+      let px = v =>
+        switch (float_of_string_opt(String.trim(v))) {
+        | Some(f) => f
+        | None =>
+          let n = String.length(v);
+          n > 2
+            ? Option.value(
+                ~default=0.,
+                float_of_string_opt(String.sub(v, 0, n - 2)),
+              )
+            : 0.;
+        };
+      let st0 = Js.Unsafe.get(av, "style");
+      let left = px(Js.to_string(Js.Unsafe.get(st0, "left")))
+      and top = px(Js.to_string(Js.Unsafe.get(st0, "top")));
+      let tf: string =
+        Js.to_string(
+          Js.Unsafe.get(
+            Js.Unsafe.meth_call(
+              Js.Unsafe.global##.window,
+              "getComputedStyle",
+              [|Js.Unsafe.inject(av)|],
+            ),
+            "transform",
+          ),
+        );
+      let (tx, ty) =
+        switch (String.index_opt(tf, '(')) {
+        | Some(i) when String.length(tf) > i + 1 =>
+          let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
+          switch (
+            inner
+            |> String.split_on_char(',')
+            |> List.filter_map(s => float_of_string_opt(String.trim(s)))
+          ) {
+          | [_, _, _, _, tx, ty] => (tx, ty)
+          | _ => (0., 0.)
+          };
+        | _ => (0., 0.)
+        };
+      if (left == 0. && top == 0.) {
+        Option.value(
+          ~default=fst(List.hd(sorted)),
+          CanvasBuffer.avatar_prev^,
+        );
+      } else {
+        (
+          left +. tx -. CanvasView.avatar_dx,
+          top +. ty -. CanvasView.avatar_dy,
+        );
       };
+    };
+    /* E1: a timeline that asks the avatar to cover a long way in almost no
+       time is a jump; say so in the journal with where and when */
+    ignore(
+      List.fold_left(
+        (((px0, py0), t0), ((px1, py1), t1)) => {
+          let d =
+            sqrt(
+              (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
+            );
+          if (d > 40. && d /. max(1., t1 -. t0) > 3.) {
+            CanvasLog.log(
+              Printf.sprintf(
+                "TIMELINE-JUMP: %.0fpx in %.0fms at %.1fs (%.0f,%.0f)->(%.0f,%.0f)",
+                d,
+                t1 -. t0,
+                t1 /. 1000.,
+                px0,
+                py0,
+                px1,
+                py1,
+              ),
+            );
+          };
+          ((px1, py1), t1);
+        },
+        (start, 0.),
+        sorted,
+      ),
+    );
     let frames =
       [frame(start, 0.)]
       @ List.map(((p, at)) => frame(p, at), sorted)

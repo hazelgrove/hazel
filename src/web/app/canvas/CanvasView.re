@@ -433,6 +433,7 @@ let edge_label =
     )
     ++ test_note;
   div(
+    ~key="e:" ++ e.e_name,
     ~attrs=[
       Attr.id(edge_dom_id(e.e_name)),
       clss(["canvas-edge-label", ...edge_classes(~focused, e)]),
@@ -518,6 +519,10 @@ let node_view =
       ]
     };
   div(
+    /* keyed: canvas children are one flat list, and an unkeyed diff
+       re-purposes elements when the list changes — taking their running
+       animations with them */
+    ~key="n:" ++ n.key,
     ~attrs=
       [
         Attr.id(node_dom_id(n.key)),
@@ -567,6 +572,7 @@ let value_view =
   let period = 90.;
   let phase = float_of_int(hash mod 90);
   div(
+    ~key="v:" ++ v.v_name,
     ~attrs=[
       Attr.id("cval-" ++ sanitize(v.v_name)),
       clss(["canvas-orbit"]),
@@ -607,6 +613,7 @@ let avatar_dx = CanvasBuffer.avatar_dx;
 let avatar_dy = CanvasBuffer.avatar_dy;
 let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
   div(
+    ~key="avatar",
     ~attrs=[
       Attr.id(avatar_dom_id),
       clss(["canvas-avatar"] @ (state == "" ? [] : ["avatar-" ++ state])),
@@ -1355,6 +1362,7 @@ let view =
                 ]
               | (None, Some(txt)) => [
                   div(
+                    ~key="avatar-bubble",
                     ~attrs=[clss(["canvas-avatar-bubble"] @ flips), place],
                     [
                       div(~attrs=[clss(["bubble-trail", "t1"])], []),
