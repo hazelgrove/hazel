@@ -601,14 +601,18 @@ let value_view =
   );
 };
 
+/* the avatar box sits above-right of its site; the player positions it
+   with the same offset so a render never shifts it */
+let avatar_dx = CanvasBuffer.avatar_dx;
+let avatar_dy = CanvasBuffer.avatar_dy;
 let avatar_view = ((p, state): (CanvasLayout.pos, string)): Node.t =>
   div(
     ~attrs=[
       Attr.id(avatar_dom_id),
       clss(["canvas-avatar"] @ (state == "" ? [] : ["avatar-" ++ state])),
       anchor_style({
-        x: p.x +. 14.,
-        y: p.y -. 34.,
+        x: p.x +. avatar_dx,
+        y: p.y +. avatar_dy,
       }),
       Attr.title("the agent is here"),
     ],

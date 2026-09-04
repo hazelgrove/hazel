@@ -228,21 +228,64 @@ let canvas_zoom: ref(float) = ref(1.);
    the graph still while the avatar (and camera) travel, then act */
 /* the avatar's screen center just before a beat renders: the tour that
    enacts the beat starts from here (its FLIP hop is replaced) */
+/* the avatar box sits above-right of its site (board px); the view, the
+   player and the start capture below all use the same offset */
+let avatar_dx = 14.;
+let avatar_dy = (-34.);
 let avatar_prev: ref(option((float, float))) =
   ref(None: option((float, float)));
 /* ~slow: a non-agent relayout that should still glide (the frame
    re-deriving when a burst settles) */
 let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
   let scale = canvas_zoom^;
+  /* where the avatar visibly IS, as a board SITE: its static anchor plus
+     any in-flight translate, minus the box offset. Board units, so a
+     camera move between capture and play cannot bend the path start. */
   avatar_prev :=
     Util.JsUtil.get_elem_by_id_opt("canvas-avatar")
     |> Option.map(el => {
-         let r = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
-         let x: float =
-           Js.Unsafe.get(r, "left") +. Js.Unsafe.get(r, "width") /. 2.
-         and y: float =
-           Js.Unsafe.get(r, "top") +. Js.Unsafe.get(r, "height") /. 2.;
-         (x, y);
+         let px = (v: string) =>
+           switch (float_of_string_opt(String.trim(v))) {
+           | Some(f) => f
+           | None =>
+             let n = String.length(v);
+             n > 2
+               ? Option.value(
+                   ~default=0.,
+                   float_of_string_opt(String.sub(v, 0, n - 2)),
+                 )
+               : 0.;
+           };
+         let st = Js.Unsafe.get(el, "style");
+         let left = px(Js.to_string(Js.Unsafe.get(st, "left")))
+         and top = px(Js.to_string(Js.Unsafe.get(st, "top")));
+         let tf: string =
+           Js.to_string(
+             Js.Unsafe.get(
+               Js.Unsafe.meth_call(
+                 Js.Unsafe.global##.window,
+                 "getComputedStyle",
+                 [|Js.Unsafe.inject(el)|],
+               ),
+               "transform",
+             ),
+           );
+         /* matrix(a, b, c, d, tx, ty) */
+         let (tx, ty) =
+           switch (String.index_opt(tf, '(')) {
+           | Some(i) when String.length(tf) > i + 1 =>
+             let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
+             let nums =
+               inner
+               |> String.split_on_char(',')
+               |> List.filter_map(s => float_of_string_opt(String.trim(s)));
+             switch (nums) {
+             | [_, _, _, _, tx, ty] => (tx, ty)
+             | _ => (0., 0.)
+             };
+           | _ => (0., 0.)
+           };
+         (left +. tx -. avatar_dx, top +. ty -. avatar_dy);
        });
   let delay = lead ? lead_ms : 0;
   let stagger = lead ? arrival_stagger_ms : 0;

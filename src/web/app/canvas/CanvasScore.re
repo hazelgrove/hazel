@@ -439,7 +439,18 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
       List.find_opt((n: new_node) => n.key == k, diff.added)
       |> Option.map((n: new_node) => n.p)
     };
-  let defs = definitions(diff.added);
+  /* a new anonymous product that sources a new edge is formed by that
+     edge's act (Form: visit the parts, lines draw in, the dot grows) —
+     not a definition of its own */
+  let formed =
+    List.filter_map(
+      (e: new_edge) => Option.map(fst, e.product),
+      diff.edges,
+    );
+  let defs =
+    definitions(
+      List.filter((n: new_node) => !List.mem(n.key, formed), diff.added),
+    );
   let edge_keys =
     List.concat_map((e: new_edge) => [e.src, e.dst], diff.edges);
   /* terminals with an old anchor that a new edge touches ride that edge */

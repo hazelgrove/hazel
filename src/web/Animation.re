@@ -315,6 +315,7 @@ let now_ms = (): float =>
   Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
 let beat_expiry_ms = 900.;
 let beat: ref(option(beat_stage)) = ref(None: option(beat_stage));
+let staged = (): bool => beat^ != None;
 /* the last `go`'s arrivals as (id, delay ms), for choreography that runs
    after the render (the avatar touring the new nodes as they bloom) */
 let last_arrivals: ref(list((string, int))) = ref([]);

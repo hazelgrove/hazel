@@ -870,7 +870,17 @@ let view =
       switch (cached_frame^) {
       | Some(fc)
           when
-            (manual || outgrown && fc.fc_burst == CanvasLog.turn_no())
+            (
+              manual
+              || outgrown
+              /* a new burst keeps the frozen frame until it adds nodes;
+                 re-deriving on the bare tool beat that opens a burst moved
+                 everything mid-score */
+              && (
+                fc.fc_burst == CanvasLog.turn_no()
+                || List.length(graph.nodes) <= fc.fc_nodes
+              )
+            )
             /* a frame derived from an empty graph (the bare tool beat
                before the first insertion) would spread the real one */
             && fc.fc_nodes > 0
@@ -2589,6 +2599,11 @@ let view =
         || big_move
       );
     if (scored) {
+      /* a render nobody staged (the burst-end re-frame) still needs its
+         movers recorded before the patch, or the drift is a jump */
+      if (!Animation.staged()) {
+        CanvasBuffer.stage_beat(~slow=true, ());
+      };
       List.iter(
         (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
         added,
@@ -2684,10 +2699,18 @@ let view =
           | (None, Some(t)) => [(id, Some(t + 80))]
           | (None, None) => []
           };
+        /* lines into a product the edge act FORMS are drawn by that act */
+        let formed =
+          List.filter_map(
+            (e: CanvasScore.new_edge) => Option.map(fst, e.product),
+            new_edges,
+          );
         let forms =
           List.concat_map(
             ((a, b, _, _)) =>
-              pair(a, b, CanvasView.formation_dom_id(a, b)),
+              List.mem(b, formed)
+                ? [(CanvasView.formation_dom_id(a, b), Option.none)]
+                : pair(a, b, CanvasView.formation_dom_id(a, b)),
             lay.formations,
           );
         let deps =
