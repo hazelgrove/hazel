@@ -118,6 +118,11 @@ let heading_of =
     ((x0, y0): (float, float), (x1, y1): (float, float)): float =>
   atan2(y1 -. y0, x1 -. x0) *. 180. /. Float.pi;
 
+/* how far the segment about to be traveled goes (board px): the beam
+   reaches further for a long trip, as the mockup's did */
+let travel_len: ref(float) = ref(0.);
+let set_travel_len = (len: float): unit => travel_len := len;
+
 /* ---- the rig: three vertices on springs, driven every frame ----
    The mockup's body (plans/agent-canvas-mockups/avatar-concepts-4.html):
    targets on a breathing circle, each vertex a spring toward its target
@@ -295,16 +300,24 @@ let step = (b, now_ms: float): unit => {
     };
   };
   let mood = current_mood^;
-  let thinking = anchor_has("avatar-think") || mood == "think";
+  /* the state class is a render-time reading (stale through a score with
+     few renders): read the score live, and never think while moving —
+     the depicted timeline is the score's, so an enacted edit is editing
+     even if the model is literally already thinking about the next step */
+  let score_on = CanvasBuffer.score_playing();
+  let thinking0 = anchor_has("avatar-think") || mood == "think";
   let err = anchor_has("avatar-err");
-  let editing =
-    mood == "edit"
-    || anchor_has("avatar-edit")
-    && !moving
-    && mood != "draw"
-    && mood != "erase";
   let pen = mood == "draw" || mood == "erase";
   let traveling = moving || pen && rig.speed > 8.;
+  let thinking = thinking0 && !score_on && !traveling && !pen;
+  let editing =
+    (mood == "edit" || anchor_has("avatar-edit") && score_on)
+    && !moving
+    && !pen;
+  if (!traveling) {
+    /* the trip is over: the beam's reach eases back */
+    travel_len := travel_len^ *. (1. -. min(1., dt *. 4.));
+  };
   /* arrival: squash along the heading, then spring back */
   if (rig.was_traveling && !traveling) {
     rig.aspect = 0.72;
@@ -436,6 +449,21 @@ let step = (b, now_ms: float): unit => {
       f1(lead.x),
       f1(lead.y),
       f1(deg),
+    ),
+  );
+  /* reach: a long trip throws a long beam; it tapers as the body slows */
+  let reach =
+    (10. +. min(90., 0.45 *. travel_len^))
+    *. max(0.35, min(1., rig.speed /. 160.));
+  set(
+    beam,
+    "d",
+    Printf.sprintf(
+      "M 4 0 L %s %s L %s %s Z",
+      f1(reach),
+      f1(-. reach *. 0.3),
+      f1(reach),
+      f1(reach *. 0.3),
     ),
   );
   set(

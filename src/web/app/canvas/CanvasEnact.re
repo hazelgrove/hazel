@@ -943,10 +943,14 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     switch (ws) {
     | [((x0, y0), t0), ((x1, y1), _) as next, ...rest] =>
       if (Float.hypot(x1 -. x0, y1 -. y0) > 6.) {
-        later(t0, () =>
-          CanvasAvatar.set_heading(
-            CanvasAvatar.heading_of((x0, y0), (x1, y1)),
-          )
+        later(
+          t0,
+          () => {
+            CanvasAvatar.set_heading(
+              CanvasAvatar.heading_of((x0, y0), (x1, y1)),
+            );
+            CanvasAvatar.set_travel_len(Float.hypot(x1 -. x0, y1 -. y0));
+          },
         );
       };
       headings([next, ...rest]);
