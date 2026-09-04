@@ -386,9 +386,11 @@ formulation (about 30 percent).**
 
 **History.** The paper's constraint machinery was written for Hazel 2 by
 Yuning30 (2020-10) and Eric Griffis (`origin/match`, PR #585, closed
-2022-09-30, never merged). It was ported to Hazel 3 by DavidFangWJ (PR #1094)
-and Jiezhong Yang (PRs #1124, #1144, and #1114, merged 2024-05-19), so the
-paper's algorithm was on `dev` from May 2024 to February 2025. Cyrus Omar
+2022-09-30, never merged). It was ported to Hazel 3 by DavidFangWJ (`Incon.re` authored
+2023-07-09 as `0beba60e47`, PR #1094 into a feature branch) and Jiezhong Yang
+(PRs #1124, #1144, and #1114). It reached `dev` with PR #1114 on 2024-05-19
+(`0beba60e47` is not an ancestor of `dev` before that merge), so the paper's
+algorithm was on `dev` from May 2024 to February 2025. Cyrus Omar
 replaced it with the Maranget formulation in PR #1491 (merged 2025-02-24,
 motivated by exponential blowup, issue #1473), creating `Coverage.re`. Missing-
 pattern examples came in PR #1667 (2025-09-22). Yongwei Yuan, the paper's first
@@ -835,7 +837,10 @@ review latency and repeated conflicts (2023-06 to 2025-03), the tylr and
 statics rewrites underneath it (a 2024-10 merge attempt "not compiling"),
 and syntax disagreements. Closed 2026-04-21 as "added via an alternative
 design, inspired directly by this PR". PR #1241 (`module_implicts`, Zhen Xu,
-2024-03) planned modular implicits on top of it and never implemented them.
+2024-03) planned modular implicits on top of it; the branch's own commits are
+parameterized-types work and merge fixes, and it adds no implicit-related code
+beyond its base (the same single `src` file mentions "implicit" on both
+branches).
 
 **Design 2 (2025-05 to 2025-08): gc-modules.** Discussion #1558 (Gregory
 Croisdale, 2025-03-10) reset the effort, motivated by a standard library,
