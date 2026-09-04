@@ -520,10 +520,16 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
     if (total < 8.) {
       [];
     } else {
-      let marker = get_attr(path, "marker-end");
-      switch (marker) {
-      | Some(_) => set_attr(path, "marker-end", "none")
-      | None => ()
+      /* the beat pass may have hidden this path already (marker stashed) */
+      let marker =
+        switch (get_attr(path, "data-marker"), get_attr(path, "marker-end")) {
+        | (Some(m), _) => Some(m)
+        | (None, Some("none")) => None
+        | (None, m) => m
+        };
+      switch (get_attr(path, "marker-end")) {
+      | Some(m) when m != "none" => set_attr(path, "marker-end", "none")
+      | _ => ()
       };
       set_attr(
         path,
@@ -713,7 +719,27 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     );
   switch (by_id(CanvasView.avatar_dom_id)) {
   | Some(av) when sorted != [] =>
-    let (ax, ay) = center_of(av);
+    /* the static position becomes the score's END site now (B1: static
+       state = timeline end), so no render mid-score can shift the path
+       and the actor does not bounce back afterwards */
+    let end_screen =
+      List.rev(s.acts)
+      |> List.find_map(((_, a): (int, CanvasScore.act)) =>
+           site_screen(a.at)
+         );
+    let (ax, ay) =
+      switch (end_screen) {
+      | Some(p) => p
+      | None => center_of(av)
+      };
+    switch (end_screen |> Util.OptUtil.and_then(to_board(~zoom))) {
+    | Some((bx, by)) =>
+      CanvasBuffer.avatar_site := Some((bx, by));
+      let st = Js.Unsafe.get(av, "style");
+      Js.Unsafe.set(st, "left", Js.string(Printf.sprintf("%.1fpx", bx)));
+      Js.Unsafe.set(st, "top", Js.string(Printf.sprintf("%.1fpx", by)));
+    | None => ()
+    };
     let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
     let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
     let frame = ((x, y), at) => [

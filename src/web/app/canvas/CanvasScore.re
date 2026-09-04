@@ -80,16 +80,17 @@ type tempo = {
   max_edge_acts: int,
 };
 
+/* 2026-09-04: slowed after trial 6 ("boom boom boom") — about 1.9 s per act */
 let tempo = {
-  travel_min: 300,
-  travel_max: 700,
-  px_per_ms: 1.2,
-  pause: 250,
-  effect: 220,
-  settle: 250,
-  bloom_gap: 70,
-  min_gap: 120,
-  drift_ms: 550,
+  travel_min: 450,
+  travel_max: 900,
+  px_per_ms: 1.0,
+  pause: 500,
+  effect: 320,
+  settle: 450,
+  bloom_gap: 120,
+  min_gap: 150,
+  drift_ms: 700,
   batch_over: 12,
   max_edge_acts: 3,
 };
@@ -304,8 +305,8 @@ let edge_act =
     };
   let ride =
     switch (sp, dp) {
-    | (Some(s), Some(d)) => max(400, travel_for(~tempo, dist(s, d) *. 1.6))
-    | _ => 700
+    | (Some(s), Some(d)) => max(700, travel_for(~tempo, dist(s, d) *. 1.6))
+    | _ => 900
     };
   /* a terminal this edge lands on (or leaves from) blooms as it arrives */
   let ends =
@@ -469,11 +470,14 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
     };
     a;
   };
-  let removals =
-    List.map(
-      r => mk(from => removal_act(~tempo, ~cause, ~from, r)),
-      diff.removed,
-    );
+  /* removals are not choreographed yet: the node is gone at render, so an
+     actor visiting the empty spot would be an orphan gesture (docket:
+     "removals — actor first, then the render") */
+  let removals = {
+    ignore(removal_act);
+    ignore(diff.removed);
+    [];
+  };
   let additions =
     List.length(own_defs) > tempo.batch_over
       ? [mk(from => batch_act(~tempo, ~cause, ~from, own_defs))]

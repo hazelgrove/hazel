@@ -71,7 +71,7 @@ let three_types = () => {
     bool,
     "about a second per type",
     true,
-    s.total_ms > 2500 && s.total_ms < 5000,
+    s.total_ms > 4500 && s.total_ms < 9000,
   );
 };
 

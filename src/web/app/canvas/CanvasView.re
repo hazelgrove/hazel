@@ -212,17 +212,20 @@ let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
     ];
 };
 
+let dep_dom_id = (a: string, b: string): string =>
+  "cdep-" ++ sanitize(a) ++ "--" ++ sanitize(b);
+
 let dep_link_svg =
     (
-      i: int,
-      (_, _, dp, np): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      _i: int,
+      (a, b, dp, np): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
   let np' = pull_back(np, dp, 5.);
   svg(
     "line",
     [
-      Attr.id("cdep-" ++ string_of_int(i)),
+      Attr.id(dep_dom_id(a, b)),
       clss(["canvas-dep"]),
       Attr.create("x1", fmt(dp.x)),
       Attr.create("y1", fmt(dp.y)),

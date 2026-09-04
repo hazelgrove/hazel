@@ -309,6 +309,11 @@ let arrival_span_override: ref(int) = ref(0);
    score's Drift act) instead of the arrivals' span */
 let movers_at: ref(option(int)) = ref(None);
 let set_movers_at = (ms: option(int)): unit => movers_at := ms;
+/* new geometry the score has an opinion about: Some(ms) = draw on at that
+   beat-relative time; None = keep hidden, the player draws it (a ride) */
+let geom_schedule: ref(list((string, option(int)))) = ref([]);
+let set_geom_schedule = (s: list((string, option(int)))): unit =>
+  geom_schedule := s;
 let geom_attrs = ["d", "cx", "cy"];
 /* (module Js above shadows Js_of_ocaml.Js: qualify explicitly) */
 let attr_of =
@@ -500,40 +505,64 @@ let go = (): unit => {
              | Some(_) => set_attr(el, "marker-end", "none")
              | None => ()
              };
-             Js.animate_multi(
-               [
-                 [("strokeDashoffset", Printf.sprintf("%.1f", total))],
-                 [("strokeDashoffset", "0")],
-               ],
-               {
-                 duration: b.b_move_dur,
-                 easing: "cubic-bezier(0.65, 0, 0.35, 1)",
-                 delay: b.b_delay + wait,
-               },
-               el,
-             );
-             ignore(
-               Js_of_ocaml.Js.Unsafe.global##setTimeout(
-                 Js_of_ocaml.Js.Unsafe.callback(() => {
-                   switch (marker) {
-                   | Some(m) => set_attr(el, "marker-end", m)
-                   | None => ()
-                   };
-                   ignore(
-                     Js_of_ocaml.Js.Unsafe.meth_call(
-                       el,
-                       "removeAttribute",
-                       [|
-                         Js_of_ocaml.Js.Unsafe.inject(
-                           Js_of_ocaml.Js.string("stroke-dasharray"),
-                         ),
-                       |],
-                     ),
-                   );
-                 }),
-                 b.b_delay + wait + b.b_move_dur,
-               ),
-             );
+             let owned =
+               switch (List.assoc_opt(id, geom_schedule^)) {
+               | Some(None) => true
+               | _ => false
+               };
+             let (delay, duration) =
+               switch (List.assoc_opt(id, geom_schedule^)) {
+               | Some(Some(d)) => (d, 320)
+               | _ => (b.b_delay + wait, b.b_move_dur)
+               };
+             if (owned) {
+               /* hidden until its act: the offset sits at full length; the
+                  arrowhead is stashed for the player to restore */
+               set_attr(
+                 el,
+                 "stroke-dashoffset",
+                 Printf.sprintf("%.1f", total),
+               );
+               switch (marker) {
+               | Some(m) when m != "none" => set_attr(el, "data-marker", m)
+               | _ => ()
+               };
+             } else {
+               Js.animate_multi(
+                 [
+                   [("strokeDashoffset", Printf.sprintf("%.1f", total))],
+                   [("strokeDashoffset", "0")],
+                 ],
+                 {
+                   duration,
+                   easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+                   delay,
+                 },
+                 el,
+               );
+               ignore(
+                 Js_of_ocaml.Js.Unsafe.global##setTimeout(
+                   Js_of_ocaml.Js.Unsafe.callback(() => {
+                     switch (marker) {
+                     | Some(m) => set_attr(el, "marker-end", m)
+                     | None => ()
+                     };
+                     ignore(
+                       Js_of_ocaml.Js.Unsafe.meth_call(
+                         el,
+                         "removeAttribute",
+                         [|
+                           Js_of_ocaml.Js.Unsafe.inject(
+                             Js_of_ocaml.Js.string("stroke-dasharray"),
+                           ),
+                         |],
+                       ),
+                     );
+                   }),
+                   delay + duration,
+                 ),
+               );
+             };
            };
          | None => ()
          }
@@ -543,6 +572,7 @@ let go = (): unit => {
       beat := None;
       arrival_schedule := [];
       movers_at := None;
+      geom_schedule := [];
     };
   };
 };

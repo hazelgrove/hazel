@@ -154,19 +154,29 @@ let handle_llm_response =
                    tool's change and never borrows the next one's */
                 let snap = {
                   let ed = step_u.model.editor;
-                  Haz3lcore.Id.Map.is_empty(ed.statics.info_map)
-                    ? {
+                  if (Haz3lcore.Id.Map.is_empty(ed.statics.info_map)) {
+                    let t0 = CanvasBuffer.now();
+                    let statics =
+                      Haz3lcore.CachedStatics.init(
+                        ~settings=settings.core,
+                        ~is_dynamic_term=false,
+                        ~stitch=x => x,
+                        ~root=ed.editor.root,
+                        ed.editor.state.zipper,
+                      );
+                    let ms = CanvasBuffer.now() -. t0;
+                    if (ms > 30.) {
+                      CanvasLog.log(
+                        Printf.sprintf("snapshot statics: %.0fms", ms),
+                      );
+                    };
+                    {
                       ...ed,
-                      statics:
-                        Haz3lcore.CachedStatics.init(
-                          ~settings=settings.core,
-                          ~is_dynamic_term=false,
-                          ~stitch=x => x,
-                          ~root=ed.editor.root,
-                          ed.editor.state.zipper,
-                        ),
-                    }
-                    : ed;
+                      statics,
+                    };
+                  } else {
+                    ed;
+                  };
                 };
                 CanvasBuffer.push_snapshot(
                   ~label=tc.name,

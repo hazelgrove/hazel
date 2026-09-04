@@ -857,17 +857,9 @@ let view =
     /* while beats play, small programs keep re-framing so new nodes spread
        to fill the pane (movers glide); only a program that has outgrown
        the pane freezes its frame until the burst settles */
-    let outgrown =
-      CanvasBuffer.pacing_live()
-      && !manual
-      && (
-        switch (avail_width, avail_height) {
-        | (Some(w), Some(h)) =>
-          let v = CanvasLayout.layout(graph);
-          v.width > w -. 16. || v.height > h -. 40.;
-        | _ => true
-        }
-      );
+    /* the frame stays frozen for the whole burst (B2: a node keeps its
+       place unless an act moves it); the burst-end re-frame is one tidy */
+    let outgrown = CanvasBuffer.pacing_live() && !manual;
     let runtime_frame =
       switch (cached_frame^) {
       | Some(fc)
@@ -897,6 +889,14 @@ let view =
                  )
                )
           : None
+      };
+    let persisted_frame =
+      switch (persisted_frame) {
+      | Some((_, xs, _)) when runtime_frame == None =>
+        /* laid in a wider pane: it would strew the program off-screen */
+        let v = CanvasLayout.layout(graph);
+        v.width *. xs > aw *. 1.25 ? Option.none : persisted_frame;
+      | p => p
       };
     switch (persisted_frame) {
     | Some((origin, xs, ys)) =>
@@ -1428,8 +1428,8 @@ let view =
       );
       List.iteri(
         (
-          i,
-          (_, _, dp, tp): (
+          _i,
+          (a, b, dp, tp): (
             string,
             string,
             CanvasLayout.pos,
@@ -1438,7 +1438,7 @@ let view =
         ) => {
           let tp' = pull_back(tp, dp, 5.);
           switch (
-            Util.JsUtil.get_elem_by_id_opt("cdep-" ++ string_of_int(i))
+            Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))
           ) {
           | Some(el) =>
             set_attr(el, "x1", fmt'(dp.x));
@@ -1992,7 +1992,7 @@ let view =
       | Some(_) as beat_site => beat_site
       | None => avatar_target(~editor, editors)
       };
-    let resolved =
+    let resolved_from_target =
       target
       |> Util.OptUtil.and_then(((id, state)) =>
            switch (locate(~info_map=editor.statics.info_map, lay, id)) {
@@ -2016,6 +2016,18 @@ let view =
              }
            }
          );
+    let resolved =
+      switch (CanvasBuffer.pacing_live() ? CanvasBuffer.avatar_site^ : None) {
+      | Some((x, y)) =>
+        let p =
+          CanvasLayout.{
+            x,
+            y,
+          };
+        last_avatar_pos := Some(p);
+        Some((p, agent_busy ? "edit" : ""));
+      | None => resolved_from_target
+      };
     switch (resolved) {
     | Some((p, state)) =>
       /* busy with no fresh edit landing = thinking */
@@ -2104,6 +2116,9 @@ let view =
   | (Some((p, _)), Some(aw), Some(ah))
       when
         globals.settings.canvas_follow
+        /* while beats are paced the score owns the camera (its frames
+           are planned per act); the generic follow is for the rest */
+        && !CanvasBuffer.pacing_live()
         && CanvasBuffer.now() >= CanvasCamera.scored_until^ =>
     let moved =
       switch (last_followed^) {
@@ -2447,7 +2462,6 @@ let view =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
     if (prev_slide == slide
         && removed != []
-        && !(CanvasBuffer.pacing_live() && globals.settings.canvas_pace)
         && CanvasBuffer.now() > collapse_fx_until^) {
       if (List.length(removed) <= 4) {
         List.iter(((_, (x, y))) => CanvasRipple.suction((x, y)), removed);
@@ -2527,11 +2541,23 @@ let view =
            | _ => None
            }
          );
+    let big_move =
+      List.length(
+        List.filter(
+          ((_, f: CanvasLayout.pos, t: CanvasLayout.pos)) =>
+            abs_float(f.x -. t.x) > 40. || abs_float(f.y -. t.y) > 40.,
+          moved,
+        ),
+      )
+      >= 3;
     let scored =
       prev_slide == slide
-      && CanvasBuffer.pacing_live()
       && globals.settings.canvas_pace
-      && (added != [] || new_edges != [] || removed != []);
+      && (
+        CanvasBuffer.pacing_live()
+        && (added != [] || new_edges != [] || removed != [])
+        || big_move
+      );
     if (scored) {
       List.iter(
         (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
@@ -2614,6 +2640,53 @@ let view =
         @ pills,
       );
       Animation.set_movers_at(CanvasScore.drift_at(score));
+      {
+        /* new geometry follows its act: formation/dep lines draw on right
+           after the node they attach to blooms; new function paths stay
+           hidden until the actor rides them; label leaders come with pills */
+
+        let appear = CanvasScore.appear_times(score);
+        let at_key = k => List.assoc_opt(k, appear);
+        let pair = (a, b, id) =>
+          switch (at_key(a), at_key(b)) {
+          | (Some(ta), Some(tb)) => [(id, Some(max(ta, tb) + 80))]
+          | (Some(t), None)
+          | (None, Some(t)) => [(id, Some(t + 80))]
+          | (None, None) => []
+          };
+        let forms =
+          List.concat_map(
+            ((a, b, _, _)) =>
+              pair(a, b, CanvasView.formation_dom_id(a, b)),
+            lay.formations,
+          );
+        let deps =
+          List.concat_map(
+            ((a, b, _, _)) => pair(a, b, CanvasView.dep_dom_id(a, b)),
+            lay.dep_links,
+          );
+        let (draws, leaders) =
+          CanvasScore.effects_abs(score)
+          |> List.fold_left(
+               ((ds, ls), (t, _, e: CanvasScore.timed_effect)) =>
+                 switch (e.effect) {
+                 | Draw(name) => (
+                     [(CanvasView.path_dom_id(name), Option.none), ...ds],
+                     ls,
+                   )
+                 | Pill(name) => (
+                     ds,
+                     [
+                       ("clead-" ++ CanvasView.sanitize(name), Some(t)),
+                       ...ls,
+                     ],
+                   )
+                 | _ => (ds, ls)
+                 },
+               ([], []),
+             );
+        Animation.set_geom_schedule(forms @ deps @ draws @ leaders);
+      };
       CanvasBuffer.extend_dwell(float_of_int(score.total_ms) +. 600.);
       CanvasLog.log(CanvasScore.to_string(score));
       List.iter(

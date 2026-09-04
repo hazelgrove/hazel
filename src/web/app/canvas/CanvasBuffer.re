@@ -55,6 +55,10 @@ let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 /* single source of truth lives in AgentPulse (dependency-free, so
    statics/eval can read it); this alias keeps local reads terse */
 let last_agent_action = AgentPulse.last_action;
+/* where the score is taking the avatar (board coords); while pacing this
+   beats the tool-target hop, so the actor never bounces back to the
+   enclosing definition between acts */
+let avatar_site: ref(option((float, float))) = ref(None);
 
 /* Canvas-authoring gestures (place/connect stubs) ride the agent's
    DirectEdit tool path; they must NOT read as agent activity or every
@@ -68,6 +72,7 @@ let note_agent_action = (): unit =>
       CanvasLog.log(
         Printf.sprintf("burst start -> turn %d", CanvasLog.next_turn()),
       );
+      avatar_site := None;
     };
     last_agent_action := now();
   };
@@ -516,9 +521,11 @@ let observe =
           schedule_tick(toast_delay_ms +. 20.);
         | None => ()
         };
+        /* only a beat with canvas content moves the avatar; a bare tool
+           beat (mark_subtask, place_probe) is not a place to go */
         switch (next.b_avatar) {
-        | Some(_) as a => beat_avatar := a
-        | None => ()
+        | Some(_) as a when w > 0 => beat_avatar := a
+        | _ => ()
         };
         shown := Some(next.b_model);
         last_beat := t;
