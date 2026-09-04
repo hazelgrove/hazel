@@ -247,6 +247,7 @@ module Persist = {
      model is physically unchanged (edits rebuild the scratchpad record
      but reuse the agent field). */
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+  let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
@@ -276,14 +277,35 @@ module Persist = {
         )
       };
       let agent_key_str = prefix ++ ":" ++ sp.name;
+      /* the whole-model identity check fails on every streamed reasoning
+         chunk (a new record each tick), which re-serialized the entire
+         conversation once a second during bursts (profiled at ~3.7 s per
+         18 s window). Only the persisted fields decide. */
       let unchanged =
         switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
-        | Some(prev) => prev === agent
+        | Some(prev) =>
+          let prev: Agent.Model.t = prev;
+          prev === agent
+          || prev.chat_system === agent.chat_system
+          && prev.prompting === agent.prompting
+          && prev.active_timeline_node == agent.active_timeline_node
+          && prev.awaiting_response == agent.awaiting_response;
         | None => false
         };
-      if (!unchanged) {
+      /* during an agent burst the conversation changes every reply and a
+         full serialization costs ~0.5 s at 100 lines of program (profiled
+         2026-09-04: 2.9 s per 18 s window); cap it to one save per 10 s
+         while the agent is acting, and save at once when it goes idle */
+      let now = CanvasBuffer.now();
+      let recent =
+        switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+        | Some(t) => now -. t < 10000.
+        | None => false
+        };
+      if (!unchanged && !(AgentPulse.in_burst() && recent)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+        Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
       };
     | (false, Drv(_)) =>
       switch (Scratchpad.persist(sp).kind) {
