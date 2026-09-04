@@ -13,7 +13,10 @@ type projection =
   | ConsTail
   | ConstructorArg(string)
   | TupleLabel(option(string))
-  | Ascribed;
+  /* The binding went through `p : ty`. The type is part of the provenance:
+     an ascription changes the bound value (it seals a module, casts a
+     value), so a dependent computed under a different ascription is stale. */
+  | Ascribed(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type flag =
@@ -164,8 +167,18 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
 /* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
 let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
+let equal_projection = (a: projection, b: projection): bool =>
+  switch (a, b) {
+  | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
+  | (Ascribed(_), _)
+  | (_, Ascribed(_)) => false
+  | _ => a == b
+  };
+
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
+  Id.equal(a.source, b.source)
+  && List.equal(equal_projection, a.path, b.path)
+  && a.flag == b.flag;
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
   Maps.StringMap.map(
@@ -274,7 +287,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       ]
     | Parens(p)
     | Projector(_, p) => go(path, p)
-    | Asc(p, _) => go([Ascribed, ...path], p)
+    | Asc(p, ty) => go([Ascribed(ty), ...path], p)
     | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {
