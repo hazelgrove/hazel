@@ -147,6 +147,101 @@ let tests = (
       | Error(m) => Alcotest.fail(m)
       }
     ),
+    /* Fumola's option is Hazel's: null is None, ?(x) is Some(x). */
+    test_case("null becomes None", `Quick, () =>
+      switch (translate({|{"tag":"Null","value":null}|})) {
+      | Ok({term: Constructor("None", _), _}) => ()
+      | Ok(_) => Alcotest.fail("expected the None constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case("?(x) becomes Some(x)", `Quick, () =>
+      switch (
+        translate({|{"tag":"Option","value":{"tag":"Int","value":"5"}}|})
+      ) {
+      | Ok({term: Ap(Forward, {term: Constructor("Some", _), _}, arg), _}) =>
+        switch (arg.term) {
+        | Atom(Int(n)) =>
+          Alcotest.check(
+            Alcotest.string,
+            "payload",
+            "5",
+            Bigint.to_string(n),
+          )
+        | _ => Alcotest.fail("Some payload is not an integer")
+        }
+      | Ok(_) => Alcotest.fail("expected an applied Some constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* The Option constructors carry the annotations BuiltinsADT.Option gives
+       them, so they elaborate as a hand-written None or Some(x) would. */
+    test_case("the Option constructors are annotated", `Quick, () =>
+      switch (translate({|{"tag":"Null","value":null}|})) {
+      | Ok({term: Constructor("None", Some(Some(_))), _}) => ()
+      | Ok(_) => Alcotest.fail("expected None to carry its type")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* peek(s) on a written cell answers ?(v), so an option of a structure is
+       an ordinary thing to get back. */
+    test_case("an option can carry a structure", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Option","value":{"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Int","value":"2"}]}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Ap(
+              Forward,
+              {term: Constructor("Some", _), _},
+              {term: Tuple([_, _]), _},
+            ),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected Some of a pair")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case("options nest", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Option","value":{"tag":"Option","value":{"tag":"Int","value":"1"}}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Ap(
+              Forward,
+              {term: Constructor("Some", _), _},
+              {term: Ap(Forward, {term: Constructor("Some", _), _}, _), _},
+            ),
+          _,
+        }) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected Some(Some(_))")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Two occurrences must not share an id: ids key the info and measured
+       maps, and duplicates cause misattributed decorations. */
+    test_case("two Nones do not share an id", `Quick, () =>
+      switch (
+        translate({|{"tag":"Null","value":null}|}),
+        translate({|{"tag":"Null","value":null}|}),
+      ) {
+      | (Ok(a), Ok(b)) =>
+        Alcotest.check(
+          Alcotest.bool,
+          "distinct ids",
+          false,
+          Id.compare(Exp.rep_id(a), Exp.rep_id(b)) == 0,
+        )
+      | _ => Alcotest.fail("translation failed")
+      }
+    ),
     /* A component with no translation fails the whole value, rather than the
        tuple arriving as though it were complete with a piece dropped. */
     fails(

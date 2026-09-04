@@ -19,6 +19,25 @@ open Grammar;
  * the shape is whatever the program produced.
  */
 
+/* Hazel's Option constructors, annotated as BuiltinsADT.Option annotates
+   them. Built fresh on each call so two occurrences never share an id. */
+let none = (): TermBase.Exp.t =>
+  DHExp.fresh(Constructor("None", Some(Some(BuiltinsADT.Option.t))));
+
+let some = (): TermBase.Exp.t =>
+  DHExp.fresh(
+    Constructor(
+      "Some",
+      Some(
+        Some(
+          Typ.fresh(
+            Arrow(Typ.fresh(Unknown(SynSwitch)), BuiltinsADT.Option.t),
+          ),
+        ),
+      ),
+    ),
+  );
+
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json = (json: Yojson.Safe.t): result(TermBase.Exp.t, string) => {
   let field = (name, obj) =>
@@ -53,6 +72,17 @@ and exp_of_tagged =
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
   /* Fumola's unit is Hazel's empty tuple. */
   | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
+  /* Fumola's option is Hazel's: `null` is None, `?(x)` is Some(x). The
+     constructors carry the same type annotations BuiltinsADT.Option gives
+     them, so they elaborate the way a hand-written None or Some(x) would.
+     They are rebuilt on each call rather than reusing the values in
+     BuiltinsADT, which would share one id across every occurrence. */
+  | ("Null", _) => Ok(none())
+  | ("Option", payload) =>
+    switch (exp_of_json(payload)) {
+    | Error(e) => Error(e)
+    | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some(), payload)))
+    }
   | ("Tuple", `List(items)) =>
     switch (all(List.map(exp_of_json, items))) {
     | Error(e) => Error(e)
@@ -129,6 +159,8 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Bool", `Bool(b)) => b ? "true" : "false"
     | ("String", `String(str)) => "\"" ++ str ++ "\""
     | ("Unit", _) => "()"
+    | ("Null", _) => "None"
+    | ("Option", payload) => "Some(" ++ describe(payload) ++ ")"
     | ("Tuple", `List(items)) =>
       "(" ++ String.concat(", ", List.map(describe, items)) ++ ")"
     | ("Record", `Assoc(fields)) =>
