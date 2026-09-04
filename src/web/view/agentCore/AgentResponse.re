@@ -130,6 +130,13 @@ let handle_llm_response =
           (model_idle, cell_editor |> Updated.return_quiet);
         };
       | tool_calls =>
+        /* the canvas trajectory: this reply's tool calls, for replay */
+        CanvasTrajectory.reply(
+          List.map(
+            (tc: OpenRouter.Reply.Model.tool_call) => (tc.name, tc.args),
+            tool_calls,
+          ),
+        );
         let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
           List.fold_left(
             ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
@@ -209,6 +216,28 @@ let handle_llm_response =
                   | ToolResult(tr) => !tr.skipped && !tr.success
                   | _ => false
                   };
+                /* the journal is the truth: every tool's verdict lands in
+                   it, so a replay (or a real run) shows WHY nothing changed */
+                switch (msg.role) {
+                | ToolResult(tr) =>
+                  CanvasLog.log(
+                    Printf.sprintf(
+                      "tool %s -> %s",
+                      tc.name,
+                      tr.skipped
+                        ? "skipped"
+                        : tr.success
+                            ? "ok"
+                            : "ERR "
+                              ++ String.sub(
+                                   tr.content,
+                                   0,
+                                   min(160, String.length(tr.content)),
+                                 ),
+                    ),
+                  )
+                | _ => ()
+                };
                 (
                   m2,
                   step_u.model,

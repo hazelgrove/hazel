@@ -185,6 +185,34 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_clipboard_shim();
+    /* canvas trajectory replay: a recorded reply's tool calls go through
+       the real agent handler; the agent reads as busy for the avatar */
+    CanvasTrajectory.dispatch_reply :=
+      (
+        calls =>
+          schedule_action(
+            Page.Update.Editors(
+              Editors.Update.Scratch(
+                ScratchMode.Update.AgentAction(
+                  Agent.Update.Action.ReplayToolCalls(
+                    List.mapi(
+                      (i, (name, args)) =>
+                        OpenRouter.Reply.Model.{
+                          id: "replay-" ++ string_of_int(i),
+                          name,
+                          args,
+                        },
+                      calls,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+      );
+    CanvasTrajectory.set_busy :=
+      (b => CanvasBuffer.fake_busy_until := b ? CanvasBuffer.now() +. 1e9 : 0.);
+    CanvasTrajectory.install_testers();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to

@@ -141,7 +141,8 @@ type turn_stats = {
 };
 let turn: ref(option(turn_stats)) = ref(None);
 let turn_summaries: ref(list(string)) = ref([]);
-let note_agent_busy = (busy: bool): unit =>
+let note_agent_busy = (busy: bool): unit => {
+  CanvasTrajectory.busy(busy);
   switch (busy, turn^) {
   | (true, None) =>
     turn :=
@@ -191,6 +192,7 @@ let note_agent_busy = (busy: bool): unit =>
     turn := None;
   | _ => ()
   };
+};
 let note_tool = (): unit =>
   switch (turn^) {
   | Some(t) =>

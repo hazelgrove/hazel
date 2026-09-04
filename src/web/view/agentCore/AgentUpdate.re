@@ -85,6 +85,24 @@ let update =
       schedule_action,
     );
     (m, e);
+  | ReplayToolCalls(tool_calls) =>
+    let chat_id = model.chat_system.current;
+    let reply: OpenRouter.Reply.Model.t = {
+      content: "",
+      tool_calls,
+      usage: None,
+      reasoning: None,
+    };
+    AgentResponse.handle_llm_response(
+      reply,
+      chat_id,
+      model.main_llm_seq,
+      0,
+      model,
+      editor,
+      settings,
+      schedule_action,
+    );
   | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
     let (m, e) =
       AgentCompaction.handle_compaction_reply(

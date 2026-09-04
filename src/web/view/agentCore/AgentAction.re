@@ -33,6 +33,11 @@ type t =
       int,
     )
   | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
+  | /** Replay a recorded reply's tool calls through the same handler a
+        real reply goes through (canvas trajectory replay; no LLM). */
+    ReplayToolCalls(
+      list(OpenRouter.Reply.Model.tool_call),
+    )
   | HandleChatNamingResponse(string, Id.t)
   | ApiErrorResponse(Id.t, Message.Model.t, llm_error_origin)
   | RetryApiError(Id.t, int)

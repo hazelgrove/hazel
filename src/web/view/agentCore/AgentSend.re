@@ -318,6 +318,9 @@ let defer_follow_up_llm =
     : Model.t =>
   switch (model.compaction_in_progress) {
   | Some(_) => model
+  | None when CanvasTrajectory.replaying^ =>
+    /* a replayed reply must not call the LLM */
+    model
   | None =>
     eval_wait_attempts := 0;
     defer_dispatch_send^(() =>
