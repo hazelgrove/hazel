@@ -19,8 +19,9 @@ open Js_of_ocaml;
    insert earns a look, a rename doesn't), then compressed elastically as
    the backlog grows — the display speeds up BEFORE it drops anything */
 let dwell_base_ms = 450.;
-let dwell_per_unit_ms = 250.;
-let dwell_max_ms = 2000.;
+/* matches the arrival stagger (Animation) so every new element gets seen */
+let dwell_per_unit_ms = 320.;
+let dwell_max_ms = 4500.;
 let dwell_min_ms = 250.;
 let dwell_of = (weight: int): float =>
   min(
@@ -35,6 +36,14 @@ let elastic = (dwell: float, pending: int): float =>
 /* the graph's own elements move this long after the avatar sets off, so
    a beat reads travel -> act -> settle instead of everything at once */
 let lead_ms = 260;
+/* agent beats: new elements arrive one by one, then existing ones make
+   room slowly (a relayout that lands with the new thing hides it) */
+let arrival_stagger_ms = 320;
+let relayout_ms = 550;
+/* a tool's snapshot is captured before statics run, so its content is
+   the NEXT distinct state; hold the labeled beat at most this long for
+   that state to attach */
+let pending_hold_ms = 1500.;
 let burst_window_ms = AgentPulse.burst_window_ms;
 let queue_cap = 8; /* max pending beats; middles coalesce away */
 
@@ -69,6 +78,10 @@ type beat = {
      at exec time so the avatar hops WITH its beat instead of reading
      live agent state and arriving before the scenery */
   b_avatar: option((Haz3lcore.Id.t, string)),
+  /* statics were empty at capture: the beat is a label waiting for the
+     content state that follows it */
+  b_pending: bool,
+  b_queued: float,
 };
 let queue: ref(list(beat)) = ref([]);
 let shown: ref(option(CodeWithStatics.Model.t)) = ref(None);
@@ -109,12 +122,16 @@ let canvas_zoom: ref(float) = ref(1.);
 let stage_beat = (~lead: bool=false, ()): unit => {
   let scale = canvas_zoom^;
   let delay = lead ? lead_ms : 0;
+  let stagger = lead ? arrival_stagger_ms : 0;
+  let move_dur = lead ? relayout_ms : 125;
   Animation.request(
     (
       Util.JsUtil.ids_with_prefix("cnode-")
       @ Util.JsUtil.ids_with_prefix("cedge-")
       @ Util.JsUtil.ids_with_prefix("cval-")
-      |> List.map(Animation.Actions.move(~scale, ~delay))
+      |> List.map(
+           Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
+         )
     )
     @ (
       Util.JsUtil.ids_with_prefix("canvas-avatar")
@@ -167,6 +184,8 @@ let push_snapshot =
           b_model: m,
           b_label: label == "" ? None : Some(label),
           b_avatar: avatar,
+          b_pending: Haz3lcore.Id.Map.is_empty(m.statics.info_map),
+          b_queued: now(),
         },
       ],
     );
@@ -246,15 +265,17 @@ let observe =
            freshest holder in place so dynamics stay current. Once the
            burst ends, pending beats DRAIN at cadence rather than
            jump-cutting to live. */
-        let tail_statics =
-          switch (List.rev(queue^)) {
-          | [last, ..._] => last.b_model.statics
-          | [] => sh.statics
+        let rev_q = List.rev(queue^);
+        let tail_model =
+          switch (rev_q) {
+          | [last, ..._] => last.b_model
+          | [] => sh
           };
-        if (tail_statics === live.statics) {
-          switch (List.rev(queue^)) {
+        /* refresh the freshest holder in place (keeps dynamics current,
+           keeps the tool label) */
+        let refresh_tail = () =>
+          switch (rev_q) {
           | [last, ...rev_rest] =>
-            /* refresh the model, keep the tool label */
             queue :=
               List.rev([
                 {
@@ -265,24 +286,52 @@ let observe =
               ])
           | [] => shown := Some(live)
           };
+        if (tail_model.statics === live.statics) {
+          refresh_tail();
         } else {
-          queue :=
-            coalesce(
-              queue^
-              @ [
+          switch (rev_q) {
+          | [last, ...rev_rest] when last.b_pending =>
+            /* the tool's snapshot had no statics: THIS is its content */
+            queue :=
+              List.rev([
                 {
+                  ...last,
                   b_model: live,
-                  b_label: None,
-                  b_avatar: None,
+                  b_pending: false,
                 },
-              ],
+                ...rev_rest,
+              ]);
+            CanvasLog.log(
+              Printf.sprintf(
+                "content attached to [%s]",
+                Option.value(~default="?", last.b_label),
+              ),
             );
-          CanvasLog.log(
-            Printf.sprintf(
-              "state change queued (pending %d)",
-              List.length(queue^),
-            ),
-          );
+          | _ when weight(tail_model, live) == 0 =>
+            /* statics identity churns on eval ticks; nothing the canvas
+               would draw differently, so don't spend a beat on it */
+            refresh_tail()
+          | _ =>
+            queue :=
+              coalesce(
+                queue^
+                @ [
+                  {
+                    b_model: live,
+                    b_label: None,
+                    b_avatar: None,
+                    b_pending: false,
+                    b_queued: t,
+                  },
+                ],
+              );
+            CanvasLog.log(
+              Printf.sprintf(
+                "state change queued (pending %d)",
+                List.length(queue^),
+              ),
+            );
+          };
         };
       | _ =>
         /* idle and nothing pending: live passes straight through */
@@ -294,7 +343,11 @@ let observe =
     };
     let due = elastic(cur_dwell^, List.length(queue^));
     switch (queue^) {
-    | [next, ...rest] when t -. last_beat^ >= due =>
+    | [next, ...rest]
+        when
+          t
+          -. last_beat^ >= due
+          && !(next.b_pending && t -. next.b_queued < pending_hold_ms) =>
       let shown_viable =
         switch (shown^) {
         | Some(sh) => viable(sh)

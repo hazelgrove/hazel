@@ -174,11 +174,34 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   );
 };
 
+/* Stagger bookkeeping for one `go` pass: NEW elements get ascending
+   indices (in tracked order) so arrivals can be spread out in time, and
+   movers can wait until the arrivals are done. Read inside `animate`
+   closures via Actions.move. */
+let stagger_index: ref(int) = ref(0);
+let stagger_total: ref(int) = ref(0);
+/* arrivals never spread over more than this, however many there are */
+let stagger_span_cap = 2400;
+let stagger_step = (per: int): int =>
+  min(per, stagger_span_cap / max(1, stagger_total^));
+let stagger_span = (per: int): int =>
+  min(stagger_span_cap, stagger_total^ * stagger_step(per));
+
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
   if (tracked_elems^ != []) {
-    tracked_elems^ |> filter_visible_elements |> List.iter(animate_elem);
+    let visible = tracked_elems^ |> filter_visible_elements;
+    stagger_total :=
+      List.length(List.filter(((tr, _, _)) => tr.box == None, visible));
+    stagger_index := 0;
+    visible
+    |> List.iter(((tr, _, _) as x) => {
+         animate_elem(x);
+         if (tr.box == None) {
+           incr(stagger_index);
+         };
+       });
     tracked_elems := [];
   };
 
@@ -233,20 +256,35 @@ let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
 let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
 
 module Actions = {
-  let move = (~scale=1., ~delay=0, id) => {
+  /* ~stagger: ms between successive NEW elements' arrivals (0 = all at
+     once); movers then wait for the arrivals and take ~move_dur, so a
+     beat reads "new things appear, then the rest makes room" */
+  let move = (~scale=1., ~delay=0, ~stagger=0, ~move_dur=125, id) => {
     id,
-    animate: change => {
-      options: {
-        duration: 125,
-        easing: easeOutExpo,
-        delay,
+    animate: change =>
+      switch (change) {
+      | New(_) => {
+          options: {
+            duration: 125,
+            easing: easeOutExpo,
+            delay: delay + stagger_index^ * stagger_step(stagger),
+          },
+          keyframes: Keyframes.scale_from_zero,
+        }
+      | Existing(init, final) => {
+          options: {
+            duration: move_dur,
+            easing: easeOutExpo,
+            delay:
+              delay
+              + (
+                stagger > 0 && stagger_total^ > 0
+                  ? stagger_span(stagger) + 120 : 0
+              ),
+          },
+          keyframes: Keyframes.translate(~scale, init, final),
+        }
       },
-      keyframes:
-        switch (change) {
-        | New(_) => Keyframes.scale_from_zero
-        | Existing(init, final) => Keyframes.translate(~scale, init, final)
-        },
-    },
   };
   /* slower, symmetric travel — used for the agent avatar, whose hops
      across the canvas should read as movement, not teleporting */
