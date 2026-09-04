@@ -1,5 +1,8 @@
 (library
  (name util)
+ ; SPIKE (wasm-eval-bench): BigIntWasmStub is swapped in over BigInt.re
+ ; by bench/wasm/run.sh; it must not be compiled as its own module.
+ (modules :standard \ BigIntWasmStub)
  (libraries ptmap bignum uuidm unionFind csv)
  (js_of_ocaml)
  (instrumentation

@@ -35,9 +35,24 @@ echo "wasm_of_ocaml: $(wasm_of_ocaml --version 2>/dev/null || echo MISSING)"
 
 # Enable the wasm mode only for this run; restored on exit so the committed
 # dune stays green in the ordinary Hazel switch.
-cleanup() { sed -i 's/^ (modes js wasm)$/ (modes js)/' bench/wasm/dune; }
+# Three in-place edits, all restored on exit:
+#   1. enable the wasm mode;
+#   2. swap BigIntWasmStub over BigInt, so Bigint no longer needs bignum;
+#   3. drop bignum from util's libraries, which takes zarith and the Jane
+#      Street Core C-stub surface out of the link entirely.
+cleanup() {
+  sed -i 's/^ (modes js wasm)$/ (modes js)/' bench/wasm/dune
+  [ -f /tmp/hazel-bigint.bak ] && mv /tmp/hazel-bigint.bak src/util/BigInt.re
+  [ -f /tmp/hazel-utildune.bak ] && mv /tmp/hazel-utildune.bak src/util/dune
+}
 trap cleanup EXIT
 sed -i 's/^ (modes js)$/ (modes js wasm)/' bench/wasm/dune
+cp src/util/BigInt.re /tmp/hazel-bigint.bak
+cp src/util/dune /tmp/hazel-utildune.bak
+cp src/util/BigIntWasmStub.re src/util/BigInt.re
+# bignum also supplied Sexplib transitively (via core), so substitute
+# sexplib rather than simply dropping bignum.
+sed -i 's/ (libraries ptmap bignum / (libraries ptmap sexplib base /' src/util/dune
 
 dune build --build-dir="$BUILD_DIR" bench/wasm/eval_bench.bc.js      --profile release
 dune build --build-dir="$BUILD_DIR" bench/wasm/eval_bench.bc.wasm.js --profile release

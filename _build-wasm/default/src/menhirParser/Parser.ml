@@ -87,7 +87,7 @@ module MenhirBasics = struct
     | INTERNAL
     | INT of 
 # 39 "src/menhirParser/Parser.mly"
-       (Bigint.t)
+       (Util.Bigint.t)
 # 92 "src/menhirParser/Parser.ml"
   
     | IN
@@ -3029,7 +3029,7 @@ let _menhir_action_122 =
   fun i ->
     (
 # 228 "src/menhirParser/Parser.mly"
-              ( Bigint.to_string(i) )
+              ( Util.Bigint.to_string(i) )
 # 3034 "src/menhirParser/Parser.ml"
      : (string))
 

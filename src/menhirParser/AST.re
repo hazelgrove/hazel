@@ -1,5 +1,10 @@
 open Sexplib.Std;
 
+/* SPIKE (wasm-eval-bench): route Bigint through util's wrapper rather than
+   the bignum package directly, so this file still compiles when bignum is
+   swapped out. These uses are all QCheck generators/shrinkers. */
+module Bigint = Util.Bigint;
+
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type filter_action =
   | Pause

@@ -1,1 +1,1 @@
-src/menhirParser/Parser.pp.mli: AST Bigint Lexing
+src/menhirParser/Parser.pp.mli: AST Lexing Util

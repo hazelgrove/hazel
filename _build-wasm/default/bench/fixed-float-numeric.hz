@@ -1,0 +1,19 @@
+# Fixed-precision workload: float arithmetic in a tight recursive loop.     #
+# Deliberately allocation-light -- nearly pure arithmetic, few heap writes  #
+# -- which is the profile most likely to favour Wasm.                       #
+#                                                                           #
+# Everything is Float on purpose. `use Float in` binds literals and         #
+# operators to the Float class, so a stray SInt counter would pick up float #
+# operators and get stuck; keep one numeric class per workload.             #
+use Float in
+let sqrt_newton : (Float, Float, Float) -> Float =
+  fun (x, guess, steps) ->
+    if steps <=. 0.0 then guess
+    else sqrt_newton(x, (guess +. x /. guess) /. 2.0, steps -. 1.0)
+in
+let loop : (Float, Float) -> Float =
+  fun (acc, n) ->
+    if n <=. 0.0 then acc
+    else loop(acc +. sqrt_newton(n, n /. 2.0, 12.0) *. 1.000001, n -. 1.0)
+in
+loop(0.0, 400.0)

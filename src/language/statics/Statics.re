@@ -4311,7 +4311,7 @@ and mpat_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(
+  Memo.general(
     ~cache_size_bound=1000,
     ((ana, ctx, e, probe_ids)) => {
       let (_, elab, m) =

@@ -7250,7 +7250,7 @@ let
 # 7251 "src/menhirParser/Lexer.ml"
 = Lexing.sub_lexeme lexbuf lexbuf.Lexing.lex_start_pos lexbuf.Lexing.lex_curr_pos in
 # 112 "src/menhirParser/Lexer.mll"
-                ( INT (Bigint.of_string i) )
+                ( INT (Util.Bigint.of_string i) )
 # 7255 "src/menhirParser/Lexer.ml"
 
   | 5 ->

@@ -12,7 +12,17 @@
 open Language;
 open Util;
 
-let source = [%blob "eval-bench.hz"];
+/* Fixed-precision workloads only. Hazel's Int and Nat are Bigint-backed,
+   and bignum is exactly what cannot be compiled to Wasm here, so these use
+   SInt (machine int) and Float. The three have deliberately different
+   profiles: recursion, allocation-light arithmetic, allocation-heavy list
+   work -- the last matters because wasm_of_ocaml hands the OCaml heap to
+   the browser's collector. */
+let workloads = [
+  ("sint-fib", [%blob "fixed-sint-fib.hz"]),
+  ("float-numeric", [%blob "fixed-float-numeric.hz"]),
+  ("sint-list", [%blob "fixed-sint-list.hz"]),
+];
 
 let now_ms = (): float =>
   Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
@@ -57,23 +67,46 @@ let () = {
     | _ => 20
     };
 
-  let exp = parse(source);
-  let (info_map, elab) = statics_and_elab(exp);
-  let eval_info =
-    EvalInfo.of_info_map(
-      ~probe_all=CoreSettings.on.probe_all,
-      ~targets=Id.Map.empty,
-      info_map,
+  let results =
+    List.concat_map(
+      ((name, source)) => {
+        let exp = parse(source);
+        let (info_map, elab) = statics_and_elab(exp);
+        let eval_info =
+          EvalInfo.of_info_map(
+            ~probe_all=CoreSettings.on.probe_all,
+            ~targets=Id.Map.empty,
+            info_map,
+          );
+        /* Correctness guard: a backend that silently got stuck (say, on a
+           Bigint stub) would look fast and mean nothing. Emit the evaluated
+           result so the two backends can be diffed, not just timed. */
+        let result = Exp.show(evaluate_elab(elab));
+        let plain = time(~iterations, () => ignore(evaluate_elab(elab)));
+        let incr =
+          time(~iterations, () =>
+            ignore(evaluate_elab_incr(~eval_info, elab))
+          );
+        [
+          Printf.sprintf(
+            {|{"name":"%s/plain/eval","time_ns":%.0f}|},
+            name,
+            plain,
+          ),
+          Printf.sprintf(
+            {|{"name":"%s/incr/eval","time_ns":%.0f}|},
+            name,
+            incr,
+          ),
+          Printf.sprintf(
+            {|{"name":"%s/result","sha":"%08x"}|},
+            name,
+            Hashtbl.hash(result) land 0xFFFFFFFF,
+          ),
+        ];
+      },
+      workloads,
     );
 
-  let plain = time(~iterations, () => ignore(evaluate_elab(elab)));
-  let incr =
-    time(~iterations, () => ignore(evaluate_elab_incr(~eval_info, elab)));
-
-  Printf.printf(
-    {|[{"name":"eval-bench/plain/eval","time_ns":%.0f},{"name":"eval-bench/incr/eval","time_ns":%.0f}]
-|},
-    plain,
-    incr,
-  );
+  print_endline("[" ++ String.concat(",", results) ++ "]");
 };

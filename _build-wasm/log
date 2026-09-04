@@ -13,5 +13,10 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /home/matthew/.opam/hazel-wasm/bin/ocamlc.opt -config > /tmp/dune_0e6a5d_output
-$ /home/matthew/.opam/hazel-wasm/bin/js_of_ocaml --version > /tmp/dune_a71c65_output
+$ /home/matthew/.opam/hazel-wasm/bin/ocamlc.opt -config > /tmp/dune_d54f27_output
+$ /home/matthew/.opam/hazel-wasm/bin/js_of_ocaml --version > /tmp/dune_7af449_output
+$ (cd _build-wasm/default/bench/wasm && /home/matthew/.opam/hazel-wasm/bin/wasm_of_ocaml --no-source-map -o eval_bench.bc.wasm.js zarith_runtime.js base_runtime.js bin_prot_runtime.js eval_bench.bc-for-jsoo)
+> Warning [deprecated-joo-global-object]: /home/matthew/hazel/_build-wasm/default/bench/wasm/bin_prot_runtime.js:9: 'joo_global_object' is being deprecated, please use `globalThis` instead
+> Warning [deprecated-joo-global-object]: /home/matthew/hazel/_build-wasm/default/bench/wasm/bin_prot_runtime.js:31: 'joo_global_object' is being deprecated, please use `globalThis` instead
+> Warning [integer-overflow]: integer 0x40000000 (1073741824) truncated to 0xc0000000 (-1073741824); the generated code might be incorrect.
+> Warning [integer-overflow]: integer 0xffffffff (4294967295) truncated to 0xffffffff (-1); the generated code might be incorrect.

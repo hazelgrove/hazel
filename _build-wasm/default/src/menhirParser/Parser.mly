@@ -36,7 +36,7 @@ open AST
 %token <string> QUOTED_LABEL
 %token TRUE 
 %token FALSE
-%token <Bigint.t> INT
+%token <Util.Bigint.t> INT
 %token <float> FLOAT
 %token LET
 %token USE
@@ -225,7 +225,7 @@ label:
     | l = IDENT { l }
     | l = QUOTED_LABEL { l }
     (* Ill-sorted labels appear in error-demo slides: (1="hello") *)
-    | i = INT { Bigint.to_string(i) }
+    | i = INT { Util.Bigint.to_string(i) }
 
 tupTypeEntry:
     | t = typ {t}

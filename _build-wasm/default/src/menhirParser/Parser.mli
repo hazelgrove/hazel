@@ -63,7 +63,7 @@ type token =
   | LESS_THAN
   | INT_TYPE
   | INTERNAL
-  | INT of (Bigint.t)
+  | INT of (Util.Bigint.t)
   | IN
   | IF
   | IDENT of (string)

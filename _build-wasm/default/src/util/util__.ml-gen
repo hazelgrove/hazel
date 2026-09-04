@@ -45,6 +45,9 @@ module MapUtil = Util__MapUtil
 (** @canonical Util.Maps *)
 module Maps = Util__Maps
 
+(** @canonical Util.Memo *)
+module Memo = Util__Memo
+
 (** @canonical Util.MerkleSet *)
 module MerkleSet = Util__MerkleSet
 

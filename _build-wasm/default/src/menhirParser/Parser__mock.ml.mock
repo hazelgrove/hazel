@@ -79,7 +79,7 @@ type token =
   | INTERNAL
   | INT of 
 # 39 "src/menhirParser/Parser.mly"
-       (Bigint.t)
+       (Util.Bigint.t)
 # 84 "src/menhirParser/Parser__mock.ml.mock"
 
   | IN
@@ -1773,7 +1773,7 @@ and (xv_unExp, xv_typ, xv_tupleType, xv_tupTypeEntry, xv_tupPatEntry, xv_tupExpE
 # 1774 "src/menhirParser/Parser__mock.ml.mock"
    : 
 # 39 "src/menhirParser/Parser.mly"
-       (Bigint.t)
+       (Util.Bigint.t)
 # 1778 "src/menhirParser/Parser__mock.ml.mock"
   ) (_startpos_i_ : Lexing.position) (_endpos_i_ : Lexing.position) (_startofs_i_ : int) (_endofs_i_ : int) (_loc_i_ : Lexing.position * Lexing.position) : ('tv_nonAscriptingPat) ->
     
@@ -2231,12 +2231,12 @@ and (xv_unExp, xv_typ, xv_tupleType, xv_tupTypeEntry, xv_tupPatEntry, xv_tupExpE
 # 2232 "src/menhirParser/Parser__mock.ml.mock"
    : 
 # 39 "src/menhirParser/Parser.mly"
-       (Bigint.t)
+       (Util.Bigint.t)
 # 2236 "src/menhirParser/Parser__mock.ml.mock"
   ) (_startpos_i_ : Lexing.position) (_endpos_i_ : Lexing.position) (_startofs_i_ : int) (_endofs_i_ : int) (_loc_i_ : Lexing.position * Lexing.position) : ('tv_label) ->
     
 # 228 "src/menhirParser/Parser.mly"
-              ( Bigint.to_string(i) )
+              ( Util.Bigint.to_string(i) )
 # 2241 "src/menhirParser/Parser__mock.ml.mock"
      in
   let _ = fun (_startpos : Lexing.position) (_endpos : Lexing.position) (_endpos__0_ : Lexing.position) (_symbolstartpos : Lexing.position) (_startofs : int) (_endofs : int) (_endofs__0_ : int) (_symbolstartofs : int) (_sloc : Lexing.position * Lexing.position) (_loc : Lexing.position * Lexing.position) (
@@ -4417,7 +4417,7 @@ and (xv_unExp, xv_typ, xv_tupleType, xv_tupTypeEntry, xv_tupPatEntry, xv_tupExpE
 # 4418 "src/menhirParser/Parser__mock.ml.mock"
    : 
 # 39 "src/menhirParser/Parser.mly"
-       (Bigint.t)
+       (Util.Bigint.t)
 # 4422 "src/menhirParser/Parser__mock.ml.mock"
   ) (_startpos_i_ : Lexing.position) (_endpos_i_ : Lexing.position) (_startofs_i_ : int) (_endofs_i_ : int) (_loc_i_ : Lexing.position * Lexing.position) : (
 # 168 "src/menhirParser/Parser.mly"

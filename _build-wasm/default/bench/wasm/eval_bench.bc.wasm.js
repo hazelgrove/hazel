@@ -131,59 +131,6 @@ _=await
 P();var{caml_callback:g,caml_alloc_times:q,caml_alloc_tm:r,caml_alloc_stat:E,caml_start_fiber:H,caml_handle_uncaught_exception:s,caml_buffer:F,caml_extract_bytes:G,bytes_get:C,bytes_set:D,_initialize:m}=_.instance.exports,j=F?.buffer,W=j&&new
 Uint8Array(j,0,j.length);y=v(H);var
 m=v(m);if(globalThis.process?.on)globalThis.process.on("uncaughtException",(a,b)=>s(a));else if(globalThis.addEventListener)globalThis.addEventListener("error",a=>a.error&&s(a.error));await
-m()})(function(a){"use strict";return{}}(globalThis))({"link":[["code-e883544b68dfe5ef716c",0]],"generated":(a=>{var
-b=a,c=a?.module?.export||a;return{"env":{"Base_internalhash_fold_int":()=>{throw new
-Error("Base_internalhash_fold_int not implemented")},"ml_z_format":()=>{throw new
-Error("ml_z_format not implemented")},"caml_csel_value":()=>{throw new
-Error("caml_csel_value not implemented")},"Base_internalhash_get_hash_value":()=>{throw new
-Error("Base_internalhash_get_hash_value not implemented")},"ml_z_compare":()=>{throw new
-Error("ml_z_compare not implemented")},"Base_int_math_int64_clz":()=>{throw new
-Error("Base_int_math_int64_clz not implemented")},"ml_z_sign":()=>{throw new
-Error("ml_z_sign not implemented")},"ml_z_numbits":()=>{throw new
-Error("ml_z_numbits not implemented")},"Base_internalhash_fold_int64":()=>{throw new
-Error("Base_internalhash_fold_int64 not implemented")},"Base_int_math_nativeint_clz":()=>{throw new
-Error("Base_int_math_nativeint_clz not implemented")},"Base_int_math_int_clz":()=>{throw new
-Error("Base_int_math_int_clz not implemented")},"Base_int_math_int32_clz":()=>{throw new
-Error("Base_int_math_int32_clz not implemented")},"ml_z_to_int64":()=>{throw new
-Error("ml_z_to_int64 not implemented")},"ml_z_to_bits":()=>{throw new
-Error("ml_z_to_bits not implemented")},"ml_z_sub":()=>{throw new
-Error("ml_z_sub not implemented")},"ml_z_shift_left":()=>{throw new
-Error("ml_z_shift_left not implemented")},"ml_z_rem":()=>{throw new
-Error("ml_z_rem not implemented")},"ml_z_of_float":()=>{throw new
-Error("ml_z_of_float not implemented")},"ml_z_of_bits":()=>{throw new
-Error("ml_z_of_bits not implemented")},"ml_z_equal":()=>{throw new
-Error("ml_z_equal not implemented")},"ml_z_div":()=>{throw new
-Error("ml_z_div not implemented")},"ml_z_add":()=>{throw new
-Error("ml_z_add not implemented")},"ml_z_abs":()=>{throw new
-Error("ml_z_abs not implemented")},"caml_out_channel_pos_fd":()=>{throw new
-Error("caml_out_channel_pos_fd not implemented")},"Base_internalhash_fold_string":()=>{throw new
-Error("Base_internalhash_fold_string not implemented")},"Base_int_math_int64_pow_stub":()=>{throw new
-Error("Base_int_math_int64_pow_stub not implemented")},"Base_int_math_int64_ctz":()=>{throw new
-Error("Base_int_math_int64_ctz not implemented")},"Base_hash_string":()=>{throw new
-Error("Base_hash_string not implemented")},"time_now_nanoseconds_since_unix_epoch_or_zero":()=>{throw new
-Error("time_now_nanoseconds_since_unix_epoch_or_zero not implemented")},"ml_z_to_int":()=>{throw new
-Error("ml_z_to_int not implemented")},"ml_z_succ":()=>{throw new
-Error("ml_z_succ not implemented")},"ml_z_shift_right":()=>{throw new
-Error("ml_z_shift_right not implemented")},"ml_z_pred":()=>{throw new
-Error("ml_z_pred not implemented")},"ml_z_pow":()=>{throw new
-Error("ml_z_pow not implemented")},"ml_z_of_substring_base":()=>{throw new
-Error("ml_z_of_substring_base not implemented")},"ml_z_neg":()=>{throw new
-Error("ml_z_neg not implemented")},"ml_z_mul_overflows":()=>{throw new
-Error("ml_z_mul_overflows not implemented")},"ml_z_mul":()=>{throw new
-Error("ml_z_mul not implemented")},"ml_z_logor":()=>{throw new
-Error("ml_z_logor not implemented")},"ml_z_init":()=>{throw new
-Error("ml_z_init not implemented")},"ml_z_fits_int":()=>{throw new
-Error("ml_z_fits_int not implemented")},"expect_test_collector_before_test":()=>{throw new
-Error("expect_test_collector_before_test not implemented")},"expect_test_collector_after_test":()=>{throw new
-Error("expect_test_collector_after_test not implemented")},"bin_prot_blit_string_buf_stub":()=>{throw new
-Error("bin_prot_blit_string_buf_stub not implemented")},"bin_prot_blit_buf_bytes_stub":()=>{throw new
-Error("bin_prot_blit_buf_bytes_stub not implemented")},"Base_internalhash_fold_float":()=>{throw new
-Error("Base_internalhash_fold_float not implemented")},"Base_int_math_nativeint_ctz":()=>{throw new
-Error("Base_int_math_nativeint_ctz not implemented")},"Base_int_math_int_pow_stub":()=>{throw new
-Error("Base_int_math_int_pow_stub not implemented")},"Base_int_math_int_popcount":()=>{throw new
-Error("Base_int_math_int_popcount not implemented")},"Base_int_math_int_ctz":()=>{throw new
-Error("Base_int_math_int_ctz not implemented")},"Base_int_math_int32_ctz":()=>{throw new
-Error("Base_int_math_int32_ctz not implemented")},"Base_hash_double":()=>{throw new
-Error("Base_hash_double not implemented")},"Base_am_testing":()=>{throw new
-Error("Base_am_testing not implemented")}},"fragments":{"eval":a=>eval("("+a+")"),"fun_call_1":(a,b)=>a(b),"fun_call_2":(a,b,c)=>a(b,c),"get_Array":a=>a.Array,"get_Date":a=>a.Date,"get_Error":a=>a.Error,"get_JSON":a=>a.JSON,"get_Math":a=>a.Math,"get_Object":a=>a.Object,"get_RegExp":a=>a.RegExp,"get_String":a=>a.String,"get_index":a=>a.index,"get_length":a=>a.length,"get_performance":a=>a.performance,"js_expr_12c48ca8":()=>a,"js_expr_26f07992":()=>null,"js_expr_ba692c1":()=>undefined,"meth_call_0_now":a=>a.now(),"meth_call_0_toLowerCase":a=>a.toLowerCase(),"meth_call_0_toString":a=>a.toString(),"meth_call_0_toUpperCase":a=>a.toUpperCase(),"meth_call_0_trim":a=>a.trim(),"meth_call_0_valueOf":a=>a.valueOf(),"meth_call_1_exec":(a,b)=>a.exec(b),"meth_call_1_now":(a,b)=>a.now(b),"meth_call_1_split":(a,b)=>a.split(b),"meth_call_1_test":(a,b)=>a.test(b),"meth_call_2_replace":(a,b,c)=>a.replace(b,c),"new_2":(a,b,c)=>new
+m()})(function(a){"use strict";return{}}(globalThis))({"link":[["code-416c1151058525e9e6c3",0]],"generated":(a=>{var
+b=a,c=a?.module?.export||a;return{"fragments":{"eval":a=>eval("("+a+")"),"fun_call_1":(a,b)=>a(b),"fun_call_2":(a,b,c)=>a(b,c),"get_Array":a=>a.Array,"get_Date":a=>a.Date,"get_Error":a=>a.Error,"get_JSON":a=>a.JSON,"get_Math":a=>a.Math,"get_Object":a=>a.Object,"get_RegExp":a=>a.RegExp,"get_String":a=>a.String,"get_index":a=>a.index,"get_length":a=>a.length,"get_performance":a=>a.performance,"js_expr_12c48ca8":()=>a,"js_expr_26f07992":()=>null,"js_expr_ba692c1":()=>undefined,"meth_call_0_now":a=>a.now(),"meth_call_0_toLowerCase":a=>a.toLowerCase(),"meth_call_0_toString":a=>a.toString(),"meth_call_0_toUpperCase":a=>a.toUpperCase(),"meth_call_0_trim":a=>a.trim(),"meth_call_0_valueOf":a=>a.valueOf(),"meth_call_1_exec":(a,b)=>a.exec(b),"meth_call_1_now":(a,b)=>a.now(b),"meth_call_1_split":(a,b)=>a.split(b),"meth_call_1_test":(a,b)=>a.test(b),"meth_call_2_replace":(a,b,c)=>a.replace(b,c),"new_2":(a,b,c)=>new
 a(b,c),"set_lastIndex":(a,b)=>a.lastIndex=b}}})(globalThis),"src":"eval_bench.bc.wasm.assets"});

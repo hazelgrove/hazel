@@ -1,1 +1,1 @@
-src/util/BigInt.re.pp.ml: Bigint Ppx_yojson_conv_lib Yojson
+src/util/BigInt.re.pp.ml: Int Ppx_deriving_runtime Ppx_yojson_conv_lib Sexplib Sexplib0 Yojson

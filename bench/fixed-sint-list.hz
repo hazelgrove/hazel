@@ -1,0 +1,30 @@
+# Fixed-precision workload: list construction and traversal over SInt.      #
+# Deliberately allocation-heavy -- the profile where the GC change matters  #
+# most, since wasm_of_ocaml hands the OCaml heap to the browser collector   #
+# rather than OCaml's own.                                                  #
+use SInt in
+let range : SInt -> [SInt] =
+  fun n -> if n == 0 then [] else n::range(n - 1)
+in
+let map : ((SInt -> SInt), [SInt]) -> [SInt] =
+  fun (f, xs) ->
+    case xs
+    | [] => []
+    | hd::tl => f(hd)::map(f, tl)
+    end
+in
+let sum : [SInt] -> SInt =
+  fun xs ->
+    case xs
+    | [] => 0
+    | hd::tl => hd + sum(tl)
+    end
+in
+let rev : ([SInt], [SInt]) -> [SInt] =
+  fun (xs, acc) ->
+    case xs
+    | [] => acc
+    | hd::tl => rev(tl, hd::acc)
+    end
+in
+sum(map(fun x -> x * 3, rev(range(600), [])))

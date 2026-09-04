@@ -109,7 +109,7 @@ rule token =
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
-    | ints as i { INT (Bigint.of_string i) }
+    | ints as i { INT (Util.Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }

@@ -60,7 +60,7 @@ type token =
   | LESS_THAN
   | INT_TYPE
   | INTERNAL
-  | INT of Bigint.t
+  | INT of int
   | IN
   | IF
   | IDENT of string

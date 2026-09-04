@@ -29,9 +29,9 @@
    ppx_deriving.show
    ppx_deriving.eq))
  (preprocessor_deps
-  (file eval-bench.hz)))
+  (glob_files *.hz)))
 
-(copy_files ../eval-bench.hz)
+(copy_files ../*.hz)
 
 ; Jane Street's C stubs (base, bin_prot) and zarith's ship JS
 ; implementations that dune wires only into the js build. Copy them in so
