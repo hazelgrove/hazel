@@ -527,45 +527,56 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
     };
   /* structural: the two extremes are siblings in one segment, so the
      selection is the sibling run from l's tile through r's tile. The
-     token walk below grew the selection one step at a time and cost
-     ~0.5 s for a 15-line definition; it stays as the fallback */
-  let structural = {
-    let* zp =
-      pl(Zipper.generalized_neighbors(z))
-        ? Some(z)
-        : Zipper.unzip_to_id(
-            ~side=Left,
-            Piece.id(l),
-            Zipper.unselect_and_zip(z),
-          )
-          |> Option.map(zp =>
-               {
-                 ...zp,
-                 refractors: z.refractors,
-               }
-             );
-    let (ls, rs) = zp.relatives.siblings;
-    let rec take = (acc, rs) =>
+     token walk below grew the selection one step at a time (~0.5 s for a
+     15-line definition); it stays as the fallback for a caret the
+     structural placement cannot reach. When l is in place but r is not
+     among its right siblings, no selection can contain both (selections
+     are well-nested) and the walk would only run to the buffer's end:
+     answer None at once. */
+  let positioned =
+    pl(Zipper.generalized_neighbors(z))
+      ? Some(z)
+      : Zipper.unzip_to_id(
+          ~side=Left,
+          Piece.id(l),
+          Zipper.unselect_and_zip(z),
+        )
+        |> Option.map(zp =>
+             {
+               ...zp,
+               refractors: z.refractors,
+             }
+           );
+  let structural =
+    switch (positioned) {
+    | None => `Unplaced
+    | Some(zp) =>
+      let (ls, rs) = zp.relatives.siblings;
+      let rec take = (acc, rs) =>
+        switch (rs) {
+        | [] => None
+        | [p, ...rest] =>
+          piece_matches_shard(p, r)
+            ? Some((List.rev([p, ...acc]), rest)) : take([p, ...acc], rest)
+        };
       switch (rs) {
-      | [] => None
-      | [p, ...rest] =>
-        piece_matches_shard(p, r)
-          ? Some((List.rev([p, ...acc]), rest)) : take([p, ...acc], rest)
+      | [p, ..._] when piece_matches_shard(p, l) =>
+        switch (take([], rs)) {
+        | Some((sel, rest)) =>
+          `Selected(
+            zp
+            |> Zipper.update_siblings(_ => (ls, rest))
+            |> Zipper.replace_selection(Right, sel),
+          )
+        | None => `Unreachable
+        }
+      | _ => `Unplaced
       };
-    switch (rs) {
-    | [p, ..._] when piece_matches_shard(p, l) =>
-      take([], rs)
-      |> Option.map(((sel, rest)) =>
-           zp
-           |> Zipper.update_siblings(_ => (ls, rest))
-           |> Zipper.replace_selection(Right, sel)
-         )
-    | _ => None
     };
-  };
   switch (structural) {
-  | Some(_) as r => r
-  | None =>
+  | `Selected(z) => Some(z)
+  | `Unreachable => None
+  | `Unplaced =>
     let* z =
       pl(Zipper.generalized_neighbors(z))
         ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
