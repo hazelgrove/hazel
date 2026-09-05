@@ -92,11 +92,6 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
 let log_add = (key: string, value: string): unit =>
   with_db(db => IDBStore.add(~key, ~callback=_ => (), log_store(db), value));
 
-let log_get = (key: string, f: option(string) => unit): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_get");
-  with_db(db => IDBStore.get(~error, log_store(db), f, K(key)));
-};
-
 let log_get_all = (f: list(string) => unit): unit => {
   let error = _ => print_endline("ERROR: HazelDB.log_get_all");
   with_db(db => IDBStore.get_all(~error, log_store(db), f));

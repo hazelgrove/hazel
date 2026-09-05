@@ -1,0 +1,114 @@
+# The checks themselves, called by ci.yml (in-repo pushes and the merge queue)
+# and by fork-ci.yml (pull requests from forks). Defined once here so the two
+# entry points differ only in what triggers them.
+#
+# Two jobs, no `needs:` between them: they start together, and either can be
+# re-run alone. The split is by cost, not by concern -- `Fast checks` bundles
+# formatting, warnings and the quick suite because each extra job re-installs
+# the toolchain (~2 min warm, 5-9 min cold), which is more than the work those
+# checks do. Revisit if the build ever becomes an artifact the jobs can share.
+name: Checks
+
+on:
+  workflow_call:
+    inputs:
+      publish-reports:
+        description: >
+          Publish Test Report check runs and upload coverage. Off for fork pull
+          requests: their GITHUB_TOKEN is read-only, so creating a check run
+          fails, and they get no secrets, so the Codecov upload has no token.
+        type: boolean
+        default: true
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  Fast:
+    name: Fast checks
+    runs-on: ubuntu-latest
+    # Without this, GitHub's 360-min default applies.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      checks: write # dorny/test-reporter publishes a check run
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      # No --auto-promote: a misformatted commit should fail, not be rewritten
+      # into a checkout that is then thrown away.
+      - name: Check formatting
+        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
+
+      # Strict warnings over src and test/. dune's release profile promotes them
+      # to errors; @check type-checks both trees without linking, so this costs
+      # no second js_of_ocaml build (issue #2456).
+      - name: Check warnings
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- make ci-check
+
+      # alcotest's -q filter drops the Slow-tagged cases, which are ~92% of the
+      # full suite's wall clock. That is what makes a test signal here, rather
+      # than only in `Full tests`, affordable.
+      - name: Run quick tests
+        run: opam exec -- make ci-quick
+        timeout-minutes: 20
+
+      # Results UI, not the gate: the steps above already fail the job.
+      - name: Quick Test Report
+        if: ${{ always() && inputs.publish-reports }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Quick Test Report
+          path: ./_build/default/test/junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          # An earlier step failing leaves no report to read, and the job is
+          # already red for that reason -- don't stack a second failure on it.
+          fail-on-empty: false
+          # True (the default) writes to the job summary and creates no check
+          # run, leaving no status to link to or require.
+          use-actions-summary: false
+
+  Full:
+    name: Full tests
+    runs-on: ubuntu-latest
+    # Without this, GitHub's 360-min default applies.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      checks: write # dorny/test-reporter publishes a check run
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Run tests
+        run: opam exec -- make ci
+        # Headroom over the ~32-min suite is under 2x; check the trend before
+        # adding another expensive one.
+        timeout-minutes: 60
+
+      # Results UI, not the gate: the step above already fails on a red suite.
+      - name: Test Report
+        if: ${{ always() && inputs.publish-reports }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Report
+          path: ./_build/default/test/junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          # See Quick Test Report above for both of these.
+          fail-on-empty: false
+          use-actions-summary: false
+
+      - name: Send coverage report to Codecov
+        if: ${{ inputs.publish-reports }}
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

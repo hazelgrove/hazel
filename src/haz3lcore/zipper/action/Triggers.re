@@ -28,7 +28,7 @@ let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
   | None => None
   };
 
-/* Is this whole token a refractor trigger (e.g. "^^type", "^^probe")?
+/* Is this whole token a refractor trigger (e.g. "^^statics", "^^probe")?
    "^^probe" / "^^probe_table" ==> true
    "^^slider" / "let" / "^^"   ==> false */
 let is_refractor_trigger = (s: string): bool =>
@@ -195,9 +195,6 @@ let projector_to_invoke = (pr: Base.projector): Segment.t =>
     pr.kind,
     Piece.unparenthesize(pr.syntax),
   );
-
-let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {

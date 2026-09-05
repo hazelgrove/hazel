@@ -31,12 +31,6 @@ type variant('a) =
   | Variant(Constructor.t, variant_ann, option('a))
   | BadEntry('a);
 
-/* Helper to extract ids from annotation for backwards compatibility */
-let variant_ids =
-  fun
-  | Variant(_, ann, _) => ann.ids
-  | BadEntry(_) => [];
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
 
@@ -95,11 +89,6 @@ let free_variables = (f, m) =>
        | _ => [],
      )
   |> List.flatten;
-
-let is_ground = is_hole =>
-  fun
-  | [BadEntry(x)] when is_hole(x) => true
-  | _ => false;
 
 /* Extract constructor name from a variant, if it has one */
 let constructor_key =
@@ -337,28 +326,3 @@ let get_entry = (ctr, m) =>
     | BadEntry(_) => None,
     m,
   );
-
-let has_constructor_no_args = ctr =>
-  List.exists(
-    fun
-    | Variant(ctr', _, None) when Constructor.equal(ctr, ctr') => true
-    | Variant(_) => false
-    | BadEntry(_) => false,
-  );
-
-let get_constructors =
-  List.filter_map(
-    fun
-    | Variant(ctr, _, _) => Some(ctr)
-    | BadEntry(_) => None,
-    _,
-  );
-
-let nth = (map: t('a), ctr: Constructor.t): option(int) => {
-  // TODO: use List.find_index instead, which is available for OCaml 5.1
-  let ctrs_sorted = map |> get_constructors |> List.sort(String.compare);
-  List.find_opt(
-    nth => List.nth(ctrs_sorted, nth) == ctr,
-    List.init(List.length(ctrs_sorted), Fun.id),
-  );
-};

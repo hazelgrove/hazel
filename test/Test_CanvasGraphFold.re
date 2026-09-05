@@ -99,4 +99,17 @@ let tests = [
       );
     },
   ),
+  test_case(
+    "a repeated alias name gets a distinct node key",
+    `Quick,
+    () => {
+      let g = graph_of("type Pos = Int in type Pos = Bool in 1");
+      let keys =
+        List.filter(
+          k => String.length(k) >= 3 && String.sub(k, 0, 3) == "Pos",
+          List.map((n: Web.CanvasGraph.tynode) => n.key, g.nodes),
+        );
+      check(list(string), "keys", ["Pos", "Pos#2"], keys);
+    },
+  ),
 ];

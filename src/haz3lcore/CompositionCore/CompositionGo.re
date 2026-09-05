@@ -212,22 +212,6 @@ module Local = {
       };
     };
 
-    let statics_map_new_ids =
-        (old_statics: StaticsBase.Map.t, new_statics: StaticsBase.Map.t) => {
-      // Returns only the IDs of the new statics map that are not in the old statics map
-      // This is useful to identify which new static information was added
-      Id.Map.fold(
-        (id, _info, acc) =>
-          // Check if the ID exists in the old statics map
-          switch (StaticsBase.Map.lookup(id, old_statics)) {
-          | Some(_) => acc // ID exists in old map, don't include it
-          | None => [id, ...acc] // ID doesn't exist in old map, include it
-          },
-        new_statics,
-        [],
-      );
-    };
-
     /* [[Zipper.insert_segment]] replaces the selection with the segment,
        so a token bordering the selection can end up flush against the
        segment's edge token. If the two would lex as one token the result
@@ -636,45 +620,58 @@ module Local = {
               code: string,
             )
             : result(Zipper.t, Action.Failure.t) => {
-      let code = StringUtil.trim_leading(code);
-      switch (
-        fast
-          ? FastParse.of_text(
-              ~materialize=Triggers.invoked_projector,
-              ~collect_refractors=false,
-              ~root,
-              String.trim(code),
-            )
-          : None
-      ) {
-      | Some(segment) =>
-        /* Source tokens + formatting verbatim, molds from ExpToSegment +
-           splice-time remold. No size cap needed on this path. */
-        let segment =
-          if (keep_edge_ws) {
-            let (lead, trail) = edge_ws(code);
-            ws_secondaries(lead) @ segment @ ws_secondaries(trail);
-          } else {
-            segment;
-          };
-        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
+      let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
+      /* A binder named after a keyword (`let eval = ...`) is refused up
+         front with the note: left to the parsers, the keyword form swallows
+         what follows and the result is a broken buffer that may or may not
+         be refused depending on incidental typing rules. */
+      switch (find_reserved_binder(code)) {
+      | Some(_) =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Inserted code failed to parse." ++ reserved_word_note(code),
+          ),
+        )
       | None =>
-        if (fast) {
-          /* fallback telemetry: which construct pushed us onto the
-             quadratic path, and roughly how bad — console + any
-             registered listener (the constellation journal) */
-          let msg =
-            "FastParse fallback ("
-            ++ string_of_int(String.length(code))
-            ++ " chars): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note");
-          print_endline(msg);
-          switch (fallback_notice^) {
-          | Some(f) => f(msg)
-          | None => ()
+        switch (
+          fast
+            ? FastParse.of_text(
+                ~materialize=Triggers.invoked_projector,
+                ~collect_refractors=false,
+                ~root,
+                String.trim(code),
+              )
+            : None
+        ) {
+        | Some(segment) =>
+          /* Source tokens + formatting verbatim, molds from ExpToSegment +
+             splice-time remold. No size cap needed on this path. */
+          let segment =
+            if (keep_edge_ws) {
+              let (lead, trail) = edge_ws(code);
+              ws_secondaries(lead) @ segment @ ws_secondaries(trail);
+            } else {
+              segment;
+            };
+          Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
+        | None =>
+          if (fast) {
+            /* fallback telemetry: which construct pushed us onto the
+               quadratic path, and roughly how bad — console + any
+               registered listener (the constellation journal) */
+            let msg =
+              "FastParse fallback ("
+              ++ string_of_int(String.length(code))
+              ++ " chars): "
+              ++ Option.value(FastParse.bail_note^, ~default="no note");
+            print_endline(msg);
+            switch (fallback_notice^) {
+            | Some(f) => f(msg)
+            | None => ()
+            };
           };
-        };
-        introduce_slow(~root, z, code);
+          introduce_slow(~root, z, code);
+        }
       };
     }
     and introduce_slow =
@@ -689,7 +686,7 @@ module Local = {
             ++ string_of_int(max_chunk_chars)
             ++ "): it failed the batch parse, and chunks this size stall the editor in the recovering parser."
             ++ parse_hint()
-            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"^name/view\") address the parts directly.",
+            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"M/view\") address the parts directly.",
           ),
         );
       } else {

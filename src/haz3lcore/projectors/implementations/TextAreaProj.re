@@ -140,10 +140,13 @@ module M: Projector = {
   let elaborate_syntax = false;
   let placeholder = (_, info) => {
     let str = info |> get;
+    /* Rows and widest line in display columns (StringUtil.max_line_width
+     * counts grapheme clusters, which undercounts wide glyphs). */
+    let (rows, cols) = Unicode.Width.bounding_box_for(str);
     ProjectorCore.Shape.{
-      vertical: Block(StringUtil.num_linebreaks(str)),
+      vertical: Block(rows),
       /* +2 for left and right padding */
-      horizontal: 2 + StringUtil.max_line_width(str),
+      horizontal: 2 + cols,
     };
   };
   let update = (model, _, _) => model;

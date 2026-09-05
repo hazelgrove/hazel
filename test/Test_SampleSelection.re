@@ -40,8 +40,6 @@ let id_c = Id.mk();
 let id_d = Id.mk();
 let id_e = Id.mk();
 let id_f = Id.mk();
-let id_g = Id.mk();
-
 /* Make a minimal sample with the given call stack */
 let mk_sample =
     (~seq=0, ~step_start=0, ~step_end=0, stack: CallStack.t): Sample.t => {

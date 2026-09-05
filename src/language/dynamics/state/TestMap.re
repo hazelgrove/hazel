@@ -31,12 +31,6 @@ let empty: t = [];
 
 let lookup = List.assoc_opt;
 
-let lookup_and_join = (n, test_map) =>
-  switch (lookup(n, test_map)) {
-  | None => TestStatus.Indet
-  | Some(reports) => joint_status(reports)
-  };
-
 let extend = ((id, report), test_map) => {
   switch (List.assoc_opt(id, test_map)) {
   | Some(a) => List.remove_assoc(id, test_map) @ [(id, a @ [report])]

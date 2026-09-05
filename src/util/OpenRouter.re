@@ -635,9 +635,6 @@ module Utils = {
     };
   };
 
-  let first_message_content = (choices: Json.t): option(string) =>
-    fst(first_message_content_and_reasoning(choices));
-
   let parse_tool_args = (args: Json.t): Json.t => {
     switch (args) {
     | `String(str) =>
@@ -1097,14 +1094,8 @@ module AvailableLLMs = {
   let recommended_tagline = (info: Model.llm_info): option(string) =>
     List.assoc_opt(info.id, recommended_entries);
 
-  let is_recommended = (info: Model.llm_info): bool =>
-    Option.is_some(recommended_tagline(info));
-
   let is_free = (info: Model.llm_info): bool =>
     StringUtil.match(StringUtil.regexp("free"), info.name);
-
-  let supports_reasoning = (info: Model.llm_info): bool =>
-    info.supports_reasoning;
 
   module Utils = {
     let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
@@ -1118,14 +1109,6 @@ module AvailableLLMs = {
         ~body=`Null,
         handler,
       );
-    };
-
-    let is_top_model = (name: string): bool => {
-      StringUtil.match(StringUtil.regexp("Google"), name)
-      || StringUtil.match(StringUtil.regexp("Anthropic"), name)
-      || StringUtil.match(StringUtil.regexp("DeepSeek"), name)
-      || StringUtil.match(StringUtil.regexp("OpenAI"), name)
-      || StringUtil.match(StringUtil.regexp("Meta"), name);
     };
 
     let has_required_parameters = (params_opt: option(Json.t)): bool => {

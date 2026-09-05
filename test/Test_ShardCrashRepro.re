@@ -189,7 +189,7 @@ let eval_incr_with =
       ~env=Language.Builtins.env_init,
       elab,
     );
-  (result, Language.EvaluatorState.get_incr_eval(state));
+  (result, (state: Language.EvaluatorState.t).incr_eval);
 };
 
 /* Id-preserving use-site rename (mirrors a Zipper token edit: only the
@@ -365,7 +365,7 @@ let eval_incr_probes =
   (
     result,
     Language.EvaluatorState.get_probes(state),
-    Language.EvaluatorState.get_incr_eval(state),
+    (state: Language.EvaluatorState.t).incr_eval,
   );
 };
 

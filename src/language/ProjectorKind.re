@@ -33,9 +33,6 @@ let livelit_projectors: list(t) = [
   HTML,
 ];
 
-/* Note: Probe intentionally excluded - probes use separate action path */
-let projectors: list(t) = livelit_projectors @ [Fold];
-
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
 let is_refractor = (kind: t) => List.mem(kind, refractors);

@@ -14,29 +14,6 @@ type syntax_result = {
   percentage: float,
 };
 
-let rec find_var_upat = (name: string, upat: Pat.t): bool => {
-  switch (upat.term) {
-  | Var(x) => x == name
-  | EmptyHole
-  | Wild
-  | Invalid(_)
-  | MultiHole(_)
-  | Atom(_)
-  | Label(_)
-  | Constructor(_)
-  | ExplicitNonlabel => false
-  | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | TupLabel(_, up) => find_var_upat(name, up)
-  | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
-  | Parens(up)
-  | Projector(_, up) => find_var_upat(name, up)
-  | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | Asc(up, _) => find_var_upat(name, up)
-  };
-};
-
 /*
   Helper function used in the function find_fn which takes the
   pattern (upat) and the definition (def) of a let expression and

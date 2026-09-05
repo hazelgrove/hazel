@@ -154,29 +154,6 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
-let is_atom = (ty: t): bool =>
-  switch (ty.term) {
-  | Atom(_) => true
-  | DrvQuoteTy(_)
-  | ProofOf(_)
-  | Parens(_)
-  | Projector(_)
-  | TupLabel(_)
-  | Arrow(_)
-  | Unknown(_)
-  | List(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Prod(_)
-  | Var(_)
-  | Sum(_)
-  | Poly(_)
-  | Rec(_)
-  | ProdProjection(_)
-  | ProdExtension(_)
-  | Sig(_) => false
-  };
-
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)
@@ -205,30 +182,6 @@ let rec has_fun = (typ: t) =>
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
   | Sig(_) => false
   };
-
-let rec is_poly = (typ: t) => {
-  switch (typ.term) {
-  | Parens(typ)
-  | Projector(_, typ)
-  | TupLabel(_, typ) => is_poly(typ)
-  | Poly(_) => true
-  | ProofOf(_)
-  | Unknown(_)
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Arrow(_)
-  | List(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Prod(_)
-  | Var(_)
-  | Sum(_)
-  | Rec(_)
-  | ProdProjection(_)
-  | ProdExtension(_)
-  | Sig(_) => false
-  };
-};
 
 let is_void = (typ: t) =>
   switch (typ.term) {
@@ -313,100 +266,11 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Sig(_) => []
   };
 
-let rec vars = (ty: t): list(Var.t) =>
-  switch (ty.term) {
-  | Atom(_)
-  | DrvQuoteTy(_) => []
-  | Unknown(_) => []
-  | Var(x) => [x]
-  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Prod(tys) => List.concat_map(vars, tys)
-  | Sum(sm) =>
-    List.concat_map(
-      fun
-      | ConstructorMap.BadEntry(_) => []
-      | Variant(_, _, None) => []
-      | Variant(_, _, Some(typ)) => vars(typ),
-      sm,
-    )
-  | Rec({term: Var(x), _}, ty) =>
-    /* Remove recursive type references */
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Rec(_, ty) => vars(ty)
-  | List(ty) => vars(ty)
-  | Parens(ty)
-  | Projector(_, ty) => vars(ty)
-  | Poly({term: Var(x), _}, ty) =>
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Poly(_, ty) => vars(ty)
-  | ProofOf(_) => []
-  | ExplicitNonlabel
-  | Label(_) => []
-  | TupLabel(_, ty)
-  | ProdProjection(ty, _) => vars(ty)
-  | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Sig(_) => []
-  };
-
-let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
-  let defs =
-    List.concat_map(
-      var =>
-        switch (Ctx.lookup_alias(ctx, var)) {
-        | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
-        },
-      vars(ty),
-    )
-    |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
-  let rec_calls =
-    List.concat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
-  rec_calls @ defs;
-};
-
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;
   var_count := x + 1;
   var_name ++ "_α" ++ string_of_int(x);
-};
-
-/* Calculates the total number of nodes (compound
-   and leaf) in the type AST. */
-let rec num_nodes = (ty: t): int => {
-  switch (ty.term) {
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Unknown(_) => 1
-  | Var(_) => 1
-  | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
-  | Prod(tys) =>
-    1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
-  | Sum(sm) =>
-    1
-    + List.fold_left(
-        (acc, variant) =>
-          switch (variant) {
-          | ConstructorMap.BadEntry(_) => acc
-          | Variant(_, _, ty) =>
-            acc + Util.OptUtil.get(() => 0, Option.map(num_nodes, ty))
-          },
-        0,
-        sm,
-      )
-  | Rec(_, ty) => 1 + num_nodes(ty)
-  | List(ty) => 1 + num_nodes(ty)
-  | Parens(ty)
-  | Projector(_, ty) => 1 + num_nodes(ty)
-  | Poly(_, ty) => 1 + num_nodes(ty)
-  | ExplicitNonlabel
-  | Label(_) => 1
-  | TupLabel(_, ty) => 1 + num_nodes(ty)
-  | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
-  | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
-  | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
-  | Sig(_) => 1
-  };
 };
 
 /* Number of Unknown constructors in type AST */
@@ -445,30 +309,6 @@ let rec count_unknowns = (ty: t): int =>
   };
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
-
-let rec contains_sum_or_var = (ty: t): bool =>
-  switch (ty.term) {
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Unknown(_) => false
-  | Var(_)
-  | Sum(_) => true
-  | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
-  | Prod(tys) => List.exists(contains_sum_or_var, tys)
-  | Rec(_, ty) => contains_sum_or_var(ty)
-  | List(ty) => contains_sum_or_var(ty)
-  | Parens(ty)
-  | Projector(_, ty) => contains_sum_or_var(ty)
-  | Poly(_, ty) => contains_sum_or_var(ty)
-  | ProofOf(_) => false
-  | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
-  | ProdExtension(ty1, ty2) =>
-    contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
-  | ExplicitNonlabel
-  | Label(_) => false
-  | TupLabel(_, ty) => contains_sum_or_var(ty)
-  | Sig(_) => false
-  };
 
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
@@ -1266,15 +1106,6 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   switch (met) {
   | None => false
   | Some(met) => Equality.semantic.typ(met, ty1)
-  };
-};
-
-let rec get_labels = (ctx, ty): list(option(string)) => {
-  let ty = weak_head_normalize(ctx, ty);
-  switch (term_of(ty)) {
-  | Parens(ty) => get_labels(ctx, ty)
-  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
-  | _ => []
   };
 };
 

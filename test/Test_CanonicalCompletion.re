@@ -1866,9 +1866,13 @@ let clippable_guard_tests = {
       Alcotest.(check(string))(
         "coverage",
         /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
-           Pat mold. Re-decided, not repinned blindly: 9/88 is still
-           real signal, so clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+           Pat mold. Typ 14 -> 15, TPat 2 -> 4: dev's symbolic
+           delimiter-prefix backup molds (`-` en route to `->`, `=` en
+           route to `=>`) are sort-agnostic and get_base now lists them
+           behind the real molds. Re-decided, not repinned blindly: 9,
+           15 and 4 of 88 are still real signal, so clippable_sort
+           stands. */
+        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
         table,
       )
     ),

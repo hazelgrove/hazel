@@ -27,9 +27,6 @@ module Rows = {
   };
   type t = IntMap.t(shape);
 
-  let max_col = (rs: list(row), map: t) =>
-    rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
-
   let min_content_start = (rs: list(row), map: t) =>
     rs
     |> List.map(r => find(r, map).content_start)
@@ -401,7 +398,7 @@ let of_segment_inner =
       };
     } else if (Secondary.is_space(w)) {
       /* Space: add to segment but don't update content bounds */
-      let size = Point.mk(~row=0, ~col=Secondary.length(w));
+      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
       let (measure, map) = calc_inline(acc.pos, acc.map, size);
       {
         seg: [Piece.Secondary(w), ...acc.seg],
@@ -411,7 +408,7 @@ let of_segment_inner =
       };
     } else {
       /* Comment or other secondary: counts as content */
-      let size = Point.mk(~row=0, ~col=Secondary.length(w));
+      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
       let (measure, map) = calc_inline(acc.pos, acc.map, size);
       {
         seg: [Piece.Secondary(w), ...acc.seg],

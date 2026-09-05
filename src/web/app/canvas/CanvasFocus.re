@@ -99,7 +99,7 @@ let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
   | Some(InfoExp(e)) =>
     Some(CanvasGraph.pretty_ty(Language.Info.exp_ty(e)))
   | Some(InfoPat(p)) =>
-    Some(CanvasGraph.pretty_ty(Language.Info.pat_ty(p)))
+    Some(CanvasGraph.pretty_ty((p: Language.Info.pat).ana))
   | _ => None
   };
 

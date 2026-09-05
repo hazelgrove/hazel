@@ -641,6 +641,28 @@ let rec sig_members = (t: Typ.t): list((string, Typ.t)) =>
 
 /* ---------- assembly ---------- */
 
+/* a repeated definition (a second `type Pos`) would give two nodes one
+   key, and the vdom two keyed children with one key — which breaks its
+   child patching (insertBefore of nothing). Later duplicates get `#2`,
+   `#3`…; references by key resolve to the first, as in HighLevelNodeMap. */
+let uniquify_keys = (nodes: list(tynode)): list(tynode) => {
+  let seen = Hashtbl.create(16);
+  List.map(
+    (n: tynode) => {
+      let count =
+        Option.value(Hashtbl.find_opt(seen, n.key), ~default=0) + 1;
+      Hashtbl.replace(seen, n.key, count);
+      count == 1
+        ? n
+        : {
+          ...n,
+          key: n.key ++ "#" ++ string_of_int(count),
+        };
+    },
+    nodes,
+  );
+};
+
 let extract =
     (~test_results: option(TestResults.t)=?, statics: CachedStatics.t): t => {
   let info_map = statics.info_map;
@@ -1277,7 +1299,7 @@ let extract =
       alias_nodes,
     );
   {
-    nodes: alias_nodes @ extras^,
+    nodes: uniquify_keys(alias_nodes @ extras^),
     edges,
     values,
     loose_tests,

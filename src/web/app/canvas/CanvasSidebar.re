@@ -429,7 +429,7 @@ module CanvasMenuListener =
     let scroll_into_view = false;
     let close_on_scroll = false;
   });
-let canvas_menu: ref(Util.Menu.t) = ref(Util.Menu.closed);
+let canvas_menu: ref(Util.Menu.t) = ref(None: Util.Menu.t);
 /* viewport coords for the fixed-position menu box */
 let canvas_menu_client: ref((float, float)) = ref((0., 0.));
 /* model coords of the right-click, for inserts */
@@ -1856,7 +1856,7 @@ let view_impl =
   /* ---- canvas context menu ---- */
   let nudge = globals.inject_global(Set(CanvasTick));
   let menu_close = (): unit => {
-    canvas_menu := Util.Menu.closed;
+    canvas_menu := None;
     canvas_menu_node := None;
   };
   /* icon palette: gestures are glyphs with tooltips, not text rows.
@@ -2784,10 +2784,9 @@ let view_impl =
                         draws on when the ride would have ended */
                      [
                        (CanvasView.path_dom_id(name), Option.none),
-                       (
-                         CanvasView.orbit_dom_id(name),
-                         Option.some(t + e.dur),
-                       ),
+                       /* drawn on over the ride's span, so it is whole
+                          before the pill lands */
+                       (CanvasView.orbit_dom_id(name), Option.some(t)),
                        ...ds,
                      ],
                      ls,

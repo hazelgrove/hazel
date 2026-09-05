@@ -142,14 +142,6 @@ module Model = {
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent

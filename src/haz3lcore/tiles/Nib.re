@@ -35,9 +35,6 @@ module Shape = {
     | Concave(_) => Direction.toggle(d)
     };
 
-  let relative = (nib: Direction.t, side: Direction.t): t =>
-    nib == side ? Convex : concave();
-
   let direction_of = (d: Direction.t, shape: t): Direction.t =>
     switch (shape) {
     | Convex => d
@@ -52,8 +49,3 @@ type t = {
 };
 
 let shape = n => n.shape;
-
-let flip = (nib: t) => {
-  ...nib,
-  shape: Shape.flip(nib.shape),
-};

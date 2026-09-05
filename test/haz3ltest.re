@@ -8,9 +8,12 @@ Printexc.register_printer(exn => {
   }
 });
 
-let (suite, _) =
+/* run_and_report always runs Alcotest with and_exit=false so it can produce a
+   report, and hands the exit back as a function. ~and_exit=true makes that
+   function exit with the test status rather than raise Test_error. */
+let (suite, exit_with_test_status) =
   run_and_report(
-    ~and_exit=false,
+    ~and_exit=true,
     ~argv=Sys.argv,
     "HazelTests",
     [
@@ -26,6 +29,7 @@ let (suite, _) =
       Test_Atom.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
+      Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -38,6 +42,7 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_Unicode.tests
     @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
@@ -101,3 +106,7 @@ let (suite, _) =
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
+
+/* Must be last, and is the only thing that turns a failing test into a non-zero
+   exit status. */
+exit_with_test_status();
