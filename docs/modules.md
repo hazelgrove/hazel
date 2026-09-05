@@ -396,5 +396,6 @@ used only for mispositioned items.
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
-| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide                         |
+| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, qualified types, signatures, errors) |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (width subtyping, abstract types). Kept separate because statics recursion depth grows with the `let` chain, and one slide of both was at the JavaScript stack limit |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
