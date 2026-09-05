@@ -120,6 +120,11 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TypAbstractMemberOfSignature(a), TypAbstractMemberOfSignature(b)) =>
       a == b
     | (
+        SigDuplicateMember({name: n1, type_member: t1}),
+        SigDuplicateMember({name: n2, type_member: t2}),
+      ) =>
+      n1 == n2 && t1 == t2
+    | (
         ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),
         ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),
       ) =>

@@ -286,6 +286,7 @@ let core_mark_err_view =
     | ModuleTypeMemberNotFound(_)
     | TypWantModule(_)
     | TypAbstractMemberOfSignature(_)
+    | SigDuplicateMember(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -878,6 +879,7 @@ let exp_mark_err_view =
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
   | TypAbstractMemberOfSignature(_)
+  | SigDuplicateMember(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -1205,12 +1207,29 @@ let tpat_view =
   };
 };
 
+/* A signature item: its class, or the error the signature attributes to it. */
+let sig_mark_view = (m: Mark.t): list(Node.t) =>
+  switch (m) {
+  | SigDuplicateMember({name, type_member}) => [
+      text(type_member ? "Type member " : "Member "),
+      code(name),
+      text(" is declared more than once in this signature"),
+    ]
+  | _ => [text("Signature error")]
+  };
+
+let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | None => div_ok([text(cls |> Cls.show)])
+  | Some(m) => div_err(sig_mark_view(m))
+  };
+
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, marks, _}) => wrapper(sig_view(cls, ~marks))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
