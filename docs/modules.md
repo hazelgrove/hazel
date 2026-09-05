@@ -377,8 +377,12 @@ the first matching form). `Insert.upgrade_bare_sig_type` runs when `=` is
 inserted: if the pieces to the left of the caret are a bare `type` tile in
 the Sig sort followed by at most one type-pattern token (and whitespace), the
 tile is relabeled to the manifest form with its `=` missing, so the ordinary
-backpack put-down completes `type T = ¦`. There is no downgrade; delete the
-`=` to get a hole instead. In the text parser the bare form is
+backpack put-down completes `type T = ¦`. Deleting that `=` runs the inverse,
+`Insert.downgrade_bare_sig_type` (from `Destruct`): the tile becomes the bare
+form again and the old definition is left dangling as a stray type, to be
+removed or reattached by retyping `=`. A module-body `type T = _` has no bare
+form and stays an incomplete tile waiting for `=`. In the text parser the
+bare form is
 `SigItemTypeAbstract` (`Parser.mly`: `TYP tpat` inside a signature).
 
 ### Cursor Inspector and Statics Info

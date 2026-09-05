@@ -2434,9 +2434,57 @@ let module_tests = [
 /* ===== ABSTRACT SIGNATURE MEMBERS =====
    In a signature `type` expands to the bare form `type T` (an abstract type
    member). Typing `=` right after its type pattern upgrades the tile to the
-   manifest form `type T = ?` (Insert.upgrade_bare_sig_type); there is no
-   downgrade. In a module body `type` still expands to `type T = ?`. */
+   manifest form `type T = ?` (Insert.upgrade_bare_sig_type); deleting that
+   `=` downgrades it again (Insert.downgrade_bare_sig_type), leaving any
+   definition dangling as a stray type for the user to remove or reattach by
+   retyping `=`. In a module body `type` keeps its definition form both ways.
+   The printer shows a bare tile and an incomplete `type T =` tile alike, so
+   the downgrade cases use test_complete and sig_item_kinds. */
+
+/* The classes of the signature items in the annotation of the program's
+   outermost `let m : { ... }` or `module M : { ... }` binding. */
+let sig_item_kinds = (acts: list(Action.t)): list(string) => {
+  let z = acts |> perform(Zipper.init());
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let rec of_typ = (ty: Language.Typ.t) =>
+    switch (Language.IdTagged.term_of(ty)) {
+    | Sig(items) =>
+      List.map(
+        (item: Language.Sig.t) =>
+          Language.Sig.(cls_of_term(item.term) |> show_cls),
+        items,
+      )
+    | Parens(ty) => of_typ(ty)
+    | _ => ["not-a-signature"]
+    };
+  let rec of_pat = (p: Language.Pat.t) =>
+    switch (Language.IdTagged.term_of(p)) {
+    | Asc(_, ty) => of_typ(ty)
+    | Parens(p) => of_pat(p)
+    | _ => ["no-annotation"]
+    };
+  switch (Language.IdTagged.term_of(term)) {
+  | Let(p, _, _) => of_pat(p)
+  | ModuleExp(mp, _, _) =>
+    switch (Language.IdTagged.term_of(mp)) {
+    | Asc(_, ty) => of_typ(ty)
+    | _ => ["no-annotation"]
+    }
+  | _ => ["not-a-binding"]
+  };
+};
+
+let kinds_test = (~name, ~acts, ~kinds): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(list(string), name, kinds, sig_item_kinds(acts))
+  );
+
+let abstract_kind = "Abstract type declaration";
+let manifest_kind = "Type declaration";
+let let_kind = "Let declaration";
+
 let sig_abstract_tests = [
+  /* --- Typing the bare form --- */
   test_complete(
     ~name="Sig abstract: bare type member typed left-to-right",
     ~acts=
@@ -2446,11 +2494,84 @@ let sig_abstract_tests = [
     ~goal=
       {|let m : { type T; let x : T } = { type T = Int; let x = 1 } in m¦|},
   ),
+  kinds_test(
+    ~name="Sig abstract: bare and let members parse as such",
+    ~acts=mk({|let m : { type T; let x : T } = 1 in m¦|}),
+    ~kinds=[abstract_kind, let_kind],
+  ),
+  test_complete(
+    ~name="Sig abstract: module keyword with an abstract annotation",
+    ~acts=
+      mk(
+        {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in M.x¦|},
+      ),
+    ~goal=
+      {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in M.x¦|},
+  ),
+  test_complete(
+    ~name="Sig abstract: module-typed function parameter",
+    ~acts=mk({|let f = fun (m : { type T; let x : T }) -> m.x¦ in f|}),
+    ~goal={|let f = fun (m : { type T; let x : T }) -> m.x¦ in f|},
+  ),
+  test_complete(
+    ~name="Mod: type in a module body still expands to a definition",
+    ~acts=mk({|{ type T = Int; let x = 1 }¦|}),
+    ~goal={|{ type T = Int; let x = 1 }¦|},
+  ),
+  /* --- Adding `=`: the upgrade --- */
   test_complete(
     ~name="Sig abstract: = upgrades a bare member to a manifest one",
     ~acts=
       mk({|let m : { type T¦ } = 1 in m|}) @ string_to_ltr_actions(" = Int"),
     ~goal={|let m : { type T = Int¦ } = 1 in m|},
+  ),
+  kinds_test(
+    ~name="Sig abstract: the upgraded member parses as manifest",
+    ~acts=
+      mk({|let m : { type T¦; let x : T } = 1 in m|})
+      @ string_to_ltr_actions(" = Int"),
+    ~kinds=[manifest_kind, let_kind],
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades before a following item",
+    ~acts=
+      mk({|let m : { type T¦; let x : T } = 1 in m|})
+      @ string_to_ltr_actions(" = Int"),
+    ~goal={|let m : { type T = Int¦; let x : T } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades with a space before the caret",
+    ~acts=
+      mk({|let m : { type T ¦} = 1 in m|}) @ string_to_ltr_actions("= Int"),
+    ~goal={|let m : { type T = Int¦} = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades the last of two abstract members",
+    ~acts=
+      mk({|let m : { type T; type U¦ } = 1 in m|})
+      @ string_to_ltr_actions(" = Int"),
+    ~goal={|let m : { type T; type U = Int¦ } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades inside a module keyword annotation",
+    ~acts=
+      mk({|module M : { type T¦ } = { type T = Int } in M|})
+      @ string_to_ltr_actions(" = Int"),
+    ~goal={|module M : { type T = Int¦ } = { type T = Int } in M|},
+  ),
+  kinds_test(
+    ~name="Sig abstract: module keyword annotation parses as manifest after =",
+    ~acts=
+      mk({|module M : { type T¦ } = { type T = Int } in M|})
+      @ string_to_ltr_actions(" = Int"),
+    ~kinds=[manifest_kind],
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades inside a nested signature",
+    ~acts=
+      mk({|let m : { module Inner : { type T¦ } } = 1 in m|})
+      @ string_to_ltr_actions(" = Int"),
+    ~goal={|let m : { module Inner : { type T = Int¦ } } = 1 in m|},
   ),
   /* The hole lands before the space, as it does when `=` is put down after
      `type ` in a module body or an expression. */
@@ -2459,6 +2580,13 @@ let sig_abstract_tests = [
     ~acts=
       mk({|let m : { type ¦ } = 1 in m|}) @ string_to_ltr_actions("= Int"),
     ~goal={|let m : { type? = Int¦ } = 1 in m|},
+  ),
+  /* Typed before the type pattern, `=` still upgrades; the pattern becomes
+     the definition and the type pattern a hole, as in the other sorts. */
+  test_complete(
+    ~name="Sig abstract: = typed before the type pattern",
+    ~acts=mk({|let m : { type ¦T } = 1 in m|}) @ [Insert("=")],
+    ~goal={|let m : { type? =¦T } = 1 in m|},
   ),
   test(
     ~name="Sig abstract: = typed before the closing brace",
@@ -2470,6 +2598,121 @@ let sig_abstract_tests = [
     ~acts=mk({|let m : { type T; ¦} = 1 in m|}) @ [Insert("=")],
     ~goal={|let m : { type T;? =¦?} = 1 in m|},
   ),
+  test(
+    ~name="Sig abstract: no upgrade after the closing brace",
+    ~acts=mk({|let m : { type T }¦ = 1 in m|}) @ [Insert("=")],
+    ~goal={|let m : { type T }=¦? = 1 in m|},
+  ),
+  /* --- Removing `=`: the downgrade --- */
+  test_complete(
+    ~name="Sig abstract: deleting = downgrades to an abstract member",
+    ~acts=mk({|let m : { type T =¦ Int } = 1 in m|}) @ [Destruct(Left)],
+    ~goal={|let m : { type T ¦~ Int } = 1 in m|},
+  ),
+  kinds_test(
+    ~name="Sig abstract: after deleting = the member parses as abstract",
+    ~acts=mk({|let m : { type T =¦ Int } = 1 in m|}) @ [Destruct(Left)],
+    ~kinds=[abstract_kind, "Broken signature"],
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = and the space before it",
+    ~acts=
+      mk({|let m : { type T = ¦Int } = 1 in m|})
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|let m : { type T ¦~Int } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = forward",
+    ~acts=mk({|let m : { type T ¦= Int } = 1 in m|}) @ [Destruct(Right)],
+    ~goal={|let m : { type T~ ¦ Int } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting a selected =",
+    ~acts=
+      mk({|let m : { type T ¦= Int } = 1 in m|})
+      @ [Select(Resize(Local(Right, ByToken))), Destruct(Left)],
+    ~goal={|let m : { type T ¦~ Int } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = before a following item",
+    ~acts=
+      mk({|let m : { type T =¦ Int; let x : T } = 1 in m|})
+      @ [Destruct(Left)],
+    ~goal={|let m : { type T ¦~ Int; let x : T } = 1 in m|},
+  ),
+  test_complete(
+    ~name=
+      "Sig abstract: deleting = leaves an explicit hole definition dangling",
+    ~acts=mk({|let m : { type T =¦ ? } = 1 in m|}) @ [Destruct(Left)],
+    ~goal={|let m : { type T ¦~ ? } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = with a compound definition",
+    ~acts=
+      mk({|let m : { type T =¦ (Int, Int) } = 1 in m|}) @ [Destruct(Left)],
+    ~goal={|let m : { type T ¦~ (Int, Int) } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = inside a module keyword annotation",
+    ~acts=
+      mk({|module M : { type T =¦ Int } = { type T = Int } in M|})
+      @ [Destruct(Left)],
+    ~goal={|module M : { type T ¦~ Int } = { type T = Int } in M|},
+  ),
+  test_complete(
+    ~name="Sig abstract: deleting = then the dangling definition",
+    ~acts=
+      mk({|let m : { type T =¦ Int } = 1 in m|})
+      @ [Destruct(Left)]
+      @ List.init(5, _ => Action.Destruct(Right)),
+    ~goal={|let m : { type T ¦ } = 1 in m|},
+  ),
+  kinds_test(
+    ~name=
+      "Sig abstract: after removing the definition only the abstract member remains",
+    ~acts=
+      mk({|let m : { type T =¦ Int } = 1 in m|})
+      @ [Destruct(Left)]
+      @ List.init(5, _ => Action.Destruct(Right)),
+    ~kinds=[abstract_kind],
+  ),
+  /* A module body has no bare form: the tile stays incomplete, waiting for
+     `=` to be put down again. */
+  test(
+    ~name="Mod: deleting = in a module body keeps the definition form",
+    ~acts=mk({|{ type T =¦ Int }|}) @ [Destruct(Left)],
+    ~goal={|{ type T ¦~ Int }|},
+  ),
+  /* --- Round trips --- */
+  test_complete(
+    ~name="Sig abstract: upgrade then downgrade",
+    ~acts=
+      mk({|let m : { type T¦ } = 1 in m|})
+      @ string_to_ltr_actions(" = Int")
+      @ mv_l(4)
+      @ [Destruct(Left)],
+    ~goal={|let m : { type T ¦~ Int } = 1 in m|},
+  ),
+  test_complete(
+    ~name="Sig abstract: upgrade, downgrade, upgrade again",
+    ~acts=
+      mk({|let m : { type T¦ } = 1 in m|})
+      @ string_to_ltr_actions(" = Int")
+      @ mv_l(4)
+      @ [Destruct(Left)]
+      @ string_to_ltr_actions("="),
+    ~goal={|let m : { type T =¦ Int } = 1 in m|},
+  ),
+  kinds_test(
+    ~name="Sig abstract: upgrade, downgrade, upgrade again parses as manifest",
+    ~acts=
+      mk({|let m : { type T¦ } = 1 in m|})
+      @ string_to_ltr_actions(" = Int")
+      @ mv_l(4)
+      @ [Destruct(Left)]
+      @ string_to_ltr_actions("="),
+    ~kinds=[manifest_kind],
+  ),
   /* Term selection grows from the type pattern to the whole signature, as it
      does from `Int` in a manifest `type T = Int` item. */
   test(
@@ -2478,11 +2721,6 @@ let sig_abstract_tests = [
       mk({|let m : { type ¦T; let x : T } = 1 in m|})
       @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|let m : §{ type T; let x : T }¦ = 1 in m|},
-  ),
-  test_complete(
-    ~name="Mod: type in a module body still expands to a definition",
-    ~acts=mk({|{ type T = Int; let x = 1 }¦|}),
-    ~goal={|{ type T = Int; let x = 1 }¦|},
   ),
 ];
 
