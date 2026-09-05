@@ -55,7 +55,10 @@ module M: Projector = {
             ~attrs=[Attr.classes(["fumola-peek-reads"])],
             [text(model.reads)],
           ),
-          span(~attrs=[Attr.classes(["fumola-peek-arrow"])], [text("⇒")]),
+          span(
+            ~attrs=[Attr.classes(["fumola-peek-arrow"])],
+            [text("⇒")],
+          ),
           span(
             ~attrs=[Attr.classes(["fumola-peek-value"])],
             [text(model.shown)],

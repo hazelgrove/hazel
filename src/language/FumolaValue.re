@@ -261,7 +261,11 @@ let projected = (~reads: string, ~shown: string, peek: TermBase.Exp.t) =>
     Projector(
       {
         kind: ProjectorKind.FumolaPeek,
-        model: FumolaPeekModel.serialize({reads, shown}),
+        model:
+          FumolaPeekModel.serialize({
+            reads,
+            shown,
+          }),
       },
       peek,
     ),
@@ -381,7 +385,13 @@ and exp_of_tagged =
           projected(
             ~reads,
             ~shown=describe_value(value),
-            DHExp.fresh(FumolaPeek({instance_id, reads, value})),
+            DHExp.fresh(
+              FumolaPeek({
+                instance_id,
+                reads,
+                value,
+              }),
+            ),
           ),
         );
       };
