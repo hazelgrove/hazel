@@ -3809,7 +3809,18 @@ and utyp_to_info_map =
       | (None, Some((items, self)), Label(l)) =>
         /* `M.T`: a type member of a module path or signature alias. */
         switch (Typ.sig_project_type_member(~self?, items, l)) {
-        | Some((TypeAbstract(_), ty')) => ok(Message.PathAbstract(ty'))
+        | Some((TypeAbstract(_), ty')) =>
+          switch (self) {
+          | Some(_) => ok(Message.PathAbstract(ty'))
+          | None =>
+            /* A signature alias names no module, so it names no abstract
+               member either; the error is on the label. */
+            ok(
+              Message.TypeUnderdetermined(
+                Message.AbstractMemberOfSignature(l),
+              ),
+            )
+          }
         | Some((_, ty')) =>
           ok(
             Message.WHNormalizedTo({
@@ -3969,16 +3980,20 @@ and utyp_to_info_map =
         ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
-    | (ModuleMemberExpected({members, submodule}), Label(name)) =>
-      List.mem(name, members)
-        ? ok(Message.Type(utyp))
-        : err(
-            ModuleTypeMemberNotFound({
-              name,
-              members,
-              submodule,
-            }),
-          )
+    | (ModuleMemberExpected({members, submodule, unnameable}), Label(name)) =>
+      if (List.mem(name, unnameable)) {
+        err(TypAbstractMemberOfSignature(name));
+      } else if (List.mem(name, members)) {
+        ok(Message.Type(utyp));
+      } else {
+        err(
+          ModuleTypeMemberNotFound({
+            name,
+            members,
+            submodule,
+          }),
+        );
+      }
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
       err(TypWantConstructorFoundType(utyp))
@@ -4064,20 +4079,37 @@ and utyp_to_info_map =
   | ProdProjection(t, label) =>
     let label_expects: TypExpectation.t =
       switch (Typ.path_sig(ctx, t)) {
-      | Some((items, _)) =>
+      | Some((items, self)) =>
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
-           at the end it names a type member. */
+           at the end it names a type member. Through a signature alias (no
+           module path) an abstract member cannot be named. */
         switch (expects) {
         | ProductExpected =>
           ModuleMemberExpected({
             members: Typ.sig_module_member_names(ctx, items),
             submodule: true,
+            unnameable: [],
           })
         | _ =>
+          let members = Sig.members(items);
           ModuleMemberExpected({
-            members: Sig.type_names(Sig.members(items)),
+            members: Sig.type_names(members),
             submodule: false,
-          })
+            unnameable:
+              switch (self) {
+              | Some(_) => []
+              | None =>
+                List.filter_map(
+                  (m: Sig.member) =>
+                    switch (m) {
+                    | TypeAbstract(n) => Some(n)
+                    | TypeManifest(_)
+                    | Val(_) => None
+                    },
+                  members,
+                )
+              },
+          });
         }
       | None =>
         switch (Typ.weak_head_normalize(ctx, t).term) {

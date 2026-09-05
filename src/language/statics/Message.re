@@ -45,6 +45,7 @@ type underdetermined_typ =
   | ProdExtensionUnderdetermined(list(Typ.t))
   | ProdProjectionMissingLabel(LabeledTuple.label, list(LabeledTuple.label))
   | ModuleTypeMemberMissing(Var.t, list(Var.t))
+  | AbstractMemberOfSignature(Var.t)
   | ProdProjectionBadArgs({
       product: option(Typ.t),
       label: option(Typ.t),
