@@ -1708,3 +1708,15 @@
   font-size: 11px;
   line-height: 15px;
 }
+
+/* the bubble takes the error tint while the avatar jitters */
+.canvas-avatar.avatar-err .canvas-avatar-bubble .say-shape path,
+.canvas-avatar.avatar-err .canvas-avatar-bubble .bubble-shape path,
+.canvas-avatar.avatar-err .bubble-tails .cloud-puff {
+  fill: #f6cfc4;
+  stroke: #8a2a1a;
+}
+.canvas-avatar.avatar-err .canvas-avatar-bubble .say-text,
+.canvas-avatar.avatar-err .canvas-avatar-bubble .bubble-text {
+  color: #8a2a1a;
+}

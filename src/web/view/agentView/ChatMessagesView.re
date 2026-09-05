@@ -753,6 +753,23 @@ module ChatMessagesScrollHook = {
     let on_mount = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
+      /* keep up every frame while pinned: streamed text, autosizing
+         textareas and late layout all grow the list between renders, and
+         waiting for a render left the list sitting at the top for
+         readers who never scrolled */
+      let rec follow = (_: float) =>
+        if (state.listener_id != None) {
+          if (ChatScrollPin.request^) {
+            ChatScrollPin.request := false;
+            state.stick_to_bottom = true;
+          };
+          if (state.stick_to_bottom && !is_near_bottom(element)) {
+            scroll_to_bottom(element);
+          };
+          ignore(
+            Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+          );
+        };
       let handler =
         Dom.handler(_evt => {
           state.stick_to_bottom = is_near_bottom(element);
@@ -766,6 +783,9 @@ module ChatMessagesScrollHook = {
           Js._false,
         );
       state.listener_id = Some(id);
+      ignore(
+        Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+      );
     };
 
     /* every render while pinned, not only when the stamp changes: streamed
@@ -791,7 +811,9 @@ module ChatMessagesScrollHook = {
 
     let destroy = (_input: Input.t, state: State.t, _element) =>
       switch (state.listener_id) {
-      | Some(id) => Dom_html.removeEventListener(id)
+      | Some(id) =>
+        Dom_html.removeEventListener(id);
+        state.listener_id = None; /* stops the follow loop */
       | None => ()
       };
   });
@@ -1707,10 +1729,10 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
-          // Filbert identifier
+          // Trine identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [CanvasAvatar.brand_icon(), text("Filbert")],
+            [CanvasAvatar.brand_icon(), text("Trine")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
@@ -1886,7 +1908,7 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [CanvasAvatar.brand_icon(), text("Filbert")],
+                      [CanvasAvatar.brand_icon(), text("Trine")],
                     ),
                     ...body_nodes,
                   ],

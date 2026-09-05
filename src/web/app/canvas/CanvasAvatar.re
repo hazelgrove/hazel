@@ -125,6 +125,10 @@ let set_travel_len = (len: float): unit => travel_len := len;
 /* the beam fades in and out over a few frames (the demo's beamAlpha) */
 let beam_alpha: ref(float) = ref(0.);
 let last_thinking: ref(bool) = ref(false);
+/* after an arrival the body swings back to a rest pose (sheet 2: rot lerped
+   home at dt·2 after travel had turned it to face the heading) — the
+   "shedding momentum" spin; here the nearest rest pose, for 1.2 s */
+let settle_until: ref(float) = ref(0.);
 
 /* ---- the rig: three vertices on springs, driven every frame ----
    The mockup's body (plans/agent-canvas-mockups/avatar-concepts-4.html):
@@ -403,6 +407,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   if (rig.was_traveling && !traveling) {
     rig.aspect = 0.72;
     rig.aspect_v = 0.;
+    settle_until := rig.t +. 1.2; /* swing to a rest pose after landing */
   };
   rig.was_traveling = traveling;
   rig.aspect_v =
@@ -437,6 +442,12 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   } else if (editing) {
     rig.rot = rig.rot +. dt *. 0.5;
     r := r^ *. 1.35;
+  } else if (rig.t < settle_until^) {
+    /* just landed: swing to the nearest rest pose (a multiple of 120°),
+       fast at first, then ease — the demo's post-travel settle */
+    let third = tau /. 3.;
+    let home = Float.round(rig.rot /. third) *. third;
+    rig.rot = rig.rot +. (home -. rig.rot) *. min(1., dt *. 4.);
   } else {
     /* idle: a slow turn, so it is never a still picture */
     rig.rot =

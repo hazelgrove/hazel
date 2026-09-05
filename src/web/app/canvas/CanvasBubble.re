@@ -308,18 +308,28 @@ let place = (): unit =>
       let tipx = cx +. dx *. r
       and tipy = cy +. dy *. r;
       /* the bubble box: its near corner at gap g beyond the tip */
-      let g =
-        switch (m) {
-        | Speech => 9.
-        | Thought
-        | Hidden => 13.
-        };
       let w: float = Js.Unsafe.get(bub, "offsetWidth")
       and h: float = Js.Unsafe.get(bub, "offsetHeight");
-      let kx = tipx +. dx *. g
-      and ky = tipy +. dy *. g;
-      let left = sx < 0. ? kx -. w : kx
-      and top = sy < 0. ? ky -. h : ky;
+      /* speech: the box's near corner sits 9 px beyond the tip (the tail
+         spans the gap). thought: the cloud is ellipse-like, so its box
+         corner is far from its outline — place the OUTLINE point facing
+         the avatar (on an ellipse inset in the box) 17 px beyond the tip,
+         past the two puffs */
+      let (left, top) =
+        switch (m) {
+        | Speech =>
+          let kx = tipx +. dx *. 9.
+          and ky = tipy +. dy *. 9.;
+          (sx < 0. ? kx -. w : kx, sy < 0. ? ky -. h : ky);
+        | Thought
+        | Hidden =>
+          let a = max(1., w /. 2. -. 7.)
+          and b = max(1., h /. 2. -. 5.);
+          let re = 1. /. sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
+          let ccx = tipx +. dx *. (17. +. re)
+          and ccy = tipy +. dy *. (17. +. re);
+          (ccx -. w /. 2., ccy -. h /. 2.);
+        };
       set_style(bub, "left", f1(left) ++ "px");
       set_style(bub, "top", f1(top) ++ "px");
       /* the speech skin's outline, tail included */
@@ -345,7 +355,7 @@ let place = (): unit =>
               set_attr(c, "opacity", m == Thought ? "1" : "0");
             | None => ()
             },
-          [(".cloud-puff-1", 2.8, 2.6), (".cloud-puff-2", 10.6, 4.2)],
+          [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
         )
       | None => ()
       };
