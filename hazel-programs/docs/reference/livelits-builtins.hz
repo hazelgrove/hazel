@@ -31,7 +31,7 @@ let current_mood = ^^livelit(^emotion(0)) in
 
 # 3. ^fumola_new #
 # Expansion Type: Int -- the id naming the runtime                          #
-# Model: (Int, String) -- instance, semantics ("simple" or "graphical")     #
+# Model: (Int, + Simple + Graphical) -- instance, semantics                 #
 #                                                                           #
 # Declares a runtime and the Adapton semantics it runs. The other two       #
 # attach to whatever runtime their id names, so this is where a program     #
@@ -68,8 +68,9 @@ let current_mood = ^^livelit(^emotion(0)) in
 # that a thunk reads.                                                       #
 #                                                                          #
 # 6. The peek value (not a livelit) #
-# A program returning a pointer produces a value carrying the reference and #
-# what it points at: 1 := 2 gives a reference reading peek(1)! holding 2.   #
+# A program returning a pointer produces a value carrying the reference     #
+# and what it points at: 1 := 2 gives a reference shown as                  #
+# peek(1) = Some(2). The option is peek's own, spelled Hazel's way.         #
 # Evaluation continues through it, so a reference to an Int is usable as an #
 # Int, while the reference stays visible.                                   #
 #                                                                          #
@@ -94,7 +95,7 @@ let current_mood = ^^livelit(^emotion(0)) in
 # the thunk the first livelit made, by its name `t, which is why naming a   #
 # thunk explicitly matters: you can refer to it from somewhere else.        #
 #                                                                          #
-# The result is (137, peek(`x)! = 274, 137).                                #
+# The result is (137, peek(`x) = Some(274), 137).                           #
 let x : Int = ^fumola_put_force(0, "`t", "`x := 137 + 137; 137") in
 let x_ : Int = ^fumola_eval(0, "pointer(`x)") in
 let y : Int = ^fumola_eval(0, "force(pointer(`t))") in

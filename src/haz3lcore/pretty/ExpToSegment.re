@@ -1938,19 +1938,30 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        Building it during rendering means there is nothing to strip.
 
        The syntax underneath is the text form, so unprojecting still reads. */
-    let label =
+    let text = str =>
       Piece.Tile({
         id: Id.mk(),
-        label: [reads ++ " = "],
+        label: [str],
         mold: Mold.mk_op(Sort.Exp, []),
         shards: [0],
         children: [],
       });
-    let syntax = Segment.parenthesize([label, ...value_seg]);
+    /* peek answers an option, so a value that was found reads as Some of it.
+       A hole is left bare: Some of a hole would claim more than is known. */
+    let is_hole =
+      switch (value.term) {
+      | EmptyHole => true
+      | _ => false
+      };
+    let shown_seg =
+      is_hole
+        ? [text(reads ++ " = "), ...value_seg]
+        : [text(reads ++ " = Some("), ...value_seg] @ [text(")")];
+    let syntax = Segment.parenthesize(shown_seg);
     let model =
       Language.FumolaPeekModel.serialize({
         reads,
-        shown: Language.FumolaValue.describe_value(value),
+        shown: Language.FumolaValue.shown_value(value),
       });
     wrap(
       exp,

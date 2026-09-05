@@ -108,9 +108,9 @@ Three livelits: one declares a runtime, two run programs in one.
 
 | | |
 | --- | --- |
-| Model | `(Int, String)` -- instance id, Adapton semantics (`"simple"` or `"graphical"`) |
+| Model | `(Int, + Simple + Graphical)` -- instance id, Adapton semantics |
 | Expansion type | `Int` -- the id naming the runtime |
-| Default | `^fumola_new(0, "graphical")` |
+| Default | `^fumola_new(0, Graphical)` |
 
 Declares a runtime and the semantics it runs, and expands to the id that names
 it. The other two livelits attach to whatever runtime their id names, creating
@@ -119,11 +119,14 @@ which semantics it wants, once, where the runtime is made -- so that every
 livelit sharing that id is talking to a runtime whose mode was *declared*
 rather than inherited by accident.
 
+Fumola spells this type `{#simple; #graphical}`; Hazel spells the same
+structure `+ Simple + Graphical`, and the livelit API uses Hazel's spelling.
+
 Runtimes default to the simple semantics. That is a deliberate temporary
 choice: two incremental layers meet here, Hazel re-evaluating and Adapton
 repairing, and until how they compose is understood the predictable mode is
-the better default. It is intended to become `"graphical"`, matching Fumola
-itself, with simple asked for explicitly. The cost of simple is that there is
+the better default. It is intended to become `Graphical`, matching Fumola
+itself, with `Simple` asked for explicitly. The cost of simple is that there is
 no graph, so the graph introspection -- `Adapton.peekEvents()` and the edge
 lists in `peekInfo` -- has nothing to report on.
 
@@ -202,7 +205,7 @@ Not a livelit: a value form, `FumolaPeek`, produced when a program returns a
 value that program produced:
 
 ```text
-1 := 2   ->   FumolaPeek({instance_id, reads: "peek(1)!", value: 2})
+1 := 2   ->   FumolaPeek({instance_id, reads: "peek(1)", value: 2})
 ```
 
 A value rather than something that steps to one, so the reference stays
@@ -214,6 +217,20 @@ carried value rather than needing an annotation.
 `peek` rather than `get`, so that translating a result does not record a
 dependency in the runtime being translated; the `!` unwraps peek's option,
 assuming the cell is defined.
+
+What a reference *shows* is not quite the program that read it. The `!` is
+left off, and the option is put back on the right:
+
+```text
+peek(`x) = Some(41)
+```
+
+`!` is Fumola's option-unwrap and Hazel has no such operator, so
+`peek(`x)! = 41` invites reading the `! =` as Hazel's not-equals. Written
+this way the line is true of Fumola on its own terms -- peek answers an
+option -- and spelled the way Hazel spells one. A value that could not be
+read shows as a bare hole rather than `Some(?)`, which would claim more than
+is known.
 
 Pointers nest, each level keeping its own reference. A cell holding a pointer
 back to itself stops at a hole rather than being followed forever, and an
@@ -240,14 +257,7 @@ So `Gcd.gcd(12, 18)` works with no import. Everything else in the library is
 still reachable by importing its path, e.g.
 `import D "fumola/examples/deriveCompare";`.
 
-A Fumola pointer arrives as the livelit that reads it, ascribed with the type
-of what it points at:
-
-```text
-1 := 2   ->   (^fumola(<same instance>, "peek(1)!") : Int)
-```
-
-The type is found by dereferencing: translation runs `peek(<name>)!` in the
+A pointer's *type* is the type of what it points at, found by dereferencing: translation runs `peek(<name>)!` in the
 same instance and takes the type of the answer, following a chain of pointers
 for as long as it finds one. `peek` rather than `get`, so that translating a
 result does not record a dependency in the runtime being translated.

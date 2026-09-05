@@ -151,6 +151,15 @@ let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
  * error rather than silently as None. */
 let reading = (source: string): string => "peek(" ++ source ++ ")!";
 
+/* What a reference shows, which is not quite the program above.
+ *
+ * The `!` is left off. It is Fumola's option-unwrap, and Hazel has no such
+ * operator, so "peek(`x)! = 41" invites reading the "! =" as Hazel's
+ * not-equals. Dropping it leaves a statement that is true of Fumola on its
+ * own terms -- peek answers an option, and the option is shown on the right
+ * -- while the unwrapping stays an implementation detail of translation. */
+let reading_shown = (source: string): string => "peek(" ++ source ++ ")";
+
 /* The Hazel type of a Fumola result.
  *
  * A pointer's type is the type of what it points at, so this dereferences --
@@ -366,6 +375,18 @@ let rec describe_value = (e: TermBase.Exp.t): string =>
   | _ => "..."
   };
 
+/* The right-hand side a reference shows.
+ *
+ * peek answers an option, so a value that was found is shown as Some of it,
+ * in Hazel's spelling rather than Fumola's. A hole means the read found
+ * nothing worth showing -- a cycle, a cell with no Hazel translation, or one
+ * that has gone away -- and Some of a hole would claim more than we know. */
+let shown_value = (e: TermBase.Exp.t): string =>
+  switch (e.term) {
+  | EmptyHole => "?"
+  | _ => "Some(" ++ describe_value(e) ++ ")"
+  };
+
 /* Rendering a reference as a widget is done in ExpToSegment, not by wrapping
    the value in a Projector: evaluation strips a Projector -- it steps to its
    body -- so a wrapper never reaches a result, which is exactly where these
@@ -449,7 +470,7 @@ and exp_of_tagged =
 
          [seen] stops a cell that holds a pointer back to itself from being
          followed forever; a repeat yields a hole, whose type is Unknown. */
-      let reads = reading(source);
+      let reads = reading_shown(source);
       if (List.mem(source, seen)) {
         Ok(
           DHExp.fresh(
@@ -462,7 +483,7 @@ and exp_of_tagged =
         );
       } else {
         let value =
-          switch (eval(reads)) {
+          switch (eval(reading(source))) {
           | `Assoc(result) as pointed
               when List.assoc_opt("ok", result) == Some(`Bool(true)) =>
             switch (
@@ -637,7 +658,7 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Unit", _) => "()"
     | ("AdaptonPointer", `Assoc(fields)) =>
       switch (List.assoc_opt("source", fields)) {
-      | Some(`String(source)) => reading(source)
+      | Some(`String(source)) => reading_shown(source)
       | _ => "<pointer>"
       }
     | ("Symbol", symbol) =>

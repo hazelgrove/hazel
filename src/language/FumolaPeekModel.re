@@ -13,9 +13,11 @@ open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
  * would find none there. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  /* The Fumola program that reads the cell, e.g. "peek(`x)!". */
+  /* How the cell is read, as shown, e.g. "peek(`x)". Fumola's option
+     unwrap is left off: Hazel has no `!` operator, and "peek(`x)! = 41"
+     invites reading the "! =" as not-equals. */
   reads: string,
-  /* What that program produced, already rendered. */
+  /* What it answered, already rendered -- an option, e.g. "Some(41)". */
   shown: string,
 };
 

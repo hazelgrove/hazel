@@ -298,7 +298,7 @@ let forcedRecord : (x=Int, y=Bool) =
 # uses, stays simple -- ask it for an event count and it fails, since       #
 # there is no graph there to count.                                         #
 let myRuntime : Int =
-  ^fumola_new(7, "graphical") in
+  ^fumola_new(7, Graphical) in
 
 # The put_force and eval livelits name that runtime by its id.              #
 let onThatRuntime : Int =

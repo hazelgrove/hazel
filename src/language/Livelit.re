@@ -1061,12 +1061,41 @@ module FumolaEval =
 module FumolaNew: BuiltinLivelit = {
   let name = "fumola_new";
 
+  /* Fumola spells this {#simple; #graphical}. Hazel spells the same structure
+     + Simple + Graphical, and the livelit API uses Hazel's spelling: a mode
+     is a choice between two named alternatives, so it belongs in a sum rather
+     than in a string that happens to hold one of two words. */
+  let mode_t: TermBase.Typ.t =
+    BuiltinsADT.sum_type([("Simple", None), ("Graphical", None)]);
+
+  type mode =
+    | Simple
+    | Graphical;
+
+  /* The constructor, as Hazel writes it. */
+  let mode_name = (m: mode): string =>
+    switch (m) {
+    | Simple => "Simple"
+    | Graphical => "Graphical"
+    };
+
+  /* What the runtime is asked for, which is Fumola's own tag. */
+  let mode_source = (m: mode): string =>
+    switch (m) {
+    | Simple => "simple"
+    | Graphical => "graphical"
+    };
+
+  let mode_of_name = (name: string): option(mode) =>
+    switch (name) {
+    | "Simple" => Some(Simple)
+    | "Graphical" => Some(Graphical)
+    | _ => None
+    };
+
   type model_t = {
     instance_id: int,
-    /* "simple" or "graphical". Text rather than a Hazel constructor because
-       a model is Hazel syntax, and a string keeps the spelling the same on
-       both sides of the shim. */
-    mode: string,
+    mode,
   };
 
   type expansion_t = result(expansion_exp, string);
@@ -1075,28 +1104,31 @@ module FumolaNew: BuiltinLivelit = {
     | SetModel(model_t);
 
   let hazel_model_t: TermBase.Typ.t =
-    Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))]) |> Typ.fresh;
+    Prod([Typ.temp(Atom(Int)), mode_t]) |> Typ.fresh;
 
   let model_to_hazel: model_t => model_exp =
     (m: model_t) =>
       DHExp.fresh(
         Tuple([
           DHExp.fresh(Atom(Int(Bigint.of_int(m.instance_id)))),
-          DHExp.fresh(Atom(String(m.mode))),
+          DHExp.fresh(Constructor(mode_name(m.mode), Some(Some(mode_t)))),
         ]),
       );
 
   let model_from_hazel: model_exp => option(model_t) =
     (e: model_exp) =>
       switch (e.term) {
-      | Tuple([{term: Atom(Int(id)), _}, {term: Atom(String(mode)), _}]) =>
-        switch (int_of_string_opt(Bigint.to_string(id))) {
-        | Some(instance_id) =>
+      | Tuple([{term: Atom(Int(id)), _}, {term: Constructor(name, _), _}]) =>
+        switch (
+          int_of_string_opt(Bigint.to_string(id)),
+          mode_of_name(name),
+        ) {
+        | (Some(instance_id), Some(mode)) =>
           Some({
             instance_id,
             mode,
           })
-        | None => None
+        | _ => None
         }
       | _ => None
       };
@@ -1106,7 +1138,7 @@ module FumolaNew: BuiltinLivelit = {
      the simple one. */
   let model_default: model_t = {
     instance_id: 0,
-    mode: "graphical",
+    mode: Graphical,
   };
 
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
@@ -1129,7 +1161,10 @@ module FumolaNew: BuiltinLivelit = {
       switch (
         shim(
           "ensureMode",
-          [|js_int(model.instance_id), js_string(model.mode)|],
+          [|
+            js_int(model.instance_id),
+            js_string(mode_source(model.mode)),
+          |],
         )
       ) {
       | exception No_runtime => Error("the Fumola runtime is not loaded")
@@ -1199,7 +1234,7 @@ module FumolaNew: BuiltinLivelit = {
         [
           span(
             ~attrs=[Virtual_dom.Vdom.Attr.classes(["fumola-new-mode"])],
-            [text(model.mode)],
+            [text(mode_name(model.mode))],
           ),
           span(
             ~attrs=[Virtual_dom.Vdom.Attr.classes(["fumola-new-id"])],

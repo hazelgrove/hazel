@@ -180,13 +180,13 @@ let tests = (
           ),
         );
         let text = Haz3lcore.Printer.of_segment(~holes="", flattened);
-        /* Parenthesized, so a multi-part value cannot read as several: bare,
-           "peek(`t)! = 1, true" in a comma-separated list looks like two
-           elements rather than one. */
+        /* Parenthesized, so a multi-part value cannot read as several:
+           bare, "peek(`t) = Some(1, true)" sitting in a comma-separated
+           list would look like two elements rather than one. */
         Alcotest.check(
           Alcotest.string,
           "and it reads as the reference and its value, not a gap",
-          "(peek(`x)! = 41)",
+          "(peek(`x) = Some(41))",
           text,
         );
       }
@@ -583,7 +583,7 @@ let tests = (
         Alcotest.check(
           Alcotest.string,
           "reads the cell",
-          "peek(`counter)!",
+          "peek(`counter)",
           reads,
         );
         switch (value.term) {
@@ -686,7 +686,7 @@ let tests = (
         translate({|{"tag":"AdaptonPointer","value":{"source":"`gone"}}|})
       ) {
       | Ok({term: FumolaPeek({reads, value, _}), _}) =>
-        Alcotest.check(Alcotest.string, "reads", "peek(`gone)!", reads);
+        Alcotest.check(Alcotest.string, "reads", "peek(`gone)", reads);
         switch (value.term) {
         | EmptyHole => ()
         | _ => Alcotest.fail("expected an unknown value")
@@ -828,8 +828,9 @@ let tests = (
             ProjectorKind.name(kind),
           );
           let m = FumolaPeekModel.deserialize(model);
-          Alcotest.check(Alcotest.string, "reads", "peek(`n)!", m.reads);
-          Alcotest.check(Alcotest.string, "shown", "41", m.shown);
+          Alcotest.check(Alcotest.string, "reads", "peek(`n)", m.reads);
+          /* peek answers an option, and the option is what is shown. */
+          Alcotest.check(Alcotest.string, "shown", "Some(41)", m.shown);
         | _ => Alcotest.fail("expected a projector piece in the segment")
         };
       }
