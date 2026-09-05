@@ -852,6 +852,10 @@ end|}),
       {|Sig: abstract type member last|},
       {|type S = { let x : Int; type T } in 1|},
     ),
+    roundtrip_test(
+      {|Fun: module-typed parameter|},
+      {|fun (m : { type T; let x : T }) -> m.x|},
+    ),
   ],
 );
 

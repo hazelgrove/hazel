@@ -1981,6 +1981,7 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, n) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
+      let escaping = Pat.bound_vars(p);
       let (mode_pat, mode_body) = MatchedTyp.arrow_tolerant(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
@@ -1998,12 +1999,17 @@ and uexp_to_info_map =
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       /* At a coercion site the body's checked type is the codomain, and the
-         elaborated body carries the sealing cast. */
+         elaborated body carries the sealing cast. Paths rooted at the
+         parameter cannot leave the body (Typ.avoid). */
       let e_elab =
         coercible
           ? fresh_ascription(ctx, e_elab, e.elab_syn_ty, Some(e.ty)) : e_elab;
       let syn_ty_fun =
-        Arrow(p.ty, coercible ? e.ty : e.elab_syn_ty) |> Typ.temp;
+        Arrow(
+          p.ty,
+          Typ.avoid(p'.ctx, ~escaping, coercible ? e.ty : e.elab_syn_ty),
+        )
+        |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
@@ -2209,7 +2215,8 @@ and uexp_to_info_map =
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
-      let syn_ty_let = body.elab_syn_ty;
+      let syn_ty_let =
+        Typ.avoid(p_ana_ctx, ~escaping=Pat.bound_vars(p), body.elab_syn_ty);
       let p_constraint = Info.pat_constraint(p_ana);
       let marks_let =
         if (Coverage.Constraint.is_irrefutable(p_constraint)) {
@@ -2475,7 +2482,13 @@ and uexp_to_info_map =
           p_ctxs,
         );
 
-      let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      let e_syn_tys =
+        List.map2(
+          (e: Info.exp, (p, ctx)) =>
+            Typ.avoid(ctx, ~escaping=Pat.bound_vars(p), e.elab_syn_ty),
+          es,
+          List.combine(ps, p_ctxs),
+        );
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);

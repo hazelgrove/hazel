@@ -656,6 +656,32 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let+ t2 = self((n - 1) / 2);
                 ProdExtension(t1, t2);
               },
+              {
+                /* Signature: value members with a type, manifest and abstract
+                   type members. */
+                let* sizes = gen_sized_array(n - 1);
+                let+ items =
+                  flatten_a(
+                    Array.map(
+                      (size: int) =>
+                        oneof([
+                          {
+                            let* x = gen_ident;
+                            let+ t = self(size);
+                            SigItemLet(AscPat(VarPat(x), t));
+                          },
+                          {
+                            let* tp = gen_tpat;
+                            let+ t = self(size);
+                            SigItemType(tp, t);
+                          },
+                          map(tp => SigItemTypeAbstract(tp), gen_tpat),
+                        ]),
+                      sizes,
+                    ),
+                  );
+                Sig(Array.to_list(items));
+              },
             ])
           },
         n,
@@ -1391,11 +1417,34 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | FloatType
         | BoolType
         | NatType => return(TupleType([]))
+        | Sig(l) =>
+          let shrink_item: QCheck.Shrink.t(sig_item) =
+            QCheck.(
+              (
+                (item: sig_item) =>
+                  Iter.(
+                    switch (item) {
+                    | SigItemLet(p) =>
+                      let* shrunk = shrink_pat(p);
+                      return(SigItemLet(shrunk));
+                    | SigItemType(tp, t) =>
+                      return(SigItemTypeAbstract(tp))
+                      <+> {
+                        let* shrunk = shrink_typ(t);
+                        return(SigItemType(tp, shrunk));
+                      }
+                    | SigItemTypeAbstract(_)
+                    | SigItemModule(_) => Iter.empty
+                    }
+                  )
+              )
+            );
+          let* shrunk = Shrink.list(l, ~shrink=shrink_item);
+          return(Sig(shrunk));
         | VoidType
         | IndicationTyp(_)
         | UnknownType(_)
-        | InvalidTyp(_)
-        | Sig(_) => Iter.empty
+        | InvalidTyp(_) => Iter.empty
         }
       )
   );
