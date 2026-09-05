@@ -178,6 +178,7 @@ let destruct_with_cleanup = (d: Direction.t, z: t, ~root): option(t) => {
   let+ z = destruct(d, z, ~root);
   let z =
     z
+    |> Insert.downgrade_bare_sig_type
     |> Insert.merge_or_noop(~root)
     |> remold_regrout(d, ~root)
     |> Insert.merge_or_noop(~root);
@@ -242,6 +243,7 @@ let go_local =
         let+ z = delete_token(d, z);
         let z =
           z
+          |> Insert.downgrade_bare_sig_type
           |> Insert.merge_or_noop(~root)
           |> remold_regrout(d, ~root)
           |> Insert.merge_or_noop(~root);
