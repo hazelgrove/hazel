@@ -265,6 +265,17 @@ let test_path_annotation_is_transparent_at_runtime =
     )
   });
 
+let test_pattern_binding_sealed =
+  test_case(
+    "A destructured definition checked against a signature evaluates",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "{ let a = 1; let b = 2 }",
+      {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -306,5 +317,6 @@ let tests = (
     test_generative_result_evaluates,
     test_returning_module_parameter_seals,
     test_path_annotation_is_transparent_at_runtime,
+    test_pattern_binding_sealed,
   ],
 );
