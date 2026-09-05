@@ -228,7 +228,12 @@ skipping holes and malformed items. A signature is a dependent record: later ite
 earlier type members by name, so:
 
 - `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat type members as
-  sequential binders (`Ctx.extend_sig_item` binds one in a context).
+  sequential binders, and value and module members as variables that later
+  paths may go through (`{ module Inner : { type T }; let y : Inner.T }`);
+  `Ctx.extend_sig_item` binds one item in a context. When a signature is
+  checked against a provided one (`Typ.sig_sub`), such a path means what the
+  module actually provides for the member, so `Inner` is bound to the
+  provided type.
   Member names cannot be alpha-renamed; on capture `subst` falls back to
   substituting `?` into the remaining items.
 - `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
@@ -282,7 +287,11 @@ so a wrong component is reported on that component) and `module Inner = …`
 items, which receive the sub-signature the outer signature declares for them
 (a member the sub-module lacks is reported inside it). A binder the user
 annotated keeps its annotation. `refold_module_elab` strips the synthetic
-ascriptions again by walking the user's pattern and its elaboration together.
+ascriptions again by walking the user's pattern and its elaboration together. A member whose declared type mentions a
+signature name the module does not define gets no annotation (the missing
+member is reported on the module, and a free name here would be reported on
+the signature), and the annotations carry fresh ids so checking them never
+records info under the signature's own type nodes.
 After checking:
 
 - `ModuleHelpers.module_sig_type` reads the module's signature back from the
