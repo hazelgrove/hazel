@@ -723,7 +723,6 @@ let view =
       ~focused: option(string),
       ~avatar: option((CanvasLayout.pos, string)),
       /* streaming reasoning tail shown in a small bubble by the avatar */
-      ~avatar_bubble: option(string)=None,
       /* tool name of the beat just shown; briefly replaces the bubble */
       /* hover/focus dependency fan: subdued curves from a function's
          pill to the pills/nodes of the bindings it references */
@@ -1377,6 +1376,8 @@ let view =
             ignore(flips);
             /* the tails: the speech tail and the cloud's puffs, drawn by
                CanvasBubble from the avatar's bounding circle */
+            /* the cloud's puffs live in a body-local svg layer, drawn by
+               CanvasBubble from the avatar's bounding circle */
             let tails =
               svg(
                 "svg",
@@ -1387,56 +1388,50 @@ let view =
                   Attr.create("height", "600"),
                 ],
                 [
-                  svg("path", [clss(["say-tail-path"])], []),
                   svg("circle", [clss(["cloud-puff", "cloud-puff-1"])], []),
                   svg("circle", [clss(["cloud-puff", "cloud-puff-2"])], []),
                 ],
               );
-            let say =
+            /* ONE bubble with two skins (speech: an svg outline with the
+               tail built in; thought: the cloud). CanvasBubble sets the
+               mode class, the texts, and the position; the vdom renders
+               it empty and constant so re-renders never fight it. */
+            let bubble =
               div(
-                ~key="avatar-say",
-                ~attrs=[clss(["canvas-avatar-say"])],
-                [div(~attrs=[clss(["say-text"])], [])],
-              );
-            let cloud =
-              switch (avatar_bubble) {
-              | Some(_) => [
+                ~key="avatar-bubble",
+                ~attrs=[clss(["canvas-avatar-bubble", "mode-hidden"])],
+                [
+                  svg("svg", [clss(["say-shape"])], [svg("path", [], [])]),
+                  div(~attrs=[clss(["say-text"])], []),
                   div(
-                    ~key="avatar-bubble",
-                    ~attrs=[clss(["canvas-avatar-bubble"])],
+                    ~attrs=[clss(["bubble-cloud"])],
                     [
-                      div(
-                        ~attrs=[clss(["bubble-cloud"])],
+                      svg(
+                        "svg",
+                        [
+                          clss(["bubble-shape"]),
+                          Attr.create("viewBox", "0 0 170 64"),
+                          Attr.create("preserveAspectRatio", "none"),
+                        ],
                         [
                           svg(
-                            "svg",
+                            "path",
                             [
-                              clss(["bubble-shape"]),
-                              Attr.create("viewBox", "0 0 170 64"),
-                              Attr.create("preserveAspectRatio", "none"),
-                            ],
-                            [
-                              svg(
-                                "path",
-                                [
-                                  Attr.create(
-                                    "d",
-                                    "M 27 55 C 10 57 4 42 15 34 C 4 23 17 8 32 15 C 36 2 60 0 68 11 C 77 0 102 0 108 13 C 123 4 142 13 138 28 C 155 28 160 47 145 53 C 147 64 126 66 117 60 C 106 66 83 66 75 60 C 64 66 40 66 34 57 Z",
-                                  ),
-                                ],
-                                [],
+                              Attr.create(
+                                "d",
+                                "M 27 55 C 10 57 4 42 15 34 C 4 23 17 8 32 15 C 36 2 60 0 68 11 C 77 0 102 0 108 13 C 123 4 142 13 138 28 C 155 28 160 47 145 53 C 147 64 126 66 117 60 C 106 66 83 66 75 60 C 64 66 40 66 34 57 Z",
                               ),
                             ],
+                            [],
                           ),
-                          div(~attrs=[clss(["bubble-text"])], []),
                         ],
                       ),
+                      div(~attrs=[clss(["bubble-text"])], []),
                     ],
                   ),
-                ]
-              | None => []
-              };
-            [avatar_view(~bubbles=[tails, say, ...cloud], a)];
+                ],
+              );
+            [avatar_view(~bubbles=[tails, bubble], a)];
           | None => []
           }
         ),

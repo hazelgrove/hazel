@@ -777,11 +777,17 @@ module ChatMessagesScrollHook = {
           ~new_input as _: Input.t,
           state: State.t,
           element,
-        ) =>
+        ) => {
+      /* a sent prompt re-pins: the reader wants to see it land */
+      if (ChatScrollPin.request^) {
+        ChatScrollPin.request := false;
+        state.stick_to_bottom = true;
+      };
       if (state.stick_to_bottom) {
         scroll_to_bottom(element);
         schedule_scroll_to_bottom(element);
       };
+    };
 
     let destroy = (_input: Input.t, state: State.t, _element) =>
       switch (state.listener_id) {
@@ -1704,7 +1710,7 @@ let view =
           // Filbert identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.filbert, text("Filbert")],
+            [CanvasAvatar.brand_icon(), text("Filbert")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
@@ -1880,7 +1886,7 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [Icons.filbert, text("Filbert")],
+                      [CanvasAvatar.brand_icon(), text("Filbert")],
                     ),
                     ...body_nodes,
                   ],

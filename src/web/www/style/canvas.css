@@ -1190,13 +1190,51 @@
    streamed characters pin to the right edge and push older text left,
    so marquee motion is paced by the model's actual thinking speed —
    flavor, not reading material. */
+/* ONE bubble, two skins; CanvasBubble sets mode-speech / mode-thought /
+   mode-hidden and writes left/top every frame */
 .canvas-avatar-bubble {
-  position: absolute; /* left/top written per frame by CanvasBubble */
-  z-index: 5;
+  position: absolute;
+  z-index: 6;
   pointer-events: none;
   font-weight: normal;
-  animation: bubble-in 0.25s ease-out;
-  transition: opacity 160ms;
+  font-style: normal;
+  opacity: 0;
+  transition: opacity 140ms;
+}
+.canvas-avatar-bubble.mode-speech,
+.canvas-avatar-bubble.mode-thought {
+  opacity: 1;
+}
+.canvas-avatar-bubble.mode-thought .say-shape,
+.canvas-avatar-bubble.mode-thought .say-text,
+.canvas-avatar-bubble.mode-hidden .say-shape,
+.canvas-avatar-bubble.mode-hidden .say-text,
+.canvas-avatar-bubble.mode-speech .bubble-cloud,
+.canvas-avatar-bubble.mode-hidden .bubble-cloud {
+  display: none;
+}
+/* speech skin: one svg outline (box + tail) under the text */
+.canvas-avatar-bubble .say-shape {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.canvas-avatar-bubble .say-shape path {
+  fill: #f8dc7a;
+  stroke: #3a2a12;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+.canvas-avatar-bubble .say-text {
+  position: relative;
+  padding: 3px 9px;
+  color: #3a2a12;
+  font-family: var(--code-font, monospace);
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 /* the cloud: an svg outline stretched over the box, text windowed by
@@ -1257,13 +1295,6 @@
   pointer-events: none;
   z-index: 7;
 }
-.bubble-tails .say-tail-path {
-  fill: #f8dc7a;
-  stroke: #3a2a12;
-  stroke-width: 1.3;
-  stroke-linejoin: round;
-  transition: opacity 140ms;
-}
 /* puffs are paler than the rig's dots so they read as the cloud's
    trail, not as extra vertices */
 .bubble-tails .cloud-puff {
@@ -1273,38 +1304,14 @@
 }
 
 /* the speech bubble: the landed action, at the thought bubble's anchor */
-.canvas-avatar-say {
-  position: absolute; /* left/top written per frame by CanvasBubble */
-  z-index: 6;
-  pointer-events: none;
-  font-weight: normal;
-  font-style: normal;
-  opacity: 0;
-  transition: opacity 140ms;
-  background: #f8dc7a;
-  border: 1.3px solid #3a2a12;
-  color: #3a2a12;
-  border-radius: 9px;
-  padding: 3px 8px;
-  font-family: var(--code-font, monospace);
-  font-size: 9px;
-  white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(90, 70, 30, 0.15);
-}
-.canvas-avatar-say.say-on {
-  opacity: 1;
-}
 /* the rig body has no box of its own: offsets clear its vertices */
 /* while speaking, the thought cloud yields the anchor */
-.canvas-avatar-say.say-on ~ .canvas-avatar-bubble {
-  opacity: 0;
-}
 /* the speech bubble is about the landed act: it hides while the body
    travels; the thought cloud rides along (it is a child of the body) */
-.avatar-body.mood-travel > .canvas-avatar-say,
-.avatar-body.mood-arrive > .canvas-avatar-say,
-.avatar-body.mood-travel > .bubble-tails .say-tail-path,
-.avatar-body.mood-arrive > .bubble-tails .say-tail-path {
+/* the speech skin is about the landed act: it hides while the body
+   travels; the thought skin rides along */
+.avatar-body.mood-travel > .canvas-avatar-bubble.mode-speech,
+.avatar-body.mood-arrive > .canvas-avatar-bubble.mode-speech {
   opacity: 0 !important;
 }
 
@@ -1662,4 +1669,42 @@
 }
 .canvas-avatar.avatar-rig.avatar-wait .rig {
   opacity: 0.55;
+}
+
+/* ---- the chat's brand icon: a mirror of the rig, or the glyph chip ---- */
+.llm-identifier .rig-mirror {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+  margin-right: 4px;
+  overflow: visible;
+}
+.rig-mirror .rig-edge {
+  stroke: #9a6a1c;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.rig-mirror .rig-dot {
+  fill: #f3c94b;
+  stroke: #5a4118;
+  stroke-width: 1.3;
+}
+.rig-mirror .rig-disc {
+  fill: #f9f3e6;
+  stroke: #cfc6b3;
+  stroke-width: 0.8;
+}
+.rig-mirror .rig-emo {
+  font-size: 8px;
+}
+.llm-identifier .brand-glyph {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #ffd75e;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 15px;
 }

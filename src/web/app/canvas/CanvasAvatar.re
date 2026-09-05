@@ -258,6 +258,55 @@ let q = (b, sel: string) =>
 let item = (nodes, i: int) =>
   Js.Unsafe.meth_call(nodes, "item", [|Js.Unsafe.inject(i)|]);
 
+/* write the rig's current geometry into a root holding .rig-edge /
+   .rig-dot / .rig-disc / .rig-emo triples (the body's svg, or a mirror) */
+let draw_rig = (root, ~thinking: bool, ~err: bool): unit => {
+  let edges = q(root, ".rig-edge")
+  and dots = q(root, ".rig-dot")
+  and discs = q(root, ".rig-disc")
+  and texts = q(root, ".rig-emo");
+  let n: int = Js.Unsafe.get(edges, "length");
+  if (n >= 3) {
+    let hide_edge = err ? int_of_float(rig.t *. 6.) mod 3 : (-1);
+    for (i in 0 to 2) {
+      let a = rig.v[i]
+      and c = rig.v[(i + 1) mod 3];
+      let e = item(edges, i);
+      set(e, "x1", f1(a.x));
+      set(e, "y1", f1(a.y));
+      set(e, "x2", f1(c.x));
+      set(e, "y2", f1(c.y));
+      set(e, "opacity", hide_edge == i ? "0.08" : "0.9");
+      let d = item(dots, i);
+      set(d, "cx", f1(a.x));
+      set(d, "cy", f1(a.y));
+      set(d, "opacity", thinking ? "0" : "1");
+      let disc = item(discs, i);
+      set(disc, "cx", f1(a.x));
+      set(disc, "cy", f1(a.y));
+      set(disc, "opacity", thinking ? "1" : "0");
+      let t = item(texts, i);
+      set(t, "x", f1(a.x));
+      set(t, "y", f1(a.y));
+      set(t, "opacity", thinking ? "1" : "0");
+      if (thinking) {
+        Js.Unsafe.set(t, "textContent", Js.string(rig.emoji_cur[i]));
+      };
+    };
+  };
+};
+
+let last_mirror = () => {
+  let all =
+    Js.Unsafe.meth_call(
+      Js.Unsafe.global##.document,
+      "querySelectorAll",
+      [|Js.Unsafe.inject(Js.string(".rig-mirror"))|],
+    );
+  let n: int = Js.Unsafe.get(all, "length");
+  n == 0 ? None : Some(item(all, n - 1));
+};
+
 /* one frame: read the body's motion, move the targets, spring, draw */
 let step = (b, now_ms: float): unit => {
   let dt = min(0.05, max(0.001, (now_ms -. rig.last_ms) /. 1000.));
@@ -409,36 +458,12 @@ let step = (b, now_ms: float): unit => {
       };
     };
   };
-  /* draw */
-  let edges = q(b, ".rig-edge")
-  and dots = q(b, ".rig-dot")
-  and discs = q(b, ".rig-disc")
-  and texts = q(b, ".rig-emo");
-  let hide_edge = err ? int_of_float(rig.t *. 6.) mod 3 : (-1);
-  for (i in 0 to 2) {
-    let a = rig.v[i]
-    and c = rig.v[(i + 1) mod 3];
-    let e = item(edges, i);
-    set(e, "x1", f1(a.x));
-    set(e, "y1", f1(a.y));
-    set(e, "x2", f1(c.x));
-    set(e, "y2", f1(c.y));
-    set(e, "opacity", hide_edge == i ? "0.08" : "0.9");
-    let d = item(dots, i);
-    set(d, "cx", f1(a.x));
-    set(d, "cy", f1(a.y));
-    set(d, "opacity", thinking ? "0" : "1");
-    let disc = item(discs, i);
-    set(disc, "cx", f1(a.x));
-    set(disc, "cy", f1(a.y));
-    set(disc, "opacity", thinking ? "1" : "0");
-    let t = item(texts, i);
-    set(t, "x", f1(a.x));
-    set(t, "y", f1(a.y));
-    set(t, "opacity", thinking ? "1" : "0");
-    if (thinking) {
-      Js.Unsafe.set(t, "textContent", Js.string(rig.emoji_cur[i]));
-    };
+  draw_rig(b, ~thinking, ~err);
+  /* the chat's brand icon mirrors the live rig (the last one in the
+     chat; earlier ones keep the state they froze in) */
+  switch (last_mirror()) {
+  | Some(m) => draw_rig(m, ~thinking, ~err)
+  | None => ()
   };
   /* the beam: the demo's — a sector of spread 0.36 and length 150 at R 18
      (so 8.3 R), filled by a radial gradient from the leading vertex
@@ -630,4 +655,48 @@ let bounding_circle = (): (float, float, float) =>
       (w /. 2., h /. 2., Float.hypot(w, h) /. 2. +. 1.);
     | None => (0., 0., 12.)
     };
+  };
+
+/* the chat's brand icon: a mirror of the rig (live for the last one on
+   the page), or the glyph chip — continuity between the two views */
+let brand_icon = (): Node.t =>
+  if (is_rig()) {
+    let three = f => List.init(3, f);
+    Node.create_svg(
+      "svg",
+      ~attrs=[
+        Attr.classes(["rig-mirror"]),
+        Attr.create("viewBox", "-24 -24 48 48"),
+        Attr.create("width", "22"),
+        Attr.create("height", "22"),
+      ],
+      three(_ => svg("line", [Attr.classes(["rig-edge"])], []))
+      @ three(_ =>
+          svg(
+            "circle",
+            [Attr.classes(["rig-disc"]), Attr.create("r", "6.7")],
+            [],
+          )
+        )
+      @ three(_ =>
+          svg(
+            "circle",
+            [Attr.classes(["rig-dot"]), Attr.create("r", "3.2")],
+            [],
+          )
+        )
+      @ three(_ =>
+          svg(
+            "text",
+            [
+              Attr.classes(["rig-emo"]),
+              Attr.create("text-anchor", "middle"),
+              Attr.create("dominant-baseline", "central"),
+            ],
+            [],
+          )
+        ),
+    );
+  } else {
+    Node.span(~attrs=[Attr.classes(["brand-glyph"])], [Node.text("@")]);
   };

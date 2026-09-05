@@ -2266,13 +2266,12 @@ let view_impl =
   if (! CanvasBubble.force_cloud^) {
     CanvasBubble.source := reasoning_tail;
   };
-  CanvasBubble.ensure_loop();
-  let avatar_bubble =
+  CanvasBubble.thought_available :=
     CanvasBubble.force_cloud^
     || agent_busy
     && globals.settings.canvas_pace
-    && String.length(reasoning_tail) > 0
-      ? Some("") : None;
+    && String.length(reasoning_tail) > 0;
+  CanvasBubble.ensure_loop();
   let split_btn = {
     let split = globals.settings.canvas_split;
     div(
@@ -3148,7 +3147,6 @@ let view_impl =
             ~on_node_mousedown,
             ~on_canvas_click,
             ~zoom,
-            ~avatar_bubble,
             ~min_size=(
               (Option.value(~default=0., avail_width) -. 2.) /. zoom,
               (Option.value(~default=0., avail_height) -. 2.) /. zoom,

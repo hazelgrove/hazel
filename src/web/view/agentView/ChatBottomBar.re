@@ -138,6 +138,7 @@ let view =
     if (String.length(message_content) > 0) {
       /* the trace of this run opens (or continues) with the prompt */
       CanvasTrajectory.prompt(message_content);
+      ChatScrollPin.request := true;
       let user_message = Message.Utils.mk_user_message(message_content);
       Effect.Many([
         agent_inject(

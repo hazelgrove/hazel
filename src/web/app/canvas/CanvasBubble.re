@@ -86,46 +86,80 @@ let saying = (): bool => now() < say_until^;
 let running: ref(bool) = ref(false);
 /* set below: the placement loop and console testers */
 let start_placement: ref(unit => unit) = ref(() => ());
-let rec tick = (): unit => {
-  switch (el_by_class("bubble-text")) {
-  | Some(el) =>
-    let w = clean_cut(advance());
-    set_text(el, w);
-    /* a beat on each replacement, so the change reads as motion */
-    let cl = Js.Unsafe.get(el, "classList");
-    ignore(
-      Js.Unsafe.meth_call(
-        cl,
-        "remove",
-        [|Js.Unsafe.inject(Js.string("flip"))|],
-      ),
-    );
-    ignore(Js.Unsafe.get(el, "offsetWidth")); /* restart the animation */
-    ignore(
-      Js.Unsafe.meth_call(
-        cl,
-        "add",
-        [|Js.Unsafe.inject(Js.string("flip"))|],
-      ),
-    );
-  | None => ()
+/* ONE bubble, two skins. The sidebar says whether a thought is available
+   (the model is streaming); the player says when a speech is up. Speech
+   wins; both showing at once is not a state this can be in. */
+let thought_available: ref(bool) = ref(false);
+type mode =
+  | Speech
+  | Thought
+  | Hidden;
+let mode = (): mode =>
+  saying() ? Speech : thought_available^ ? Thought : Hidden;
+let mode_class = (m: mode): string =>
+  switch (m) {
+  | Speech => "mode-speech"
+  | Thought => "mode-thought"
+  | Hidden => "mode-hidden"
   };
-  switch (el_by_class("canvas-avatar-say")) {
-  | Some(el) =>
-    let on = saying();
-    let cl = Js.Unsafe.get(el, "classList");
-    ignore(
-      Js.Unsafe.meth_call(
-        cl,
-        on ? "add" : "remove",
-        [|Js.Unsafe.inject(Js.string("say-on"))|],
+let set_mode_class = (el, m: mode): unit => {
+  let cl = Js.Unsafe.get(el, "classList");
+  List.iter(
+    c =>
+      ignore(
+        Js.Unsafe.meth_call(
+          cl,
+          "remove",
+          [|Js.Unsafe.inject(Js.string(c))|],
+        ),
       ),
-    );
-    if (on) {
+    ["mode-speech", "mode-thought", "mode-hidden"],
+  );
+  ignore(
+    Js.Unsafe.meth_call(
+      cl,
+      "add",
+      [|Js.Unsafe.inject(Js.string(mode_class(m)))|],
+    ),
+  );
+};
+
+let rec tick = (): unit => {
+  switch (el_by_class("canvas-avatar-bubble")) {
+  | Some(bub) =>
+    let m = mode();
+    set_mode_class(bub, m);
+    switch (m) {
+    | Speech =>
       switch (el_by_class("say-text")) {
       | Some(t) => set_text(t, say_text^)
       | None => ()
-      };
+      }
+    | Thought =>
+      switch (el_by_class("bubble-text")) {
+      | Some(el) =>
+        let w = clean_cut(advance());
+        set_text(el, w);
+        /* a fade on each replacement, so the change reads as motion */
+        let cl = Js.Unsafe.get(el, "classList");
+        ignore(
+          Js.Unsafe.meth_call(
+            cl,
+            "remove",
+            [|Js.Unsafe.inject(Js.string("flip"))|],
+          ),
+        );
+        ignore(Js.Unsafe.get(el, "offsetWidth")); /* restart the animation */
+        ignore(
+          Js.Unsafe.meth_call(
+            cl,
+            "add",
+            [|Js.Unsafe.inject(Js.string("flip"))|],
+          ),
+        );
+      | None => ()
+      }
+    | Hidden => ()
     };
   | None => ()
   };
@@ -138,12 +172,13 @@ let ensure_loop = (): unit =>
     start_placement^();
   };
 
-/* ---- placement: bubbles emanate from the avatar's bounding circle ----
-   The speech tail's tip and the cloud's last puff sit ON the circle; the
+/* ---- placement: the bubble emanates from the avatar's bounding circle ----
+   The speech tail's tip, or the cloud's last puff, sits ON the circle; the
    bubble body lies further out along the same direction. Default: the
    upper-left quadrant; near the pane's top or left the direction flips so
-   the bubble stays in view. Positions are written every frame in
-   body-local px (the bubbles are children of the body). */
+   the bubble stays in view. Written every frame in body-local px (the
+   bubble is a child of the body). The speech skin is ONE svg path: a
+   rounded box whose near corner becomes the tail. */
 
 let force_cloud: ref(bool) = ref(false);
 
@@ -179,84 +214,126 @@ let child = (b, sel: string) =>
     ),
   );
 
+/* the speech outline in bubble-local px: a w×h box with radius r on
+   three corners; the near corner (toward the avatar, by the signs of the
+   direction) is replaced by the tail out to (tx, ty) */
+let speech_path =
+    (~w: float, ~h: float, ~sx: float, ~sy: float, (tx, ty): (float, float))
+    : string => {
+  let r = 9.;
+  /* clockwise: TL, TR, BR, BL with their incoming/outgoing directions */
+  let corners = [|
+    ((0., 0.), (0., (-1.)), (1., 0.)),
+    ((w, 0.), (1., 0.), (0., 1.)),
+    ((w, h), (0., 1.), ((-1.), 0.)),
+    ((0., h), ((-1.), 0.), (0., (-1.))),
+  |];
+  let tail =
+    switch (sx < 0., sy < 0.) {
+    | (true, true) => 2 /* bubble up-left of the avatar: tail at BR */
+    | (false, true) => 3 /* up-right: BL */
+    | (true, false) => 1 /* down-left: TR */
+    | (false, false) => 0 /* down-right: TL */
+    };
+  let pt = ((x, y)) => f1(x) ++ " " ++ f1(y);
+  /* the tail's base spans 13 px back along the incoming edge and 11 px on
+     along the outgoing one, but never past the neighbouring arcs on a
+     short edge (a one-line bubble is ~17 px tall) */
+  let edge_len = ((ix, iy)) => Float.abs(ix) > 0.5 ? w : h;
+  let segs =
+    Array.to_list(
+      Array.mapi(
+        (k, ((cx, cy), (ix, iy), (ox, oy))) =>
+          if (k == tail) {
+            let back = min(13., 0.45 *. edge_len((ix, iy)))
+            and on = min(11., 0.45 *. edge_len((ox, oy)));
+            Printf.sprintf(
+              "L %s L %s L %s",
+              pt((cx -. ix *. back, cy -. iy *. back)),
+              pt((tx, ty)),
+              pt((cx +. ox *. on, cy +. oy *. on)),
+            );
+          } else {
+            Printf.sprintf(
+              "L %s Q %s %s",
+              pt((cx -. ix *. r, cy -. iy *. r)),
+              pt((cx, cy)),
+              pt((cx +. ox *. r, cy +. oy *. r)),
+            );
+          },
+        corners,
+      ),
+    );
+  /* start on the top edge just past TL (or past TL's tail base) */
+  let start = tail == 0 ? pt((min(11., 0.45 *. w), 0.)) : pt((r, 0.));
+  "M "
+  ++ start
+  ++ " "
+  ++ String.concat(" ", List.tl(segs))
+  ++ " "
+  ++ List.hd(segs)
+  ++ " Z";
+};
+
 let place = (): unit =>
   switch (CanvasAvatar.body()) {
   | None => ()
   | Some(b) =>
-    let (cx, cy, r) = CanvasAvatar.bounding_circle();
-    /* which way is there room: the circle's position in the pane */
-    let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
-    let (sx, sy) =
-      switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
-      | Some(pane) =>
-        let pr = Js.Unsafe.meth_call(pane, "getBoundingClientRect", [||])
-        and br = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
-        let px: float = Js.Unsafe.get(pr, "left")
-        and py: float = Js.Unsafe.get(pr, "top")
-        and pw: float = Js.Unsafe.get(pr, "width")
-        and ph: float = Js.Unsafe.get(pr, "height");
-        let bx: float = Js.Unsafe.get(br, "left") +. cx *. zoom
-        and by: float = Js.Unsafe.get(br, "top") +. cy *. zoom;
-        let fx = (bx -. px) /. max(1., pw)
-        and fy = (by -. py) /. max(1., ph);
-        (fx > 0.38 ? (-1.) : 1., fy > 0.3 ? (-1.) : 1.);
-      | None => ((-1.), (-1.))
-      };
-    let d = 0.7071;
-    let dx = sx *. d
-    and dy = sy *. d;
-    let tipx = cx +. dx *. r
-    and tipy = cy +. dy *. r;
-    /* a bubble box with its near corner at gap g beyond the tip */
-    let put = (el, g: float): (float, float) => {
-      let w: float = Js.Unsafe.get(el, "offsetWidth")
-      and h: float = Js.Unsafe.get(el, "offsetHeight");
+    switch (child(b, ".canvas-avatar-bubble")) {
+    | None => ()
+    | Some(bub) =>
+      let m = mode();
+      let (cx, cy, r) = CanvasAvatar.bounding_circle();
+      /* which way is there room: the circle's position in the pane */
+      let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
+      let (sx, sy) =
+        switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
+        | Some(pane) =>
+          let pr = Js.Unsafe.meth_call(pane, "getBoundingClientRect", [||])
+          and br = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
+          let px: float = Js.Unsafe.get(pr, "left")
+          and py: float = Js.Unsafe.get(pr, "top")
+          and pw: float = Js.Unsafe.get(pr, "width")
+          and ph: float = Js.Unsafe.get(pr, "height");
+          let bx: float = Js.Unsafe.get(br, "left") +. cx *. zoom
+          and by: float = Js.Unsafe.get(br, "top") +. cy *. zoom;
+          let fx = (bx -. px) /. max(1., pw)
+          and fy = (by -. py) /. max(1., ph);
+          (fx > 0.38 ? (-1.) : 1., fy > 0.3 ? (-1.) : 1.);
+        | None => ((-1.), (-1.))
+        };
+      let d = 0.7071;
+      let dx = sx *. d
+      and dy = sy *. d;
+      let tipx = cx +. dx *. r
+      and tipy = cy +. dy *. r;
+      /* the bubble box: its near corner at gap g beyond the tip */
+      let g =
+        switch (m) {
+        | Speech => 9.
+        | Thought
+        | Hidden => 13.
+        };
+      let w: float = Js.Unsafe.get(bub, "offsetWidth")
+      and h: float = Js.Unsafe.get(bub, "offsetHeight");
       let kx = tipx +. dx *. g
       and ky = tipy +. dy *. g;
       let left = sx < 0. ? kx -. w : kx
       and top = sy < 0. ? ky -. h : ky;
-      set_style(el, "left", f1(left) ++ "px");
-      set_style(el, "top", f1(top) ++ "px");
-      (kx, ky);
-    };
-    let tails = child(b, ".bubble-tails");
-    switch (child(b, ".canvas-avatar-say")) {
-    | Some(say) =>
-      let (kx, ky) = put(say, 9.);
-      switch (tails) {
-      | Some(t) =>
-        switch (child(t, ".say-tail-path")) {
-        | Some(path) =>
-          /* the tail: two sides from the box's corner region to the tip
-             (the base is not stroked, its fill covers the box border) */
-          let on = saying();
-          set_attr(
-            path,
-            "d",
-            /* base points ON the box's two edges at its near corner (kx, ky):
-               13 px along the bottom edge, 11 px up the side edge, a hair
-               inside so the fill covers the border */
-            Printf.sprintf(
-              "M %s %s L %s %s L %s %s Z",
-              f1(kx +. sx *. 13.),
-              f1(ky -. sy *. 0.8),
-              f1(tipx),
-              f1(tipy),
-              f1(kx -. sx *. 0.8),
-              f1(ky +. sy *. 11.),
-            ),
-          );
-          set_attr(path, "opacity", on ? "1" : "0");
-        | None => ()
-        }
-      | None => ()
+      set_style(bub, "left", f1(left) ++ "px");
+      set_style(bub, "top", f1(top) ++ "px");
+      /* the speech skin's outline, tail included */
+      switch (child(bub, ".say-shape path")) {
+      | Some(path) when m == Speech =>
+        set_attr(
+          path,
+          "d",
+          speech_path(~w, ~h, ~sx, ~sy, (tipx -. left, tipy -. top)),
+        )
+      | _ => ()
       };
-    | None => ()
-    };
-    switch (child(b, ".canvas-avatar-bubble")) {
-    | Some(cloud) =>
-      ignore(put(cloud, 21.));
-      switch (tails) {
+      /* the cloud's puffs: small, a little space, larger, a little space */
+      switch (child(b, ".bubble-tails")) {
       | Some(t) =>
         List.iter(
           ((sel, along, rad)) =>
@@ -265,27 +342,14 @@ let place = (): unit =>
               set_attr(c, "cx", f1(tipx +. dx *. along));
               set_attr(c, "cy", f1(tipy +. dy *. along));
               set_attr(c, "r", f1(rad));
-              set_attr(c, "opacity", "1");
+              set_attr(c, "opacity", m == Thought ? "1" : "0");
             | None => ()
             },
-          [(".cloud-puff-1", 3.5, 3.4), (".cloud-puff-2", 12.5, 5.4)],
+          [(".cloud-puff-1", 2.8, 2.6), (".cloud-puff-2", 10.6, 4.2)],
         )
       | None => ()
       };
-    | None =>
-      switch (tails) {
-      | Some(t) =>
-        List.iter(
-          sel =>
-            switch (child(t, sel)) {
-            | Some(c) => set_attr(c, "opacity", "0")
-            | None => ()
-            },
-          [".cloud-puff-1", ".cloud-puff-2"],
-        )
-      | None => ()
-      }
-    };
+    }
   };
 
 let placing: ref(bool) = ref(false);
