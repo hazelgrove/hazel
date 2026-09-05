@@ -32,6 +32,10 @@ type edge_layout = {
   /* the label's natural anchor on its curve; when separation pushed the
      chip away, the view draws a leader line back to this point */
   label_anchor: pos,
+  /* the chip sits ON the wire (centered on the curve, masking it) rather
+     than above it: only when the arrow is long enough to show its head
+     and a stretch of line on both sides */
+  on_wire: bool,
 };
 
 type value_layout = {
@@ -648,6 +652,7 @@ let layout_impl =
               x: apex.x,
               y: apex.y -. 6.,
             },
+            on_wire: false,
             label_anchor: {
               x: apex.x,
               y: apex.y -. 6.,
@@ -691,6 +696,7 @@ let layout_impl =
               x: ctrl.x +. v.x *. 14.,
               y: ctrl.y +. v.y *. 14. -. 4.,
             },
+            on_wire: false,
             label_anchor: {
               x: ctrl.x +. v.x *. 14.,
               y: ctrl.y +. v.y *. 14. -. 4.,
@@ -777,6 +783,7 @@ let layout_impl =
                 y: m.y -. 6.,
               };
             },
+            on_wire: false,
             label_anchor: {
               let m = cubic_mid(s, c1, c2, d);
               {
@@ -959,6 +966,7 @@ let layout_impl =
             label_p: p,
             /* the stack is contextually attached: no leader line */
             label_anchor: p,
+            on_wire: false,
           }
         | None =>
           let w = label_half(el);
@@ -1020,15 +1028,68 @@ let layout_impl =
                 });
               ok(p) ? p : pick(rest);
             };
-          let on_curve =
-            el.endo
-              ? []
-              : List.map(curve_at, [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]);
-          let p = pick_abs(on_curve, () => pick(candidates));
-          placed_labels := [(p, w), ...placed_labels^];
-          {
-            ...el,
-            label_p: p,
+          /* ON THE WIRE when the arrow is long enough: the chip (2w wide)
+             must leave the arrowhead (9) plus a stretch of line (14)
+             visible on both sides; the chip is centered on the curve, so
+             the hit boxes (built for a chip standing above its point) are
+             checked with the point moved to where such a chip would sit */
+          let chord =
+            Float.hypot(el.dst_p.x -. el.src_p.x, el.dst_p.y -. el.src_p.y);
+          let fits_on_wire = !el.endo && chord -. 2. *. w >= 2. *. (9. +. 14.);
+          let on_wire_p =
+            if (fits_on_wire) {
+              List.map(
+                t => {
+                  let c = curve_at(t);
+                  {
+                    x: c.x,
+                    y: c.y +. 6.,
+                  };
+                },
+                [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
+              )
+              |> List.find_opt((c: pos) =>
+                   ok({
+                     x: c.x,
+                     y: c.y +. 9.,
+                   })
+                 );
+            } else {
+              None;
+            };
+          switch (on_wire_p) {
+          | Some(p) =>
+            placed_labels :=
+              [
+                (
+                  {
+                    x: p.x,
+                    y: p.y +. 9.,
+                  },
+                  w,
+                ),
+                ...placed_labels^,
+              ];
+            {
+              ...el,
+              label_p: p,
+              label_anchor: p,
+              on_wire: true,
+            };
+          | None =>
+            let on_curve =
+              el.endo
+                ? []
+                : List.map(
+                    curve_at,
+                    [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74],
+                  );
+            let p = pick_abs(on_curve, () => pick(candidates));
+            placed_labels := [(p, w), ...placed_labels^];
+            {
+              ...el,
+              label_p: p,
+            };
           };
         }
       },

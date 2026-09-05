@@ -543,7 +543,10 @@ let edge_label =
     ~key="e:" ++ e.e_name,
     ~attrs=[
       Attr.id(edge_dom_id(e.e_name)),
-      clss(["canvas-edge-label", ...edge_classes(~focused, e)]),
+      clss(
+        ["canvas-edge-label", ...edge_classes(~focused, e)]
+        @ (el.on_wire ? ["label-on-wire"] : []),
+      ),
       anchor_style(el.label_p),
       Attr.title(tooltip),
       Attr.on_click(_ => on_edge_click(e)),

@@ -242,7 +242,7 @@ let handle_llm_response =
                               ++ String.sub(
                                    tr.content,
                                    0,
-                                   min(160, String.length(tr.content)),
+                                   min(700, String.length(tr.content)),
                                  ),
                     ),
                   )

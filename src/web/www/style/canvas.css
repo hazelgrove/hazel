@@ -506,7 +506,7 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  padding-bottom: 1px;
+  padding-bottom: 0;
   font-family: var(--code-font, monospace);
   pointer-events: none;
 }
@@ -540,6 +540,9 @@
   font-size: 12px;
   line-height: 1;
   letter-spacing: -0.5px;
+  /* the math letters' ink sits high in their box: the box is centered
+     (measured 5.0 above / 5.2 below) yet reads high, so lower it 1 px */
+  padding-top: 2px;
   pointer-events: none;
 }
 .canvas-node.kind-derived .canvas-node-glyph.base-glyph {
@@ -578,9 +581,8 @@
   font-weight: normal;
   font-size: 12px;
   line-height: 1;
-  /* parentheses hang below the x-height: lift the glyph a touch toward the
-     optical center (3px overshot — more room below than above) */
-  padding-bottom: 1px;
+  /* parentheses: the box centers but the ink reads high — no lift */
+  padding-bottom: 0;
   letter-spacing: 0.5px;
   text-shadow: none;
 }
@@ -636,6 +638,12 @@
 
 .canvas-edge-label:hover {
   box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+}
+
+/* a label on its wire: centered on the curve; its background masks the
+   line beneath (the arrowhead and some line stay visible on both sides) */
+.canvas-edge-label.label-on-wire {
+  translate: -50% -50%;
 }
 
 .canvas-edge-label.edge-main {
