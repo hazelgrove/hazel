@@ -327,6 +327,7 @@ module Projectors = {
 
   let display_name = (kind: ProjectorCore.Kind.t): string =>
     switch (kind) {
+    | FumolaPeek => "Fumola reference"
     | Fold => "Fold"
     | Statics => "Statics"
     | Checkbox => "Checkbox"
