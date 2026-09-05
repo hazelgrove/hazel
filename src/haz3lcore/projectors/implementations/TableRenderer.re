@@ -514,35 +514,8 @@ let update: (model, action) => model =
     };
   };
 
-let icon_size = 20.;
-
-let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
-  /* takes a list of paths as strings, a viewport as a string,
-     and an optional (string) transform to apply to each */
-  Node.create_svg(
-    "svg",
-    ~attrs=
-      Attr.[
-        create("viewBox", view),
-        create("width", Printf.sprintf("%fpx", icon_size)),
-        create("height", Printf.sprintf("%fpx", icon_size)),
-        create("preserveAspectRatio", "none"),
-      ],
-    List.map(
-      d =>
-        Node.create_svg(
-          "path",
-          ~attrs=
-            [Attr.create("d", d)]
-            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
-          [],
-        ),
-      ds,
-    ),
-  );
-
 let table_icon =
-  simple_icon(
+  SvgUtil.simple_icon(
     ~view="0 0 8 8",
     [
       "m 1.32307 3.96929 a 0.2645835 0.2645835 0 0 0 -0.26563 0.26367 0.2645835 0.2645835 0 0 0 0.26563 0.26562 h 5.82031 a 0.2645835 0.2645835 0 0 0 0.26562 -0.26562 0.2645835 0.2645835 0 0 0 -0.26562 -0.26367 z",

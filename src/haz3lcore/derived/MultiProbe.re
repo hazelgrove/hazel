@@ -402,9 +402,8 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
  * of typing and should never be probed or count as alternatives. */
 let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
-  | Some({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
-  | _ => false
+  | Some(t) => Piece.is_infix_delimiter_op_prefix(Tile(t))
+  | None => false
   };
 
 /* Check if an id represents a "meaningful" alternative (not a hole,
