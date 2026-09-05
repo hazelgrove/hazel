@@ -525,10 +525,52 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
     | (Some(piece), _) => piece_matches_shard(piece, r)
     | _ => false
     };
-  let* z =
-    pl(Zipper.generalized_neighbors(z))
-      ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
-  Zipper.do_until(local(Right), pr, z);
+  /* structural: the two extremes are siblings in one segment, so the
+     selection is the sibling run from l's tile through r's tile. The
+     token walk below grew the selection one step at a time and cost
+     ~0.5 s for a 15-line definition; it stays as the fallback */
+  let structural = {
+    let* zp =
+      pl(Zipper.generalized_neighbors(z))
+        ? Some(z)
+        : Zipper.unzip_to_id(
+            ~side=Left,
+            Piece.id(l),
+            Zipper.unselect_and_zip(z),
+          )
+          |> Option.map(zp =>
+               {
+                 ...zp,
+                 refractors: z.refractors,
+               }
+             );
+    let (ls, rs) = zp.relatives.siblings;
+    let rec take = (acc, rs) =>
+      switch (rs) {
+      | [] => None
+      | [p, ...rest] =>
+        piece_matches_shard(p, r)
+          ? Some((List.rev([p, ...acc]), rest)) : take([p, ...acc], rest)
+      };
+    switch (rs) {
+    | [p, ..._] when piece_matches_shard(p, l) =>
+      take([], rs)
+      |> Option.map(((sel, rest)) =>
+           zp
+           |> Zipper.update_siblings(_ => (ls, rest))
+           |> Zipper.replace_selection(Right, sel)
+         )
+    | _ => None
+    };
+  };
+  switch (structural) {
+  | Some(_) as r => r
+  | None =>
+    let* z =
+      pl(Zipper.generalized_neighbors(z))
+        ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
+    Zipper.do_until(local(Right), pr, z);
+  };
 };
 
 /* Select the currently indicated term. Optionally, we can consider
