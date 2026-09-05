@@ -794,6 +794,31 @@ in 1|},
         dhexp_of_uexp(parse_exp({|let m = { let x = 1 } in m.x|})),
       )
     ),
+    test_case(
+      "Module-typed function parameter keeps the signature",
+      `Quick,
+      () => {
+        let s_tx =
+          Typ.sig_([
+            Sig.sig_type_abstract(TPat.var("T")),
+            Sig.sig_let(Pat.asc(Pat.var("x"), Typ.var("T"))),
+          ]);
+        alco_check(
+          {|fun (m : { type T; let x : T }) -> m.x|},
+          Exp.(
+            fn(
+              Pat.asc(Pat.var("m"), s_tx),
+              dot(var("m"), label("x")),
+              Some(s_tx),
+              None,
+            )
+          ),
+          dhexp_of_uexp(
+            parse_exp({|fun (m : { type T; let x : T }) -> m.x|}),
+          ),
+        );
+      },
+    ),
     test_case("Module with sig annotation keeps the signature", `Quick, () =>
       alco_check(
         {|let m : { let x : Int } = { let x = 1 } in m|},
