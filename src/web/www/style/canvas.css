@@ -349,7 +349,7 @@
   justify-content: center;
   border-radius: 50%;
   /* types wear the code's Typ purple, on the canvas as in the buffer */
-  border: 2px solid var(--token-typ, #9457c9);
+  border: 1.5px solid var(--token-typ, #9457c9);
   background: var(--df-bg, #fdfdf4);
   box-sizing: border-box;
   z-index: 2;
@@ -358,6 +358,20 @@
 
 .canvas-node.clickable {
   cursor: pointer;
+}
+
+/* the selected type: a soft halo in its own purple, name emphasized (the
+   edge counterpart is edge-focused) */
+.canvas-node.node-focused {
+  box-shadow:
+    0 0 0 3px var(--df-bg, #fdfdf4),
+    0 0 0 5.5px color-mix(in srgb, var(--token-typ, #9457c9) 55%, transparent);
+}
+.canvas-node.node-focused .canvas-node-label {
+  font-weight: bold;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
 }
 
 /* placement telegraph: a pulsing seed on the lattice point under the
@@ -487,7 +501,7 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  padding-bottom: 3px;
+  padding-bottom: 1px;
   font-family: var(--code-font, monospace);
   pointer-events: none;
 }
@@ -538,8 +552,9 @@
   font-weight: normal;
   font-size: 12px;
   line-height: 1;
-  /* parentheses hang below the x-height: lift the glyph to optical center */
-  padding-bottom: 3px;
+  /* parentheses hang below the x-height: lift the glyph a touch toward the
+     optical center (3px overshot — more room below than above) */
+  padding-bottom: 1px;
   letter-spacing: 0.5px;
   text-shadow: none;
 }

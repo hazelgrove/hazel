@@ -3401,6 +3401,7 @@ let view_impl =
             ~on_canvas_contextmenu,
             ~on_node_contextmenu,
             ~on_avatar_mousedown,
+            ~focused_ty,
             ~on_edge_click,
             ~on_node_mousedown,
             ~on_canvas_click,

@@ -399,8 +399,35 @@ let hull_circles_at =
           let former_sized =
             String.length(nl.node.key) >= 3
             && String.sub(nl.node.key, 0, 3) == "{}@";
+          /* a module's former circle grows linearly with its member count
+             on a large base (5 px each, +50 at most): the name stays the
+             center of gravity as the module fills */
+          let member_bump =
+            if (former_sized) {
+              let here = (p: list(string)) => p == nl.node.m_path;
+              let n =
+                List.length(
+                  List.filter(
+                    (m: CanvasLayout.node_layout) =>
+                      here(m.node.m_path) && m.node.key != nl.node.key,
+                    lay.nodes,
+                  ),
+                )
+                + List.length(
+                    List.filter(
+                      (e: CanvasLayout.edge_layout) => here(e.edge.m_path),
+                      lay.edges,
+                    ),
+                  );
+              min(50., 5. *. float_of_int(n));
+            } else {
+              0.;
+            };
           let r =
-            (former_sized ? 62. +. subtree_bump(nl.node.m_path) : 46.)
+            (
+              former_sized
+                ? 62. +. subtree_bump(nl.node.m_path) +. member_bump : 46.
+            )
             +. depth_pad(nl.node.m_path);
           Some((
             "hullc-n-"
@@ -547,6 +574,8 @@ let node_view =
          (CanvasGraph.tynode, (float, float)) => Effect.t(unit)=(_, _) =>
                                                                     Effect.Ignore,
       ~just_placed: list(string)=[],
+      /* the selected type (the sidebar's canvas_focus_ty) wears a halo */
+      ~focused_ty: option(string)=None,
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -611,6 +640,7 @@ let node_view =
           @ (is_module ? ["node-module"] : [])
           @ (!is_module && n.former != None ? ["node-former"] : [])
           @ (n.n_err ? ["node-err"] : [])
+          @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
           /* grows out of the placement-preview dot */
           @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
         ),
@@ -777,6 +807,8 @@ let view =
       ~connect_pts: list(CanvasLayout.pos)=[],
       /* key of a node placed moments ago (grow-in animation) */
       ~just_placed: list(string)=[],
+      /* the selected type node, if any */
+      ~focused_ty: option(string)=None,
       /* picking the actor up */
       ~on_avatar_mousedown:
          Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
@@ -1384,7 +1416,12 @@ let view =
         ]
         @ telegraph_nodes
         @ List.map(
-            node_view(~on_node_mousedown, ~on_node_contextmenu, ~just_placed),
+            node_view(
+              ~on_node_mousedown,
+              ~on_node_contextmenu,
+              ~just_placed,
+              ~focused_ty,
+            ),
             lay.nodes,
           )
         @ List.map(
