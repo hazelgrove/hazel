@@ -11,10 +11,8 @@ let str = s => DHExp.fresh(Atom(String(s)));
 let tuple = es => DHExp.fresh(Tuple(es));
 let list = es => DHExp.fresh(ListLit(es));
 let ctr = name => DHExp.fresh(Constructor(name, None));
-let ap = (name, payload) =>
-  DHExp.fresh(Ap(Forward, ctr(name), payload));
-let labelled = (l, e) =>
-  DHExp.fresh(TupLabel(DHExp.fresh(Label(l)), e));
+let ap = (name, payload) => DHExp.fresh(Ap(Forward, ctr(name), payload));
+let labelled = (l, e) => DHExp.fresh(TupLabel(DHExp.fresh(Label(l)), e));
 
 let renders = (name, exp, expected) =>
   test_case(name, `Quick, () =>
@@ -81,6 +79,48 @@ let tests = (
     renders("an applied variant", ap("Circle", int(3)), "#Circle(3)"),
     /* Refused rather than guessed at. */
     refuses("a hole", DHExp.fresh(EmptyHole)),
-    refuses("a partly labelled tuple", tuple([labelled("x", int(1)), int(2)])),
+    refuses(
+      "a partly labelled tuple",
+      tuple([labelled("x", int(1)), int(2)]),
+    ),
+    /* The livelit that carries a Hazel value has a four-part model, where the
+       others have three or two. Nothing else exercises that match, and a
+       model that fails to read back is silent: the livelit falls back to its
+       default, so the program quietly loses what was written in it. */
+    test_case(
+      "fumola_with's model round-trips",
+      `Quick,
+      () => {
+        let encoded =
+          Livelit.FumolaWith.model_to_hazel(Livelit.FumolaWith.model_default);
+        switch (encoded.term) {
+        | Tuple([_, _, _, _]) => ()
+        | _ =>
+          Alcotest.fail("expected instance, thunk name, program and input")
+        };
+        switch (Livelit.FumolaWith.model_from_hazel(encoded)) {
+        | None => Alcotest.fail("the model did not read back")
+        | Some(m) =>
+          Alcotest.check(
+            Alcotest.string,
+            "and survives the round trip",
+            Exp.show(encoded),
+            Exp.show(Livelit.FumolaWith.model_to_hazel(m)),
+          )
+        };
+      },
+    ),
+    /* And a livelit that takes no input keeps the shape it had. */
+    test_case("the other livelits keep three parts", `Quick, () =>
+      switch (
+        Livelit.FumolaPutForce.model_to_hazel(
+          Livelit.FumolaPutForce.model_default,
+        ).
+          term
+      ) {
+      | Tuple([_, _, _]) => ()
+      | _ => Alcotest.fail("expected instance, thunk name and program")
+      }
+    ),
   ],
 );

@@ -557,6 +557,9 @@ module type FumolaConfig = {
   let name: string;
   /* Evaluate at the top level rather than inside a thunk. */
   let top_level: bool;
+  /* Carry a Hazel value in the model and bind it, as `input`, in the Fumola
+     program's scope. The way in: everything else here reports outward. */
+  let takes_input: bool;
   /* A thunk livelit's model carries the name of its thunk; the editor has no
      thunk and carries none. */
   let default_thunk_name: option(string);
@@ -581,6 +584,9 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
        history the thunk exists to keep. */
     thunk_name: option(string),
     program: string,
+    /* The Hazel value this program runs on, rendered into Fumola source and
+       bound as `input`. Absent for the livelits that take no input. */
+    input: option(TermBase.Exp.t),
   };
 
   /* A Fumola result becomes a Hazel value of whatever shape it has: an
@@ -648,48 +654,60 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
   };
 
   /* The rendering and the expansion, from one evaluation. */
+  /* The program as the runtime sees it: a livelit that takes input binds it
+     first, so the program can name it. Rendering can fail -- a hole, or
+     anything with no written Fumola form -- and that is worth saying plainly
+     rather than running something that does not mean what was written. */
+  let effective_program = (model: model_t): result(string, string) =>
+    switch (model.input) {
+    | None => Ok(model.program)
+    | Some(input) =>
+      switch (FumolaSource.of_exp(input)) {
+      | Error(message) => Error(message)
+      | Ok(source) => Ok("let input = " ++ source ++ "; " ++ model.program)
+      }
+    };
+
   let observe_described =
       (~ana: TermBase.Typ.t, ~tools: LivelitCtx.type_tools, model: model_t)
       : (expansion_t, string) => {
-    let response =
-      switch (
-        C.top_level
-          ? shim(
-              "evalTop",
-              [|js_int(model.instance_id), js_string(model.program)|],
-            )
-          : shim(
-              "evalSync",
-              [|
-                js_int(model.instance_id),
-                js_string(
-                  switch (model.thunk_name) {
-                  | Some(name) => name
-                  | None => "`topLevel"
-                  },
-                ),
-                js_string(model.program),
-              |],
-            )
-      ) {
-      | exception _ => None
-      | r =>
-        Some(r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string)
-      };
-    switch (response) {
-    | None =>
-      let message = "no Fumola runtime available";
-      (
+    switch (effective_program(model)) {
+    | Error(message) => (
         Error({
           syntax: false,
           message,
         }),
         message,
-      );
-    | Some(response) =>
-      switch (Yojson.Safe.from_string(response)) {
-      | exception _ =>
-        let message = "could not read the Fumola runtime's response";
+      )
+    | Ok(program) =>
+      let response =
+        switch (
+          C.top_level
+            ? shim(
+                "evalTop",
+                [|js_int(model.instance_id), js_string(program)|],
+              )
+            : shim(
+                "evalSync",
+                [|
+                  js_int(model.instance_id),
+                  js_string(
+                    switch (model.thunk_name) {
+                    | Some(name) => name
+                    | None => "`topLevel"
+                    },
+                  ),
+                  js_string(program),
+                |],
+              )
+        ) {
+        | exception _ => None
+        | r =>
+          Some(r |> Js_of_ocaml.Js.Unsafe.coerce |> Js_of_ocaml.Js.to_string)
+        };
+      switch (response) {
+      | None =>
+        let message = "no Fumola runtime available";
         (
           Error({
             syntax: false,
@@ -697,53 +715,65 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
           }),
           message,
         );
-      | `Assoc(obj) as json =>
-        switch (List.assoc_opt("ok", obj)) {
-        | Some(`Bool(true)) =>
-          switch (
-            FumolaValue.exp_of_json(
-              ~instance_id=model.instance_id,
-              ~eval=eval_in(model.instance_id),
-              ~ana,
-              ~tools,
-              json,
-            )
-          ) {
-          | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
-          | Error(message) => (
+      | Some(response) =>
+        switch (Yojson.Safe.from_string(response)) {
+        | exception _ =>
+          let message = "could not read the Fumola runtime's response";
+          (
+            Error({
+              syntax: false,
+              message,
+            }),
+            message,
+          );
+        | `Assoc(obj) as json =>
+          switch (List.assoc_opt("ok", obj)) {
+          | Some(`Bool(true)) =>
+            switch (
+              FumolaValue.exp_of_json(
+                ~instance_id=model.instance_id,
+                ~eval=eval_in(model.instance_id),
+                ~ana,
+                ~tools,
+                json,
+              )
+            ) {
+            | Ok(exp) => (Ok(exp), FumolaValue.describe(json))
+            | Error(message) => (
+                Error({
+                  syntax: false,
+                  message,
+                }),
+                message,
+              )
+            }
+          | _ =>
+            let message =
+              switch (List.assoc_opt("error", obj)) {
+              | Some(`String(message)) => message
+              | _ => "the Fumola program did not produce a value"
+              };
+            let syntax =
+              List.assoc_opt("kind", obj) == Some(`String("syntax"));
+            (
               Error({
-                syntax: false,
+                syntax,
                 message,
               }),
               message,
-            )
+            );
           }
         | _ =>
-          let message =
-            switch (List.assoc_opt("error", obj)) {
-            | Some(`String(message)) => message
-            | _ => "the Fumola program did not produce a value"
-            };
-          let syntax =
-            List.assoc_opt("kind", obj) == Some(`String("syntax"));
+          let message = "could not read the Fumola runtime's response";
           (
             Error({
-              syntax,
+              syntax: false,
               message,
             }),
             message,
           );
         }
-      | _ =>
-        let message = "could not read the Fumola runtime's response";
-        (
-          Error({
-            syntax: false,
-            message,
-          }),
-          message,
-        );
-      }
+      };
     };
   };
 
@@ -752,16 +782,32 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
   /* A thunk livelit's model is (instance, thunk name, program); the editor
      has no thunk, so its model is (instance, program). Both name an instance,
      so two livelits carrying the same id share one runtime. */
+  /* Unknown for the input: a model type is fixed, and the value a program
+     runs on is whatever its author passes. */
   let hazel_model_t: TermBase.Typ.t =
     (
-      switch (C.default_thunk_name) {
-      | Some(_) =>
+      switch (C.default_thunk_name, C.takes_input) {
+      | (Some(_), false) =>
         Prod([
           Typ.temp(Atom(Int)),
           Typ.temp(Atom(String)),
           Typ.temp(Atom(String)),
         ])
-      | None => Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))])
+      | (Some(_), true) =>
+        Prod([
+          Typ.temp(Atom(Int)),
+          Typ.temp(Atom(String)),
+          Typ.temp(Atom(String)),
+          Typ.temp(Unknown(Internal)),
+        ])
+      | (None, false) =>
+        Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(String))])
+      | (None, true) =>
+        Prod([
+          Typ.temp(Atom(Int)),
+          Typ.temp(Atom(String)),
+          Typ.temp(Unknown(Internal)),
+        ])
       }
     )
     |> Typ.fresh;
@@ -770,16 +816,24 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     (m: model_t) => {
       let instance = DHExp.fresh(Atom(Int(Bigint.of_int(m.instance_id))));
       let program = DHExp.fresh(Atom(String(m.program)));
+      let head =
+        switch (m.thunk_name) {
+        | Some(thunk_name) => [
+            instance,
+            DHExp.fresh(Atom(String(thunk_name))),
+            program,
+          ]
+        | None => [instance, program]
+        };
       DHExp.fresh(
         Tuple(
-          switch (m.thunk_name) {
-          | Some(thunk_name) => [
-              instance,
-              DHExp.fresh(Atom(String(thunk_name))),
-              program,
-            ]
-          | None => [instance, program]
-          },
+          head
+          @ (
+            switch (m.input) {
+            | Some(input) => [input]
+            | None => []
+            }
+          ),
         ),
       );
     };
@@ -799,12 +853,32 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
             {term: Atom(String(program)), _},
           ]),
           Some(_),
-        ) =>
+        )
+          when !C.takes_input =>
         instance(id, instance_id =>
           {
             instance_id,
             thunk_name: Some(thunk_name),
             program,
+            input: None,
+          }
+        )
+      | (
+          Tuple([
+            {term: Atom(Int(id)), _},
+            {term: Atom(String(thunk_name)), _},
+            {term: Atom(String(program)), _},
+            input,
+          ]),
+          Some(_),
+        )
+          when C.takes_input =>
+        instance(id, instance_id =>
+          {
+            instance_id,
+            thunk_name: Some(thunk_name),
+            program,
+            input: Some(input),
           }
         )
       | (
@@ -813,12 +887,31 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
             {term: Atom(String(program)), _},
           ]),
           None,
-        ) =>
+        )
+          when !C.takes_input =>
         instance(id, instance_id =>
           {
             instance_id,
             thunk_name: None,
             program,
+            input: None,
+          }
+        )
+      | (
+          Tuple([
+            {term: Atom(Int(id)), _},
+            {term: Atom(String(program)), _},
+            input,
+          ]),
+          None,
+        )
+          when C.takes_input =>
+        instance(id, instance_id =>
+          {
+            instance_id,
+            thunk_name: None,
+            program,
+            input: Some(input),
           }
         )
       | _ => None
@@ -831,6 +924,11 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
     instance_id: 0,
     thunk_name: C.default_thunk_name,
     program: C.default_program,
+    /* A value to start from, so the livelit says what it is for the moment
+       it appears. */
+    input:
+      C.takes_input
+        ? Some(DHExp.fresh(Atom(Int(Bigint.of_int(1))))) : None,
   };
 
   /* The result's shape depends on the program text -- 1 + 2 is an Int,
@@ -1031,6 +1129,7 @@ module FumolaPutForce =
   MakeFumola({
     let name = "fumola_put_force";
     let top_level = false;
+    let takes_input = false;
     let default_thunk_name = Some("`thunk");
     let default_program = "1 + 2";
   });
@@ -1042,6 +1141,7 @@ module FumolaEval =
   MakeFumola({
     let name = "fumola_eval";
     let top_level = true;
+    let takes_input = false;
     let default_thunk_name = None;
     let default_program = "1 := 2";
   });
@@ -1257,6 +1357,24 @@ module FumolaNew: BuiltinLivelit = {
   };
 };
 
+/* Runs a Fumola program on a Hazel value.
+ *
+ * The other livelits report outward: a Fumola program runs and its result
+ * becomes a Hazel value. This one goes the other way as well. The Hazel value
+ * in its model is rendered into Fumola source and bound as `input`, so the
+ * program can name it -- and the result comes back translated as usual.
+ *
+ * So a sort written in Fumola can be run on a list Hazel holds, and both the
+ * input and the output can be read in Hazel's own terms. */
+module FumolaWith =
+  MakeFumola({
+    let name = "fumola_with";
+    let top_level = false;
+    let takes_input = true;
+    let default_thunk_name = Some("`with");
+    let default_program = "input";
+  });
+
 let livelits: list(raw_livelit) =
   [
     (module Slider),
@@ -1265,5 +1383,6 @@ let livelits: list(raw_livelit) =
     (module FumolaNew),
     (module FumolaPutForce),
     (module FumolaEval),
+    (module FumolaWith),
   ]
   |> List.map(raw_of_builtin);

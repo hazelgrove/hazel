@@ -35,7 +35,8 @@ let tests = (
                  the Rust tests in the Fumola repo, crates/fumola_wasm. */
               | "fumola_new"
               | "fumola_put_force"
-              | "fumola_eval" => raise(Skip_livelit)
+              | "fumola_eval"
+              | "fumola_with" => raise(Skip_livelit)
               | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
               };
 

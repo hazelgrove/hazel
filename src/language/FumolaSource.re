@@ -30,8 +30,7 @@ open Util;
 let symbol_constructors = ["Name", "Num", "Call", "Dot"];
 
 let rec of_exp = (e: TermBase.Exp.t): result(string, string) => {
-  let unsupported = (what: string) =>
-    Error("no Fumola source for " ++ what);
+  let unsupported = (what: string) => Error("no Fumola source for " ++ what);
   let all = (parts: list(result(string, string))) =>
     List.fold_right(
       (part, acc) =>
