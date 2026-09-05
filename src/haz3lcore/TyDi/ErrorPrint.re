@@ -225,6 +225,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
   | TypAbstractMemberOfSignature(_)
+  | SigDuplicateMember(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -333,6 +334,16 @@ let tpat_mark_string: Mark.t => string =
   | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
+let sig_mark_string: Mark.t => string =
+  fun
+  | SigDuplicateMember({name, type_member}) =>
+    prn(
+      "%s %s is declared more than once in this signature",
+      type_member ? "Type member" : "Member",
+      name,
+    )
+  | _ => "(static error)";
+
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
   switch (info) {
   | InfoDrv(drv) =>
@@ -363,6 +374,11 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
       | Some(m) => tpat_mark_string(m)
       | None => ""
       }
+    }
+  | InfoSig(_) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => sig_mark_string(m)
+    | None => "(static error)"
     }
   | _ => "(static error)"
   };
