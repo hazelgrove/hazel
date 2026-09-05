@@ -2775,12 +2775,24 @@ let view_impl =
                ((ds, ls), (t, _, e: CanvasScore.timed_effect)) =>
                  switch (e.effect) {
                  | Draw(name) => (
-                     [(CanvasView.path_dom_id(name), Option.none), ...ds],
+                     /* an endofunction's orbit ring cannot be ridden: it
+                        draws on when the ride would have ended */
+                     [
+                       (CanvasView.path_dom_id(name), Option.none),
+                       (
+                         CanvasView.orbit_dom_id(name),
+                         Option.some(t + e.dur),
+                       ),
+                       ...ds,
+                     ],
                      ls,
                    )
                  | Reveal(name) => (
+                     /* a path or, for an endofunction, an orbit ring:
+                        schedule both ids (one exists) */
                      [
                        (CanvasView.path_dom_id(name), Option.some(t)),
+                       (CanvasView.orbit_dom_id(name), Option.some(t)),
                        ...ds,
                      ],
                      ls,

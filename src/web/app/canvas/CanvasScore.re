@@ -486,11 +486,16 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
   /* a new anonymous product that sources a new edge is formed by that
      edge's act (Form: visit the parts, lines draw in, the dot grows) —
      not a definition of its own */
+  let many_edges = List.length(diff.edges) > tempo.max_edge_acts;
+  /* ... unless no edge act rides them: then the products are definitions
+     of their own (the rest act only reveals the edges) */
   let formed =
-    List.filter_map(
-      (e: new_edge) => Option.map(fst, e.product),
-      diff.edges,
-    );
+    many_edges
+      ? []
+      : List.filter_map(
+          (e: new_edge) => Option.map(fst, e.product),
+          diff.edges,
+        );
   let defs =
     definitions(
       List.filter((n: new_node) => !List.mem(n.key, formed), diff.added),
@@ -507,7 +512,6 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
       defs,
     );
   let orphans = List.map((d: definition) => d.primary, edge_orphans);
-  let many_edges = List.length(diff.edges) > tempo.max_edge_acts;
   let edges = many_edges ? [] : diff.edges;
   /* threading the actor's position through the acts */
   let from = ref(diff.actor);

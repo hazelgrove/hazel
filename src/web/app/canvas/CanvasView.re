@@ -26,6 +26,8 @@ let sanitize = (s: string): string =>
   );
 
 let node_dom_id = (key: string): string => "cnode-" ++ sanitize(key);
+/* an endofunction is drawn as an orbit ring, not a path */
+let orbit_dom_id = (name: string): string => "corbit-" ++ sanitize(name);
 
 /* A geometry layer (edges, hulls, ...) covers the board AND the pan slack
    around it: nodes pinned or dragged above/left of the frame origin sit at
