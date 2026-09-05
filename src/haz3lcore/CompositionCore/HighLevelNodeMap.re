@@ -601,8 +601,11 @@ let gather_top_level = (node_map: t): list(Id.t) => {
      });
 };
 
+/* Paths are slash-delimited ("M/helper"); a dotted form ("M.helper", the
+   language's own member-access syntax, which a model reaches for first) is
+   accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', path);
+  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {

@@ -144,13 +144,10 @@ let execute_one_tool_call =
       }
     ) {
     | Ok((model, editor)) =>
-      let model =
-        Utils.update_context(
-          ~session_mode=settings.agent_globals.session_mode,
-          model,
-          editor,
-          chat_id,
-        );
+      /* the context the agent reads is rebuilt right before each send
+         (AgentSend); rebuilding it after every tool as well was most of a
+         tool call's cost (statics + fold + print of the whole program) and
+         nothing read it in between */
       let success_message =
         "The "
         ++ tool_call.name

@@ -753,6 +753,23 @@ module ChatMessagesScrollHook = {
     let on_mount = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
+      /* keep up every frame while pinned: streamed text, autosizing
+         textareas and late layout all grow the list between renders, and
+         waiting for a render left the list sitting at the top for readers
+         who never scrolled */
+      let rec follow = (_: float) =>
+        if (state.listener_id != None) {
+          if (ChatScrollPin.request^) {
+            ChatScrollPin.request := false;
+            state.stick_to_bottom = true;
+          };
+          if (state.stick_to_bottom && !is_near_bottom(element)) {
+            scroll_to_bottom(element);
+          };
+          ignore(
+            Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+          );
+        };
       let handler =
         Dom.handler(_evt => {
           state.stick_to_bottom = is_near_bottom(element);
@@ -766,6 +783,9 @@ module ChatMessagesScrollHook = {
           Js._false,
         );
       state.listener_id = Some(id);
+      ignore(
+        Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+      );
     };
 
     let update =
@@ -777,7 +797,9 @@ module ChatMessagesScrollHook = {
 
     let destroy = (_input: Input.t, state: State.t, _element) =>
       switch (state.listener_id) {
-      | Some(id) => Dom_html.removeEventListener(id)
+      | Some(id) =>
+        Dom_html.removeEventListener(id);
+        state.listener_id = None; /* stops the follow loop */
       | None => ()
       };
   });
