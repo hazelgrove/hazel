@@ -135,6 +135,36 @@ let upgrade_bare_sig_type = (z: t): option(t) => {
   };
 };
 
+/* The inverse: once its `=` is deleted, a signature `type T = _` tile keeps
+   only its `type` shard. Rather than an incomplete tile waiting for `=`, it
+   becomes the bare abstract-member form again (Destruct calls this). Only
+   the caret's siblings are considered: that is where the deleted shard was.
+   A module-body `type T = _` has no bare form and is left alone. */
+let downgrade_bare_sig_type = (z: t): t => {
+  let f = Form.get(SigTypeAbstract);
+  let downgrade = (p: Piece.t) =>
+    switch (p) {
+    | Tile(
+        {label: ["type", "="], mold: {out: Sig, _}, shards: [0], _} as t,
+      ) =>
+      Piece.Tile({
+        ...t,
+        label: f.label,
+        mold: f.mold,
+        children: [],
+      })
+    | p => p
+    };
+  let (l, r) = z.relatives.siblings;
+  {
+    ...z,
+    relatives: {
+      ...z.relatives,
+      siblings: (List.map(downgrade, l), List.map(downgrade, r)),
+    },
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t => {
   let z = t == "=" ? Option.value(upgrade_bare_sig_type(z), ~default=z) : z;
