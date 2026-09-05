@@ -63,6 +63,91 @@ let myNone : Option =
 let myNested : (Int, (a=Int, b=String)) =
   ^fumola_thunk(0, "`myNested", "(1, {a = 2; b = `word})") in
 
+# SYMBOLS #
+# A symbol is Fumola's notion of a name, and they are first-order data: a   #
+# number is a symbol, an identifier is a symbol, and they compose.          #
+#                                                                          #
+#   `hello                 an identifier                                   #
+#   7                      a number is a symbol too                        #
+#   `adapton(`settings)    application, and it nests                       #
+#                                                                          #
+# Symbols cross into Hazel as their text, with the backticks dropped at     #
+# every depth, so one convention holds throughout.                          #
+let mySymbol : String =
+  ^fumola_thunk(0, "`mySymbol", "`hello") in
+
+let myAppliedSymbol : String =
+  ^fumola_thunk(0, "`myApplied", "`adapton(`settings)") in
+
+let myNestedSymbol : String =
+  ^fumola_thunk(0, "`myNestedSym", "`a(`b(`c))") in
+
+# They travel inside structures like any other value. #
+let mySymbolPair : (String, String) =
+  ^fumola_thunk(0, "`mySymPair", "(`x, `y)") in
+
+# Text is not the only form. Hazel has a Symbol type of the same shape       #
+# Fumola gives them, and which form you get is decided by the type you ask   #
+# for -- these two livelits run the same program.                            #
+#                                                                           #
+#   type Symbol = + Num(Int) + Name(String)                                  #
+#                 + Call((Symbol, Symbol)) + Dot((Symbol, Symbol))           #
+#                                                                           #
+# The text form stays useful because it is the only way to produce a String  #
+# from a livelit at all: a Hazel string cannot contain a quote, so neither   #
+# can the program that would otherwise build one.                            #
+let symbolAsText : String =
+  ^fumola_thunk(0, "`asText", "`hello") in
+
+let symbolAsData : Symbol =
+  ^fumola_thunk(0, "`asData", "`hello") in
+
+# A number is a symbol, so it has a structured form too. #
+let numberAsSymbol : Symbol =
+  ^fumola_thunk(0, "`numSym", "7") in
+
+# Application nests, each side a symbol in its own right. #
+let appliedAsSymbol : Symbol =
+  ^fumola_thunk(0, "`applSym", "`adapton(`settings)") in
+
+# SYMBOLS, THE OTHER WAY #
+# Symbols also travel from Hazel into Fumola, in one specific place: the    #
+# thunk name, the second argument of every livelit on this card. It is not  #
+# an identifier this side invents a syntax for -- it is Fumola source,      #
+# which Fumola parses in a runtime kept only for that purpose. So any form  #
+# the language spells as a symbol works as a name.                          #
+#                                                                          #
+# An ordinary name, a number, and an applied symbol, each naming its own    #
+# thunk in the same runtime.                                                #
+let namedPlainly : Int =
+  ^fumola_thunk(0, "`plainName", "1") in
+
+let namedByNumber : Int =
+  ^fumola_thunk(0, "1234", "2") in
+
+let namedByApplication : Int =
+  ^fumola_thunk(0, "`group(`member)", "3") in
+
+# SPACES AND TIMES #
+# Adapton names places and moments, and each is mostly just a symbol. Both  #
+# have a type in the Hazel prelude of the shape Fumola gives them, so the   #
+# cases can be told apart.                                                  #
+#                                                                          #
+#   type Space = + Symbol(String) + Here                                    #
+#   type Time  = + Symbol(String) + Now                                     #
+#                                                                          #
+# A named space carries the symbol as its text.                             #
+let mySpace : Space =
+  ^fumola_thunk(0, "`mySpace", "Adapton.space(`region)") in
+
+# `here` and `now` are relative to where evaluation is, and name nothing,   #
+# so they come across as their own cases rather than as symbols.            #
+let myHere : Space =
+  ^fumola_editor(0, "Adapton.here()") in
+
+let myNow : Time =
+  ^fumola_editor(0, "Adapton.now()") in
+
 # CELLS AND POINTERS #
 # Cells are what make editing incremental. `:=` writes one, and get(s)      #
 # reads it back. State written in one edit is still there in the next, so   #
@@ -116,6 +201,13 @@ let myNumberedPointer : Int =
   myRecord,
   mySome,
   myNested,
+  mySymbol,
+  myAppliedSymbol,
+  mySymbolPair,
+  symbolAsText,
+  symbolAsData,
+  appliedAsSymbol,
+  mySpace,
   myCell,
   myPointer,
   myTuplePointer

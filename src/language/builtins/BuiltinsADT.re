@@ -51,6 +51,30 @@ module Either = {
    Fumola's Space has a third case, an expression rather than a name. It is
    left out: nothing on this side has a use for it, and a value carrying one
    fails to translate rather than arriving mis-shapen. */
+/* Fumola symbols, as Hazel data.
+
+   A symbol is Fumola's notion of a name, and they are first-order: a number
+   is a symbol, an identifier is a symbol, and they compose. Recursive through
+   its own alias name, the way `type MyList = Nil + Cons(Int, MyList)` is.
+
+   A symbol also arrives as plain text where a String is expected. Which one
+   you get is decided by the type asked for, so the text form -- the only way
+   to produce a String from a livelit, since a Hazel string literal cannot
+   contain a quote -- stays available. */
+module Symbol = {
+  /* The alias refers to itself; a Hazel type alias is an implicit least
+     fixed point on its own name. */
+  let self: Typ.t = Typ.fresh(Var("Symbol"));
+
+  let t: Typ.t =
+    sum_type([
+      ("Num", Some(Typ.fresh(Atom(Int)))),
+      ("Name", Some(Typ.fresh(Atom(String)))),
+      ("Call", Some(Typ.fresh(Prod([self, self])))),
+      ("Dot", Some(Typ.fresh(Prod([self, self])))),
+    ]);
+};
+
 module Space = {
   let t: Typ.t =
     sum_type([
@@ -221,6 +245,7 @@ module JSON = {
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
+  ("Symbol", Symbol.t),
   ("Space", Space.t),
   ("Time", Time.t),
   ("Either", Either.t),

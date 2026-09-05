@@ -234,6 +234,68 @@ let rec typ_of_json =
   };
 };
 
+/* A Fumola symbol as structured Hazel data, for where a Symbol is expected.
+
+   Built with the same constructor resolution as any other variant, so the
+   constructors are the ones the expected type declares rather than invented
+   here. */
+let rec symbol_exp =
+        (
+          ~tools: LivelitCtx.type_tools,
+          ~ana: TermBase.Typ.t,
+          json: Yojson.Safe.t,
+        )
+        : result(TermBase.Exp.t, string) => {
+  let applied = (name, payload) => {
+    let (ctr, payload_ana) = constructor(~tools, ~ana, name);
+    switch (payload(payload_ana)) {
+    | Error(e) => Error(e)
+    | Ok(arg) => Ok(DHExp.fresh(Ap(Forward, ctr, arg)))
+    };
+  };
+  let pair = (obj, left, right, payload_ana) =>
+    switch (List.assoc_opt(left, obj), List.assoc_opt(right, obj)) {
+    | (Some(l), Some(r)) =>
+      let element_anas = element_anas(~tools, payload_ana, 2);
+      let (la, ra) =
+        switch (element_anas) {
+        | [la, ra] => (la, ra)
+        | _ => (unknown(), unknown())
+        };
+      switch (
+        symbol_exp(~tools, ~ana=la, l),
+        symbol_exp(~tools, ~ana=ra, r),
+      ) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(l), Ok(r)) => Ok(DHExp.fresh(Tuple([l, r])))
+      };
+    | _ => Error("Fumola symbol is missing a component")
+    };
+  switch (json) {
+  | `Assoc(obj) =>
+    switch (List.assoc_opt("tag", obj), List.assoc_opt("value", obj)) {
+    | (Some(`String("Name")), Some(`String(name))) =>
+      applied("Name", _ => Ok(DHExp.fresh(Atom(String(name)))))
+    | (Some(`String("Num")), Some(`String(n))) =>
+      applied("Num", _ =>
+        switch (Bigint.of_string_opt(n)) {
+        | Some(n) => Ok(DHExp.fresh(Atom(Int(n))))
+        | None => Error("Fumola symbol has an unreadable number: " ++ n)
+        }
+      )
+    | (Some(`String("Call")), _) =>
+      applied("Call", payload_ana => pair(obj, "fun", "arg", payload_ana))
+    | (Some(`String("Dot")), _) =>
+      applied("Dot", payload_ana => pair(obj, "left", "right", payload_ana))
+    | (Some(`String(tag)), _) =>
+      Error("Fumola symbol form `" ++ tag ++ "` has no Hazel form yet")
+    | _ => Error("Fumola symbol has no tag")
+    }
+  | _ => Error("Fumola symbol is not an object")
+  };
+};
+
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
         (
@@ -352,12 +414,19 @@ and exp_of_tagged =
       };
     | _ => Error("Fumola pointer has no source text")
     }
-  /* A symbol becomes its text. Hazel has no symbol of its own, and the text
-     is the part a Hazel program can act on. */
+  /* A symbol arrives either as structure or as its text, decided by the type
+     asked for. Where a Symbol is expected it comes as structure; anywhere
+     else as text, which is what makes a symbol the only way to produce a
+     String from a livelit -- a Hazel string literal cannot contain a quote,
+     so neither can the program that would otherwise build one. */
   | ("Symbol", symbol) =>
-    switch (symbol_text(symbol)) {
-    | Error(e) => Error(e)
-    | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
+    switch (tools.resolve_ctr(~ana, "Name")) {
+    | Some(_) => symbol_exp(~tools, ~ana, symbol)
+    | None =>
+      switch (symbol_text(symbol)) {
+      | Error(e) => Error(e)
+      | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
+      }
     }
   | ("Tuple", `List(items)) =>
     let anas = element_anas(~tools, ana, List.length(items));

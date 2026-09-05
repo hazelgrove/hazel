@@ -58,6 +58,22 @@ let something: Typ.t =
     ]),
   );
 
+/* Resolves the Symbol constructors, as the context would. */
+let symbol_tools: LivelitCtx.type_tools = {
+  resolve_ctr: (~ana as _, name) => {
+    let sym = BuiltinsADT.Symbol.t;
+    let arrow = dom => Some(Typ.fresh(Arrow(dom, sym)));
+    switch (name) {
+    | "Name" => arrow(Typ.fresh(Atom(String)))
+    | "Num" => arrow(Typ.fresh(Atom(Int)))
+    | "Call"
+    | "Dot" => arrow(Typ.fresh(Prod([sym, sym])))
+    | _ => None
+    };
+  },
+  normalize: ty => ty,
+};
+
 /* Resolves Hazel's builtin Option, as the context would. */
 let option_tools: LivelitCtx.type_tools = {
   resolve_ctr: (~ana as _, name) =>
@@ -617,6 +633,80 @@ let tests = (
     fails(
       "a pointer with no source text",
       {|{"tag":"AdaptonPointer","value":{"symbol":{"tag":"Name","value":"x"}}}|},
+    ),
+    /* A symbol comes as structure where a Symbol is expected, and as text
+       anywhere else. The type asked for decides, so the text form -- the only
+       way to get a String out of a livelit -- stays available. */
+    test_case("a symbol is structured where a Symbol is expected", `Quick, () =>
+      switch (
+        translate(
+          ~ana=BuiltinsADT.Symbol.t,
+          ~tools=symbol_tools,
+          {|{"tag":"Symbol","value":{"tag":"Name","value":"x"}}|},
+        )
+      ) {
+      | Ok({term: Ap(Forward, {term: Constructor("Name", _), _}, arg), _}) =>
+        switch (arg.term) {
+        | Atom(String("x")) => ()
+        | _ => Alcotest.fail("Name should carry the symbol's text")
+        }
+      | Ok(_) => Alcotest.fail("expected an applied Name constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    test_case("a numeric symbol is structured too", `Quick, () =>
+      switch (
+        translate(
+          ~ana=BuiltinsADT.Symbol.t,
+          ~tools=symbol_tools,
+          {|{"tag":"Symbol","value":{"tag":"Num","value":"7"}}|},
+        )
+      ) {
+      | Ok({term: Ap(Forward, {term: Constructor("Num", _), _}, _), _}) =>
+        ()
+      | Ok(_) => Alcotest.fail("expected an applied Num constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* Applications nest, each side a symbol in its own right. */
+    test_case("an applied symbol is a Call of two symbols", `Quick, () =>
+      switch (
+        translate(
+          ~ana=BuiltinsADT.Symbol.t,
+          ~tools=symbol_tools,
+          {|{"tag":"Symbol","value":{"tag":"Call","fun":{"tag":"Name","value":"a"},"arg":{"tag":"Name","value":"b"}}}|},
+        )
+      ) {
+      | Ok({
+          term:
+            Ap(
+              Forward,
+              {term: Constructor("Call", _), _},
+              {term: Tuple([l, r]), _},
+            ),
+          _,
+        }) =>
+        switch (l.term, r.term) {
+        | (
+            Ap(Forward, {term: Constructor("Name", _), _}, _),
+            Ap(Forward, {term: Constructor("Name", _), _}, _),
+          ) =>
+          ()
+        | _ => Alcotest.fail("both sides of a Call should be symbols")
+        }
+      | Ok(_) => Alcotest.fail("expected an applied Call constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* With no Symbol expected, the text form is what arrives. */
+    test_case("a symbol is text where no Symbol is expected", `Quick, () =>
+      switch (
+        translate({|{"tag":"Symbol","value":{"tag":"Name","value":"x"}}|})
+      ) {
+      | Ok({term: Atom(String("x")), _}) => ()
+      | Ok(_) => Alcotest.fail("expected the text form")
+      | Error(m) => Alcotest.fail(m)
+      }
     ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
     fails("a missing tag", {|{"value":null}|}),
