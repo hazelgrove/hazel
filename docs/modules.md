@@ -212,7 +212,13 @@ mismatches land on definitions. After checking:
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
 elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
-value member. In type position, `utyp_to_info_map` threads a context through
+value member; a member the signature lacks is reported on the label
+(`ModuleMemberNotFound`, which also says when `x` names a type member) while
+the dot carries only a message, the way `M.Fake` in a type reports on `Fake`
+(`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
+`TypWantModule`, and a manifest type member differing from the signature is
+reported once, on its `type` item: members are checked against the module's
+own definition and the module is not reported again. In type position, `utyp_to_info_map` threads a context through
 signature items and resolves `M.T` through `Typ.path_sig`; TyDi receives the
 type member names via `LabelProjectionExpected`.
 
@@ -266,7 +272,7 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
