@@ -195,6 +195,12 @@ let type_tests = (
       ~expect=None,
     ),
     tydi_test(
+      ~name="Qualified type: abstract type member completes",
+      ~code=
+        "module M : { type Thing; let x : Thing } = { type Thing = Int; let x = 1 } in let y : M.Th¦",
+      ~expect=Some("ing"),
+    ),
+    tydi_test(
       ~name="Qualified type: value members are not type members",
       ~code="module M = { type T = Int; let xylo = 1 } in let y : M.xy¦",
       ~expect=None,
@@ -292,6 +298,13 @@ let qualified_tests = (
     tydi_test(
       ~name="Qualified: module keyword prefix match",
       ~code="module Mm = {let val = 1} in let n : Int = Mm¦",
+      ~expect=Some(".val"),
+    ),
+    /* Suggestions are sorted, so a leaked `aaa` would win over `val` */
+    tydi_test(
+      ~name="Qualified: sealed-away member is not suggested",
+      ~code=
+        "module Mm : {let val : Int} = {let val = 1; let aaa = 2} in let n : Int = Mm¦",
       ~expect=Some(".val"),
     ),
     /* Module name that shadows a builtin type alias should not

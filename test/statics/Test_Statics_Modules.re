@@ -918,6 +918,204 @@ let test_label_mismatch_hole =
     {|let m : { let x : ? } = { let y = 1 } in m|} |> parse_exp,
   );
 
+/* ===== ABSTRACT TYPE MEMBERS ===== */
+
+/* `type T` with no definition. A module sealed by such a signature must
+   define T, but outside the module T is known only as the path `M.T`. */
+let abs_ = t => Sig.sig_type_abstract(TPat.var(t));
+let path = (m, t) => prod_projection(var(m), label(t));
+let sealed_m = {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in |};
+
+let test_abstract_member_wellformed =
+  fully_consistent_typecheck(
+    "A signature may declare an abstract type member",
+    {|type S = { type T; let x : T } in 1|},
+    Some(int()),
+  );
+
+/* A module variable names its own abstract types: M's signature is seen as
+   `{ type T = M.T; let x : T }`. */
+let test_sealed_module_type =
+  fully_consistent_typecheck(
+    "A sealed module names its abstract member by the path M.T",
+    sealed_m ++ {|M|},
+    Some(sig_([type_("T", path("M", "T")), val_("x", var("T"))])),
+  );
+
+let test_sealed_member_has_path_type =
+  fully_consistent_typecheck(
+    "A member of abstract type has the path type",
+    sealed_m ++ {|M.x|},
+    Some(path("M", "T")),
+  );
+
+let test_error_sealed_representation_hidden =
+  inconsistent_typecheck(
+    "Sealing hides the representation",
+    sealed_m ++ {|M.x + 1|} |> parse_exp,
+  );
+
+let test_abstract_member_used_through_interface =
+  fully_consistent_typecheck(
+    "Values of abstract type flow through the module's own functions",
+    {|module C : { type T; let zero : T; let get : T -> Int } = { type T = Int; let zero = 0; let get = fun t -> t } in C.get(C.zero)|},
+    Some(int()),
+  );
+
+let test_abstract_path_annotation =
+  fully_consistent_typecheck(
+    "An abstract path annotates a binding",
+    sealed_m ++ {|let q : M.T = M.x in q|},
+    Some(path("M", "T")),
+  );
+
+let test_error_distinct_sealings =
+  inconsistent_typecheck(
+    "Separately sealed modules have distinct abstract types",
+    sealed_m
+    ++ {|module N : { type T; let x : T } = { type T = Int; let x = 1 } in let y : N.T = M.x in y|}
+    |> parse_exp,
+  );
+
+let test_error_same_sig_alias_distinct_instances =
+  inconsistent_typecheck(
+    "Two modules sealed by the same signature alias are distinct",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in module N : S = { type T = Int; let x = 1 } in let y : N.T = M.x in y|}
+    |> parse_exp,
+  );
+
+let test_module_alias_shares_abstract_type =
+  fully_consistent_typecheck(
+    "module N = M shares M's abstract type",
+    sealed_m ++ {|module N = M in let y : N.T = M.x in y|},
+    Some(path("N", "T")),
+  );
+
+let test_variable_alias_shares_abstract_type =
+  fully_consistent_typecheck(
+    "let m = M shares M's abstract type",
+    sealed_m ++ {|let m = M in let z : m.T = m.x in z|},
+    Some(path("m", "T")),
+  );
+
+let test_manifest_member_stays_transparent =
+  fully_consistent_typecheck(
+    "A manifest type member is transparent",
+    {|module M : { type T = Int; let x : T } = { type T = Int; let x = 1 } in M.x + 1|},
+    Some(int()),
+  );
+
+let test_unsealed_module_stays_transparent =
+  fully_consistent_typecheck(
+    "An unsealed module's type members are transparent",
+    {|module M = { type T = Int; let x = 1 : T } in M.x + 1|},
+    Some(int()),
+  );
+
+let test_missing_type_member_mark =
+  has_mark_test(
+    "A module lacking an abstract member's definition is missing it",
+    {|module M : { type T; let x : T } = { let x = 1 } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["T"]) => true
+    | _ => false,
+  );
+
+/* Later signature items may reach an earlier module member's type members
+   through it. */
+let test_sig_member_path_through_sibling_module =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling module member's type",
+    {|type S = { module Inner : { type T }; let y : Inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_sig_member_path_through_sibling_value =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling value member's type",
+    {|type S = { let inner : { type T = Int }; let y : inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_module_matches_sibling_path_member =
+  fully_consistent_typecheck(
+    "A module matches a signature whose member is typed through a sibling",
+    {|module M : { module Inner : { type T; let x : T }; let y : Inner.T } = { module Inner = { type T = Int; let x = 1 }; let y = Inner.x } in 1|},
+    Some(int()),
+  );
+
+/* Every mark in the program satisfies [pred], and there is at least one. */
+let only_marks_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        name,
+        true,
+        marks != [] && List.for_all(pred, marks),
+      );
+    },
+  );
+
+let is_missing_members: Language.Mark.t => bool =
+  fun
+  | ModuleMissingMembers(_) => true
+  | _ => false;
+
+/* The signature is well-formed: the missing member is reported on the
+   module only, not as a free type variable on the signature's `T`. */
+let test_missing_type_member_only_error =
+  only_marks_test(
+    "A missing abstract member is the module's only error",
+    {|module M : { type T; let x : T } = { let x = 1 } in M|},
+    is_missing_members,
+  );
+
+let test_missing_sibling_module_only_error =
+  only_marks_test(
+    "A missing sub-module that a member's type goes through is the only error",
+    {|module M : { module Inner : { type T }; let y : Inner.T } = { let y = 1 } in M|},
+    is_missing_members,
+  );
+
+let test_error_type_member_kind_mismatch =
+  inconsistent_typecheck(
+    "A value member does not satisfy a type member of the same name",
+    {|module M : { type x } = { let x = 1 } in M|} |> parse_exp,
+  );
+
+let test_error_forward_reference_in_sig =
+  inconsistent_typecheck(
+    "Signature members cannot mention a later type member",
+    {|type S = { let x : T; type T } in 1|} |> parse_exp,
+  );
+
+let test_sealing_through_abstract_path =
+  fully_consistent_typecheck(
+    "A module may realize its abstract type by another module's path",
+    sealed_m
+    ++ {|module N : { type U; let y : U } = { type U = M.T; let y = M.x } in N.y|},
+    Some(path("N", "U")),
+  );
+
+/* Only a path can name an abstract member; projecting from any other
+   expression of the signature's type yields `?`. */
+let test_non_path_projection_is_unknown =
+  fully_consistent_typecheck(
+    "An abstract member projected from a non-path is unknown",
+    sealed_m ++ {|(M : { type T; let x : T }).x|},
+    Some(unknown(Internal)),
+  );
+
+let test_error_unknown_member_on_sealed =
+  inconsistent_typecheck(
+    "A member absent from the sealing signature is not accessible",
+    sealed_m ++ {|M.y|} |> parse_exp,
+  );
+
 /* ===== MODULE KEYWORD TESTS ===== */
 
 /* Test module keyword with lowercase name */
@@ -1247,6 +1445,30 @@ let tests = (
     test_width_if_branch_ascribed,
     test_hole_named_member_matches_any,
     test_label_mismatch_hole,
+    /* Abstract type members */
+    test_abstract_member_wellformed,
+    test_sealed_module_type,
+    test_sealed_member_has_path_type,
+    test_error_sealed_representation_hidden,
+    test_abstract_member_used_through_interface,
+    test_abstract_path_annotation,
+    test_error_distinct_sealings,
+    test_error_same_sig_alias_distinct_instances,
+    test_module_alias_shares_abstract_type,
+    test_variable_alias_shares_abstract_type,
+    test_manifest_member_stays_transparent,
+    test_unsealed_module_stays_transparent,
+    test_missing_type_member_mark,
+    test_missing_type_member_only_error,
+    test_missing_sibling_module_only_error,
+    test_sig_member_path_through_sibling_module,
+    test_sig_member_path_through_sibling_value,
+    test_module_matches_sibling_path_member,
+    test_error_type_member_kind_mismatch,
+    test_error_forward_reference_in_sig,
+    test_sealing_through_abstract_path,
+    test_non_path_projection_is_unknown,
+    test_error_unknown_member_on_sealed,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
