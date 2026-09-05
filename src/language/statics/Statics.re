@@ -1284,6 +1284,21 @@ and uexp_to_info_map =
          and correct self (Label produces UnexpectedLabelSort by default,
          but in dot position it should be Just(Label(name))) */
 
+      /* A module member that does not exist is reported on the label; the dot
+         then carries a message rather than an error (see the Sig arm). */
+      let label_marks =
+        switch (whnf_dot(info_e1.ty).term, e2.term) {
+        | (Sig(items), Label(name))
+            when Typ.sig_project_value(items, name) == None => [
+            Mark.ModuleMemberNotFound({
+              name,
+              members: available_labels,
+              type_member:
+                List.mem(name, Sig.type_names(Sig.members(items))),
+            }),
+          ]
+        | _ => []
+        };
       let (info_e2, elab_e2, m) =
         switch (e2.term) {
         | Label(name) =>
@@ -1294,7 +1309,7 @@ and uexp_to_info_map =
             ~ctx,
             ~ana=syn,
             ~elab_syn_ty=Label(name) |> Typ.temp,
-            ~marks=[],
+            ~marks=label_marks,
             ~co_ctx=CoCtx.empty,
             ~label_inference=None,
             ~inferred_label=None,
@@ -1415,7 +1430,14 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[LabelNotFound(name, labels)],
+              ~marks=[],
+              ~message=
+                Message.Exp(
+                  ModuleMemberNotFound({
+                    name,
+                    members: labels,
+                  }),
+                ),
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
@@ -2669,7 +2691,8 @@ and uexp_to_info_map =
       let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
-      let m = ModuleHelpers.check_ana_type_members(~ana_items, items, m);
+      let (m, mismatched_types) =
+        ModuleHelpers.check_ana_type_members(~ana_items, items, m);
       let marks =
         (
           switch (ModuleHelpers.missing_members(~ana_items, sig_ty)) {
@@ -2687,7 +2710,10 @@ and uexp_to_info_map =
         ~elab_term=
           Module(ModuleHelpers.refold_module_elab(items, expanded_elab))
           |> rewrap,
-        ~elab_syn_ty=sig_ty,
+        /* A type member reported on its item is not reported again as a
+           mismatch of the whole module: the module then has the declared
+           type, as its binder does. */
+        ~elab_syn_ty=mismatched_types == [] ? sig_ty : ana,
         ~marks,
         ~co_ctx=expanded_info.co_ctx,
         ~probe_targets=expanded_info.probe_targets,
@@ -3696,7 +3722,10 @@ and utyp_to_info_map =
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
-    | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
+    | (
+        LabelProjectionExpected(_) | ModuleMemberExpected(_),
+        Unknown(Hole(EmptyHole)),
+      ) =>
       ok(Message.EmptyLabel)
     | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
       let whole_path =
@@ -3721,7 +3750,7 @@ and utyp_to_info_map =
         | None =>
           ok(
             Message.TypeUnderdetermined(
-              Message.ProdProjectionMissingLabel(
+              Message.ModuleTypeMemberMissing(
                 l,
                 Sig.type_names(Sig.members(items)),
               ),
@@ -3819,7 +3848,22 @@ and utyp_to_info_map =
       | None =>
         switch (Typ.weak_head_normalize(ctx, utyp)) {
         | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
-        | ty_n => err(TypWantProduct(ty_n))
+        | ty_n =>
+          switch (utyp.term) {
+          | Var(name) when Ctx.lookup_tvar(ctx, name) == None =>
+            /* A value variable that is not a module. */
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some({typ, _}) =>
+              err(
+                TypWantModule({
+                  name,
+                  typ,
+                }),
+              )
+            | None => err(TypWantProduct(ty_n))
+            }
+          | _ => err(TypWantProduct(ty_n))
+          }
         }
       }
     | (_, Unknown(Hole(EmptyHole))) => ok(Message.Type(utyp))
@@ -3850,11 +3894,22 @@ and utyp_to_info_map =
         ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
+    | (ModuleMemberExpected({members, submodule}), Label(name)) =>
+      List.mem(name, members)
+        ? ok(Message.Type(utyp))
+        : err(
+            ModuleTypeMemberNotFound({
+              name,
+              members,
+              submodule,
+            }),
+          )
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
       err(TypWantConstructorFoundType(utyp))
     | (LabelExpected(_), _)
-    | (LabelProjectionExpected(_), _) => err(TypWantLabel)
+    | (LabelProjectionExpected(_), _)
+    | (ModuleMemberExpected(_), _) => err(TypWantLabel)
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
@@ -3932,28 +3987,38 @@ and utyp_to_info_map =
           |> snd;
     add(m);
   | ProdProjection(t, label) =>
-    let labels =
+    let label_expects: TypExpectation.t =
       switch (Typ.path_sig(ctx, t)) {
       | Some(items) =>
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
            at the end it names a type member. */
         switch (expects) {
-        | ProductExpected => Some(Typ.sig_module_member_names(ctx, items))
-        | _ => Some(Sig.type_names(Sig.members(items)))
+        | ProductExpected =>
+          ModuleMemberExpected({
+            members: Typ.sig_module_member_names(ctx, items),
+            submodule: true,
+          })
+        | _ =>
+          ModuleMemberExpected({
+            members: Sig.type_names(Sig.members(items)),
+            submodule: false,
+          })
         }
       | None =>
         switch (Typ.weak_head_normalize(ctx, t).term) {
         | Prod(ts) =>
-          Some(
-            List.filter_map(
-              t => Typ.match_tup_label(t) |> Option.map(fst),
-              ts,
+          LabelProjectionExpected(
+            Some(
+              List.filter_map(
+                t => Typ.match_tup_label(t) |> Option.map(fst),
+                ts,
+              ),
             ),
           )
-        | _ => None
+        | _ => LabelProjectionExpected(None)
         }
       };
-    let m = go(~expects=LabelProjectionExpected(labels), label, m) |> snd;
+    let m = go(~expects=label_expects, label, m) |> snd;
     let m = go(~expects=ProductExpected, t, m) |> snd;
     add(~expects=TypeExpected, m);
   | ProdExtension(t1, t2) =>
