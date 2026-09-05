@@ -314,7 +314,38 @@ let thunkPointer : Int =
 let eventCount : Int =
   ^fumola_eval(7, "Adapton.peekEvents().size()") in
 
+# THE EVENT LOG, AS A TABLE #
+# A graphical runtime records what it did, and peekEvents reports it: a     #
+# list of records, which is exactly the shape Hazel's table projector       #
+# draws. So the adapton event log can be read as a table.                   #
+#                                                                           #
+# The types below are the log's own shape. Fumola writes its event tags     #
+# in lower case, and they arrive capitalised, since that is how Hazel       #
+# spells a constructor.                                                     #
+type EdgeId = + EdgeId(Int) in
+type Event =
+  + AddNode((Space, Time, Int))
+  + AddEdge(EdgeId)
+  + UpdateEdge(EdgeId)
+  + ForceBegin((EdgeId, Option))
+  + ForceEnd(EdgeId) in
+type EventRow = (metaTime=Int, event=Event) in
+
+# The annotation is what lets the livelit expand -- it runs only in         #
+# checking mode -- and it is also the log's type written out, which is      #
+# worth reading on its own.                                                 #
+#                                                                           #
+# A list of records is what a table wants, so the log reads as one:         #
+# ^^probe_table pins a probe here and draws its samples as a table.         #
+# Columns come out in the order EventRow lists its fields, which is why     #
+# metaTime is written first.                                                #
+let events : [EventRow] =
+  ^fumola_eval(7, "Adapton.peekEvents()") in
+
+^^probe_table(events);
+
 (
+  events,
   myInt,
   myBool,
   myFloat,
