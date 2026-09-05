@@ -616,7 +616,16 @@ module MakeFumola = (C: FumolaConfig) : BuiltinLivelit => {
   /* Run a program in this instance and hand back its JSON, for translation
      to dereference pointers with. Uncached in both directions: a later edit
      can change what a cell holds, and these calls must not evict the cached
-     main program either. */
+     main program either.
+
+     evalFresh runs at the top level, which is where this belongs: peek
+     is how the editor reads a cell, and the editor mode is the one on a
+     force-free stack. A peek does also work inside a force -- untracked
+     but meaningful, which is what makes it useful for looking at a
+     running computation -- so this is a matter of asking in the right
+     mode rather than of avoiding a failure. What genuinely refuses from
+     inside a force is a reset; that is where
+     AdaptonError(UnreachableForceEnd) comes from. */
   let eval_in = (instance_id: int, program: string): Yojson.Safe.t => {
     let response =
       switch (

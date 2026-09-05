@@ -14,8 +14,21 @@
 #   a thunk name        Fumola source for a symbol, naming this thunk        #
 #   the program         Fumola source                                        #
 #                                                                            #
-# Every livelit here shares instance 0, so they share one runtime; each has  #
-# its own thunk name, so they do not overwrite each other.                   #
+# What it encodes is a forced thunk, forced by the editor: the editor        #
+# names a thunk, puts your program in it, and forces it. So your             #
+# program runs on a forceful stack -- a force is underway -- which is        #
+# the archivist mode, where the tracked operations belong: put (:=),         #
+# get (@), and force. That is why a thunk name is needed at all. The         #
+# name is the cell the thunk lives in, and forcing it is what a              #
+# dependency can be recorded against.                                        #
+#                                                                            #
+# A ^fumola_editor takes only an instance id and a program, and runs         #
+# it on a force-free stack: the editor mode, which is the more general       #
+# one. peek, reset and the graph introspection live there. The card          #
+# says which livelit each case needs, and why, where it matters.             #
+#                                                                            #
+# Every livelit here shares instance 0, so they share one runtime; each      #
+# has its own thunk name, so they do not overwrite each other.               #
 
 # Numbers and arithmetic look as you would expect. #
 let myInt : Int =
@@ -24,6 +37,24 @@ let myInt : Int =
 # Booleans too. #
 let myBool : Bool =
   ^fumola_thunk(0, "`myBool", "true") in
+
+# Floats cross as floats. Fumola prints them as text and Hazel reads that   #
+# text, so no precision is lost passing through JSON.                        #
+let myFloat : Float =
+  ^fumola_thunk(0, "`myFloat", "0.5") in
+
+# A Fumola array is a purely functional sequence under the hood, and it     #
+# arrives as a Hazel list. The element type comes from the annotation.      #
+let myList : [Int] =
+  ^fumola_thunk(0, "`myList", "[1, 2, 3]") in
+
+# An empty array is still a list; only its element type is left open.       #
+let myEmptyList : [Int] =
+  ^fumola_thunk(0, "`myEmptyList", "[]") in
+
+# Lists nest with everything else, so a list of records works.             #
+let myListOfPairs : [(Int, Bool)] =
+  ^fumola_thunk(0, "`myListOfPairs", "[(1, true), (2, false)]") in
 
 # A symbol is Fumola's notion of a name, written with a leading backtick.   #
 # It arrives in Hazel as its text, which is also the only way to produce a  #
@@ -44,6 +75,11 @@ let myPair : (Int, Bool) =
 # tuple. Fields come back in name order.                                    #
 let myRecord : (x=Int, y=Bool) =
   ^fumola_thunk(0, "`myRecord", "{x = 1; y = true}") in
+
+# A record of floats is the shape of a Vec3 in Adapton.Scene, which is how  #
+# a scene says where to draw something. Note that 0.0 prints as 0.          #
+let myVec3 : (x=Float, y=Float, z=Float) =
+  ^fumola_thunk(0, "`myVec3", "{x = 0.0; y = 1.5; z = -2.25}") in
 
 # Variants are written with a leading hash, as in the program below.        #
 # A Fumola variant names no type of its own, so the expected type is        #
@@ -161,13 +197,37 @@ let myCell : Int =
 let myNamedCell : Int =
   ^fumola_thunk(0, "`myNamedCell", "`count := 41; get(`count) + 1") in
 
-# peek(s) reads without recording a dependency, and answers an option: the  #
-# cell may never have been written.                                         #
+# peek(s) reads without recording a dependency, and answers an option:      #
+# the cell may never have been written.                                     #
+#                                                                           #
+# Note the livelit: these are editor livelits, not thunk livelits, and      #
+# that is not a stylistic choice. Fumola runs in two modes, and each of     #
+# the two livelits names one of them.                                       #
+#                                                                           #
+# The archivist runs inside a force. Its operations are the tracked         #
+# ones -- put (:=), get (@), and force itself -- the operations a           #
+# dependency can be recorded for, since there is a computation in           #
+# progress to record it against.                                            #
+#                                                                           #
+# The editor is the more general mode, and it always operates on a          #
+# force-free stack: no force is underway.                                   #
+#                                                                           #
+# reset and the graph introspection belong to it alone. Asking for a        #
+# reset from inside a DCG computation is not a meaningful request --        #
+# there is a computation in progress that it would be pulling out           #
+# from under itself -- and it refuses.                                      #
+#                                                                           #
+# peek is the interesting one. It is how the editor reads a cell, and       #
+# it stays available inside a force as well, on purpose: reading a          #
+# cell without recording a dependency is how you look at a                  #
+# computation while it runs. So peek in a thunk is meaningful, just         #
+# untracked. The livelits below use the editor for it because that is       #
+# where it belongs, not because the alternative breaks.                     #
 let myPeek : Option =
-  ^fumola_thunk(0, "`myPeek", "`count := 41; peek(`count)") in
+  ^fumola_editor(0, "`count := 41; peek(`count)") in
 
 let myMissing : Option =
-  ^fumola_thunk(0, "`myMissing", "peek(`neverWritten)") in
+  ^fumola_editor(0, "peek(`neverWritten)") in
 
 # POINTERS #
 # pointer(s) is the pointer that symbol s names, and `:=` evaluates to the  #
@@ -224,6 +284,11 @@ let forcedRecord : (x=Int, y=Bool) =
 (
   myInt,
   myBool,
+  myFloat,
+  myList,
+  myEmptyList,
+  myListOfPairs,
+  myVec3,
   myString,
   myPair,
   myRecord,
