@@ -695,8 +695,17 @@ module ChatMessagesScrollHook = {
     type t = {
       mutable stick_to_bottom: bool,
       mutable listener_id: option(Dom_html.event_listener_id),
+      /* the follow loop is alive only for a stretch after the last
+         render that touched the list (streamed text, autosize): an idle
+         tab must not read scrollTop every frame — each read forced a
+         layout against the canvas animations and pinned a whole core
+         (Chrome trace, 2026-09-05) */
+      mutable last_touch: float,
+      mutable following: bool,
     };
   };
+  let follow_grace_ms = 1500.;
+  let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
   module Input = {
     [@deriving sexp_of]
@@ -748,28 +757,44 @@ module ChatMessagesScrollHook = {
       State.{
         stick_to_bottom: true,
         listener_id: None,
+        last_touch: 0.,
+        following: false,
+      };
+    /* (re)start the per-frame follow; it retires itself after the grace */
+    let start_follow = (state: State.t, element) =>
+      if (!state.following) {
+        state.following = true;
+        let rec follow = (_: float) =>
+          if (state.listener_id != None
+              && now()
+              -. state.last_touch < follow_grace_ms) {
+            if (ChatScrollPin.request^) {
+              ChatScrollPin.request := false;
+              state.stick_to_bottom = true;
+            };
+            if (state.stick_to_bottom && !is_near_bottom(element)) {
+              scroll_to_bottom(element);
+            };
+            ignore(
+              Dom_html.window##requestAnimationFrame(
+                Js.wrap_callback(follow),
+              ),
+            );
+          } else {
+            state.following = false;
+          };
+        ignore(
+          Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
+        );
       };
 
     let on_mount = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
-      /* keep up every frame while pinned: streamed text, autosizing
-         textareas and late layout all grow the list between renders, and
-         waiting for a render left the list sitting at the top for readers
-         who never scrolled */
-      let rec follow = (_: float) =>
-        if (state.listener_id != None) {
-          if (ChatScrollPin.request^) {
-            ChatScrollPin.request := false;
-            state.stick_to_bottom = true;
-          };
-          if (state.stick_to_bottom && !is_near_bottom(element)) {
-            scroll_to_bottom(element);
-          };
-          ignore(
-            Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
-          );
-        };
+      /* keep up every frame while pinned AND recently rendered: streamed
+         text, autosizing textareas and late layout all grow the list
+         between renders, and waiting for a render left the list sitting
+         at the top for readers who never scrolled */
       let handler =
         Dom.handler(_evt => {
           state.stick_to_bottom = is_near_bottom(element);
@@ -783,17 +808,19 @@ module ChatMessagesScrollHook = {
           Js._false,
         );
       state.listener_id = Some(id);
-      ignore(
-        Dom_html.window##requestAnimationFrame(Js.wrap_callback(follow)),
-      );
+      state.last_touch = now();
+      start_follow(state, element);
     };
 
     let update =
-        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
+        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) => {
       if (old_input != new_input && state.stick_to_bottom) {
         scroll_to_bottom(element);
         schedule_scroll_to_bottom(element);
       };
+      state.last_touch = now();
+      start_follow(state, element);
+    };
 
     let destroy = (_input: Input.t, state: State.t, _element) =>
       switch (state.listener_id) {
