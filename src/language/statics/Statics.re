@@ -2679,18 +2679,20 @@ and uexp_to_info_map =
         Match(scrut_elab, List.combine(ps_elabs, es_elabs)) |> rewrap;
       /* Compute the `elab_syn_ty` that a fresh re-synthesis of the
          elaborated Match would produce. See analogous comment on If. */
-      let branch_fresh_syn = (e: Info.exp) => {
+      let branch_fresh_syn = ((e: Info.exp, e_syn_ty: Typ.t)) => {
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
           | _ => !Typ.equal_up_to_aliases(ctx, result_ty, e.ty)
           };
-        wrapped ? result_ty : e.elab_syn_ty;
+        /* The branch's type as it leaves the arm: paths rooted at the
+           arm's binders cannot (`e_syn_tys`). */
+        wrapped ? result_ty : e_syn_ty;
       };
       let (elab_syn_ty, _) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
-          List.map(branch_fresh_syn, es),
+          List.map(branch_fresh_syn, List.combine(es, e_syn_tys)),
           branch_ids,
         );
       add(
@@ -2864,20 +2866,33 @@ and uexp_to_info_map =
         List.mapi((i, item) => (Mod.rep_id(item), i), items)
         |> List.to_seq
         |> Id.Map.of_seq;
+      /* The value names each item binds, by position: a later item's type
+         may go through one of them (`Inner.T`). */
+      let value_binders: list((Var.t, int)) =
+        List.concat(
+          List.mapi(
+            (i, item: Mod.t) =>
+              List.map(name => (name, i), Mod.bound_names(item)),
+            items,
+          ),
+        );
       let export = (~item: Mod.t, ctx, ty) => {
-        let before =
+        let declared_before = (names: list((Var.t, int))) =>
           switch (Id.Map.find_opt(Mod.rep_id(item), position)) {
           | Some(i) =>
             List.filter_map(
               ((name, j)) => j < i ? Some(name) : None,
-              last_declared,
+              names,
             )
           | None => []
           };
-        Typ.normalize(
-          ~expand=n => List.exists(String.equal(n), declared),
-          ctx,
-          Typ.to_type_members(before, ty),
+        Typ.to_member_roots(
+          declared_before(value_binders),
+          Typ.normalize(
+            ~expand=n => List.exists(String.equal(n), declared),
+            ctx,
+            Typ.to_type_members(declared_before(last_declared), ty),
+          ),
         );
       };
       /* Each item with the names it exports: those it binds that no later

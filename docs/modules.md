@@ -140,6 +140,29 @@ In the editor, typing `type` inside a signature produces the bare `type T`
 form; typing `=` after its type pattern upgrades it to `type T = …`. In a
 module body `type` still produces `type T = …`.
 
+### Module-typed functions
+
+```
+fun (m : { type T; let x : T; let f : T -> Int }) -> m.f(m.x)   -- : S -> Int
+fun (m : { type T; let x : T }) -> m                            -- : S -> S
+fun (m : { type T; let x : T }) -> m.x                          -- : S -> ?
+let make = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U })
+in let a = make() in let b = make() in (b.y : a.U)              -- error: distinct types
+```
+
+Functions take and return modules like any other value, with width
+subtyping and sealing applied to arguments and results. Inside a body, a
+parameter's abstract types are the paths `m.T`. A path cannot leave the
+scope of its root: when a function body, a `let` body or a `case` arm is
+typed (`Typ.avoid`), a path rooted at the binder is first reduced (a
+manifest member is simply expanded), and one that is still abstract becomes
+`?`, except that a signature member defined as that path becomes abstract
+and later members refer to it by name. So a function returning its module
+parameter has type `S -> S`, and each call of a function returning a module
+with abstract members yields a fresh abstract type (generativity). The same
+rule makes `module M : { type T; ... } = ... in M.x` have type `?` as a
+whole, while `M.x : M.T` inside the `in`.
+
 ### Member Access and `module`
 
 ```
@@ -356,7 +379,9 @@ to a signature (`Ascriptions.re`) keeps the signature's value members in
 signature order, ascribes each to its declared type, and drops the rest,
 unless a hole item in the signature could declare them, when they stay as
 they are;
-type members have no runtime content. `ModVal` items compare equal to the
+type members have no runtime content. A cast to an abstract path type
+(`M.T`) is likewise a no-op: elaboration normalizes manifest paths away, so a
+path reaching the runtime is abstract. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 Two module values compare under `==` and `!=` member by name
 (`Mod.paired_bindings`, in `DHExp.ty_comparable` and `DHExp.poly_equal`).
@@ -416,11 +441,25 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
 | `src/menhirParser/Parser.mly`, `Conversion.re` | Text parser for module forms                                |
 
+### Tests
+
+| File                                       | What                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
+| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.Coercion`, `Typ.SigPaths`: meet, coercion, paths, strengthening |
+| `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
+| `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
+| `test/Test_TyDi.re`                        | Value/type member completion                                              |
+| `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
+| `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade                 |
+| `test/statics/Test_Statics_Properties.re` | `Root type mentions no internal binder` (QCheck, signatures generated)     |
+
 ### In-Editor Documentation
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
 | `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
-| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide (width sealing) |
+| `hazel-programs/docs/reference/module-abstract-types.hz` | The Module Abstract Types slide (abstract members, module-typed functions). The four slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
