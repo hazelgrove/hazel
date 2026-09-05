@@ -231,6 +231,38 @@ let tests = (
         );
       }
     ),
+    /* A Fumola value Hazel has no value for arrives opaque, carrying the
+       source Fumola prints for it. A value, not an error: a tuple holding a
+       thunk should show the thunk, not a red mark where a value belongs. */
+    Alcotest.test_case("an opaque value shows what it is", `Quick, () =>
+      switch (
+        translate_raw(
+          ~eval=no_eval,
+          {|{"tag":"Tuple","value":[{"tag":"Opaque","value":"@thunk ({ 1 + 3 })"},{"tag":"Int","value":"4"}]}|},
+        )
+      ) {
+      | Error(m) => Alcotest.fail(m)
+      | Ok(exp) =>
+        let seg =
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            exp,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                Language.CoreSettings.off,
+              ),
+          );
+        Alcotest.check(
+          Alcotest.string,
+          "the thunk sits in the tuple as a value",
+          "(@thunk ({ 1 + 3 }), 4)",
+          Haz3lcore.Printer.of_segment(
+            ~holes="",
+            Haz3lcore.Printer.unproject_segment(seg),
+          ),
+        );
+      }
+    ),
     translates("an integer", {|{"tag":"Int","value":"3"}|}, "Int 3"),
     translates("a float", {|{"tag":"Float","value":"0.5"}|}, "Float 0.5"),
     translates(
@@ -334,13 +366,18 @@ let tests = (
       | Error(m) => Alcotest.fail(m)
       }
     ),
+    /* Hazel constructors begin with a capital and Fumola's tags need not, so
+       the name is capitalised on the way across. Left alone, a lowercase tag
+       becomes a free constructor and Hazel marks it as an error -- which is
+       what an untouched adapton event log looked like: #addNode, #forceBegin
+       and the rest, all red. */
     test_case("a variant with a payload is an applied constructor", `Quick, () =>
       switch (
         translate(
-          {|{"tag":"Variant","value":{"name":"some","value":{"tag":"Int","value":"3"}}}|},
+          {|{"tag":"Variant","value":{"name":"addNode","value":{"tag":"Int","value":"3"}}}|},
         )
       ) {
-      | Ok({term: Ap(Forward, {term: Constructor("some", _), _}, _), _}) =>
+      | Ok({term: Ap(Forward, {term: Constructor("AddNode", _), _}, _), _}) =>
         ()
       | Ok(_) => Alcotest.fail("expected an applied constructor")
       | Error(m) => Alcotest.fail(m)
@@ -348,10 +385,25 @@ let tests = (
     ),
     test_case("a variant without a payload is a bare constructor", `Quick, () =>
       switch (
-        translate({|{"tag":"Variant","value":{"name":"none","value":null}}|})
+        translate(
+          {|{"tag":"Variant","value":{"name":"forceEnd","value":null}}|},
+        )
       ) {
-      | Ok({term: Constructor("none", _), _}) => ()
+      | Ok({term: Constructor("ForceEnd", _), _}) => ()
       | Ok(_) => Alcotest.fail("expected a bare constructor")
+      | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* An already-capitalised tag is left as it is, which is why the card's
+       #Circle keeps working. */
+    test_case("an already capitalised tag is unchanged", `Quick, () =>
+      switch (
+        translate(
+          {|{"tag":"Variant","value":{"name":"Circle","value":null}}|},
+        )
+      ) {
+      | Ok({term: Constructor("Circle", _), _}) => ()
+      | Ok(_) => Alcotest.fail("expected Circle")
       | Error(m) => Alcotest.fail(m)
       }
     ),

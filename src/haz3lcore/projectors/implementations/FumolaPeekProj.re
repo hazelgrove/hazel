@@ -46,16 +46,28 @@ module M: Projector = {
   let update = (m, _, _) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 
+  /* With no reference to show -- an opaque Fumola value rather than a peek
+     -- there is nothing to put left of the equals, so the value stands
+     alone. */
   let view = ({model, _}: View.args(model, action)) =>
     ProjectorBase.View.mk(
       div(
         ~attrs=[Attr.classes(["fumola-peek"])],
-        [
-          span(
-            ~attrs=[Attr.classes(["fumola-peek-reads"])],
-            [text(model.reads)],
-          ),
-          span(~attrs=[Attr.classes(["fumola-peek-arrow"])], [text("=")]),
+        (
+          model.reads == ""
+            ? []
+            : [
+              span(
+                ~attrs=[Attr.classes(["fumola-peek-reads"])],
+                [text(model.reads)],
+              ),
+              span(
+                ~attrs=[Attr.classes(["fumola-peek-arrow"])],
+                [text("=")],
+              ),
+            ]
+        )
+        @ [
           span(
             ~attrs=[Attr.classes(["fumola-peek-value"])],
             [text(model.shown)],

@@ -1951,19 +1951,30 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
        description stands in -- a thunk prints itself -- and it is still Some,
        since the cell is occupied. A hole with nothing to say about it is left
        bare: Some of a hole would claim more than is known. */
+    /* No reference means an opaque value: it is just what it holds, and it
+       needs no parentheses, being a single token already. Everything else
+       reads "<reference> = <value>", which does: bare, a multi-part value
+       sitting in a comma-separated list would look like several. */
+    let opaque = reads == "" && holds != "";
     let shown_seg =
       switch (value.term, holds) {
+      | (EmptyHole, holds) when opaque => [text(holds)]
       | (EmptyHole, holds) when holds != "" => [
           text(reads ++ " = Some(" ++ holds ++ ")"),
         ]
       | (EmptyHole, _) => [text(reads ++ " = "), ...value_seg]
       | _ => [text(reads ++ " = Some(")] @ value_seg @ [text(")")]
       };
-    let syntax = Segment.parenthesize(shown_seg);
+    let syntax =
+      switch (shown_seg) {
+      | [only] when opaque => only
+      | _ => Segment.parenthesize(shown_seg)
+      };
     let model =
       Language.FumolaPeekModel.serialize({
         reads,
-        shown: Language.FumolaValue.shown_value(~holds, value),
+        shown:
+          opaque ? holds : Language.FumolaValue.shown_value(~holds, value),
       });
     wrap(
       exp,

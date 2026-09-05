@@ -50,6 +50,51 @@ let element_ana =
   | _ => unknown()
   };
 
+/* The order a record's fields arrive in.
+ *
+ * Fumola holds them in a HashMap, whose iteration order is not stable, so the
+ * runtime sorts by name -- otherwise a record could come back differently on
+ * each evaluation. Where a type is expected, though, the annotation has
+ * already said what shape this is, including the order its author chose to
+ * read the fields in, so follow that and keep the runtime's name order for
+ * anything the annotation does not mention.
+ *
+ * Visible immediately in a table view, whose columns are the fields in the
+ * order they arrive. */
+let field_order =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): list(string) =>
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) =>
+    List.filter_map(
+      (ty: TermBase.Typ.t) =>
+        switch (ty.term) {
+        | TupLabel({term: Label(l), _}, _) => Some(l)
+        | _ => None
+        },
+      tys,
+    )
+  | _ => []
+  };
+
+let order_fields =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, fields)
+    : list((string, Yojson.Safe.t)) => {
+  let order = field_order(~tools, ana);
+  let rank = (name: string): int => {
+    let rec go = (i, l) =>
+      switch (l) {
+      | [] => max_int
+      | [x, ...xs] => x == name ? i : go(i + 1, xs)
+      };
+    go(0, order);
+  };
+  /* Stable, so fields the annotation omits keep the order they came in. */
+  List.stable_sort(
+    ((a, _), (b, _)) => Int.compare(rank(a), rank(b)),
+    fields,
+  );
+};
+
 /* The expected type of a record field, by label. */
 let field_ana =
     (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, name: string)
@@ -71,6 +116,22 @@ let field_ana =
 
 /* A constructor, annotated with its type where that can be determined.
    Returns the constructor expression and the type expected of its payload. */
+/* Fumola's name for a variant, as Hazel must spell it.
+ *
+ * Hazel constructors begin with a capital, Fumola's tags need not: the
+ * adapton event log is full of #addNode and #forceBegin. Left alone those
+ * become free constructors, which Hazel marks as errors -- a peekEvents
+ * result came back as a wall of red. Capitalising the first letter is the
+ * whole mapping, and it leaves an already-capitalised tag like #Circle
+ * untouched.
+ *
+ * It is not injective: #addNode and #AddNode would both arrive as AddNode.
+ * That costs nothing today, since nothing translates Hazel variants back
+ * into Fumola, but a round trip would have to carry the original spelling
+ * rather than recover it from this. */
+let constructor_name = (name: string): string =>
+  String.capitalize_ascii(name);
+
 let constructor =
     (~tools: LivelitCtx.type_tools, ~ana: TermBase.Typ.t, name: string)
     : (TermBase.Exp.t, TermBase.Typ.t) =>
@@ -191,6 +252,8 @@ let rec typ_of_json =
     /* A symbol becomes its text, so its type is String. */
     | Some(`String("Symbol")) => Typ.fresh(Atom(String))
     | Some(`String("Unit")) => Typ.fresh(Prod([]))
+    /* Hazel has no type for what it has no value for. */
+    | Some(`String("Opaque")) => unknown()
     | Some(`String("Tuple")) =>
       switch (value) {
       | `List(items) =>
@@ -369,7 +432,7 @@ let rec describe_value = (e: TermBase.Exp.t): string =>
   | Constructor(c, _) => c
   | Ap(Forward, {term: Constructor(c, _), _}, arg) =>
     c ++ "(" ++ describe_value(arg) ++ ")"
-  | FumolaPeek({reads, _}) => reads
+  | FumolaPeek({reads, holds, _}) => reads == "" ? holds : reads
   | Projector(_, e) => describe_value(e)
   | EmptyHole => "?"
   | _ => "..."
@@ -453,6 +516,24 @@ and exp_of_tagged =
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
   /* Fumola's unit is Hazel's empty tuple. */
   | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
+  /* A Fumola value Hazel has no value for -- a thunk, say -- carrying the
+     source Fumola prints for it. It rides in the same term a reference does,
+     with no reference: an empty [reads] renders the description alone.
+
+     A value, not an error. Hazel cannot represent it, but that is a limit of
+     the boundary rather than a mistake in anyone's program, and showing
+     "@thunk ({ 1 + 3 })" where the thunk is says more than a red mark. */
+  | ("Opaque", `String(shows)) =>
+    Ok(
+      DHExp.fresh(
+        FumolaPeek({
+          instance_id,
+          reads: "",
+          value: DHExp.fresh(EmptyHole),
+          holds: shows,
+        }),
+      ),
+    )
   /* A pointer becomes the livelit that reads it: the same Fumola instance,
      running get(<the name it points at>).
 
@@ -579,7 +660,7 @@ and exp_of_tagged =
         Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
       };
     };
-    switch (all(List.map(element, fields))) {
+    switch (all(List.map(element, order_fields(~tools, ana, fields)))) {
     | Error(e) => Error(e)
     | Ok(elements) => Ok(DHExp.fresh(Tuple(elements)))
     };
@@ -611,7 +692,8 @@ and exp_of_tagged =
     switch (name) {
     | Error(e) => Error(e)
     | Ok(name) =>
-      let (ctr, payload_ana) = constructor(~tools, ~ana, name);
+      let (ctr, payload_ana) =
+        constructor(~tools, ~ana, constructor_name(name));
       switch (List.assoc_opt("value", fields)) {
       | None
       | Some(`Null) => Ok(ctr)
@@ -670,6 +752,7 @@ let rec describe = (json: Yojson.Safe.t): string =>
     | ("Bool", `Bool(b)) => b ? "true" : "false"
     | ("String", `String(str)) => "\"" ++ str ++ "\""
     | ("Unit", _) => "()"
+    | ("Opaque", `String(shows)) => shows
     | ("AdaptonPointer", `Assoc(fields)) =>
       switch (List.assoc_opt("source", fields)) {
       | Some(`String(source)) => reading_shown(source)
@@ -699,10 +782,11 @@ let rec describe = (json: Yojson.Safe.t): string =>
         | Some(`String(name)) => name
         | _ => "?"
         };
+      let name = constructor_name(name);
       switch (List.assoc_opt("value", fields)) {
       | None
-      | Some(`Null) => "#" ++ name
-      | Some(payload) => "#" ++ name ++ "(" ++ describe(payload) ++ ")"
+      | Some(`Null) => name
+      | Some(payload) => name ++ "(" ++ describe(payload) ++ ")"
       };
     | (tag, _) => "<" ++ tag ++ ">"
     };
