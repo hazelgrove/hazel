@@ -98,6 +98,7 @@ type summary = {
   s_secs: float,
   s_replies: int,
   s_kept: bool,
+  s_live: bool /* still recording when last saved (a crash leaves it so) */
 };
 
 let summary_to_json = (s: summary): Yojson.Safe.t =>
@@ -109,6 +110,7 @@ let summary_to_json = (s: summary): Yojson.Safe.t =>
     ("secs", `Float(s.s_secs)),
     ("replies", `Int(s.s_replies)),
     ("kept", `Bool(s.s_kept)),
+    ("live", `Bool(s.s_live)),
   ]);
 
 let str = (fields, k) =>
@@ -135,6 +137,11 @@ let summary_of_json = (j: Yojson.Safe.t): option(summary) =>
       s_replies: int_of_float(num(f, "replies")),
       s_kept:
         switch (List.assoc_opt("kept", f)) {
+        | Some(`Bool(b)) => b
+        | _ => false
+        },
+      s_live:
+        switch (List.assoc_opt("live", f)) {
         | Some(`Bool(b)) => b
         | _ => false
         },
@@ -229,6 +236,49 @@ let run_to_json = (r: run): Yojson.Safe.t => {
   ]);
 };
 
+/* write the run and its index entry; ~live marks a run still recording,
+   so a crash mid-run leaves the trace up to its last event (saved at most
+   once a second) instead of losing it */
+let save_run = (~live: bool, r: run): unit => {
+  HazelDB.kv_save(
+    trace_key(r.header.id),
+    Yojson.Safe.to_string(run_to_json(r)),
+  );
+  let kept =
+    switch (List.find_opt(x => x.s_id == r.header.id, index())) {
+    | Some(x) => x.s_kept
+    | None => false
+    };
+  let s = {
+    s_id: r.header.id,
+    s_started_at: r.header.started_at,
+    s_slide: r.header.slide,
+    s_prompt: r.header.prompt,
+    s_secs: r.last_t /. 1000.,
+    s_replies: n_replies(r.events),
+    s_kept: kept,
+    s_live: live,
+  };
+  let all = [s, ...List.filter(x => x.s_id != s.s_id, index())];
+  /* the cap spares kept traces */
+  let (keep, drop) =
+    List.fold_left(
+      ((k, d), x) =>
+        List.length(k) < keep_last || x.s_kept
+          ? (k @ [x], d) : (k, d @ [x]),
+      ([], []),
+      all,
+    );
+  List.iter(x => HazelDB.kv_delete(trace_key(x.s_id)), drop);
+  save_index(keep);
+};
+let last_checkpoint: ref(float) = ref(0.);
+let checkpoint = (r: run): unit =>
+  if (now() -. last_checkpoint^ > 1000.) {
+    last_checkpoint := now();
+    save_run(~live=true, r);
+  };
+
 let finalize = (): unit =>
   switch (current^) {
   | None => ()
@@ -236,37 +286,13 @@ let finalize = (): unit =>
     current := None;
     if (r.events != []) {
       last_finalized := Some(r);
-      HazelDB.kv_save(
-        trace_key(r.header.id),
-        Yojson.Safe.to_string(run_to_json(r)),
-      );
-      let s = {
-        s_id: r.header.id,
-        s_started_at: r.header.started_at,
-        s_slide: r.header.slide,
-        s_prompt: r.header.prompt,
-        s_secs: r.last_t /. 1000.,
-        s_replies: n_replies(r.events),
-        s_kept: false,
-      };
-      let all = [s, ...List.filter(x => x.s_id != s.s_id, index())];
-      /* the cap spares kept traces */
-      let (keep, drop) =
-        List.fold_left(
-          ((k, d), x) =>
-            List.length(k) < keep_last || x.s_kept
-              ? (k @ [x], d) : (k, d @ [x]),
-          ([], []),
-          all,
-        );
-      List.iter(x => HazelDB.kv_delete(trace_key(x.s_id)), drop);
-      save_index(keep);
+      save_run(~live=false, r);
       CanvasLog.log(
         Printf.sprintf(
           "trace: run saved (%d repl%s, %.0fs)",
-          s.s_replies,
-          s.s_replies == 1 ? "y" : "ies",
-          s.s_secs,
+          n_replies(r.events),
+          n_replies(r.events) == 1 ? "y" : "ies",
+          r.last_t /. 1000.,
         ),
       );
     };
@@ -351,6 +377,7 @@ let stamp = (ev: event): unit =>
       },
       ...r.events,
     ];
+    checkpoint(r);
     switch (ev) {
     | Busy(false) => schedule_finalize(r)
     | _ => ()

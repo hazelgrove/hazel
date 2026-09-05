@@ -439,38 +439,30 @@ module Local = {
       |> trim_space_before_semi;
     };
     let normalize_member_whitespace = (seg: Segment.t): Segment.t => {
-      let items =
-        List.fold_right(
-          (p, acc) =>
-            switch (is_linebreak(p), acc) {
-            | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
-            | (true, _) => [`Run(1), ...acc]
-            | (false, _) => [`Tok(p), ...acc]
-            },
-          seg,
-          [],
-        );
-      /* Stored per-line indentation would double up with the display's
-         nesting indent, so a normalized run also consumes the spaces that
-         followed it. */
-      let rec drop_leading_spaces = items =>
-        switch (items) {
-        | [`Tok(p), ...rest] when is_space(p) => drop_leading_spaces(rest)
-        | _ => items
+      /* Left to right. A linebreak run ABSORBS the spaces between and after
+         its linebreaks: stored indentation would double up with the
+         display's nesting indent, and a blank line inside a module is
+         "\n␣␣\n" — treating the two linebreaks as separate runs turned
+         one blank line into two on every edit (1, 3, 7, 15, 31, 63 blank
+         lines between members after six agent edits). */
+      let replacement = (prev_tok: option(Piece.t)): list(Piece.t) =>
+        switch (prev_tok) {
+        | Some(p) when is_semi(p) => [linebreak(), linebreak()]
+        | _ => [linebreak()]
         };
-      let rec go = (prev_tok: option(Piece.t), items) =>
-        switch (items) {
-        | [] => []
-        | [`Tok(p), ...rest] => [p, ...go(Some(p), rest)]
-        | [`Run(_), ...rest] =>
-          let replacement =
-            switch (prev_tok) {
-            | Some(p) when is_semi(p) => [linebreak(), linebreak()]
-            | _ => [linebreak()]
-            };
-          replacement @ go(prev_tok, drop_leading_spaces(rest));
+      let rec go =
+              (prev_tok: option(Piece.t), run: int, ps: list(Piece.t))
+              : list(Piece.t) =>
+        switch (ps) {
+        | [] => run > 0 ? replacement(prev_tok) : []
+        | [p, ...rest] when is_linebreak(p) => go(prev_tok, run + 1, rest)
+        | [p, ...rest] when is_space(p) && run > 0 =>
+          go(prev_tok, run, rest)
+        | [p, ...rest] =>
+          (run > 0 ? replacement(prev_tok) : [])
+          @ [p, ...go(Some(p), 0, rest)]
         };
-      go(None, items);
+      go(None, 0, seg);
     };
     let rec normalize_module_bodies = (seg: Segment.t): Segment.t =>
       List.map(

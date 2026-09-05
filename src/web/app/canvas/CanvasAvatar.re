@@ -21,37 +21,47 @@ open Virtual_dom.Vdom;
 
 let look_key = "constellation.avatarLook";
 
+/* localStorage may be absent or a stub (the node test runner): never
+   let a storage failure take the module down at load */
 let storage_get = (k: string): option(string) =>
-  switch (
-    Js.Optdef.to_option(Js.Unsafe.get(Js.Unsafe.global, "localStorage"))
+  try(
+    switch (
+      Js.Optdef.to_option(Js.Unsafe.get(Js.Unsafe.global, "localStorage"))
+    ) {
+    | None => None
+    | Some(ls) =>
+      Js.Opt.to_option(
+        Js.Unsafe.meth_call(
+          ls,
+          "getItem",
+          [|Js.Unsafe.inject(Js.string(k))|],
+        ),
+      )
+      |> Option.map(Js.to_string)
+    }
   ) {
-  | None => None
-  | Some(ls) =>
-    Js.Opt.to_option(
-      Js.Unsafe.meth_call(
-        ls,
-        "getItem",
-        [|Js.Unsafe.inject(Js.string(k))|],
-      ),
-    )
-    |> Option.map(Js.to_string)
+  | _ => None
   };
 let storage_set = (k: string, v: string): unit =>
-  switch (
-    Js.Optdef.to_option(Js.Unsafe.get(Js.Unsafe.global, "localStorage"))
+  try(
+    switch (
+      Js.Optdef.to_option(Js.Unsafe.get(Js.Unsafe.global, "localStorage"))
+    ) {
+    | None => ()
+    | Some(ls) =>
+      ignore(
+        Js.Unsafe.meth_call(
+          ls,
+          "setItem",
+          [|
+            Js.Unsafe.inject(Js.string(k)),
+            Js.Unsafe.inject(Js.string(v)),
+          |],
+        ),
+      )
+    }
   ) {
-  | None => ()
-  | Some(ls) =>
-    ignore(
-      Js.Unsafe.meth_call(
-        ls,
-        "setItem",
-        [|
-          Js.Unsafe.inject(Js.string(k)),
-          Js.Unsafe.inject(Js.string(v)),
-        |],
-      ),
-    )
+  | _ => ()
   };
 
 /* "glyph" (the @ box) or "rig" */

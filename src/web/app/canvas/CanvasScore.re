@@ -30,6 +30,9 @@ type effect =
   | Form(string, list(string)) /* product dot forms from its parts */
   | Draw(string) /* edge name: the arrow is pulled along its path */
   | Pill(string) /* edge label settles in */
+  | Reveal(string) /* edge name: its path draws on, then its pill — no ride
+                      (the "and the rest" act when there are more new edges
+                      than the actor rides) */
   | Vanish(string) /* node key shrinks out */
   | Erase(string) /* edge name retracts */
   | Change(string) /* cue on a modified element */
@@ -269,6 +272,46 @@ let batch_act =
   };
 };
 
+/* more new edges than the actor rides: one act at their centroid reveals
+   them all, staggered — every new edge is scheduled by the score, none is
+   left to appear with the render (the illegal "labels before edges" state) */
+let rest_act =
+    (
+      ~tempo,
+      ~cause,
+      ~from: option(pos),
+      ~pos_of: string => option(pos),
+      es: list(new_edge),
+    )
+    : act => {
+  let dsts = List.filter_map((e: new_edge) => pos_of(e.dst), es);
+  let c = centroid(dsts);
+  let travel_ms =
+    switch (from, c) {
+    | (Some(f), Some(c)) => travel_for(~tempo, dist(f, c))
+    | _ => tempo.travel_min
+    };
+  let t0 = travel_ms + tempo.pause;
+  {
+    cause,
+    at: Centroid(List.map((e: new_edge) => e.dst, es)),
+    emote: Edit,
+    travel_ms,
+    pause_ms: tempo.pause,
+    effects:
+      List.mapi(
+        (i, e: new_edge) =>
+          {
+            effect: Reveal(e.name),
+            at: t0 + 150 * i,
+            dur: tempo.effect,
+          },
+        es,
+      ),
+    settle_ms: tempo.settle,
+  };
+};
+
 let edge_act =
     (
       ~tempo,
@@ -464,7 +507,8 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
       defs,
     );
   let orphans = List.map((d: definition) => d.primary, edge_orphans);
-  let edges = List.length(diff.edges) > tempo.max_edge_acts ? [] : diff.edges;
+  let many_edges = List.length(diff.edges) > tempo.max_edge_acts;
+  let edges = many_edges ? [] : diff.edges;
   /* threading the actor's position through the acts */
   let from = ref(diff.actor);
   let mk = f => {
@@ -532,10 +576,22 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
   /* existing nodes make room FIRST when something new arrives, so a new
      node's lines meet nodes that are already where they will be; a beat
      that only moves things is a closing tidy */
+  /* the edges the actor does not ride are still the score's: one act
+     reveals them, after the definitions they connect */
+  let rest =
+    many_edges
+      ? [
+        mk(from =>
+          rest_act(~tempo, ~cause, ~from, ~pos_of=pos_of', diff.edges)
+        ),
+      ]
+      : [];
   let (acts, total_ms) =
-    additions @ edge_acts @ leftover_orphans == []
+    additions @ edge_acts @ leftover_orphans @ rest == []
       ? sequence(removals @ drift)
-      : sequence(removals @ drift @ additions @ edge_acts @ leftover_orphans);
+      : sequence(
+          removals @ drift @ additions @ edge_acts @ leftover_orphans @ rest,
+        );
   {
     cause,
     acts,
@@ -702,7 +758,8 @@ let act_targets = (~pos_of: string => option(pos), a: act): list(pos) => {
         | Form(pk, parts) => List.filter_map(pos_of, [pk, ...parts])
         | Draw(name)
         | Erase(name)
-        | Pill(name) =>
+        | Pill(name)
+        | Reveal(name) =>
           List.filter_map(pos_of, ["edge-src:" ++ name, "edge-end:" ++ name])
         | Drift
         | Say(_) => []

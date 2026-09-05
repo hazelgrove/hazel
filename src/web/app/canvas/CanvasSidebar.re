@@ -2723,6 +2723,8 @@ let view_impl =
         |> List.filter_map(((t, _, e: CanvasScore.timed_effect)) =>
              switch (e.effect) {
              | Pill(name) => Some((CanvasView.edge_dom_id(name), t))
+             | Reveal(name) =>
+               Some((CanvasView.edge_dom_id(name), t + e.dur))
              | _ => None
              }
            );
@@ -2774,6 +2776,13 @@ let view_impl =
                  switch (e.effect) {
                  | Draw(name) => (
                      [(CanvasView.path_dom_id(name), Option.none), ...ds],
+                     ls,
+                   )
+                 | Reveal(name) => (
+                     [
+                       (CanvasView.path_dom_id(name), Option.some(t)),
+                       ...ds,
+                     ],
                      ls,
                    )
                  | Pill(name) => (

@@ -898,6 +898,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       | Vanish(_)
       | Erase(_) => incr(vanish)
       | Appear(_)
+      | Reveal(_)
       | Pill(_)
       | Change(_)
       | Drift

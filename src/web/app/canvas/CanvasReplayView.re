@@ -177,7 +177,8 @@ let panel = (): list(Node.t) =>
                       s.s_secs,
                       s.s_replies,
                       s.s_replies == 1 ? "y" : "ies",
-                      s.s_kept ? " · kept" : "",
+                      (s.s_kept ? " · kept" : "")
+                      ++ (s.s_live ? {js| · ⚡ interrupted|js} : ""),
                     ),
                   ),
                 ],
