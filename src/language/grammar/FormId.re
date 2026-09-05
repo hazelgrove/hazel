@@ -137,6 +137,10 @@ type family =
   | TypeAlias
   | ModBody
   | ModLet
+  /* SigTypeAbstract precedes ModType: `type` typed in a signature expands to
+     the bare form (Form.Expansion takes the first family that matches); `=`
+     then upgrades it (Insert.upgrade_bare_sig_type). */
+  | SigTypeAbstract
   | ModType
   | ModuleExp
   | ModuleMod
@@ -255,6 +259,7 @@ let label_of_family: family => Label.t =
   | TypeAlias => ["type", "=", "in"]
   | ModBody => Token.mod_lbl
   | ModLet => ["let", "="]
+  | SigTypeAbstract => ["type"]
   | ModType => ["type", "="]
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
