@@ -352,12 +352,27 @@ let expectation_mismatch_mark' =
     switch (met) {
     | Some(_) => None
     | None =>
-      Some(
+      let generic =
         Mark.ExpectationMismatch({
           ana: ana',
           syn: syn',
-        }),
-      )
+        });
+      /* An expression of signature type checked against a signature that
+         declares members it lacks: name them, as a module literal does. */
+      let whnf = ty => Typ.term_of(Typ.weak_head_normalize(ctx, ty));
+      switch (flipped, whnf(ana'), whnf(syn')) {
+      | (false, Sig(want), Sig(have)) =>
+        switch (
+          Sig.missing_members(
+            ~want=Sig.members(want),
+            ~have=Sig.members(have),
+          )
+        ) {
+        | [] => Some(generic)
+        | names => Some(Mark.ModuleMissingMembers(names))
+        }
+      | _ => Some(generic)
+      };
     };
   };
 };

@@ -1300,6 +1300,12 @@ and uexp_to_info_map =
                 List.mem(name, Sig.type_names(Sig.members(items))),
             }),
           ]
+        /* Labeled tuples follow the same design. */
+        | (Prod(ts) | List({term: Prod(ts), _}), Label(name))
+            when
+              LabeledTuple.find_label(Typ.match_tup_label, ts, name) == None => [
+            Mark.LabelNotFound(name, available_labels),
+          ]
         | _ => []
         };
       let (info_e2, elab_e2, m) =
@@ -1384,7 +1390,14 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[LabelNotFound(name, labels)],
+              ~marks=[],
+              ~message=
+                Message.Exp(
+                  TupleLabelNotFound({
+                    name,
+                    labels,
+                  }),
+                ),
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
@@ -1508,7 +1521,14 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[LabelNotFound(name, labels)],
+              ~marks=[],
+              ~message=
+                Message.Exp(
+                  TupleLabelNotFound({
+                    name,
+                    labels,
+                  }),
+                ),
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,

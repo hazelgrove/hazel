@@ -26,6 +26,10 @@ module Bob = {let name = "Bob"; let email = "bob@example.com"} in
 let g1 = greet(Alice) in
 let g2 = greet(Bob) in
 
+# 26a. Error: a module lacking a member the function needs #
+module Carol = {let age = 3} in
+let g3 = greet(Carol) in
+
 # 27. Hiding helpers: only the signature's members are exported #
 module Stack : {
   let empty : [Int];

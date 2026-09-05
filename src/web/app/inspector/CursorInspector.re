@@ -901,6 +901,19 @@ let exp_view =
           }
         ),
       )
+    | Exp(TupleLabelNotFound({name, labels})) =>
+      div_ok(
+        [text("Tuple has no label "), label_view(name)]
+        @ (
+          switch (labels) {
+          | [] => [text("; it has no labels")]
+          | _ => [
+              text("; its labels are "),
+              ...ListUtil.join(text(", "), List.map(label_view, labels)),
+            ]
+          }
+        ),
+      )
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
