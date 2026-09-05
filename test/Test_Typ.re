@@ -787,10 +787,114 @@ let sig_paths_tests = {
   );
 };
 
+/* Avoidance: a path rooted at a binder that goes out of scope is reduced,
+   then, if still abstract, named by an enclosing signature member or
+   replaced by `?`. */
+let avoid_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tu = F.Typ.unknown(Internal);
+  let tv = F.Typ.var;
+  let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
+  let abstract_sig = sg([sa("T"), sv("x", tv("T"))]);
+  let manifest_sig = sg([st("T", ti), sv("x", tv("T"))]);
+  let var_entry = (name, typ) =>
+    Ctx.VarEntry({
+      name,
+      id: Id.invalid,
+      typ,
+      custom_statics: None,
+    });
+  let ctx =
+    Builtins.ctx_init(None)
+    |> Ctx.extend(_, var_entry("M", abstract_sig))
+    |> Ctx.extend(_, var_entry("N", manifest_sig));
+  let avoid = (escaping, ty) => Typ.avoid(ctx, ~escaping, ty);
+  (
+    "Typ.Avoid",
+    [
+      test_case(
+        "identity without escaping paths",
+        `Quick,
+        () => {
+          check(typ, "int", ti, avoid(["M"], ti));
+          check(
+            typ,
+            "other root",
+            path("M", "T"),
+            avoid(["N"], path("M", "T")),
+          );
+          check(
+            typ,
+            "abstract signature",
+            abstract_sig,
+            avoid(["M"], abstract_sig),
+          );
+        },
+      ),
+      test_case(
+        "an escaping abstract path becomes unknown",
+        `Quick,
+        () => {
+          check(typ, "bare", tu, avoid(["M"], path("M", "T")));
+          check(
+            typ,
+            "nested",
+            F.Typ.arrow(tu, ti),
+            avoid(["M"], F.Typ.arrow(path("M", "T"), ti)),
+          );
+        },
+      ),
+      test_case("an escaping manifest path reduces", `Quick, () =>
+        check(typ, "reduced", ti, avoid(["N"], path("N", "T")))
+      ),
+      test_case(
+        "a member defined as an escaping path becomes abstract",
+        `Quick,
+        () => {
+          check(
+            typ,
+            "strengthened signature",
+            abstract_sig,
+            avoid(
+              ["M"],
+              sg([st("T", path("M", "T")), sv("x", tv("T"))]),
+            ),
+          );
+          check(
+            typ,
+            "later mentions use the member",
+            sg([sa("V"), sv("w", tv("V"))]),
+            avoid(
+              ["M"],
+              sg([st("V", path("M", "T")), sv("w", path("M", "T"))]),
+            ),
+          );
+        },
+      ),
+      test_case("path roots", `Quick, () =>
+        check(
+          list(string),
+          "roots",
+          ["M", "N"],
+          Typ.path_roots(
+            F.Typ.arrow(path("M", "T"), sg([sv("x", path("N", "U"))])),
+          ),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   fast_equal_tests,
   sig_tests,
   ana_meet_tests,
   sig_paths_tests,
+  avoid_tests,
 ];

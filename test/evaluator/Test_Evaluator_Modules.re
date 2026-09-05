@@ -239,6 +239,32 @@ let test_abstract_function_argument =
     )
   });
 
+/* Module-typed functions */
+let test_generative_result_evaluates =
+  test_case("A generative function's result evaluates", `Quick, () => {
+    parse_and_evaluate_test(
+      "1",
+      {|let f = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U }) in let m = f() in let z : m.U = m.y in z|},
+    )
+  });
+
+let test_returning_module_parameter_seals =
+  test_case(
+    "Returning the module parameter yields the sealed module", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let x = 3 }",
+      {|let f = fun (m : { type T; let x : T }) -> m in f({ type T = Int; let x = 3; let y = 4 })|},
+    )
+  });
+
+let test_path_annotation_is_transparent_at_runtime =
+  test_case("An abstract path annotation has no runtime effect", `Quick, () => {
+    parse_and_evaluate_test(
+      "1",
+      {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in let q : M.T = M.x in q|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -277,5 +303,8 @@ let tests = (
     test_abstract_member_no_runtime_effect,
     test_sealing_abstract_type_member,
     test_abstract_function_argument,
+    test_generative_result_evaluates,
+    test_returning_module_parameter_seals,
+    test_path_annotation_is_transparent_at_runtime,
   ],
 );

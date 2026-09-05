@@ -122,6 +122,29 @@ In the editor, typing `type` inside a signature produces the bare `type T`
 form; typing `=` after its type pattern upgrades it to `type T = …`. In a
 module body `type` still produces `type T = …`.
 
+### Module-typed functions
+
+```
+fun (m : { type T; let x : T; let f : T -> Int }) -> m.f(m.x)   -- : S -> Int
+fun (m : { type T; let x : T }) -> m                            -- : S -> S
+fun (m : { type T; let x : T }) -> m.x                          -- : S -> ?
+let make = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U })
+in let a = make() in let b = make() in (b.y : a.U)              -- error: distinct types
+```
+
+Functions take and return modules like any other value, with width
+subtyping and sealing applied to arguments and results. Inside a body, a
+parameter's abstract types are the paths `m.T`. A path cannot leave the
+scope of its root: when a function body, a `let` body or a `case` arm is
+typed (`Typ.avoid`), a path rooted at the binder is first reduced (a
+manifest member is simply expanded), and one that is still abstract becomes
+`?`, except that a signature member defined as that path becomes abstract
+and later members refer to it by name. So a function returning its module
+parameter has type `S -> S`, and each call of a function returning a module
+with abstract members yields a fresh abstract type (generativity). The same
+rule makes `module M : { type T; ... } = ... in M.x` have type `?` as a
+whole, while `M.x : M.T` inside the `in`.
+
 ### Member Access and `module`
 
 ```
@@ -179,6 +202,7 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | Qualified type access (`M.T`, `M.P.T`) | Works |
 | Module aliasing (`module N = M`)     | Works  |
 | Abstract type members, sealing, path types (`M.T`) | Works |
+| Module-typed functions, generative results | Works |
 
 ## Not Yet Supported
 
@@ -233,7 +257,9 @@ earlier type members by name, so:
   for the path `self.T` when the signature is that of a module path
   (`~self`), for `?` otherwise, or for its own bare name under
   `~keep_local` (used when a module body is checked against its signature,
-  where `T` resolves to the module's own definition).
+  where `T` resolves to the module's own definition). A value member `x`
+  binds its name the same way, so a later member typed by `x.T` projects to
+  `self.x.T`.
 - `Typ.meet` on two signatures requires the same value-member names and the
   same type-member names (order-insensitive) and meets members pairwise in a
   context extended with the type members; an abstract member matches only an
@@ -257,10 +283,17 @@ earlier type members by name, so:
   For a path rooted at a module value it also returns the path itself, so
   that `weak_head_normalize` (which uses it for `ProdProjection`, falling
   back to the labeled-tuple projection) returns the stuck `M.T` for an
-  abstract member. `normalize` leaves a stuck path alone.
+  abstract member. `normalize` leaves a stuck path alone. A signature written
+  out (`{ type T = Int }.T`, left behind when a type alias is substituted
+  away) also projects.
 - `Typ.strengthen(ctx, ty, ~path)` replaces each abstract member `type T` of
   a signature by the manifest `type T = path.T`; it is the identity on
   signatures without abstract members.
+- `Typ.avoid(ctx, ~escaping, ty)` is the inverse for a scope that closes:
+  a path rooted at one of the [escaping] binders is reduced in the body's
+  context; one still abstract becomes `?`, or, when a signature member is
+  defined as it, that member becomes abstract and later mentions of the
+  path use its name. `Typ.path_roots` lists the roots of a type's paths.
 
 ### Statics
 
@@ -305,7 +338,10 @@ member's type at the extended path (`m.inner.T`). In type position,
 `utyp_to_info_map` threads a context through signature items and resolves
 `M.T` through `Typ.path_sig`; an abstract member is reported as
 `Message.PathAbstract`. TyDi receives the type member names (manifest and
-abstract) via `ModuleMemberExpected`.
+abstract) via `ModuleMemberExpected`. The `Fun`, `Let` and `Match` cases pass
+their body types through `Typ.avoid` with the pattern's bound variables, so
+no binder leaks into an enclosing type (`Test_Statics_Properties` checks
+this on random programs).
 
 ### Dynamics
 
@@ -322,7 +358,8 @@ to a signature (`Ascriptions.re`) keeps the signature's value members in
 signature order, ascribes each to its declared type with the signature's
 type members substituted (a manifest member by its definition, an abstract
 one by `?`, a no-op cast), and drops the rest; type members have no runtime
-content. `ModVal` items compare equal to the
+content. A cast to an abstract path type (`M.T`) is likewise a no-op: elaboration
+normalizes manifest paths away, so a path reaching the runtime is abstract. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 
 ### Sort Fallback Patterns, Forms and Decorations
@@ -340,8 +377,12 @@ the first matching form). `Insert.upgrade_bare_sig_type` runs when `=` is
 inserted: if the pieces to the left of the caret are a bare `type` tile in
 the Sig sort followed by at most one type-pattern token (and whitespace), the
 tile is relabeled to the manifest form with its `=` missing, so the ordinary
-backpack put-down completes `type T = ¦`. There is no downgrade; delete the
-`=` to get a hole instead. In the text parser the bare form is
+backpack put-down completes `type T = ¦`. Deleting that `=` runs the inverse,
+`Insert.downgrade_bare_sig_type` (from `Destruct`): the tile becomes the bare
+form again and the old definition is left dangling as a stray type, to be
+removed or reattached by retyping `=`. A module-body `type T = _` has no bare
+form and stays an incomplete tile waiting for `=`. In the text parser the
+bare form is
 `SigItemTypeAbstract` (`Parser.mly`: `TYP tpat` inside a signature).
 
 ### Cursor Inspector and Statics Info
@@ -391,11 +432,12 @@ used only for mispositioned items.
 | `test/Test_TyDi.re`                        | Value/type member completion                                              |
 | `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
 | `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade                 |
+| `test/statics/Test_Statics_Properties.re` | `Root type mentions no internal binder` (QCheck, signatures generated)     |
 
 ### In-Editor Documentation
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, qualified types, signatures, errors) |
-| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (width subtyping, abstract types). Kept separate because statics recursion depth grows with the `let` chain, and one slide of both was at the JavaScript stack limit |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (width subtyping, abstract types, module-typed functions). Kept separate because statics recursion depth grows with the `let` chain, and one slide of both was at the JavaScript stack limit |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
