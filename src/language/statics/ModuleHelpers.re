@@ -54,19 +54,41 @@ let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
 let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
   List.exists(String.equal(name), declared_type_names(later));
 
+/* The signature's abstract type members the body [declared]: a member
+   typed by one is checked against the body's definition. */
+let abstract_members =
+    (~declared: list(Var.t), ana_items: list(Sig.t)): list(Var.t) =>
+  Sig.members(ana_items)
+  |> List.filter_map((m: Sig.member) =>
+       switch (m) {
+       | TypeAbstract(name) when List.exists(String.equal(name), declared) =>
+         Some(name)
+       | TypeAbstract(_)
+       | TypeManifest(_)
+       | Val(_) => None
+       }
+     );
+
 /* What the signature expects of each member, read in the body's context:
    an outer alias named like a type the body [declared] is expanded, so the
-   body's does not capture it. */
+   body's does not capture it. An abstract member's leaf, kept through that
+   reading, becomes the body's own name for it, read where the member is
+   checked. */
 let expected_members =
     (~ctx: Ctx.t, ~declared: list(Var.t), ana_items: list(Sig.t))
     : list(Sig.member) => {
   let expand = name => List.exists(String.equal(name), declared);
+  let own =
+    abstract_members(~declared, ana_items)
+    |> List.map(name => (name, (Var(name): Typ.term) |> Typ.temp));
+  let read = ty =>
+    Typ.resolve_type_members(own, Typ.normalize(~expand, ctx, ty));
   Sig.members(ana_items)
   |> List.map((m: Sig.member) =>
        switch (m) {
-       | Val(name, ty) => Sig.Val(name, Typ.normalize(~expand, ctx, ty))
-       | TypeManifest(name, ty) =>
-         Sig.TypeManifest(name, Typ.normalize(~expand, ctx, ty))
+       | Val(name, ty) => Sig.Val(name, read(ty))
+       | TypeManifest(name, ty) => Sig.TypeManifest(name, read(ty))
+       | TypeAbstract(name) => Sig.TypeAbstract(name)
        }
      );
 };
@@ -196,8 +218,8 @@ let missing_items =
   |> List.filter(item =>
        switch (Sig.member_of_item(item)) {
        | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
-       | Some(TypeManifest(t, _)) =>
-         Option.is_none(Sig.find_type_def(have, t))
+       | Some(TypeManifest(t, _) | TypeAbstract(t)) =>
+         Option.is_none(Sig.find_type(have, t))
        | None => false
        }
      );
@@ -232,18 +254,35 @@ let sealed =
     (
       ~ctx: Ctx.t,
       ~expected: list(Sig.member),
+      ~abstract: list(Var.t),
       ~checked: list(Var.t),
       ~mismatched_types: list(Var.t),
       have: list(Sig.t),
     )
     : list(Sig.t) => {
+  /* An expectation names the body's definition of an [abstract] member;
+     the exported signature names the member by its leaf. */
+  let close_abstract = ty =>
+    List.fold_left(
+      (ty, name) =>
+        Typ.subst(
+          (TypeMember(name): Typ.term) |> Typ.temp,
+          (Var(name): TPat.term) |> TPat.fresh,
+          ty,
+        ),
+      ty,
+      abstract,
+    );
   have
   |> List.map(item =>
        switch (Sig.member_of_item(item)) {
        | Some(Val(x, ty)) when List.exists(String.equal(x), checked) =>
          switch (Sig.find_value(expected, x)) {
          | Some(expected) =>
-           Sig.map_typ(_ => StaticsBase.fixed_typ(ctx, expected, ty), item)
+           Sig.map_typ(
+             _ => close_abstract(StaticsBase.fixed_typ(ctx, expected, ty)),
+             item,
+           )
          | None => item
          }
        | Some(TypeManifest(name, _))
@@ -252,7 +291,7 @@ let sealed =
          | Some(expected) => Sig.map_typ(_ => expected, item)
          | None => item
          }
-       | Some(Val(_) | TypeManifest(_))
+       | Some(Val(_) | TypeManifest(_) | TypeAbstract(_))
        | None => item
        }
      );

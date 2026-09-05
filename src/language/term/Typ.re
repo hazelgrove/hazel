@@ -281,6 +281,7 @@ let rec free_vars =
         switch (m) {
         | Val(_, ty)
         | TypeManifest(_, ty) => go(ty)
+        | TypeAbstract(_) => []
         },
       Sig.members(ClosedSig.items(items)),
     )
@@ -294,7 +295,10 @@ let rec free_vars =
           let member = Sig.member_of_item(item);
           let bound =
             switch (member) {
-            | Some(TypeManifest(name, _)) => [name, ...bound]
+            | Some(TypeManifest(name, _) | TypeAbstract(name)) => [
+                name,
+                ...bound,
+              ]
             | Some(Val(_))
             | None => bound
             };
@@ -306,7 +310,7 @@ let rec free_vars =
           let bound_roots =
             switch (member) {
             | Some(Val(name, _)) => [name, ...bound_roots]
-            | Some(TypeManifest(_))
+            | Some(TypeManifest(_) | TypeAbstract(_))
             | None => bound_roots
             };
           (bound, bound_roots, acc @ vs);
@@ -365,6 +369,7 @@ let rec count_unknowns = (ty: t): int =>
         switch (Sig.member_of_item(item)) {
         | Some(Val(_, ty) | TypeManifest(_, ty)) =>
           acc + count_unknowns(ty)
+        | Some(TypeAbstract(_)) => acc
         | None => Sig.is_hole(item) ? acc + 1 : acc
         },
       0,
@@ -461,8 +466,10 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
               switch (binder) {
               | `TypeMember =>
                 switch (item.term) {
-                | SigType({term: Var(y), _}, _) => String.equal(str, y)
+                | SigType({term: Var(y), _}, _)
+                | SigTypeAbstract({term: Var(y), _}) => String.equal(str, y)
                 | SigType(_)
+                | SigTypeAbstract(_)
                 | SigLet(_)
                 | SigModule(_)
                 | Invalid(_)
@@ -512,10 +519,26 @@ let resolve_type_members = (sub: list((string, t)), ty: t): t =>
 /* A closed signature's items with their own `TypeMember` leaves resolved:
    to each member's definition, so the items are independent of one another,
    or, given the module path [self] the signature is read through, to the
-   member of that path (`self.T`). */
+   member of that path (`self.T`). An abstract member has no definition: it
+   is the path's member, [abstract] of its name where given, else `?`. */
 let resolved_items =
-    (~self: option(t)=?, s: Grammar.signature(IdTagged.IdTag.t))
+    (
+      ~self: option(t)=?,
+      ~abstract: option(Var.t => t)=?,
+      s: Grammar.signature(IdTagged.IdTag.t),
+    )
     : list(Sig.t) => {
+  let path_member = name =>
+    Option.map(
+      path => ProdProjection(path, Label(name) |> temp) |> temp,
+      self,
+    );
+  let abstract_member = name =>
+    switch (path_member(name), abstract) {
+    | (Some(member), _) => member
+    | (None, Some(abstract)) => abstract(name)
+    | (None, None) => Unknown(Internal) |> temp
+    };
   let (_, rev) =
     List.fold_left(
       ((sub, acc), item: Sig.t) => {
@@ -523,14 +546,14 @@ let resolved_items =
         let sub =
           switch (item.term) {
           | SigType({term: Var(name), _}, def) =>
-            let member =
-              switch (self) {
-              | Some(path) =>
-                ProdProjection(path, Label(name) |> temp) |> temp
-              | None => def
-              };
+            let member = Option.value(~default=def, path_member(name));
             [(name, member), ...List.remove_assoc(name, sub)];
+          | SigTypeAbstract({term: Var(name), _}) => [
+              (name, abstract_member(name)),
+              ...List.remove_assoc(name, sub),
+            ]
           | SigType(_)
+          | SigTypeAbstract(_)
           | SigLet(_)
           | SigModule(_)
           | Invalid(_)
@@ -548,8 +571,8 @@ let resolved_items =
 /* The members of a closed signature, each typed independently of the others
    (or through [self], see `resolved_items`). Every reading of a member's
    type goes through here. */
-let sig_members = (~self: option(t)=?, s): list(Sig.member) =>
-  Sig.members(resolved_items(~self?, s));
+let sig_members = (~self: option(t)=?, ~abstract=?, s): list(Sig.member) =>
+  Sig.members(resolved_items(~self?, ~abstract?, s));
 
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
@@ -583,7 +606,8 @@ let rec has_fun = (typ: t) =>
       (m: Sig.member) =>
         switch (m) {
         | Val(_, ty) => has_fun(ty)
-        | TypeManifest(_) => false
+        | TypeManifest(_)
+        | TypeAbstract(_) => false
         },
       sig_members(s),
     )
@@ -647,7 +671,7 @@ and rename_var_in_items =
       && (
         switch (Sig.member_of_item(item)) {
         | Some(Val(name, _)) => !String.equal(x, name)
-        | Some(TypeManifest(_))
+        | Some(TypeManifest(_) | TypeAbstract(_))
         | None => true
         }
       );
@@ -673,9 +697,10 @@ let item_types = (item: Sig.t): list(t) =>
   | SigModule(_) =>
     switch (Sig.member_of_item(item)) {
     | Some(Val(_, ty)) => [ty]
-    | Some(TypeManifest(_))
+    | Some(TypeManifest(_) | TypeAbstract(_))
     | None => []
     }
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => []
@@ -742,7 +767,8 @@ let rec binders = (ty: t): list((string, Id.t)) => {
       (item: Sig.t) =>
         (
           switch (item.term) {
-          | SigType(tp, _) => binder(tp)
+          | SigType(tp, _)
+          | SigTypeAbstract(tp) => binder(tp)
           | SigLet(_)
           | SigModule(_)
           | Invalid(_)
@@ -913,6 +939,15 @@ let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
   && same(Sig.type_names(a), Sig.type_names(b));
 };
 
+/* An abstract type member projected out of a module path, `M.T`, does not
+   reduce: weak_head_normalize returns it as it is. Only meaningful on a
+   weak-head-normalized type. */
+let is_stuck_path_term = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | ProdProjection(_, {term: Label(_), _}) => true
+  | _ => false
+  };
+
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
@@ -991,6 +1026,31 @@ let remove_duplicate_labels =
    of crashing, and a cyclic alias is not explored once per branch. */
 exception Out_of_fuel;
 
+/* The variable a type path (`m.T`, `m.P.T`) is rooted at. */
+let rec path_root = (ty: t): option(Var.t) =>
+  switch (term_of(ty)) {
+  | Var(root) => Some(root)
+  | Parens(ty)
+  | Projector(_, ty)
+  | ProdProjection(ty, _) => path_root(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | ProofOf(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_)
+  | TypeMember(_) => None
+  };
+
 let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
     raise(Out_of_fuel);
@@ -1011,12 +1071,23 @@ let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
       let default = Unknown(Internal) |> rewrap;
       switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
       | (Label(l), Some({term: Sig(s), _})) =>
-        /* `M.T`: type member of a module path or of a signature alias. */
-        switch (Sig.find_type_def(sig_members(s), l)) {
-        | Some(ty') =>
+        /* `M.T`: type member of a module path or of a signature alias. An
+           abstract member's path is stuck: it is the type, when a module
+           value roots it; a signature alias names no module whose member
+           it could be. */
+        let module_rooted =
+          switch (Option.bind(path_root(ty), Ctx.newest_tvar_or_var(ctx))) {
+          | Some(`Var(_)) => true
+          | Some(`TVar(_))
+          | None => false
+          };
+        switch (Sig.find_type(sig_members(s), l)) {
+        | Some(TypeManifest(_, ty')) =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
+        | Some(TypeAbstract(_)) => module_rooted ? ty : default
+        | Some(Val(_))
         | None => default
-        }
+        };
       | (Label(l), Some({term: Prod(tys), _})) =>
         /* `P.x`: label of a labeled tuple type. */
         project_type(tys, l) |> Option.value(~default)
@@ -1117,6 +1188,53 @@ let head_type = (ctx: Ctx.t, ty: t): t =>
     Unknown(Internal) |> rewrap;
   };
 
+/* [ty] read as the type of the module [path]: an abstract type member T of
+   its signature is the path's member `path.T`, so that an alias of the
+   module shares its abstract types (`module N = M` gives `N.T = M.T`) and a
+   member typed by T reads as `path.T`. A signature with no abstract member
+   is unchanged. */
+let strengthen = (ty: t, ~path: t): t =>
+  switch (term_of(ty)) {
+  | Sig(Closed(items)) =>
+    let (_, rewrap) = unwrap(ty);
+    let manifest = (item: Sig.t): Sig.t =>
+      switch (item.term) {
+      | SigTypeAbstract({term: Var(name), _} as tp) => {
+          ...item,
+          term:
+            SigType(tp, ProdProjection(path, Label(name) |> temp) |> temp),
+        }
+      | SigTypeAbstract(_)
+      | SigType(_)
+      | SigLet(_)
+      | SigModule(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => item
+      };
+    Sig(Closed(ClosedSig.map(manifest, items))) |> rewrap;
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_)
+  | Parens(_)
+  | Projector(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(Open(_))
+  | TypeMember(_) => ty
+  };
+
 /* The signature items a module path denotes, if any, each independent of
    the others (see `resolved_items`). A type alias whose expansion is a
    signature also counts, so `S.T` resolves on `type S = { type T = Int }`. */
@@ -1157,31 +1275,6 @@ let head_sig =
 let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   head_sig(ctx, ty)
   |> Option.map(s => ClosedSig.of_items(resolved_items(s)));
-
-/* The variable a type path (`m.T`, `m.P.T`) is rooted at. */
-let rec path_root = (ty: t): option(Var.t) =>
-  switch (term_of(ty)) {
-  | Var(root) => Some(root)
-  | Parens(ty)
-  | Projector(_, ty)
-  | ProdProjection(ty, _) => path_root(ty)
-  | Unknown(_)
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | ProofOf(_)
-  | List(_)
-  | Arrow(_)
-  | Prod(_)
-  | TupLabel(_)
-  | ProdExtension(_)
-  | Sum(_)
-  | Rec(_)
-  | Poly(_)
-  | Sig(_)
-  | TypeMember(_) => None
-  };
 
 /* [ty] read outside the scope of the values [escaping] bind: a type path
    rooted at one of them (`m.T`) is replaced by what it denotes in [ctx],
@@ -1359,6 +1452,15 @@ let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
         kind: Singleton(ty),
       }),
     )
+  | SigTypeAbstract({term: Var(name), _} as tp) =>
+    extend_ctx(
+      ctx,
+      TVarEntry({
+        name,
+        id: IdTagged.rep_id(tp),
+        kind: Abstract,
+      }),
+    )
   | SigLet(_)
   | SigModule(_) =>
     switch (Sig.member_of_item(item)) {
@@ -1372,10 +1474,11 @@ let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
           custom_statics: None,
         }),
       )
-    | Some(TypeManifest(_))
+    | Some(TypeManifest(_) | TypeAbstract(_))
     | None => ctx
     }
   | SigType(_, _)
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => ctx
@@ -1485,7 +1588,9 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
       List.is_empty(duplicate_labels)
         ? ts : remove_duplicate_labels(~duplicate_labels, ts);
     Prod(ts) |> rewrap;
-  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdProjection(_) =>
+    let w = weak_head_normalize(ctx, ty);
+    is_stuck_path_term(w) ? w : normalize(ctx, w);
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
   | TupLabel(label, ty) =>
@@ -1565,7 +1670,8 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
             (m: Sig.member) =>
               switch (m) {
               | Val(x, t) => go(~members=members @ [x], ctx, t)
-              | TypeManifest(_) => None
+              | TypeManifest(_)
+              | TypeAbstract(_) => None
               },
             sig_members(s),
           )
@@ -1629,6 +1735,12 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
                | TypeManifest(n, t1) =>
                  Sig.find_type_def(my, n)
                  |> Option.fold(~none=false, ~some=go(ctx, t1))
+               | TypeAbstract(n) =>
+                 switch (Sig.find_type(my, n)) {
+                 | Some(TypeAbstract(_)) => true
+                 | Some(TypeManifest(_) | Val(_))
+                 | None => false
+                 }
                },
              mx,
            );
@@ -1761,6 +1873,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
     let closed =
       switch (item.term) {
       | SigType(tp, _) => alias_def(ctx, tp)
+      | SigTypeAbstract(_)
       | SigLet(_)
       | SigModule(_)
       | Invalid(_)
@@ -1800,6 +1913,11 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
             let sub =
               switch (Sig.member_of_item(independent)) {
               | Some(TypeManifest(name, def)) => [(name, def), ...sub]
+              /* Read by the abstract type variable it is bound as. */
+              | Some(TypeAbstract(name)) => [
+                  (name, Var(name) |> temp),
+                  ...sub,
+                ]
               | Some(Val(_))
               | None => sub
               };
@@ -1816,7 +1934,8 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
            or module member's is not. */
         let read_in =
           switch (written.term) {
-          | SigType(_) => ctx_after
+          | SigType(_)
+          | SigTypeAbstract(_) => ctx_after
           | SigLet(_)
           | SigModule(_)
           | Invalid(_)
@@ -1940,8 +2059,26 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       meet'(ty1, ty2);
     }
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdProjection(_), _)
+  | (_, ProdProjection(_)) =>
+    /* A projection reduces to its member's type, or is stuck on an abstract
+       type member: such a path meets only itself (and Unknown). */
+    let w1 = weak_head_normalize(ctx, ty1);
+    let w2 = weak_head_normalize(ctx, ty2);
+    switch (is_stuck_path_term(w1), is_stuck_path_term(w2)) {
+    | (true, true) => fast_equal(w1, w2) ? Some(w1) : None
+    | (true, false) =>
+      switch (term_of(w2)) {
+      | Unknown(_) => Some(w1)
+      | _ => None
+      }
+    | (false, true) =>
+      switch (term_of(w1)) {
+      | Unknown(_) => Some(w2)
+      | _ => None
+      }
+    | (false, false) => meet'(w1, w2)
+    };
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
@@ -2064,7 +2201,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         Sig.value_names(a),
       )
       && List.for_all(
-           t => Option.is_some(Sig.find_type_def(b, t)),
+           t => Option.is_some(Sig.find_type(b, t)),
            Sig.type_names(a),
          );
     if (!(hole_y || within(mx, my)) || !(hole_x || within(my, mx))) {
@@ -2074,18 +2211,29 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
          its type as written where the meet refines nothing. */
       let meet_item = ((written, item): (Sig.t, Sig.t)) =>
         switch (Sig.member_of_item(item)) {
-        | Some(m) =>
-          let (t1, t2) =
-            switch (m) {
-            | Val(x, t1) => (t1, Sig.find_value(my, x))
-            | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
-            };
-          switch (t2) {
+        | Some(Val(x, t1)) =>
+          switch (Sig.find_value(my, x)) {
           | None => Some(written)
           | Some(t2) =>
             let+ t = meet'(t1, t2);
             equal(t, t1) ? written : Sig.map_typ(_ => t, item);
-          };
+          }
+        | Some(TypeManifest(n, t1)) =>
+          switch (Sig.find_type(my, n)) {
+          | None => Some(written)
+          | Some(TypeManifest(_, t2)) =>
+            let+ t = meet'(t1, t2);
+            equal(t, t1) ? written : Sig.map_typ(_ => t, item);
+          | Some(TypeAbstract(_) | Val(_)) => None
+          }
+        /* An abstract member meets an abstract member only; a module that
+           defines it is sealed to it by `coercion`, not here. */
+        | Some(TypeAbstract(n)) =>
+          switch (Sig.find_type(my, n)) {
+          | None
+          | Some(TypeAbstract(_)) => Some(written)
+          | Some(TypeManifest(_) | Val(_)) => None
+          }
         | None => Some(written)
         };
       let+ items = OptUtil.traverse(meet_item, x_items);
@@ -2094,8 +2242,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         |> List.filter((m: Sig.member) =>
              switch (m) {
              | Val(x, _) => Option.is_none(Sig.find_value(mx, x))
-             | TypeManifest(n, _) =>
-               Option.is_none(Sig.find_type_def(mx, n))
+             | TypeManifest(n, _)
+             | TypeAbstract(n) => Option.is_none(Sig.find_type(mx, n))
              }
            )
         |> List.map(Sig.item_of_member);
@@ -2154,6 +2302,13 @@ and sig_sub =
   let from_items = resolved_items(Closed(from));
   let from_members = Sig.members(from_items);
   let hole_from = Sig.has_hole_item(from_items);
+  /* `to_`'s members typed by its abstract T are checked at `from`'s T. */
+  let realized = name =>
+    switch (Sig.find_type(from_members, name)) {
+    | Some(TypeManifest(_, def)) => def
+    | Some(TypeAbstract(_) | Val(_))
+    | None => Unknown(Internal) |> temp
+    };
   let provided = (m: Sig.member) =>
     switch (m) {
     | Val(x, t_to) =>
@@ -2163,12 +2318,21 @@ and sig_sub =
       | None => hole_from
       }
     | TypeManifest(name, d_to) =>
-      switch (Sig.find_type_def(from_members, name)) {
-      | Some(d_from) => Option.is_some(meet(ctx, d_to, d_from))
+      switch (Sig.find_type(from_members, name)) {
+      | Some(TypeManifest(_, d_from)) =>
+        Option.is_some(meet(ctx, d_to, d_from))
+      | Some(TypeAbstract(_) | Val(_)) => false
       | None => hole_from
       }
+    /* Sealing: an abstract member is realized by whatever `from` declares
+       under its name, manifest or abstract. */
+    | TypeAbstract(name) =>
+      Option.is_some(Sig.find_type(from_members, name)) || hole_from
     };
-  List.for_all(provided, Sig.members(resolved_items(Closed(to_))));
+  List.for_all(
+    provided,
+    Sig.members(resolved_items(~abstract=realized, Closed(to_))),
+  );
 };
 
 /* REQUIRES NORMALIZED TYPES
@@ -2462,6 +2626,7 @@ let rec pretty_print = (ty: t): string =>
         )
       | SigType(tp, t) =>
         "type " ++ pretty_print_tvar(tp) ++ " = " ++ pretty_print(t)
+      | SigTypeAbstract(tp) => "type " ++ pretty_print_tvar(tp)
       | SigModule(mp) =>
         let rec mpat_str = (mp: TermBase.MPat.t) =>
           switch (IdTagged.term_of(mp)) {

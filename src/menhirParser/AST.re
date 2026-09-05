@@ -184,6 +184,7 @@ and mod_item =
 and sig_item =
   | SigItemLet(pat)
   | SigItemType(tpat, typ)
+  | SigItemTypeAbstract(tpat)
   | SigItemModule(pat);
 
 /* Mixed into the generators so the MakeTerm/Menhir equivalence tests

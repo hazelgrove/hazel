@@ -337,7 +337,8 @@ let sig_mark_string: Mark.t => string =
       let (kind, name) =
         switch (member) {
         | Val(name, _) => ("Member", name)
-        | TypeManifest(name, _) => ("Type member", name)
+        | TypeManifest(name, _)
+        | TypeAbstract(name) => ("Type member", name)
         };
       prn("%s %s is declared more than once in this signature", kind, name);
     }

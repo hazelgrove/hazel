@@ -554,7 +554,7 @@ let underdetermined_typ_view =
       | Some(ty) => [
           text("type"),
           view_type(ty),
-          text("is not a tuple type"),
+          text("is not a tuple or module type"),
         ]
       | None => []
       };
@@ -602,6 +602,10 @@ let typ_ok_view = (~globals, ~ctx: Ctx.t, cls: Cls.t, ok: Message.ok_typ) => {
       view_type(unnormalized),
       text("is equal to"),
       view_type(whnormalized),
+    ]
+  | PathAbstract(ty) => [
+      view_type(ty),
+      text("is an abstract type: its definition is hidden by the signature"),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
@@ -1264,7 +1268,8 @@ let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
     let (kind, name) =
       switch (member) {
       | Val(name, _) => ("Member ", name)
-      | TypeManifest(name, _) => ("Type member ", name)
+      | TypeManifest(name, _)
+      | TypeAbstract(name) => ("Type member ", name)
       };
     div_err([
       text(kind),

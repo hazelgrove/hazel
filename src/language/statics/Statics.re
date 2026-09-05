@@ -1011,7 +1011,10 @@ and uexp_to_info_map =
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
-        | Some(var) => (var.typ, [])
+        | Some(var) =>
+          /* A module variable names its own abstract types: `M : { type T }`
+             is read as `{ type T = M.T }`. */
+          (Typ.strengthen(var.typ, ~path=Var(name) |> Typ.temp), [])
         };
       add(
         ~elab_term=Var(name) |> rewrap,
@@ -1964,6 +1967,7 @@ and uexp_to_info_map =
         | Some({typ, _}) =>
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
+          let typ = Typ.strengthen(typ, ~path=Var(name) |> Typ.temp);
           let (info, _, m) =
             add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
           let m =
@@ -2810,8 +2814,21 @@ and uexp_to_info_map =
         )
       };
     | Module(items) =>
-      let ana_items = Typ.as_sig(ctx, ana) |> Option.map(ClosedSig.items);
       let declared = ModuleHelpers.declared_type_names(items);
+      /* The signature's abstract type members are the body's own
+         definitions of them: a member typed by one keeps its leaf here and
+         is checked against the body's `type T`
+         (ModuleHelpers.expected_members). A `T` the body does not define is
+         a missing member, and nothing else is expected of it. */
+      let ana_items =
+        Typ.head_sig(ctx, ana)
+        |> Option.map(
+             Typ.resolved_items(~abstract=name =>
+               List.exists(String.equal(name), declared)
+                 ? TypeMember(name) |> Typ.temp
+                 : Unknown(Internal) |> Typ.temp
+             ),
+           );
       let expected =
         Option.fold(
           ~none=[],
@@ -2934,7 +2951,8 @@ and uexp_to_info_map =
             (m: Sig.member) =>
               switch (m) {
               | Val(x, _) => List.exists(String.equal(x), exported)
-              | TypeManifest(_) => true
+              | TypeManifest(_)
+              | TypeAbstract(_) => true
               },
             expected,
           );
@@ -3281,6 +3299,7 @@ and uexp_to_info_map =
             ModuleHelpers.sealed(
               ~ctx,
               ~expected,
+              ~abstract=ModuleHelpers.abstract_members(~declared, ana_items),
               ~checked=c.checked,
               ~mismatched_types=c.mismatched_types,
               have_items,
@@ -4328,15 +4347,20 @@ and utyp_to_info_map =
         /* A module path (`M.P`) used as the left of a further projection. */
         ok(Message.Type(Sig(Closed(items)) |> Typ.temp))
       | (None, Some(items), Label(l)) =>
-        /* `M.T`: a type member of a module path or signature alias. */
-        let items = ClosedSig.items(items);
-        projected(
-          Sig.find_type_def(Sig.members(items), l),
-          Message.ModuleTypeMemberMissing(
-            l,
-            Sig.type_names(Sig.members(items)),
-          ),
-        );
+        /* `M.T`: a type member of a module path or signature alias. An
+           abstract member's path is an opaque type. */
+        let members = Sig.members(ClosedSig.items(items));
+        switch (Sig.find_type(members, l)) {
+        | Some(TypeAbstract(_)) => ok(Message.PathAbstract(ty))
+        | Some(TypeManifest(_, ty')) =>
+          projected(Some(ty'), Message.ModuleTypeMemberMissing(l, []))
+        | Some(Val(_))
+        | None =>
+          projected(
+            None,
+            Message.ModuleTypeMemberMissing(l, Sig.type_names(members)),
+          )
+        };
       | (None, Some(_), _) =>
         ok(
           Message.TypeUnderdetermined(
@@ -4988,6 +5012,9 @@ and sig_to_info_map =
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   | SigModule(mp) =>
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+    (CoCtx.empty, Sig(s_term), add_sig_info(m));
+  | SigTypeAbstract(tp) =>
+    let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   };
 }

@@ -12,7 +12,7 @@ let x_asc = ty => F.Pat.asc(F.Pat.var("x"), ty);
 let val_typ = (x, item: Sig.t): option(Typ.t) =>
   switch (Sig.member_of_item(item)) {
   | Some(Val(y, ty)) when String.equal(x, y) => Some(ty)
-  | Some(Val(_) | TypeManifest(_))
+  | Some(Val(_) | TypeManifest(_) | TypeAbstract(_))
   | None => None
   };
 
