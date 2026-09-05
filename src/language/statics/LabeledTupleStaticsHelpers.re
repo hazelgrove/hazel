@@ -130,6 +130,48 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   | _ => None
   };
 
+/* A mismatch between two tuple types described by shape: how many elements
+   each has and which labels. None when either side is not a tuple type or
+   the shapes agree, in which case the difference lies in a component and is
+   reported there. */
+type shape_mismatch = {
+  expected_labels: list(option(string)), /* per element; None: unlabeled */
+  actual_labels: list(option(string)),
+  missing_labels: list(string), /* expected, not present */
+  unexpected_labels: list(string) /* present, not expected */
+};
+
+let shape_mismatch =
+    (ctx: Ctx.t, ~ana: Typ.t, ~syn: Typ.t): option(shape_mismatch) => {
+  let labels_of = ty =>
+    switch (Typ.weak_head_normalize(ctx, ty).term) {
+    | Prod(ts) =>
+      Some(List.map(t => Typ.match_tup_label(t) |> Option.map(fst), ts))
+    | _ => None
+    };
+  switch (labels_of(ana), labels_of(syn)) {
+  | (Some(expected_labels), Some(actual_labels)) =>
+    let names = l => List.filter_map(Fun.id, l);
+    let missing_labels =
+      names(expected_labels)
+      |> List.filter(n => !List.mem(n, names(actual_labels)));
+    let unexpected_labels =
+      names(actual_labels)
+      |> List.filter(n => !List.mem(n, names(expected_labels)));
+    List.length(expected_labels) == List.length(actual_labels)
+    && missing_labels == []
+    && unexpected_labels == []
+      ? None
+      : Some({
+          expected_labels,
+          actual_labels,
+          missing_labels,
+          unexpected_labels,
+        });
+  | _ => None
+  };
+};
+
 /* Expand per-occurrence duplicate labels from unique duplicates. */
 let expand_duplicate_labels =
     (

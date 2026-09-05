@@ -180,34 +180,19 @@ module ExplicitlyUnlabeledTuples = {
       {|(1,"") : (_=Int, _=String)|},
       Some(prod([int(), string()])),
     ),
-    test_case("Marks are placed on elements", `Quick, () =>
+    /* The value carries the mismatch; the labeled element and the tuple
+       around it, which would repeat it, do not. */
+    test_case("Marks are placed on the element value only", `Quick, () =>
       annotated_tree_test(
         {|(_=1) : (_=String)|},
         prod([tup_label(explicit_non_label(), string())]),
         FIError.(
           Exp.(
             asc(
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Marks([
-                        ExpectationMismatch({
-                          ana:
-                            parens(
-                              prod([
-                                tup_label(explicit_non_label(), string()),
-                              ]),
-                            ),
-                          syn:
-                            prod([tup_label(explicit_non_label(), int())]),
-                        }),
-                      ])
-                    ),
-                  ),
-                [
-                  tup_label(
-                    explicit_non_label(),
+              tuple([
+                tup_label(
+                  explicit_non_label(),
+                  int(
                     ~ann=
                       Some(
                         FTemp.Typ.(
@@ -219,23 +204,10 @@ module ExplicitlyUnlabeledTuples = {
                           ])
                         ),
                       ),
-                    int(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Marks([
-                              ExpectationMismatch({
-                                ana: string(),
-                                syn: int(),
-                              }),
-                            ])
-                          ),
-                        ),
-                      1,
-                    ),
+                    1,
                   ),
-                ],
-              ),
+                ),
+              ]),
               Typ.(
                 parens(prod([tup_label(explicit_non_label(), string())]))
               ),
@@ -255,6 +227,57 @@ module ExplicitlyUnlabeledTuples = {
 let tests = (
   "Statics.Tuples",
   [
+    /* A component that already reports its mismatch is not repeated on the
+       tuple or its parentheses; a shape mismatch (arity, labels) still is. */
+    test_case(
+      "A component mismatch is reported once",
+      `Quick,
+      () => {
+        let marks =
+          statics(parse_exp({|let (a : Int, b : Int) = (1, "s") in a|}))
+          |> errors
+          |> List.concat_map(snd);
+        check(Alcotest.int, "one error", 1, List.length(marks));
+        check(
+          Alcotest.bool,
+          "on the component",
+          true,
+          switch (marks) {
+          | [ExpectationMismatch({ana, syn})] =>
+            switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+            | (Atom(Int), Atom(String)) => true
+            | _ => false
+            }
+          | _ => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "An arity mismatch is reported on the tuple",
+      `Quick,
+      () => {
+        let marks =
+          statics(parse_exp({|let t : (Int, Int) = (1, 2, 3) in t|}))
+          |> errors
+          |> List.concat_map(snd);
+        check(
+          Alcotest.bool,
+          "tuple-level mismatch present",
+          true,
+          List.exists(
+            fun
+            | Language.Mark.ExpectationMismatch({syn, _}) =>
+              switch (Language.Typ.term_of(syn)) {
+              | Prod(ts) => List.length(ts) == 3
+              | _ => false
+              }
+            | _ => false,
+            marks,
+          ),
+        );
+      },
+    ),
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
       `Quick,
