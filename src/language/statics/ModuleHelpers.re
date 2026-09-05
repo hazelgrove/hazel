@@ -138,14 +138,25 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
    manifest type members substituted away, so `{ type T = Int; let x : T }`
    expects `x : Int`. */
 let ana_value_types =
-    (ana_items: option(list(Sig.t))): list((Var.t, Typ.t)) =>
+    (~defined: list(Var.t), ana_items: option(list(Sig.t)))
+    : list((Var.t, Typ.t)) =>
   switch (ana_items) {
   | None => []
   | Some(items) =>
     Sig.members(items)
     |> Sig.value_names
     |> List.filter_map(name =>
-         Typ.sig_project_value(items, name) |> Option.map(ty => (name, ty))
+         Typ.sig_project_value(
+           ~keep_local=name => List.mem(name, defined),
+           items,
+           name,
+         )
+         |> Option.map(ty =>
+              (
+                name,
+                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+              )
+            )
        )
   };
 
@@ -205,7 +216,16 @@ let wrap_item =
    module's type is computed by `module_sig_type` and its elaboration is
    refolded by `refold_module_elab`. */
 let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
-  let ana_labels = ana_value_types(ana_items);
+  let defined =
+    List.concat_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModType({term: Var(n), _}, _) => [n]
+        | _ => List.map(fst, item_exports(item, ~later=[]))
+        },
+      items,
+    );
+  let ana_labels = ana_value_types(~defined, ana_items);
   let rec exported = (items: list(Mod.t)) =>
     switch (items) {
     | [] => []
@@ -377,22 +397,23 @@ let extra_members =
 /* Mark each exported `type T = ...` whose definition differs from the
    manifest type the analyzed signature declares for T. Definitions with
    holes are not compared, to stay gradual. The mark lands on the item's
-   info: the TyAlias wrapper carries the Mod item id. */
+   info: the TyAlias wrapper carries the Mod item id. Also returns the names
+   marked, so the module itself is not reported a second time. */
 let check_ana_type_members =
     (
       ~ana_items: option(list(Sig.t)),
       items: list(Mod.t),
       m: StaticsBase.Map.t,
     )
-    : StaticsBase.Map.t =>
+    : (StaticsBase.Map.t, list(Var.t)) =>
   switch (ana_items) {
-  | None => m
+  | None => (m, [])
   | Some(ana_items) =>
-    let rec go = (items: list(Mod.t), m) =>
+    let rec go = (items: list(Mod.t), m, marked) =>
       switch (items) {
-      | [] => m
+      | [] => (m, List.rev(marked))
       | [item, ...rest] =>
-        let m =
+        let (m, marked) =
           switch (item.term) {
           | ModType({term: Var(name), _}, def)
               when !type_declared_later(name, rest) =>
@@ -405,28 +426,30 @@ let check_ana_type_members =
                   Typ.count_unknowns(expected) == 0
                   && Typ.count_unknowns(def) == 0
                   && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
-              StaticsBase.Map.add_info(
-                IdTagged.ids(item),
-                Info.InfoExp({
-                  ...info,
-                  marks: [
-                    Mark.ModuleTypeMemberMismatch({
-                      name,
-                      expected,
-                      actual: def,
-                    }),
-                    ...info.marks,
-                  ],
-                }),
-                m,
-              )
-            | _ => m
+              let m =
+                StaticsBase.Map.add_info(
+                  IdTagged.ids(item),
+                  Info.InfoExp({
+                    ...info,
+                    marks: [
+                      Mark.ModuleTypeMemberMismatch({
+                        name,
+                        expected,
+                        actual: def,
+                      }),
+                      ...info.marks,
+                    ],
+                  }),
+                  m,
+                );
+              (m, [name, ...marked]);
+            | _ => (m, marked)
             }
-          | _ => m
+          | _ => (m, marked)
           };
-        go(rest, m);
+        go(rest, m, marked);
       };
-    go(items, m);
+    go(items, m, []);
   };
 
 /* Inverse of `wrap_item` over the checked chain: rebuild the module items
