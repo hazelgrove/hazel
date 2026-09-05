@@ -562,6 +562,31 @@ let edge_label =
   );
 };
 
+/* base types, and lists of them, wear a blackboard letter INSIDE the circle
+   instead of a name below (space): ℤ for Int by tradition, else the English
+   initial */
+let base_glyph = (label: string): option(string) => {
+  let letter =
+    fun
+    | "Int" => Some({js|ℤ|js})
+    | "Bool" => Some({js|𝔹|js})
+    | "String" => Some({js|𝕊|js})
+    | "Float" => Some({js|𝔽|js})
+    | "Unit" => Some({js|𝟙|js})
+    | _ => None;
+  switch (letter(label)) {
+  | Some(g) => Some(g)
+  | None =>
+    let n = String.length(label);
+    n >= 3 && label.[0] == '[' && label.[n - 1] == ']'
+      ? Option.map(
+          g => "[" ++ g ++ "]",
+          letter(String.sub(label, 1, n - 2)),
+        )
+      : None;
+  };
+};
+
 let node_view =
     (
       ~on_node_mousedown:
@@ -616,14 +641,26 @@ let node_view =
      alias whose body is a former ("()", "[]", "+") wears that glyph as
      a badge the same way */
   let glyph = is_module ? Some("{}") : n.former;
+  let base =
+    switch (n.kind) {
+    | Builtin
+    | Derived => base_glyph(n.label)
+    | _ => None
+    };
   let label_nodes =
-    switch (glyph) {
-    | Some(g) => [
+    switch (base, glyph) {
+    | (Some(g), _) => [
+        span(
+          ~attrs=[clss(["canvas-node-glyph", "base-glyph"])],
+          [text(g)],
+        ),
+      ]
+    | (None, Some(g)) => [
         span(~attrs=[clss(["canvas-node-glyph"])], [text(g)]),
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
       ]
-    | None when n.label == "" => []
-    | None => [
+    | (None, None) when n.label == "" => []
+    | (None, None) => [
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
       ]
     };
@@ -641,6 +678,7 @@ let node_view =
           @ (!is_module && n.former != None ? ["node-former"] : [])
           @ (n.n_err ? ["node-err"] : [])
           @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
+          @ (base != None ? ["node-glyphed"] : [])
           /* grows out of the placement-preview dot */
           @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
         ),

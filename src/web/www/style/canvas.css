@@ -360,18 +360,23 @@
   cursor: pointer;
 }
 
-/* the selected type: a soft halo in its own purple, name emphasized (the
-   edge counterpart is edge-focused) */
+/* ONE selection color for the canvas (types and functions alike), chosen
+   free of the semantic colors: purple = types, slate = implementations,
+   green = passing tests, red = errors, yellow = the agent. The selected
+   type's own outline takes the color (a single ring, no halo). */
+:root {
+  --canvas-select: #2f6fbf;
+}
 .canvas-node.node-focused {
-  box-shadow:
-    0 0 0 3px var(--df-bg, #fdfdf4),
-    0 0 0 5.5px color-mix(in srgb, var(--token-typ, #9457c9) 55%, transparent);
+  border-color: var(--canvas-select);
+  border-width: 2.5px;
+}
+.canvas-node.kind-product.node-focused {
+  border: 2.5px solid var(--canvas-select);
 }
 .canvas-node.node-focused .canvas-node-label {
   font-weight: bold;
-  text-decoration: underline;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 2px;
+  color: var(--canvas-select);
 }
 
 /* placement telegraph: a pulsing seed on the lattice point under the
@@ -521,6 +526,27 @@
 .canvas-node.kind-builtin {
   border-width: 1px;
   opacity: 0.55;
+}
+
+/* base types carry their blackboard letter inside (ℤ 𝔹 𝕊 𝔽, or [ℤ]) */
+.canvas-node .canvas-node-glyph.base-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--token-typ, #9457c9);
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", serif;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  pointer-events: none;
+}
+.canvas-node.kind-derived .canvas-node-glyph.base-glyph {
+  font-size: 13px;
+}
+.canvas-node.node-glyphed .canvas-node-label {
+  display: none;
 }
 
 .canvas-node.kind-derived {
@@ -796,17 +822,19 @@
 
 .canvas-line.edge-focused,
 .canvas-orbit.edge-focused {
-  stroke: #3a7a3a;
+  stroke: var(--canvas-select);
   opacity: 1;
 }
 
 .canvas-arrowhead-focus {
-  fill: #3a7a3a;
+  fill: var(--canvas-select);
 }
 
+/* a single outline in the selection color, like the selected type */
 .canvas-edge-label.edge-focused {
-  border-color: #3a7a3a;
-  box-shadow: 0 0 0 2px rgba(74, 122, 74, 0.35);
+  border-color: var(--canvas-select);
+  border-width: 2px;
+  color: var(--canvas-select);
 }
 
 /* ---- focus strip: one function, flattened input → output ---- */
