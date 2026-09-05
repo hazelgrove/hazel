@@ -4348,10 +4348,19 @@ and utyp_to_info_map =
         ok(Message.Type(Sig(Closed(items)) |> Typ.temp))
       | (None, Some(items), Label(l)) =>
         /* `M.T`: a type member of a module path or signature alias. An
-           abstract member's path is an opaque type. */
+           abstract member's path is an opaque type; through a signature
+           alias no module is named, so it names no abstract member either,
+           and the error is on the label. */
         let members = Sig.members(ClosedSig.items(items));
         switch (Sig.find_type(members, l)) {
-        | Some(TypeAbstract(_)) => ok(Message.PathAbstract(ty))
+        | Some(TypeAbstract(_)) when Typ.module_rooted(ctx, ty) =>
+          ok(Message.PathAbstract(ty))
+        | Some(TypeAbstract(_)) =>
+          ok(
+            Message.TypeUnderdetermined(
+              Message.AbstractMemberOfSignature(l),
+            ),
+          )
         | Some(TypeManifest(_, ty')) =>
           projected(Some(ty'), Message.ModuleTypeMemberMissing(l, []))
         | Some(Val(_))
@@ -4493,7 +4502,10 @@ and utyp_to_info_map =
         ? ok(Message.Type(ty)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
-    | (ModuleMemberExpected(member, {listed, hole}), Label(name)) =>
+    | (ModuleMemberExpected(_, {unnameable, _}), Label(name))
+        when List.exists(String.equal(name), unnameable) =>
+      err(TypAbstractMemberOfSignature(name))
+    | (ModuleMemberExpected(member, {listed, hole, _}), Label(name)) =>
       hole || List.exists(String.equal(name), listed)
         ? ok(Message.Type(ty))
         : err(
@@ -4593,7 +4605,8 @@ and utyp_to_info_map =
       | Some(items) =>
         let items = ClosedSig.items(items);
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
-           at the end it names a type member. */
+           at the end it names a type member. Through a signature alias (no
+           module path) an abstract member cannot be named. */
         let hole = Sig.has_hole_item(items);
         switch (expects) {
         | ProductExpected =>
@@ -4602,16 +4615,30 @@ and utyp_to_info_map =
             {
               listed: Typ.sig_module_member_names(ctx, items),
               hole,
+              unnameable: [],
             },
           )
         | _ =>
+          let members = Sig.members(items);
           ModuleMemberExpected(
             TypeMember,
             {
-              listed: Sig.type_names(Sig.members(items)),
+              listed: Sig.type_names(members),
               hole,
+              unnameable:
+                Typ.module_rooted(ctx, t.ty)
+                  ? []
+                  : List.filter_map(
+                      (m: Sig.member) =>
+                        switch (m) {
+                        | TypeAbstract(n) => Some(n)
+                        | TypeManifest(_)
+                        | Val(_) => None
+                        },
+                      members,
+                    ),
             },
-          )
+          );
         };
       | None =>
         switch (Typ.weak_head_normalize(ctx, t.ty).term) {

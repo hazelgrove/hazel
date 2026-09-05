@@ -1055,6 +1055,16 @@ let rec path_root = (ty: t): option(Var.t) =>
   | TypeMember(_) => None
   };
 
+/* Whether a type path is rooted at a module value, as against a signature
+   alias or nothing: only such a path names a module whose abstract member
+   it could be. */
+let module_rooted = (ctx: Ctx.t, ty: t): bool =>
+  switch (Option.bind(path_root(ty), Ctx.newest_tvar_or_var(ctx))) {
+  | Some(`Var(_)) => true
+  | Some(`TVar(_))
+  | None => false
+  };
+
 let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
     raise(Out_of_fuel);
@@ -1079,19 +1089,13 @@ let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
            abstract member's path is stuck: it is the type, when a module
            value roots it; a signature alias names no module whose member
            it could be. */
-        let module_rooted =
-          switch (Option.bind(path_root(ty), Ctx.newest_tvar_or_var(ctx))) {
-          | Some(`Var(_)) => true
-          | Some(`TVar(_))
-          | None => false
-          };
         switch (Sig.find_type(sig_members(s), l)) {
         | Some(TypeManifest(_, ty')) =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
-        | Some(TypeAbstract(_)) => module_rooted ? ty : default
+        | Some(TypeAbstract(_)) => module_rooted(ctx, ty) ? ty : default
         | Some(Val(_))
         | None => default
-        };
+        }
       | (Label(l), Some({term: Prod(tys), _})) =>
         /* `P.x`: label of a labeled tuple type. */
         project_type(tys, l) |> Option.value(~default)

@@ -64,7 +64,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   | InfoTyp({
       expects:
         TypExpectation.LabelProjectionExpected(Some(labels)) |
-        TypExpectation.ModuleMemberExpected(_, {listed: labels, _}),
+        TypExpectation.ModuleMemberExpected(
+          _,
+          {listed: labels, unnameable: [], _},
+        ),
       _,
     })
       when labels != [] =>
@@ -76,6 +79,22 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         },
       labels,
     )
+  /* An abstract member reached through a signature alias is not offered:
+     nothing names it there. */
+  | InfoTyp({
+      expects:
+        TypExpectation.ModuleMemberExpected(_, {listed, unnameable, _}),
+      _,
+    })
+      when List.exists(l => !List.mem(l, unnameable), listed) =>
+    listed
+    |> List.filter(l => !List.mem(l, unnameable))
+    |> List.map(label =>
+         TyDiSuggestion.{
+           content: label,
+           strategy: Typ(FromCtx),
+         }
+       )
   | InfoExp({label_sort: true, _})
   | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})

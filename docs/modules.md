@@ -131,9 +131,10 @@ types. A module bound to another (`module C2 = Counter`, `let c = Counter`)
 shares them, because a module variable's type exposes its own abstract members
 as paths (`{ type T = Counter.T; ... }`). Only a path (a module variable, or a
 member reached through one) can name an abstract type; projecting a member of
-abstract type out of any other expression gives `?`, and a signature alias
-with abstract members (`type S = { type T }`) does not name them either:
-`S.T` is `?`.
+abstract type out of any other expression gives `?`. A signature alias names
+no module, so it cannot name an abstract member: `S.T` with `type S = { type
+T }` is an error (`TypAbstractMemberOfSignature`, on `T`); write `M.T` for a
+module `M : S`. Manifest members are named through an alias as before.
 
 In the editor, typing `type` inside a signature produces the bare `type T`
 form; typing `=` after its type pattern upgrades it to `type T = …`. In a
@@ -403,7 +404,8 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/language/statics/Ctx.re`           | `newest_var_or_ctr`, `newest_tvar_or_var`: the newest binding of a capitalized name, and of a path root |
 | `src/language/statics/ModuleHelpers.re` | Signature expectations per binder (`expected_members`, `expected_pat_type`), `sealed`, missing and extra members, module references in written types |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `CompareFun`, `SigDuplicateMember`, `SigLetNotAName` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `CompareFun`, `SigDuplicateMember`, `SigLetNotAName`, `TypAbstractMemberOfSignature` |
+| `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
