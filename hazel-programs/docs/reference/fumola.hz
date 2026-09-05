@@ -46,8 +46,9 @@ let myRecord : (x=Int, y=Bool) =
   ^fumola_thunk(0, "`myRecord", "{x = 1; y = true}") in
 
 # Variants are written with a leading hash, as in the program below.        #
-# own, so the expected type is what decides which constructor is meant --   #
-# which is why these livelits need an annotation.                           #
+# A Fumola variant names no type of its own, so the expected type is        #
+# what decides which constructor is meant -- which is why these             #
+# livelits need an annotation.                                              #
 type Shape = + Circle(Int) + Square(Int) in
 let myVariant : Shape =
   ^fumola_thunk(0, "`myVariant", "#Circle(3)") in
@@ -193,6 +194,33 @@ let myTuplePointer : (Int, Bool) =
 let myNumberedPointer : Int =
   ^fumola_thunk(0, "`myNumberedPointer", "7 := 5; pointer(7)") in
 
+# FORCING A THUNK #
+# Every thunk livelit here runs its program inside a thunk named by its     #
+# second argument, so each of those names is a cell of the shared runtime:  #
+# `myInt names the thunk that computed 1 + 2, and pointer(`myInt) is a      #
+# pointer to that thunk.                                                    #
+#                                                                          #
+# A thunk is not a value, and it is values that have a Hazel translation -- #
+# ask a livelit for the thunk itself and there is nothing to bring across.  #
+# force is what closes the gap: force(p) runs the thunk p points at, or     #
+# reuses what it already computed, and answers with its value, which does   #
+# translate. So an editor livelit can reach back for the result of any      #
+# thunk defined above, with the type that thunk's program produced.         #
+let forcedInt : Int =
+  ^fumola_editor(0, "force(pointer(`myInt))") in
+
+# Structure survives the trip, as it did from the thunk itself. #
+let forcedPair : (Int, Bool) =
+  ^fumola_editor(0, "force(pointer(`myPair))") in
+
+# A forced variant still takes its home type from the annotation. #
+let forcedVariant : Shape =
+  ^fumola_editor(0, "force(pointer(`myVariant))") in
+
+# And a record arrives as the labeled tuple its fields describe. #
+let forcedRecord : (x=Int, y=Bool) =
+  ^fumola_editor(0, "force(pointer(`myRecord))") in
+
 (
   myInt,
   myBool,
@@ -210,5 +238,9 @@ let myNumberedPointer : Int =
   mySpace,
   myCell,
   myPointer,
-  myTuplePointer
+  myTuplePointer,
+  forcedInt,
+  forcedPair,
+  forcedVariant,
+  forcedRecord
 )
