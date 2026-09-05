@@ -234,43 +234,6 @@ let rec typ_of_json =
   };
 };
 
-/* A short rendering of a translated value, for the widget to show. Kept
-   deliberately shallow: the widget is one line beside a reference. */
-let rec describe_value = (e: TermBase.Exp.t): string =>
-  switch (e.term) {
-  | Atom(Int(n)) => Bigint.to_string(n)
-  | Atom(Bool(b)) => b ? "true" : "false"
-  | Atom(String(s)) => "\"" ++ s ++ "\""
-  | Tuple([]) => "()"
-  | Tuple(es) =>
-    "(" ++ String.concat(", ", List.map(describe_value, es)) ++ ")"
-  | TupLabel({term: Label(l), _}, e) => l ++ " = " ++ describe_value(e)
-  | Constructor(c, _) => c
-  | Ap(Forward, {term: Constructor(c, _), _}, arg) =>
-    c ++ "(" ++ describe_value(arg) ++ ")"
-  | FumolaPeek({reads, _}) => reads
-  | Projector(_, e) => describe_value(e)
-  | EmptyHole => "?"
-  | _ => "..."
-  };
-
-/* Wrap a reference in a projector, so it renders as a widget rather than as
-   tokens. */
-let projected = (~reads: string, ~shown: string, peek: TermBase.Exp.t) =>
-  DHExp.fresh(
-    Projector(
-      {
-        kind: ProjectorKind.FumolaPeek,
-        model:
-          FumolaPeekModel.serialize({
-            reads,
-            shown,
-          }),
-      },
-      peek,
-    ),
-  );
-
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
         (
@@ -347,16 +310,12 @@ and exp_of_tagged =
       let reads = reading(source);
       if (List.mem(source, seen)) {
         Ok(
-          projected(
-            ~reads,
-            ~shown="?",
-            DHExp.fresh(
-              FumolaPeek({
-                instance_id,
-                reads,
-                value: DHExp.fresh(EmptyHole),
-              }),
-            ),
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value: DHExp.fresh(EmptyHole),
+            }),
           ),
         );
       } else {
@@ -382,16 +341,12 @@ and exp_of_tagged =
           | _ => DHExp.fresh(EmptyHole)
           };
         Ok(
-          projected(
-            ~reads,
-            ~shown=describe_value(value),
-            DHExp.fresh(
-              FumolaPeek({
-                instance_id,
-                reads,
-                value,
-              }),
-            ),
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value,
+            }),
           ),
         );
       };

@@ -30,15 +30,7 @@ let store = (cells: list((string, string)), program: string): Yojson.Safe.t =>
 
 let no_eval = _ => json({|{"ok":false,"error":"no runtime"}|});
 
-/* A reference is wrapped in a projector so it renders as a widget. These
-   tests are about the value, so the wrapper is peeled off. */
-let unproject = (e: TermBase.Exp.t) =>
-  switch (e.term) {
-  | Projector(_, inner) => inner
-  | _ => e
-  };
-
-let translate_raw =
+let translate =
     (
       ~instance_id=1,
       ~eval=no_eval,
@@ -47,11 +39,6 @@ let translate_raw =
       src: string,
     ) =>
   FumolaValue.exp_of_json(~instance_id, ~eval, ~ana, ~tools, json(src));
-
-let translate =
-    (~instance_id=1, ~eval=no_eval, ~ana=unknown, ~tools=no_tools, src) =>
-  translate_raw(~instance_id, ~eval, ~ana, ~tools, src)
-  |> Result.map(unproject);
 
 /* A sum type declaring Foo and Bar(Int), as
    `type SomeThing = + Foo + Bar(Int)` would. */
@@ -561,17 +548,7 @@ let tests = (
               value:
                 {
                   term:
-                    Projector(
-                      _,
-                      {
-                        term:
-                          FumolaPeek({
-                            value: {term: Atom(String("hi")), _},
-                            _,
-                          }),
-                        _,
-                      },
-                    ),
+                    FumolaPeek({value: {term: Atom(String("hi")), _}, _}),
                   _,
                 },
               _,
@@ -598,12 +575,7 @@ let tests = (
         )
       ) {
       | Ok({
-          term:
-            FumolaPeek({
-              value:
-                {term: Projector(_, {term: FumolaPeek({value, _}), _}), _},
-              _,
-            }),
+          term: FumolaPeek({value: {term: FumolaPeek({value, _}), _}, _}),
           _,
         }) =>
         switch (value.term) {
@@ -637,12 +609,7 @@ let tests = (
           {|{"tag":"Tuple","value":[{"tag":"AdaptonPointer","value":{"source":"`a"}},{"tag":"Int","value":"1"}]}|},
         )
       ) {
-      | Ok({
-          term:
-            Tuple([{term: Projector(_, {term: FumolaPeek(_), _}), _}, _]),
-          _,
-        }) =>
-        ()
+      | Ok({term: Tuple([{term: FumolaPeek(_), _}, _]), _}) => ()
       | Ok(_) => Alcotest.fail("expected a reference inside the tuple")
       | Error(m) => Alcotest.fail(m)
       }
@@ -650,59 +617,6 @@ let tests = (
     fails(
       "a pointer with no source text",
       {|{"tag":"AdaptonPointer","value":{"symbol":{"tag":"Name","value":"x"}}}|},
-    ),
-    /* The reference is wrapped in a projector, and that survives conversion
-       to a segment -- which is what makes it render as a widget rather than
-       as tokens, since a projector piece is drawn by the projector layer. */
-    test_case("a reference becomes a projector piece", `Quick, () =>
-      switch (
-        translate_raw(
-          ~eval=
-            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"41"}|})]),
-          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
-        )
-      ) {
-      | Error(m) => Alcotest.fail(m)
-      | Ok(exp) =>
-        switch (exp.term) {
-        | Projector({kind, model}, _) =>
-          Alcotest.check(
-            Alcotest.string,
-            "kind",
-            "fumola-peek",
-            ProjectorKind.name(kind),
-          );
-          let m = FumolaPeekModel.deserialize(model);
-          Alcotest.check(Alcotest.string, "reads", "peek(`n)!", m.reads);
-          Alcotest.check(Alcotest.string, "shown", "41", m.shown);
-          /* And the segment really carries a projector piece. */
-          let seg =
-            Haz3lcore.ExpToSegment.exp_to_segment(
-              exp,
-              ~settings=
-                Haz3lcore.ExpToSegment.Settings.of_core(
-                  ~inline=true,
-                  Language.CoreSettings.on,
-                ),
-            );
-          let has_projector =
-            List.exists(
-              (p: Haz3lcore.Base.piece) =>
-                switch (p) {
-                | Projector(_) => true
-                | _ => false
-                },
-              seg,
-            );
-          Alcotest.check(
-            Alcotest.bool,
-            "segment carries a projector piece",
-            true,
-            has_projector,
-          );
-        | _ => Alcotest.fail("expected a projector around the reference")
-        }
-      }
     ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
     fails("a missing tag", {|{"value":null}|}),

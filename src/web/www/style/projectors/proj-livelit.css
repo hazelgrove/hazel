@@ -57,25 +57,3 @@
     opacity: 0.4;
     font-size: 0.85em;
 }
-
-/* The widget for a Fumola reference: the program that reads the cell, and
-   what it held. Produced by translation, never chosen by a user. */
-.fumola-peek {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.35em;
-    padding: 0 0.3em;
-    border: 1px solid rgba(0, 0, 0, 0.18);
-    border-radius: 0.3em;
-    background: rgba(0, 0, 0, 0.03);
-    white-space: nowrap;
-}
-.fumola-peek-reads {
-    opacity: 0.65;
-}
-.fumola-peek-arrow {
-    opacity: 0.4;
-}
-.fumola-peek-value {
-    font-weight: 600;
-}

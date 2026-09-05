@@ -17,7 +17,6 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Card => (module Cook(CardProj.M))
   | Table => (module Cook(TableProj.M))
   | Csv => (module Cook(CSVProjector.M))
-  | FumolaPeek => (module Cook(FumolaPeekProj.M))
   };
 
 let init =

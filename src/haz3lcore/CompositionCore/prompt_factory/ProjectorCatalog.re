@@ -15,8 +15,6 @@ let refractors_vs_syntax_sentence =
 
 let livelit_line = (k: ProjectorKind.t): option(string) =>
   switch (k) {
-  /* Never chosen by a user: translation puts it there. */
-  | FumolaPeek => None
   | Csv =>
     Some(
       "- **csv** — CSV **file import** UI. Attaches only when the definition is the **empty list** `[]`; after placement, import fills it with row/tuple syntax. Non-empty lists (e.g. `[1, 2, 3]`) **cannot** take this projector.",

@@ -17,11 +17,7 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv
-  /* The reference a Fumola program returns when it produces a pointer.
-     Unlike the others it is never chosen by a user: translation puts it
-     there, so it does not appear in livelit_projectors below. */
-  | FumolaPeek;
+  | Csv;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -55,7 +51,6 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
-  | FumolaPeek => "fumola-peek"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)
