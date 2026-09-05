@@ -94,6 +94,10 @@ let c : Counter.T = Counter.incr(Counter.zero) in
 module C2 = Counter in
 let c2 : C2.T = c in
 
+# 36a. Error: the signature alias names no module, so it cannot name T #
+type CounterSig = {type T; let zero : T} in
+let none : CounterSig.T = Counter.zero in
+
 # 37. Error: separately sealed modules have distinct types #
 module Other : {type T; let zero : T} = {type T = Int; let zero = 0} in
 let mixed : Counter.T = Other.zero in
