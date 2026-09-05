@@ -290,12 +290,13 @@
 
 /* ---- edges ---- */
 
+/* arrows are the editor's expression color (implementations) */
 .canvas-line,
 .canvas-orbit {
-  stroke: var(--BLACK, #333);
+  stroke: var(--token-exp, #555);
   stroke-width: 1.4;
   fill: none;
-  opacity: 0.75;
+  opacity: 0.9;
 }
 
 .canvas-line.edge-main,
@@ -321,12 +322,12 @@
 }
 
 .canvas-arrowhead {
-  fill: var(--BLACK, #333);
-  opacity: 0.8;
+  fill: var(--token-exp, #555);
+  opacity: 0.95;
 }
 
 .canvas-arrowhead-sm {
-  fill: var(--BLACK, #333);
+  fill: var(--token-exp, #555);
   opacity: 0.5;
 }
 
@@ -1124,8 +1125,10 @@
   opacity: 0.65;
 }
 
-.legend-item.lg-tests .legend-glyph {
+.legend-item.lg-tests .legend-glyph,
+.legend-pip {
   color: #4a9a4a;
+  fill: #4a9a4a;
 }
 
 .legend-item.lg-agent .legend-glyph {
@@ -1133,6 +1136,23 @@
   color: #ffd75e;
   border-radius: 3px;
   padding: 0 3px;
+}
+/* swatches are tiny canvases drawn with the real classes, so the legend
+   cannot drift from what the board draws */
+.legend-swatch {
+  width: 30px;
+  height: 12px;
+  overflow: visible;
+  vertical-align: middle;
+}
+.legend-swatch .canvas-line {
+  stroke-width: 1.4;
+}
+.legend-item.lg-agent .rig-mirror {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  overflow: visible;
 }
 
 /* ---- the agent avatar ---- */

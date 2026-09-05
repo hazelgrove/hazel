@@ -550,8 +550,8 @@ let layout_impl =
       Some((
         from_k,
         to_k,
-        offset_along(fp, tp, radius_of(from_k) +. 2.),
-        offset_along(tp, fp, radius_of(to_k) +. 4.),
+        offset_along(fp, tp, radius_of(from_k)),
+        offset_along(tp, fp, radius_of(to_k)),
       ))
     | _ => None
     };
@@ -676,8 +676,9 @@ let layout_impl =
             x: mid.x +. v.x *. 38.,
             y: mid.y +. v.y *. 38.,
           };
-          let s = offset_along(src_p, ctrl, radius_of(e.e_src) +. 2.);
-          let d = offset_along(dst_p, ctrl, radius_of(e.dst) +. 6.);
+          /* arrows run rim to rim: the head lands on the codomain node */
+          let s = offset_along(src_p, ctrl, radius_of(e.e_src));
+          let d = offset_along(dst_p, ctrl, radius_of(e.dst));
           {
             edge: e,
             src_p: s,
@@ -698,11 +699,11 @@ let layout_impl =
         } else {
           let sign = dst_p.x >= src_p.x ? 1. : (-1.);
           let s = {
-            x: src_p.x +. sign *. (radius_of(e.e_src) +. 2.),
+            x: src_p.x +. sign *. radius_of(e.e_src),
             y: src_p.y,
           };
           let d = {
-            x: dst_p.x -. sign *. (radius_of(e.dst) +. 6.),
+            x: dst_p.x -. sign *. radius_of(e.dst),
             y: dst_p.y,
           };
           let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));

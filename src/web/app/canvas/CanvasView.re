@@ -164,7 +164,9 @@ let edge_svg =
       ),
     ];
   } else {
-    let dst = pull_back(el.dst_p, el.c2, 7.);
+    /* the marker is 9 long from the path end: pull back exactly that, so
+       the arrowhead's tip lands on the rim point */
+    let dst = pull_back(el.dst_p, el.c2, 9.);
     let marker =
       List.mem("edge-focused", cls)
         ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";

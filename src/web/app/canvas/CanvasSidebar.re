@@ -2383,22 +2383,78 @@ let view_impl =
     );
   };
   let legend = {
-    let item = (cls, glyph, label) =>
-      div(
-        ~attrs=[clss(["legend-item", cls])],
+    let item = (cls, swatch: Node.t, label) =>
+      div(~attrs=[clss(["legend-item", cls])], [swatch, text(label)]);
+    /* a line swatch: the board's own classes and markers, at legend size */
+    let line = (~classes: list(string), ~marker: option(string)) =>
+      CanvasView.svg(
+        "svg",
+        [clss(["legend-swatch"]), Attr.create("viewBox", "0 0 30 12")],
         [
-          span(~attrs=[clss(["legend-glyph"])], [text(glyph)]),
-          text(label),
+          CanvasView.svg(
+            "path",
+            [
+              clss(["canvas-line", ...classes]),
+              Attr.create(
+                "d",
+                marker == None ? "M 1 6 L 29 6" : "M 1 6 L 20 6",
+              ),
+            ]
+            @ (
+              switch (marker) {
+              | Some(m) => [Attr.create("marker-end", m)]
+              | None => []
+              }
+            ),
+            [],
+          ),
         ],
       );
+    let pip =
+      CanvasView.svg(
+        "svg",
+        [clss(["legend-swatch"]), Attr.create("viewBox", "0 0 30 12")],
+        [
+          CanvasView.svg(
+            "circle",
+            [
+              clss(["legend-pip"]),
+              Attr.create("cx", "15"),
+              Attr.create("cy", "6"),
+              Attr.create("r", "3.2"),
+            ],
+            [],
+          ),
+        ],
+      );
+    /* the agent swatch is the live rig (or the glyph chip) */
+    let agent =
+      CanvasAvatar.is_rig()
+        ? CanvasAvatar.brand_icon()
+        : span(~attrs=[clss(["legend-glyph"])], [text("@")]);
     div(
       ~attrs=[clss(["canvas-legend"])],
       [
-        item("lg-fn", {js|─▶|js}, "function"),
-        item("lg-form", {js|┈▶|js}, "made of"),
-        item("lg-hole", {js|┈┈|js}, "unwritten (hole)"),
-        item("lg-tests", {js|●|js}, "tests"),
-        item("lg-agent", "@", "agent"),
+        item(
+          "lg-fn",
+          line(~classes=[], ~marker=Some("url(#cnv-arrow)")),
+          "function",
+        ),
+        item(
+          "lg-form",
+          line(
+            ~classes=["canvas-formation"],
+            ~marker=Some("url(#cnv-arrow-sm)"),
+          ),
+          "made of",
+        ),
+        item(
+          "lg-hole",
+          line(~classes=["edge-hole"], ~marker=None),
+          "unwritten (hole)",
+        ),
+        item("lg-tests", pip, "tests"),
+        item("lg-agent", agent, "agent"),
       ],
     );
   };
