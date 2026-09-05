@@ -65,14 +65,32 @@ let outer : { let inner : { let x : Int } } = { let inner = { let x = 1 } }
 A module synthesizes `module Inner : { … }` for a `module Inner = …` item and
 `let inner : { … }` for a `let inner = { … }` item.
 
-A module analyzed against a signature must define exactly the members the
-signature declares, each value member must have the declared type (with the
-signature's own type members substituted), and each type member must be
-defined as the declared type. A member's type error is reported on its
-definition; missing members (`ModuleMissingMembers`) and, until width
-subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
-module; a differing type member is reported on the `type` item
-(`ModuleTypeMemberMismatch`).
+A module analyzed against a signature must define every member the signature
+declares, each value member must have the declared type (with the signature's
+own type members substituted), and each type member must be defined as the
+declared type. A member's type error is reported on its definition; missing
+members (`ModuleMissingMembers`) are reported on the module; a differing type
+member is reported on the `type` item (`ModuleTypeMemberMismatch`).
+
+### Width subtyping
+
+Where an expression is analyzed against a signature (a `let` or `module`
+annotation, an ascription, a function argument, a pattern), the module may
+export more members than the signature declares. The extra members are
+sealed away: the binder has exactly the signature's type, `m.y` on a member
+the signature omits is an error, and at runtime the module value keeps only
+the signature's members. Value members may themselves be wider than declared,
+and a function expecting a narrower module fits where one expecting a wider
+module is required (contravariant domain).
+
+```
+let m : { let x : Int } = { let x = 1; let y = 2 } in m.x    -- 1; m.y is an error
+let f = fun (m : { let x : Int }) -> m.x in f({ let x = 1; let y = 2 })
+```
+
+Consistency itself stays exact: `if` branches and other joins require the
+same members, and `{ let x : Int }` is not consistent with
+`{ let x : Int; let y : Int }`; ascribe the join if you need sealing there.
 
 ### Member Access and `module`
 
@@ -115,6 +133,7 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | ------------------------------------ | ------ |
 | Module syntax (`{ let ... }`)        | Works  |
 | Signature types (distinct from Prod) | Works  |
+| Width subtyping at analysis positions | Works |
 | Type members in signatures (checked) | Works  |
 | Member access via `.`                | Works  |
 | Module values at runtime             | Works  |
@@ -132,10 +151,6 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 
 ## Not Yet Supported
 
-- **Width subtyping.** A module must export exactly the members its signature
-  declares; extra members are an error. Planned: subtyping at analysis
-  positions only (a module with extra members satisfies a smaller signature
-  where it is ascribed, sealing the extras away).
 - **Abstract type members.** Signatures cannot yet declare `type T` without a
   definition, so there is no sealing of representations and no path types.
 - **Comparing modules with `==`** is a runtime incomparable result; statics
@@ -184,6 +199,14 @@ earlier type members by name, so:
   same type-member names (order-insensitive) and meets members pairwise in a
   context extended with the type members. A signature is inconsistent with
   every other type constructor, including `Prod`.
+- `Typ.ana_meet(ctx, ~ana, ~syn)` is used wherever an expression is analyzed
+  against a type (`StaticsBase.fixed_typ`, `expectation_mismatch_mark`,
+  `syn_ana_ok_common`, and their `_pat` variants with the roles of the
+  provided and required types swapped). It tries `meet` first; failing that,
+  a signature fits a signature that declares a subset of its members
+  (`Typ.sig_sub`, which opens the wider signature's type members under fresh
+  names), and functions are contravariant in their domain. It returns `ana`
+  when a subtyping step was needed, which is what seals the binder's type.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
   items: a type alias first, then a value variable whose type is a signature.
   `weak_head_normalize` uses it for `ProdProjection`, falling back to the
@@ -204,8 +227,8 @@ mismatches land on definitions. After checking:
   compact and inlining only shadowed ones.
 - `ModuleHelpers.check_ana_type_members` marks a `type T = ...` item whose
   definition differs from the signature's (`Mark.ModuleTypeMemberMismatch`).
-- `ModuleHelpers.missing_members` / `extra_members` produce
-  `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
+- `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on
+  the module node; extra members are sealed away by `ana_meet`.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -272,7 +295,8 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/statics/StaticsBase.re`   | `fixed_typ`/mismatch hooks routed through `Typ.ana_meet`           |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |

@@ -178,6 +178,41 @@ let test_sealing_nested =
     )
   });
 
+/* Sealing keeps the signature's members, in signature order */
+let test_sealing_reorders =
+  test_case("Sealing reorders members to signature order", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let y = 2; let x = 1 }",
+      {|module M : { let y : Int; let x : Int } = { let x = 1; let y = 2 } in M|},
+    )
+  });
+
+/* A wider module passed where a narrower one is expected is sealed */
+let test_width_function_argument =
+  test_case(
+    "Width through a function argument returns the sealed module", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let x = 3 }",
+      {|let f = fun (m : { let x : Int }) -> m in f({ let x = 3; let y = 4 })|},
+    )
+  });
+
+let test_width_function_argument_projection =
+  test_case("Width through a function argument, projection", `Quick, () => {
+    parse_and_evaluate_test(
+      "3",
+      {|let f = fun (m : { let x : Int }) -> m.x in f({ let x = 3; let y = 4 })|},
+    )
+  });
+
+let test_sealing_bound_variable =
+  test_case("Sealing a bound module variable", `Quick, () => {
+    parse_and_evaluate_test(
+      "{ let x = 1 }",
+      {|let big = { let x = 1; let y = 2 } in let m : { let x : Int } = big in m|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -209,5 +244,9 @@ let tests = (
     test_sig_type_member_erased,
     test_sealing_drops_extras,
     test_sealing_nested,
+    test_sealing_reorders,
+    test_width_function_argument,
+    test_width_function_argument_projection,
+    test_sealing_bound_variable,
   ],
 );

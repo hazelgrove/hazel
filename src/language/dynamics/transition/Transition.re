@@ -1305,7 +1305,9 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardType,
-            is_value: false,
+            /* Evaluated bindings are never re-traversed: once nothing is
+               pending, the module is a value. */
+            is_value: suffix == [],
           });
         | ModExp(d1) =>
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
@@ -1319,7 +1321,7 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardExp,
-            is_value: false,
+            is_value: suffix == [],
           });
         | ModLet(_, _)
         | ModuleMod(_, _) =>
@@ -1358,23 +1360,39 @@ module Transition = (EV: EV_MODE) => {
                 bound,
               );
             let env'' = Environment.add_bindings(env, env');
-            /* The continuation gets a fresh id: it is evaluated as a
-               sub-expression of this module, and a probe on the module
-               must sample its value once, at this level. */
-            Step({
-              expr:
-                subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
-              side_effects: [
-                RecordPatMatch({
-                  pat: dp,
-                  rhs: d1,
-                  samples,
-                }),
-              ],
-              kind:
-                ModuleBind(bound |> List.map(fst) |> String.concat(", ")),
-              is_value: false,
-            });
+            let side_effects: list(EvaluatorState.effect) = [
+              RecordPatMatch({
+                pat: dp,
+                rhs: d1,
+                samples,
+              }),
+            ];
+            let kind =
+              ModuleBind(bound |> List.map(fst) |> String.concat(", "));
+            switch (suffix) {
+            | [] =>
+              /* Nothing pending: the module is a value. Its bindings were
+                 evaluated by the steps that recorded them and must not be
+                 traversed again (a probed literal keeps its id as a value
+                 and would be sampled twice). */
+              Step({
+                expr: Module(prefix') |> rewrap,
+                side_effects,
+                kind,
+                is_value: true,
+              })
+            | _ =>
+              /* The continuation gets a fresh id: it is evaluated as a
+                 sub-expression of this module, and a probe on the module
+                 must sample its value once, at this level. */
+              Step({
+                expr:
+                  subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
+                side_effects,
+                kind,
+                is_value: false,
+              })
+            };
           };
         | ModVal(_, _)
         | Invalid(_)

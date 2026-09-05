@@ -247,10 +247,24 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
 /* Type after hole fixing: best type consistent with analysis expectation and
-   statics synthetic type (Typ.meet). On meet failure, prefer syn under
-   synthesis and ana under analysis. */
+   statics synthetic type (Typ.ana_meet, which admits signature subtyping at
+   this analysis position). On failure, prefer syn under synthesis and ana
+   under analysis. */
 let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
-  switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+  switch (Typ.ana_meet(ctx, ~ana, ~syn=elab_syn_ty)) {
+  | Some(ty) => ty
+  | None =>
+    if (Typ.is_syn_plus(ana)) {
+      elab_syn_ty;
+    } else {
+      ana;
+    }
+  };
+
+/* Patterns run the other way round: the pattern's own type is what is
+   required, and the type it is analyzed against is what is provided. */
+let fixed_typ_pat = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  switch (Typ.ana_meet(ctx, ~ana=elab_syn_ty, ~syn=ana)) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
@@ -296,13 +310,18 @@ let should_emit_nomeet_mark =
   | None => true
   };
 
-let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
+let syn_ana_ok_common' =
+    (~flipped, ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t)
+    : Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+    let met =
+      flipped
+        ? Typ.ana_meet(ctx, ~ana=elab_syn_ty, ~syn=ana)
+        : Typ.ana_meet(ctx, ~ana, ~syn=elab_syn_ty);
+    switch (met) {
     | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
@@ -312,18 +331,25 @@ let syn_ana_ok_common =
           meet,
         }),
       )
-    }
+    };
   };
 };
 
-let expectation_mismatch_mark =
-    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
+let syn_ana_ok_common = syn_ana_ok_common'(~flipped=false);
+let syn_ana_ok_common_pat = syn_ana_ok_common'(~flipped=true);
+
+let expectation_mismatch_mark' =
+    (~flipped, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (Typ.meet(ctx, ana', syn')) {
+    let met =
+      flipped
+        ? Typ.ana_meet(ctx, ~ana=syn', ~syn=ana')
+        : Typ.ana_meet(ctx, ~ana=ana', ~syn=syn');
+    switch (met) {
     | Some(_) => None
     | None =>
       Some(
@@ -332,9 +358,12 @@ let expectation_mismatch_mark =
           syn: syn',
         }),
       )
-    }
+    };
   };
 };
+
+let expectation_mismatch_mark = expectation_mismatch_mark'(~flipped=false);
+let expectation_mismatch_mark_pat = expectation_mismatch_mark'(~flipped=true);
 
 /* Lightweight pat update: prepend a mark and update dependent fields. */
 let prepend_pat_mark =

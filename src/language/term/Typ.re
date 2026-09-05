@@ -1096,6 +1096,75 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   };
 };
 
+/* ==================== Analysis-position subtyping ====================
+   Consistency (`meet`) is exact. Where an expression is ANALYZED against a
+   type, a module may additionally be wider than the expected signature
+   (width subtyping: the extra members are sealed away), its value members
+   may themselves be wider, and a function may accept a wider module than
+   expected (contravariant domain). `ana_meet` is the single entry point and
+   returns `ana` when such a subtyping step was needed. Joins of branches,
+   equality and `is_consistent` keep the exact `meet`. */
+let rec ana_meet = (ctx: Ctx.t, ~ana: t, ~syn: t): option(t) =>
+  switch (meet(ctx, ana, syn)) {
+  | Some(_) as r => r
+  | None =>
+    switch (
+      term_of(weak_head_normalize(ctx, ana)),
+      term_of(weak_head_normalize(ctx, syn)),
+    ) {
+    | (Sig(a), Sig(s)) => sig_sub(ctx, ~ana=a, ~syn=s) ? Some(ana) : None
+    | (Arrow(a1, r1), Arrow(a2, r2)) =>
+      Option.is_some(ana_meet(ctx, ~ana=a2, ~syn=a1))
+      && Option.is_some(ana_meet(ctx, ~ana=r1, ~syn=r2))
+        ? Some(ana) : None
+    | _ => None
+    }
+  }
+/* syn <: ana for signatures: every member ana declares is provided by syn
+   with a type that fits it; extra syn members are ignored. */
+and sig_sub = (ctx: Ctx.t, ~ana: list(Sig.t), ~syn: list(Sig.t)): bool => {
+  let syn_members = Sig.members(syn) |> Sig.dedup_last;
+  /* Open syn: its type members get fresh names so they cannot collide with
+     ana's; references inside syn's member types follow the renaming. */
+  let (ctx, sigma) =
+    List.fold_left(
+      ((ctx, sigma), m: Sig.member) =>
+        switch (m) {
+        | TypeManifest(name, def) =>
+          let f = fresh_var(name);
+          (
+            Ctx.extend_alias(ctx, f, Id.invalid, apply_sig_subst(sigma, def)),
+            [(name, Var(f) |> temp), ...sigma],
+          );
+        | Val(_) => (ctx, sigma)
+        },
+      (ctx, []),
+      syn_members,
+    );
+  let syn_value = x =>
+    Sig.find_value(syn_members, x) |> Option.map(apply_sig_subst(sigma));
+  let syn_type = t =>
+    Sig.find_type_def(syn_members, t) |> Option.map(apply_sig_subst(sigma));
+  let rec go = (ctx, ms: list(Sig.member)) =>
+    switch (ms) {
+    | [] => true
+    | [Sig.Val(x, ta), ...ms] =>
+      switch (syn_value(x)) {
+      | Some(ts) =>
+        Option.is_some(ana_meet(ctx, ~ana=ta, ~syn=ts)) && go(ctx, ms)
+      | None => false
+      }
+    | [Sig.TypeManifest(t, da), ...ms] =>
+      switch (syn_type(t)) {
+      | Some(ds) =>
+        Option.is_some(meet(ctx, da, ds))
+        && go(Ctx.extend_alias(ctx, t, Id.invalid, da), ms)
+      | None => false
+      }
+    };
+  go(ctx, Sig.members(ana) |> Sig.dedup_last);
+};
+
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
 let rec match_synswitch = (t1: t, t2: t) => {
