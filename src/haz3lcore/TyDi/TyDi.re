@@ -65,6 +65,16 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         },
       labels,
     )
+  | InfoTyp({expects: TypExpectation.ModuleMemberExpected({members, _}), _})
+      when members != [] =>
+    List.map(
+      label =>
+        TyDiSuggestion.{
+          content: label,
+          strategy: Typ(FromCtx),
+        },
+      members,
+    )
   | InfoExp({label_sort: true, _})
   | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})

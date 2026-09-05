@@ -62,6 +62,13 @@ type t =
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | ModuleMissingMembers(list(Var.t))
   | ModuleExtraMembers(list(Var.t))
+  /* `M.y` where the module has no value member y: on the label, while the
+     dot carries a message. [type_member]: y is one of its type members. */
+  | ModuleMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      type_member: bool,
+    })
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
@@ -91,6 +98,18 @@ type t =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(Typ.t)
+  /* `M.T` where the module has no type member T, or ([submodule]) `M.P.T`
+     where it has no sub-module P: on the label. */
+  | ModuleTypeMemberNotFound({
+      name: Var.t,
+      members: list(Var.t),
+      submodule: bool,
+    })
+  /* `m.T` where m is a value that is not a module. */
+  | TypWantModule({
+      name: Var.t,
+      typ: Typ.t,
+    })
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

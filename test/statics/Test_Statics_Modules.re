@@ -20,6 +20,194 @@ let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
     },
   );
 
+/* The marks on the sub-expression whose term satisfies [pred]. */
+let subexp_marks =
+    (source, pred: Language.Exp.term => bool): list(Language.Mark.t) =>
+  Language.Id.Map.fold(
+    (_, info: Language.Info.t, acc) =>
+      switch (acc, info) {
+      | (None, InfoExp({user_term, marks, _})) when pred(user_term.term) =>
+        Some(marks)
+      | _ => acc
+      },
+    statics(parse_exp(source)),
+    None,
+  )
+  |> Option.value(~default=[]);
+
+/* Exactly one mark in the whole program, and it satisfies [pred]. */
+let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        name,
+        true,
+        switch (marks) {
+        | [m] => pred(m)
+        | _ => false
+        },
+      );
+    },
+  );
+
+/* ===== PROJECTION ERROR ATTRIBUTION ===== */
+
+/* `m.y` with no member y: the label carries the error, the dot only a
+   message (the design the type-level `M.Fake` already follows). */
+let is_dot: Language.Exp.term => bool =
+  fun
+  | Dot(_) => true
+  | _ => false;
+let is_label = (l: string, t: Language.Exp.term): bool =>
+  switch (t) {
+  | Label(name) => name == l
+  | _ => false
+  };
+
+let test_member_not_found_on_label =
+  Alcotest.test_case(
+    "A missing member is reported on the label, not on the dot",
+    `Quick,
+    () => {
+      let src = {|let m = { let x = 1 } in m.y|};
+      Alcotest.(check(bool))(
+        "label marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleMemberNotFound({
+              name: "y",
+              members: ["x"],
+              type_member: false,
+            }) =>
+            true
+          | _ => false,
+          subexp_marks(src, is_label("y")),
+        ),
+      );
+      Alcotest.(check(bool))(
+        "dot unmarked",
+        true,
+        subexp_marks(src, is_dot) == [],
+      );
+    },
+  );
+
+let test_type_member_as_value_mark =
+  has_mark_test(
+    "Accessing a type member as a value says so",
+    {|let m = { type T = Int } in m.T|},
+    fun
+    | Language.Mark.ModuleMemberNotFound({name: "T", type_member: true, _}) =>
+      true
+    | _ => false,
+  );
+
+let test_dot_on_non_module_mark =
+  has_mark_test(
+    "Projecting from a non-module value is a dot error",
+    {|let n = 1 in n.x|},
+    fun
+    | Language.Mark.DotOperatorRequiresTuple => true
+    | _ => false,
+  );
+
+let test_type_member_not_found_mark =
+  has_mark_test(
+    "A missing type member names the module's type members",
+    {|module M = { type Real = Int } in let bad : M.Fake = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound({
+        name: "Fake",
+        members: ["Real"],
+        submodule: false,
+      }) =>
+      true
+    | _ => false,
+  );
+
+let test_no_type_members_mark =
+  has_mark_test(
+    "A module without type members says so",
+    {|module E = {} in let bad : E.T = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound({name: "T", members: [], _}) =>
+      true
+    | _ => false,
+  );
+
+let test_submodule_not_found_mark =
+  has_mark_test(
+    "A missing sub-module in a type path says so",
+    {|module M = { module P = { type S = Int } } in let bad : M.Q.S = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound({
+        name: "Q",
+        members: ["P"],
+        submodule: true,
+      }) =>
+      true
+    | _ => false,
+  );
+
+let test_value_used_as_module_path_mark =
+  has_mark_test(
+    "A value that is not a module cannot root a type path",
+    {|let n = 1 in let y : n.T = 2 in y|},
+    fun
+    | Language.Mark.TypWantModule({name: "n", _}) => true
+    | _ => false,
+  );
+
+/* A differing manifest type member is reported once, on the type item: the
+   members are checked against the module's own definition of T, and the
+   module is not reported a second time. */
+let test_type_member_mismatch_single_error =
+  single_mark_test(
+    "A differing type member is the module's only error",
+    {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
+let test_type_member_mismatch_with_wrong_definition =
+  Alcotest.test_case(
+    "A differing type member and a definition wrong for the module's own T",
+    `Quick,
+    () => {
+      let marks =
+        statics(
+          parse_exp(
+            {|module M : { type T = Int; let x : T } = { type T = Bool; let x = 1 } in M|},
+          ),
+        )
+        |> errors
+        |> List.concat_map(snd);
+      Alcotest.(check(int))("two errors", 2, List.length(marks));
+      Alcotest.(check(bool))(
+        "type member and definition",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch(_) => true
+          | _ => false,
+          marks,
+        )
+        && List.exists(
+             fun
+             | Language.Mark.ExpectationMismatch(_) => true
+             | _ => false,
+             marks,
+           ),
+      );
+    },
+  );
+
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
@@ -857,6 +1045,16 @@ let tests = (
     test_extra_type_member_mark,
     test_missing_member_mark,
     test_type_member_mismatch_mark,
+    /* Projection error attribution */
+    test_member_not_found_on_label,
+    test_type_member_as_value_mark,
+    test_dot_on_non_module_mark,
+    test_type_member_not_found_mark,
+    test_no_type_members_mark,
+    test_submodule_not_found_mark,
+    test_value_used_as_module_path_mark,
+    test_type_member_mismatch_single_error,
+    test_type_member_mismatch_with_wrong_definition,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,

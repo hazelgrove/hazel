@@ -262,6 +262,7 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
     | ModuleExtraMembers(_)
+    | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | BadOperator(_)
     | BadLivelitModel(_)
@@ -274,6 +275,8 @@ let core_mark_err_view =
     | TypWantTypeFoundAp
     | TypWantLabel
     | TypWantProduct(_)
+    | ModuleTypeMemberNotFound(_)
+    | TypWantModule(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -444,6 +447,17 @@ let underdetermined_typ_view =
       text(". Valid labels are: "),
       ...List.map(code, labels),
     ]
+  | ModuleTypeMemberMissing(name, members) =>
+    [text("Module has no type member "), label_view(name)]
+    @ (
+      switch (members) {
+      | [] => [text("; it has no type members")]
+      | _ => [
+          text("; its type members are "),
+          ...ListUtil.join(text(", "), List.map(label_view, members)),
+        ]
+      }
+    )
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
       switch (product) {
@@ -549,8 +563,26 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
     ]
   | TypParseFailure => [text("Parse failure")]
   | TypWantProduct(ty) => [
-      text("Expected a tuple type, found type"),
+      text("Expected a module or tuple type, found type"),
       view_type(ty),
+    ]
+  | ModuleTypeMemberNotFound({name, members, submodule}) =>
+    let what = submodule ? "sub-module" : "type member";
+    [text("Module has no " ++ what ++ " "), label_view(name)]
+    @ (
+      switch (members) {
+      | [] => [text("; it has no " ++ what ++ "s")]
+      | _ => [
+          text("; its " ++ what ++ "s are "),
+          ...ListUtil.join(text(", "), List.map(label_view, members)),
+        ]
+      }
+    );
+  | TypWantModule({name, typ}) => [
+      code(name),
+      text("is a value of type"),
+      view_type(typ),
+      text(", not a module"),
     ]
   | _ => [text("Type error")]
   };
@@ -712,7 +744,7 @@ let exp_mark_err_view =
   | TupleExtensionRequiresTuples =>
     div_err([text("Tuple extension requires tuple")])
   | DotOperatorRequiresTuple =>
-    div_err([text("Requires tuple for first argument")])
+    div_err([text("Requires a module or tuple for the first argument")])
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None =>
@@ -737,6 +769,28 @@ let exp_mark_err_view =
       text("Module is missing members required by its signature: "),
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
+  | ModuleMemberNotFound({name, members, type_member}) =>
+    if (type_member) {
+      div_err([
+        code(name),
+        text(
+          " is a type member of the module, not a value; use it in a type position",
+        ),
+      ]);
+    } else {
+      div_err(
+        [text("Module has no member "), code(name)]
+        @ (
+          switch (members) {
+          | [] => [text("; it has no members")]
+          | _ => [
+              text("; its members are "),
+              ...ListUtil.join(text(", "), List.map(code, members)),
+            ]
+          }
+        ),
+      );
+    }
   | ModuleExtraMembers(names) =>
     div_err([
       text("Module has members its signature does not declare: "),
@@ -763,6 +817,8 @@ let exp_mark_err_view =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(_)
+  | ModuleTypeMemberNotFound(_)
+  | TypWantModule(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -834,6 +890,19 @@ let exp_view =
       )
     | Exp(AnaDeferralConsistent(ana)) =>
       div_ok([text("Expecting type"), view_type(~globals, ana)])
+    | Exp(ModuleMemberNotFound({name, members})) =>
+      div_ok(
+        [text("Module has no member "), code(name)]
+        @ (
+          switch (members) {
+          | [] => [text("; it has no members")]
+          | _ => [
+              text("; its members are "),
+              ...ListUtil.join(text(", "), List.map(code, members)),
+            ]
+          }
+        ),
+      )
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
