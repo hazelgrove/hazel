@@ -3,6 +3,10 @@ open HighLevelNodeMap.Public;
 open Language;
 open OptUtil.Syntax;
 
+/* phase timers for the journal's perf lines */
+let build = (z, info_map) =>
+  PerfTimer.time("node-map", () => build(z, info_map));
+
 /* web-side listener for FastParse fallback telemetry (the journal);
    core stays UI-agnostic */
 let fallback_notice: ref(option(string => unit)) = ref(None);
@@ -103,19 +107,30 @@ module Local = {
     };
   };
 
+  /* each side is selected against ITS OWN syntax: term data of the old
+     program does not describe the new one, and Select.term on a stale
+     table fell to its slow extremes search (1.3 s of a 1.9 s
+     update_definition at 170 lines) */
   let get_diff =
       (
         old_zipper: Zipper.t,
         new_zipper: Zipper.t,
         action: Action.Structural.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
-        syntax: CachedSyntax.t,
+        ~old_syntax: CachedSyntax.t,
+        ~new_syntax: CachedSyntax.t,
       )
       : option((Segment.t, option(Segment.t))) => {
     switch (action) {
     | Insert(_, _, _) =>
-      let* old_segment = segment_of_term(old_zipper, None, syntax);
-      let new_segment = segment_of_term(new_zipper, None, syntax);
+      let* old_segment =
+        PerfTimer.time("diff/segment", () =>
+          segment_of_term(old_zipper, None, old_syntax)
+        );
+      let new_segment =
+        PerfTimer.time("diff/segment", () =>
+          segment_of_term(new_zipper, None, new_syntax)
+        );
       Some((old_segment, new_segment));
     | Update(_, path, _)
     | Delete(_, path) =>
@@ -127,17 +142,34 @@ module Local = {
          raising. Historical bug: using [[path_to_id]] here raised
          "Path X not found in node map" after every successful delete,
          surfacing to the agent as a spurious tool-call failure. */
+      let old_statics =
+        PerfTimer.time("diff/statics", () => mk_statics(old_zipper));
       let* old_node_map =
-        HighLevelNodeMap.build(old_zipper, mk_statics(old_zipper));
+        PerfTimer.time("diff/node-map", () =>
+          HighLevelNodeMap.build(old_zipper, old_statics)
+        );
+      let new_statics =
+        PerfTimer.time("diff/statics", () => mk_statics(new_zipper));
       let* new_node_map =
-        HighLevelNodeMap.build(new_zipper, mk_statics(new_zipper));
-      let old_target_id = path_to_id(old_node_map, path);
+        PerfTimer.time("diff/node-map", () =>
+          HighLevelNodeMap.build(new_zipper, new_statics)
+        );
+      let old_target_id =
+        PerfTimer.time("diff/path", () => path_to_id(old_node_map, path));
       let* old_segment =
-        segment_of_term(old_zipper, Some(old_target_id), syntax);
+        PerfTimer.time("diff/segment", () =>
+          segment_of_term(old_zipper, Some(old_target_id), old_syntax)
+        );
       let new_segment =
-        switch (path_to_id_opt(new_node_map, path)) {
+        switch (
+          PerfTimer.time("diff/path", () =>
+            path_to_id_opt(new_node_map, path)
+          )
+        ) {
         | Some(new_target_id) =>
-          segment_of_term(new_zipper, Some(new_target_id), syntax)
+          PerfTimer.time("diff/segment", () =>
+            segment_of_term(new_zipper, Some(new_target_id), new_syntax)
+          )
         | None => None
         };
       Some((old_segment, new_segment));
@@ -191,7 +223,7 @@ module Local = {
               ~of_def,
               ~of_body,
             );
-          ErrorPrint.all(initial_subtree);
+          PerfTimer.time("errors", () => ErrorPrint.all(initial_subtree));
         };
       let new_subtree =
         GeneralTreeUtils.subtree_of(
@@ -201,7 +233,8 @@ module Local = {
           ~of_def,
           ~of_body,
         );
-      let new_errors = ErrorPrint.all(new_subtree);
+      let new_errors =
+        PerfTimer.time("errors", () => ErrorPrint.all(new_subtree));
       if (List.length(new_errors) > List.length(initial_errors)) {
         Some(
           "Not applying the action you requested as it would have the following static error(s): "
@@ -618,6 +651,44 @@ module Local = {
        whatever the code's own root. Remolding the program at Mod re-derived
        every mold from the wrong root: case rules inside a spliced member
        came out with Any/Exp-sorted patterns (dungeon runs: `nth`). */
+    /* one leading and/or one trailing `;` of a module-member chunk, with
+       the whitespace between it and the member: (lead, core, trail) */
+    let split_separators =
+        (code: string): (option(string), string, option(string)) => {
+      let is_ws = c => c == ' ' || c == '\t' || c == '\n' || c == '\r';
+      let t = String.trim(code);
+      let n = String.length(t);
+      let (lead, t) =
+        if (n > 0 && t.[0] == ';') {
+          let rest = String.sub(t, 1, n - 1);
+          let k = ref(0);
+          while (k^ < String.length(rest) && is_ws(rest.[k^])) {
+            incr(k);
+          };
+          (
+            Some(String.sub(rest, 0, k^)),
+            String.sub(rest, k^, String.length(rest) - k^),
+          );
+        } else {
+          (None, t);
+        };
+      let n = String.length(t);
+      let (trail, t) =
+        if (n > 0 && t.[n - 1] == ';') {
+          let rest = String.sub(t, 0, n - 1);
+          let k = ref(String.length(rest));
+          while (k^ > 0 && is_ws(rest.[k^ - 1])) {
+            decr(k);
+          };
+          (
+            Some(String.sub(rest, k^, String.length(rest) - k^)),
+            String.sub(rest, 0, k^),
+          );
+        } else {
+          (None, t);
+        };
+      (lead, t, trail);
+    };
     let rec introduce =
             (
               ~root=Sort.Exp,
@@ -641,19 +712,46 @@ module Local = {
           ),
         )
       | None =>
+        /* module-member chunks carry their `;` separator (insert_member:
+           `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
+           separator, so it is split off here and spliced back as a tile
+           (molded at splice time like everything else) — else every
+           member insert fell to the quadratic parser */
+        let (lead_sep, core, trail_sep) =
+          root == Sort.Mod ? split_separators(code) : (None, code, None);
         switch (
           fast
-            ? FastParse.of_text(
-                ~materialize=Triggers.invoked_projector,
-                ~collect_refractors=false,
-                ~root,
-                String.trim(code),
+            ? PerfTimer.time("fast-parse", () =>
+                FastParse.of_text(
+                  ~materialize=Triggers.invoked_projector,
+                  ~collect_refractors=false,
+                  ~root,
+                  String.trim(core),
+                )
               )
             : None
         ) {
         | Some(segment) =>
           /* Source tokens + formatting verbatim, molds from ExpToSegment +
              splice-time remold. No size cap needed on this path. */
+          let sep_tile = (): Piece.t =>
+            Tile({
+              id: Id.mk(),
+              label: [";"],
+              mold: Form.Molds.get(Sort.Mod, [";"]),
+              shards: [0],
+              children: [],
+            });
+          let segment =
+            switch (lead_sep) {
+            | Some(ws) => [sep_tile(), ...ws_secondaries(ws)] @ segment
+            | None => segment
+            };
+          let segment =
+            switch (trail_sep) {
+            | Some(ws) => segment @ ws_secondaries(ws) @ [sep_tile()]
+            | None => segment
+            };
           let segment =
             if (keep_edge_ws) {
               let (lead, trail) = edge_ws(code);
@@ -661,13 +759,15 @@ module Local = {
             } else {
               segment;
             };
-          Ok(
-            Zipper.insert_segment(
-              z,
-              pad_fusing_edges(z, segment),
-              ~root=splice_root,
-            ),
-          );
+          let z' =
+            PerfTimer.time("splice", () =>
+              Zipper.insert_segment(
+                z,
+                pad_fusing_edges(z, segment),
+                ~root=splice_root,
+              )
+            );
+          Ok(z');
         | None =>
           if (fast) {
             /* fallback telemetry: which construct pushed us onto the
@@ -685,7 +785,7 @@ module Local = {
             };
           };
           introduce_slow(~root, ~splice_root, z, code);
-        }
+        };
       };
     }
     and introduce_slow =
@@ -704,13 +804,17 @@ module Local = {
           ),
         );
       } else {
-        switch (Parser.to_segment(code, ~root)) {
+        switch (
+          PerfTimer.time("typing-parse", () => Parser.to_segment(code, ~root))
+        ) {
         | Some(segment) =>
           Ok(
-            Zipper.insert_segment(
-              z,
-              pad_fusing_edges(z, segment),
-              ~root=splice_root,
+            PerfTimer.time("splice", () =>
+              Zipper.insert_segment(
+                z,
+                pad_fusing_edges(z, segment),
+                ~root=splice_root,
+              )
             ),
           )
         | None =>
@@ -914,7 +1018,15 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Def, initial_node);
       switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
+        PerfTimer.time("overwrite", () =>
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            false,
+            syntax,
+          )
+        )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -981,7 +1093,15 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
       switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
+        PerfTimer.time("overwrite", () =>
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            false,
+            syntax,
+          )
+        )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -1019,7 +1139,15 @@ module Local = {
              "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
            );
       switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
+        PerfTimer.time("overwrite", () =>
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            false,
+            syntax,
+          )
+        )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -1119,8 +1247,14 @@ module Local = {
                       );
                 /* Belt-and-suspenders: re-validate after the use-site rewrite;
                    anything the pre-checks missed must not grow the error count. */
-                let initial_errors = ErrorPrint.all(initial_info_map);
-                let final_errors = ErrorPrint.all(mk_statics(final_z));
+                let initial_errors =
+                  PerfTimer.time("errors", () =>
+                    ErrorPrint.all(initial_info_map)
+                  );
+                let final_errors =
+                  PerfTimer.time("errors", () =>
+                    ErrorPrint.all(mk_statics(final_z))
+                  );
                 if (List.length(final_errors) > List.length(initial_errors)) {
                   Error(
                     Action.Failure.Composition_action_failure(
@@ -1202,8 +1336,10 @@ module Local = {
       | Error(e) => Error(e)
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
-        let old_errors = ErrorPrint.all(initial_info_map);
-        let new_errors = ErrorPrint.all(new_info_map);
+        let old_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
+        let new_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
         if (List.length(new_errors) > List.length(old_errors)) {
           Error(
             Action.Failure.Composition_action_failure(
@@ -1241,8 +1377,10 @@ module Local = {
       | Error(e) => Error(e)
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
-        let old_errors = ErrorPrint.all(initial_info_map);
-        let new_errors = ErrorPrint.all(new_info_map);
+        let old_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
+        let new_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
         if (List.length(new_errors) > List.length(old_errors)) {
           Error(
             Action.Failure.Composition_action_failure(
@@ -1286,12 +1424,19 @@ module Local = {
 
   let composition_dispatch =
       (
+        ~initial_info_map: option(StaticsBase.Map.t)=None,
         a: Action.Structural.t,
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
       ) => {
-    let initial_info_map = mk_statics(z);
+    /* the editor's map for this very zipper when the caller has one
+       (saves a full statics pass per tool); else compute */
+    let initial_info_map =
+      switch (initial_info_map) {
+      | Some(m) => m
+      | None => mk_statics(z)
+      };
     switch (build(z, initial_info_map)) {
     | None => Error(Action.Failure.Cant_derive_local_AST_information)
     | Some(initial_node_map) =>
@@ -1306,9 +1451,23 @@ module Local = {
     };
   };
 
+  let mentions_trigger = (code: string): bool => {
+    let n = String.length(code);
+    let rec go = i =>
+      i + 1 < n && (code.[i] == '^' && code.[i + 1] == '^' || go(i + 1));
+    go(0);
+  };
+  let action_mentions_trigger = (a: Action.Structural.t): bool =>
+    switch (a) {
+    | Insert(_, _, code)
+    | Update(_, _, code) => mentions_trigger(code)
+    | _ => false
+    };
+
   let go =
       (
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        ~initial_info_map: option(StaticsBase.Map.t),
         ~syntax: CachedSyntax.t,
         ~z: Zipper.t,
         ~a: Action.Structural.t,
@@ -1316,13 +1475,24 @@ module Local = {
       : result(Zipper.t, Action.Failure.t) => {
     let res =
       try(
-        switch (composition_dispatch(a, syntax, z, mk_statics)) {
+        switch (
+          composition_dispatch(~initial_info_map, a, syntax, z, mk_statics)
+        ) {
         | Ok(new_z) =>
-          Ok(
-            PerformUtils.normalize_top_level(
-              Materialize.all(new_z, ~root=Exp),
-            ),
-          )
+          /* projector triggers (^^kind) are materialized program-wide; a
+             chunk without one leaves nothing to materialize, and the walk
+             costs ~100 ms at 170 lines */
+          let materialized =
+            action_mentions_trigger(a)
+              ? PerfTimer.time("materialize", () =>
+                  Materialize.all(new_z, ~root=Exp)
+                )
+              : new_z;
+          let final =
+            PerfTimer.time("normalize", () =>
+              PerformUtils.normalize_top_level(materialized)
+            );
+          Ok(final);
         | Error(e) => Error(e)
         }
       ) {
@@ -1344,15 +1514,53 @@ module Local = {
 };
 
 module Public = {
-  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
+  let mk_statics_with = (settings: Language.CoreSettings.t, z: Zipper.t) =>
     Language.(
       fst(
         Statics.mk(
-          CoreSettings.on,
+          settings,
           Builtins.ctx_init(Some(Operators.default_mode)),
           MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
         ),
       )
     );
-  let go = Local.go(~mk_statics);
+  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
+    mk_statics_with(Language.CoreSettings.on, z);
+  let go =
+    Local.go(
+      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(z)),
+      ~initial_info_map=None,
+    );
+  /* With the editor's statics for this zipper in hand (CachedStatics.
+     for_zipper), both maps of the error check are computed the editor's
+     way — same settings — so the comparison stays fair while the initial
+     pass is skipped. */
+  let go_with_editor_statics =
+      (~settings: Language.CoreSettings.t, ~initial: CachedStatics.t) =>
+    Local.go(
+      ~mk_statics=
+        z =>
+          PerfTimer.time("statics", () => {
+            /* the full record, computed the editor's way (probe_all is
+               masked during an agent burst as in CodeWithStatics), and
+               OFFERED: the editor's recompute for this program takes it
+               instead of running statics again */
+            let settings =
+              Language.CoreSettings.{
+                ...settings,
+                probe_all: settings.probe_all && !AgentPulse.in_burst(),
+              };
+            let full =
+              CachedStatics.init(
+                ~settings,
+                ~is_dynamic_term=false,
+                ~stitch=x => x,
+                ~root=Sort.Exp,
+                z,
+              );
+            CachedStatics.offer(z, full);
+            full.info_map;
+          }),
+      ~initial_info_map=Some(initial.info_map),
+    );
 };

@@ -165,6 +165,16 @@ let handle_llm_response =
                       Printf.sprintf("slow: tool %s %.0fms", tc.name, ms),
                     );
                   };
+                  /* the phases inside this call (the editor's own
+                     recompute lands in the 5-second perf line) */
+                  CanvasLog.log(
+                    Printf.sprintf(
+                      "perf-tool: %s %.0fms — %s",
+                      tc.name,
+                      ms,
+                      PerfTimer.take_summary(),
+                    ),
+                  );
                 };
                 /* the tool's snapshot carries its OWN statics (computed
                    here, synchronously) so the beat shows exactly this
@@ -174,13 +184,23 @@ let handle_llm_response =
                   if (Haz3lcore.Id.Map.is_empty(ed.statics.info_map)) {
                     let t0 = CanvasBuffer.now();
                     let statics =
-                      Haz3lcore.CachedStatics.init(
-                        ~settings=settings.core,
-                        ~is_dynamic_term=false,
-                        ~stitch=x => x,
-                        ~root=ed.editor.root,
-                        ed.editor.state.zipper,
-                      );
+                      switch (
+                        Haz3lcore.CachedStatics.offered_for(
+                          ed.editor.state.zipper,
+                        )
+                      ) {
+                      | Some(st) => st
+                      | None =>
+                        PerfTimer.time("snapshot-statics", () =>
+                          Haz3lcore.CachedStatics.init(
+                            ~settings=settings.core,
+                            ~is_dynamic_term=false,
+                            ~stitch=x => x,
+                            ~root=ed.editor.root,
+                            ed.editor.state.zipper,
+                          )
+                        )
+                      };
                     let ms = CanvasBuffer.now() -. t0;
                     if (ms > 30.) {
                       CanvasLog.log(
@@ -204,9 +224,11 @@ let handle_llm_response =
                     | ToolResult(tr) when !tr.skipped =>
                       let ed = snap;
                       let node_map =
-                        Haz3lcore.HighLevelNodeMap.build(
-                          ed.editor.state.zipper,
-                          ed.statics.info_map,
+                        PerfTimer.time("summary-nodemap", () =>
+                          Haz3lcore.HighLevelNodeMap.build(
+                            ed.editor.state.zipper,
+                            ed.statics.info_map,
+                          )
                         );
                       ToolCallSummary.of_tool_call(tr.tool_call)
                       |> Util.OptUtil.and_then((summary: ToolCallSummary.t) =>

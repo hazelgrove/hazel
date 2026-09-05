@@ -62,19 +62,37 @@ let add_tool_result_to_active_subtask =
 let mk_diff =
     (
       ~old_editor: Editor.t,
+      ~old_statics: CachedStatics.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
     : option(AgentToolResult.diff) => {
   switch (action) {
   | EditorAction(edit_action) =>
+    /* the diff of an Update/Delete resolves its path in both programs'
+       node maps, which want statics: the editor already has the old
+       program's, the tool path offered the new program's — a fresh pass
+       here was ~2 s of a 2.8 s update_definition */
+    let mk_statics = (z: Zipper.t) =>
+      switch (CachedStatics.offered_for(z)) {
+      | Some(st) => st.info_map
+      | None =>
+        switch (CachedStatics.for_zipper(z, old_statics)) {
+        | Some(st) when st.info_map != Id.Map.empty => st.info_map
+        | _ =>
+          Util.PerfTimer.time("diff-statics", () =>
+            CompositionGo.Public.mk_statics(z)
+          )
+        }
+      };
     switch (
       CompositionGo.Local.get_diff(
         old_editor.state.zipper,
         new_editor.state.zipper,
         edit_action,
-        CompositionGo.Public.mk_statics,
-        old_editor.syntax,
+        mk_statics,
+        ~old_syntax=old_editor.syntax,
+        ~new_syntax=new_editor.syntax,
       )
     ) {
     | Some((old_segment, new_segment)) =>
@@ -85,7 +103,7 @@ let mk_diff =
         },
       )
     | None => None
-    }
+    };
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
@@ -212,12 +230,14 @@ let execute_one_tool_call =
   | Action(action) =>
     switch (
       try(
-        ToolCallHandler.update(
-          ~settings,
-          action,
-          model,
-          cell_editor.editor,
-          chat_id,
+        Util.PerfTimer.time("tool/handler", () =>
+          ToolCallHandler.update(
+            ~settings,
+            action,
+            model,
+            cell_editor.editor,
+            chat_id,
+          )
         )
       ) {
       | Failure(msg) as exn =>
@@ -239,18 +259,23 @@ let execute_one_tool_call =
         ++ tool_call.name
         ++ " tool call was successful and has been applied to the model.";
       let (before_segment, after_segment) =
-        mk_segment_snapshots(
-          ~old_editor=cell_editor.editor.editor,
-          ~new_editor=editor.editor,
-          action,
+        Util.PerfTimer.time("tool/snapshots", () =>
+          mk_segment_snapshots(
+            ~old_editor=cell_editor.editor.editor,
+            ~new_editor=editor.editor,
+            action,
+          )
         );
       let diff_result =
         try(
           Ok(
-            mk_diff(
-              ~old_editor=cell_editor.editor.editor,
-              ~new_editor=editor.editor,
-              action,
+            Util.PerfTimer.time("tool/diff", () =>
+              mk_diff(
+                ~old_editor=cell_editor.editor.editor,
+                ~old_statics=cell_editor.editor.statics,
+                ~new_editor=editor.editor,
+                action,
+              )
             ),
           )
         ) {

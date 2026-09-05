@@ -4137,7 +4137,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           switch (diff) {
           | None => Alcotest.fail("get_diff returned None unexpectedly")
@@ -4186,7 +4187,8 @@ let ascribed_binding_tests = (
               new_z,
               Delete(BindingClause, "Piece"),
               mk_statics,
-              syntax,
+              ~old_syntax=syntax,
+              ~new_syntax=CachedSyntax.init(new_z),
             );
           check(bool, "diff computation did not raise", true, diff != None);
         };

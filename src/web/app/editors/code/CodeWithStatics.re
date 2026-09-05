@@ -99,14 +99,15 @@ type statics_mode =
 let last_masked: ref(option(bool)) = ref(None: option(bool));
 let masked_now = (effective: Language.CoreSettings.t): bool => {
   let masked =
-    !effective.Language.CoreSettings.probe_all && AgentPulse.in_burst();
+    !effective.Language.CoreSettings.probe_all && Util.AgentPulse.in_burst();
   switch (last_masked^) {
   | Some(m) when m == masked => ()
   | _ =>
     last_masked := Some(masked);
     if (masked) {
       CanvasLog.log("sampling: ambient paused (agent burst)");
-    } else if (last_masked^ == Some(false) && AgentPulse.last_action^ > 0.) {
+    } else if (last_masked^ == Some(false)
+               && Util.AgentPulse.last_action^ > 0.) {
       CanvasLog.log("sampling: ambient resumed");
     };
   };
@@ -173,7 +174,7 @@ module Update = {
     let settings =
       Language.CoreSettings.{
         ...settings,
-        probe_all: settings.probe_all && !AgentPulse.in_burst(),
+        probe_all: settings.probe_all && !Util.AgentPulse.in_burst(),
       };
     if (masked_now(settings)) {
       ();
@@ -197,21 +198,45 @@ module Update = {
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one */
     let do_init = (editor: Editor.t) =>
-      CachedStatics.init(
-        ~settings,
-        ~stitch,
-        ~ctx?,
-        ~ana?,
-        ~is_dynamic_term,
-        ~root=editor.root,
-        editor.state.zipper,
+      Util.PerfTimer.time("editor-statics", () =>
+        CachedStatics.init(
+          ~settings,
+          ~stitch,
+          ~ctx?,
+          ~ana?,
+          ~is_dynamic_term,
+          ~root=editor.root,
+          editor.state.zipper,
+        )
       );
     let needs_refresh =
       statics_mode == StaticsForce
       || probes_differ(editor.state.zipper, statics)
       || is_edited
       && statics_mode != StaticsDefer;
-    let statics = needs_refresh ? do_init(editor) : statics;
+    /* which gate opened the recompute (perf journal); calls that do not
+       recompute are counted under "skip" */
+    Util.PerfTimer.record(
+      "editor-statics/"
+      ++ (
+        !needs_refresh
+          ? "skip"
+          : statics_mode == StaticsForce
+              ? "force"
+              : probes_differ(editor.state.zipper, statics)
+                  ? "probes" : "edited"
+      ),
+      0.,
+    );
+    let statics =
+      needs_refresh
+        ? switch (CachedStatics.offered_for(editor.state.zipper)) {
+          | Some(st) =>
+            Util.PerfTimer.record("editor-statics/offered", 0.);
+            st;
+          | None => do_init(editor)
+          }
+        : statics;
 
     let editor =
       Editor.Update.calculate(

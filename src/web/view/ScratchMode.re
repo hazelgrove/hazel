@@ -294,7 +294,7 @@ module Persist = {
         | Some(t) => now -. t < 10000.
         | None => false
         };
-      if (!unchanged && !(AgentPulse.in_burst() && recent)) {
+      if (!unchanged && !(Util.AgentPulse.in_burst() && recent)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.replace(last_saved_agent, agent_key_str, agent);
         Hashtbl.replace(last_agent_save_ts, agent_key_str, now);

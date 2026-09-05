@@ -264,7 +264,7 @@ let whole_visible = (~aw, ~ah): bool =>
 let roi: ref(list((float, float))) = ref([]);
 let roi_last_touch: ref(float) = ref(0.);
 let touch = ((x, y): (float, float)): unit => {
-  if (now() -. roi_last_touch^ > AgentPulse.burst_window_ms) {
+  if (now() -. roi_last_touch^ > Util.AgentPulse.burst_window_ms) {
     roi := [];
   };
   roi_last_touch := now();

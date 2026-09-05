@@ -47,14 +47,14 @@ let relayout_ms = 550;
    the NEXT distinct state; hold the labeled beat at most this long for
    that state to attach */
 let pending_hold_ms = 4000.;
-let burst_window_ms = AgentPulse.burst_window_ms;
+let burst_window_ms = Util.AgentPulse.burst_window_ms;
 let queue_cap = 8; /* max pending beats; middles coalesce away */
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
 /* single source of truth lives in AgentPulse (dependency-free, so
    statics/eval can read it); this alias keeps local reads terse */
-let last_agent_action = AgentPulse.last_action;
+let last_agent_action = Util.AgentPulse.last_action;
 /* where the score is taking the avatar (board coords); while pacing this
    beats the tool-target hop, so the actor never bounces back to the
    enclosing definition between acts */

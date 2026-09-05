@@ -616,16 +616,28 @@ let rec go =
   | Structural(a) =>
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    switch (CompositionGo.Public.go(~syntax, ~z, ~a)) {
+    let (before, before_pieces) =
+      Util.PerfTimer.time("reformat-snapshot", () =>
+        (
+          LocalReformat.snapshot(~enabled=settings.auto_reindent, z),
+          LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z),
+        )
+      );
+    let run =
+      switch (CachedStatics.for_zipper(z, statics)) {
+      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
+        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
+      | _ => CompositionGo.Public.go
+      };
+    switch (run(~syntax, ~z, ~a)) {
     | Ok(z) =>
-      Ok(
-        z
-        |> LocalReformat.go(~before)
-        |> LocalReformat.go_region(~before_pieces),
-      )
+      let final =
+        PerfTimer.time("reformat", () =>
+          z
+          |> LocalReformat.go(~before)
+          |> LocalReformat.go_region(~before_pieces)
+        );
+      Ok(final);
     | Error(_) as e => e
     };
   };
