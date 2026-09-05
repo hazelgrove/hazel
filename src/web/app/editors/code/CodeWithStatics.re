@@ -151,18 +151,27 @@ module Update = {
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
      * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated. */
+     * then skips the shape pass via phys-eq on info_map/elaborated.
+     * A recompute first takes statics the agent tool path OFFERED for this
+     * very program (CachedStatics.offered_for), computed there for its
+     * error check — one statics pass per tool call instead of several. */
+    let needs_refresh =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer;
     let statics =
-      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
+      needs_refresh
+        ? switch (CachedStatics.offered_for(editor.state.zipper)) {
+          | Some(st) => st
+          | None =>
+            CachedStatics.init(
+              ~settings,
+              ~stitch,
+              ~ctx?,
+              ~ana?,
+              ~is_dynamic_term,
+              ~root=editor.root,
+              editor.state.zipper,
+            )
+          }
         : statics;
 
     let editor =
