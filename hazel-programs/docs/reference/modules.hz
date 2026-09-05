@@ -169,6 +169,14 @@ module M : {
   let y = true
 } in
 
+# 20a. Error: a nested module missing a member #
+module Outer : {module Inner : {let x : Int; let y : Int}} = {
+  module Inner = {let x = 1}
+} in
+
+# 20b. Error: a destructured member with the wrong type #
+module P : {let a : Int; let b : Int} = {let (a, b) = (1, "s")} in
+
 # 21. Error: empty module missing all members #
 module M : {
   let x : Int;
