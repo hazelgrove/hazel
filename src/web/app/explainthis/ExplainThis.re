@@ -724,6 +724,7 @@ let decide =
     switch (cls) {
     | Sig(SigLet) => message_single(SigLetDecl.single)
     | Sig(SigType) => message_single(SigTypeDecl.single)
+    | Sig(SigTypeAbstract) => message_single(SigTypeAbstractDecl.single)
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")

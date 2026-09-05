@@ -471,7 +471,7 @@ let underdetermined_typ_view =
       | Some(ty) => [
           text("type"),
           view_type(ty),
-          text("is not a tuple type"),
+          text("is not a tuple or module type"),
         ]
       | None => []
       };
@@ -519,6 +519,10 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       view_type(unnormalized),
       text("is equal to"),
       view_type(whnormalized),
+    ]
+  | PathAbstract(ty) => [
+      view_type(ty),
+      text("is an abstract type: its definition is hidden by the signature"),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
