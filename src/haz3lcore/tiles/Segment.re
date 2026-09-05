@@ -199,6 +199,15 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
          );
     | forms =>
       forms
+      /* A keyword stays a keyword: a compound tile whose label is a single
+         token (`type`, `let`, `module`) is not remolded into the atomic
+         operand that token also lexes as. */
+      |> List.filter(((form, _)) =>
+           switch (t.form, form) {
+           | (Form.Compound(_), Form.Tok(_)) => false
+           | _ => true
+           }
+         )
       |> List.map(((form, sort)) =>
            {
              ...t,

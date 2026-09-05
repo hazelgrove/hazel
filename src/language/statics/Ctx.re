@@ -89,7 +89,17 @@ let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
   switch (item.term) {
   | SigType({term: Var(name), _} as tp, ty) =>
     extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
+  | SigTypeAbstract({term: Var(name), _} as tp) =>
+    extend_tvar(
+      ctx,
+      {
+        name,
+        id: IdTagged.rep_id(tp),
+        kind: Abstract,
+      },
+    )
   | SigType(_, _)
+  | SigTypeAbstract(_)
   | SigLet(_)
   | SigModule(_)
   | Invalid(_)

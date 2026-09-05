@@ -60,6 +60,8 @@ type ok_typ =
     })
   | Type(Typ.t)
   | EmptyLabel
+  /* `M.T` where T is abstract in M's signature: an opaque type. */
+  | PathAbstract(Typ.t)
   | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
