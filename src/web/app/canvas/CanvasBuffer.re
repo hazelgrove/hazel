@@ -63,6 +63,12 @@ let avatar_site: ref(option((float, float))) = ref(None);
    hop is not restaged: the score owns the stage until this time */
 let hold_until: ref(float) = ref(0.);
 let score_playing = (): bool => now() < hold_until^;
+/* a paused score (a held node, a picked-up actor) resumes later: a hold
+   that was live when the pause began moves with it */
+let shift_hold = (~since: float, dt: float): unit =>
+  if (hold_until^ > since) {
+    hold_until := hold_until^ +. dt;
+  };
 
 /* Canvas-authoring gestures (place/connect stubs) ride the agent's
    DirectEdit tool path; they must NOT read as agent activity or every
@@ -304,8 +310,15 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
     /* elements that don't exist yet arrive staggered; edge/formation/orbit
        geometry morphs on the movers' timing instead of snapping */
     Animation.request_beat(
-      ~arrival_prefixes=["cnode-", "cedge-", "cval-"],
-      ~geom_prefixes=["cpath-", "cform-", "corbit-", "clead-", "cdep-"],
+      ~arrival_prefixes=["cnode-", "cedge-", "cval-", "hullc-"],
+      ~geom_prefixes=[
+        "cpath-",
+        "cform-",
+        "corbit-",
+        "clead-",
+        "cdep-",
+        "hulls-",
+      ],
       ~delay,
       ~stagger,
       ~move_dur,

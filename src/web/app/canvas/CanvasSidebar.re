@@ -1244,36 +1244,43 @@ let view_impl =
     open Js_of_ocaml;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
-    /* a beat may still be morphing or revealing geometry (dash arrays
-       left on paths would truncate them as they stretch): the drag takes
-       over cleanly */
-    List.iter(
-      id =>
-        switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-        | Some(el) =>
-          let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
-          let len: int = Js.Unsafe.get(anims, "length");
-          for (i in 0 to len - 1) {
+    /* dragging while the actor works pauses the workload; it resumes on
+       release, re-planned around the moved node */
+    let during_score = CanvasBuffer.score_playing();
+    if (during_score) {
+      CanvasEnact.pause_score();
+    } else {
+      /* a beat may still be morphing or revealing geometry (dash arrays
+         left on paths would truncate them as they stretch): the drag takes
+         over cleanly */
+      List.iter(
+        id =>
+          switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+          | Some(el) =>
+            let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+            let len: int = Js.Unsafe.get(anims, "length");
+            for (i in 0 to len - 1) {
+              ignore(
+                Js.Unsafe.meth_call(Js.Unsafe.get(anims, i), "cancel", [||]),
+              );
+            };
             ignore(
-              Js.Unsafe.meth_call(Js.Unsafe.get(anims, i), "cancel", [||]),
+              Js.Unsafe.meth_call(
+                el,
+                "removeAttribute",
+                [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
+              ),
             );
-          };
-          ignore(
-            Js.Unsafe.meth_call(
-              el,
-              "removeAttribute",
-              [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
-            ),
-          );
-          let st = Js.Unsafe.get(el, "style");
-          Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
-          Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
-        | None => ()
-        },
-      Util.JsUtil.ids_with_prefix("cpath-")
-      @ Util.JsUtil.ids_with_prefix("cform-")
-      @ Util.JsUtil.ids_with_prefix("corbit-"),
-    );
+            let st = Js.Unsafe.get(el, "style");
+            Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
+            Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
+          | None => ()
+          },
+        Util.JsUtil.ids_with_prefix("cpath-")
+        @ Util.JsUtil.ids_with_prefix("cform-")
+        @ Util.JsUtil.ids_with_prefix("corbit-"),
+      );
+    };
     /* pinned nodes update their pin; others accumulate a drag delta */
     let pin = List.assoc_opt(n.key, pins);
     let base =
@@ -1631,6 +1638,15 @@ let view_impl =
       let doc = Js.Unsafe.coerce(Dom_html.document);
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
+      if (during_score) {
+        CanvasEnact.resume_score();
+        if (moved^) {
+          switch (CanvasEnact.visible_site()) {
+          | Some(pos) => CanvasEnact.replan_score(~pos, ())
+          | None => ()
+          };
+        };
+      };
       Effect.Expert.handle_non_dom_event_exn(
         moved^ ? commit(delta^) : click_effect(n),
       );
@@ -1768,6 +1784,85 @@ let view_impl =
       Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
     | (None, None) => start_node_drag(n, evt)
     };
+  /* picking Trine up: the workload pauses while held; the pointer carries
+     the body (a CSS translate over the paused ride) by its nearest vertex,
+     the other two dangling; release resumes from the drop point */
+  let on_avatar_mousedown =
+      (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent))
+      : Effect.t(unit) => {
+    open Js_of_ocaml;
+    let sx: int = Js.Unsafe.coerce(evt)##.clientX;
+    let sy: int = Js.Unsafe.coerce(evt)##.clientY;
+    let z = max(0.2, globals.settings.canvas_zoom);
+    switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.avatar_dom_id)) {
+    | None => Effect.Ignore
+    | Some(av) =>
+      if (CanvasBuffer.score_playing()) {
+        CanvasEnact.pause_score();
+      };
+      let body = Js.Unsafe.get(av, "firstElementChild");
+      /* the pointer in rig coordinates (the rig's svg is centered on its box) */
+      let svg =
+        Js.Unsafe.meth_call(
+          av,
+          "querySelector",
+          [|Js.Unsafe.inject(Js.string(".rig"))|],
+        );
+      let (mx, my) =
+        if (Js.Opt.test(svg)) {
+          let r = Js.Unsafe.meth_call(svg, "getBoundingClientRect", [||]);
+          let l: float = Js.Unsafe.get(r, "left")
+          and t: float = Js.Unsafe.get(r, "top")
+          and w: float = Js.Unsafe.get(r, "width")
+          and h: float = Js.Unsafe.get(r, "height");
+          (
+            (float_of_int(sx) -. (l +. w /. 2.)) /. z,
+            (float_of_int(sy) -. (t +. h /. 2.)) /. z,
+          );
+        } else {
+          (0., 0.);
+        };
+      CanvasAvatar.grab((mx, my));
+      /* the mood the score had set comes back on release (a ride's pen) */
+      let prev_mood = CanvasAvatar.current_mood^;
+      CanvasAvatar.set_mood("held");
+      let last = ref((sx, sy));
+      let rec on_move = e => {
+        let x: int = Js.Unsafe.coerce(e)##.clientX;
+        let y: int = Js.Unsafe.coerce(e)##.clientY;
+        let (lx, ly) = last^;
+        last := (x, y);
+        CanvasAvatar.nudge((
+          float_of_int(x - lx) /. z,
+          float_of_int(y - ly) /. z,
+        ));
+        Js.Unsafe.set(
+          Js.Unsafe.get(body, "style"),
+          "translate",
+          Js.string(
+            Printf.sprintf(
+              "%.1fpx %.1fpx",
+              float_of_int(x - sx) /. z,
+              float_of_int(y - sy) /. z,
+            ),
+          ),
+        );
+      }
+      and on_up = _ => {
+        let doc = Js.Unsafe.coerce(Dom_html.document);
+        let _ = doc##removeEventListener("mousemove", on_move);
+        let _ = doc##removeEventListener("mouseup", on_up);
+        CanvasAvatar.release();
+        CanvasAvatar.set_mood(prev_mood);
+        CanvasEnact.dropped();
+        ();
+      };
+      let doc = Js.Unsafe.coerce(Dom_html.document);
+      let _ = doc##addEventListener("mousemove", on_move);
+      let _ = doc##addEventListener("mouseup", on_up);
+      Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+    };
+  };
   /* insert a `type T = <body> in` stub and pin the new node (and its
      former, when it has components) at the given model point (pins are
      recorded in the pre-normalization frame via lay.origin) */
@@ -2728,12 +2823,84 @@ let view_impl =
              | _ => None
              }
            );
+      /* module hulls grow with their members: every hull circle (a
+         node's or a label's, ancestor copies included) arrives with the
+         node or pill it stands for, and the member-edge sausages draw on
+         with their pills. Times are looked up from the hull ids
+         themselves, so the two enumerations cannot disagree. */
+      let (hull_arrivals, hull_geoms) = {
+        let node_t =
+          List.map(
+            ((k, t)) => (CanvasView.sanitize(k), t),
+            CanvasScore.appear_times(score),
+          );
+        let edge_t =
+          CanvasScore.effects_abs(score)
+          |> List.filter_map(((t, _, e: CanvasScore.timed_effect)) =>
+               switch (e.effect) {
+               | Pill(name) => Some((CanvasView.sanitize(name), t))
+               | Reveal(name) =>
+                 Some((CanvasView.sanitize(name), t + e.dur))
+               | _ => None
+               }
+             );
+        let after = (pre: string, id: string): option(string) =>
+          String.length(id) > String.length(pre)
+          && String.sub(id, 0, String.length(pre)) == pre
+            ? Some(
+                String.sub(
+                  id,
+                  String.length(pre),
+                  String.length(id) - String.length(pre),
+                ),
+              )
+            : None;
+        /* an ancestor copy carries a "--v<path>" suffix */
+        let base = (s: string): string => {
+          let n = String.length(s);
+          let rec go = i =>
+            i + 3 > n
+              ? s
+              : String.sub(s, i, 3) == "--v"
+                  ? String.sub(s, 0, i) : go(i + 1);
+          go(0);
+        };
+        let time_of = (id: string): option(int) =>
+          switch (
+            after("hullc-n-", id),
+            after("hullc-l-", id),
+            after("hulls-e-", id),
+          ) {
+          | (Some(s), _, _) => List.assoc_opt(base(s), node_t)
+          | (_, Some(s), _)
+          | (_, _, Some(s)) => List.assoc_opt(base(s), edge_t)
+          | _ => None
+          };
+        let ids =
+          List.map(((id, _, _)) => id, CanvasView.hull_targets(lay));
+        let sausage_ids =
+          CanvasView.hull_paths_of(lay)
+          |> List.concat_map(path =>
+               List.map(
+                 ((id, _, _)) => id,
+                 CanvasView.hull_sausages_at(lay, path),
+               )
+             );
+        (
+          List.filter_map(id => Option.map(t => (id, t), time_of(id)), ids),
+          List.filter_map(
+            id => Option.map(t => (id, Option.some(t)), time_of(id)),
+            sausage_ids,
+          ),
+        );
+      };
       Animation.set_arrival_schedule(
         List.map(
           ((k, t)) => (CanvasView.node_dom_id(k), t),
           CanvasScore.appear_times(score),
         )
-        @ pills,
+        @ pills
+        @ hull_arrivals,
       );
       Animation.set_movers_at(CanvasScore.drift_at(score));
       {
@@ -2819,7 +2986,9 @@ let view_impl =
                  },
                ([], []),
              );
-        Animation.set_geom_schedule(forms @ deps @ draws @ leaders);
+        Animation.set_geom_schedule(
+          forms @ deps @ draws @ leaders @ hull_geoms,
+        );
       };
       CanvasBuffer.extend_dwell(float_of_int(score.total_ms) +. 600.);
       CanvasLog.log(CanvasScore.to_string(score));
@@ -3175,6 +3344,7 @@ let view_impl =
             ~on_canvas_dblclick,
             ~on_canvas_contextmenu,
             ~on_node_contextmenu,
+            ~on_avatar_mousedown,
             ~on_edge_click,
             ~on_node_mousedown,
             ~on_canvas_click,

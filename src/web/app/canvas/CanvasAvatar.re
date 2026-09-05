@@ -87,7 +87,16 @@ let body = (): option(Js.t(Dom_html.element)) =>
        Js.Opt.to_option(Js.Unsafe.get(el, "firstElementChild"))
      );
 
-let moods = ["travel", "arrive", "edit", "draw", "erase", "tidy", "think"];
+let moods = [
+  "travel",
+  "arrive",
+  "edit",
+  "draw",
+  "erase",
+  "tidy",
+  "think",
+  "held",
+];
 let current_mood: ref(string) = ref("");
 
 let set_mood = (m: string): unit => {
@@ -139,6 +148,63 @@ let last_thinking: ref(bool) = ref(false);
    home at dt·2 after travel had turned it to face the heading) — the
    "shedding momentum" spin; here the nearest rest pose, for 1.2 s */
 let settle_until: ref(float) = ref(0.);
+let settle_home: ref(float) = ref(0.);
+
+/* the arrow being drawn, set by the player for the ride's span: the
+   leading vertex sits on the arrow's tip, so the body visibly pulls the
+   line. The armed dash length is read off the element (data-on-len), so a
+   re-armed ride (re-plan) stays right. */
+let pen_path: ref(option(Js.Unsafe.any)) = ref(None);
+let pen_tip = (): option((float, float)) =>
+  switch (pen_path^) {
+  | None => None
+  | Some(path) =>
+    let attr = (a: string): option(string) =>
+      Js.Opt.to_option(
+        Js.Unsafe.meth_call(
+          path,
+          "getAttribute",
+          [|Js.Unsafe.inject(Js.string(a))|],
+        ),
+      )
+      |> Option.map(Js.to_string);
+    switch (
+      attr("data-on-len") |> Util.OptUtil.and_then(float_of_string_opt)
+    ) {
+    | None => None
+    | Some(on_len) =>
+      let st =
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(path)|],
+        );
+      let off: string = Js.to_string(Js.Unsafe.get(st, "strokeDashoffset"));
+      let px = (v: string) =>
+        switch (float_of_string_opt(String.trim(v))) {
+        | Some(f) => f
+        | None =>
+          let n = String.length(v);
+          n > 2
+            ? Option.value(
+                ~default=0.,
+                float_of_string_opt(String.trim(String.sub(v, 0, n - 2))),
+              )
+            : 0.;
+        };
+      let total: float = Js.Unsafe.meth_call(path, "getTotalLength", [||]);
+      let shown = max(0., min(total, on_len -. px(off)));
+      let pt =
+        Js.Unsafe.meth_call(
+          path,
+          "getPointAtLength",
+          [|Js.Unsafe.inject(shown)|],
+        );
+      let x: float = Js.Unsafe.get(pt, "x")
+      and y: float = Js.Unsafe.get(pt, "y");
+      Some((x, y));
+    };
+  };
 
 /* ---- the rig: three vertices on springs, driven every frame ----
    The mockup's body (plans/agent-canvas-mockups/avatar-concepts-4.html):
@@ -160,6 +226,7 @@ type rig = {
   v: array(vtx),
   mutable t: float,
   mutable rot: float,
+  mutable rot_v: float, /* the post-landing swing's angular velocity */
   mutable heading: float,
   mutable speed: float, /* board px/s, smoothed */
   mutable aspect: float,
@@ -191,6 +258,7 @@ let rig: rig = {
     ),
   t: Random.float(10.),
   rot: 0.,
+  rot_v: 0.,
   heading: -. Float.pi /. 2.,
   speed: 0.,
   aspect: 1.,
@@ -201,6 +269,35 @@ let rig: rig = {
   emoji_next: [|0., 0., 0.|],
   emoji_cur: [|{js|🍄|js}, {js|📦|js}, {js|🧩|js}|],
   running: false,
+};
+
+/* picked up: the grabbed vertex stays under the pointer (the body itself
+   is carried by the pointer) while the other two dangle from it with
+   inertia — the workload is paused meanwhile */
+let held: ref(option(int)) = ref(None);
+let held_shift: ref((float, float)) = ref((0., 0.));
+let grab = ((mx, my): (float, float)): unit => {
+  let best = ref(0)
+  and bd = ref(infinity);
+  for (i in 0 to 2) {
+    let d = Float.hypot(rig.v[i].x -. mx, rig.v[i].y -. my);
+    if (d < bd^) {
+      bd := d;
+      best := i;
+    };
+  };
+  held := Some(best^);
+  held_shift := (0., 0.);
+};
+/* how far the pointer carried the body since the last frame (board px) */
+let nudge = ((dx, dy): (float, float)): unit => {
+  let (ax, ay) = held_shift^;
+  held_shift := (ax +. dx, ay +. dy);
+};
+let release = (): unit => {
+  held := None;
+  rig.speed = 0.;
+  rig.last_pos = None;
 };
 
 let emoji = [|
@@ -394,6 +491,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     };
   };
   let mood = current_mood^;
+  let is_held = held^ != None;
   /* the state class is a render-time reading (stale through a score with
      few renders): read the score live, and never think while moving —
      the depicted timeline is the score's, so an enacted edit is editing
@@ -401,14 +499,15 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   let score_on = CanvasBuffer.score_playing();
   let thinking0 = anchor_has("avatar-think") || mood == "think";
   let err = anchor_has("avatar-err");
-  let pen = mood == "draw" || mood == "erase";
-  let traveling = moving || pen && rig.speed > 8.;
-  let thinking = thinking0 && !score_on && !traveling && !pen;
+  let pen = (mood == "draw" || mood == "erase") && !is_held;
+  let traveling = (moving || pen && rig.speed > 8.) && !is_held;
+  let thinking = thinking0 && !score_on && !traveling && !pen && !is_held;
   last_thinking := thinking;
   let editing =
     (mood == "edit" || anchor_has("avatar-edit") && score_on)
     && !moving
-    && !pen;
+    && !pen
+    && !is_held;
   if (!traveling) {
     /* the trip is over: the beam's reach eases back */
     travel_len := travel_len^ *. (1. -. min(1., dt *. 4.));
@@ -417,7 +516,13 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   if (rig.was_traveling && !traveling) {
     rig.aspect = 0.72;
     rig.aspect_v = 0.;
-    settle_until := rig.t +. 1.2; /* swing to a rest pose after landing */
+    /* swing to a rest pose after landing, "shedding momentum": an
+       underdamped spring, kicked harder after a faster trip */
+    let third = tau /. 3.;
+    settle_home := Float.round(rig.rot /. third) *. third;
+    settle_until := rig.t +. 1.6;
+    let dir = settle_home^ >= rig.rot ? 1. : (-1.);
+    rig.rot_v = dir *. (2.5 +. 5. *. min(1., rig.speed /. 220.));
   };
   rig.was_traveling = traveling;
   rig.aspect_v =
@@ -453,15 +558,17 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     rig.rot = rig.rot +. dt *. 0.5;
     r := r^ *. 1.35;
   } else if (rig.t < settle_until^) {
-    /* just landed: swing to the nearest rest pose (a multiple of 120°),
-       fast at first, then ease — the demo's post-travel settle */
-    let third = tau /. 3.;
-    let home = Float.round(rig.rot /. third) *. third;
-    rig.rot = rig.rot +. (home -. rig.rot) *. min(1., dt *. 4.);
+    /* just landed: an underdamped swing about the rest pose fixed at
+       landing (k 60, zeta 0.3: two or three visible overshoots) */
+    let k = 60.;
+    let d = 2. *. sqrt(k) *. 0.3;
+    rig.rot_v =
+      rig.rot_v +. ((settle_home^ -. rig.rot) *. k -. rig.rot_v *. d) *. dt;
+    rig.rot = rig.rot +. rig.rot_v *. dt;
   } else {
+    rig.rot_v = 0.;
     /* idle: a slow turn, so it is never a still picture */
-    rig.rot =
-      rig.rot +. dt *. 0.18;
+    rig.rot = rig.rot +. dt *. 0.18;
   };
   if (err) {
     jitter := 3.;
@@ -472,31 +579,95 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   let (ox, oy) = editing ? ((-14.), 34.) : (0., 1.4 *. sin(rig.t *. 2.4));
   let hc = cos(rig.heading +. Float.pi /. 2.)
   and hs = sin(rig.heading +. Float.pi /. 2.);
-  for (i in 0 to 2) {
-    let a = -. Float.pi /. 2. +. float_of_int(i) *. tau /. 3. +. rig.rot;
-    let lx = cos(a) *. r^
-    and ly = sin(a) *. r^;
-    /* squash along the heading frame */
-    let ax = lx *. hc +. ly *. hs
-    and ay = (-. lx *. hs +. ly *. hc) *. (traveling ? 1. : rig.aspect);
-    let tx = ref(ax *. hc -. ay *. hs +. ox)
-    and ty = ref(ax *. hs +. ay *. hc +. oy);
-    if (traveling && i == 0) {
-      let ahead = 16. *. stretch;
-      tx := tx^ +. cos(rig.heading) *. ahead;
-      ty := ty^ +. sin(rig.heading) *. ahead;
+  switch (held^) {
+  | Some(g) =>
+    /* carried: the grabbed vertex holds still under the pointer; the
+       others keep their place on the board as the body moves (inertia),
+       then swing back under it on a loose spring */
+    let (sx, sy) = held_shift^;
+    held_shift := (0., 0.);
+    let gv = rig.v[g];
+    gv.vx = 0.;
+    gv.vy = 0.;
+    let side = ref(-1.);
+    for (i in 0 to 2) {
+      if (i != g) {
+        let n = rig.v[i];
+        n.x = n.x -. sx *. 0.9;
+        n.y = n.y -. sy *. 0.9;
+        let tx = gv.x +. side^ *. 7.
+        and ty = gv.y +. 15.;
+        side := -. side^;
+        let kk = 60.;
+        let dd = 2. *. sqrt(kk) *. 0.25;
+        n.vx = n.vx +. ((tx -. n.x) *. kk -. n.vx *. dd) *. dt;
+        n.vy = n.vy +. ((ty -. n.y) *. kk -. n.vy *. dd) *. dt;
+        n.x = n.x +. n.vx *. dt;
+        n.y = n.y +. n.vy *. dt;
+      };
     };
-    let n = rig.v[i];
-    let kk = i == 0 ? k^ : k_follow^;
-    let dd = 2. *. sqrt(kk) *. 0.95;
-    n.vx = n.vx +. ((tx^ -. n.x) *. kk -. n.vx *. dd) *. dt;
-    n.vy = n.vy +. ((ty^ -. n.y) *. kk -. n.vy *. dd) *. dt;
-    n.x = n.x +. n.vx *. dt;
-    n.y = n.y +. n.vy *. dt;
-    if (jitter^ > 0.) {
-      n.x = n.x +. (Random.float(1.) -. 0.5) *. jitter^ *. 2.;
-      n.y = n.y +. (Random.float(1.) -. 0.5) *. jitter^ *. 2.;
+  | None =>
+    for (i in 0 to 2) {
+      let a = -. Float.pi /. 2. +. float_of_int(i) *. tau /. 3. +. rig.rot;
+      let lx = cos(a) *. r^
+      and ly = sin(a) *. r^;
+      /* squash along the heading frame */
+      let ax = lx *. hc +. ly *. hs
+      and ay = (-. lx *. hs +. ly *. hc) *. (traveling ? 1. : rig.aspect);
+      let tx = ref(ax *. hc -. ay *. hs +. ox)
+      and ty = ref(ax *. hs +. ay *. hc +. oy);
+      if (traveling && i == 0) {
+        let ahead = 16. *. stretch;
+        tx := tx^ +. cos(rig.heading) *. ahead;
+        ty := ty^ +. sin(rig.heading) *. ahead;
+      };
+      let n = rig.v[i];
+      let kk = i == 0 ? k^ : k_follow^;
+      let dd = 2. *. sqrt(kk) *. 0.95;
+      n.vx = n.vx +. ((tx^ -. n.x) *. kk -. n.vx *. dd) *. dt;
+      n.vy = n.vy +. ((ty^ -. n.y) *. kk -. n.vy *. dd) *. dt;
+      n.x = n.x +. n.vx *. dt;
+      n.y = n.y +. n.vy *. dt;
+      if (jitter^ > 0.) {
+        n.x = n.x +. (Random.float(1.) -. 0.5) *. jitter^ *. 2.;
+        n.y = n.y +. (Random.float(1.) -. 0.5) *. jitter^ *. 2.;
+      };
+    }
+  };
+  /* drawing: the leading vertex is pinned to the arrow's tip (path units
+     are board units; the rig's svg is centered on its own box), within a
+     reach the springs could plausibly stretch to */
+  switch (b, pen ? pen_tip() : None) {
+  | (Some(b), Some((tx, ty))) =>
+    let svg = item(q(b, ".rig"), 0);
+    let root =
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.document,
+        "querySelector",
+        [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
+      );
+    if (Js.Opt.test(svg) && Js.Opt.test(root)) {
+      let sr = Js.Unsafe.meth_call(svg, "getBoundingClientRect", [||])
+      and rr = Js.Unsafe.meth_call(root, "getBoundingClientRect", [||]);
+      let sl: float = Js.Unsafe.get(sr, "left")
+      and sw: float = Js.Unsafe.get(sr, "width")
+      and st: float = Js.Unsafe.get(sr, "top")
+      and sh: float = Js.Unsafe.get(sr, "height")
+      and rl: float = Js.Unsafe.get(rr, "left")
+      and rt: float = Js.Unsafe.get(rr, "top");
+      let ox = (sl +. sw /. 2. -. rl) /. zoom
+      and oy = (st +. sh /. 2. -. rt) /. zoom;
+      let lx = tx -. ox
+      and ly = ty -. oy;
+      if (Float.hypot(lx, ly) < 60.) {
+        let n = rig.v[0];
+        n.x = lx;
+        n.y = ly;
+        n.vx = 0.;
+        n.vy = 0.;
+      };
     };
+  | _ => ()
   };
   /* thinking: emoji on the vertices, each on its own irregular clock */
   if (thinking) {

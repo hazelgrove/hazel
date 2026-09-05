@@ -659,6 +659,9 @@
 
 .canvas-hulls .canvas-hull circle {
   fill: inherit;
+  /* arrivals scale the circle up from nothing about its own center */
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .canvas-hulls .canvas-hull {
@@ -1142,8 +1145,11 @@
   pointer-events: none;
 }
 
-/* the body: the look, the state animations, and the driver's transform */
+/* the body: the look, the state animations, and the driver's transform;
+   it can be picked up (the anchor itself lets events through) */
 .canvas-avatar .avatar-body {
+  pointer-events: auto;
+  cursor: grab;
   position: relative; /* the bubbles hang off the body */
   display: inline-block;
   font-size: 15px;
@@ -1637,8 +1643,8 @@
   transition: fill 300ms, stroke 300ms;
 }
 .canvas-avatar.avatar-rig .rig-disc {
-  fill: #f9f3e6;
-  stroke: #cfc6b3;
+  fill: #ffe9a8;
+  stroke: #b98a2a;
   stroke-width: 0.8;
 }
 .canvas-avatar.avatar-rig .rig-emo {
@@ -1690,8 +1696,8 @@
   stroke-width: 1.3;
 }
 .rig-mirror .rig-disc {
-  fill: #f9f3e6;
-  stroke: #cfc6b3;
+  fill: #ffe9a8;
+  stroke: #b98a2a;
   stroke-width: 0.8;
 }
 .rig-mirror .rig-emo {
@@ -1719,4 +1725,18 @@
 .canvas-avatar.avatar-err .canvas-avatar-bubble .say-text,
 .canvas-avatar.avatar-err .canvas-avatar-bubble .bubble-text {
   color: #8a2a1a;
+}
+
+/* picked up: the pointer carries the body (CSS translate composes with the
+   paused ride's transform); the bubbles hide meanwhile */
+.canvas-avatar .avatar-body.mood-held {
+  cursor: grabbing;
+}
+.canvas-avatar .avatar-body.mood-held .canvas-avatar-bubble,
+.canvas-avatar .avatar-body.mood-held .bubble-tails {
+  visibility: hidden;
+}
+.canvas-avatar .canvas-avatar-bubble,
+.canvas-avatar .bubble-tails {
+  pointer-events: none;
 }

@@ -226,6 +226,12 @@ let stagger_span = (per: int): int =>
 let held: ref((list(string), float)) = ref(([], 0.));
 let hold = (~prefixes: list(string), ~until_ms: float): unit =>
   held := (prefixes, until_ms);
+let shift_hold = (~since: float, dt: float): unit => {
+  let (p, u) = held^;
+  if (u > since) {
+    held := (p, u +. dt);
+  };
+};
 let is_held = (id: string): bool => {
   let (prefixes, until_ms) = held^;
   Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now()

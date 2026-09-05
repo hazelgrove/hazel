@@ -74,7 +74,31 @@ let kind_cls = (k: CanvasGraph.node_kind): string =>
   | Product => "kind-product"
   };
 
-let svg = (name, attrs, children) => Node.create_svg(name, ~attrs, children);
+/* geometry elements carry their dom id as the vdom KEY: a render during a
+   score (a node dragged, a leader appearing) must patch them in place —
+   an index-paired replacement would drop their in-flight animations and
+   dash state */
+/* virtual_dom's svg shim drops the key argument (hyperscript's svg() takes
+   three), but its h() reads a `key` PROPERTY: that is how an svg vnode gets
+   its key here */
+let svg_key = (k: string): Attr.t =>
+  Attr.property(
+    "key",
+    Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(k)),
+  );
+let svg = (~key=?, name, attrs, children) =>
+  Node.create_svg(
+    name,
+    ~attrs=
+      (
+        switch (key) {
+        | Some(k) => [svg_key(k)]
+        | None => []
+        }
+      )
+      @ attrs,
+    children,
+  );
 
 let test_pip = (~on_click=?, t: CanvasGraph.test_info): Node.t => {
   let cls =
@@ -127,6 +151,7 @@ let edge_svg =
     let r = radius_of(e.dst) +. 16. +. float_of_int(el.orbit_rank) *. 15.;
     [
       svg(
+        ~key="corbit-" ++ sanitize(e.e_name),
         "circle",
         [
           Attr.id("corbit-" ++ sanitize(e.e_name)),
@@ -145,6 +170,7 @@ let edge_svg =
         ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";
     [
       svg(
+        ~key=path_dom_id(e.e_name),
         "path",
         [
           Attr.id(path_dom_id(e.e_name)),
@@ -203,6 +229,7 @@ let formation_svg =
       y: pp'.y +. oy,
     };
   svg(
+    ~key=formation_dom_id(a, b),
     "path",
     [
       /* keyed by endpoints so a beat can morph the same line across
@@ -224,6 +251,7 @@ let leader_svg = (el: CanvasLayout.edge_layout): list(Node.t) => {
     ? []
     : [
       svg(
+        ~key="clead-" ++ sanitize(el.edge.e_name),
         "line",
         [
           Attr.id("clead-" ++ sanitize(el.edge.e_name)),
@@ -253,6 +281,7 @@ let dep_link_svg =
   let (c1, c2) =
     CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, dp, np');
   svg(
+    ~key=dep_dom_id(a, b),
     "path",
     [
       Attr.id(dep_dom_id(a, b)),
@@ -287,6 +316,27 @@ let hull_is_prefix = (pre: list(string), p: list(string)): bool => {
     | (_, []) => false
     };
   go(pre, p);
+};
+
+let hull_palette = [|
+  "#6fbfc9",
+  "#d493c6",
+  "#d8b56a",
+  "#97a5e0",
+  "#a4c48d",
+  "#e0a186",
+|];
+let hull_color_slots: Hashtbl.t(string, int) = Hashtbl.create(8);
+let hull_color = (root: string): string => {
+  let slot =
+    switch (Hashtbl.find_opt(hull_color_slots, root)) {
+    | Some(i) => i
+    | None =>
+      let i = Hashtbl.length(hull_color_slots);
+      Hashtbl.replace(hull_color_slots, root, i);
+      i;
+    };
+  hull_palette[slot mod Array.length(hull_palette)];
 };
 
 let hull_former_key = (path: list(string)): string =>
@@ -640,7 +690,14 @@ let value_view =
 let avatar_dx = CanvasBuffer.avatar_dx;
 let avatar_dy = CanvasBuffer.avatar_dy;
 let avatar_view =
-    (~bubbles: list(Node.t)=[], (p, state): (CanvasLayout.pos, string))
+    (
+      ~bubbles: list(Node.t)=[],
+      ~on_mousedown:
+         Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
+                                                                    _ =>
+                                                                    Effect.Ignore,
+      (p, state): (CanvasLayout.pos, string),
+    )
     : Node.t =>
   div(
     ~key="avatar",
@@ -666,7 +723,7 @@ let avatar_view =
          always points at it (positioned from the anchor they sat at the
          score's end site while the body dwelt elsewhere) */
       span(
-        ~attrs=[clss(["avatar-body"])],
+        ~attrs=[clss(["avatar-body"]), Attr.on_mousedown(on_mousedown)],
         (
           CanvasAvatar.is_rig()
             ? [CanvasAvatar.rig_view()]
@@ -718,6 +775,11 @@ let view =
       ~connect_pts: list(CanvasLayout.pos)=[],
       /* key of a node placed moments ago (grow-in animation) */
       ~just_placed: list(string)=[],
+      /* picking the actor up */
+      ~on_avatar_mousedown:
+         Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
+                                                                    _ =>
+                                                                    Effect.Ignore,
       ~zoom: float=1.,
       /* pane size in layout px: the root grows to fill it so the dot
          field covers the whole visible canvas */
@@ -783,6 +845,7 @@ let view =
   ];
   let defs =
     svg(
+      ~key="defs",
       "defs",
       [],
       small_markers
@@ -1116,6 +1179,7 @@ let view =
                 [
                   Node.create_svg(
                     "defs",
+                    ~attrs=[svg_key("defs")],
                     [
                       Node.create_svg(
                         "filter",
@@ -1165,37 +1229,17 @@ let view =
                                nl.node.key == former_key_of(path),
                              lay.nodes,
                            );
-                         /* module palette by first appearance: cyan,
-                            magenta, then friends; nested paths share
-                            their root's color (depth = opacity) */
-                         let palette = [|
-                           "#6fbfc9",
-                           "#d493c6",
-                           "#d8b56a",
-                           "#97a5e0",
-                           "#a4c48d",
-                           "#e0a186",
-                         |];
-                         let color = {
-                           let roots =
-                             List.filter_map(
-                               fun
-                               | [r] => Some(r)
-                               | _ => None,
-                               hull_paths,
-                             );
-                           let rec idx = (i, l) =>
-                             switch (l) {
-                             | [] => 0
-                             | [x, ..._] when x == root => i
-                             | [_, ...tl] => idx(i + 1, tl)
-                             };
-                           palette[idx(0, roots) mod Array.length(palette)];
-                         };
+                         /* module palette: a root keeps the color it
+                            was first seen with for the whole session
+                            (a later module must not shift the earlier
+                            ones); nested paths share their root's
+                            color (depth = opacity) */
+                         let color = hull_color(root);
                          [
                            Node.create_svg(
                              "g",
                              ~attrs=[
+                               svg_key("hull:" ++ String.concat(".", path)),
                                clss([
                                  "canvas-hull",
                                  Printf.sprintf(
@@ -1217,6 +1261,7 @@ let view =
                                  Node.create_svg(
                                    "path",
                                    ~attrs=[
+                                     svg_key(id),
                                      Attr.id(id),
                                      Attr.create("d", d),
                                      Attr.create("fill", "none"),
@@ -1232,6 +1277,7 @@ let view =
                                    Node.create_svg(
                                      "circle",
                                      ~attrs=[
+                                       svg_key(id),
                                        Attr.id(id),
                                        Attr.create("cx", fmt(p.x)),
                                        Attr.create("cy", fmt(p.y)),
@@ -1265,6 +1311,7 @@ let view =
                                Node.create_svg(
                                  "text",
                                  ~attrs=[
+                                   svg_key("hull-label:" ++ root),
                                    clss(
                                      ["canvas-hull-label"]
                                      @ (
@@ -1433,7 +1480,13 @@ let view =
                   ),
                 ],
               );
-            [avatar_view(~bubbles=[tails, bubble], a)];
+            [
+              avatar_view(
+                ~bubbles=[tails, bubble],
+                ~on_mousedown=on_avatar_mousedown,
+                a,
+              ),
+            ];
           | None => []
           }
         ),

@@ -62,8 +62,103 @@ let center_of = (el): (float, float) => {
   and y: float = Js.Unsafe.get(r, "top") +. Js.Unsafe.get(r, "height") /. 2.;
   (x, y);
 };
-let later = (ms: float, f: unit => unit): unit =>
-  ignore(Js.Unsafe.global##setTimeout(Js.Unsafe.callback(f), ms));
+/* ---- the score clock: pausable (a held node or a picked-up actor stops
+   the workload); every timer the player sets runs on it, and the WAAPI
+   animations under the canvas pause with it ---- */
+let paused: ref(bool) = ref(false);
+let pause_started: ref(float) = ref(0.);
+let paused_total: ref(float) = ref(0.);
+let clock = (): float =>
+  CanvasBuffer.now()
+  -. paused_total^
+  -. (paused^ ? CanvasBuffer.now() -. pause_started^ : 0.);
+let pending: ref(list((float, unit => unit))) = ref([]);
+let ticking: ref(bool) = ref(false);
+let rec tick = (): unit =>
+  if (pending^ == []) {
+    ticking := false;
+  } else {
+    if (! paused^) {
+      let now = clock();
+      let (due, rest) = List.partition(((t, _)) => t <= now, pending^);
+      pending := rest;
+      List.sort((a, b) => compare(fst(a), fst(b)), due)
+      |> List.iter(((_, f)) => f());
+    };
+    ignore(Js.Unsafe.global##setTimeout(Js.Unsafe.callback(tick), 16.));
+  };
+let later = (ms: float, f: unit => unit): unit => {
+  pending := [(clock() +. ms, f), ...pending^];
+  if (! ticking^) {
+    ticking := true;
+    tick();
+  };
+};
+let canvas_animations = (): list(Js.Unsafe.any) => {
+  let all =
+    Js.Unsafe.meth_call(Js.Unsafe.global##.document, "getAnimations", [||]);
+  let n: int = Js.Unsafe.get(all, "length");
+  List.init(n, i => Js.Unsafe.get(all, i))
+  |> List.filter(a => {
+       let effect = Js.Unsafe.get(a, "effect");
+       Js.Opt.test(effect)
+       && {
+         let target = Js.Unsafe.get(effect, "target");
+         Js.Opt.test(target)
+         && Js.Opt.test(
+              Js.Unsafe.meth_call(
+                target,
+                "closest",
+                [|str(".canvas-pan-pad, #canvas-avatar")|],
+              ),
+            );
+       };
+     });
+};
+let paused_anims: ref(list(Js.Unsafe.any)) = ref([]);
+let pause_score = (): unit =>
+  if (! paused^) {
+    paused := true;
+    pause_started := CanvasBuffer.now();
+    paused_anims :=
+      canvas_animations()
+      |> List.filter(a =>
+           Js.to_string(Js.Unsafe.get(a, "playState")) == "running"
+         );
+    List.iter(
+      a => ignore(Js.Unsafe.meth_call(a, "pause", [||])),
+      paused_anims^,
+    );
+    CanvasLog.log(
+      Printf.sprintf(
+        "score: paused (%d animations)",
+        List.length(paused_anims^),
+      ),
+    );
+  };
+let resume_score = (): unit =>
+  if (paused^) {
+    let since = pause_started^;
+    let dt = CanvasBuffer.now() -. since;
+    paused := false;
+    paused_total := paused_total^ +. dt;
+    CanvasBuffer.shift_hold(~since, dt);
+    Animation.shift_hold(~since, dt);
+    if (CanvasCamera.scored_until^ > since) {
+      CanvasCamera.scored_until := CanvasCamera.scored_until^ +. dt;
+    };
+    List.iter(
+      a =>
+        /* only what is still paused: play() on a cancelled animation
+           would restart it from the top */
+        if (Js.to_string(Js.Unsafe.get(a, "playState")) == "paused") {
+          ignore(Js.Unsafe.meth_call(a, "play", [||]));
+        },
+      paused_anims^,
+    );
+    paused_anims := [];
+    CanvasLog.log(Printf.sprintf("score: resumed after %.0fms", dt));
+  };
 
 /* the path's length and evenly spaced points along it, in SCREEN px */
 let sample_path = (path): (float, list((float, float))) => {
@@ -623,6 +718,8 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
       | _ => ()
       };
       let on_len = arm_dash(path, total);
+      /* linear: the rider's waypoints are evenly spaced in time, and the
+         leading vertex is pinned to this tip while it draws */
       animate(
         path,
         [
@@ -632,13 +729,16 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
         [
           ("duration", num(dur)),
           ("delay", num(t)),
-          ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
+          ("easing", str("linear")),
           ("fill", str("backwards")),
         ],
       );
+      set_attr(path, "data-on-len", Printf.sprintf("%.1f", on_len));
+      later(t, () => CanvasAvatar.pen_path := Some(Js.Unsafe.inject(path)));
       later(
         t +. dur,
         () => {
+          CanvasAvatar.pen_path := None;
           restore_marker(path, marker);
           clear_dash(path);
         },
@@ -699,7 +799,369 @@ let body_of = el =>
   | None => el
   };
 
+let path_point = (name, pick) =>
+  by_id(CanvasView.path_dom_id(name))
+  |> Util.OptUtil.and_then(path => {
+       let (total, pts) = sample_path_board(path);
+       total < 1. ? None : Some(pick(pts));
+     });
+let site_board = (site: CanvasScore.site): option((float, float)) =>
+  switch (site) {
+  | Node(k) => node_board(k)
+  | Centroid(ks) => mean(List.filter_map(node_board, ks))
+  | Point(p) => Some((p.x, p.y))
+  | Edge(name) => path_point(name, List.hd)
+  | Here => None
+  };
+/* an edge act ends where the ride ends (the codomain) */
+let site_end = (site: CanvasScore.site): option((float, float)) =>
+  switch (site) {
+  | Edge(name) =>
+    path_point(name, pts => List.nth(pts, List.length(pts) - 1))
+  | site => site_board(site)
+  };
+let first_part = (a: CanvasScore.act): option((float, float)) =>
+  List.find_map(
+    (e: CanvasScore.timed_effect) =>
+      switch (e.effect) {
+      | Form(_, [p, ..._]) => node_board(p)
+      | _ => None
+      },
+    a.effects,
+  );
+
+/* the actor's waypoints for a score, read from the board as it is NOW
+   (node positions and path shapes) */
+let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
+  let wps: ref(list(waypoint)) = ref([]);
+  let add = (p, t) => wps := [(p, t), ...wps^];
+  List.iter(
+    ((t, a): (int, CanvasScore.act)) => {
+      let arrive =
+        switch (first_part(a)) {
+        | Some(p) => Some(p)
+        | None => site_board(a.at)
+        };
+      switch (arrive, site_end(a.at)) {
+      | (Some(sp), Some(ep)) =>
+        add(sp, float_of_int(t + a.travel_ms));
+        add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
+      | _ => ()
+      };
+    },
+    s.acts,
+  );
+  List.iter(
+    ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+      let tf = float_of_int(t);
+      switch (e.effect) {
+      | Draw(name) =>
+        switch (by_id(CanvasView.path_dom_id(name))) {
+        | Some(path) =>
+          let (total, pts) = sample_path_board(path);
+          if (total >= 8.) {
+            let n = float_of_int(List.length(pts) - 1);
+            let dur = float_of_int(e.dur);
+            List.iteri(
+              (i, p) => add(p, tf +. dur *. float_of_int(i) /. n),
+              pts,
+            );
+          };
+        | None => ()
+        }
+      | Form(pk, parts) =>
+        let part_pts = List.filter_map(node_board, parts);
+        let n = List.length(part_pts);
+        let dur = float_of_int(e.dur);
+        let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
+        let t_visited = tf +. visit *. float_of_int(n);
+        List.iteri(
+          (i, p) => add(p, tf +. visit *. float_of_int(i + 1)),
+          part_pts,
+        );
+        switch (
+          by_id(CanvasView.node_dom_id(pk))
+          |> Util.OptUtil.and_then(board_center)
+        ) {
+        | Some(c) => add(c, t_visited +. 120.)
+        | None => ()
+        };
+      | _ => ()
+      };
+    },
+    CanvasScore.effects_abs(s),
+  );
+  List.stable_sort(
+    ((_, t1), (_, t2)) => compare(t1, t2),
+    List.rev(wps^),
+  );
+};
+
+/* the rig steers: at each moving segment's start it turns to face where
+   that segment goes; ~t_from re-plans from mid-score */
+let rec headings = (~t_from: float, ws: list(waypoint)): unit =>
+  switch (ws) {
+  | [((x0, y0), t0), ((x1, y1), _) as next, ...rest] =>
+    if (t0 >= t_from && Float.hypot(x1 -. x0, y1 -. y0) > 6.) {
+      later(
+        t0 -. t_from,
+        () => {
+          CanvasAvatar.set_heading(
+            CanvasAvatar.heading_of((x0, y0), (x1, y1)),
+          );
+          CanvasAvatar.set_travel_len(Float.hypot(x1 -. x0, y1 -. y0));
+        },
+      );
+    };
+    headings(~t_from, [next, ...rest]);
+  | _ => ()
+  };
+
+/* where the avatar visibly is NOW: static anchor + in-flight ride
+   transform + any CSS translate a pick-up left, minus the box offset */
+let measured_site = (~fallback: (float, float), av): (float, float) => {
+  let px = v =>
+    switch (float_of_string_opt(String.trim(v))) {
+    | Some(f) => f
+    | None =>
+      let n = String.length(v);
+      n > 2
+        ? Option.value(
+            ~default=0.,
+            float_of_string_opt(String.sub(v, 0, n - 2)),
+          )
+        : 0.;
+    };
+  let st0 = Js.Unsafe.get(av, "style");
+  let left = px(Js.to_string(Js.Unsafe.get(st0, "left")))
+  and top = px(Js.to_string(Js.Unsafe.get(st0, "top")));
+  let tf: string =
+    Js.to_string(
+      Js.Unsafe.get(
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(body_of(av))|],
+        ),
+        "transform",
+      ),
+    );
+  let (tx, ty) =
+    switch (String.index_opt(tf, '(')) {
+    | Some(i) when String.length(tf) > i + 1 =>
+      let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
+      switch (
+        inner
+        |> String.split_on_char(',')
+        |> List.filter_map(s => float_of_string_opt(String.trim(s)))
+      ) {
+      | [_, _, _, _, tx, ty] => (tx, ty)
+      | _ => (0., 0.)
+      };
+    | _ => (0., 0.)
+    };
+  /* a carried body (picked up) sits at its CSS translate as well */
+  let (ux, uy) =
+    switch (
+      String.split_on_char(
+        ' ',
+        String.trim(
+          Js.to_string(
+            Js.Unsafe.get(Js.Unsafe.get(body_of(av), "style"), "translate"),
+          ),
+        ),
+      )
+      |> List.filter_map(v => Some(px(v)))
+    ) {
+    | [x, y] => (x, y)
+    | [x] => (x, 0.)
+    | _ => (0., 0.)
+    };
+  let tx = tx +. ux
+  and ty = ty +. uy;
+  if (left == 0. && top == 0.) {
+    Option.value(~default=fallback, CanvasBuffer.avatar_prev^);
+  } else {
+    (left +. tx -. CanvasView.avatar_dx, top +. ty -. CanvasView.avatar_dy);
+  };
+};
+
+/* the actor's ride: one WAAPI timeline through every waypoint, from the
+   measured start (a fresh score) or, re-planning, from a given position at
+   a given score time (only the waypoints still ahead) */
+let avatar_timeline =
+    (
+      ~from: option(((float, float), float)),
+      ~lead_in: float=0.,
+      s: CanvasScore.score,
+      sorted: list(waypoint),
+    )
+    : unit =>
+  switch (by_id(CanvasView.avatar_dom_id)) {
+  | Some(av) when sorted != [] =>
+    let end_site =
+      List.rev(s.acts)
+      |> List.find_map(((_, a): (int, CanvasScore.act)) => site_end(a.at));
+    let (ex, ey) =
+      switch (end_site) {
+      | Some(p) => p
+      | None => fst(List.nth(sorted, List.length(sorted) - 1))
+      };
+    let t_from =
+      switch (from) {
+      | Some((_, t)) => t
+      | None => 0.
+      };
+    /* a carried actor flies back to the timeline over the lead-in while
+       the score waits (the caller resumes it that much later) */
+    let t_start = t_from -. lead_in;
+    let start =
+      switch (from) {
+      | Some((p, _)) => p
+      | None => measured_site(~fallback=fst(List.hd(sorted)), av)
+      };
+    /* a re-plan continues from now: only the waypoints still ahead */
+    let sorted =
+      switch (List.filter(((_, t)) => t >= t_from, sorted)) {
+      | [] => [((ex, ey), float_of_int(s.total_ms))]
+      | l => l
+      };
+    CanvasBuffer.avatar_site := Some((ex, ey));
+    let st = Js.Unsafe.get(av, "style");
+    Js.Unsafe.set(
+      st,
+      "left",
+      Js.string(Printf.sprintf("%.1fpx", ex +. CanvasView.avatar_dx)),
+    );
+    Js.Unsafe.set(
+      st,
+      "top",
+      Js.string(Printf.sprintf("%.1fpx", ey +. CanvasView.avatar_dy)),
+    );
+    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
+    let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
+    let frame = ((x, y), at) => [
+      (
+        "transform",
+        str(Printf.sprintf("translate(%.1fpx, %.1fpx)", x -. ex, y -. ey)),
+      ),
+      (
+        "offset",
+        num(max(0., min(1., (at -. t_start) /. (total_ms -. t_start)))),
+      ),
+      ("easing", str("ease-in-out")),
+    ];
+    {
+      /* E1: a timeline that asks the avatar to cover a long way in almost no
+         time is a jump; say so in the journal with where and when. The whole
+         path is journaled compactly too (a replay reads it back). */
+
+      let (_, t_last0) = List.nth(sorted, List.length(sorted) - 1);
+      let total0 = max(float_of_int(s.total_ms), t_last0) +. settle_ms;
+      let (ex0, ey0) =
+        switch (end_site) {
+        | Some(p) => p
+        | None => fst(List.nth(sorted, List.length(sorted) - 1))
+        };
+      let pts = [(start, t_start)] @ sorted @ [((ex0, ey0), total0)];
+      let show =
+        List.map(
+          (((x, y), t)) =>
+            Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
+          pts,
+        );
+      let n = List.length(show);
+      CanvasLog.log(
+        "path: "
+        ++ String.concat(
+             " ",
+             n <= 24
+               ? show
+               : List.filteri((i, _) => i < 12, show)
+                 @ [Printf.sprintf("...%d more...", n - 24)]
+                 @ List.filteri((i, _) => i >= n - 12, show),
+           ),
+      );
+    };
+    ignore(
+      List.fold_left(
+        (((px0, py0), t0), ((px1, py1), t1)) => {
+          let d =
+            sqrt(
+              (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
+            );
+          if (d > 40. && d /. max(1., t1 -. t0) > 2.) {
+            CanvasLog.log(
+              Printf.sprintf(
+                "TIMELINE-JUMP: %.0fpx in %.0fms at %.1fs (%.0f,%.0f)->(%.0f,%.0f)",
+                d,
+                t1 -. t0,
+                t1 /. 1000.,
+                px0,
+                py0,
+                px1,
+                py1,
+              ),
+            );
+          };
+          ((px1, py1), t1);
+        },
+        (start, t_start),
+        sorted,
+      ),
+    );
+    let frames =
+      [frame(start, t_start)]
+      @ List.map(((p, at)) => frame(p, at), sorted)
+      @ [
+        [
+          ("transform", str("translate(0px, 0px)")),
+          ("offset", num(1.)),
+          ("easing", str("ease-in-out")),
+        ],
+      ];
+    /* WAAPI on the BODY: a compositor-run transform keeps moving through a
+       main-thread stall (a rAF-driven one froze, then jumped — replay 11/12),
+       and the body's style is never rewritten by the view */
+    let body = body_of(av);
+    cancel_anims(av);
+    cancel_anims(body);
+    animate(
+      body,
+      frames,
+      [("duration", num(total_ms -. t_start)), ("easing", str("linear"))],
+    );
+    /* a carried body is now on the timeline from where it was dropped */
+    if (from != None) {
+      Js.Unsafe.set(
+        Js.Unsafe.get(body, "style"),
+        "translate",
+        Js.string(""),
+      );
+    };
+    CanvasLog.log(
+      Printf.sprintf(
+        "play: %d act(s), avatar through %d waypoint(s) over %.1fs",
+        List.length(s.acts),
+        List.length(sorted),
+        total_ms /. 1000.,
+      ),
+    );
+  | _ =>
+    CanvasLog.log(
+      Printf.sprintf(
+        "play: %d act(s), no avatar on stage%s",
+        List.length(s.acts),
+        sorted == [] ? " (no waypoints)" : "",
+      ),
+    )
+  };
+
+/* the score on stage, and the clock reading when it began */
+let current_score: ref(option((CanvasScore.score, float))) = ref(None);
+
 let play = (~zoom: float, s: CanvasScore.score): unit => {
+  current_score := Some((s, clock()));
   ignore(zoom);
   /* the score owns every canvas element's motion until it ends: editor
      actions re-request FLIPs for all of them on each render, which would
@@ -774,55 +1236,12 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
       ],
     )
   );
-  let wps: ref(list(waypoint)) = ref([]);
-  let add = (p, t) => wps := [(p, t), ...wps^];
-  let path_point = (name, pick) =>
-    by_id(CanvasView.path_dom_id(name))
-    |> Util.OptUtil.and_then(path => {
-         let (total, pts) = sample_path_board(path);
-         total < 1. ? None : Some(pick(pts));
-       });
-  let site_board = (site: CanvasScore.site): option((float, float)) =>
-    switch (site) {
-    | Node(k) => node_board(k)
-    | Centroid(ks) => mean(List.filter_map(node_board, ks))
-    | Point(p) => Some((p.x, p.y))
-    | Edge(name) => path_point(name, List.hd)
-    | Here => None
-    };
-  /* an edge act ends where the ride ends (the codomain) */
-  let site_end = (site: CanvasScore.site): option((float, float)) =>
-    switch (site) {
-    | Edge(name) =>
-      path_point(name, pts => List.nth(pts, List.length(pts) - 1))
-    | site => site_board(site)
-    };
   /* the actor: arrive after travel, hold through the effects */
-  let first_part = (a: CanvasScore.act): option((float, float)) =>
-    List.find_map(
-      (e: CanvasScore.timed_effect) =>
-        switch (e.effect) {
-        | Form(_, [p, ..._]) => node_board(p)
-        | _ => None
-        },
-      a.effects,
-    );
   List.iter(
     ((t, a): (int, CanvasScore.act)) => {
       /* an act that forms a product arrives at its first part (the visits
          start there); arriving at the arrow first meant a zig-zag out to
          the parts and back */
-      let arrive =
-        switch (first_part(a)) {
-        | Some(p) => Some(p)
-        | None => site_board(a.at)
-        };
-      switch (arrive, site_end(a.at)) {
-      | (Some(sp), Some(ep)) =>
-        add(sp, float_of_int(t + a.travel_ms));
-        add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
-      | _ => ()
-      };
       /* the rig's moods follow the act: travel, land, then the emote */
       let tf = float_of_int(t);
       let mood_after =
@@ -886,15 +1305,9 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             a.emote == CanvasScore.Erase ? "erase" : "draw",
           )
         );
-        List.iter(
-          ((p, t)) => add(p, t),
-          ride(~t=tf, ~dur=float_of_int(e.dur), name),
-        );
+        ignore(ride(~t=tf, ~dur=float_of_int(e.dur), name));
       | Form(pk, parts) =>
-        List.iter(
-          ((p, t)) => add(p, t),
-          formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts),
-        )
+        ignore(formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts))
       | Vanish(_)
       | Erase(_) => incr(vanish)
       | Appear(_)
@@ -953,219 +1366,144 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
      keyframe offsets can never run backwards. All in board units: the
      static position becomes the score's END site now (B1: static state =
      timeline end), anchored exactly as the view anchors it. */
-  let sorted =
-    List.stable_sort(
-      ((_, t1), (_, t2)) => compare(t1, t2),
-      List.rev(wps^),
-    );
-  /* the rig steers: at each moving segment's start it turns to face
-     where that segment goes (the CSS transition does the turning) */
-  let rec headings = (ws: list(waypoint)): unit =>
-    switch (ws) {
-    | [((x0, y0), t0), ((x1, y1), _) as next, ...rest] =>
-      if (Float.hypot(x1 -. x0, y1 -. y0) > 6.) {
-        later(
-          t0,
-          () => {
-            CanvasAvatar.set_heading(
-              CanvasAvatar.heading_of((x0, y0), (x1, y1)),
-            );
-            CanvasAvatar.set_travel_len(Float.hypot(x1 -. x0, y1 -. y0));
-          },
-        );
-      };
-      headings([next, ...rest]);
-    | _ => ()
-    };
+  let sorted = waypoints_of(s);
   if (CanvasAvatar.is_rig()) {
-    headings(sorted);
+    headings(~t_from=0., sorted);
   };
-  switch (by_id(CanvasView.avatar_dom_id)) {
-  | Some(av) when sorted != [] =>
-    let end_site =
-      List.rev(s.acts)
-      |> List.find_map(((_, a): (int, CanvasScore.act)) => site_end(a.at));
-    let (ex, ey) =
-      switch (end_site) {
-      | Some(p) => p
-      | None => fst(List.nth(sorted, List.length(sorted) - 1))
-      };
-    /* where the avatar visibly is NOW (static anchor + in-flight
-       translate, minus the box offset), measured here rather than at
-       staging so a render nobody staged cannot leave a stale start */
-    let start = {
-      let px = v =>
-        switch (float_of_string_opt(String.trim(v))) {
-        | Some(f) => f
-        | None =>
-          let n = String.length(v);
-          n > 2
-            ? Option.value(
-                ~default=0.,
-                float_of_string_opt(String.sub(v, 0, n - 2)),
-              )
-            : 0.;
-        };
-      let st0 = Js.Unsafe.get(av, "style");
-      let left = px(Js.to_string(Js.Unsafe.get(st0, "left")))
-      and top = px(Js.to_string(Js.Unsafe.get(st0, "top")));
-      let tf: string =
-        Js.to_string(
-          Js.Unsafe.get(
-            Js.Unsafe.meth_call(
-              Js.Unsafe.global##.window,
-              "getComputedStyle",
-              [|Js.Unsafe.inject(body_of(av))|],
-            ),
-            "transform",
-          ),
-        );
-      let (tx, ty) =
-        switch (String.index_opt(tf, '(')) {
-        | Some(i) when String.length(tf) > i + 1 =>
-          let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
-          switch (
-            inner
-            |> String.split_on_char(',')
-            |> List.filter_map(s => float_of_string_opt(String.trim(s)))
-          ) {
-          | [_, _, _, _, tx, ty] => (tx, ty)
-          | _ => (0., 0.)
-          };
-        | _ => (0., 0.)
-        };
-      if (left == 0. && top == 0.) {
-        Option.value(
-          ~default=fst(List.hd(sorted)),
-          CanvasBuffer.avatar_prev^,
-        );
-      } else {
-        (
-          left +. tx -. CanvasView.avatar_dx,
-          top +. ty -. CanvasView.avatar_dy,
-        );
-      };
-    };
-    CanvasBuffer.avatar_site := Some((ex, ey));
-    let st = Js.Unsafe.get(av, "style");
-    Js.Unsafe.set(
-      st,
-      "left",
-      Js.string(Printf.sprintf("%.1fpx", ex +. CanvasView.avatar_dx)),
-    );
-    Js.Unsafe.set(
-      st,
-      "top",
-      Js.string(Printf.sprintf("%.1fpx", ey +. CanvasView.avatar_dy)),
-    );
-    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
-    let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
-    let frame = ((x, y), at) => [
-      (
-        "transform",
-        str(Printf.sprintf("translate(%.1fpx, %.1fpx)", x -. ex, y -. ey)),
-      ),
-      ("offset", num(max(0., min(1., at /. total_ms)))),
-      ("easing", str("ease-in-out")),
-    ];
-    {
-      /* E1: a timeline that asks the avatar to cover a long way in almost no
-         time is a jump; say so in the journal with where and when. The whole
-         path is journaled compactly too (a replay reads it back). */
+  avatar_timeline(~from=None, s, sorted);
+};
 
-      let (_, t_last0) = List.nth(sorted, List.length(sorted) - 1);
-      let total0 = max(float_of_int(s.total_ms), t_last0) +. settle_ms;
-      let (ex0, ey0) =
-        switch (end_site) {
-        | Some(p) => p
-        | None => fst(List.nth(sorted, List.length(sorted) - 1))
+/* re-plan the live score from the actor's current position at the current
+   score time (after a node was dragged, or the actor was carried): rides
+   still ahead re-arm on their re-routed paths; the actor's timeline is
+   rebuilt from the board as it is now. Everything else keeps its clock. */
+let replan_score = (~pos: (float, float), ~lead_in: float=0., ()): unit =>
+  switch (current_score^) {
+  | Some((s, t0)) when clock() -. t0 < float_of_int(s.total_ms) =>
+    let elapsed = clock() -. t0;
+    List.iter(
+      ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+        let tf = float_of_int(t);
+        let dur = float_of_int(e.dur);
+        switch (e.effect) {
+        | Draw(name) when tf +. dur > elapsed =>
+          CanvasLog.log(
+            Printf.sprintf(
+              "re-plan: ride %s at %.0f+%.0fms, elapsed %.0f -> delay %.0f (score %dms, t0 %.0f, clock %.0f)",
+              name,
+              tf,
+              dur,
+              elapsed,
+              tf -. elapsed,
+              s.total_ms,
+              t0,
+              clock(),
+            ),
+          );
+          switch (by_id(CanvasView.path_dom_id(name))) {
+          | Some(path) =>
+            cancel_anims(path);
+            let total: float =
+              Js.Unsafe.meth_call(path, "getTotalLength", [||]);
+            if (total >= 8.) {
+              let on_len = arm_dash(path, total);
+              set_attr(path, "data-on-len", Printf.sprintf("%.1f", on_len));
+              animate(
+                path,
+                [
+                  [("strokeDashoffset", num(on_len))],
+                  [("strokeDashoffset", num(0.))],
+                ],
+                [
+                  ("duration", num(dur)),
+                  ("delay", num(tf -. elapsed +. lead_in)),
+                  ("easing", str("linear")),
+                  ("fill", str("backwards")),
+                ],
+              );
+            };
+          | None => ()
+          };
+        | _ => ()
         };
-      let pts = [(start, 0.)] @ sorted @ [((ex0, ey0), total0)];
-      let show =
-        List.map(
-          (((x, y), t)) =>
-            Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
-          pts,
-        );
-      let n = List.length(show);
+      },
+      CanvasScore.effects_abs(s),
+    );
+    let sorted = waypoints_of(s);
+    if (CanvasAvatar.is_rig()) {
+      headings(~t_from=elapsed, sorted);
+    };
+    avatar_timeline(~from=Some((pos, elapsed)), ~lead_in, s, sorted);
+    CanvasLog.log(
+      Printf.sprintf(
+        "score: re-planned at %.1fs from (%.0f, %.0f)",
+        elapsed /. 1000.,
+        fst(pos),
+        snd(pos),
+      ),
+    );
+  | _ => ()
+  };
+
+/* the actor's visible site now (a carried body included) */
+let visible_site = (): option((float, float)) =>
+  switch (by_id(CanvasView.avatar_dom_id)) {
+  | Some(av) => Some(measured_site(~fallback=(0., 0.), av))
+  | None => None
+  };
+
+/* after a pick-up: resume the paused workload from where the actor was
+   dropped, or, with nothing playing, just park it there */
+let dropped = (): unit =>
+  switch (visible_site(), by_id(CanvasView.avatar_dom_id)) {
+  | (Some(pos), Some(av)) =>
+    let live =
+      switch (current_score^) {
+      | Some((s, t0)) => clock() -. t0 < float_of_int(s.total_ms)
+      | None => false
+      };
+    if (live) {
+      /* the workload stays paused while the actor flies back to where the
+         timeline wants it, then resumes (no teleport) */
+      let lead_in = 260.;
+      replan_score(~pos, ~lead_in, ());
+      ignore(
+        Js.Unsafe.global##setTimeout(
+          Js.Unsafe.callback(() => resume_score()),
+          lead_in,
+        ),
+      );
+    } else {
+      resume_score();
+      let body = body_of(av);
+      cancel_anims(body);
+      let st = Js.Unsafe.get(av, "style");
+      Js.Unsafe.set(
+        st,
+        "left",
+        Js.string(
+          Printf.sprintf("%.1fpx", fst(pos) +. CanvasView.avatar_dx),
+        ),
+      );
+      Js.Unsafe.set(
+        st,
+        "top",
+        Js.string(
+          Printf.sprintf("%.1fpx", snd(pos) +. CanvasView.avatar_dy),
+        ),
+      );
+      Js.Unsafe.set(
+        Js.Unsafe.get(body, "style"),
+        "translate",
+        Js.string(""),
+      );
+      CanvasBuffer.avatar_site := Some(pos);
       CanvasLog.log(
-        "path: "
-        ++ String.concat(
-             " ",
-             n <= 24
-               ? show
-               : List.filteri((i, _) => i < 12, show)
-                 @ [Printf.sprintf("...%d more...", n - 24)]
-                 @ List.filteri((i, _) => i >= n - 12, show),
-           ),
+        Printf.sprintf("actor parked at (%.0f, %.0f)", fst(pos), snd(pos)),
       );
     };
-    ignore(
-      List.fold_left(
-        (((px0, py0), t0), ((px1, py1), t1)) => {
-          let d =
-            sqrt(
-              (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
-            );
-          if (d > 40. && d /. max(1., t1 -. t0) > 2.) {
-            CanvasLog.log(
-              Printf.sprintf(
-                "TIMELINE-JUMP: %.0fpx in %.0fms at %.1fs (%.0f,%.0f)->(%.0f,%.0f)",
-                d,
-                t1 -. t0,
-                t1 /. 1000.,
-                px0,
-                py0,
-                px1,
-                py1,
-              ),
-            );
-          };
-          ((px1, py1), t1);
-        },
-        (start, 0.),
-        sorted,
-      ),
-    );
-    let frames =
-      [frame(start, 0.)]
-      @ List.map(((p, at)) => frame(p, at), sorted)
-      @ [
-        [
-          ("transform", str("translate(0px, 0px)")),
-          ("offset", num(1.)),
-          ("easing", str("ease-in-out")),
-        ],
-      ];
-    /* WAAPI on the BODY: a compositor-run transform keeps moving through a
-       main-thread stall (a rAF-driven one froze, then jumped — replay 11/12),
-       and the body's style is never rewritten by the view */
-    let body = body_of(av);
-    cancel_anims(av);
-    cancel_anims(body);
-    animate(
-      body,
-      frames,
-      [("duration", num(total_ms)), ("easing", str("linear"))],
-    );
-    CanvasLog.log(
-      Printf.sprintf(
-        "play: %d act(s), avatar through %d waypoint(s) over %.1fs",
-        List.length(s.acts),
-        List.length(sorted),
-        total_ms /. 1000.,
-      ),
-    );
-  | _ =>
-    CanvasLog.log(
-      Printf.sprintf(
-        "play: %d act(s), no avatar on stage%s",
-        List.length(s.acts),
-        sorted == [] ? " (no waypoints)" : "",
-      ),
-    )
+  | _ => resume_score()
   };
-};
 
 /* ---- the jump detector (B1): positions before a paced render vs after,
    in board space so camera motion does not count; a move with no
