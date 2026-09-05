@@ -1,0 +1,41 @@
+# FUMOLA: RUNNING ON A HAZEL VALUE #
+# Every other chapter reports outward: a Fumola program runs, and its       #
+# result becomes a Hazel value. This one goes the other way as well.        #
+#                                                                           #
+# The three livelits, in brief:                                             #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+# RUNNING ON A HAZEL VALUE #
+# Everything above reports outward: a Fumola program runs, and its result   #
+# becomes a Hazel value. ^fumola_with goes the other way too. The Hazel     #
+# value it carries is rendered into Fumola source and bound as input, so    #
+# the program can name it.                                                  #
+#                                                                           #
+# Only values with a written Fumola form can cross, which is every          #
+# first-order value and nothing else. A hole or a function is refused,      #
+# with a message saying what could not be written.                          #
+let doubled : Int =
+  ^fumola_with(0, "`double", "input + input", 21) in
+
+# The round trip, in one line: a Hazel list of symbol and number pairs      #
+# goes out as [(`a, 1), (`b, 2)], and comes back as the same list, with     #
+# the symbols read as the Symbol type again.                                #
+let roundTrip : [(Symbol, Int)] =
+  ^fumola_with(
+    0,
+    "`roundTrip",
+    "input",
+    [(Name("a"), 1), (Name("b"), 2)]
+  ) in
+
+(
+  doubled,
+  roundTrip
+)

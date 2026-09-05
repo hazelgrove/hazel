@@ -1,0 +1,97 @@
+# FUMOLA: CELLS AND POINTERS #
+# Cells are what make editing incremental: state written in one edit        #
+# is still there in the next. A pointer names a cell, and arrives in        #
+# Hazel as a reference carrying what it points at.                          #
+#                                                                           #
+# This chapter is also where the two modes matter, since peek belongs       #
+# to one of them.                                                           #
+#                                                                           #
+# The three livelits, in brief:                                             #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+# CELLS AND POINTERS #
+# Cells are what make editing incremental. `:=` writes one, and get(s)      #
+# reads it back. State written in one edit is still there in the next, so   #
+# try editing the program below to just `get(1)`.                           #
+let myCell : Int =
+  ^fumola_put_force(0, "`myCell", "1 := 2; get(1)") in
+
+# A name for a cell is a symbol, and a number is a symbol too, so cells can #
+# be named either way.                                                      #
+let myNamedCell : Int =
+  ^fumola_put_force(0, "`myNamedCell", "`count := 41; get(`count) + 1") in
+
+# peek(s) reads without recording a dependency, and answers an option:      #
+# the cell may never have been written.                                     #
+#                                                                           #
+# Note the livelit: these are editor livelits, not thunk livelits, and      #
+# that is not a stylistic choice. Fumola runs in two modes, and each of     #
+# the two livelits names one of them.                                       #
+#                                                                           #
+# The archivist runs inside a force. Its operations are the tracked         #
+# ones -- put (:=), get (@), and force itself -- the operations a           #
+# dependency can be recorded for, since there is a computation in           #
+# progress to record it against.                                            #
+#                                                                           #
+# The editor is the more general mode, and it always operates on a          #
+# force-free stack: no force is underway.                                   #
+#                                                                           #
+# reset and the graph introspection belong to it alone. Asking for a        #
+# reset from inside a DCG computation is not a meaningful request --        #
+# there is a computation in progress that it would be pulling out           #
+# from under itself -- and it refuses.                                      #
+#                                                                           #
+# peek is the interesting one. It is how the editor reads a cell, and       #
+# it stays available inside a force as well, on purpose: reading a          #
+# cell without recording a dependency is how you look at a                  #
+# computation while it runs. So peek in a thunk is meaningful, just         #
+# untracked. The livelits below use the editor for it because that is       #
+# where it belongs, not because the alternative breaks.                     #
+let myPeek : Option =
+  ^fumola_eval(0, "`count := 41; peek(`count)") in
+
+let myMissing : Option =
+  ^fumola_eval(0, "peek(`neverWritten)") in
+
+# POINTERS #
+# pointer(s) is the pointer that symbol s names, and `:=` evaluates to the  #
+# pointer it just wrote -- so these two produce the same thing.             #
+#                                                                          #
+# A pointer is not read here as a number or a handle. It arrives as a       #
+# reference that carries the value it points at, so it has the type of what #
+# it points to -- a pointer to a cell holding an Int is usable as an Int -- #
+# while still showing which cell the value came from.                       #
+let myPointer : Int =
+  ^fumola_put_force(0, "`myPointer", "`x := 41; pointer(`x)") in
+
+# `:=` evaluates to a pointer, so this is the same reference by a shorter   #
+# route.                                                                    #
+let myWrite : Int =
+  ^fumola_put_force(0, "`myWrite", "`y := 7") in
+
+# The type comes from what the cell holds, so a pointer to a tuple is a     #
+# reference of that tuple's type.                                           #
+let myTuplePointer : (Int, Bool) =
+  ^fumola_put_force(0, "`myTuplePointer", "`t := (1, true); pointer(`t)") in
+
+# Numbers name cells as readily as backticked names do.                     #
+let myNumberedPointer : Int =
+  ^fumola_put_force(0, "`myNumberedPointer", "7 := 5; pointer(7)") in
+
+(
+  myCell,
+  myNamedCell,
+  myPeek,
+  myMissing,
+  myPointer,
+  myWrite,
+  myTuplePointer,
+  myNumberedPointer
+)

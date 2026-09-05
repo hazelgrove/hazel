@@ -1,0 +1,51 @@
+# FUMOLA: TIME, AND THE DELAYED PUT #
+# The Extended Adapton Recipe gives a computation two coordinates, space    #
+# and time. Chapter 2 met space. This is time, and it is the same kind of   #
+# thing as space in two respects.                                           #
+#                                                                           #
+# It is symbolic. A time is a name the programmer writes -- `t below --     #
+# and not a counter the system hands out. Which means it carries intent:    #
+# the program says which moment it means, so a later run can mean that      #
+# same moment again. A name is the only thing that survives re-running.     #
+#                                                                           #
+# And it is navigable. A program moves into a time, do within time `t,      #
+# and can hold another time as an ordinary value while it stands there.     #
+# Times are somewhere you can go, and go back to.                           #
+#                                                                           #
+# The three livelits, in brief:                                             #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+# Both at once. Outside, now() is the ambient present. Inside the block     #
+# it is the symbol the program named -- and t0, taken before, is still      #
+# in hand, so the two moments can be held together.                         #
+let twoTimes : (Time, Time) =
+  ^fumola_eval(2, "let t0 = Adapton.now(); do within time `t { (t0, Adapton.now()) }") in
+
+# Being able to name a time is what makes a delayed put possible.           #
+# Writing (cell, time) := value puts the value at that time rather than     #
+# at this one, and the write lands when the block for that time ends.       #
+#                                                                           #
+# So inside the block, the cell still reads as it did.                      #
+let inside : Option =
+  ^fumola_eval(2, "let cell = 0 := null; let t0 = Adapton.now(); do within time `t { (cell, t0) := ?1; peek(cell) }") in
+
+# And after it, the write has landed. peek answers an option and the        #
+# cell holds one, so this is Some of Some.                                  #
+let after : Option =
+  ^fumola_eval(2, "let cell = 0 := null; let t0 = Adapton.now(); do within time `t { (cell, t0) := ?1 }; peek(cell)") in
+
+# The example in the Fumola repo says all of this in assertions: a while    #
+# loop that runs until the cell is written, and exits after exactly one     #
+# iteration, because the put inside the block does not take effect until    #
+# the block ends. It returns unit -- every assertion in it held.            #
+let example : () =
+  ^fumola_eval(2, "DelayedPut.go()") in
+
+(twoTimes, inside, after, example)
