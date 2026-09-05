@@ -584,11 +584,53 @@ let term =
       id: Id.t,
       z: t,
     )
-    : option(t) =>
-  switch (Move.jump_to_id_indicated(z, id)) {
-  | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
-  | None => term_by_extremes(id, term_data, z)
+    : option(t) => {
+  /* a definition tile (let/type/module) selected without its body: the
+     indicated jump does not land on these (their left neighbour is what
+     Indicated reports), so it fell to a whole-buffer token walk — ~0.7 s
+     per selection at 170 lines in the agent's Update diff */
+  let positioned =
+    switch (Zipper.unzip_to_id(~side=Left, id, Zipper.unselect_and_zip(z))) {
+    | Some(zp) =>
+      Some({
+        ...zp,
+        refractors: z.refractors,
+      })
+    | None => None
+    };
+  let def_tile_structural = () =>
+    switch (positioned) {
+    | Some(zp) when defs_exclude_bodies =>
+      switch (Zipper.generalized_neighbors(zp)) {
+      /* the three-shard forms hold pat and def INSIDE the tile, so the
+         tile is the definition without its body; a module member's
+         `let … =` is a prefix whose def follows the tile — it takes the
+         extremes path below (from the positioned caret, so still local) */
+      | (_, Some(Tile({label: ["let" | "type" | "module", "=", "in"], _}))) =>
+        tile(id, zp)
+      | _ => None
+      }
+    | _ => None
+    };
+  switch (def_tile_structural()) {
+  | Some(_) as r => r
+  | None =>
+    switch (Move.jump_to_id_indicated(z, id)) {
+    | Some(z) => current_term(term_data, ~defs_exclude_bodies, ~case_rules, z)
+    | None =>
+      /* extremes walk from the positioned caret: local to the term, not
+         from wherever the caret happened to be */
+      term_by_extremes(
+        id,
+        term_data,
+        switch (positioned) {
+        | Some(zp) => zp
+        | None => z
+        },
+      )
+    }
   };
+};
 
 /* Select the containing run of secondary if any */
 let containing_secondary_run = (z: t): option(t) => {
