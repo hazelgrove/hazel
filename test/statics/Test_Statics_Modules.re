@@ -247,6 +247,124 @@ let subexp_type_test =
     },
   );
 
+/* ===== NESTED EXPECTATIONS ===== */
+
+/* The signature's expectations reach sub-modules and the variables inside
+   destructuring patterns, so a problem is reported where it is. */
+let is_int_vs = (syn_cls, m: Language.Mark.t) =>
+  switch (m) {
+  | ExpectationMismatch({ana, syn}) =>
+    switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+    | (Atom(Int), Atom(c)) => c == syn_cls
+    | _ => false
+    }
+  | _ => false
+  };
+
+let test_nested_missing_member_localized =
+  single_mark_test(
+    "A sub-module lacking a member is reported once, inside it",
+    {|module M : { module Inner : { let x : Int; let y : Int } } = { module Inner = { let x = 1 } } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_nested_type_member_mismatch_localized =
+  single_mark_test(
+    "A sub-module's differing type member is reported once, on its item",
+    {|module M : { module Inner : { type T = Int } } = { module Inner = { type T = Bool } } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
+let test_nested_definition_mismatch_localized =
+  single_mark_test(
+    "A sub-module's wrong definition is reported once, on the definition",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = true } } in M|},
+    is_int_vs(Bool),
+  );
+
+let test_nested_user_annotation_kept =
+  fully_consistent_typecheck(
+    "A sub-module's own wider annotation is kept",
+    {|module M : { module Inner : { let x : Int } } = { module Inner : { let x : Int; let y : Int } = { let x = 1; let y = 2 } } in M.Inner.x|},
+    Some(int()),
+  );
+
+let test_error_nested_module_sealed =
+  inconsistent_typecheck(
+    "A sub-module is sealed by the outer signature",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1; let y = 2 } } in M.Inner.y|}
+    |> parse_exp,
+  );
+
+/* The component carries the mismatch and the module does not. The tuple
+   literal is also marked, as it is for a top-level
+   `let (a : Int, b : Int) = (1, "s")`: that cascade is not module-specific. */
+let component_mismatch_test = (name, source, syn_cls) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "component marked",
+        true,
+        List.exists(is_int_vs(syn_cls), marks),
+      );
+      Alcotest.(check(bool))(
+        "module unmarked",
+        true,
+        subexp_marks(
+          source,
+          fun
+          | Module(_) => true
+          | _ => false,
+        )
+        == [],
+      );
+    },
+  );
+
+let test_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, "s") } in M|},
+    String,
+  );
+
+let test_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_labeled_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A labeled destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (x=a, y=b) = (x=1, y=2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_nested_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A nested destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int; let c : Int } = { let ((a, b), c) = ((1, 2), "s") } in M|},
+    String,
+  );
+
+/* A cons pattern is also inexhaustive, as at top level. */
+let test_cons_binder_mismatch_localized =
+  component_mismatch_test(
+    "A cons-destructured member with the wrong type is reported on the element",
+    {|module M : { let h : Int; let t : [Int] } = { let h :: t = ["s"] } in M|},
+    String,
+  );
+
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
@@ -1600,6 +1718,17 @@ let tests = (
     test_missing_members_on_variable,
     test_missing_members_on_argument,
     test_missing_type_member_on_variable,
+    /* Nested expectations */
+    test_nested_missing_member_localized,
+    test_nested_type_member_mismatch_localized,
+    test_nested_definition_mismatch_localized,
+    test_nested_user_annotation_kept,
+    test_error_nested_module_sealed,
+    test_tuple_binder_mismatch_localized,
+    test_tuple_binder_ok,
+    test_labeled_tuple_binder_ok,
+    test_nested_tuple_binder_mismatch_localized,
+    test_cons_binder_mismatch_localized,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,

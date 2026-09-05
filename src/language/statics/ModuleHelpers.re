@@ -204,17 +204,41 @@ let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
   | _ => None
   };
 
-/* Annotate a bare variable pattern with the type its signature expects, so
-   a mismatch is reported on the definition rather than on the module. */
-let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
+/* Annotate each bare variable binder in a pattern with the type its
+   signature expects, so a mismatch is reported on the definition (or on the
+   component of a destructured definition) rather than on the module:
+   `(a, b)` becomes `(a : Int, b : Int)`. A binder the user annotated keeps
+   its annotation. */
+let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
+  let go = modlet_pat(ana_labels);
+  let rewrap = (term: Pat.term): Pat.t => {
+    ...pat,
+    term,
+  };
   switch (pat.term) {
   | Var(name) =>
     switch (List.assoc_opt(name, ana_labels)) {
     | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
     | None => pat
     }
-  | _ => pat
+  | Tuple(ps) => rewrap(Tuple(List.map(go, ps)))
+  | ListLit(ps) => rewrap(ListLit(List.map(go, ps)))
+  | Cons(p1, p2) => rewrap(Cons(go(p1), go(p2)))
+  | TupLabel(l, p) => rewrap(TupLabel(l, go(p)))
+  | Parens(p) => rewrap(Parens(go(p)))
+  | Projector(d, p) => rewrap(Projector(d, go(p)))
+  | Ap(ctr, p) => rewrap(Ap(ctr, go(p)))
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | Constructor(_)
+  | Label(_) => pat
   };
+};
 
 let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
@@ -231,9 +255,11 @@ let wrap_item =
     )
   | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
   | ModuleMod(mp, def) =>
+    /* A sub-module gets its declared signature as expectation too, so a
+       member it lacks or defines wrongly is reported inside it. */
     IdTagged.fast_copy(
       Mod.rep_id(item),
-      Exp.fresh(Let(mpat_to_pat(mp), def, body)),
+      Exp.fresh(Let(modlet_pat(ana_labels, mpat_to_pat(mp)), def, body)),
     )
   | ModVal(x, def) =>
     IdTagged.fast_copy(
@@ -479,11 +505,36 @@ let check_ana_type_members =
    ascription `modlet_pat` adds to a bare variable binder is stripped; a
    `module M : S = ...` item keeps its elaborated (ascribed) binder. */
 let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
-  let strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t =>
+  /* Walk the user's pattern and its elaboration together: an ascription the
+     elaboration has where the user wrote a bare variable is synthetic. */
+  let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
+    let rewrap = (term: Pat.term): Pat.t => {
+      ...p_elab,
+      term,
+    };
+    let map2 = (us, es) =>
+      List.length(us) == List.length(es)
+        ? List.map2(strip_synthetic_asc, us, es) : es;
     switch (user_pat.term, p_elab.term) {
     | (Var(_), Asc(inner, _)) => inner
+    | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
+    | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
+    | (Cons(u1, u2), Cons(e1, e2)) =>
+      rewrap(
+        Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)),
+      )
+    | (TupLabel(_, u), TupLabel(l, e)) =>
+      rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
+    | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
+    | (Projector(_, u), Projector(d, e)) =>
+      rewrap(Projector(d, strip_synthetic_asc(u, e)))
+    | (Ap(_, u), Ap(ctr, e)) =>
+      rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
+    | (Asc(u, _), Asc(e, ty)) =>
+      rewrap(Asc(strip_synthetic_asc(u, e), ty))
     | _ => p_elab
     };
+  };
   switch (items) {
   | [] => []
   | [{term: ModType(_, _), _}, ...rest] => refold_module_elab(rest, elab)
@@ -494,7 +545,8 @@ let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
         switch (item.term) {
         | ModLet(user_pat, _) =>
           ModLet(strip_synthetic_asc(user_pat, p), def)
-        | ModuleMod(_, _) => ModLet(p, def)
+        | ModuleMod(mp, _) =>
+          ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
         | ModExp(_) => ModExp(def)
         | ModVal(x, _) => ModVal(x, def)
         | ModType(_, _)

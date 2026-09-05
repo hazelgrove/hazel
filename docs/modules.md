@@ -303,7 +303,13 @@ wrappers carrying the item ids (so the `Let` machinery, recursion detection
 and pattern checking are reused, and the cursor inspector sees each item).
 When the module is analyzed against a signature, each bare variable binder is
 annotated with its expected member type (`ModuleHelpers.modlet_pat`), so
-mismatches land on definitions. A member whose declared type mentions a
+mismatches land on definitions. The annotation reaches variables inside
+destructuring patterns (`let (a, b) = …` is checked as `(a : Int, b : Int)`,
+so a wrong component is reported on that component) and `module Inner = …`
+items, which receive the sub-signature the outer signature declares for them
+(a member the sub-module lacks is reported inside it). A binder the user
+annotated keeps its annotation. `refold_module_elab` strips the synthetic
+ascriptions again by walking the user's pattern and its elaboration together. A member whose declared type mentions a
 signature name the module does not define gets no annotation (the missing
 member is reported on the module, and a free name here would be reported on
 the signature), and the annotations carry fresh ids so checking them never
