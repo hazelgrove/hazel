@@ -1,0 +1,122 @@
+# FUMOLA #
+# Fumola is a language whose execution model uses Adapton: editing a program #
+# repairs prior computation rather than redoing it. A ^fumola_thunk livelit  #
+# runs a Fumola program and expands to its result, translated into a Hazel   #
+# value.                                                                     #
+#                                                                            #
+# This card is a tour of Fumola syntax and of what each kind of value        #
+# becomes on the Hazel side. Every livelit below is annotated, and the       #
+# annotation is what the translation produces -- change one and Hazel will   #
+# tell you.                                                                  #
+#                                                                            #
+# A ^fumola_thunk takes three things:                                        #
+#   an instance id      which Fumola runtime to run in                       #
+#   a thunk name        Fumola source for a symbol, naming this thunk        #
+#   the program         Fumola source                                        #
+#                                                                            #
+# Every livelit here shares instance 0, so they share one runtime; each has  #
+# its own thunk name, so they do not overwrite each other.                   #
+
+# Numbers and arithmetic look as you would expect. #
+let myInt : Int =
+  ^fumola_thunk(0, "`myInt", "1 + 2") in
+
+# Booleans too. #
+let myBool : Bool =
+  ^fumola_thunk(0, "`myBool", "true") in
+
+# A symbol is Fumola's notion of a name, written with a leading backtick.   #
+# It arrives in Hazel as its text, which is also the only way to produce a  #
+# String here: a Hazel string literal cannot contain a quote, so neither    #
+# can the program above.                                                    #
+let myString : String =
+  ^fumola_thunk(0, "`myString", "`hello") in
+
+# Fumola's unit is Hazel's empty tuple. #
+let myUnit : () =
+  ^fumola_thunk(0, "`myUnit", "()") in
+
+# Tuples cross as tuples, so the parts keep their own types. #
+let myPair : (Int, Bool) =
+  ^fumola_thunk(0, "`myPair", "(1, true)") in
+
+# A Fumola record is written with semicolons, and becomes a Hazel labeled   #
+# tuple. Fields come back in name order.                                    #
+let myRecord : (x=Int, y=Bool) =
+  ^fumola_thunk(0, "`myRecord", "{x = 1; y = true}") in
+
+# Variants are written with a leading hash, as in the program below.        #
+# own, so the expected type is what decides which constructor is meant --   #
+# which is why these livelits need an annotation.                           #
+type Shape = + Circle(Int) + Square(Int) in
+let myVariant : Shape =
+  ^fumola_thunk(0, "`myVariant", "#Circle(3)") in
+
+# Fumola's option is Hazel's: ?(x) is Some(x) and null is None. #
+let mySome : Option =
+  ^fumola_thunk(0, "`mySome", "?(3)") in
+
+let myNone : Option =
+  ^fumola_thunk(0, "`myNone", "null") in
+
+# These compose, so a structure of structures translates as one. #
+let myNested : (Int, (a=Int, b=String)) =
+  ^fumola_thunk(0, "`myNested", "(1, {a = 2; b = `word})") in
+
+# CELLS AND POINTERS #
+# Cells are what make editing incremental. `:=` writes one, and get(s)      #
+# reads it back. State written in one edit is still there in the next, so   #
+# try editing the program below to just `get(1)`.                           #
+let myCell : Int =
+  ^fumola_thunk(0, "`myCell", "1 := 2; get(1)") in
+
+# A name for a cell is a symbol, and a number is a symbol too, so cells can #
+# be named either way.                                                      #
+let myNamedCell : Int =
+  ^fumola_thunk(0, "`myNamedCell", "`count := 41; get(`count) + 1") in
+
+# peek(s) reads without recording a dependency, and answers an option: the  #
+# cell may never have been written.                                         #
+let myPeek : Option =
+  ^fumola_thunk(0, "`myPeek", "`count := 41; peek(`count)") in
+
+let myMissing : Option =
+  ^fumola_thunk(0, "`myMissing", "peek(`neverWritten)") in
+
+# POINTERS #
+# pointer(s) is the pointer that symbol s names, and `:=` evaluates to the  #
+# pointer it just wrote -- so these two produce the same thing.             #
+#                                                                          #
+# A pointer is not read here as a number or a handle. It arrives as a       #
+# reference that carries the value it points at, so it has the type of what #
+# it points to -- a pointer to a cell holding an Int is usable as an Int -- #
+# while still showing which cell the value came from.                       #
+let myPointer : Int =
+  ^fumola_thunk(0, "`myPointer", "`x := 41; pointer(`x)") in
+
+# `:=` evaluates to a pointer, so this is the same reference by a shorter   #
+# route.                                                                    #
+let myWrite : Int =
+  ^fumola_thunk(0, "`myWrite", "`y := 7") in
+
+# The type comes from what the cell holds, so a pointer to a tuple is a     #
+# reference of that tuple's type.                                           #
+let myTuplePointer : (Int, Bool) =
+  ^fumola_thunk(0, "`myTuplePointer", "`t := (1, true); pointer(`t)") in
+
+# Numbers name cells as readily as backticked names do.                     #
+let myNumberedPointer : Int =
+  ^fumola_thunk(0, "`myNumberedPointer", "7 := 5; pointer(7)") in
+
+(
+  myInt,
+  myBool,
+  myString,
+  myPair,
+  myRecord,
+  mySome,
+  myNested,
+  myCell,
+  myPointer,
+  myTuplePointer
+)
