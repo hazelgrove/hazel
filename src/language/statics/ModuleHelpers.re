@@ -136,30 +136,58 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 /* Expected types for the module's value members when it is analyzed
    against a signature: each member's declared type with the signature's own
    manifest type members substituted away, so `{ type T = Int; let x : T }`
-   expects `x : Int`. An abstract member keeps its bare name: inside the
-   lowered body it resolves to the module's own `type T` (the ML rule that a
-   sealed member is checked against the module's realization of T). */
+   expects `x : Int`. An abstract member, or a sibling member a path goes
+   through, keeps its bare name: inside the lowered body it resolves to the
+   module's own definition (the ML rule that a sealed member is checked
+   against the module's realization of T). A member whose type mentions a
+   signature name the module does not define ([defined]) gets no expectation:
+   the missing member is reported on the module, and a free name here would
+   be reported on the signature. Expectations get fresh ids so that checking
+   them never records info under the signature's own type nodes. */
 let ana_value_types =
     (~defined: list(Var.t), ana_items: option(list(Sig.t)))
     : list((Var.t, Typ.t)) =>
   switch (ana_items) {
   | None => []
   | Some(items) =>
-    Sig.members(items)
-    |> Sig.value_names
+    let members = Sig.members(items);
+    /* Names a member's type can only mean through the module's own
+       definitions: abstract type members and value members (paths). A
+       manifest type member has a definition to substitute instead. */
+    let opaque_locals =
+      List.filter_map(
+        (m: Sig.member) =>
+          switch (m) {
+          | TypeAbstract(x)
+          | Val(x, _) => Some(x)
+          | TypeManifest(_) => None
+          },
+        members,
+      );
+    let mentions_undefined = (ty: Typ.t) =>
+      Typ.free_vars(ty)
+      |> List.exists(v =>
+           List.mem(v, opaque_locals) && !List.mem(v, defined)
+         );
+    Sig.value_names(members)
     |> List.filter_map(name =>
-         Typ.sig_project_value(
-           ~keep_local=name => List.mem(name, defined),
-           items,
-           name,
-         )
-         |> Option.map(ty =>
-              (
-                name,
-                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+         switch (Typ.sig_project_value(~keep_local=_ => true, items, name)) {
+         | Some(bare) when mentions_undefined(bare) => None
+         | Some(_) =>
+           Typ.sig_project_value(
+             ~keep_local=n => List.mem(n, defined),
+             items,
+             name,
+           )
+           |> Option.map(ty =>
+                (
+                  name,
+                  Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+                )
               )
-            )
-       )
+         | None => None
+         }
+       );
   };
 
 /* The module path an expression denotes, if any: a module variable

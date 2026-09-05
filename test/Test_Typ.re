@@ -758,6 +758,23 @@ let sig_paths_tests = {
           Typ.normalize(ctx, abstract_sig),
         )
       ),
+      test_case(
+        "sibling paths survive normalize and meet",
+        `Quick,
+        () => {
+          let inner =
+            F.Sig.sig_module(F.MPat.asc(F.MPat.var("Inner"), abstract_sig));
+          let s = sg([inner, sv("y", path("Inner", "T"))]);
+          check(typ, "normalized", s, Typ.normalize(ctx, s));
+          check(opt_typ, "met", Some(s), Typ.meet(ctx, s, s));
+          check(
+            opt_typ,
+            "distinct roots do not meet",
+            None,
+            Typ.meet(ctx, s, sg([inner, sv("y", path("M", "T"))])),
+          );
+        },
+      ),
       test_case("pretty printing", `Quick, () =>
         check(
           string,

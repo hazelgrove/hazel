@@ -871,10 +871,9 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
       List.fold_left(
         ((ctx, acc), item: Sig.t) =>
           switch (Sig.member_of_item(item)) {
-          | Some(Val(_)) => (
-              ctx,
-              [Sig.map_typ(normalize(ctx), item), ...acc],
-            )
+          | Some(Val(_)) =>
+            let item' = Sig.map_typ(normalize(ctx), item);
+            (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
           | Some(TypeManifest(_)) =>
             let item' = Sig.map_typ(normalize(ctx), item);
             (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
@@ -992,7 +991,9 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           | ([x, ...xs], [y, ...ys]) =>
             switch (Sig.member_of_item(x), Sig.member_of_item(y)) {
             | (Some(Val(n1, t1)), Some(Val(n2, t2))) =>
-              n1 == n2 && go(ctx, t1, t2) && go_members(ctx, xs, ys)
+              n1 == n2
+              && go(ctx, t1, t2)
+              && go_members(Ctx.extend_sig_item(ctx, x), xs, ys)
             | (Some(TypeManifest(n1, d1)), Some(TypeManifest(n2, d2))) =>
               n1 == n2
               && go(ctx, d1, d2)
@@ -1208,7 +1209,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
           | Some(Val(x, t1)) =>
             let* t2 = Sig.find_value(my, x);
             let* t = meet(ctx, t1, t2);
-            go_items(ctx, items, [Sig.map_typ(_ => t, item), ...acc]);
+            let item' = Sig.map_typ(_ => t, item);
+            go_items(
+              Ctx.extend_sig_item(ctx, item'),
+              items,
+              [item', ...acc],
+            );
           | Some(TypeManifest(n, d1)) =>
             /* A manifest member is not consistent with an abstract one. */
             let* d2 = Sig.find_type_def(my, n);
@@ -1315,7 +1321,20 @@ and sig_sub = (ctx: Ctx.t, ~ana: list(Sig.t), ~syn: list(Sig.t)): bool => {
     | [Sig.Val(x, ta), ...ms] =>
       switch (syn_value(x)) {
       | Some(ts) =>
-        Option.is_some(ana_meet(ctx, ~ana=ta, ~syn=ts)) && go(ctx, ms)
+        /* Later required members may name x's type members through it
+           (`x.T`); like an abstract T, they mean what the module actually
+           provides for x, so x is bound to the provided type. */
+        let ctx' =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name: x,
+              id: Id.invalid,
+              typ: ts,
+              custom_statics: None,
+            }),
+          );
+        Option.is_some(ana_meet(ctx, ~ana=ta, ~syn=ts)) && go(ctx', ms);
       | None => false
       }
     | [Sig.TypeManifest(t, da), ...ms] =>

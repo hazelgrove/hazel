@@ -1021,6 +1021,66 @@ let test_missing_type_member_mark =
     | _ => false,
   );
 
+/* Later signature items may reach an earlier module member's type members
+   through it. */
+let test_sig_member_path_through_sibling_module =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling module member's type",
+    {|type S = { module Inner : { type T }; let y : Inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_sig_member_path_through_sibling_value =
+  fully_consistent_typecheck(
+    "A signature member may be typed by a sibling value member's type",
+    {|type S = { let inner : { type T = Int }; let y : inner.T } in 1|},
+    Some(int()),
+  );
+
+let test_module_matches_sibling_path_member =
+  fully_consistent_typecheck(
+    "A module matches a signature whose member is typed through a sibling",
+    {|module M : { module Inner : { type T; let x : T }; let y : Inner.T } = { module Inner = { type T = Int; let x = 1 }; let y = Inner.x } in 1|},
+    Some(int()),
+  );
+
+/* Every mark in the program satisfies [pred], and there is at least one. */
+let only_marks_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let marks =
+        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        name,
+        true,
+        marks != [] && List.for_all(pred, marks),
+      );
+    },
+  );
+
+let is_missing_members: Language.Mark.t => bool =
+  fun
+  | ModuleMissingMembers(_) => true
+  | _ => false;
+
+/* The signature is well-formed: the missing member is reported on the
+   module only, not as a free type variable on the signature's `T`. */
+let test_missing_type_member_only_error =
+  only_marks_test(
+    "A missing abstract member is the module's only error",
+    {|module M : { type T; let x : T } = { let x = 1 } in M|},
+    is_missing_members,
+  );
+
+let test_missing_sibling_module_only_error =
+  only_marks_test(
+    "A missing sub-module that a member's type goes through is the only error",
+    {|module M : { module Inner : { type T }; let y : Inner.T } = { let y = 1 } in M|},
+    is_missing_members,
+  );
+
 let test_error_type_member_kind_mismatch =
   inconsistent_typecheck(
     "A value member does not satisfy a type member of the same name",
@@ -1399,6 +1459,11 @@ let tests = (
     test_manifest_member_stays_transparent,
     test_unsealed_module_stays_transparent,
     test_missing_type_member_mark,
+    test_missing_type_member_only_error,
+    test_missing_sibling_module_only_error,
+    test_sig_member_path_through_sibling_module,
+    test_sig_member_path_through_sibling_value,
+    test_module_matches_sibling_path_member,
     test_error_type_member_kind_mismatch,
     test_error_forward_reference_in_sig,
     test_sealing_through_abstract_path,
