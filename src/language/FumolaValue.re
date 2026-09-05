@@ -234,6 +234,35 @@ let rec typ_of_json =
   };
 };
 
+/* Whether the type expected here is a symbol type.
+
+   Asked of the expected type alone, structurally -- not through
+   resolve_ctr, which falls back to a context lookup. Since Symbol is in the
+   prelude its constructors are always in scope, so a context lookup answers
+   yes everywhere and every symbol would arrive as structure, including where
+   a String was asked for. */
+let wants_symbol = (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): bool => {
+  let declares_name = (ty: TermBase.Typ.t) =>
+    switch (ty.term) {
+    | Sum(ctrs) =>
+      List.exists(
+        (ctr: ConstructorMap.variant(TermBase.Typ.t)) =>
+          switch (ctr) {
+          | Variant(name, _, _) => name == "Name"
+          | BadEntry(_) => false
+          },
+        ctrs,
+      )
+    | _ => false
+    };
+  let ty = tools.normalize(ana);
+  switch (ty.term) {
+  /* A recursive alias, as Symbol is, normalizes to Rec(name, body). */
+  | Rec(_, body) => declares_name(tools.normalize(body))
+  | _ => declares_name(ty)
+  };
+};
+
 /* A Fumola symbol as structured Hazel data, for where a Symbol is expected.
 
    Built with the same constructor resolution as any other variant, so the
@@ -420,14 +449,14 @@ and exp_of_tagged =
      String from a livelit -- a Hazel string literal cannot contain a quote,
      so neither can the program that would otherwise build one. */
   | ("Symbol", symbol) =>
-    switch (tools.resolve_ctr(~ana, "Name")) {
-    | Some(_) => symbol_exp(~tools, ~ana, symbol)
-    | None =>
-      switch (symbol_text(symbol)) {
-      | Error(e) => Error(e)
-      | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
-      }
-    }
+    wants_symbol(~tools, ana)
+      ? symbol_exp(~tools, ~ana, symbol)
+      : (
+        switch (symbol_text(symbol)) {
+        | Error(e) => Error(e)
+        | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
+        }
+      )
   | ("Tuple", `List(items)) =>
     let anas = element_anas(~tools, ana, List.length(items));
     let translated =

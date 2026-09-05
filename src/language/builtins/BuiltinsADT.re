@@ -66,13 +66,22 @@ module Symbol = {
      fixed point on its own name. */
   let self: Typ.t = Typ.fresh(Var("Symbol"));
 
+  /* Wrapped in Rec, the way statics wraps a user-written recursive alias:
+     `type X = ... X ...` becomes Rec(X, ...) precisely so that unfolding it
+     terminates. Registering the bare sum instead makes Typ.normalize unfold
+     Var("Symbol") forever -- "normalize exceeded 1000 recursive calls". */
   let t: Typ.t =
-    sum_type([
-      ("Num", Some(Typ.fresh(Atom(Int)))),
-      ("Name", Some(Typ.fresh(Atom(String)))),
-      ("Call", Some(Typ.fresh(Prod([self, self])))),
-      ("Dot", Some(Typ.fresh(Prod([self, self])))),
-    ]);
+    Typ.fresh(
+      Rec(
+        IdTagged.FreshGrammar.TPat.var("Symbol"),
+        sum_type([
+          ("Num", Some(Typ.fresh(Atom(Int)))),
+          ("Name", Some(Typ.fresh(Atom(String)))),
+          ("Call", Some(Typ.fresh(Prod([self, self])))),
+          ("Dot", Some(Typ.fresh(Prod([self, self])))),
+        ]),
+      ),
+    );
 };
 
 module Space = {
