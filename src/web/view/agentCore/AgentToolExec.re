@@ -3,6 +3,23 @@ open Haz3lcore;
 open AgentResult;
 open AgentModel;
 
+/* an exception escaping a tool is a bug in OUR code: with the js-error
+   build its JS stack names the OCaml function, so print it */
+let report_tool_exn = (tool: string, exn: exn): unit =>
+  Js_of_ocaml.(
+    switch (Js_error.of_exn(exn)) {
+    | Some(e) =>
+      Firebug.console##error_2(
+        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string(Option.value(~default="", Js_error.stack(e))),
+      )
+    | None =>
+      Firebug.console##error(
+        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+      )
+    }
+  );
+
 module Utils = AgentUtils;
 module ToolCallHandler = AgentToolCallHandler;
 
@@ -137,10 +154,13 @@ let execute_one_tool_call =
           chat_id,
         )
       ) {
-      | Failure(msg) => Error(Failure.Info(msg))
+      | Failure(msg) as exn =>
+        report_tool_exn(tool_call.name, exn);
+        Error(Failure.Info(msg));
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
-        Error(Failure.Info(Printexc.to_string(exn)))
+        report_tool_exn(tool_call.name, exn);
+        Error(Failure.Info(Printexc.to_string(exn)));
       }
     ) {
     | Ok((model, editor)) =>

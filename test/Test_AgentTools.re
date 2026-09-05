@@ -2595,6 +2595,125 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
+      "insert_after a module member whose body is a case, with a case",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert two case members after a case member",
+      `Quick,
+      () => {
+        let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
+        let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "constructor patterns over a module ADT in a nested module",
+      `Quick,
+      () => {
+        let prog = "module Outer = {\n  module M = {\n    type T =\n      + A(Int)\n      + B;\n    \n    let a(i: T): Int =\n      case i\n      | A(n) => n\n      | B => 0\n      end\n  };\n  \n  let z = 1\n} in\n1";
+        let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
+        switch (
+          try(run_agent_action(prog, Insert(After, "Outer/M/a", code))) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a module member with TWO case members (dungeon run: Failure nth / Exp patterns)",
+      `Quick,
+      () => {
+        let prog = {js|module Creatures = {
+  module Items = {
+    type Item =
+      + Potion(Int)
+      + Bomb(Int)
+      + Torch;
+
+    let name(i: Item): String =
+      case i
+      | Potion(n) => "potion(" ++ Show.int(n) ++ ")"
+      | Bomb(n) => "bomb(" ++ Show.int(n) ++ ")"
+      | Torch => "torch"
+      end
+  };
+  let z = 1
+} in
+1|js};
+        let code = {js|let heal_amount(i: Item): Int =
+  case i
+  | Potion(n) => n
+  | Bomb(_) => 0
+  | Torch => 0
+  end;
+let blast_amount(i: Item): Int =
+  case i
+  | Potion(_) => 0
+  | Bomb(n) => n
+  | Torch => 0
+  end|js};
+        switch (
+          try(
+            run_agent_action(
+              prog,
+              Insert(After, "Creatures/Items/name", code),
+            )
+          ) {
+          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          }
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail("refused: " ++ Action.Failure.show(err))
+        };
+      },
+    ),
+    test_case(
+      "insert_after a nested module member does not raise (dungeon run: Failure nth)",
+      `Quick,
+      () => {
+        let code = "module Creatures = {\n  module Items = {\n    let name = fun i -> \"sword\";\n    let has = fun (i, c) -> true\n  };\n  let label = fun c -> \"x\"\n} in\n1";
+        switch (
+          run_agent_action(
+            code,
+            Insert(After, "Creatures/Items/name", "let weight = fun i -> 3;"),
+          )
+        ) {
+        | Ok(_) => ()
+        | Error(err) =>
+          Alcotest.fail(
+            "insert_after member failed: " ++ Action.Failure.show(err),
+          )
+        };
+      },
+    ),
+    test_case(
       "update_binding_clause then insert_after new binding path resolves (regression: agent bug 2)",
       `Quick,
       () => {
