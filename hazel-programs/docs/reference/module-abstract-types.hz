@@ -1,0 +1,79 @@
+# MODULE ABSTRACT TYPES #
+
+# Continues the Module Sealing slide: a signature may declare `type T` #
+# without a definition, and functions take and return such modules. #
+
+
+# F. ABSTRACT TYPE MEMBERS #
+
+# A signature may declare `type T` without a definition. A module #
+# sealed by it must define T, but outside the module T is known #
+# only as the path M.T: its representation is hidden. #
+
+# 33. Sealing hides the representation #
+module Counter : {
+  type T;
+  let zero : T;
+  let incr : T -> T;
+  let get : T -> Int
+} = {
+  type T = Int;
+  let zero = 0;
+  let incr = fun c -> c + 1;
+  let get = fun c -> c
+} in
+let two = Counter.get(Counter.incr(Counter.incr(Counter.zero))) in
+
+# 34. Error: Counter.zero is a Counter.T, not an Int #
+let leak = Counter.zero + 1 in
+
+# 35. The path type names the abstract type #
+let c : Counter.T = Counter.incr(Counter.zero) in
+
+# 36. Aliasing a module keeps its abstract type #
+module C2 = Counter in
+let c2 : C2.T = c in
+
+# 36a. Error: the signature alias names no module, so it cannot name T #
+type CounterSig = {type T; let zero : T} in
+let none : CounterSig.T = Counter.zero in
+
+# 37. Error: separately sealed modules have distinct types #
+module Other : {type T; let zero : T} = {type T = Int; let zero = 0} in
+let mixed : Counter.T = Other.zero in
+
+# 38. A manifest member stays transparent #
+module Open : {type T = Int; let x : T} = {type T = Int; let x = 1} in
+let visible = Open.x + 1 in
+
+# 39. Error: the module must define the abstract type #
+module Missing : {type T; let x : T} = {let x = 1} in
+
+# G. MODULE-TYPED FUNCTIONS #
+
+# Functions take and return modules. Inside a body a parameter's #
+# abstract types are the paths c.T; they cannot leave the body. #
+
+# 40. Using a module parameter through its interface #
+let total = fun (c : {type T; let zero : T; let incr : T -> T; let get : T -> Int}) ->
+  c.get(c.incr(c.zero)) in
+let n = total(Counter) in
+
+# 41. Returning the parameter: the result has type S again #
+let same = fun (c : {type T; let zero : T}) -> c in
+module C3 = same(Counter) in
+let z3 : C3.T = C3.zero in
+
+# 42. A member of abstract type escaping its function is unknown #
+let leak = fun (c : {type T; let zero : T}) -> c.zero in
+let escaped = leak(Counter) in
+
+# 43. Generative: each call yields a module with a fresh type #
+let make = fun () -> ({type U = Int; let y = 1} : {type U; let y : U}) in
+module A = make() in
+module B = make() in
+let ya : A.U = A.y in
+
+# 44. Error: A.U and B.U are distinct #
+let mixed : A.U = B.y in
+¿
