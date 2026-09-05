@@ -84,11 +84,21 @@ let pos_of = (r: result, id: string): option(pos) =>
 
 let layout = (spec: Spec.t): result => {
   open Spec;
+  let t_gl = PerfTimer.now();
   let node_ids = List.map((n: node) => n.id, spec.nodes);
-  let is_node = (id: string) => List.mem(id, node_ids);
+  let node_set: Hashtbl.t(string, unit) = Hashtbl.create(64);
+  List.iter(id => Hashtbl.replace(node_set, id, ()), node_ids);
+  let is_node = (id: string) => Hashtbl.mem(node_set, id);
+  /* per-node lookups are asked thousands of times per layout (every
+     relaxation pass, every column height): tables, not list scans */
+  let radius_tbl: Hashtbl.t(string, float) = Hashtbl.create(64);
+  List.iter(
+    (n: node) => Hashtbl.replace(radius_tbl, n.id, n.radius),
+    spec.nodes,
+  );
   let radius = (id: string): float =>
-    switch (List.find_opt((n: node) => n.id == id, spec.nodes)) {
-    | Some(n) => n.radius
+    switch (Hashtbl.find_opt(radius_tbl, id)) {
+    | Some(r) => r
     | None => 10.
     };
 
@@ -185,6 +195,8 @@ let layout = (spec: Spec.t): result => {
   };
   let n_ranks = max(1, List.length(used));
 
+  PerfTimer.record("gl/rank", PerfTimer.now() -. t_gl);
+  let t_gl = PerfTimer.now();
   /* ---- 2. order: barycenter sweeps ----
      Order state: per rank, node ids in display order. Neighbors from ALL
      edges (ranked or not) between adjacent-or-any ranks. */
@@ -208,34 +220,50 @@ let layout = (spec: Spec.t): result => {
       | None => None
       };
     };
-  let neighbors = (id: string): list(string) =>
-    List.filter_map(
-      (e: edge) => {
-        let other =
-          if (e.src == id) {
-            resolve_host(e.dst);
-          } else if (e.dst == id) {
-            resolve_host(e.src);
-          } else {
-            None;
-          };
-        switch (other) {
-        | Some(o) when o != id => Some(o)
-        | _ => None
+  /* adjacency once: the sweeps ask for every node's neighbors on every
+     pass, and an edge scan per ask was the layout's whole cost at 100
+     nodes (~30 ms a layout, ~25 layouts a tool call) */
+  let adjacency: Hashtbl.t(string, list(string)) = Hashtbl.create(64);
+  let add_neighbor = (id: string, other: option(string)) =>
+    switch (other) {
+    | Some(o) when o != id =>
+      let cur =
+        switch (Hashtbl.find_opt(adjacency, id)) {
+        | Some(l) => l
+        | None => []
         };
-      },
-      spec.edges,
-    );
-  let order_index = (id: string): option(float) => {
-    let col = (columns[rank(id)])^;
-    let rec find = (i, ls) =>
-      switch (ls) {
-      | [] => None
-      | [x, ..._] when x == id => Some(float_of_int(i))
-      | [_, ...rest] => find(i + 1, rest)
+      Hashtbl.replace(adjacency, id, [o, ...cur]);
+    | _ => ()
+    };
+  List.iter(
+    (e: edge) => {
+      let src = resolve_host(e.src)
+      and dst = resolve_host(e.dst);
+      switch (src) {
+      | Some(s) => add_neighbor(s, dst)
+      | None => ()
       };
-    find(0, col);
+      switch (dst) {
+      | Some(d) => add_neighbor(d, src)
+      | None => ()
+      };
+    },
+    spec.edges,
+  );
+  let neighbors = (id: string): list(string) =>
+    switch (Hashtbl.find_opt(adjacency, id)) {
+    | Some(l) => List.rev(l)
+    | None => []
+    };
+  /* display position within a column, refreshed after each column pass */
+  let positions: Hashtbl.t(string, int) = Hashtbl.create(64);
+  let index_column = (l: int): unit =>
+    List.iteri((i, id) => Hashtbl.replace(positions, id, i), (columns[l])^);
+  for (l in 0 to n_ranks - 1) {
+    index_column(l);
   };
+  let order_index = (id: string): option(float) =>
+    Option.map(float_of_int, Hashtbl.find_opt(positions, id));
   let sweep = (~from_left: bool): unit => {
     let ranks_seq =
       from_left
@@ -286,6 +314,7 @@ let layout = (spec: Spec.t): result => {
           };
         };
         columns[l] := Array.to_list(arr) |> List.map(((_, _, id)) => id);
+        index_column(l);
       },
       ranks_seq,
     );
@@ -296,7 +325,7 @@ let layout = (spec: Spec.t): result => {
   };
 
   /* ---- attachment extents: reserve room around hosts ---- */
-  let att_extent = (id: string, side: side): float => {
+  let att_extent_uncached = (id: string, side: side): float => {
     let matches = (p: side): bool =>
       switch (side, p) {
       | (Above, Above)
@@ -310,12 +339,34 @@ let layout = (spec: Spec.t): result => {
          0.,
        );
   };
-  let node_extent = (id: string, side: side): float =>
+  let node_extent_uncached = (id: string, side: side): float =>
     switch (List.find_opt((n: node) => n.id == id, spec.nodes)) {
     | Some(n) => side == Above ? n.extent_above : n.extent_below
     | None => 0.
     };
+  let att_extent_memo: Hashtbl.t((string, side), float) =
+    Hashtbl.create(64);
+  let att_extent = (id: string, side: side): float =>
+    switch (Hashtbl.find_opt(att_extent_memo, (id, side))) {
+    | Some(v) => v
+    | None =>
+      let v = att_extent_uncached(id, side);
+      Hashtbl.replace(att_extent_memo, (id, side), v);
+      v;
+    };
+  let node_extent_memo: Hashtbl.t((string, side), float) =
+    Hashtbl.create(64);
+  let node_extent = (id: string, side: side): float =>
+    switch (Hashtbl.find_opt(node_extent_memo, (id, side))) {
+    | Some(v) => v
+    | None =>
+      let v = node_extent_uncached(id, side);
+      Hashtbl.replace(node_extent_memo, (id, side), v);
+      v;
+    };
 
+  PerfTimer.record("gl/order", PerfTimer.now() -. t_gl);
+  let t_gl = PerfTimer.now();
   /* ---- 3. coords ---- */
   /* y_stretch spreads rows apart (gap scaling) rather than scaling
      positions: a flat band of rows would otherwise translate instead
@@ -509,6 +560,8 @@ let layout = (spec: Spec.t): result => {
     );
   };
 
+  PerfTimer.record("gl/coords", PerfTimer.now() -. t_gl);
+  let t_gl = PerfTimer.now();
   /* ---- 4. attachments: collision-aware ring search ---- */
   let collides = (p: pos, r: float): bool =>
     Hashtbl.fold(
@@ -649,6 +702,7 @@ let layout = (spec: Spec.t): result => {
     unresolved,
   );
 
+  PerfTimer.record("gl/attach", PerfTimer.now() -. t_gl);
   /* ---- result (input order for determinism) ---- */
   let all_ids =
     node_ids @ List.map((a: attachment) => a.id, spec.attachments);

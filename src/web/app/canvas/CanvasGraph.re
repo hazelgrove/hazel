@@ -663,7 +663,7 @@ let uniquify_keys = (nodes: list(tynode)): list(tynode) => {
   );
 };
 
-let extract =
+let extract_impl =
     (~test_results: option(TestResults.t)=?, statics: CachedStatics.t): t => {
   let info_map = statics.info_map;
   let items = spine(statics.term);
@@ -1306,3 +1306,9 @@ let extract =
     last_def,
   };
 };
+
+let extract =
+    (~test_results: option(TestResults.t)=?, statics: CachedStatics.t): t =>
+  Util.PerfTimer.time("canvas-extract", () =>
+    extract_impl(~test_results?, statics)
+  );

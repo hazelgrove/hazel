@@ -287,12 +287,14 @@ let log = (msg: string): unit => {
 heartbeat :=
   (
     () => {
+      let phases = Util.PerfTimer.take_summary();
       log(
         Printf.sprintf(
-          "perf: %d long task(s), max %.0fms, total %.1fs (last 5s)",
+          "perf: %d long task(s), max %.0fms, total %.1fs (last 5s)%s",
           lt_count^,
           lt_max^,
           lt_total^ /. 1000.,
+          phases == "" ? "" : " — " ++ phases,
         ),
       );
       lt_count := 0;

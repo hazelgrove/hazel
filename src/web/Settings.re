@@ -233,6 +233,24 @@ module Update = {
     | ShowIncrementalDeco
     | SimpleIndication;
 
+  let is_canvas_geometry = (action: t): bool =>
+    switch (action) {
+    | CanvasTick
+    | SetCanvasZoom(_)
+    | SetCanvasNodeOffset(_)
+    | SetCanvasNodePin(_)
+    | SetCanvasFrame(_)
+    | ClearCanvasNodeOffsets(_)
+    | SetCanvasPaneWidth(_)
+    | ToggleCanvasSplit
+    | ToggleCanvasPace
+    | ToggleCanvasFollow
+    /* sidebar panel state (which panel, canvas focus, collapsed sections)
+       is UI state too */
+    | Sidebar(_) => true
+    | _ => false
+    };
+
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
@@ -715,6 +733,17 @@ module Update = {
     )
     |> Updated.return(
          ~scroll_active=false,
+         /* canvas geometry and its render tick change nothing the program
+            means: no statics/eval recompute for them (each CanvasTick was a
+            full recompute — dozens per agent tool call); pins, offsets,
+            frames and zoom still persist */
+         ~is_edit=!is_canvas_geometry(action),
+         ~save=
+           switch (action) {
+           | CanvasTick => false
+           | _ => true
+           },
+         ~recalculate=!is_canvas_geometry(action),
          ~historic=
            switch (action) {
            | Evaluation(ShowSettings) => false

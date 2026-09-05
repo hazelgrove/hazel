@@ -485,9 +485,12 @@ let extract_cached =
         when
           st === statics
           && (
+            /* test results are rebuilt per render: compare by value (a
+               small map) — identity missed every time, and a re-extract
+               made a new graph, which missed the layout memo in turn */
             switch (tr, test_results) {
             | (None, None) => true
-            | (Some(a), Some(b)) => a === b
+            | (Some(a), Some(b)) => a === b || a == b
             | _ => false
             }
           ) =>

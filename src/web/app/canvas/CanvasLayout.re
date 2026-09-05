@@ -141,6 +141,7 @@ let layout_impl =
       g: CanvasGraph.t,
     )
     : t => {
+  let t_pre = Util.PerfTimer.now();
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -428,6 +429,8 @@ let layout_impl =
           ? Some(n.key) : None,
       grid_nodes,
     );
+  Util.PerfTimer.record("layout/pre", Util.PerfTimer.now() -. t_pre);
+  let t_solve = Util.PerfTimer.now();
   let res =
     Util.GraphLayout.layout({
       nodes:
@@ -498,6 +501,8 @@ let layout_impl =
       );
 
   /* ---- user drag deltas and click-placement pins ---- */
+  Util.PerfTimer.record("layout/solve", Util.PerfTimer.now() -. t_solve);
+  let t_nodes = Util.PerfTimer.now();
   let node_layouts =
     List.map(
       (nl: node_layout) =>
@@ -617,6 +622,7 @@ let layout_impl =
       docked,
     );
   let orbit_seen: Hashtbl.t(string, int) = Hashtbl.create(4);
+  Util.PerfTimer.record("layout/nodes", Util.PerfTimer.now() -. t_nodes);
   let edge_layouts =
     List.map(
       (e: CanvasGraph.edge) => {
@@ -1331,6 +1337,22 @@ let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
 /* ---- instrumentation: how often and how long a render lays out ---- */
 let layout_calls: ref(int) = ref(0);
 let layout_ms: ref(float) = ref(0.);
+/* Memo: a render lays the same graph out several times (fit check, frame
+   viability, the view), and a score's renders repeat with nothing changed —
+   ~100 layouts per tool call at 120 nodes (17 ms each) before this. Keyed
+   on the graph's identity (extract is memoized per statics, so it is
+   stable) and the parameters by value; the last few results are kept. */
+type layout_key = {
+  k_graph: CanvasGraph.t,
+  k_x: float,
+  k_y: float,
+  k_center: option(float),
+  k_origin: option(pos),
+  k_offsets: list((string, (float, float))),
+  k_pins: list((string, (float, float))),
+};
+let layout_memo: ref(list((layout_key, t))) = ref([]);
+let layout_memo_hits: ref(int) = ref(0);
 let layout =
     (
       ~x_scale=1.,
@@ -1342,20 +1364,46 @@ let layout =
       g: CanvasGraph.t,
     )
     : t => {
-  let now = () =>
-    Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
-  let t0 = now();
-  let r =
-    layout_impl(
-      ~x_scale,
-      ~y_scale,
-      ~center_within,
-      ~origin_override,
-      ~offsets,
-      ~pins,
-      g,
-    );
-  incr(layout_calls);
-  layout_ms := layout_ms^ +. (now() -. t0);
-  r;
+  let key = {
+    k_graph: g,
+    k_x: x_scale,
+    k_y: y_scale,
+    k_center: center_within,
+    k_origin: origin_override,
+    k_offsets: offsets,
+    k_pins: pins,
+  };
+  let same = (k: layout_key) =>
+    k.k_graph === g
+    && k.k_x == x_scale
+    && k.k_y == y_scale
+    && k.k_center == center_within
+    && k.k_origin == origin_override
+    && k.k_offsets == offsets
+    && k.k_pins == pins;
+  switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
+  | Some((_, r)) =>
+    incr(layout_memo_hits);
+    r;
+  | None =>
+    let now = () =>
+      Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now();
+    let t0 = now();
+    let r =
+      layout_impl(
+        ~x_scale,
+        ~y_scale,
+        ~center_within,
+        ~origin_override,
+        ~offsets,
+        ~pins,
+        g,
+      );
+    incr(layout_calls);
+    layout_ms := layout_ms^ +. (now() -. t0);
+    Util.PerfTimer.record("canvas-layout", now() -. t0);
+    layout_memo :=
+      [(key, r), ...List.filteri((i, _) => i < 5, layout_memo^)];
+    r;
+  };
 };
