@@ -2263,10 +2263,13 @@ let view_impl =
   /* the thought bubble shows while the model streams; its text is
      driven outside the vdom (CanvasBubble) from the full streamed text.
      Actions are called out by the speech bubble, fed by the player. */
-  CanvasBubble.source := reasoning_tail;
+  if (! CanvasBubble.force_cloud^) {
+    CanvasBubble.source := reasoning_tail;
+  };
   CanvasBubble.ensure_loop();
   let avatar_bubble =
-    agent_busy
+    CanvasBubble.force_cloud^
+    || agent_busy
     && globals.settings.canvas_pace
     && String.length(reasoning_tail) > 0
       ? Some("") : None;

@@ -124,6 +124,7 @@ let travel_len: ref(float) = ref(0.);
 let set_travel_len = (len: float): unit => travel_len := len;
 /* the beam fades in and out over a few frames (the demo's beamAlpha) */
 let beam_alpha: ref(float) = ref(0.);
+let last_thinking: ref(bool) = ref(false);
 
 /* ---- the rig: three vertices on springs, driven every frame ----
    The mockup's body (plans/agent-canvas-mockups/avatar-concepts-4.html):
@@ -312,6 +313,7 @@ let step = (b, now_ms: float): unit => {
   let pen = mood == "draw" || mood == "erase";
   let traveling = moving || pen && rig.speed > 8.;
   let thinking = thinking0 && !score_on && !traveling && !pen;
+  last_thinking := thinking;
   let editing =
     (mood == "edit" || anchor_has("avatar-edit") && score_on)
     && !moving
@@ -604,3 +606,28 @@ let rig_view = (): Node.t => {
     ],
   );
 };
+
+/* the circle that contains everything the avatar draws, in BODY-LOCAL px
+   (the rig's coordinates; for the glyph, the chip's box): bubbles anchor
+   on it, never inside it */
+let bounding_circle = (): (float, float, float) =>
+  if (is_rig()) {
+    let n = float_of_int(Array.length(rig.v));
+    let cx = Array.fold_left((a, v) => a +. v.x, 0., rig.v) /. n
+    and cy = Array.fold_left((a, v) => a +. v.y, 0., rig.v) /. n;
+    let reach =
+      Array.fold_left(
+        (m, v) => max(m, Float.hypot(v.x -. cx, v.y -. cy)),
+        0.,
+        rig.v,
+      );
+    (cx, cy, reach +. (last_thinking^ ? 6.7 : 3.6) +. 2.);
+  } else {
+    switch (body()) {
+    | Some(b) =>
+      let w: float = Js.Unsafe.get(b, "offsetWidth")
+      and h: float = Js.Unsafe.get(b, "offsetHeight");
+      (w /. 2., h /. 2., Float.hypot(w, h) /. 2. +. 1.);
+    | None => (0., 0., 12.)
+    };
+  };

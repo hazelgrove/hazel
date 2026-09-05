@@ -1374,24 +1374,37 @@ let view =
                same driver — both render EMPTY here so a re-render never
                fights the driver. The speech bubble hides while the body
                travels (CSS, from its mood class); the cloud rides along. */
+            ignore(flips);
+            /* the tails: the speech tail and the cloud's puffs, drawn by
+               CanvasBubble from the avatar's bounding circle */
+            let tails =
+              svg(
+                "svg",
+                [
+                  clss(["bubble-tails"]),
+                  Attr.create("viewBox", "-300 -300 600 600"),
+                  Attr.create("width", "600"),
+                  Attr.create("height", "600"),
+                ],
+                [
+                  svg("path", [clss(["say-tail-path"])], []),
+                  svg("circle", [clss(["cloud-puff", "cloud-puff-1"])], []),
+                  svg("circle", [clss(["cloud-puff", "cloud-puff-2"])], []),
+                ],
+              );
             let say =
               div(
                 ~key="avatar-say",
-                ~attrs=[clss(["canvas-avatar-say"] @ flips)],
-                [
-                  div(~attrs=[clss(["say-text"])], []),
-                  div(~attrs=[clss(["say-tail"])], []),
-                ],
+                ~attrs=[clss(["canvas-avatar-say"])],
+                [div(~attrs=[clss(["say-text"])], [])],
               );
             let cloud =
               switch (avatar_bubble) {
               | Some(_) => [
                   div(
                     ~key="avatar-bubble",
-                    ~attrs=[clss(["canvas-avatar-bubble"] @ flips)],
+                    ~attrs=[clss(["canvas-avatar-bubble"])],
                     [
-                      div(~attrs=[clss(["bubble-trail", "t1"])], []),
-                      div(~attrs=[clss(["bubble-trail", "t2"])], []),
                       div(
                         ~attrs=[clss(["bubble-cloud"])],
                         [
@@ -1399,7 +1412,7 @@ let view =
                             "svg",
                             [
                               clss(["bubble-shape"]),
-                              Attr.create("viewBox", "0 0 160 60"),
+                              Attr.create("viewBox", "0 0 170 64"),
                               Attr.create("preserveAspectRatio", "none"),
                             ],
                             [
@@ -1408,7 +1421,7 @@ let view =
                                 [
                                   Attr.create(
                                     "d",
-                                    "M 26 52 C 10 54 4 40 14 32 C 4 22 16 8 30 14 C 34 2 56 0 64 10 C 72 0 96 0 102 12 C 116 4 134 12 130 26 C 146 26 150 44 136 50 C 138 60 118 62 110 56 C 100 62 78 62 70 56 C 60 62 38 62 32 54 Z",
+                                    "M 27 55 C 10 57 4 42 15 34 C 4 23 17 8 32 15 C 36 2 60 0 68 11 C 77 0 102 0 108 13 C 123 4 142 13 138 28 C 155 28 160 47 145 53 C 147 64 126 66 117 60 C 106 66 83 66 75 60 C 64 66 40 66 34 57 Z",
                                   ),
                                 ],
                                 [],
@@ -1423,7 +1436,7 @@ let view =
                 ]
               | None => []
               };
-            [avatar_view(~bubbles=[say, ...cloud], a)];
+            [avatar_view(~bubbles=[tails, say, ...cloud], a)];
           | None => []
           }
         ),

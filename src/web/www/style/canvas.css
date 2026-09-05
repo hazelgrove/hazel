@@ -1191,9 +1191,7 @@
    so marquee motion is paced by the model's actual thinking speed —
    flavor, not reading material. */
 .canvas-avatar-bubble {
-  position: absolute;
-  left: calc(100% + 9px);
-  bottom: calc(100% + 3px);
+  position: absolute; /* left/top written per frame by CanvasBubble */
   z-index: 5;
   pointer-events: none;
   font-weight: normal;
@@ -1205,8 +1203,8 @@
    CanvasBubble on a quick cadence (3 lines of ~28 chars) */
 .bubble-cloud {
   position: relative;
-  width: 150px;
-  height: 54px;
+  width: 170px;
+  height: 64px;
   color: #3a2a12;
   font-size: 9px;
   line-height: 1.3;
@@ -1228,32 +1226,55 @@
 }
 .bubble-cloud .bubble-text {
   position: absolute;
-  left: 17px;
-  right: 15px;
-  top: 10px;
-  bottom: 9px;
+  left: 28px;
+  right: 36px;
+  top: 15px;
+  height: 34px; /* exactly three lines: 9px × 1.25 × 3 */
+  line-height: 1.25;
   overflow: hidden;
   word-break: break-all;
 }
+/* each replacement fades in; no motion (a lift read as bouncing) */
 .bubble-cloud .bubble-text.flip {
-  animation: bubble-flip 0.29s ease-out;
+  animation: bubble-flip 0.24s ease-out;
 }
 @keyframes bubble-flip {
   from {
-    opacity: 0.5;
-    translate: 0 2px;
+    opacity: 0.45;
   }
   to {
     opacity: 1;
-    translate: 0 0;
   }
+}
+/* the tails layer: the speech tail and the cloud's puffs, body-local */
+.canvas-avatar .avatar-body > .bubble-tails {
+  position: absolute;
+  left: -300px;
+  top: -300px;
+  width: 600px;
+  height: 600px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 7;
+}
+.bubble-tails .say-tail-path {
+  fill: #f8dc7a;
+  stroke: #3a2a12;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  transition: opacity 140ms;
+}
+/* puffs are paler than the rig's dots so they read as the cloud's
+   trail, not as extra vertices */
+.bubble-tails .cloud-puff {
+  fill: #fbeeb8;
+  stroke: #7a5a22;
+  stroke-width: 1;
 }
 
 /* the speech bubble: the landed action, at the thought bubble's anchor */
 .canvas-avatar-say {
-  position: absolute;
-  left: calc(100% + 9px);
-  bottom: calc(100% + 3px);
+  position: absolute; /* left/top written per frame by CanvasBubble */
   z-index: 6;
   pointer-events: none;
   font-weight: normal;
@@ -1273,50 +1294,7 @@
 .canvas-avatar-say.say-on {
   opacity: 1;
 }
-.canvas-avatar-say .say-tail {
-  position: absolute;
-  left: 9px;
-  bottom: -5.5px;
-  width: 8px;
-  height: 8px;
-  background: #f8dc7a;
-  border-right: 1.3px solid #3a2a12;
-  border-bottom: 1.3px solid #3a2a12;
-  transform: rotate(45deg) skew(12deg, 12deg);
-}
-.canvas-avatar-say.b-left {
-  left: auto;
-  right: calc(100% + 9px);
-}
-.canvas-avatar-say.b-left .say-tail {
-  left: auto;
-  right: 9px;
-}
-.canvas-avatar-say.b-below {
-  bottom: auto;
-  top: calc(100% + 3px);
-}
-.canvas-avatar-say.b-below .say-tail {
-  bottom: auto;
-  top: -5.5px;
-  transform: rotate(225deg) skew(12deg, 12deg);
-}
 /* the rig body has no box of its own: offsets clear its vertices */
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say,
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble {
-  left: 18px;
-  bottom: 16px;
-}
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say.b-left,
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble.b-left {
-  left: auto;
-  right: 18px;
-}
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-say.b-below,
-.canvas-avatar.avatar-rig .avatar-body > .canvas-avatar-bubble.b-below {
-  bottom: auto;
-  top: 16px;
-}
 /* while speaking, the thought cloud yields the anchor */
 .canvas-avatar-say.say-on ~ .canvas-avatar-bubble {
   opacity: 0;
@@ -1324,30 +1302,14 @@
 /* the speech bubble is about the landed act: it hides while the body
    travels; the thought cloud rides along (it is a child of the body) */
 .avatar-body.mood-travel > .canvas-avatar-say,
-.avatar-body.mood-arrive > .canvas-avatar-say {
-  opacity: 0;
+.avatar-body.mood-arrive > .canvas-avatar-say,
+.avatar-body.mood-travel > .bubble-tails .say-tail-path,
+.avatar-body.mood-arrive > .bubble-tails .say-tail-path {
+  opacity: 0 !important;
 }
 
-.canvas-avatar-bubble .bubble-trail {
-  position: absolute;
-  background: #f8dc7a;
-  border: 1.2px solid #3a2a12;
-  border-radius: 50%;
-}
 
-.canvas-avatar-bubble .bubble-trail.t1 {
-  width: 7px;
-  height: 7px;
-  left: -4px;
-  bottom: -6px;
-}
 
-.canvas-avatar-bubble .bubble-trail.t2 {
-  width: 4.5px;
-  height: 4.5px;
-  left: -11px;
-  bottom: -13px;
-}
 
 /* the action toast: dark chip in the avatar's palette, briefly
    displacing the thought bubble when a tool call's beat lands */
@@ -1383,34 +1345,10 @@
 
 /* orientation flips: near the right edge the bubble sits LEFT of the
    icon (trail on its right); near the top it sits BELOW (trail on top) */
-.canvas-avatar-bubble.b-left {
-  left: auto;
-  right: calc(100% + 9px);
-}
-.canvas-avatar-bubble.b-below {
-  bottom: auto;
-  top: calc(100% + 3px);
-}
 
-.canvas-avatar-bubble.b-left .bubble-trail.t1 {
-  left: auto;
-  right: -4px;
-}
 
-.canvas-avatar-bubble.b-left .bubble-trail.t2 {
-  left: auto;
-  right: -11px;
-}
 
-.canvas-avatar-bubble.b-below .bubble-trail.t1 {
-  bottom: auto;
-  top: -6px;
-}
 
-.canvas-avatar-bubble.b-below .bubble-trail.t2 {
-  bottom: auto;
-  top: -13px;
-}
 
 @keyframes bubble-in {
   from {
