@@ -196,6 +196,17 @@ let test_sealing_nested =
     )
   });
 
+let test_pattern_binding_sealed =
+  test_case(
+    "A destructured definition checked against a signature evaluates",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "{ let a = 1; let b = 2 }",
+      {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -229,5 +240,6 @@ let tests = (
     test_sig_type_member_erased,
     test_sealing_drops_extras,
     test_sealing_nested,
+    test_pattern_binding_sealed,
   ],
 );
