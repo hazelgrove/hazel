@@ -117,6 +117,8 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
         TypWantModule({name: n2, typ: t2}),
       ) =>
       n1 == n2 && Typ.fast_equal(t1, t2)
+    | (TypAbstractMemberOfSignature(a), TypAbstractMemberOfSignature(b)) =>
+      a == b
     | (
         ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),
         ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),

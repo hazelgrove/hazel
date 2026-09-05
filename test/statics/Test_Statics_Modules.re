@@ -1512,6 +1512,50 @@ let test_sealing_through_abstract_path =
     Some(path("N", "U")),
   );
 
+/* A signature alias names no module, so it cannot name an abstract member:
+   `S.T` is an error on the label. Manifest members through an alias, and
+   abstract members through a module, are unaffected. */
+let test_error_abstract_member_through_alias =
+  single_mark_test(
+    "An abstract member cannot be named through a signature alias",
+    {|type S = { type T; let x : T } in let y : S.T = 1 in y|},
+    fun
+    | Language.Mark.TypAbstractMemberOfSignature("T") => true
+    | _ => false,
+  );
+
+let test_error_abstract_member_through_alias_of_module_value =
+  single_mark_test(
+    "The alias error is reported even when a module of that signature exists",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in let y : S.T = M.x in 1|},
+    fun
+    | Language.Mark.TypAbstractMemberOfSignature("T") => true
+    | _ => false,
+  );
+
+let test_manifest_member_through_alias_ok =
+  fully_consistent_typecheck(
+    "A manifest member is named through a signature alias",
+    {|type S = { type T = Int; let x : T } in let y : S.T = 1 in y + 0|},
+    Some(int()),
+  );
+
+let test_abstract_member_through_module_of_alias_ok =
+  fully_consistent_typecheck(
+    "An abstract member is named through a module of the alias's signature",
+    {|type S = { type T; let x : T } in module M : S = { type T = Int; let x = 1 } in let y : M.T = M.x in 1|},
+    Some(int()),
+  );
+
+let test_error_missing_member_through_alias =
+  has_mark_test(
+    "A missing type member through an alias is still a missing member",
+    {|type S = { type T; let x : T } in let y : S.Fake = 1 in y|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound({name: "Fake", _}) => true
+    | _ => false,
+  );
+
 /* Only a path can name an abstract member; projecting from any other
    expression of the signature's type yields `?`. */
 let test_non_path_projection_is_unknown =
@@ -2047,6 +2091,11 @@ let tests = (
     test_error_forward_reference_in_sig,
     test_sealing_through_abstract_path,
     test_non_path_projection_is_unknown,
+    test_error_abstract_member_through_alias,
+    test_error_abstract_member_through_alias_of_module_value,
+    test_manifest_member_through_alias_ok,
+    test_abstract_member_through_module_of_alias_ok,
+    test_error_missing_member_through_alias,
     test_error_unknown_member_on_sealed,
     /* Module keyword tests */
     test_module_keyword_lowercase,
