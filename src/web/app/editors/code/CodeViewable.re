@@ -31,19 +31,11 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
-/* This view draws no projector layer, so a projector piece would come out as
-   blank space -- the space reserved for a widget nobody paints. Replacing
-   each with the syntax it wraps makes the assumption below true, and shows
-   the text form of whatever the widget would have drawn. Without this a
-   value containing a projector renders as nothing at all, which is how
-   Fumola references went missing from probe rows. */
-let unproject: Piece.t => Segment.t =
-  fun
-  | Projector(pr) => Piece.unparenthesize(pr.syntax)
-  | p => [p];
-
+/* This view draws no projector layer either, so it flattens for the same
+   reason ProjectorView.flex_code does. (Probes do NOT come through here;
+   they go through flex_code.) */
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {
-  let segment = ZipperBase.MapPiece.of_segment(unproject, segment);
+  let segment = Printer.unproject_segment(segment);
   let shape_map = ProjectorCore.Shape.Map.empty; // no projectors, by construction above
   let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos

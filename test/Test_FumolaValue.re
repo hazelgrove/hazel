@@ -165,11 +165,7 @@ let tests = (
                 Language.CoreSettings.off,
               ),
           );
-        let flattened =
-          Haz3lcore.ZipperBase.MapPiece.of_segment(
-            Web.CodeViewable.unproject,
-            seg,
-          );
+        let flattened = Haz3lcore.Printer.unproject_segment(seg);
         Alcotest.check(
           Alcotest.bool,
           "no projector piece is left to render as a gap",
@@ -184,16 +180,14 @@ let tests = (
           ),
         );
         let text = Haz3lcore.Printer.of_segment(~holes="", flattened);
+        /* Parenthesized, so a multi-part value cannot read as several: bare,
+           "peek(`t)! = 1, true" in a comma-separated list looks like two
+           elements rather than one. */
         Alcotest.check(
-          Alcotest.bool,
-          "and it reads as the reference and its value, not a gap: " ++ text,
-          true,
-          switch (
-            Str.search_forward(Str.regexp_string("peek(`x)!"), text, 0)
-          ) {
-          | _ => true
-          | exception Not_found => false
-          },
+          Alcotest.string,
+          "and it reads as the reference and its value, not a gap",
+          "(peek(`x)! = 41)",
+          text,
         );
       }
     ),
