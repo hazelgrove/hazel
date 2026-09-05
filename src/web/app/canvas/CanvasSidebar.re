@@ -2750,12 +2750,17 @@ let view_impl =
           | (None, Some(t)) => [(id, Some(t + 80))]
           | (None, None) => []
           };
-        /* lines into a product the edge act FORMS are drawn by that act */
+        /* lines into a product an act FORMS are drawn by that act: read
+           it off the score's effects, so ownership can never disagree
+           with what the score will actually do */
         let formed =
-          List.filter_map(
-            (e: CanvasScore.new_edge) => Option.map(fst, e.product),
-            new_edges,
-          );
+          CanvasScore.effects_abs(score)
+          |> List.filter_map(((_, _, e: CanvasScore.timed_effect)) =>
+               switch (e.effect) {
+               | Form(pk, _) => Some(pk)
+               | _ => None
+               }
+             );
         let forms =
           List.concat_map(
             ((a, b, _, _)) =>
@@ -2789,13 +2794,20 @@ let view_impl =
                    )
                  | Reveal(name) => (
                      /* a path or, for an endofunction, an orbit ring:
-                        schedule both ids (one exists) */
+                        schedule both ids (one exists); the label's leader
+                        comes with the pill */
                      [
                        (CanvasView.path_dom_id(name), Option.some(t)),
                        (CanvasView.orbit_dom_id(name), Option.some(t)),
                        ...ds,
                      ],
-                     ls,
+                     [
+                       (
+                         "clead-" ++ CanvasView.sanitize(name),
+                         Option.some(t + e.dur),
+                       ),
+                       ...ls,
+                     ],
                    )
                  | Pill(name) => (
                      ds,

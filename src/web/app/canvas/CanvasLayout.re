@@ -560,7 +560,10 @@ let layout_impl =
       (n: CanvasGraph.tynode) =>
         switch (n.kind) {
         | Product =>
-          (n.parts |> List.filter_map(pk => rim_pair(pk, n.key)))
+          (
+            List.sort_uniq(compare, n.parts)
+            |> List.filter_map(pk => rim_pair(pk, n.key))
+          )
           /* alias-body formers dock at their alias and feed it */
           @ (
             switch (n.sat) {
@@ -570,7 +573,8 @@ let layout_impl =
           )
         /* folded former: components feed the alias node directly */
         | Alias when n.parts != [] =>
-          n.parts |> List.filter_map(pk => rim_pair(pk, n.key))
+          List.sort_uniq(compare, n.parts)
+          |> List.filter_map(pk => rim_pair(pk, n.key))
         | Derived =>
           /* a docked [T] node forms from its element type */
           switch (strip_brackets(n.key)) {

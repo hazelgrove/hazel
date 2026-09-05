@@ -609,6 +609,21 @@ let go_impl = (): unit => {
          | Some(el) =>
            let total: float =
              Js_of_ocaml.Js.Unsafe.meth_call(el, "getTotalLength", [||]);
+           /* the journal says how each new line was scheduled — a line left
+              visible at render (skipped as too short, or unscheduled) is
+              the "already there" state the recorder flags */
+           slow_hook^(
+             Printf.sprintf(
+               "geom: %s len=%.0f %s",
+               id,
+               total,
+               switch (List.assoc_opt(id, geom_schedule^)) {
+               | Some(None) => "owned"
+               | Some(Some(d)) => Printf.sprintf("at %dms", d)
+               | None => "UNSCHEDULED (beat default)"
+               },
+             ),
+           );
            if (total > 4.) {
              did_anything := true;
              let marker = attr_of(el, "marker-end");
