@@ -141,6 +141,62 @@ let fails = (name, src) =>
 let tests = (
   "FumolaValue",
   [
+    /* A value containing a reference must stay visible in views that draw no
+       projector layer -- probe rows among them. A projector piece there
+       renders as blank space, so CodeViewable replaces each with the syntax
+       it wraps; this checks that nothing is left to render as a gap. */
+    Alcotest.test_case(
+      "a reference stays visible without a projector layer", `Quick, () =>
+      switch (
+        translate_raw(
+          ~eval=
+            store([("peek(`x)!", {|{"ok":true,"tag":"Int","value":"41"}|})]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`x"}}|},
+        )
+      ) {
+      | Error(m) => Alcotest.fail(m)
+      | Ok(exp) =>
+        let seg =
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            exp,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                Language.CoreSettings.off,
+              ),
+          );
+        let flattened =
+          Haz3lcore.ZipperBase.MapPiece.of_segment(
+            Web.CodeViewable.unproject,
+            seg,
+          );
+        Alcotest.check(
+          Alcotest.bool,
+          "no projector piece is left to render as a gap",
+          false,
+          List.exists(
+            (p: Haz3lcore.Base.piece) =>
+              switch (p) {
+              | Projector(_) => true
+              | _ => false
+              },
+            flattened,
+          ),
+        );
+        let text = Haz3lcore.Printer.of_segment(~holes="", flattened);
+        Alcotest.check(
+          Alcotest.bool,
+          "and it reads as the reference and its value, not a gap: " ++ text,
+          true,
+          switch (
+            Str.search_forward(Str.regexp_string("peek(`x)!"), text, 0)
+          ) {
+          | _ => true
+          | exception Not_found => false
+          },
+        );
+      }
+    ),
     translates("an integer", {|{"tag":"Int","value":"3"}|}, "Int 3"),
     translates(
       "a negative integer",
