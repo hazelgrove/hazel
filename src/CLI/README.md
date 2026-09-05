@@ -60,7 +60,7 @@ To perform static analysis on a Hazel program, use the `analyze` command followe
 ```sh
 $ ./hazel analyze path/to/hazel_file.hz
 ```
-This command will analyze the Hazel program and report any errors found, with Rust-style source locations and a caret pointing at the offending span. Pass `-W` / `--warnings` to also report warnings (e.g. unused variables):
+This command will analyze the Hazel program and report any errors found, with Rust-style source locations and a caret under the whole offending term (for `m.x` or `a + b`, the operands included), as the editor highlights it. Pass `-W` / `--warnings` to also report warnings (e.g. unused variables):
 
 ```sh
 $ echo "let unused = 5 in 42" | ./hazel analyze -W -
