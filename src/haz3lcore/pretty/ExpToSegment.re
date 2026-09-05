@@ -1928,7 +1928,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
      translating a Fumola result, never written or parsed -- so the rendering
      is free to be whatever reads best, and this is a first cut rather than a
      settled choice. */
-  | FumolaPeek({reads, value, _}) =>
+  | FumolaPeek({reads, value, holds, _}) =>
     let id = exp |> Exp.rep_id;
     let+ value_seg = go(value);
     /* The widget is drawn by emitting a projector HERE, at rendering time,
@@ -1947,21 +1947,23 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         children: [],
       });
     /* peek answers an option, so a value that was found reads as Some of it.
-       A hole is left bare: Some of a hole would claim more than is known. */
-    let is_hole =
-      switch (value.term) {
-      | EmptyHole => true
-      | _ => false
-      };
+       When Hazel has no value for what the cell holds, the runtime's own
+       description stands in -- a thunk prints itself -- and it is still Some,
+       since the cell is occupied. A hole with nothing to say about it is left
+       bare: Some of a hole would claim more than is known. */
     let shown_seg =
-      is_hole
-        ? [text(reads ++ " = "), ...value_seg]
-        : [text(reads ++ " = Some("), ...value_seg] @ [text(")")];
+      switch (value.term, holds) {
+      | (EmptyHole, holds) when holds != "" => [
+          text(reads ++ " = Some(" ++ holds ++ ")"),
+        ]
+      | (EmptyHole, _) => [text(reads ++ " = "), ...value_seg]
+      | _ => [text(reads ++ " = Some(")] @ value_seg @ [text(")")]
+      };
     let syntax = Segment.parenthesize(shown_seg);
     let model =
       Language.FumolaPeekModel.serialize({
         reads,
-        shown: Language.FumolaValue.shown_value(value),
+        shown: Language.FumolaValue.shown_value(~holds, value),
       });
     wrap(
       exp,

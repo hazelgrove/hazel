@@ -304,6 +304,13 @@ let myRuntime : Int =
 let onThatRuntime : Int =
   ^fumola_put_force(7, "`g", "1 + 2") in
 
+# A cell can hold something Hazel has no value for -- a thunk, say, which   #
+# is not a value at all. The reference still shows, and says what is in     #
+# there, because a thunk can print its own source. Better than a bare       #
+# hole, which would say only that something went unsaid.                    #
+let thunkPointer : Int =
+  ^fumola_put_force(7, "`h", "1 + 3; pointer(`h)") in
+
 let eventCount : Int =
   ^fumola_eval(7, "Adapton.peekEvents().size()") in
 
@@ -336,5 +343,6 @@ let eventCount : Int =
   forcedRecord,
   myRuntime,
   onThatRuntime,
+  thunkPointer,
   eventCount
 )

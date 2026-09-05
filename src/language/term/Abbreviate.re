@@ -525,11 +525,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
       /* Abbreviated by the value it denotes: the reference text is
          incidental to reading a shortened result. */
-      | FumolaPeek({instance_id, reads, value}) =>
+      | FumolaPeek({instance_id, reads, value, holds}) =>
         FumolaPeek({
           instance_id,
           reads,
           value: abbreviate_exp(value),
+          holds,
         })
 
       // Other atomic cases

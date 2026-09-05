@@ -191,6 +191,46 @@ let tests = (
         );
       }
     ),
+    /* A cell holding something Hazel has no value for still has a reference
+       worth showing, and the runtime says what is in there -- a thunk prints
+       its own source. Better than a bare hole, which says only that
+       something went unsaid. */
+    Alcotest.test_case(
+      "a reference to a thunk shows what it holds", `Quick, () =>
+      switch (
+        translate_raw(
+          ~eval=
+            store([
+              (
+                "peek(`g)!",
+                {|{"ok":false,"kind":"runtime","error":"@thunk ({ 1 + 3 })"}|},
+              ),
+            ]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`g"}}|},
+        )
+      ) {
+      | Error(m) => Alcotest.fail(m)
+      | Ok(exp) =>
+        let seg =
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            exp,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                Language.CoreSettings.off,
+              ),
+          );
+        Alcotest.check(
+          Alcotest.string,
+          "the thunk's own source, not a hole",
+          "(peek(`g) = Some(@thunk ({ 1 + 3 })))",
+          Haz3lcore.Printer.of_segment(
+            ~holes="",
+            Haz3lcore.Printer.unproject_segment(seg),
+          ),
+        );
+      }
+    ),
     translates("an integer", {|{"tag":"Int","value":"3"}|}, "Int 3"),
     translates("a float", {|{"tag":"Float","value":"0.5"}|}, "Float 0.5"),
     translates(
@@ -578,7 +618,7 @@ let tests = (
           {|{"tag":"AdaptonPointer","value":{"source":"`counter"}}|},
         )
       ) {
-      | Ok({term: FumolaPeek({instance_id, reads, value}), _}) =>
+      | Ok({term: FumolaPeek({instance_id, reads, value, _}), _}) =>
         Alcotest.check(Alcotest.int, "same instance", 7, instance_id);
         Alcotest.check(
           Alcotest.string,

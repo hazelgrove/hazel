@@ -381,9 +381,12 @@ let rec describe_value = (e: TermBase.Exp.t): string =>
  * in Hazel's spelling rather than Fumola's. A hole means the read found
  * nothing worth showing -- a cycle, a cell with no Hazel translation, or one
  * that has gone away -- and Some of a hole would claim more than we know. */
-let shown_value = (e: TermBase.Exp.t): string =>
-  switch (e.term) {
-  | EmptyHole => "?"
+let shown_value = (~holds: string="", e: TermBase.Exp.t): string =>
+  switch (e.term, holds) {
+  /* peek found something; Hazel just has no value for it, and the runtime
+     said what it is. Still Some: the cell is occupied. */
+  | (EmptyHole, holds) when holds != "" => "Some(" ++ holds ++ ")"
+  | (EmptyHole, _) => "?"
   | _ => "Some(" ++ describe_value(e) ++ ")"
   };
 
@@ -478,11 +481,16 @@ and exp_of_tagged =
               instance_id,
               reads,
               value: DHExp.fresh(EmptyHole),
+              holds: "a cell that points to itself",
             }),
           ),
         );
       } else {
-        let value =
+        /* Either a Hazel value, or -- when the cell holds something Hazel
+           cannot represent -- what the runtime says is in there. A thunk
+           prints itself, so that text is the thunk's own source, which is
+           worth far more to a reader than a bare hole. */
+        let (value, holds) =
           switch (eval(reading(source))) {
           | `Assoc(result) as pointed
               when List.assoc_opt("ok", result) == Some(`Bool(true)) =>
@@ -496,12 +504,17 @@ and exp_of_tagged =
                 pointed,
               )
             ) {
-            | Ok(value) => value
-            /* A cell whose contents have no Hazel translation still has a
-               reference worth showing; the value is simply unknown. */
-            | Error(_) => DHExp.fresh(EmptyHole)
+            | Ok(value) => (value, "")
+            | Error(message) => (DHExp.fresh(EmptyHole), message)
             }
-          | _ => DHExp.fresh(EmptyHole)
+          | `Assoc(result) =>
+            let message =
+              switch (List.assoc_opt("error", result)) {
+              | Some(`String(message)) => message
+              | _ => ""
+              };
+            (DHExp.fresh(EmptyHole), message);
+          | _ => (DHExp.fresh(EmptyHole), "")
           };
         Ok(
           DHExp.fresh(
@@ -509,6 +522,7 @@ and exp_of_tagged =
               instance_id,
               reads,
               value,
+              holds,
             }),
           ),
         );

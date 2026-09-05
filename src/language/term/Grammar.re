@@ -62,6 +62,12 @@ and exp_term('a) =
       instance_id: int,
       reads: string,
       value: exp_t('a),
+      /* What the cell holds, when Hazel has no value for it: a thunk prints
+         itself, so this is text like "@thunk ({ 1 + 3 })". Empty when
+         [value] is the real thing, which is the ordinary case. Kept beside
+         the value rather than in it so that a cell Hazel cannot represent
+         still shows as a hole rather than as an error. */
+      holds: string,
     })
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
@@ -202,11 +208,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
-        | FumolaPeek({instance_id, reads, value}) =>
+        | FumolaPeek({instance_id, reads, value, holds}) =>
           FumolaPeek({
             instance_id,
             reads,
             value: map_exp_annotation(f, value),
+            holds,
           })
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -683,12 +690,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let fumola_peek =
-        (~ann=?, ~instance_id, ~reads, value): exp_t(DefaultAnnotation.t) => {
+        (~ann=?, ~instance_id, ~reads, ~holds="", value)
+        : exp_t(DefaultAnnotation.t) => {
       term:
         FumolaPeek({
           instance_id,
           reads,
           value,
+          holds,
         }),
       annotation: default_annotation(ann),
     };

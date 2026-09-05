@@ -511,7 +511,7 @@ and uexp_to_info_map =
        from dereferencing the cell in the runtime. So a reference to a cell
        holding an Int is an Int, and no annotation is needed anywhere: the
        type is established rather than asserted. */
-    | FumolaPeek({instance_id, reads, value}) =>
+    | FumolaPeek({instance_id, reads, value, holds}) =>
       let (value_info, value_elab, m) = go(~ana, value, m);
       add(
         ~elab_term=
@@ -519,6 +519,7 @@ and uexp_to_info_map =
             instance_id,
             reads,
             value: value_elab,
+            holds,
           })
           |> rewrap,
         ~elab_syn_ty=value_info.elab_syn_ty,
