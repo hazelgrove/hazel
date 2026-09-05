@@ -1930,8 +1930,41 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
      settled choice. */
   | FumolaPeek({reads, value, _}) =>
     let id = exp |> Exp.rep_id;
-    let+ value = go(value);
-    wrap(exp, text_to_pretty(id, Sort.Exp, reads ++ " = ") @ value);
+    let+ value_seg = go(value);
+    /* The widget is drawn by emitting a projector HERE, at rendering time,
+       rather than by wrapping the value in a Projector term. Evaluation
+       strips a Projector -- it steps to its body -- so a wrapper never
+       reaches a result, and a result is exactly where these values are seen.
+       Building it during rendering means there is nothing to strip.
+
+       The syntax underneath is the text form, so unprojecting still reads. */
+    let label =
+      Piece.Tile({
+        id: Id.mk(),
+        label: [reads ++ " = "],
+        mold: Mold.mk_op(Sort.Exp, []),
+        shards: [0],
+        children: [],
+      });
+    let syntax = Segment.parenthesize([label, ...value_seg]);
+    let model =
+      Language.FumolaPeekModel.serialize({
+        reads,
+        shown: Language.FumolaValue.describe_value(value),
+      });
+    wrap(
+      exp,
+      [
+        Piece.Projector(
+          ProjectorCore.mk(
+            ~id,
+            Language.ProjectorKind.FumolaPeek,
+            syntax,
+            model,
+          ),
+        ),
+      ],
+    );
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

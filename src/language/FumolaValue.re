@@ -325,6 +325,31 @@ let rec symbol_exp =
   };
 };
 
+/* A short rendering of a translated value, for the widget to show. Kept
+   deliberately shallow: the widget is one line beside a reference. */
+let rec describe_value = (e: TermBase.Exp.t): string =>
+  switch (e.term) {
+  | Atom(Int(n)) => Bigint.to_string(n)
+  | Atom(Bool(b)) => b ? "true" : "false"
+  | Atom(String(s)) => "\"" ++ s ++ "\""
+  | Tuple([]) => "()"
+  | Tuple(es) =>
+    "(" ++ String.concat(", ", List.map(describe_value, es)) ++ ")"
+  | TupLabel({term: Label(l), _}, e) => l ++ " = " ++ describe_value(e)
+  | Constructor(c, _) => c
+  | Ap(Forward, {term: Constructor(c, _), _}, arg) =>
+    c ++ "(" ++ describe_value(arg) ++ ")"
+  | FumolaPeek({reads, _}) => reads
+  | Projector(_, e) => describe_value(e)
+  | EmptyHole => "?"
+  | _ => "..."
+  };
+
+/* Rendering a reference as a widget is done in ExpToSegment, not by wrapping
+   the value in a Projector: evaluation strips a Projector -- it steps to its
+   body -- so a wrapper never reaches a result, which is exactly where these
+   values are seen. */
+
 /* Build the Hazel value denoted by one {tag, value} node. */
 let rec exp_of_json =
         (

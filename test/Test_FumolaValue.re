@@ -30,7 +30,7 @@ let store = (cells: list((string, string)), program: string): Yojson.Safe.t =>
 
 let no_eval = _ => json({|{"ok":false,"error":"no runtime"}|});
 
-let translate =
+let translate_raw =
     (
       ~instance_id=1,
       ~eval=no_eval,
@@ -39,6 +39,10 @@ let translate =
       src: string,
     ) =>
   FumolaValue.exp_of_json(~instance_id, ~eval, ~ana, ~tools, json(src));
+
+let translate =
+    (~instance_id=1, ~eval=no_eval, ~ana=unknown, ~tools=no_tools, src) =>
+  translate_raw(~instance_id, ~eval, ~ana, ~tools, src);
 
 /* A sum type declaring Foo and Bar(Int), as
    `type SomeThing = + Foo + Bar(Int)` would. */
@@ -706,6 +710,54 @@ let tests = (
       | Ok({term: Atom(String("x")), _}) => ()
       | Ok(_) => Alcotest.fail("expected the text form")
       | Error(m) => Alcotest.fail(m)
+      }
+    ),
+    /* The value itself carries no projector: evaluation strips a Projector,
+       so a wrapper would never reach a result -- and a result is exactly
+       where these values are seen. The projector is emitted when the value
+       is rendered, which is what makes a reference draw as a widget rather
+       than as tokens. */
+    test_case("a reference renders as a projector piece", `Quick, () =>
+      switch (
+        translate_raw(
+          ~eval=
+            store([("peek(`n)!", {|{"ok":true,"tag":"Int","value":"41"}|})]),
+          {|{"tag":"AdaptonPointer","value":{"source":"`n"}}|},
+        )
+      ) {
+      | Error(m) => Alcotest.fail(m)
+      | Ok(exp) =>
+        let seg =
+          Haz3lcore.ExpToSegment.exp_to_segment(
+            exp,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                Language.CoreSettings.on,
+              ),
+          );
+        switch (
+          List.find_opt(
+            (p: Haz3lcore.Base.piece) =>
+              switch (p) {
+              | Projector(_) => true
+              | _ => false
+              },
+            seg,
+          )
+        ) {
+        | Some(Projector({kind, model, _})) =>
+          Alcotest.check(
+            Alcotest.string,
+            "kind",
+            "fumola-peek",
+            ProjectorKind.name(kind),
+          );
+          let m = FumolaPeekModel.deserialize(model);
+          Alcotest.check(Alcotest.string, "reads", "peek(`n)!", m.reads);
+          Alcotest.check(Alcotest.string, "shown", "41", m.shown);
+        | _ => Alcotest.fail("expected a projector piece in the segment")
+        };
       }
     ),
     fails("an unknown tag", {|{"tag":"Nope","value":null}|}),
