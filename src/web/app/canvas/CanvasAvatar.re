@@ -296,7 +296,9 @@ let draw_rig = (root, ~thinking: bool, ~err: bool): unit => {
   };
 };
 
-let last_mirror = () => {
+/* the mirrors on the page: the last one is live; any that has never been
+   drawn (a new chat row) gets the current pose once, and keeps it */
+let mirrors = (): (list(Js.Unsafe.any), option(Js.Unsafe.any)) => {
   let all =
     Js.Unsafe.meth_call(
       Js.Unsafe.global##.document,
@@ -304,26 +306,52 @@ let last_mirror = () => {
       [|Js.Unsafe.inject(Js.string(".rig-mirror"))|],
     );
   let n: int = Js.Unsafe.get(all, "length");
-  n == 0 ? None : Some(item(all, n - 1));
+  let fresh = ref([]);
+  for (i in 0 to n - 2) {
+    let m = item(all, i);
+    let dot = item(q(m, ".rig-dot"), 0);
+    let cx =
+      Js.Opt.to_option(
+        Js.Unsafe.meth_call(
+          dot,
+          "getAttribute",
+          [|Js.Unsafe.inject(Js.string("cx"))|],
+        ),
+      );
+    if (cx == None) {
+      fresh := [m, ...fresh^];
+    };
+  };
+  (fresh^, n == 0 ? None : Some(item(all, n - 1)));
 };
 
 /* one frame: read the body's motion, move the targets, spring, draw */
-let step = (b, now_ms: float): unit => {
+let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   let dt = min(0.05, max(0.001, (now_ms -. rig.last_ms) /. 1000.));
   rig.last_ms = now_ms;
   rig.t = rig.t +. dt;
   /* where the body is on screen (the ride's transform included), in
      board units so speed does not depend on the zoom */
   let zoom = max(0.2, CanvasBuffer.canvas_zoom^);
-  let rect = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
-  let cx: float = Js.Unsafe.get(rect, "left") /. zoom
-  and cy: float = Js.Unsafe.get(rect, "top") /. zoom;
+  /* without a body on stage (canvas hidden, chat open) the rig idles in
+     place and only the chat's mirror is drawn */
   let (mdx, mdy) =
-    switch (rig.last_pos) {
-    | Some((px, py)) => (cx -. px, cy -. py)
-    | None => (0., 0.)
+    switch (b) {
+    | Some(b) =>
+      let rect = Js.Unsafe.meth_call(b, "getBoundingClientRect", [||]);
+      let cx: float = Js.Unsafe.get(rect, "left") /. zoom
+      and cy: float = Js.Unsafe.get(rect, "top") /. zoom;
+      let d =
+        switch (rig.last_pos) {
+        | Some((px, py)) => (cx -. px, cy -. py)
+        | None => (0., 0.)
+        };
+      rig.last_pos = Some((cx, cy));
+      d;
+    | None =>
+      rig.last_pos = None;
+      (0., 0.);
     };
-  rig.last_pos = Some((cx, cy));
   let inst = Float.hypot(mdx, mdy) /. dt;
   rig.speed = lerp(rig.speed, min(inst, 600.), min(1., dt *. 10.));
   let moving = rig.speed > 25.;
@@ -458,63 +486,68 @@ let step = (b, now_ms: float): unit => {
       };
     };
   };
-  draw_rig(b, ~thinking, ~err);
+  switch (b) {
+  | Some(b) => draw_rig(b, ~thinking, ~err)
+  | None => ()
+  };
   /* the chat's brand icon mirrors the live rig (the last one in the
      chat; earlier ones keep the state they froze in) */
-  switch (last_mirror()) {
+  let (fresh, last) = mirrors();
+  List.iter(m => draw_rig(m, ~thinking, ~err), fresh);
+  switch (last) {
   | Some(m) => draw_rig(m, ~thinking, ~err)
   | None => ()
   };
   /* the beam: the demo's — a sector of spread 0.36 and length 150 at R 18
      (so 8.3 R), filled by a radial gradient from the leading vertex
      (#ffe58a 0.55 -> 0), eased in and out; the glow disc at the vertex */
-  let lead = rig.v[0];
-  let beam = item(q(b, ".rig-beam"), 0)
-  and glow = item(q(b, ".rig-glow"), 0)
-  and grad = item(q(b, ".rig-beam-grad"), 0);
-  let want = traveling && !pen ? 1. : 0.;
-  beam_alpha := beam_alpha^ +. (want -. beam_alpha^) *. min(1., dt *. 8.);
-  let reach = base_r *. 150. /. 18.;
-  let h = rig.heading
-  and spread = 0.36;
-  set(
-    beam,
-    "d",
-    Printf.sprintf(
-      "M %s %s L %s %s A %s %s 0 0 1 %s %s Z",
-      f1(lead.x),
-      f1(lead.y),
-      f1(lead.x +. cos(h -. spread) *. reach),
-      f1(lead.y +. sin(h -. spread) *. reach),
-      f1(reach),
-      f1(reach),
-      f1(lead.x +. cos(h +. spread) *. reach),
-      f1(lead.y +. sin(h +. spread) *. reach),
-    ),
-  );
-  set(beam, "opacity", f1(beam_alpha^));
-  set(grad, "cx", f1(lead.x));
-  set(grad, "cy", f1(lead.y));
-  set(grad, "r", f1(reach));
-  set(glow, "cx", f1(lead.x));
-  set(glow, "cy", f1(lead.y));
-  set(glow, "opacity", f1(0.5 *. max(beam_alpha^, pen ? 1. : 0.)));
+  switch (b) {
+  | None => ()
+  | Some(bb) =>
+    let lead = rig.v[0];
+    let beam = item(q(bb, ".rig-beam"), 0)
+    and glow = item(q(bb, ".rig-glow"), 0)
+    and grad = item(q(bb, ".rig-beam-grad"), 0);
+    let want = traveling && !pen ? 1. : 0.;
+    beam_alpha := beam_alpha^ +. (want -. beam_alpha^) *. min(1., dt *. 8.);
+    let reach = base_r *. 150. /. 18.;
+    let h = rig.heading
+    and spread = 0.36;
+    set(
+      beam,
+      "d",
+      Printf.sprintf(
+        "M %s %s L %s %s A %s %s 0 0 1 %s %s Z",
+        f1(lead.x),
+        f1(lead.y),
+        f1(lead.x +. cos(h -. spread) *. reach),
+        f1(lead.y +. sin(h -. spread) *. reach),
+        f1(reach),
+        f1(reach),
+        f1(lead.x +. cos(h +. spread) *. reach),
+        f1(lead.y +. sin(h +. spread) *. reach),
+      ),
+    );
+    set(beam, "opacity", f1(beam_alpha^));
+    set(grad, "cx", f1(lead.x));
+    set(grad, "cy", f1(lead.y));
+    set(grad, "r", f1(reach));
+    set(glow, "cx", f1(lead.x));
+    set(glow, "cy", f1(lead.y));
+    set(glow, "opacity", f1(0.5 *. max(beam_alpha^, pen ? 1. : 0.)));
+  };
 };
 
 let rec loop = (now_ms: float): unit =>
   if (!is_rig()) {
     rig.running = false;
   } else {
-    switch (body()) {
-    | Some(b) =>
-      /* a long stall would make the springs explode: the dt clamp in
-         step handles it, but a fresh dt anchor is safer */
-      if (now_ms -. rig.last_ms > 500.) {
-        rig.last_ms = now_ms -. 16.;
-      };
-      step(b, now_ms);
-    | None => ()
+    /* a long stall would make the springs explode: the dt clamp in
+       step handles it, but a fresh dt anchor is safer */
+    if (now_ms -. rig.last_ms > 500.) {
+      rig.last_ms = now_ms -. 16.;
     };
+    step(body(), now_ms);
     ignore(
       Js.Unsafe.global##requestAnimationFrame(Js.Unsafe.callback(loop)),
     );
@@ -661,6 +694,7 @@ let bounding_circle = (): (float, float, float) =>
    the page), or the glyph chip — continuity between the two views */
 let brand_icon = (): Node.t =>
   if (is_rig()) {
+    ensure_loop(); /* the chat may be the only place the rig is shown */
     let three = f => List.init(3, f);
     Node.create_svg(
       "svg",
