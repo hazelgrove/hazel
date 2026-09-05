@@ -568,6 +568,10 @@ let resolved_items =
   List.rev(rev);
 };
 
+/* An abstract member read as itself, for comparing a signature's members
+   where it is bound abstract (`extend_sig_item`): equal to itself only. */
+let rigid_member = (name: Var.t): t => Var(name) |> temp;
+
 /* The members of a closed signature, each typed independently of the others
    (or through [self], see `resolved_items`). Every reading of a member's
    type goes through here. */
@@ -1606,16 +1610,24 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     /* An item that declares no member is dropped from the normal form,
        except a hole, which could declare any. A `TypeMember` leaf stays: it
        names a sibling, so the normal form shows `let x : T` as written. */
-    Sig(
-      Closed(
-        Sig.closed(s)
-        |> ClosedSig.filter(item =>
-             Option.is_some(Sig.member_of_item(item)) || Sig.is_hole(item)
-           )
-        |> ClosedSig.map(Sig.map_typ(normalize(ctx))),
-      ),
-    )
-    |> rewrap
+    /* A later member may be typed by a path through an earlier value or
+       module member (`Inner.T`), so each is normalized where the earlier
+       ones are bound. */
+    let (_, rev) =
+      Sig.closed(s)
+      |> ClosedSig.items
+      |> List.filter(item =>
+           Option.is_some(Sig.member_of_item(item)) || Sig.is_hole(item)
+         )
+      |> List.fold_left(
+           ((ctx, acc), item) =>
+             (
+               extend_sig_item(ctx, item),
+               [Sig.map_typ(normalize(ctx), item), ...acc],
+             ),
+           (ctx, []),
+         );
+    Sig(Closed(ClosedSig.of_items(List.rev(rev)))) |> rewrap;
   };
 };
 
@@ -1723,27 +1735,35 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
       | (Sig(sx), Sig(sy)) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = sig_members(sx);
-        let my = sig_members(sy);
-        same_member_names(mx, my)
-        && List.for_all(
-             (m: Sig.member) =>
-               switch (m) {
-               | Val(x, t1) =>
-                 Sig.find_value(my, x)
-                 |> Option.fold(~none=false, ~some=go(ctx, t1))
-               | TypeManifest(n, t1) =>
-                 Sig.find_type_def(my, n)
-                 |> Option.fold(~none=false, ~some=go(ctx, t1))
-               | TypeAbstract(n) =>
-                 switch (Sig.find_type(my, n)) {
-                 | Some(TypeAbstract(_)) => true
-                 | Some(TypeManifest(_) | Val(_))
-                 | None => false
-                 }
-               },
-             mx,
-           );
+        let xs = resolved_items(~abstract=rigid_member, sx);
+        let mx = Sig.members(xs);
+        let my = sig_members(~abstract=rigid_member, sy);
+        /* Each member is compared where the earlier value and module
+           members are bound: a later one may be typed by a path through
+           them. */
+        let rec members_equal = (ctx, items: list(Sig.t)) =>
+          switch (items) {
+          | [] => true
+          | [item, ...items] =>
+            let equal =
+              switch (Sig.member_of_item(item)) {
+              | Some(Val(x, t1)) =>
+                Sig.find_value(my, x)
+                |> Option.fold(~none=false, ~some=go(ctx, t1))
+              | Some(TypeManifest(n, t1)) =>
+                Sig.find_type_def(my, n)
+                |> Option.fold(~none=false, ~some=go(ctx, t1))
+              | Some(TypeAbstract(n)) =>
+                switch (Sig.find_type(my, n)) {
+                | Some(TypeAbstract(_)) => true
+                | Some(TypeManifest(_) | Val(_))
+                | None => false
+                }
+              | None => true
+              };
+            equal && members_equal(extend_sig_item(ctx, item), items);
+          };
+        same_member_names(mx, my) && members_equal(ctx, xs);
       | (List(x), List(y)) => go(ctx, x, y)
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
@@ -2184,8 +2204,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     /* Member types are compared independent; a left item kept as written
        keeps its leaves, which name members the result has. */
     let x_written = ClosedSig.items(xs);
-    let xs = resolved_items(Closed(xs));
-    let ys = resolved_items(Closed(ys));
+    let xs = resolved_items(~abstract=rigid_member, Closed(xs));
+    let ys = resolved_items(~abstract=rigid_member, Closed(ys));
     let x_items =
       List.combine(x_written, xs)
       |> List.filter(((_, item)) =>
@@ -2209,20 +2229,20 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     } else {
       /* Rebuilt from the left operand's items so each keeps its form, and
          its type as written where the meet refines nothing. */
-      let meet_item = ((written, item): (Sig.t, Sig.t)) =>
+      let meet_item = (ctx, (written, item): (Sig.t, Sig.t)) =>
         switch (Sig.member_of_item(item)) {
         | Some(Val(x, t1)) =>
           switch (Sig.find_value(my, x)) {
           | None => Some(written)
           | Some(t2) =>
-            let+ t = meet'(t1, t2);
+            let+ t = meet(ctx, t1, t2);
             equal(t, t1) ? written : Sig.map_typ(_ => t, item);
           }
         | Some(TypeManifest(n, t1)) =>
           switch (Sig.find_type(my, n)) {
           | None => Some(written)
           | Some(TypeManifest(_, t2)) =>
-            let+ t = meet'(t1, t2);
+            let+ t = meet(ctx, t1, t2);
             equal(t, t1) ? written : Sig.map_typ(_ => t, item);
           | Some(TypeAbstract(_) | Val(_)) => None
           }
@@ -2236,7 +2256,17 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
           }
         | None => Some(written)
         };
-      let+ items = OptUtil.traverse(meet_item, x_items);
+      /* A later member may be typed by a path through an earlier value or
+         module member (`Inner.T`): each is met where the earlier ones are
+         bound. */
+      let rec meet_items = (ctx, pairs, acc) =>
+        switch (pairs) {
+        | [] => Some(List.rev(acc))
+        | [(written, item), ...pairs] =>
+          let* met = meet_item(ctx, (written, item));
+          meet_items(extend_sig_item(ctx, item), pairs, [met, ...acc]);
+        };
+      let+ items = meet_items(ctx, x_items, []);
       let extra =
         my
         |> List.filter((m: Sig.member) =>
@@ -2299,14 +2329,19 @@ let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
    hole item in `from` stands for the members it lacks. */
 and sig_sub =
     (ctx: Ctx.t, ~from: ClosedSig.t(Sig.t), ~to_: ClosedSig.t(Sig.t)): bool => {
-  let from_items = resolved_items(Closed(from));
+  let from_items = resolved_items(~abstract=rigid_member, Closed(from));
   let from_members = Sig.members(from_items);
   let hole_from = Sig.has_hole_item(from_items);
+  /* `from`'s members are bound: a `to_` member typed by a path through a
+     sibling (`Inner.T`) means what `from` provides for that sibling, and
+     `from`'s own abstract members are rigid. */
+  let ctx = List.fold_left(extend_sig_item, ctx, from_items);
   /* `to_`'s members typed by its abstract T are checked at `from`'s T. */
   let realized = name =>
     switch (Sig.find_type(from_members, name)) {
     | Some(TypeManifest(_, def)) => def
-    | Some(TypeAbstract(_) | Val(_))
+    | Some(TypeAbstract(_)) => rigid_member(name)
+    | Some(Val(_))
     | None => Unknown(Internal) |> temp
     };
   let provided = (m: Sig.member) =>
