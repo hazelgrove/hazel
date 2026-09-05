@@ -507,6 +507,27 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       );
+    /* A reference synthesizes the type of the value it carries, which came
+       from dereferencing the cell in the runtime. So a reference to a cell
+       holding an Int is an Int, and no annotation is needed anywhere: the
+       type is established rather than asserted. */
+    | FumolaPeek({instance_id, reads, value, holds}) =>
+      let (value_info, value_elab, m) = go(~ana, value, m);
+      add(
+        ~elab_term=
+          FumolaPeek({
+            instance_id,
+            reads,
+            value: value_elab,
+            holds,
+          })
+          |> rewrap,
+        ~elab_syn_ty=value_info.elab_syn_ty,
+        ~marks=[],
+        ~co_ctx=value_info.co_ctx,
+        ~probe_targets=value_info.probe_targets,
+        m,
+      );
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
@@ -1593,17 +1614,56 @@ and uexp_to_info_map =
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
-        | Some({expansion_t, model_t, expand, _}) =>
-          let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
+        | Some({expansion_t, model_t, expand, requires_annotation, _}) =>
+          /* A livelit that requires an annotation expands against the type
+             expected here, and the expansion has that type. Without one it
+             cannot know what to produce -- the fumola livelit's result shape
+             depends on both its program and the type asked of it -- so it
+             says so rather than guessing. */
+          let annotated =
+            switch (Typ.normalize(ctx, ana).term) {
+            | Unknown(_) => false
+            | _ => true
+            };
+          let expansion_ty =
+            requires_annotation && annotated ? ana : expansion_t;
+          let (fn, fn_elab, m) = go(~ana=expansion_ty, fn, m);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
+          /* What a livelit needs from the context in order to expand: resolve
+             a constructor name, and unfold aliases so an expected type
+             written as a name can be destructured. Closures rather than the
+             context itself, because Ctx depends on LivelitCtx and so the
+             livelit interface cannot name Ctx.t. */
+          let tools: LivelitCtx.type_tools = {
+            resolve_ctr: (~ana, name) =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty) => Some(ty)
+              | None =>
+                switch (Ctx.lookup_ctr(ctx, name)) {
+                | Some({typ, _}) => Some(typ)
+                | None => None
+                }
+              },
+            normalize: ty => Typ.normalize(ctx, ty),
+          };
+
           // try to expand
-          switch (expand(arg.user_term)) {
+          switch (
+            requires_annotation && !annotated
+              ? None
+              : expand(
+                  ~id=Exp.rep_id(uexp),
+                  ~ana=expansion_ty,
+                  ~tools,
+                  arg.user_term,
+                )
+          ) {
           | Some(expanded) =>
             let (info, elab, m) =
               add(
                 ~elab_term=expanded,
-                ~elab_syn_ty=expansion_t,
+                ~elab_syn_ty=expansion_ty,
                 ~marks=[],
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
@@ -1623,8 +1683,12 @@ and uexp_to_info_map =
             // if we can't expand, flag as improper model
             add(
               ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-              ~elab_syn_ty=expansion_t,
-              ~marks=[BadLivelitModel(expansion_t)],
+              ~elab_syn_ty=expansion_ty,
+              ~marks=[
+                requires_annotation && !annotated
+                  ? Mark.LivelitNeedsAnnotation(s)
+                  : Mark.BadLivelitModel(expansion_t),
+              ],
               ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
               ~probe_targets=
                 SubexpProbeTargets.union_all([

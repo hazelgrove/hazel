@@ -352,6 +352,12 @@ let equality =
     | (Label(_), _) => false
     | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (LivelitName(_), _) => false
+    /* Two references to the same cell of the same instance are the same
+       reference; the carried value is a snapshot of that cell, so comparing
+       it too would make a peek unequal to itself across a re-read. */
+    | (FumolaPeek(p1), FumolaPeek(p2)) =>
+      p1.instance_id == p2.instance_id && p1.reads == p2.reads
+    | (FumolaPeek(_), _) => false
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
     | (Tuple(_), _) => false

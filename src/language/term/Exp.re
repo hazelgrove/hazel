@@ -45,6 +45,7 @@ type cls =
   | Asc
   | LivelitName
   | LivelitAp
+  | FumolaPeek
   | ListConcat
   | Module
   | ModuleExp;
@@ -142,6 +143,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | BuiltinFun(_) => BuiltinFun
   | Match(_) => Match
   | LivelitName(_) => LivelitName
+  | FumolaPeek(_) => FumolaPeek
   | Asc(_) => Asc
   | Module(_) => Module
   | ModuleExp(_) => ModuleExp;
@@ -197,6 +199,7 @@ let show_cls: cls => string =
   | Match => "Case expression"
   | LivelitName => "Livelit name"
   | LivelitAp => "Livelit application"
+  | FumolaPeek => "Fumola cell reference"
   | Projector => "Projector"
   | Asc => "Type ascription expression"
   | Module => "Module expression"
@@ -228,6 +231,8 @@ let rec is_fun = (e: t) => {
   | Parens(e)
   | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
+  /* A reference denotes the value it carries. */
+  | FumolaPeek({value, _}) => is_fun(value)
   | TypFun(_)
   | Fun(_)
   | BuiltinFun(_) => true
@@ -297,6 +302,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Asc(e, _)
     | Parens(e)
     | Projector(_, e)
+    | FumolaPeek({value: e, _})
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -420,6 +426,7 @@ let rec get_num_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
+    | FumolaPeek(_)
     | Constructor(_)
     | Module(_)
     | ModuleExp(_)

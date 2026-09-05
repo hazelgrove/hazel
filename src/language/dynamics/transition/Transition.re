@@ -820,6 +820,11 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* A value: it carries its result rather than stepping to one, so that a
+       reference stays visible in the output instead of collapsing into the
+       thing it refers to. Its carried value is already a value, having been
+       built by translation. */
+    | FumolaPeek(_)
     | Atom(_)
     | LivelitName(_)
     | Label(_)

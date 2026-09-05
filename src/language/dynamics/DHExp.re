@@ -106,6 +106,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Dot(_)
           | Match(_)
           | LivelitName(_)
+          | FumolaPeek(_)
           | DynamicErrorHole(_)
           | Filter(_)
           | If(_)
@@ -134,6 +135,10 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
 
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
+  /* A reference is comparable as the value it denotes. These come first, so
+     that a peek is not rejected merely for being a reference. */
+  | (FumolaPeek({value, _}), _) => ty_comparable(value, d2)
+  | (_, FumolaPeek({value, _})) => ty_comparable(d1, value)
   | (Invalid(_), _)
   | (EmptyHole, _)
   | (MultiHole(_), _)
@@ -238,6 +243,10 @@ let rec ty_comparable = (d1, d2) => {
 let rec poly_equal = (d1, d2): option(bool) => {
   // With assumption that the types are consistent and have no arrow type
   switch (term_of(d1), term_of(d2)) {
+  /* Compared by the value denoted, not by the reference: two peeks of
+     different cells holding the same value are equal. */
+  | (FumolaPeek({value, _}), _) => poly_equal(value, d2)
+  | (_, FumolaPeek({value, _})) => poly_equal(d1, value)
   // If either is indet or incomparable, return None
   | (Invalid(_), _)
   | (EmptyHole, _)

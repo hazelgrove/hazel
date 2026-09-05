@@ -96,12 +96,23 @@ let var_exp = (n: string): form => {
 };
 let var_exps = (x: string): group => singleton(var_exp(x));
 
+/* Most livelits are self-contained, and the generic explanation is the whole
+   story. A livelit whose model names state living outside Hazel needs to say
+   so, since that changes what editing and copying it mean. */
+let livelit_name_explanation = (n: string): string =>
+  switch (n) {
+  | "fumola_new" => "Declares a Fumola runtime and the Adapton semantics it runs, and expands to the id naming it. Its model is (instance, semantics), where the semantics is `Simple` or `Graphical` -- Hazel's spelling of the type Fumola writes {#simple; #graphical}. The other two Fumola livelits attach to whatever runtime their id names, creating one with the default semantics if none exists, so this is how a program says which semantics it wants -- once, where the runtime is made. Runtimes default to `Simple`, which is predictable but keeps no graph, so `Adapton.peekEvents` and the edge lists in `peekInfo` need `Graphical`. Asking for the semantics a runtime already runs does nothing; asking for a different one resets that runtime."
+  | "fumola_put_force" => "Runs a Fumola program inside a named thunk and expands to its result. Its model is (instance, thunk name, program). Re-forcing the same thunk on an edit reuses its execution history, so state written in one edit is there in the next. The thunk name is Fumola source for a symbol -- `myThunk, 7, `a(`b) -- parsed by Fumola itself; two thunks in one runtime must not share a name. `pointer(s)`, `get(s)` and `peek(s)` are in scope, and the Fumola module library is bound at the top level. Note that `:=` turns its left side into a pointer but `@` does not, so read a cell back with `get`."
+  | "fumola_eval" => "Runs a Fumola program at the top level of a Fumola runtime, with no thunk around it, and expands to its result. No incremental reuse, but bindings it makes outlive it and the operations a thunk forbids work here -- `Adapton.reset()` and `Adapton.peekForce` cannot run inside a force. Strictly more expressive than the thunk livelit, which just generates the wrapper and a distinct name for it. Livelits carrying the same instance id share one runtime, so an editor can set up state that a thunk reads."
+  | _ => "Expands to some value, and when projected, creates an interactable GUI widget."
+  };
+
 let livelit_name_exp = (n: string): form => {
   id: LivelitName,
   syntactic_form: ["^" ++ n |> abbreviate |> exp],
   colorings: [],
   expandable_id: None,
-  explanation: "Expands to some value, and when projected, creates an interactable GUI widget.",
+  explanation: livelit_name_explanation(n),
   examples: [],
 };
 let livelit_name_exps = (x: string): group =>

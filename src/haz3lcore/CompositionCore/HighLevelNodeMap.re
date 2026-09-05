@@ -98,6 +98,7 @@ module Utils = {
     | Atom(_)
     | Constructor(_, _)
     | LivelitName(_)
+    | FumolaPeek(_)
     | TyAlias(_)
     | ExplicitNonlabel
     | Theorem(_, _, _)

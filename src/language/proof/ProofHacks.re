@@ -441,6 +441,7 @@ let rec replace_exp =
         | TupLabel(_, _)
         | Dot(_, _)
         | LivelitName(_)
+        | FumolaPeek(_)
         | TyAlias(_)
         | Use(_, _)
         | Ap(_, _, _)

@@ -1,0 +1,794 @@
+open Grammar;
+
+/* Translating a Fumola result into a Hazel value.
+ *
+ * The Fumola runtime answers with JSON that preserves structure:
+ *
+ *   {"tag": "Int",    "value": "3"}
+ *   {"tag": "Tuple",  "value": [<node>, ...]}
+ *   {"tag": "Record", "value": {"<field>": <node>, ...}}
+ *   {"tag": "Variant","value": {"name": "<name>", "value": <node> | null}}
+ *
+ * so that a Fumola tuple can be rebuilt here as a Hazel tuple, rather than as
+ * a wrapper a Hazel program would have to take apart. This lives outside
+ * Livelit.Fumola so that it can be tested directly: the livelit itself can
+ * only be exercised in a browser with the wasm runtime present.
+ *
+ * A Fumola result has no single static type -- 1 + 2 is an Int, while
+ * (get(1), get(2)) is a pair -- so the livelit's expansion type is Unknown and
+ * the shape is whatever the program produced.
+ */
+
+/* Translation is type-directed: the expected type is pushed down through the
+   structure as it is rebuilt. This is what lets a Fumola variant become a
+   constructor of the sum type the program actually asked for -- Fumola tags
+   live in one flat namespace and carry no home type, so the expected type is
+   the only place that information can come from.
+
+   Where the expected type says nothing useful (Unknown, or a shape that does
+   not match what came back), translation falls back to resolving names
+   against the ambient context, and failing that leaves a constructor
+   unannotated for Hazel to mark. */
+
+let unknown = () => Typ.fresh(Unknown(Internal));
+
+/* The expected types of a tuple's elements, given the type expected of the
+   tuple. Arity has to agree; otherwise the expectation tells us nothing. */
+let element_anas =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, arity: int)
+    : list(TermBase.Typ.t) =>
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) when List.length(tys) == arity => tys
+  | _ => List.init(arity, _ => unknown())
+  };
+
+/* The expected type of a list's elements. */
+let element_ana =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): TermBase.Typ.t =>
+  switch (tools.normalize(ana).term) {
+  | List(ty) => ty
+  | _ => unknown()
+  };
+
+/* The order a record's fields arrive in.
+ *
+ * Fumola holds them in a HashMap, whose iteration order is not stable, so the
+ * runtime sorts by name -- otherwise a record could come back differently on
+ * each evaluation. Where a type is expected, though, the annotation has
+ * already said what shape this is, including the order its author chose to
+ * read the fields in, so follow that and keep the runtime's name order for
+ * anything the annotation does not mention.
+ *
+ * Visible immediately in a table view, whose columns are the fields in the
+ * order they arrive. */
+let field_order =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): list(string) =>
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) =>
+    List.filter_map(
+      (ty: TermBase.Typ.t) =>
+        switch (ty.term) {
+        | TupLabel({term: Label(l), _}, _) => Some(l)
+        | _ => None
+        },
+      tys,
+    )
+  | _ => []
+  };
+
+let order_fields =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, fields)
+    : list((string, Yojson.Safe.t)) => {
+  let order = field_order(~tools, ana);
+  let rank = (name: string): int => {
+    let rec go = (i, l) =>
+      switch (l) {
+      | [] => max_int
+      | [x, ...xs] => x == name ? i : go(i + 1, xs)
+      };
+    go(0, order);
+  };
+  /* Stable, so fields the annotation omits keep the order they came in. */
+  List.stable_sort(
+    ((a, _), (b, _)) => Int.compare(rank(a), rank(b)),
+    fields,
+  );
+};
+
+/* The expected type of a record field, by label. */
+let field_ana =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, name: string)
+    : TermBase.Typ.t => {
+  let labelled = (ty: TermBase.Typ.t) =>
+    switch (ty.term) {
+    | TupLabel({term: Label(l), _}, ty) when l == name => Some(ty)
+    | _ => None
+    };
+  switch (tools.normalize(ana).term) {
+  | Prod(tys) =>
+    switch (List.filter_map(labelled, tys)) {
+    | [ty, ..._] => ty
+    | [] => unknown()
+    }
+  | _ => unknown()
+  };
+};
+
+/* A constructor, annotated with its type where that can be determined.
+   Returns the constructor expression and the type expected of its payload. */
+/* Fumola's name for a variant, as Hazel must spell it.
+ *
+ * Hazel constructors begin with a capital, Fumola's tags need not: the
+ * adapton event log is full of #addNode and #forceBegin. Left alone those
+ * become free constructors, which Hazel marks as errors -- a peekEvents
+ * result came back as a wall of red. Capitalising the first letter is the
+ * whole mapping, and it leaves an already-capitalised tag like #Circle
+ * untouched.
+ *
+ * It is not injective: #addNode and #AddNode would both arrive as AddNode.
+ * That costs nothing today, since nothing translates Hazel variants back
+ * into Fumola, but a round trip would have to carry the original spelling
+ * rather than recover it from this. */
+let constructor_name = (name: string): string =>
+  String.capitalize_ascii(name);
+
+let constructor =
+    (~tools: LivelitCtx.type_tools, ~ana: TermBase.Typ.t, name: string)
+    : (TermBase.Exp.t, TermBase.Typ.t) =>
+  switch (tools.resolve_ctr(~ana, name)) {
+  | Some(ty) =>
+    /* A constructor carrying a payload resolves to an arrow from the payload
+       type, so the domain is what the payload is expected to be. */
+    let payload_ana =
+      switch (tools.normalize(ty).term) {
+      | Arrow(dom, _) => dom
+      | _ => unknown()
+      };
+    (DHExp.fresh(Constructor(name, Some(Some(ty)))), payload_ana);
+  | None =>
+    /* Unresolvable: leave it unannotated. Hazel marks it as a free
+       constructor, which is the honest outcome -- the name does not belong to
+       any sum type in scope. */
+    (DHExp.fresh(Constructor(name, None)), unknown())
+  };
+
+/* The text of a Fumola symbol.
+
+   Symbols are structured -- `x is an identifier, 1 is a number, and they
+   compose as `a(`b) and `a.`b -- so this renders the whole structure, without
+   the backticks Fumola writes them with:
+
+     `x                    -> "x"
+     1                     -> "1"
+     `adapton(`settings)   -> "adapton(settings)"
+
+   Backticks are dropped throughout rather than kept on the leaves, so one
+   convention holds at every depth.
+
+   This is the one way to get a string out of a livelit without writing a
+   quote: Hazel string literals admit no escapes, so a program in a livelit
+   cannot contain a double quote at all. Naming a symbol produces the text instead. */
+let rec symbol_text = (json: Yojson.Safe.t): result(string, string) => {
+  let sub = (name, obj) =>
+    switch (List.assoc_opt(name, obj)) {
+    | Some(v) => symbol_text(v)
+    | None => Error("Fumola symbol is missing field `" ++ name ++ "`")
+    };
+  switch (json) {
+  | `Assoc(obj) =>
+    switch (List.assoc_opt("tag", obj), List.assoc_opt("value", obj)) {
+    | (Some(`String("Name")), Some(`String(name))) => Ok(name)
+    | (Some(`String("Num")), Some(`String(n))) => Ok(n)
+    | (Some(`String("Call")), _) =>
+      switch (sub("fun", obj), sub("arg", obj)) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(f), Ok(a)) => Ok(f ++ "(" ++ a ++ ")")
+      }
+    | (Some(`String("Dot")), _) =>
+      switch (sub("left", obj), sub("right", obj)) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(l), Ok(r)) => Ok(l ++ "." ++ r)
+      }
+    | (Some(`String(tag)), _) =>
+      Error("Fumola symbol form `" ++ tag ++ "` has no text yet")
+    | _ => Error("Fumola symbol has no tag")
+    }
+  | _ => Error("Fumola symbol is not an object")
+  };
+};
+
+/* The program that reads the cell a pointer names.
+ *
+ * peek rather than get: reading a cell to translate it should not change the
+ * runtime being translated, and get records a dependency in the adapton
+ * graph. Translation runs on every statics pass, so a dependency-recording
+ * read would grow the graph as a side effect of merely looking.
+ *
+ * The `!` unwraps peek's option, assuming the cell is defined. It is, in the
+ * case that matters -- the pointer came from a value the runtime just
+ * produced -- and a pointer to a cell that has since gone away reads as an
+ * error rather than silently as None. */
+let reading = (source: string): string => "peek(" ++ source ++ ")!";
+
+/* What a reference shows, which is not quite the program above.
+ *
+ * The `!` is left off. It is Fumola's option-unwrap, and Hazel has no such
+ * operator, so "peek(`x)! = 41" invites reading the "! =" as Hazel's
+ * not-equals. Dropping it leaves a statement that is true of Fumola on its
+ * own terms -- peek answers an option, and the option is shown on the right
+ * -- while the unwrapping stays an implementation detail of translation. */
+let reading_shown = (source: string): string => "peek(" ++ source ++ ")";
+
+/* The Hazel type of a Fumola result.
+ *
+ * A pointer's type is the type of what it points at, so this dereferences --
+ * running get(<name>) in the same instance -- and keeps going for as long as
+ * it finds further pointers. That is what lets a pointer be translated with
+ * an honest ascription instead of a guess: the type comes from the runtime
+ * rather than from anything Hazel could have known.
+ *
+ * [seen] holds the pointers already followed on this path, so a cell holding
+ * a pointer back to itself terminates rather than dereferencing forever.
+ * Anything unresolvable becomes Unknown, which is always a sound ascription.
+ */
+let rec typ_of_json =
+        (
+          ~eval: string => Yojson.Safe.t,
+          ~seen: list(string),
+          json: Yojson.Safe.t,
+        )
+        : TermBase.Typ.t => {
+  let tagged = (obj, name) => List.assoc_opt(name, obj);
+  switch (json) {
+  | `Assoc(obj) =>
+    let value = Option.value(tagged(obj, "value"), ~default=`Null);
+    switch (tagged(obj, "tag")) {
+    | Some(`String("Int")) => Typ.fresh(Atom(Int))
+    | Some(`String("Bool")) => Typ.fresh(Atom(Bool))
+    | Some(`String("Float")) => Typ.fresh(Atom(Float))
+    | Some(`String("String")) => Typ.fresh(Atom(String))
+    /* A symbol becomes its text, so its type is String. */
+    | Some(`String("Symbol")) => Typ.fresh(Atom(String))
+    | Some(`String("Unit")) => Typ.fresh(Prod([]))
+    /* Hazel has no type for what it has no value for. */
+    | Some(`String("Opaque")) => unknown()
+    | Some(`String("Tuple")) =>
+      switch (value) {
+      | `List(items) =>
+        Typ.fresh(Prod(List.map(typ_of_json(~eval, ~seen), items)))
+      | _ => unknown()
+      }
+    /* Every element of a Hazel list has one type; the first is as good a
+       witness as any, and an empty list leaves it unknown. */
+    | Some(`String("List")) =>
+      switch (value) {
+      | `List([item, ..._]) =>
+        Typ.fresh(List(typ_of_json(~eval, ~seen, item)))
+      | `List([]) => Typ.fresh(List(unknown()))
+      | _ => unknown()
+      }
+    | Some(`String("Record")) =>
+      switch (value) {
+      | `Assoc(fields) =>
+        Typ.fresh(
+          Prod(
+            List.map(
+              ((name, v)) =>
+                Typ.fresh(
+                  TupLabel(
+                    Typ.fresh(Label(name)),
+                    typ_of_json(~eval, ~seen, v),
+                  ),
+                ),
+              fields,
+            ),
+          ),
+        )
+      | _ => unknown()
+      }
+    /* Hazel's own Option, rather than a synthesized one-variant sum: a
+       synthesized type would not be the type Hazel programs actually use, so
+       it would typecheck here and fail to interoperate anywhere else. Its
+       payload is Unknown, which is all Hazel can express. */
+    | Some(`String("Null"))
+    | Some(`String("Option")) => BuiltinsADT.Option.t
+    /* A variant's home type cannot be recovered from the value: Fumola tags
+       live in one flat namespace and name no type. */
+    | Some(`String("Variant")) => unknown()
+    /* A pointer's type is the type of what it points at. */
+    | Some(`String("AdaptonPointer")) =>
+      switch (value) {
+      | `Assoc(fields) =>
+        switch (List.assoc_opt("source", fields)) {
+        | Some(`String(source)) when !List.mem(source, seen) =>
+          switch (eval(reading(source))) {
+          | `Assoc(result) as pointed =>
+            switch (List.assoc_opt("ok", result)) {
+            | Some(`Bool(true)) =>
+              typ_of_json(~eval, ~seen=[source, ...seen], pointed)
+            /* A cell that cannot be read tells us nothing about its type. */
+            | _ => unknown()
+            }
+          | _ => unknown()
+          }
+        /* Already followed on this path: a cycle. */
+        | _ => unknown()
+        }
+      | _ => unknown()
+      }
+    | _ => unknown()
+    };
+  | _ => unknown()
+  };
+};
+
+/* Whether the type expected here is a symbol type.
+
+   Asked of the expected type alone, structurally -- not through
+   resolve_ctr, which falls back to a context lookup. Since Symbol is in the
+   prelude its constructors are always in scope, so a context lookup answers
+   yes everywhere and every symbol would arrive as structure, including where
+   a String was asked for. */
+let wants_symbol = (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): bool => {
+  let declares_name = (ty: TermBase.Typ.t) =>
+    switch (ty.term) {
+    | Sum(ctrs) =>
+      List.exists(
+        (ctr: ConstructorMap.variant(TermBase.Typ.t)) =>
+          switch (ctr) {
+          | Variant(name, _, _) => name == "Name"
+          | BadEntry(_) => false
+          },
+        ctrs,
+      )
+    | _ => false
+    };
+  let ty = tools.normalize(ana);
+  switch (ty.term) {
+  /* A recursive alias, as Symbol is, normalizes to Rec(name, body). */
+  | Rec(_, body) => declares_name(tools.normalize(body))
+  | _ => declares_name(ty)
+  };
+};
+
+/* A Fumola symbol as structured Hazel data, for where a Symbol is expected.
+
+   Built with the same constructor resolution as any other variant, so the
+   constructors are the ones the expected type declares rather than invented
+   here. */
+let rec symbol_exp =
+        (
+          ~tools: LivelitCtx.type_tools,
+          ~ana: TermBase.Typ.t,
+          json: Yojson.Safe.t,
+        )
+        : result(TermBase.Exp.t, string) => {
+  let applied = (name, payload) => {
+    let (ctr, payload_ana) = constructor(~tools, ~ana, name);
+    switch (payload(payload_ana)) {
+    | Error(e) => Error(e)
+    | Ok(arg) => Ok(DHExp.fresh(Ap(Forward, ctr, arg)))
+    };
+  };
+  let pair = (obj, left, right, payload_ana) =>
+    switch (List.assoc_opt(left, obj), List.assoc_opt(right, obj)) {
+    | (Some(l), Some(r)) =>
+      let element_anas = element_anas(~tools, payload_ana, 2);
+      let (la, ra) =
+        switch (element_anas) {
+        | [la, ra] => (la, ra)
+        | _ => (unknown(), unknown())
+        };
+      switch (
+        symbol_exp(~tools, ~ana=la, l),
+        symbol_exp(~tools, ~ana=ra, r),
+      ) {
+      | (Error(e), _)
+      | (_, Error(e)) => Error(e)
+      | (Ok(l), Ok(r)) => Ok(DHExp.fresh(Tuple([l, r])))
+      };
+    | _ => Error("Fumola symbol is missing a component")
+    };
+  switch (json) {
+  | `Assoc(obj) =>
+    switch (List.assoc_opt("tag", obj), List.assoc_opt("value", obj)) {
+    | (Some(`String("Name")), Some(`String(name))) =>
+      applied("Name", _ => Ok(DHExp.fresh(Atom(String(name)))))
+    | (Some(`String("Num")), Some(`String(n))) =>
+      applied("Num", _ =>
+        switch (Bigint.of_string_opt(n)) {
+        | Some(n) => Ok(DHExp.fresh(Atom(Int(n))))
+        | None => Error("Fumola symbol has an unreadable number: " ++ n)
+        }
+      )
+    | (Some(`String("Call")), _) =>
+      applied("Call", payload_ana => pair(obj, "fun", "arg", payload_ana))
+    | (Some(`String("Dot")), _) =>
+      applied("Dot", payload_ana => pair(obj, "left", "right", payload_ana))
+    | (Some(`String(tag)), _) =>
+      Error("Fumola symbol form `" ++ tag ++ "` has no Hazel form yet")
+    | _ => Error("Fumola symbol has no tag")
+    }
+  | _ => Error("Fumola symbol is not an object")
+  };
+};
+
+/* A short rendering of a translated value, for the widget to show. Kept
+   deliberately shallow: the widget is one line beside a reference. */
+let rec describe_value = (e: TermBase.Exp.t): string =>
+  switch (e.term) {
+  | Atom(Int(n)) => Bigint.to_string(n)
+  | Atom(Float(f)) => Printf.sprintf("%g", f)
+  | Atom(Bool(b)) => b ? "true" : "false"
+  | Atom(String(s)) => "\"" ++ s ++ "\""
+  | ListLit(es) =>
+    "[" ++ String.concat(", ", List.map(describe_value, es)) ++ "]"
+  | Tuple([]) => "()"
+  | Tuple(es) =>
+    "(" ++ String.concat(", ", List.map(describe_value, es)) ++ ")"
+  | TupLabel({term: Label(l), _}, e) => l ++ " = " ++ describe_value(e)
+  | Constructor(c, _) => c
+  | Ap(Forward, {term: Constructor(c, _), _}, arg) =>
+    c ++ "(" ++ describe_value(arg) ++ ")"
+  | FumolaPeek({reads, holds, _}) => reads == "" ? holds : reads
+  | Projector(_, e) => describe_value(e)
+  | EmptyHole => "?"
+  | _ => "..."
+  };
+
+/* The right-hand side a reference shows.
+ *
+ * peek answers an option, so a value that was found is shown as Some of it,
+ * in Hazel's spelling rather than Fumola's. A hole means the read found
+ * nothing worth showing -- a cycle, a cell with no Hazel translation, or one
+ * that has gone away -- and Some of a hole would claim more than we know. */
+let shown_value = (~holds: string="", e: TermBase.Exp.t): string =>
+  switch (e.term, holds) {
+  /* peek found something; Hazel just has no value for it, and the runtime
+     said what it is. Still Some: the cell is occupied. */
+  | (EmptyHole, holds) when holds != "" => "Some(" ++ holds ++ ")"
+  | (EmptyHole, _) => "?"
+  | _ => "Some(" ++ describe_value(e) ++ ")"
+  };
+
+/* Rendering a reference as a widget is done in ExpToSegment, not by wrapping
+   the value in a Projector: evaluation strips a Projector -- it steps to its
+   body -- so a wrapper never reaches a result, which is exactly where these
+   values are seen. */
+
+/* Build the Hazel value denoted by one {tag, value} node. */
+let rec exp_of_json =
+        (
+          ~instance_id: int,
+          ~eval: string => Yojson.Safe.t,
+          ~seen: list(string)=[],
+          ~ana: TermBase.Typ.t,
+          ~tools: LivelitCtx.type_tools,
+          json: Yojson.Safe.t,
+        )
+        : result(TermBase.Exp.t, string) => {
+  let field = (name, obj) =>
+    switch (List.assoc_opt(name, obj)) {
+    | Some(v) => Ok(v)
+    | None => Error("Fumola result is missing field `" ++ name ++ "`")
+    };
+  switch (json) {
+  | `Assoc(obj) =>
+    switch (field("tag", obj)) {
+    | Error(e) => Error(e)
+    | Ok(`String(tag)) =>
+      switch (field("value", obj)) {
+      | Error(e) => Error(e)
+      | Ok(value) =>
+        exp_of_tagged(~instance_id, ~eval, ~seen, ~ana, ~tools, tag, value)
+      }
+    | Ok(_) => Error("Fumola result has a non-string tag")
+    }
+  | _ => Error("Fumola result is not an object")
+  };
+}
+
+and exp_of_tagged =
+    (
+      ~instance_id: int,
+      ~eval: string => Yojson.Safe.t,
+      ~seen: list(string),
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      tag: string,
+      value: Yojson.Safe.t,
+    )
+    : result(TermBase.Exp.t, string) =>
+  switch (tag, value) {
+  | ("Int", `String(n)) =>
+    switch (Bigint.of_string_opt(n)) {
+    | Some(n) => Ok(DHExp.fresh(Atom(Int(n))))
+    | None => Error("Fumola returned an unreadable integer: " ++ n)
+    }
+  | ("Float", `String(f)) =>
+    switch (float_of_string_opt(f)) {
+    | Some(f) => Ok(DHExp.fresh(Atom(Float(f))))
+    | None => Error("Fumola returned an unreadable float: " ++ f)
+    }
+  | ("Bool", `Bool(b)) => Ok(DHExp.fresh(Atom(Bool(b))))
+  | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
+  /* Fumola's unit is Hazel's empty tuple. */
+  | ("Unit", _) => Ok(DHExp.fresh(Tuple([])))
+  /* A Fumola value Hazel has no value for -- a thunk, say -- carrying the
+     source Fumola prints for it. It rides in the same term a reference does,
+     with no reference: an empty [reads] renders the description alone.
+
+     A value, not an error. Hazel cannot represent it, but that is a limit of
+     the boundary rather than a mistake in anyone's program, and showing
+     "@thunk ({ 1 + 3 })" where the thunk is says more than a red mark. */
+  | ("Opaque", `String(shows)) =>
+    Ok(
+      DHExp.fresh(
+        FumolaPeek({
+          instance_id,
+          reads: "",
+          value: DHExp.fresh(EmptyHole),
+          holds: shows,
+        }),
+      ),
+    )
+  /* A pointer becomes the livelit that reads it: the same Fumola instance,
+     running get(<the name it points at>).
+
+     So a livelit that returns a pointer returns a simpler livelit. The term
+     is inert where it lands -- statics splices an expansion in without
+     traversing it, so a livelit inside one is never expanded, and widgets
+     come from projectors over editor syntax, which an expansion is not. What
+     it gives you is a faithful reading of what a pointer is: not a value, but
+     the expression that would fetch one. Copied into a program it becomes a
+     real livelit. */
+  | ("AdaptonPointer", `Assoc(fields)) =>
+    switch (List.assoc_opt("source", fields)) {
+    | Some(`String(source)) =>
+      /* Read the cell and translate what it holds, so the reference carries
+         its value. That is what lets evaluation continue through it -- a
+         reference to a cell holding an Int is usable as an Int -- while the
+         reference itself stays visible.
+
+         [seen] stops a cell that holds a pointer back to itself from being
+         followed forever; a repeat yields a hole, whose type is Unknown. */
+      let reads = reading_shown(source);
+      if (List.mem(source, seen)) {
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value: DHExp.fresh(EmptyHole),
+              holds: "a cell that points to itself",
+            }),
+          ),
+        );
+      } else {
+        /* Either a Hazel value, or -- when the cell holds something Hazel
+           cannot represent -- what the runtime says is in there. A thunk
+           prints itself, so that text is the thunk's own source, which is
+           worth far more to a reader than a bare hole. */
+        let (value, holds) =
+          switch (eval(reading(source))) {
+          | `Assoc(result) as pointed
+              when List.assoc_opt("ok", result) == Some(`Bool(true)) =>
+            switch (
+              exp_of_json(
+                ~instance_id,
+                ~eval,
+                ~seen=[source, ...seen],
+                ~ana=unknown(),
+                ~tools,
+                pointed,
+              )
+            ) {
+            | Ok(value) => (value, "")
+            | Error(message) => (DHExp.fresh(EmptyHole), message)
+            }
+          | `Assoc(result) =>
+            let message =
+              switch (List.assoc_opt("error", result)) {
+              | Some(`String(message)) => message
+              | _ => ""
+              };
+            (DHExp.fresh(EmptyHole), message);
+          | _ => (DHExp.fresh(EmptyHole), "")
+          };
+        Ok(
+          DHExp.fresh(
+            FumolaPeek({
+              instance_id,
+              reads,
+              value,
+              holds,
+            }),
+          ),
+        );
+      };
+    | _ => Error("Fumola pointer has no source text")
+    }
+  /* A symbol arrives either as structure or as its text, decided by the type
+     asked for. Where a Symbol is expected it comes as structure; anywhere
+     else as text, which is what makes a symbol the only way to produce a
+     String from a livelit -- a Hazel string literal cannot contain a quote,
+     so neither can the program that would otherwise build one. */
+  | ("Symbol", symbol) =>
+    wants_symbol(~tools, ana)
+      ? symbol_exp(~tools, ~ana, symbol)
+      : (
+        switch (symbol_text(symbol)) {
+        | Error(e) => Error(e)
+        | Ok(text) => Ok(DHExp.fresh(Atom(String(text))))
+        }
+      )
+  | ("Tuple", `List(items)) =>
+    let anas = element_anas(~tools, ana, List.length(items));
+    let translated =
+      List.map2(
+        (ana, item) =>
+          exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, item),
+        anas,
+        items,
+      );
+    switch (all(translated)) {
+    | Error(e) => Error(e)
+    | Ok(items) => Ok(DHExp.fresh(Tuple(items)))
+    };
+  /* A Fumola array is a purely functional sequence, so it arrives as a Hazel
+     list: same shape, and the element type comes from the annotation. */
+  | ("List", `List(items)) =>
+    let ana = element_ana(~tools, ana);
+    let translated =
+      List.map(
+        item => exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, item),
+        items,
+      );
+    switch (all(translated)) {
+    | Error(e) => Error(e)
+    | Ok(items) => Ok(DHExp.fresh(ListLit(items)))
+    };
+  /* A Hazel record is a tuple of labelled elements. */
+  | ("Record", `Assoc(fields)) =>
+    let element = ((name, value)) => {
+      let ana = field_ana(~tools, ana, name);
+      switch (exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, value)) {
+      | Error(e) => Error(e)
+      | Ok(value) =>
+        Ok(DHExp.fresh(TupLabel(DHExp.fresh(Label(name)), value)))
+      };
+    };
+    switch (all(List.map(element, order_fields(~tools, ana, fields)))) {
+    | Error(e) => Error(e)
+    | Ok(elements) => Ok(DHExp.fresh(Tuple(elements)))
+    };
+  /* Fumola's option is Hazel's: `null` is None, `?(x)` is Some(x). These are
+     resolved like any other constructor rather than hard-coded, so they pick
+     up whichever Option-shaped type is expected here. */
+  | ("Null", _) => Ok(fst(constructor(~tools, ~ana, "None")))
+  | ("Option", payload) =>
+    let (some, payload_ana) = constructor(~tools, ~ana, "Some");
+    switch (
+      exp_of_json(
+        ~instance_id,
+        ~eval,
+        ~seen,
+        ~ana=payload_ana,
+        ~tools,
+        payload,
+      )
+    ) {
+    | Error(e) => Error(e)
+    | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, some, payload)))
+    };
+  | ("Variant", `Assoc(fields)) =>
+    let name =
+      switch (List.assoc_opt("name", fields)) {
+      | Some(`String(name)) => Ok(name)
+      | _ => Error("Fumola variant has no name")
+      };
+    switch (name) {
+    | Error(e) => Error(e)
+    | Ok(name) =>
+      let (ctr, payload_ana) =
+        constructor(~tools, ~ana, constructor_name(name));
+      switch (List.assoc_opt("value", fields)) {
+      | None
+      | Some(`Null) => Ok(ctr)
+      | Some(payload) =>
+        switch (
+          exp_of_json(
+            ~instance_id,
+            ~eval,
+            ~seen,
+            ~ana=payload_ana,
+            ~tools,
+            payload,
+          )
+        ) {
+        | Error(e) => Error(e)
+        | Ok(payload) => Ok(DHExp.fresh(Ap(Forward, ctr, payload)))
+        }
+      };
+    };
+  | (tag, _) =>
+    Error(
+      "Fumola returned a " ++ tag ++ ", which has no Hazel translation yet",
+    )
+  }
+
+and all = (results: list(result('a, string))): result(list('a), string) =>
+  List.fold_right(
+    (r, acc) =>
+      switch (r, acc) {
+      | (Error(e), _) => Error(e)
+      | (_, Error(e)) => Error(e)
+      | (Ok(x), Ok(xs)) => Ok([x, ...xs])
+      },
+    results,
+    Ok([]),
+  );
+
+/* A short rendering of a result, for the widget itself. Derived from the
+   same JSON as the expansion so the two cannot disagree. */
+let rec describe = (json: Yojson.Safe.t): string =>
+  switch (json) {
+  | `Assoc(obj) =>
+    let tag =
+      switch (List.assoc_opt("tag", obj)) {
+      | Some(`String(tag)) => tag
+      | _ => ""
+      };
+    let value =
+      switch (List.assoc_opt("value", obj)) {
+      | Some(v) => v
+      | None => `Null
+      };
+    switch (tag, value) {
+    | ("Int", `String(n)) => n
+    | ("Float", `String(f)) => f
+    | ("Bool", `Bool(b)) => b ? "true" : "false"
+    | ("String", `String(str)) => "\"" ++ str ++ "\""
+    | ("Unit", _) => "()"
+    | ("Opaque", `String(shows)) => shows
+    | ("AdaptonPointer", `Assoc(fields)) =>
+      switch (List.assoc_opt("source", fields)) {
+      | Some(`String(source)) => reading_shown(source)
+      | _ => "<pointer>"
+      }
+    | ("Symbol", symbol) =>
+      switch (symbol_text(symbol)) {
+      | Ok(text) => "\"" ++ text ++ "\""
+      | Error(_) => "<symbol>"
+      }
+    | ("Null", _) => "None"
+    | ("Option", payload) => "Some(" ++ describe(payload) ++ ")"
+    | ("List", `List(items)) =>
+      "[" ++ String.concat(", ", List.map(describe, items)) ++ "]"
+    | ("Tuple", `List(items)) =>
+      "(" ++ String.concat(", ", List.map(describe, items)) ++ ")"
+    | ("Record", `Assoc(fields)) =>
+      "{"
+      ++ String.concat(
+           ", ",
+           List.map(((k, v)) => k ++ " = " ++ describe(v), fields),
+         )
+      ++ "}"
+    | ("Variant", `Assoc(fields)) =>
+      let name =
+        switch (List.assoc_opt("name", fields)) {
+        | Some(`String(name)) => name
+        | _ => "?"
+        };
+      let name = constructor_name(name);
+      switch (List.assoc_opt("value", fields)) {
+      | None
+      | Some(`Null) => name
+      | Some(payload) => name ++ "(" ++ describe(payload) ++ ")"
+      };
+    | (tag, _) => "<" ++ tag ++ ">"
+    };
+  | _ => "?"
+  };
