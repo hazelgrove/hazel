@@ -213,6 +213,23 @@ window.fumola = (() => {
      the cached main program either -- the cache holds only the last program
      per instance, so alternating between the two would make every render
      re-run everything. */
+  // Declare the semantics an instance runs. Idempotent in the wasm: asking
+  // for the mode an instance already has does not reset it, which matters
+  // because a livelit re-expands on every edit and a reset is destructive.
+  const ensureMode = (id, mode) => {
+    if (!ready()) {
+      return JSON.stringify({
+        ok: false,
+        error: "the Fumola runtime is not loaded",
+      });
+    }
+    try {
+      return wasm.fumola_ensure_mode(id, mode);
+    } catch (e) {
+      return JSON.stringify({ ok: false, kind: "runtime", error: String(e) });
+    }
+  };
+
   const evalFresh = (id, src) => {
     if (!ready()) {
       return JSON.stringify({
@@ -228,5 +245,5 @@ window.fumola = (() => {
     }
   };
 
-  return { ready, source, claim, evalSync, evalTop, evalFresh };
+  return { ready, source, claim, ensureMode, evalSync, evalTop, evalFresh };
 })();

@@ -29,7 +29,19 @@ let slider_val = ^^livelit(^slider(85)) in
 # Internal Model: Int                                           #
 let current_mood = ^^livelit(^emotion(0)) in
 
-# 3. ^fumola_thunk #
+# 3. ^fumola_new #
+# Expansion Type: Int -- the id naming the runtime                          #
+# Model: (Int, String) -- instance, semantics ("simple" or "graphical")     #
+#                                                                           #
+# Declares a runtime and the Adapton semantics it runs. The other two       #
+# attach to whatever runtime their id names, so this is where a program     #
+# says which semantics it wants, once, where the runtime is made.           #
+#                                                                           #
+# Runtimes default to "simple", which keeps no graph, so the graph          #
+# introspection needs "graphical". Asking for the semantics a runtime       #
+# already runs does nothing; asking for a different one resets it.          #
+
+# 4. ^fumola_put_force #
 # Expansion Type: whatever the annotation says; it needs one               #
 # Model: (Int, String, String) -- instance, thunk name, program            #
 #                                                                          #
@@ -42,19 +54,20 @@ let current_mood = ^^livelit(^emotion(0)) in
 # `myThunk, 7 and `a(`b) all work. Two thunks in one runtime must not share #
 # a name, or each overwrites the other.                                     #
 #                                                                          #
-# 4. ^fumola_editor #
+# 5. ^fumola_eval #
 # Expansion Type: whatever the annotation says; it needs one               #
 # Model: (Int, String) -- instance, program                                #
 #                                                                          #
 # Evaluates at the top level, with no thunk. No reuse, but bindings outlive #
 # the program, and Adapton.reset() and Adapton.peekForce work -- they       #
-# cannot run inside a force. Strictly more expressive than ^fumola_thunk:   #
-# you can write the force(... := thunk { ... }) yourself.                   #
+# cannot run inside a force. Strictly more expressive than                  #
+# ^fumola_put_force: you can write the force(... := thunk { ... })          #
+# yourself.                                                                 #
 #                                                                          #
 # Same instance id means the same runtime, so an editor can set up state    #
 # that a thunk reads.                                                       #
 #                                                                          #
-# 5. The peek value (not a livelit) #
+# 6. The peek value (not a livelit) #
 # A program returning a pointer produces a value carrying the reference and #
 # what it points at: 1 := 2 gives a reference reading peek(1)! holding 2.   #
 # Evaluation continues through it, so a reference to an Int is usable as an #
@@ -82,7 +95,7 @@ let current_mood = ^^livelit(^emotion(0)) in
 # thunk explicitly matters: you can refer to it from somewhere else.        #
 #                                                                          #
 # The result is (137, peek(`x)! = 274, 137).                                #
-let x : Int = ^fumola_thunk(0, "`t", "`x := 137 + 137; 137") in
-let x_ : Int = ^fumola_editor(0, "pointer(`x)") in
-let y : Int = ^fumola_editor(0, "force(pointer(`t))") in
+let x : Int = ^fumola_put_force(0, "`t", "`x := 137 + 137; 137") in
+let x_ : Int = ^fumola_eval(0, "pointer(`x)") in
+let y : Int = ^fumola_eval(0, "force(pointer(`t))") in
 (x, x_, y)

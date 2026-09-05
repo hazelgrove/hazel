@@ -26,15 +26,16 @@ let tests = (
               | "slider" => sint(50)
               | "emotion" => string("neutral")
               | "js" => string("")
-              /* The fumola livelit expands by observing an external Fumola
-                 runtime reached through `window.fumola`. There is no such
-                 runtime under the node test runner, so its expansion here is
-                 always the empty hole it degrades to, which says nothing about
-                 the livelit itself. Its actual round-trip behaviour -- and the
+              /* The fumola livelits expand by reaching an external Fumola
+                 runtime through `window.fumola`. There is no such runtime
+                 under the node test runner, so each degrades to a hole or an
+                 error message here, which says nothing about the livelit
+                 itself. Its actual round-trip behaviour -- and the
                  instance-id, reload and duplication semantics -- are covered by
                  the Rust tests in the Fumola repo, crates/fumola_wasm. */
-              | "fumola_thunk"
-              | "fumola_editor" => raise(Skip_livelit)
+              | "fumola_new"
+              | "fumola_put_force"
+              | "fumola_eval" => raise(Skip_livelit)
               | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
               };
 

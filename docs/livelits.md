@@ -102,15 +102,48 @@ let livelits: list(raw_livelit) =
 
 ### The Fumola livelits, and the value they produce
 
-Three things, two of which are livelits.
+Three livelits: one declares a runtime, two run programs in one.
 
-#### `^fumola_thunk`
+#### `^fumola_new`
+
+| | |
+| --- | --- |
+| Model | `(Int, String)` -- instance id, Adapton semantics (`"simple"` or `"graphical"`) |
+| Expansion type | `Int` -- the id naming the runtime |
+| Default | `^fumola_new(0, "graphical")` |
+
+Declares a runtime and the semantics it runs, and expands to the id that names
+it. The other two livelits attach to whatever runtime their id names, creating
+one with the default semantics if none exists; this is how a program says
+which semantics it wants, once, where the runtime is made -- so that every
+livelit sharing that id is talking to a runtime whose mode was *declared*
+rather than inherited by accident.
+
+Runtimes default to the simple semantics. That is a deliberate temporary
+choice: two incremental layers meet here, Hazel re-evaluating and Adapton
+repairing, and until how they compose is understood the predictable mode is
+the better default. It is intended to become `"graphical"`, matching Fumola
+itself, with simple asked for explicitly. The cost of simple is that there is
+no graph, so the graph introspection -- `Adapton.peekEvents()` and the edge
+lists in `peekInfo` -- has nothing to report on.
+
+Asking for the semantics a runtime already runs does nothing. That matters:
+a livelit re-expands on every edit, and a reset is destructive, so a
+re-expansion must not discard the history the other livelits have built.
+Asking for a *different* semantics does reset the runtime, since that is what
+requesting another semantics means.
+
+The id would ideally be abstract, hiding the number. Hazel's abstract types
+come only from polymorphic binders today -- there is no signature sealing --
+so the expansion is an `Int`, and we call it a handle by convention only.
+
+#### `^fumola_put_force`
 
 | | |
 | --- | --- |
 | Model | `(Int, String, String)` -- instance id, thunk name, program |
 | Expansion type | whatever the annotation says; it requires checking mode |
-| Default | `^fumola_thunk(0, "`thunk", "1 + 2")` |
+| Default | `^fumola_put_force(0, "`thunk", "1 + 2")` |
 
 Wraps its program as `force(<name> := thunk { ... })`. That wrapper is what
 gives an edit its incremental meaning: re-assigning the same name and forcing
@@ -129,20 +162,32 @@ Hazel id would start a *new* thunk whenever that id changed, quietly losing
 the history the thunk exists to keep. Two thunk livelits sharing a runtime
 must not share a name, or each overwrites the other's thunk.
 
-#### `^fumola_editor`
+#### `^fumola_eval`
 
 | | |
 | --- | --- |
 | Model | `(Int, String)` -- instance id, program |
 | Expansion type | whatever the annotation says; it requires checking mode |
-| Default | `^fumola_editor(0, "1 := 2")` |
+| Default | `^fumola_eval(0, "1 := 2")` |
 
-Evaluates its program at the top level, with no thunk around it. No
-incremental reuse, but bindings it makes outlive it, and the operations the
-wrapper forbids work here: `Adapton.reset()` clears the store the enclosing
-force would still be inside, and `Adapton.peekForce` asserts there.
+Evaluates its program at the top level, with no thunk around it -- a
+**force-free stack**. No incremental reuse, but bindings it makes outlive it,
+and the editor-mode operations belong here.
 
-It is strictly more expressive than `^fumola_thunk` -- you can write the
+That is the distinction the two livelits encode. Fumola runs in two modes. The
+**archivist** runs inside a force, and its operations are the tracked ones --
+put (`:=`), get (`@`), and `force` -- the ones a dependency can be recorded
+for, since a computation is in progress to record it against. The **editor**
+is the more general mode and always runs on a force-free stack; `reset` and
+the graph introspection belong to it alone, and a reset from inside a force is
+not a meaningful request, so Adapton refuses it with `UnreachableForceEnd`.
+
+`peek` is the interesting case: it is how the editor reads a cell, and it
+stays available inside a force too, on purpose -- reading a cell without
+recording a dependency is how you look at a computation while it runs. So a
+peek in a thunk is meaningful, merely untracked.
+
+It is strictly more expressive than `^fumola_put_force` -- you can write the
 `force(... := thunk { ... })` yourself -- so the thunk livelit's value is that
 it generates that wrapper, and generates a distinct name for it.
 

@@ -58,6 +58,23 @@
     font-size: 0.85em;
 }
 
+/* The fumola_new livelit: the semantics a runtime runs, and the id naming
+   it. The mode is the part worth reading; the id is diagnostic, like the one
+   above. */
+.livelit > .fumola-new {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+}
+.livelit > .fumola-new .fumola-new-mode {
+    flex: 0 0 auto;
+}
+.livelit > .fumola-new .fumola-new-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}
+
 /* The widget for a Fumola reference: the program that reads the cell, and
    what it held. Produced by translation, never chosen by a user. */
 .fumola-peek {

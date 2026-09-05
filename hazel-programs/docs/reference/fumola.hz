@@ -1,15 +1,15 @@
 # FUMOLA #
 # Fumola is a language whose execution model uses Adapton: editing a program #
-# repairs prior computation rather than redoing it. A ^fumola_thunk livelit  #
-# runs a Fumola program and expands to its result, translated into a Hazel   #
-# value.                                                                     #
+# repairs prior computation rather than redoing it. A ^fumola_put_force      #
+# livelit runs a Fumola program and expands to its result, translated into a #
+# Hazel value.                                                               #
 #                                                                            #
 # This card is a tour of Fumola syntax and of what each kind of value        #
 # becomes on the Hazel side. Every livelit below is annotated, and the       #
 # annotation is what the translation produces -- change one and Hazel will   #
 # tell you.                                                                  #
 #                                                                            #
-# A ^fumola_thunk takes three things:                                        #
+# A ^fumola_put_force takes three things:                                    #
 #   an instance id      which Fumola runtime to run in                       #
 #   a thunk name        Fumola source for a symbol, naming this thunk        #
 #   the program         Fumola source                                        #
@@ -22,7 +22,7 @@
 # name is the cell the thunk lives in, and forcing it is what a              #
 # dependency can be recorded against.                                        #
 #                                                                            #
-# A ^fumola_editor takes only an instance id and a program, and runs         #
+# A ^fumola_eval takes only an instance id and a program, and runs           #
 # it on a force-free stack: the editor mode, which is the more general       #
 # one. peek, reset and the graph introspection live there. The card          #
 # says which livelit each case needs, and why, where it matters.             #
@@ -32,54 +32,54 @@
 
 # Numbers and arithmetic look as you would expect. #
 let myInt : Int =
-  ^fumola_thunk(0, "`myInt", "1 + 2") in
+  ^fumola_put_force(0, "`myInt", "1 + 2") in
 
 # Booleans too. #
 let myBool : Bool =
-  ^fumola_thunk(0, "`myBool", "true") in
+  ^fumola_put_force(0, "`myBool", "true") in
 
 # Floats cross as floats. Fumola prints them as text and Hazel reads that   #
 # text, so no precision is lost passing through JSON.                        #
 let myFloat : Float =
-  ^fumola_thunk(0, "`myFloat", "0.5") in
+  ^fumola_put_force(0, "`myFloat", "0.5") in
 
 # A Fumola array is a purely functional sequence under the hood, and it     #
 # arrives as a Hazel list. The element type comes from the annotation.      #
 let myList : [Int] =
-  ^fumola_thunk(0, "`myList", "[1, 2, 3]") in
+  ^fumola_put_force(0, "`myList", "[1, 2, 3]") in
 
 # An empty array is still a list; only its element type is left open.       #
 let myEmptyList : [Int] =
-  ^fumola_thunk(0, "`myEmptyList", "[]") in
+  ^fumola_put_force(0, "`myEmptyList", "[]") in
 
 # Lists nest with everything else, so a list of records works.             #
 let myListOfPairs : [(Int, Bool)] =
-  ^fumola_thunk(0, "`myListOfPairs", "[(1, true), (2, false)]") in
+  ^fumola_put_force(0, "`myListOfPairs", "[(1, true), (2, false)]") in
 
 # A symbol is Fumola's notion of a name, written with a leading backtick.   #
 # It arrives in Hazel as its text, which is also the only way to produce a  #
 # String here: a Hazel string literal cannot contain a quote, so neither    #
 # can the program above.                                                    #
 let myString : String =
-  ^fumola_thunk(0, "`myString", "`hello") in
+  ^fumola_put_force(0, "`myString", "`hello") in
 
 # Fumola's unit is Hazel's empty tuple. #
 let myUnit : () =
-  ^fumola_thunk(0, "`myUnit", "()") in
+  ^fumola_put_force(0, "`myUnit", "()") in
 
 # Tuples cross as tuples, so the parts keep their own types. #
 let myPair : (Int, Bool) =
-  ^fumola_thunk(0, "`myPair", "(1, true)") in
+  ^fumola_put_force(0, "`myPair", "(1, true)") in
 
 # A Fumola record is written with semicolons, and becomes a Hazel labeled   #
 # tuple. Fields come back in name order.                                    #
 let myRecord : (x=Int, y=Bool) =
-  ^fumola_thunk(0, "`myRecord", "{x = 1; y = true}") in
+  ^fumola_put_force(0, "`myRecord", "{x = 1; y = true}") in
 
 # A record of floats is the shape of a Vec3 in Adapton.Scene, which is how  #
 # a scene says where to draw something. Note that 0.0 prints as 0.          #
 let myVec3 : (x=Float, y=Float, z=Float) =
-  ^fumola_thunk(0, "`myVec3", "{x = 0.0; y = 1.5; z = -2.25}") in
+  ^fumola_put_force(0, "`myVec3", "{x = 0.0; y = 1.5; z = -2.25}") in
 
 # Variants are written with a leading hash, as in the program below.        #
 # A Fumola variant names no type of its own, so the expected type is        #
@@ -87,18 +87,18 @@ let myVec3 : (x=Float, y=Float, z=Float) =
 # livelits need an annotation.                                              #
 type Shape = + Circle(Int) + Square(Int) in
 let myVariant : Shape =
-  ^fumola_thunk(0, "`myVariant", "#Circle(3)") in
+  ^fumola_put_force(0, "`myVariant", "#Circle(3)") in
 
 # Fumola's option is Hazel's: ?(x) is Some(x) and null is None. #
 let mySome : Option =
-  ^fumola_thunk(0, "`mySome", "?(3)") in
+  ^fumola_put_force(0, "`mySome", "?(3)") in
 
 let myNone : Option =
-  ^fumola_thunk(0, "`myNone", "null") in
+  ^fumola_put_force(0, "`myNone", "null") in
 
 # These compose, so a structure of structures translates as one. #
 let myNested : (Int, (a=Int, b=String)) =
-  ^fumola_thunk(0, "`myNested", "(1, {a = 2; b = `word})") in
+  ^fumola_put_force(0, "`myNested", "(1, {a = 2; b = `word})") in
 
 # SYMBOLS #
 # A symbol is Fumola's notion of a name, and they are first-order data: a   #
@@ -111,17 +111,17 @@ let myNested : (Int, (a=Int, b=String)) =
 # Symbols cross into Hazel as their text, with the backticks dropped at     #
 # every depth, so one convention holds throughout.                          #
 let mySymbol : String =
-  ^fumola_thunk(0, "`mySymbol", "`hello") in
+  ^fumola_put_force(0, "`mySymbol", "`hello") in
 
 let myAppliedSymbol : String =
-  ^fumola_thunk(0, "`myApplied", "`adapton(`settings)") in
+  ^fumola_put_force(0, "`myApplied", "`adapton(`settings)") in
 
 let myNestedSymbol : String =
-  ^fumola_thunk(0, "`myNestedSym", "`a(`b(`c))") in
+  ^fumola_put_force(0, "`myNestedSym", "`a(`b(`c))") in
 
 # They travel inside structures like any other value. #
 let mySymbolPair : (String, String) =
-  ^fumola_thunk(0, "`mySymPair", "(`x, `y)") in
+  ^fumola_put_force(0, "`mySymPair", "(`x, `y)") in
 
 # Text is not the only form. Hazel has a Symbol type of the same shape       #
 # Fumola gives them, and which form you get is decided by the type you ask   #
@@ -134,18 +134,18 @@ let mySymbolPair : (String, String) =
 # from a livelit at all: a Hazel string cannot contain a quote, so neither   #
 # can the program that would otherwise build one.                            #
 let symbolAsText : String =
-  ^fumola_thunk(0, "`asText", "`hello") in
+  ^fumola_put_force(0, "`asText", "`hello") in
 
 let symbolAsData : Symbol =
-  ^fumola_thunk(0, "`asData", "`hello") in
+  ^fumola_put_force(0, "`asData", "`hello") in
 
 # A number is a symbol, so it has a structured form too. #
 let numberAsSymbol : Symbol =
-  ^fumola_thunk(0, "`numSym", "7") in
+  ^fumola_put_force(0, "`numSym", "7") in
 
 # Application nests, each side a symbol in its own right. #
 let appliedAsSymbol : Symbol =
-  ^fumola_thunk(0, "`applSym", "`adapton(`settings)") in
+  ^fumola_put_force(0, "`applSym", "`adapton(`settings)") in
 
 # SYMBOLS, THE OTHER WAY #
 # Symbols also travel from Hazel into Fumola, in one specific place: the    #
@@ -157,13 +157,13 @@ let appliedAsSymbol : Symbol =
 # An ordinary name, a number, and an applied symbol, each naming its own    #
 # thunk in the same runtime.                                                #
 let namedPlainly : Int =
-  ^fumola_thunk(0, "`plainName", "1") in
+  ^fumola_put_force(0, "`plainName", "1") in
 
 let namedByNumber : Int =
-  ^fumola_thunk(0, "1234", "2") in
+  ^fumola_put_force(0, "1234", "2") in
 
 let namedByApplication : Int =
-  ^fumola_thunk(0, "`group(`member)", "3") in
+  ^fumola_put_force(0, "`group(`member)", "3") in
 
 # SPACES AND TIMES #
 # Adapton names places and moments, and each is mostly just a symbol. Both  #
@@ -175,27 +175,27 @@ let namedByApplication : Int =
 #                                                                          #
 # A named space carries the symbol as its text.                             #
 let mySpace : Space =
-  ^fumola_thunk(0, "`mySpace", "Adapton.space(`region)") in
+  ^fumola_put_force(0, "`mySpace", "Adapton.space(`region)") in
 
 # `here` and `now` are relative to where evaluation is, and name nothing,   #
 # so they come across as their own cases rather than as symbols.            #
 let myHere : Space =
-  ^fumola_editor(0, "Adapton.here()") in
+  ^fumola_eval(0, "Adapton.here()") in
 
 let myNow : Time =
-  ^fumola_editor(0, "Adapton.now()") in
+  ^fumola_eval(0, "Adapton.now()") in
 
 # CELLS AND POINTERS #
 # Cells are what make editing incremental. `:=` writes one, and get(s)      #
 # reads it back. State written in one edit is still there in the next, so   #
 # try editing the program below to just `get(1)`.                           #
 let myCell : Int =
-  ^fumola_thunk(0, "`myCell", "1 := 2; get(1)") in
+  ^fumola_put_force(0, "`myCell", "1 := 2; get(1)") in
 
 # A name for a cell is a symbol, and a number is a symbol too, so cells can #
 # be named either way.                                                      #
 let myNamedCell : Int =
-  ^fumola_thunk(0, "`myNamedCell", "`count := 41; get(`count) + 1") in
+  ^fumola_put_force(0, "`myNamedCell", "`count := 41; get(`count) + 1") in
 
 # peek(s) reads without recording a dependency, and answers an option:      #
 # the cell may never have been written.                                     #
@@ -224,10 +224,10 @@ let myNamedCell : Int =
 # untracked. The livelits below use the editor for it because that is       #
 # where it belongs, not because the alternative breaks.                     #
 let myPeek : Option =
-  ^fumola_editor(0, "`count := 41; peek(`count)") in
+  ^fumola_eval(0, "`count := 41; peek(`count)") in
 
 let myMissing : Option =
-  ^fumola_editor(0, "peek(`neverWritten)") in
+  ^fumola_eval(0, "peek(`neverWritten)") in
 
 # POINTERS #
 # pointer(s) is the pointer that symbol s names, and `:=` evaluates to the  #
@@ -238,21 +238,21 @@ let myMissing : Option =
 # it points to -- a pointer to a cell holding an Int is usable as an Int -- #
 # while still showing which cell the value came from.                       #
 let myPointer : Int =
-  ^fumola_thunk(0, "`myPointer", "`x := 41; pointer(`x)") in
+  ^fumola_put_force(0, "`myPointer", "`x := 41; pointer(`x)") in
 
 # `:=` evaluates to a pointer, so this is the same reference by a shorter   #
 # route.                                                                    #
 let myWrite : Int =
-  ^fumola_thunk(0, "`myWrite", "`y := 7") in
+  ^fumola_put_force(0, "`myWrite", "`y := 7") in
 
 # The type comes from what the cell holds, so a pointer to a tuple is a     #
 # reference of that tuple's type.                                           #
 let myTuplePointer : (Int, Bool) =
-  ^fumola_thunk(0, "`myTuplePointer", "`t := (1, true); pointer(`t)") in
+  ^fumola_put_force(0, "`myTuplePointer", "`t := (1, true); pointer(`t)") in
 
 # Numbers name cells as readily as backticked names do.                     #
 let myNumberedPointer : Int =
-  ^fumola_thunk(0, "`myNumberedPointer", "7 := 5; pointer(7)") in
+  ^fumola_put_force(0, "`myNumberedPointer", "7 := 5; pointer(7)") in
 
 # FORCING A THUNK #
 # Every thunk livelit here runs its program inside a thunk named by its     #
@@ -267,19 +267,45 @@ let myNumberedPointer : Int =
 # translate. So an editor livelit can reach back for the result of any      #
 # thunk defined above, with the type that thunk's program produced.         #
 let forcedInt : Int =
-  ^fumola_editor(0, "force(pointer(`myInt))") in
+  ^fumola_eval(0, "force(pointer(`myInt))") in
 
 # Structure survives the trip, as it did from the thunk itself. #
 let forcedPair : (Int, Bool) =
-  ^fumola_editor(0, "force(pointer(`myPair))") in
+  ^fumola_eval(0, "force(pointer(`myPair))") in
 
 # A forced variant still takes its home type from the annotation. #
 let forcedVariant : Shape =
-  ^fumola_editor(0, "force(pointer(`myVariant))") in
+  ^fumola_eval(0, "force(pointer(`myVariant))") in
 
 # And a record arrives as the labeled tuple its fields describe. #
 let forcedRecord : (x=Int, y=Bool) =
-  ^fumola_editor(0, "force(pointer(`myRecord))") in
+  ^fumola_eval(0, "force(pointer(`myRecord))") in
+
+# DECLARING A RUNTIME #
+# ^fumola_new(id, mode) declares a runtime and the Adapton semantics it     #
+# runs, and expands to the id that names it. A handle, in spirit --         #
+# Hazel has no way to seal the type, so it really is an Int.                #
+#                                                                           #
+# The other two livelits attach to whatever runtime their id names, and     #
+# make one with the default semantics if none exists yet. This is how a     #
+# program says which semantics it wants, once, where the runtime is         #
+# made, so that every livelit sharing that id talks to a runtime whose      #
+# mode was declared rather than inherited by accident.                      #
+#                                                                           #
+# Runtimes default to the simple semantics: predictable, but it keeps no    #
+# graph. The graph introspection needs the graphical one, so runtime 7      #
+# asks for it below. Runtime 0, which every other livelit on this card      #
+# uses, stays simple -- ask it for an event count and it fails, since       #
+# there is no graph there to count.                                         #
+let myRuntime : Int =
+  ^fumola_new(7, "graphical") in
+
+# The put_force and eval livelits name that runtime by its id.              #
+let onThatRuntime : Int =
+  ^fumola_put_force(7, "`g", "1 + 2") in
+
+let eventCount : Int =
+  ^fumola_eval(7, "Adapton.peekEvents().size()") in
 
 (
   myInt,
@@ -307,5 +333,8 @@ let forcedRecord : (x=Int, y=Bool) =
   forcedInt,
   forcedPair,
   forcedVariant,
-  forcedRecord
+  forcedRecord,
+  myRuntime,
+  onThatRuntime,
+  eventCount
 )
