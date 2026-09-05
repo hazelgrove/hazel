@@ -95,8 +95,49 @@ let insert_shard_core =
   };
 };
 
+/* `type T¦` in a signature followed by `=`: the bare abstract-member tile
+   (`["type"]`, body TPat) becomes shard 0 of `type _ = _`. Its missing `=`
+   is then the backpack head (the backpack is derived from incomplete tiles,
+   closest first), so the ordinary put-down and reassembly yield
+   `type T = ¦` with T as the child. Only the left siblings are touched. */
+let upgrade_bare_sig_type = (z: t): option(t) => {
+  let (l, r) = z.relatives.siblings;
+  let rec find = (~seen_operand, acc, rev) =>
+    switch (rev) {
+    | [(Piece.Secondary(_) | Grout(_)) as p, ...rest] =>
+      find(~seen_operand, [p, ...acc], rest)
+    | [Tile({label: [_], shards: [0], mold, _}) as p, ...rest]
+        when !seen_operand && (mold.out == Sort.TPat || mold.out == Any) =>
+      find(~seen_operand=true, [p, ...acc], rest)
+    | [Tile({label: ["type"], mold: {out: Sig, _}, _} as t), ...rest] =>
+      Some((List.rev(rest), t, acc))
+    | _ => None
+    };
+  switch (find(~seen_operand=false, [], List.rev(l))) {
+  | None => None
+  | Some((prefix, t, operand)) =>
+    let f = Form.get(SigType);
+    let t' =
+      Tile.{
+        ...t,
+        label: f.label,
+        mold: f.mold,
+        shards: [0],
+        children: [],
+      };
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (prefix @ [Piece.Tile(t'), ...operand], r),
+      },
+    });
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t =>
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t => {
+  let z = t == "=" ? Option.value(upgrade_bare_sig_type(z), ~default=z) : z;
   if (Zipper.backpack_find(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.backpack_find(t, z) |> Option.get;
@@ -104,6 +145,7 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t =>
   } else {
     insert_shard_core(~put_down=Zipper.put_down_seg(d), ~id, t, z, ~root);
   };
+};
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {

@@ -423,6 +423,10 @@ type compound_form =
   | SigBody
   | SigSeq
   | SigLet
+  /* SigTypeAbstract precedes SigType: `type` typed in a signature expands to
+     the bare form (Expansion.get takes the first match); `=` then upgrades
+     it (Insert.upgrade_bare_sig_type). */
+  | SigTypeAbstract
   | SigType
   | SigModule;
 
@@ -537,6 +541,7 @@ let get: compound_form => t =
   | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
   | SigSeq => mk_infix(";", Sig, P.mod_seq)
   | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
+  | SigTypeAbstract => mk_pre_c'(L, ["type"], P.let_, Sig, [], TPat)
   | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ)
   | SigModule => mk_pre_c'(L, ["module"], P.let_, Sig, [], MPat);
 

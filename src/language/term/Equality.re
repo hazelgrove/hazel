@@ -753,6 +753,8 @@ let equality =
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
+    | (SigTypeAbstract(tp1), SigTypeAbstract(tp2)) => tpat'(tp1, tp2)
+    | (SigTypeAbstract(_), _) => false
     /* Sub-module member names are labels too: compare literally. */
     | (SigModule(mp1), SigModule(mp2)) =>
       let rec literal = (mp1: TermBase.MPat.t, mp2: TermBase.MPat.t) =>
