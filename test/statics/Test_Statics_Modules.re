@@ -369,6 +369,50 @@ let test_signature_literal_in_use_path =
     {|use {type T = Int}.T in 1|},
   );
 
+/* A signature-typed expression lacking members the signature requires names
+   them, as a module literal does. */
+let test_missing_members_on_variable =
+  single_mark_test(
+    "A module variable lacking a member names it",
+    {|let big = { let x = 1 } in let m : { let x : Int; let y : Int } = big in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_missing_members_on_argument =
+  single_mark_test(
+    "A module argument lacking a member names it",
+    {|let greet = fun (m : { let name : String }) -> m.name in module Carol = { let age = 3 } in greet(Carol)|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["name"]) => true
+    | _ => false,
+  );
+
+let test_missing_type_member_on_variable =
+  single_mark_test(
+    "A module variable lacking a type member names it",
+    {|let big = { let x = 1 } in let m : { type T; let x : Int } = big in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["T"]) => true
+    | _ => false,
+  );
+
+/* The marks on the type whose term satisfies [pred]. */
+let subtyp_marks =
+    (source, pred: Language.Typ.term => bool): list(Language.Mark.t) =>
+  Language.Id.Map.fold(
+    (_, info: Language.Info.t, acc) =>
+      switch (acc, info) {
+      | (None, InfoTyp({user_term, marks, _})) when pred(user_term.term) =>
+        Some(marks)
+      | _ => acc
+      },
+    statics(parse_exp(source)),
+    None,
+  )
+  |> Option.value(~default=[]);
+
 /* ===== HOLE BINDERS ===== */
 
 /* A hole among the items could still become the members the signature
@@ -3702,6 +3746,9 @@ let tests = (
     test_refutable_item_pattern_reported_on_item,
     test_bare_item_parent_is_the_module,
     test_type_member_compared_outside_the_body,
+    test_missing_members_on_variable,
+    test_missing_members_on_argument,
+    test_missing_type_member_on_variable,
     /* Type error tests */
     test_error_sig_type_mismatch,
     test_error_sig_partial_mismatch,
