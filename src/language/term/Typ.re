@@ -467,7 +467,11 @@ let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
 
 /* Each well-formed member paired with its type after substituting the
    type members declared before it. */
-let sig_members_closed = (items: list(Sig.t)): list((Sig.member, t)) => {
+/* [keep_local name]: leave type member [name] as a bare name for later
+   members instead of substituting its definition (the enclosing module body
+   binds it). */
+let sig_members_closed =
+    (~keep_local=_ => false, items: list(Sig.t)): list((Sig.member, t)) => {
   let (_, rev) =
     List.fold_left(
       ((sigma, acc), item) =>
@@ -478,7 +482,8 @@ let sig_members_closed = (items: list(Sig.t)): list((Sig.member, t)) => {
           )
         | Some(TypeManifest(name, def) as m) =>
           let def = apply_sig_subst(sigma, def);
-          ([(name, def), ...sigma], [(m, def), ...acc]);
+          let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
+          (sigma, [(m, def), ...acc]);
         | None => (sigma, acc)
         },
       ([], []),
@@ -489,8 +494,9 @@ let sig_members_closed = (items: list(Sig.t)): list((Sig.member, t)) => {
 
 /* The type of value member [name] (last declaration wins), closed with
    respect to the signature's own type members. */
-let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
-  sig_members_closed(items)
+let sig_project_value =
+    (~keep_local=_ => false, items: list(Sig.t), name: Var.t): option(t) =>
+  sig_members_closed(~keep_local, items)
   |> List.fold_left(
        (acc, (m: Sig.member, ty)) =>
          switch (m) {
