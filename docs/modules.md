@@ -316,7 +316,11 @@ records info under the signature's own type nodes. After checking:
   definition differs from the signature's (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_members` produces `Mark.ModuleMissingMembers` on
   the module node (an abstract type member the module does not define counts
-  as missing); extra members are sealed away by `ana_meet`.
+  as missing); extra members are sealed away by `ana_meet`. Any other
+  expression of signature type analyzed against a signature that declares
+  members it lacks gets the same mark instead of a generic mismatch
+  (`StaticsBase.expectation_mismatch_mark`), so a module variable or a function
+  argument names its missing members too.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
   annotations are stripped, type items are dropped.
@@ -326,7 +330,9 @@ elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
 value member; a member the signature lacks is reported on the label
 (`ModuleMemberNotFound`, which also says when `x` names a type member) while
 the dot carries only a message, the way `M.Fake` in a type reports on `Fake`
-(`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
+(`ModuleTypeMemberNotFound`); labeled tuples follow the same design
+(`LabelNotFound` on the label, `Message.TupleLabelNotFound` on the dot). A value
+used as the root of a type path gets
 `TypWantModule`, and a manifest type member differing from the signature is
 reported once, on its `type` item: members are checked against the module's
 own definition and the module is not reported again. A module variable (a `Var`, or a capitalized `Constructor`

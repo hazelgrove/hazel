@@ -408,15 +408,10 @@ let missing_members =
     (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
   switch (ana_items, sig_ty.term) {
   | (Some(ana_items), Sig(items)) =>
-    let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let missing_values =
-      Sig.value_names(want)
-      |> List.filter(x => Sig.find_value(have, x) == None);
-    let missing_types =
-      Sig.type_names(want)
-      |> List.filter(t => Sig.find_type(have, t) == None);
-    missing_values @ missing_types;
+    Sig.missing_members(
+      ~want=Sig.members(ana_items),
+      ~have=Sig.members(items),
+    )
   | _ => []
   };
 

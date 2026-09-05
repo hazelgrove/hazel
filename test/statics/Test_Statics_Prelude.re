@@ -243,6 +243,21 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   );
 };
 
+/* The marks on the sub-expression whose term satisfies [pred]. */
+let subexp_marks =
+    (source, pred: Language.Exp.term => bool): list(Language.Mark.t) =>
+  Language.Id.Map.fold(
+    (_, info: Language.Info.t, acc) =>
+      switch (acc, info) {
+      | (None, InfoExp({user_term, marks, _})) when pred(user_term.term) =>
+        Some(marks)
+      | _ => acc
+      },
+    statics(parse_exp(source)),
+    None,
+  )
+  |> Option.value(~default=[]);
+
 let inconsistent_typecheck = (name, exp) => {
   test_case(
     name,
