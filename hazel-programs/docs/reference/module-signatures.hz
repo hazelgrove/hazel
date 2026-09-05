@@ -1,7 +1,7 @@
 # MODULE SIGNATURES #
 
-# Continues the Modules slide: width subtyping and abstract type #
-# members. #
+# Continues the Modules slide: width subtyping, abstract type #
+# members and module-typed functions. #
 
 # E. WIDTH SUBTYPING #
 
@@ -100,4 +100,33 @@ let visible = Open.x + 1 in
 
 # 39. Error: the module must define the abstract type #
 module Missing : {type T; let x : T} = {let x = 1} in
+
+
+# G. MODULE-TYPED FUNCTIONS #
+
+# Functions take and return modules. Inside a body a parameter's #
+# abstract types are the paths c.T; they cannot leave the body. #
+
+# 40. Using a module parameter through its interface #
+let total = fun (c : {type T; let zero : T; let incr : T -> T; let get : T -> Int}) ->
+  c.get(c.incr(c.zero)) in
+let n = total(Counter) in
+
+# 41. Returning the parameter: the result has type S again #
+let same = fun (c : {type T; let zero : T}) -> c in
+module C3 = same(Counter) in
+let z3 : C3.T = C3.zero in
+
+# 42. A member of abstract type escaping its function is unknown #
+let leak = fun (c : {type T; let zero : T}) -> c.zero in
+let escaped = leak(Counter) in
+
+# 43. Generative: each call yields a module with a fresh type #
+let make = fun () -> ({type U = Int; let y = 1} : {type U; let y : U}) in
+module A = make() in
+module B = make() in
+let ya : A.U = A.y in
+
+# 44. Error: A.U and B.U are distinct #
+let mixed : A.U = B.y in
 ¿

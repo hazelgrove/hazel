@@ -1029,6 +1029,10 @@ let ex5 = list_of_mylist(x) in
         {|let m : { let x : Int; type T } = { let x = 1; type T = Int } in m|},
       ),
       menhir_maketerm_equivalent_test(
+        "Module-typed function parameter",
+        {|fun (m : { type T; let x : T }) -> m.x|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Sig type unannotated member",
         {|let m : { let x } = { let x = 1 } in m|},
       ),
