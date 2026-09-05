@@ -1,15 +1,11 @@
-/* Module-related helper functions used during statics/elaboration. */
+/* Module-related helper functions used during statics/elaboration.
 
-type value_export = {
-  name: Var.t,
-  pat: Pat.t,
-};
-
-type lowered = {
-  expanded: Exp.t,
-  value_exports: list(value_export),
-  type_exports: list((Var.t, Typ.t)),
-};
+   Type checking a module body reuses the Let/TyAlias machinery: the items
+   are lowered to a chain of nested Let/TyAlias wrappers (`lower`) that is
+   checked in synthesis mode, and the module's signature type is read back
+   from the recorded pattern infos (`module_sig_type`). The elaborated module
+   is refolded from the checked chain (`refold_module_elab`), so dynamics
+   evaluates modules directly as modules. */
 
 /* Collect module variable references from type annotations.
    For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
@@ -54,7 +50,7 @@ let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
   | Asc(inner, typ) =>
     IdTagged.fast_copy(
       MPat.rep_id(mp),
-      Pat.fresh(Asc(mpat_to_pat(inner), Typ.desugar_sig(Ctx.empty, typ))),
+      Pat.fresh(Asc(mpat_to_pat(inner), typ)),
     )
   | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
   };
@@ -64,12 +60,6 @@ let rec mpat_names = (mp: MPat.t): list(Var.t) =>
   | Var(name) => [name]
   | Asc(inner, _) => mpat_names(inner)
   | _ => []
-  };
-
-let single_bound_var = (p: Pat.t): option(Var.t) =>
-  switch (Pat.bound_vars(p)) {
-  | [name] => Some(name)
-  | _ => None
   };
 
 let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
@@ -101,6 +91,7 @@ let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
   | ModLet(pat, _) => Pat.bound_vars(pat)
   | ModuleMod(mp, _) => mpat_names(mp)
+  | ModVal(x, _) => [x]
   | ModType(_, _)
   | ModExp(_)
   | Invalid(_)
@@ -111,157 +102,66 @@ let item_bound_names = (item: Mod.t): list(Var.t) =>
 let collect_later_names = (items: list(Mod.t)): list(Var.t) =>
   items |> List.map(item_bound_names) |> List.flatten;
 
-let value_exports = (items: list(Mod.t)): list(value_export) => {
-  let rec go = (items: list(Mod.t)): list(value_export) =>
-    switch (items) {
-    | [] => []
-    | [item, ...rest] =>
-      let later_names = collect_later_names(rest);
-      let keep = name => !List.mem(name, later_names);
-      let exports =
-        switch (item.term) {
-        | ModLet(pat, _) =>
-          Pat.bound_vars(pat)
-          |> List.filter(keep)
-          |> List.map(name =>
-               {
-                 name,
-                 pat: pat_for_bound_name(name, pat),
-               }
-             )
-        | ModuleMod(mp, _) =>
-          let pat = mpat_to_pat(mp);
-          mpat_names(mp)
-          |> List.filter(keep)
-          |> List.map(name =>
-               {
-                 name,
-                 pat: pat_for_bound_name(name, pat),
-               }
-             );
-        | ModType(_, _)
-        | ModExp(_)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => []
-        };
-      exports @ go(rest);
-    };
-  go(items);
+/* Names bound by [item] that no later item rebinds (last binding wins),
+   each paired with the sub-pattern that binds it. */
+let item_exports = (item: Mod.t, ~later: list(Mod.t)): list((Var.t, Pat.t)) => {
+  let later_names = collect_later_names(later);
+  let of_pat = pat =>
+    Pat.bound_vars(pat)
+    |> List.filter(name => !List.mem(name, later_names))
+    |> List.map(name => (name, pat_for_bound_name(name, pat)));
+  switch (item.term) {
+  | ModLet(pat, _) => of_pat(pat)
+  | ModuleMod(mp, _) => of_pat(mpat_to_pat(mp))
+  | ModVal(x, _) => of_pat(Pat.fresh(Var(x)))
+  | ModType(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => []
+  };
 };
 
-let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
-  let fields =
-    exports
-    |> List.map(({name, _}) =>
-         Exp.fresh(
-           TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
+/* Whether a later item declares type member [name] again. */
+let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
+  List.exists(
+    (item: Mod.t) =>
+      switch (item.term) {
+      | ModType({term: Var(n), _}, _) => n == name
+      | _ => false
+      },
+    later,
+  );
+
+/* Expected types for the module's value members when it is analyzed
+   against a signature: each member's declared type with the signature's own
+   manifest type members substituted away, so `{ type T = Int; let x : T }`
+   expects `x : Int`. */
+let ana_value_types =
+    (~defined: list(Var.t), ana_items: option(list(Sig.t)))
+    : list((Var.t, Typ.t)) =>
+  switch (ana_items) {
+  | None => []
+  | Some(items) =>
+    Sig.members(items)
+    |> Sig.value_names
+    |> List.filter_map(name =>
+         Typ.sig_project_value(
+           ~keep_local=name => List.mem(name, defined),
+           items,
+           name,
          )
-       );
-  Exp.fresh(Tuple(fields));
-};
-
-let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
-  switch (ty.term) {
-  | Parens(inner) => strip_typ_parens(inner)
-  | _ => ty
-  };
-
-let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
-  switch (strip_typ_parens(ana).term) {
-  | Prod(fields) =>
-    fields
-    |> List.filter_map((field: Typ.t) =>
-         switch (field.term) {
-         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
-         | _ => None
-         }
+         |> Option.map(ty =>
+              (
+                name,
+                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+              )
+            )
        )
-  | _ => []
   };
 
-let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
-  let deduped =
-    List.fold_right(
-      ((name, ty), (seen, acc)) =>
-        if (List.mem(name, seen)) {
-          (seen, acc);
-        } else {
-          ([name, ...seen], [(name, ty), ...acc]);
-        },
-      exports,
-      ([], []),
-    )
-    |> snd;
-  Prod(
-    deduped
-    |> List.map(((name, ty)) =>
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
-       ),
-  )
-  |> Typ.temp;
-};
-
-let type_exports_alias_type =
-    (exports: list((Var.t, Typ.t))): option(Typ.t) =>
-  switch (exports) {
-  | [] => None
-  | _ => Some(type_exports_type(exports))
-  };
-
-let rec collect_type_exports =
-        (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
-  items
-  |> List.fold_left(
-       ((ctx, acc), item: Mod.t) =>
-         switch (item.term) {
-         | ModType(tpat, typ) =>
-           switch (tpat.term) {
-           | Var(name) =>
-             let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
-                 let locals = List.map(fst, acc);
-                 (
-                   Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
-                   typ,
-                 );
-               };
-             let ctx =
-               Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
-             (ctx, [(name, resolved), ...acc]);
-           | _ => (ctx, acc)
-           }
-         | ModuleMod(mp, def) =>
-           let rhs_exports_ty =
-             switch (def.term) {
-             | Module(inner_items) =>
-               collect_type_exports(ctx, inner_items)
-               |> type_exports_alias_type
-             | Var(rhs)
-             | Constructor(rhs, _) =>
-               switch (Ctx.lookup_tvar(ctx, rhs)) {
-               | Some(Singleton(exports_ty)) => Some(exports_ty)
-               | _ => None
-               }
-             | _ => None
-             };
-           switch (mpat_names(mp), rhs_exports_ty) {
-           | ([name], Some(exports_ty)) =>
-             let ctx =
-               Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
-             (ctx, [(name, exports_ty), ...acc]);
-           | _ => (ctx, acc)
-           };
-         | _ => (ctx, acc)
-         },
-       (ctx, []),
-     )
-  |> snd
-  |> List.rev;
-
+/* Annotate a bare variable pattern with the type its signature expects, so
+   a mismatch is reported on the definition rather than on the module. */
 let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   switch (pat.term) {
   | Var(name) =>
@@ -291,6 +191,11 @@ let wrap_item =
       Mod.rep_id(item),
       Exp.fresh(Let(mpat_to_pat(mp), def, body)),
     )
+  | ModVal(x, def) =>
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(Let(Pat.fresh(Var(x)), def, body)),
+    )
   | EmptyHole =>
     let e: Exp.t =
       IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
@@ -305,73 +210,33 @@ let wrap_item =
     Exp.fresh(Let(Pat.fresh(Wild), e, body));
   };
 
-let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
-  let ana_labels =
-    switch (ana) {
-    | Some(ana) => extract_ana_labels(ana)
-    | None => []
+/* Lower module items to nested Let/TyAlias wrappers for type checking. The
+   wrappers carry the Mod item ids. The tail mentions every exported binding
+   so that exports count as used; its type is otherwise irrelevant: the
+   module's type is computed by `module_sig_type` and its elaboration is
+   refolded by `refold_module_elab`. */
+let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
+  let defined =
+    List.concat_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModType({term: Var(n), _}, _) => [n]
+        | _ => List.map(fst, item_exports(item, ~later=[]))
+        },
+      items,
+    );
+  let ana_labels = ana_value_types(~defined, ana_items);
+  let rec exported = (items: list(Mod.t)) =>
+    switch (items) {
+    | [] => []
+    | [item, ...rest] =>
+      List.map(fst, item_exports(item, ~later=rest)) @ exported(rest)
     };
-  let value_exports = value_exports(items);
-  {
-    expanded:
-      List.fold_right(
-        wrap_item(~ana_labels),
-        items,
-        labeled_tuple_exp(value_exports),
-      ),
-    value_exports,
-    type_exports: collect_type_exports(ctx, items),
-  };
-};
-
-/* Recursively strip ascription annotations from module patterns
-   in let/tyalias expressions. */
-let rec strip_module_sig_pats = (exp: Exp.t): Exp.t => {
-  let (term, rewrap) = Exp.unwrap(exp);
-  switch (term) {
-  | Let({term: Asc(p, _), _}, def, body) =>
-    Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
-    )
-    |> rewrap
-  | Let(p, def, body) =>
-    Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
-    )
-    |> rewrap
-  | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, strip_module_sig_pats(body)) |> rewrap
-  | Parens(inner) => Parens(strip_module_sig_pats(inner)) |> rewrap
-  | _ => exp
-  };
-}
-and strip_module_sig_pats_in_pat = (pat: Pat.t): Pat.t => {
-  let (term, rewrap) = Pat.unwrap(pat);
-  switch (term) {
-  | Asc(inner, _) => strip_module_sig_pats_in_pat(inner)
-  | Parens(inner) => Parens(strip_module_sig_pats_in_pat(inner)) |> rewrap
-  | _ => pat
-  };
-};
-
-/* Restores a module body's ID when it's been lost during tuple elaboration.
-   Walks nested Let/TyAlias/Parens until a Tuple is found, then copies the ID. */
-let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
-  let (term, rewrap) = Exp.unwrap(exp);
-  switch (term) {
-  | Let(p, def, body) =>
-    Let(p, def, restore_module_body_id(~id, body)) |> rewrap
-  | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, restore_module_body_id(~id, body)) |> rewrap
-  | Parens(inner) => Parens(restore_module_body_id(~id, inner)) |> rewrap
-  | Tuple(_) => IdTagged.fast_copy(id, exp)
-  | _ => exp
-  };
+  let tail =
+    Exp.fresh(
+      Tuple(List.map(name => Exp.fresh(Var(name)), exported(items))),
+    );
+  List.fold_right(wrap_item(~ana_labels), items, tail);
 };
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
@@ -381,16 +246,39 @@ let reclassify_expanded_module_items =
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+      /* The wrapper's own type is the type of the rest of the chain, which
+         is meaningless for the item; show the member it declares instead. */
+      let pat_ty = id =>
+        StaticsBase.Map.lookup_pat(id, m)
+        |> Option.map((info: Info.pat) => info.ty);
+      let member_ty =
+        switch (item.term) {
+        | ModLet(p, _) => pat_ty(Pat.rep_id(p))
+        | ModuleMod(mp, _) => pat_ty(MPat.rep_id(mp))
+        | ModType(_, ty) => Some(ty)
+        | ModVal(_, _)
+        | ModExp(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => None
+        };
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
-        StaticsBase.Map.add_info(
-          ids,
-          Info.InfoExp({
-            ...info,
-            cls: mod_cls,
-          }),
-          m,
-        )
+        let info =
+          switch (member_ty) {
+          | Some(ty) => {
+              ...info,
+              cls: mod_cls,
+              elab_syn_ty: ty,
+              ty,
+              message: Message.Exp(Common(Syn(ty))),
+            }
+          | None => {
+              ...info,
+              cls: mod_cls,
+            }
+          };
+        StaticsBase.Map.add_info(ids, Info.InfoExp(info), m);
       | None => m
       };
     },
@@ -398,48 +286,221 @@ let reclassify_expanded_module_items =
     items,
   );
 
-/* Construct module export product type from lowered value exports. */
-let module_actual_type =
-    (
-      ~local_names: list(string),
-      value_exports: list(value_export),
-      m: StaticsBase.Map.t,
-    )
-    : Typ.t => {
-  let fields =
-    value_exports
-    |> List.map(({name, pat}) => {
-         let ty =
-           switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
-           | Some({ty, ctx: pat_ctx, _}) =>
-             /* Scope escape: only module-LOCAL aliases must be inlined
-                (they are unbound outside the braces); globals/builtins
-                stay compact per the type-normalization invariant. */
-             Typ.normalize(
-               ~expand=n => List.mem(n, local_names),
-               pat_ctx,
-               ty,
-             )
-           | None => Typ.temp(Unknown(Internal))
-           };
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
-       });
-  Prod(fields) |> Typ.temp;
+/* Type member names declared more than once in a body. Only these are
+   inlined into the types of members defined between the declarations; the
+   surviving declarations are exported and bind their name in the signature. */
+let shadowed_type_names = (items: list(Mod.t)): list(Var.t) => {
+  let names =
+    items
+    |> List.filter_map((item: Mod.t) =>
+         switch (item.term) {
+         | ModType({term: Var(n), _}, _) => Some(n)
+         | _ => None
+         }
+       );
+  names
+  |> List.filter(n => List.length(List.filter((==)(n), names)) > 1)
+  |> Sig.dedup_names;
 };
 
-/* Post-process expanded module elaboration to hide expansion-only wrappers. */
-let module_elab = (~module_exp_id: Id.t, expanded_elab: Exp.t): Exp.t =>
-  expanded_elab
-  |> strip_module_sig_pats
-  |> restore_module_body_id(~id=module_exp_id);
+/* The signature synthesized for a module body: its exported type and value
+   members in source order. Value member types come from the pattern infos
+   recorded while checking the lowered body. */
+let module_sig_type =
+    (~ctx: Ctx.t, items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
+  let shadowed = shadowed_type_names(items);
+  let expand = n => List.mem(n, shadowed);
+  let rec go = (ctx: Ctx.t, items: list(Mod.t), acc: list(Sig.t)) =>
+    switch (items) {
+    | [] => List.rev(acc)
+    | [item, ...rest] =>
+      switch (item.term) {
+      | ModType({term: Var(name), _} as tpat, def) =>
+        let def_ty =
+          List.mem(name, Typ.free_vars(def))
+            ? Rec(Var(name) |> TPat.fresh, def) |> Typ.temp : def;
+        let ctx' = Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), def_ty);
+        let acc =
+          type_declared_later(name, rest)
+            ? acc
+            : [
+              Sig.item_of_member(
+                TypeManifest(name, Typ.normalize(~expand, ctx, def_ty)),
+              ),
+              ...acc,
+            ];
+        go(ctx', rest, acc);
+      | ModLet(_, _)
+      | ModuleMod(_, _)
+      | ModVal(_, _) =>
+        let members =
+          item_exports(item, ~later=rest)
+          |> List.map(((name, pat)) => {
+               let ty =
+                 switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
+                 | Some({ty, ctx: pat_ctx, _}) =>
+                   Typ.normalize(~expand, pat_ctx, ty)
+                 | None => Typ.temp(Unknown(Internal))
+                 };
+               /* A `module M = ...` item exports a `module M : S` member. */
+               switch (item.term) {
+               | ModuleMod(_, _) => Sig.module_item(name, ty)
+               | _ => Sig.item_of_member(Val(name, ty))
+               };
+             });
+        go(ctx, rest, List.rev_append(members, acc));
+      | ModType(_, _)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => go(ctx, rest, acc)
+      }
+    };
+  Sig(go(ctx, items, [])) |> Typ.temp;
+};
 
-/* Rebuild ModuleExp elaboration with direct def elaboration preserved. */
+/* Members the analyzed signature requires that the module does not export. */
+let missing_members =
+    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
+  switch (ana_items, sig_ty.term) {
+  | (Some(ana_items), Sig(items)) =>
+    let have = Sig.members(items);
+    let want = Sig.members(ana_items);
+    let missing_values =
+      Sig.value_names(want)
+      |> List.filter(x => Sig.find_value(have, x) == None);
+    let missing_types =
+      Sig.type_names(want)
+      |> List.filter(t => Sig.find_type_def(have, t) == None);
+    missing_values @ missing_types;
+  | _ => []
+  };
+
+/* Members the module exports that the analyzed signature does not declare.
+   Until width subtyping lands, a signature must be precise. */
+let extra_members =
+    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
+  switch (ana_items, sig_ty.term) {
+  | (Some(ana_items), Sig(items)) =>
+    let have = Sig.members(items);
+    let want = Sig.members(ana_items);
+    let extra_values =
+      Sig.value_names(have)
+      |> List.filter(x => Sig.find_value(want, x) == None);
+    let extra_types =
+      Sig.type_names(have)
+      |> List.filter(t => Sig.find_type_def(want, t) == None);
+    extra_values @ extra_types;
+  | _ => []
+  };
+
+/* Mark each exported `type T = ...` whose definition differs from the
+   manifest type the analyzed signature declares for T. Definitions with
+   holes are not compared, to stay gradual. The mark lands on the item's
+   info: the TyAlias wrapper carries the Mod item id. Also returns the names
+   marked, so the module itself is not reported a second time. */
+let check_ana_type_members =
+    (
+      ~ana_items: option(list(Sig.t)),
+      items: list(Mod.t),
+      m: StaticsBase.Map.t,
+    )
+    : (StaticsBase.Map.t, list(Var.t)) =>
+  switch (ana_items) {
+  | None => (m, [])
+  | Some(ana_items) =>
+    let rec go = (items: list(Mod.t), m, marked) =>
+      switch (items) {
+      | [] => (m, List.rev(marked))
+      | [item, ...rest] =>
+        let (m, marked) =
+          switch (item.term) {
+          | ModType({term: Var(name), _}, def)
+              when !type_declared_later(name, rest) =>
+            switch (
+              Typ.sig_project_type(ana_items, name),
+              StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m),
+            ) {
+            | (Some(expected), Some(info))
+                when
+                  Typ.count_unknowns(expected) == 0
+                  && Typ.count_unknowns(def) == 0
+                  && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
+              let m =
+                StaticsBase.Map.add_info(
+                  IdTagged.ids(item),
+                  Info.InfoExp({
+                    ...info,
+                    marks: [
+                      Mark.ModuleTypeMemberMismatch({
+                        name,
+                        expected,
+                        actual: def,
+                      }),
+                      ...info.marks,
+                    ],
+                  }),
+                  m,
+                );
+              (m, [name, ...marked]);
+            | _ => (m, marked)
+            }
+          | _ => (m, marked)
+          };
+        go(rest, m, marked);
+      };
+    go(items, m, []);
+  };
+
+/* Inverse of `wrap_item` over the checked chain: rebuild the module items
+   with their elaborated definitions, in order. Type items have no runtime
+   content (TyAlias elaborates to its body) and are dropped. The synthetic
+   ascription `modlet_pat` adds to a bare variable binder is stripped; a
+   `module M : S = ...` item keeps its elaborated (ascribed) binder. */
+let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
+  let strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t =>
+    switch (user_pat.term, p_elab.term) {
+    | (Var(_), Asc(inner, _)) => inner
+    | _ => p_elab
+    };
+  switch (items) {
+  | [] => []
+  | [{term: ModType(_, _), _}, ...rest] => refold_module_elab(rest, elab)
+  | [item, ...rest] =>
+    switch (elab.term) {
+    | Let(p, def, body) =>
+      let term: Mod.term =
+        switch (item.term) {
+        | ModLet(user_pat, _) =>
+          ModLet(strip_synthetic_asc(user_pat, p), def)
+        | ModuleMod(_, _) => ModLet(p, def)
+        | ModExp(_) => ModExp(def)
+        | ModVal(x, _) => ModVal(x, def)
+        | ModType(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => item.term
+        };
+      [
+        {
+          ...item,
+          term,
+        },
+        ...refold_module_elab(rest, body),
+      ];
+    | _ => items
+    }
+  };
+};
+
+/* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
+   binder keeps its (normalized) signature ascription: that is what seals the
+   module at runtime. */
 let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
   let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
   switch (expanded_term) {
   | Let(p_elab, _, body_elab) =>
-    Let(strip_module_sig_pats_in_pat(p_elab), def_elab_direct, body_elab)
-    |> expanded_rewrap
-  | _ => strip_module_sig_pats(expanded_elab)
+    Let(p_elab, def_elab_direct, body_elab) |> expanded_rewrap
+  | _ => expanded_elab
   };
 };

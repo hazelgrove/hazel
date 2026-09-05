@@ -113,6 +113,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
         switch (item.term) {
         | ModLet(p, def) => acc |> find_in_let(name, p, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => acc |> find_fn(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -206,6 +207,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
         switch (item.term) {
         | ModLet(_, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => var_mention(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -296,6 +298,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
         switch (item.term) {
         | ModLet(_, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => var_applied(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -418,6 +421,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
           switch (item.term) {
           | ModLet(_, def)
           | ModuleMod(_, def)
+          | ModVal(_, def)
           | ModExp(def) => var_mention(name, def)
           | ModType(_, _)
           | Invalid(_)

@@ -27,7 +27,8 @@
        singleton labeled tuples,
      - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
        `Let(mpat_to_pat(mp), def, body)`,
-     - `Typ.desugar_sig` which expands signature types.
+     - `ModuleHelpers.lower` (in ModuleHelpers.re) which lowers module
+       bodies to nested Let/TyAlias wrappers for type checking.
 
    All of these reuse the id (and formatting secondary) of the surface
    term for the desugared outer term by going through `Exp.unwrap`, so

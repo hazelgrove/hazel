@@ -130,7 +130,10 @@ type step_kind =
   | Ascription
   | RemoveTypeAlias
   | RemoveUse
-  | RemoveParens;
+  | RemoveParens
+  | ModuleBind(string)
+  | ModuleDiscardExp
+  | ModuleDiscardType;
 
 type rule =
   | Step({
@@ -154,6 +157,17 @@ let (let-unbox) = ((request, v), f) => {
   let-unboxed result = Unboxing.unbox(request, v);
   f(result);
 };
+
+/* A `module M = ...` item binds its name like a let; the module name pattern
+   is a variable, optionally ascribed. */
+let rec pat_of_mpat = (mp: MPat.t): Pat.t =>
+  switch (mp.term) {
+  | Var(x) => Pat.fresh(Var(x))
+  | Asc(inner, ty) => Pat.fresh(Asc(pat_of_mpat(inner), ty))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => Pat.fresh(Wild)
+  };
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -1017,6 +1031,18 @@ module Transition = (EV: EV_MODE) => {
               kind: Dot,
               is_value: false,
             });
+          | Module(items) =>
+            /* Member of a module value; definitions are already values. */
+            switch (Mod.modval_lookup(items, name)) {
+            | Some(v) =>
+              Step({
+                expr: v,
+                side_effects: [],
+                kind: Dot,
+                is_value: true,
+              })
+            | None => Indet
+            }
           | _ => Indet
           }
         | _ => Indet
@@ -1250,11 +1276,115 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
-    // Modules should be expanded before reaching dynamics (Phase 1.3)
-    | Module(_) =>
-      let. _ = otherwise(env, d);
-      Indet;
-    // ModuleExp should be expanded to Let before reaching dynamics
+    | Module(items) =>
+      /* Modules evaluate item by item with sequential scoping: the first
+         pending item's definition is evaluated, its pattern is matched, and
+         the bindings extend the environment for the remaining items.
+         Evaluated bindings become ModVal items; a module whose items are all
+         ModVal is a value once each definition is. */
+      switch (Mod.split_pending(items)) {
+      | (prefix, None) =>
+        let. _ =
+          otherwise(env, ds =>
+            Module(Mod.with_modval_defs(prefix, ds)) |> rewrap
+          )
+        and. _ =
+          req_all_final(
+            req(env),
+            (ctx, ds) => ModuleVal(prefix, ctx, ds) |> wrap_ctx,
+            Mod.modval_defs(prefix),
+          );
+        Constructor;
+      | (prefix, Some((item, suffix))) =>
+        let rebuild = (item: Mod.t) =>
+          Module(prefix @ [item] @ suffix) |> rewrap;
+        switch (item.term) {
+        | ModType(_, _) =>
+          let. _ = otherwise(env, d);
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardType,
+            is_value: false,
+          });
+        | ModExp(d1) =>
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. _ =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: false,
+          });
+        | ModLet(_, _)
+        | ModuleMod(_, _) =>
+          let (dp, d1) =
+            switch (item.term) {
+            | ModLet(dp, d1) => (dp, d1)
+            | ModuleMod(mp, d1) => (pat_of_mpat(mp), d1)
+            | _ => failwith("unreachable: module item is a binding")
+            };
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. d1' =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          let.wrap_closure _ = (env, rebuild(Mod.with_def(item, d1')));
+          let {matches, samples} = matches(targets, dp, d1');
+          switch (matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(env') =>
+            /* Export the bindings in pattern order. */
+            let order = Pat.bound_vars(dp);
+            let index = x =>
+              List.find_index((==)(x), order) |> Option.value(~default=0);
+            let bound =
+              List.stable_sort(
+                ((x, _), (y, _)) => compare(index(x), index(y)),
+                env',
+              );
+            let prefix' =
+              List.fold_left(
+                (prefix, (x, v)) => Mod.add_modval(prefix, x, v),
+                prefix,
+                bound,
+              );
+            let env'' = Environment.add_bindings(env, env');
+            /* The continuation gets a fresh id: it is evaluated as a
+               sub-expression of this module, and a probe on the module
+               must sample its value once, at this level. */
+            Step({
+              expr:
+                subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
+              side_effects: [
+                RecordPatMatch({
+                  pat: dp,
+                  rhs: d1,
+                  samples,
+                }),
+              ],
+              kind:
+                ModuleBind(bound |> List.map(fst) |> String.concat(", ")),
+              is_value: false,
+            });
+          };
+        | ModVal(_, _)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) =>
+          let. _ = otherwise(env, d);
+          Indet;
+        };
+      }
+    // ModuleExp is elaborated to Let before reaching dynamics
     | ModuleExp(_) =>
       let. _ = otherwise(env, d);
       Indet;
@@ -1281,6 +1411,9 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | CaseApply => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
+  | ModuleBind(_)
+  | ModuleDiscardExp
+  | ModuleDiscardType
   | RemoveTypeAlias
   | RemoveUse
   | InvalidStep
@@ -1346,6 +1479,9 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | Dot => "Labeled tuple access"
+  | ModuleBind(s) => String.cat("module binding for ", s)
+  | ModuleDiscardExp => "discard module expression"
+  | ModuleDiscardType => "define module type"
+  | Dot => "member access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";

@@ -2,7 +2,16 @@
 
 ## Overview
 
-Hazel's module system provides ML-style module syntax as a **syntactic gloss over labeled tuples**. Modules use curly-brace syntax with `let` and `type` declarations, but are semantically equivalent to nested definitions producing a labeled tuple value. Module type annotations use **signature syntax** (`Sig` sort) in type position.
+Hazel modules are first-class values whose types are **signatures**. A module
+is written with curly braces containing semicolon-separated `let` and `type`
+items; a signature is written with the same braces in type position and lists
+value members (`let x : Int`) and type members (`type T = Int`). Signature
+types are distinct from labeled tuple types: `{ let x : Int }` and `(x=Int)`
+are inconsistent with each other.
+
+At runtime a module evaluates item by item to a **module value**, a module
+whose items are its exported bindings with their values (`{ let x = 1; let y
+= 2 }`). Member access `m.x` reads the binding by name.
 
 ## Syntax
 
@@ -10,21 +19,29 @@ Hazel's module system provides ML-style module syntax as a **syntactic gloss ove
 
 ```
 { let x = 1; let y = true }           -- basic module
-{ type T = Int; let x : T = 5 }       -- with type alias
+{ type T = Int; let x : T = 5 }       -- with type member
 { let a = 1; test a == 1 end }        -- with bare expression (side effect)
 { let m = { let x = 1 }; let y = m.x } -- nested modules
 {}                                      -- empty module
 ```
 
-Modules are introduced with curly braces `{ }` containing semicolon-separated items. Each item is one of:
+Each item is one of:
 
-- **`let` binding**: `let pat = exp` — binds a value
-- **`type` alias**: `type T = typ` — introduces a type alias
-- **Bare expression**: Any expression, useful for `test` assertions and side effects
+- **`let` binding**: `let pat = exp` — binds a value (any pattern; each bound
+  variable becomes a member)
+- **`type` member**: `type T = typ` — introduces a type member, in scope for
+  the items that follow and exported in the module's signature
+- **`module` binding**: `module M = exp` — binds a module under a name that
+  may be capitalized
+- **Bare expression**: Any expression, useful for `test` assertions and side
+  effects
 
-### Module Type Annotations (Signatures)
+Later items can reference earlier ones. When several items bind the same
+name, the last binding is exported (`{ let x = 1; let x = 2 }.x` is `2`); a
+type member declared twice is exported once, and members defined between the
+two declarations see the earlier definition inlined.
 
-Signatures use the same curly-brace syntax in type position:
+### Signatures
 
 ```
 let m : { let x : Int; let y : Bool } = { let x = 1; let y = true }
@@ -33,394 +50,251 @@ type MSig = { let x : Int }
 let m : MSig = { let x = 1 }
 ```
 
-Signature items use `let name : Type` (note: colon, not equals) for value declarations, and `type T = Type` for type aliases.
-
-### Field Access
+Signature items are `let name : Type` (value member), `type T = Type`
+(manifest type member) and `module Name : Signature` (sub-module member,
+which may be capitalized). Items scope sequentially: `let x : T` may mention
+a `type T` declared earlier in the same signature. A member written `let x`
+or `module M` without a type has type `?`.
 
 ```
-let m = { let x = 1; let y = 2 } in m.x   -- evaluates to 1
-let outer = { let inner = { let a = 42 } }
-in outer.inner.a                             -- evaluates to 42
+module Outer : { module Inner : { let x : Int }; let y : Int } =
+  { module Inner = { let x = 1 }; let y = 2 }
+let outer : { let inner : { let x : Int } } = { let inner = { let x = 1 } }
 ```
 
-Field access uses dot notation, the same as labeled tuple access. TyDi (type-directed completion) provides autocomplete suggestions for available member names when typing after a dot, based on the inferred type of the left-hand expression. This also works for labeled tuple field access and list dot projection. Jump-to-definition (Ctrl/Cmd+click) works for module names, navigating to the module's definition site.
+A module synthesizes `module Inner : { … }` for a `module Inner = …` item and
+`let inner : { … }` for a `let inner = { … }` item.
+
+A module analyzed against a signature must define exactly the members the
+signature declares, each value member must have the declared type (with the
+signature's own type members substituted), and each type member must be
+defined as the declared type. A member's type error is reported on its
+definition; missing members (`ModuleMissingMembers`) and, until width
+subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
+module; a differing type member is reported on the `type` item
+(`ModuleTypeMemberMismatch`).
+
+### Member Access and `module`
+
+```
+let m = { let x = 1; let y = 2 } in m.x            -- 1
+module M = { let x = 1; let y = 2 } in M.x + M.y   -- 3
+module M : { let x : Int } = { let x = 42 } in M.x -- 42
+```
+
+The `module` keyword binds a module under a lowercase or capitalized name and
+accepts an optional signature annotation. Capitalized names are otherwise
+parsed as constructors, so `let M = ...` does not bind a module. Inside a
+module body, `module Inner = { ... }` is an item.
+
+TyDi (type-directed completion) suggests value member names after `m.` in
+expression position and type member names after `M.` in type position.
 
 ### Qualified Type Access (`M.T`)
 
-Type aliases defined inside modules can be accessed in type annotations using dot notation:
+Type members are accessed in type position with dot notation:
 
 ```
-module M = { type T = Int } in
-let x : M.T = 6 in x                        -- M.T resolves to Int
-
-module M = { type A = Int -> Bool; type B = A } in
-let f : M.B = fun x -> x > 0 in f           -- M.B resolves to Int -> Bool
-
-module M = { module P = { type S = Int } } in
-let x : M.P.S = 5 in x                      -- nested module access
+module M = { type T = Int } in let x : M.T = 6 in x
+module M = { type A = Int -> Bool; type B = A } in let f : M.B = fun x -> x > 0 in f
+module M = { module P = { type S = Int } } in let x : M.P.S = 5 in x
+let m = { type T = Int } in let y : m.T = 6 in y
+module M = { type T = Int } in module N = M in let x : N.T = 5 in x
+type S = { type T = Int } in let x : S.T = 1 in x
 ```
 
-This works for both `module` keyword and lowercase `let` bindings:
-
-```
-let m = { type T = Int } in let y : m.T = 6 in y   -- lowercase works too
-```
-
-Module aliasing propagates type exports:
-
-```
-module Geometry = { type Point = (Int, Int) } in
-module Shapes = { module Geo = Geometry } in
-let p : Shapes.Geo.Point = (0, 1) in p      -- aliasing preserves type exports
-
-module M = { type T = Int } in
-let n = M in let x : n.T = 5 in x           -- variable aliasing works too
-```
-
-TyDi provides type-aware completions after the dot in type position — typing `Mod.` will suggest available type members like `MyType`.
-
-### Shadowing
-
-When multiple bindings use the same name, the last one wins:
-
-```
-let m = { let x = 1; let x = 2 } in m.x   -- evaluates to 2
-```
-
-Only the final binding for each name is exported in the module's type.
-
-### Sequential References
-
-Later bindings can reference earlier ones in the same module:
-
-```
-let m = { let x = 1; let y = x + 1 } in m.y   -- evaluates to 2
-```
-
-### Module Keyword
-
-The `module` keyword provides a binding form that supports capitalized names:
-
-```
-module M = { let x = 1; let y = 2 } in M.x + M.y   -- evaluates to 3
-```
-
-With type annotations:
-
-```
-module M : { let x : Int } = { let x = 42 } in M.x
-module M : (x=Int) = { let x = 1 } in M.x
-```
-
-Inside module bodies:
-
-```
-{
-  module Inner = { let z = 42 };
-  let result = Inner.z
-}
-```
-
-The `module` keyword introduces a new **MPat** sort for module name patterns, which treats both lowercase and capitalized identifiers as variable bindings (not constructors). MPat supports optional type annotation with `:`.
-
-`ModuleExp(mpat, def, body)` expands to `Let(pat, def, body)` during statics (same expansion model as `Module(items)`). `ModuleMod(mpat, def)` expands to `ModLet(pat, def)` inside module bodies.
+`M.T` resolves through the type of the variable `M`: a variable whose type is
+a signature with a manifest type member `T`. Nested paths follow value
+members (`M.P` is a module-typed member of `M`). A type alias whose
+definition is a signature also supports `S.T`. `P.x` on a labeled tuple
+*type* alias still projects the label's type.
 
 ## What Works
 
 | Feature                              | Status |
 | ------------------------------------ | ------ |
 | Module syntax (`{ let ... }`)        | Works  |
-| Type inference (labeled tuple types) | Works  |
-| Field access via `.`                 | Works  |
-| Type aliases inside modules          | Works  |
+| Signature types (distinct from Prod) | Works  |
+| Type members in signatures (checked) | Works  |
+| Member access via `.`                | Works  |
+| Module values at runtime             | Works  |
 | Bare expressions (side effects)      | Works  |
 | Shadowing (last binding wins)        | Works  |
 | Nested modules                       | Works  |
 | Sequential references between items  | Works  |
-| Signature syntax in type annotations | Works  |
 | Type-directed error attribution      | Works  |
-| Cursor inspector for Mod/Sig sorts   | Works  |
 | Empty module `{}`                    | Works  |
-| `module` keyword (`module M = ...`)  | Works  |
-| Capitalized module names (`M`, `Io`) | Works  |
-| MPat type annotations (`M : Sig`)    | Works  |
+| `module` keyword, capitalized names  | Works  |
 | Menhir parser (all module forms)     | Works  |
-| Dot-label TyDi completion            | Works  |
-| Qualified type access (`M.T`)        | Works  |
-| Nested qualified types (`M.P.T`)     | Works  |
+| TyDi completion (values and types)   | Works  |
+| Qualified type access (`M.T`, `M.P.T`) | Works |
 | Module aliasing (`module N = M`)     | Works  |
-| Type-level dot TyDi completion       | Works  |
-| Jump-to-definition for modules       | Works  |
-| Explain-this for type projection     | Works  |
 
-## Known Limitations
+## Not Yet Supported
 
-### Modules infer Prod types, not Sig types
-
-Modules currently infer labeled tuple types, not signature types:
-
-```
-{ let x = 1 }   -- infers (x=Int), NOT { let x : Int }
-```
-
-Sig annotations in type position are desugared to labeled tuples before type checking. This means the cursor inspector shows `(x=Int, y=Bool)` rather than `{ let x : Int; let y : Bool }` for module types.
-
-### No width subtyping
-
-Signatures must exactly match the module's exported bindings:
-
-```
--- This ERRORS (module has extra member y):
-let m : { let x : Int } = { let x = 1; let y = 2 }
-
--- Unlike real ML modules, the signature must be precise.
--- In the full implementation, the above should pass.
-```
-
-Similarly, a singleton module doesn't match an empty signature, and a singleton signature doesn't match a multi-member module, even though width subtyping would allow this in a full module system.
-
-### Capitalized names require `module` keyword
-
-Capitalized identifiers are parsed as constructors in normal `let` bindings. Use the `module` keyword for capitalized module names:
-
-```
-module M = { let x = 1 } in M.x   -- OK: module keyword treats M as binding
-let m = { let x = 1 } in m.x      -- OK: lowercase works with let
-let M = { let x = 1 } in M.x      -- WRONG: M parsed as Constructor pattern
-```
-
-The statics has a fallback: if a capitalized name isn't a known constructor, it checks variable bindings. So `M.x` works in the body.
-
-### Type declarations in signatures don't work
-
-Sig-level `type T = Int` entries are parsed but ignored during desugaring to labeled tuples. Only `let` entries in signatures contribute to the desugared type. This means:
-
-```
--- This doesn't check T properly:
-let m : { type T = Int; let x : T } = { type T = Int; let x = 1 }
-```
-
-The `type T = Int` in the signature is simply dropped.
-
-### Labeled tuple edge cases
-
-Because modules are syntactic sugar for labeled tuples, some edge cases from the labeled tuple system leak through:
-
-```
--- No error below, even though it arguably should error:
-let m : { let x : Int } = { let x = 1 }
--- m.x works, but m also has type (x=Int) which is a labeled tuple
-```
+- **Width subtyping.** A module must export exactly the members its signature
+  declares; extra members are an error. Planned: subtyping at analysis
+  positions only (a module with extra members satisfies a smaller signature
+  where it is ascribed, sealing the extras away).
+- **Abstract type members.** Signatures cannot yet declare `type T` without a
+  definition, so there is no sealing of representations and no path types.
+- **Comparing modules with `==`** is a runtime incomparable result; statics
+  does not reject it yet.
+- `open` / `include` (issues #2260, #2261).
 
 ## Architecture
 
 ### Sorts
 
-Three sorts were added for the module system:
+Three sorts implement the surface syntax:
 
-- **Mod** (`Sort.Mod`): Module items — `let x = 1`, `type T = Int`, bare expressions
-- **Sig** (`Sort.Sig`): Signature items — `let x : Int`, `type T = Int`
-- **MPat** (`Sort.MPat`): Module name patterns — `M`, `M : { let x : Int }`
+- **Mod** (`Sort.Mod`): module items — `let x = 1`, `type T = Int`, bare
+  expressions
+- **Sig** (`Sort.Sig`): signature items — `let x : Int`, `type T = Int`
+- **MPat** (`Sort.MPat`): module name patterns — `M`, `M : { let x : Int }`
 
-All follow the established sort patterns with forms, remolding, and MakeTerm parsing.
+### Terms
 
-### Term Structure
+**Module items** (`mod_term` in `Grammar.re`): `ModLet(pat, exp)`,
+`ModType(tpat, typ)`, `ModuleMod(mpat, exp)`, `ModExp(exp)`, holes, and the
+dynamics-only `ModVal(name, exp)` — an evaluated binding.
 
-**Module items** (`mod_term` in `Grammar.re`):
+**Signature items** (`sig_term`): `SigLet(pat)` (the pattern carries the
+optional `: Type`), `SigType(tpat, typ)`, `SigModule(mpat)` (the module name
+pattern carries the optional `: Signature`), holes.
 
-- `ModLet(pat, exp)` — let binding
-- `ModType(tpat, typ)` — type alias
-- `ModuleMod(mpat, exp)` — module keyword binding (`module M = ...`)
-- `ModExp(exp)` — bare expression (side effects)
-- `Invalid`, `EmptyHole`, `MultiHole` — error cases
+**Expression level**: `Module(list(mod_t))`, `ModuleExp(mpat, exp, exp)`.
+**Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`).
 
-**Signature items** (`sig_term` in `Grammar.re`):
+### Signature types
 
-- `SigLet(pat)` — value declaration (pattern includes optional `: Type`)
-- `SigType(tpat, typ)` — type alias declaration
-- `Invalid`, `EmptyHole`, `MultiHole` — error cases
+`Typ.Sig(items)` is a first-class type. `Sig.re` exposes a member view
+(`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)`), skipping holes and
+malformed items. A signature is a dependent record: later items may mention
+earlier type members by name, so:
 
-**Module name patterns** (`mpat_term` in `Grammar.re`):
+- `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat type members as
+  sequential binders (`Ctx.extend_sig_item` binds one in a context).
+  Member names cannot be alpha-renamed; on capture `subst` falls back to
+  substituting `?` into the remaining items.
+- `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
+  with the signature's earlier type members substituted, so `x : T` in
+  `{ type T = Int; let x : T }` projects to `Int`.
+- `Typ.meet` on two signatures requires the same value-member names and the
+  same type-member names (order-insensitive) and meets members pairwise in a
+  context extended with the type members. A signature is inconsistent with
+  every other type constructor, including `Prod`.
+- `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
+  items: a type alias first, then a value variable whose type is a signature.
+  `weak_head_normalize` uses it for `ProdProjection`, falling back to the
+  labeled-tuple projection.
 
-- `Var(string)` — name (lowercase or capitalized)
-- `Asc(mpat, typ)` — annotated name (`M : { let x : Int }`)
-- `Invalid`, `EmptyHole`, `MultiHole` — error cases
+### Statics
 
-**Expression level**: `Module(list(mod_t))` and `ModuleExp(mpat, exp, exp)` in `exp_term`
-**Type level**: `Sig(list(sig_t))` in `typ_term`
+The `Module(items)` case in `Statics.re` type-checks the body through
+`ModuleHelpers.lower`, which turns the items into nested `Let`/`TyAlias`
+wrappers carrying the item ids (so the `Let` machinery, recursion detection
+and pattern checking are reused, and the cursor inspector sees each item).
+When the module is analyzed against a signature, each bare variable binder is
+annotated with its expected member type (`ModuleHelpers.modlet_pat`), so
+mismatches land on definitions. After checking:
 
-### Expansion Model
+- `ModuleHelpers.module_sig_type` reads the module's signature back from the
+  recorded pattern infos, in source order, keeping exported type members
+  compact and inlining only shadowed ones.
+- `ModuleHelpers.check_ana_type_members` marks a `type T = ...` item whose
+  definition differs from the signature's (`Mark.ModuleTypeMemberMismatch`).
+- `ModuleHelpers.missing_members` / `extra_members` produce
+  `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
+- `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
+  the checked chain: definitions keep their elaboration, synthetic binder
+  annotations are stripped, type items are dropped.
 
-Modules are **syntactic sugar**. They expand to standard Hazel expressions:
+`ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
+elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
+value member; a member the signature lacks is reported on the label
+(`ModuleMemberNotFound`, which also says when `x` names a type member) while
+the dot carries only a message, the way `M.Fake` in a type reports on `Fake`
+(`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
+`TypWantModule`, and a manifest type member differing from the signature is
+reported once, on its `type` item: members are checked against the module's
+own definition and the module is not reported again. In type position, `utyp_to_info_map` threads a context through
+signature items and resolves `M.T` through `Typ.path_sig`; TyDi receives the
+type member names via `LabelProjectionExpected`.
 
-```
-{ let a = 1; let b = 2 }
-  -->  let a = 1 in let b = 2 in (a=a, b=b)
-```
+### Dynamics
 
-Expansion happens in two places:
+`Transition.re` evaluates `Module(items)` item by item: the first pending
+item's definition is evaluated (evaluation contexts `EvalCtx.ModuleItem` and
+`EvalCtx.ModuleVal`), its pattern is matched, the bindings extend the
+environment for the remaining items, and each bound name becomes a
+`ModVal(x, v)` item (replacing an earlier binding of the same name). Type
+items and bare expressions are discarded once evaluated. A module whose items
+are all `ModVal` is a value.
 
-1. **Statics** (`Statics.re`): On-demand expansion for type checking
-2. **Elaborator** (`Elaborator.re`): Permanent expansion for evaluation
+`Dot` on a module value returns the named binding. Ascribing a module value
+to a signature (`Ascriptions.re`) keeps the signature's value members in
+signature order, ascribes each to its declared type, and drops the rest;
+type members have no runtime content. `ModVal` items compare equal to the
+literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 
-The expanded form uses nested `let`/`type` bindings with a final labeled tuple containing non-shadowed bindings. The statics lowering is implemented in `ModuleHelpers.re`.
+### Sort Fallback Patterns, Forms and Decorations
 
-### Type-Directed Expansion
-
-When a module has a type annotation (ana type is a labeled tuple), the expansion adds type annotations to `let` patterns for proper error attribution:
-
-```
-let m : { let x : Int } = { let x = true }
-  -- Expansion with ana=(x=Int):
-  -- let (x : Int) = true in (x=x)
-  -- Error appears on `true` (type mismatch: Bool vs Int)
-```
-
-Without this, type errors would appear on the synthetic tuple node which has no surface representation, making them invisible to the user. The `extract_ana_labels` function in `ModuleHelpers.re` handles stripping Parens and extracting the label-to-type mapping.
-
-### Sig Desugaring
-
-Sig types in annotations are desugared to labeled tuples via `Typ.desugar_sig`:
-
-```
-{ let x : Int; let y : Bool }  -->  (x=Int, y=Bool)
-```
-
-This is a targeted transformation that only converts Sig nodes to Prod, preserving Parens and other type structure. It replaces `Typ.normalize` in the Asc cases to avoid stripping Parens wrappers from non-Sig type annotations.
-
-### ID Preservation
-
-Module expansion carefully preserves tile IDs for cursor inspector integration:
-
-- **Curly brace + semicolon IDs** → Module expression annotation (absorbed via `adopted_ids` in MakeTerm)
-- **ModLet/ModType tile IDs** → Expanded `Let`/`TyAlias` expressions (via `IdTagged.fast_copy`)
-- **ModExp (bare expression)** → Fresh IDs (synthetic wrapper, no surface counterpart)
-- **Synthetic tuple** → Fresh IDs (no surface counterpart)
-
-This ensures clicking on any part of a module shows correct type information in the cursor inspector. The Elaborator keeps inline expansion (rather than calling `ModuleHelpers.lower` and then `elaborate`) to avoid ID lookup issues — it constructs wrapper expressions directly with preserved IDs.
-
-### Qualified Type Access (M.T)
-
-Type aliases inside modules are exposed via **TVarEntry injection**. When statics processes `let M = Module(items)`, `ModuleHelpers.collect_type_exports(ctx, items)` walks the items collecting type aliases resolved against a running context (handling internal references and recursive types). The result is injected as a `TVarEntry(Singleton(exports_ty))` into the body's context.
-
-Resolution uses the existing `ProdProjection` normalization: `M.T` parses as `ProdProjection(Var("M"), Label("T"))`, and `weak_head_normalize` resolves `Var("M")` through `lookup_alias` → gets the exports Prod → `project_type` extracts the labeled field. Nested modules (`M.P.S`) work via chained ProdProjection.
-
-**TVarEntry propagation** handles aliasing: when `def.term` is `Var(v)` or `Constructor(v, _)`, `Ctx.lookup_tvar(ctx, v)` finds the original TVarEntry, which is then injected for the new binding name. This covers `let n = M`, `module N = M`, and chained aliasing.
-
-**Module aliasing in `collect_type_exports`**: `ModuleMod(Geo, Geometry)` where the RHS is a variable reference (not a literal module body) resolves the RHS variable's TVarEntry to propagate its type exports into the parent module's exports.
-
-**Known limitations** (require TypeMember enrichment — see `plans/module-future-work.md`):
-- Module-typed function parameters: `fun (m : { type T; let x : T }) -> m.T`
-- Function return values: `let m = some_fn() in m.T`
-- Signature type preservation: `SigType` entries dropped by `desugar_sig`
-
-### Sort Fallback Patterns
-
-**Mod→Exp**: Bare expressions are valid module items. When in Mod context and no Mod form matches, the system falls back to Exp forms. This affects:
-
-- Remolding (`remold_mod` in `Segment.re`)
-- Form expansion (`effective_sort` in `Insert.re`)
-
-**Sig→Typ**: Parallel fallback for signatures. Bare types in sig context fall back to Typ sort for robustness during partial editing.
-
-**Semicolon special case**: When `;` is typed in Mod/Sig context, prefer ModSeq/SigSeq over CellJoin (Exp-sort `;`). This ensures semicolons act as item separators inside modules.
-
-### Heterogeneous Prefix Forms
-
-ModLet, ModType, SigLet, and SigType need different out vs body sorts. For example, ModLet's out sort is Mod (the form is a module item) but its body sort is Exp (what comes after `=`). `mk_pre'` in `Mold.re` and `mk_pre_c'` in `Form.re` support this:
-
-```
-ModLet  => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)   -- out=Mod, body=Exp
-ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ) -- out=Mod, body=Typ
-SigLet  => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)           -- out=Sig, body=Pat
-SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ) -- out=Sig, body=Typ
-```
-
-### Sort-Specific Grout Precedence
-
-When a semicolon is deleted between module items, the resulting grout placeholder needs to separate items the same way semicolons do. In expression context, concave grout has tight precedence (34) so it gets absorbed into let/fun bodies. In Mod/Sig context, `Skel.mk` accepts an optional `~sort` parameter — when `Mod` or `Sig`, grout uses the looser `mod_seq` precedence (47) instead.
-
-The sort is threaded from `MakeTerm.re` where tile children are processed — the child sort is known from the tile's mold, so module body segments (`{...}`) get `sort=Mod` while expression bodies inside modules still get `sort=Exp`.
+Unchanged from the original implementation: Mod→Exp and Sig→Typ fallbacks in
+remolding (`Segment.re`) and insertion (`Insert.re`), the semicolon special
+case, the heterogeneous prefix forms (`mk_pre_c'` in `Form.re`), sort-specific
+grout precedence (`Skel.re`), module semicolon decoration (`Arms.re`), and the
+Menhir parser's `ModuleExp`/`ModItemModule` structure with `Conversion.re`'s
+`mpat_of_pat`/`pat_of_mpat`.
 
 ### Cursor Inspector and Statics Info
 
-- **Mod items inside Module expressions**: Stored as `InfoExp` with `Cls.Mod(...)` (not `InfoMod`). This is because the `Module(items)` case in `uexp_to_info_map` expands items into nested Let/TyAlias expressions that share IDs with the Mod items. The elaborator looks up these IDs expecting `InfoExp` data (`self`, `ty`, etc.), so we cannot replace `InfoExp` with `InfoMod` without breaking elaboration. Instead, after expansion, we overwrite the cls field to `Cls.Mod(...)` so the cursor inspector displays the correct Mod sort and cls.
-- **Sig items**: Stored as `InfoSig` (dedicated variant in `Info.t`). Sig items don't go through expression expansion, so there's no elaborator conflict.
-- **InfoMod variant**: Exists in `Info.t` but is only used for edge cases (e.g., Mod items in MultiHole from parse errors). Not used for Mod items inside Module expressions.
-- **Mod item cls names**: "Let declaration", "Type declaration", "Module expression"
-- **Sig item cls names**: "Let declaration", "Type declaration"
-- **Sort colors**: Both Mod and Sig have dedicated colors in the cursor inspector header, gamma icon, toggle switch, and dividers
-- **Cursor inspector type display**: Mod and Sig items show only the cls name, not a type. The binding type is not directly available from `InfoExp` fields (it lives in the Pat's `InfoPat.ty` in the statics map, which the cursor inspector doesn't receive). Showing the module tuple type would be misleading.
-
-### Menhir Parser
-
-The Menhir parser preserves `ModuleExp`/`ModuleMod` structure (matching MakeTerm) rather than desugaring to `Let`/`ModItemLet`. The AST has `ModuleExp(pat, exp, exp)` and `ModItemModule(pat, exp)` nodes. `Conversion.re` provides `mpat_of_pat`/`pat_of_mpat` helpers for bidirectional mapping between Menhir AST patterns and Hazel MPat terms. Both `IDENT` and `CONSTRUCTOR_IDENT` produce `VarPat` after the `MODULE` token.
-
-Notable resolved issues: singleton labeled tuple types `(x=Int)` required a dedicated grammar rule; capitalized names after dot are handled via Constructor-to-Label conversion in `Conversion.re`; `QUOTED_LABEL` was added as an expression production for backtick-quoted labels.
-
-### Module Semicolon Decoration
-
-In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to other pieces). Module/sig curly braces render as a pair with arm between them, filtering out semicolons.
+Mod items inside `Module` expressions are stored as `InfoExp` with a
+`Cls.Mod(...)` class (the expanded `Let`/`TyAlias` shares the item id). After
+checking, `ModuleHelpers.reclassify_expanded_module_items` rewrites the class
+and replaces the wrapper's type (the type of the rest of the chain) with the
+member the item declares: the bound pattern's type for `let`/`module` items,
+the declared type for `type` items. Sig items are `InfoSig`. `InfoMod` is
+used only for mispositioned items.
 
 ---
 
 ## Key Files
 
-### Core Implementation
-
 | File                                    | Purpose                                                            |
 | --------------------------------------- | ------------------------------------------------------------------ |
 | `src/language/term/Sort.re`             | Sort enum with `Mod`, `Sig`, and `MPat`                            |
-| `src/language/term/Grammar.re`          | `mod_term`, `sig_term`, `mpat_term`, `Module`/`ModuleExp` in exp   |
-| `src/language/term/Mod.re`              | Mod term utilities and cls type                                    |
-| `src/language/term/Sig.re`              | Sig term utilities and cls type                                    |
-| `src/language/term/MPat.re`             | MPat term utilities and cls type                                   |
-| `src/language/term/Cls.re`              | `Mod(Mod.cls)`, `Sig(Sig.cls)`, `MPat(MPat.cls)` variants         |
+| `src/language/term/Grammar.re`          | `mod_term` (incl. `ModVal`), `sig_term`, `mpat_term`, `Module`/`ModuleExp`, `Sig` |
+| `src/language/term/Sig.re`              | Sig term utilities and the member view                             |
+| `src/language/term/Mod.re`              | Mod term utilities and evaluated-binding helpers                   |
+| `src/language/term/MPat.re`             | MPat term utilities                                                |
+| `src/language/term/Typ.re`              | Sig normalization, meet, member projection, `path_sig`             |
+| `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
+| `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
+| `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule` |
+| `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
+| `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
+| `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
 | `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
-| `src/haz3lcore/tiles/Mold.re`           | `mk_pre'` for heterogeneous prefix forms                           |
-| `src/haz3lcore/tiles/Segment.re`        | `remold_mod`/`remold_sig`/`remold_mpat` with fallback patterns     |
-| `src/haz3lcore/tiles/Skel.re`           | ModSeq/SigSeq semicolons chainable, sort-specific grout precedence |
-| `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback                   |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
-| `src/language/statics/ModuleHelpers.re` | Module lowering to nested let/type + labeled tuple                 |
-| `src/language/statics/Statics.re`       | Module type checking, `desugar_sig` in Asc, Mod/Sig item info, module elaboration for dynamics |
-| `src/language/statics/Info.re`          | `sort_of` returns Mod for InfoExp with Mod cls                     |
-| `src/language/term/Typ.re`              | `desugar_sig` function                                             |
-| `src/haz3lcore/pretty/ExpToSegment.re`  | Module and Sig pretty-printing to segments                         |
-| `src/language/term/Abbreviate.re`       | Module abbreviation for probe display                              |
-| `src/web/app/editors/decoration/Arms.re` | Module semicolon decoration                                       |
-
-### CSS
-
-| File                                     | What                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------- |
-| `src/web/www/style/variables.css`        | `--token-mod`, `--token-sig`, `--shard-mod`, `--shard-sig` color variables |
-| `src/web/www/style/editor.css`           | `.child-line.Mod`, `.child-line.Sig`, keyword bolding                      |
-| `src/web/www/style/cursor-inspector.css` | Mod/Sig gamma, toggle-switch, header, divider colors                       |
+| `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
+| `src/menhirParser/Parser.mly`, `Conversion.re` | Text parser for module forms                                |
 
 ### Tests
 
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
-| `test/statics/Test_Statics_Modules.re`     | 58 statics tests + 10 module keyword + 13 qualified type access tests     |
-| `test/evaluator/Test_Evaluator_Modules.re` | 17 evaluator tests (module exprs, keyword, nested, probes)                |
-| `test/evaluator/Test_Evaluator_Probes.re`  | Module probe tests (probes inside module bodies)                          |
-| `test/evaluator/Test_Evaluator_ProbeCallStack.re` | Module functions in probe call stacks                               |
-| `test/Test_MakeTerm.re`                    | Module/keyword parsing tests including nested modules                     |
-| `test/Test_Elaboration.re`                 | 4 module elaboration tests (module → labeled tuple)                       |
-| `test/Test_ExpToSegment.re`                | 6 module/sig roundtrip tests + 1 skipped (empty module structural diff)   |
-| `test/Test_Editing.re`                     | 4 module editing tests (brace insertion, let inside module)               |
-| `test/Test_Abbreviate.re`                  | 2 module abbreviation tests                                               |
-| `test/Test_TyDi.re`                        | Dot-label, qualified, type-level dot completion and suppression tests     |
-| `test/Test_Menhir.re`                      | 73 tests including module keyword, sig annotations, QCheck round-trips    |
-| `test/Test_Equality.re`                    | Module alpha-equivalence tests (ModLet, MPat, ModuleMod)                  |
-| `test/Test_Indentation.re`                 | Module body indentation and nesting tests                                 |
-| `test/Test_RefractorSerialization.re`      | Module syntax round-trip through parse/print                              |
-| `test/Test_MultiProbe.re`                  | Multi-probe in modules: probes definition exprs, not declarations         |
+| `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
+| `test/Test_Typ.re`                         | `Typ.Sig`: meet, normalize, free_vars, member projection                  |
+| `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
+| `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
+| `test/Test_TyDi.re`                        | Value/type member completion                                              |
+| `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
 
 ### In-Editor Documentation
 
-| File                           | What                                                                                    |
-| ------------------------------ | --------------------------------------------------------------------------------------- |
-| `src/web/app/explainthis/data/DotTyp.re` | Explain-this content for type-level dot projection (`M.T`) |
-| `src/web/init/docs/Modules.ml` | In-editor doc slide with 26 examples covering construction, signatures, and limitations |
+| File                                         | What                                          |
+| -------------------------------------------- | --------------------------------------------- |
+| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide                         |
+| `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |

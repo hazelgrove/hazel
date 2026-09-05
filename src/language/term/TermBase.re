@@ -641,6 +641,7 @@ and Mod: {
         | ModType(tp, t) => ModType(tpat_map_term(tp), typ_map_term(t))
         | ModExp(e) => ModExp(exp_map_term(e))
         | ModuleMod(mp, e) => ModuleMod(mpat_map_term(mp), exp_map_term(e))
+        | ModVal(x, e) => ModVal(x, exp_map_term(e))
         },
     };
     x |> rec_call;
@@ -696,6 +697,18 @@ and Sig: {
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | SigLet(p) => SigLet(pat_map_term(p))
         | SigType(tp, t) => SigType(tpat_map_term(tp), typ_map_term(t))
+        | SigModule(mp) =>
+          SigModule(
+            MPat.map_term(
+              ~f_exp,
+              ~f_pat,
+              ~f_typ,
+              ~f_tpat,
+              ~f_rul,
+              ~f_any,
+              mp,
+            ),
+          )
         },
     };
     x |> rec_call;
