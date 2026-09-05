@@ -255,6 +255,42 @@ module ExplicitlyUnlabeledTuples = {
 let tests = (
   "Statics.Tuples",
   [
+    /* A missing label is reported on the label; the dot carries a message. */
+    test_case(
+      "A missing tuple label is reported on the label, not on the dot",
+      `Quick,
+      () => {
+        let is_dot: Language.Exp.term => bool =
+          fun
+          | Dot(_) => true
+          | _ => false;
+        let is_y: Language.Exp.term => bool =
+          fun
+          | Label("y") => true
+          | _ => false;
+        let check_src = src => {
+          check(
+            Alcotest.bool,
+            "label marked: " ++ src,
+            true,
+            List.exists(
+              fun
+              | Language.Mark.LabelNotFound("y", ["x"]) => true
+              | _ => false,
+              subexp_marks(src, is_y),
+            ),
+          );
+          check(
+            Alcotest.bool,
+            "dot unmarked: " ++ src,
+            true,
+            subexp_marks(src, is_dot) == [],
+          );
+        };
+        check_src({|let t = (x=1) in t.y|});
+        check_src({|let ts = [(x=1)] in ts.y|});
+      },
+    ),
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
       `Quick,
