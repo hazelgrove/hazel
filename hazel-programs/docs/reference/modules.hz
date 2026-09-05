@@ -93,6 +93,19 @@ module M = {
 } in
 let bad : M.Fake = 1 in
 
+# 11a. Error: a type member is not a value #
+let bad2 = M.Real in
+
+# 11b. Error: this module has no type members #
+let bad3 : Empty.T = 1 in
+
+# 11c. Error: only modules and tuples have members #
+let n = 1 in
+let bad4 = n.x in
+
+# 11d. Error: a value that is not a module cannot start a type path #
+let bad5 : n.T = 1 in
+
 
 # C. MODULE SIGNATURES #
 
