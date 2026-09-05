@@ -34,6 +34,7 @@ let (suite, exit_with_test_status) =
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_FumolaValue.tests,
+      Test_FumolaSource.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
