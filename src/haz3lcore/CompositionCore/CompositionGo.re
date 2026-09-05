@@ -611,9 +611,17 @@ module Local = {
       | _ => ("", "")
       };
     };
+    /* ~root: the sort the CODE is parsed at (Mod for module members, so
+       their `;` is the member separator). ~splice_root: the sort of the
+       program the result is spliced into — the whole zipper is remolded at
+       that root after the splice, and a scratch program's root is Exp
+       whatever the code's own root. Remolding the program at Mod re-derived
+       every mold from the wrong root: case rules inside a spliced member
+       came out with Any/Exp-sorted patterns (dungeon runs: `nth`). */
     let rec introduce =
             (
               ~root=Sort.Exp,
+              ~splice_root=Sort.Exp,
               ~fast=false,
               ~keep_edge_ws=false,
               z: Zipper.t,
@@ -653,7 +661,13 @@ module Local = {
             } else {
               segment;
             };
-          Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
+          Ok(
+            Zipper.insert_segment(
+              z,
+              pad_fusing_edges(z, segment),
+              ~root=splice_root,
+            ),
+          );
         | None =>
           if (fast) {
             /* fallback telemetry: which construct pushed us onto the
@@ -670,12 +684,12 @@ module Local = {
             | None => ()
             };
           };
-          introduce_slow(~root, z, code);
+          introduce_slow(~root, ~splice_root, z, code);
         }
       };
     }
     and introduce_slow =
-        (~root, z: Zipper.t, code: string)
+        (~root, ~splice_root=Sort.Exp, z: Zipper.t, code: string)
         : result(Zipper.t, Action.Failure.t) =>
       if (String.length(code) > max_chunk_chars) {
         Error(
@@ -692,7 +706,13 @@ module Local = {
       } else {
         switch (Parser.to_segment(code, ~root)) {
         | Some(segment) =>
-          Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
+          Ok(
+            Zipper.insert_segment(
+              z,
+              pad_fusing_edges(z, segment),
+              ~root=splice_root,
+            ),
+          )
         | None =>
           Error(
             Action.Failure.Composition_action_failure(
@@ -759,8 +779,50 @@ module Local = {
        splice: after → ";\n" ++ code (the member's original following `;` —
        or `}` for the last member — ends the new code), before → code ++
        ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
+    /* member boundaries of a chunk of member code: `;` at bracket depth 0,
+       outside string literals */
+    let split_members = (code: string): list(string) => {
+      let n = String.length(code);
+      let parts = ref([])
+      and start = ref(0)
+      and depth = ref(0)
+      and in_str = ref(false);
+      let i = ref(0);
+      while (i^ < n) {
+        let c = code.[i^];
+        if (in_str^) {
+          if (c == '\\') {
+            incr(i);
+          } else if (c == '"') {
+            in_str := false;
+          };
+        } else {
+          switch (c) {
+          | '"' => in_str := true
+          | '('
+          | '['
+          | '{' => incr(depth)
+          | ')'
+          | ']'
+          | '}' => decr(depth)
+          | ';' when depth^ == 0 =>
+            parts := [String.sub(code, start^, i^ - start^), ...parts^];
+            start := i^ + 1;
+          | _ => ()
+          };
+        };
+        incr(i);
+      };
+      let last = String.sub(code, start^, n - start^);
+      List.rev([last, ...parts^])
+      |> List.map(String.trim)
+      |> List.filter(m => m != "");
+    };
+
     let insert_member =
         (
+          ~root=Sort.Mod,
+          ~fast=true,
           z: Zipper.t,
           target_id: Id.t,
           code: string,
@@ -781,24 +843,32 @@ module Local = {
         let z_caret = Zipper.directional_unselect(d, z_sel);
         /* Mod root so the member `;` molds as the member separator, not
            the Exp sequence operator. */
-        switch (d) {
-        | Left =>
-          introduce(
-            ~root=Sort.Mod,
-            ~fast=true,
-            ~keep_edge_ws=true,
-            z_caret,
-            code ++ ";\n",
-          )
-        | Right =>
-          introduce(
-            ~root=Sort.Mod,
-            ~fast=true,
-            ~keep_edge_ws=true,
-            z_caret,
-            ";\n" ++ code,
-          )
-        };
+        /* one member at a time: a chunk of several members parsed together
+           at Mod root tripped the incremental molding of the later members
+           (their case-rule patterns came out Exp — dungeon runs, `nth`);
+           each member alone parses reliably, and the caret lands after each
+           splice exactly where the next one goes */
+        let members =
+          switch (split_members(code)) {
+          | [] => [code]
+          | ms => ms
+          };
+        List.fold_left(
+          (acc, m) =>
+            switch (acc) {
+            | Error(e) => Error(e)
+            | Ok(z) =>
+              introduce(
+                ~root,
+                ~fast,
+                ~keep_edge_ws=true,
+                z,
+                d == Left ? m ++ ";\n" : ";\n" ++ m,
+              )
+            },
+          Ok(z_caret),
+          members,
+        );
       };
     };
 
@@ -1256,7 +1326,17 @@ module Local = {
         | Error(e) => Error(e)
         }
       ) {
-      | Failure(e) => Error(Action.Failure.Composition_action_failure(e))
+      | Failure(e) =>
+        /* an exception out of a structural action is OUR bug: dump the
+           pre-action program and the action so it can be replayed in a test */
+        Js_of_ocaml.(
+          Firebug.console##error_3(
+            Js.string("[structural action] Failure: " ++ e),
+            Js.string(Action.Structural.show(a)),
+            Js.string(Printer.of_zipper(~holes="?", z)),
+          )
+        );
+        Error(Action.Failure.Composition_action_failure(e));
       };
 
     res;
