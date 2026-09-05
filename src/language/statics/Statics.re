@@ -4324,20 +4324,44 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Sig(items) =>
-    /* Items scope sequentially: a type member is in scope for later items. */
-    let (_, m) =
+    /* Items scope sequentially: a type member is in scope for later items.
+       A member declared twice is an error on the later declaration; values
+       and modules share a namespace, type members have their own. */
+    let (_, _, m) =
       List.fold_left(
-        ((ctx, m), item: Sig.t) => {
+        ((ctx, (seen_values, seen_types), m), item: Sig.t) => {
+          let members = Sig.members([item]);
+          let values = Sig.value_names(members);
+          let types = Sig.type_names(members);
+          let duplicates = (seen, type_member) =>
+            List.filter_map(name =>
+              List.mem(name, seen)
+                ? Some(
+                    Mark.SigDuplicateMember({
+                      name,
+                      type_member,
+                    }),
+                  )
+                : None
+            );
+          let marks =
+            duplicates(seen_values, false, values)
+            @ duplicates(seen_types, true, types);
           let (_, _, m) =
-            any_to_info_map(
+            sig_to_info_map(
               ~ctx,
               ~ancestors=ancestors_inclusive,
-              Sig(item),
+              ~marks,
+              item,
               m,
             );
-          (Ctx.extend_sig_item(ctx, item), m);
+          (
+            Ctx.extend_sig_item(ctx, item),
+            (values @ seen_values, types @ seen_types),
+            m,
+          );
         },
-        (ctx, m),
+        (ctx, ([], []), m),
         items,
       );
     add(m);
@@ -4519,12 +4543,13 @@ and sig_to_info_map =
       ~ctx,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~marks: list(Mark.t)=[],
       s_term: Sig.t,
       m: Map.t,
     )
     : (CoCtx.t, Any.t, Map.t) => {
-  /* NOTE: This function is only used for signature items that are not properly positioned in signatures.
-     Properly positioned signature items are handled in the signature cases of typ_to_info_map. */
+  /* [marks]: errors the enclosing signature attributes to this item, such as
+     a duplicate member. */
   let ids = IdTagged.ids(s_term);
   let cls = Cls.Sig(Sig.cls_of_term(s_term.term));
   let add_sig_info = m =>
@@ -4537,6 +4562,7 @@ and sig_to_info_map =
         sort: Sig,
         ctx,
         ancestors,
+        marks,
       }),
       m,
     );

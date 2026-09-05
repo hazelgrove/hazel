@@ -522,6 +522,135 @@ let test_cons_binder_mismatch_localized =
     String,
   );
 
+/* ===== DUPLICATE SIGNATURE MEMBERS ===== */
+
+/* A signature that declares a member twice marks the later declaration.
+   Values and modules share a namespace; type members have their own. */
+let duplicate_member = (name, type_member, m: Language.Mark.t): bool =>
+  switch (m) {
+  | SigDuplicateMember({name: n, type_member: t}) =>
+    n == name && t == type_member
+  | _ => false
+  };
+
+/* The one marked signature item, if exactly one item is marked. */
+let marked_sig_item = (source): option(Language.Sig.t) => {
+  let items =
+    Language.Id.Map.fold(
+      (_, info: Language.Info.t, acc) =>
+        switch (info) {
+        | InfoSig({user_term, marks, _}) when marks != [] =>
+          List.exists(
+            (i: Language.Sig.t) =>
+              Language.Sig.rep_id(i) == Language.Sig.rep_id(user_term),
+            acc,
+          )
+            ? acc : [user_term, ...acc]
+        | _ => acc
+        },
+      statics(parse_exp(source)),
+      [],
+    );
+  switch (items) {
+  | [item] => Some(item)
+  | _ => None
+  };
+};
+
+let test_duplicate_value_member =
+  single_mark_test(
+    "A value member declared twice is an error",
+    {|type S = { let x : Int; let x : Bool } in 1|},
+    duplicate_member("x", false),
+  );
+
+let test_duplicate_value_member_on_later_item =
+  Alcotest.test_case(
+    "The later of two value declarations carries the mark",
+    `Quick,
+    () => {
+      let later =
+        switch (
+          marked_sig_item({|type S = { let x : Int; let x : Bool } in 1|})
+          |> Option.map(Language.Sig.member_of_item)
+        ) {
+        | Some(Some(Val("x", ty))) =>
+          switch (Language.Typ.term_of(ty)) {
+          | Atom(Bool) => true
+          | _ => false
+          }
+        | _ => false
+        };
+      Alcotest.(check(bool))("marked item is `let x : Bool`", true, later);
+    },
+  );
+
+let test_duplicate_manifest_type_member =
+  single_mark_test(
+    "A manifest type member declared twice is an error",
+    {|type S = { type T = Int; type T = Bool } in 1|},
+    duplicate_member("T", true),
+  );
+
+let test_duplicate_abstract_type_member =
+  single_mark_test(
+    "An abstract type member declared twice is an error",
+    {|type S = { type T; type T } in 1|},
+    duplicate_member("T", true),
+  );
+
+let test_duplicate_manifest_then_abstract_type_member =
+  single_mark_test(
+    "A type member declared manifest then abstract is an error",
+    {|type S = { type T = Int; type T } in 1|},
+    duplicate_member("T", true),
+  );
+
+let test_duplicate_module_member =
+  single_mark_test(
+    "A module member declared twice is an error",
+    {|type S = { module m : {}; module m : {} } in 1|},
+    duplicate_member("m", false),
+  );
+
+let test_duplicate_value_and_module_member =
+  single_mark_test(
+    "A value and a module member share a namespace",
+    {|type S = { let m : Int; module m : {} } in 1|},
+    duplicate_member("m", false),
+  );
+
+let test_value_and_type_member_same_name =
+  fully_consistent_typecheck(
+    "A value member and a type member may share a name",
+    {|type S = { let x : Int; type x = Int } in 1|},
+    Some(int()),
+  );
+
+let test_duplicate_in_annotation_still_seals =
+  Alcotest.test_case(
+    "A duplicate in a binding's signature is the only error",
+    `Quick,
+    () => {
+      let marks =
+        statics(
+          parse_exp(
+            {|let m : { let x : Int; let x : Bool } = { let x = true } in m.x|},
+          ),
+        )
+        |> errors
+        |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "one duplicate mark",
+        true,
+        switch (marks) {
+        | [m] => duplicate_member("x", false, m)
+        | _ => false
+        },
+      );
+    },
+  );
+
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
@@ -2305,6 +2434,16 @@ let tests = (
     test_labeled_tuple_binder_ok,
     test_nested_tuple_binder_mismatch_localized,
     test_cons_binder_mismatch_localized,
+    /* Duplicate signature members */
+    test_duplicate_value_member,
+    test_duplicate_value_member_on_later_item,
+    test_duplicate_manifest_type_member,
+    test_duplicate_abstract_type_member,
+    test_duplicate_manifest_then_abstract_type_member,
+    test_duplicate_module_member,
+    test_duplicate_value_and_module_member,
+    test_value_and_type_member_same_name,
+    test_duplicate_in_annotation_still_seals,
     /* Type error tests */
     test_error_type_mismatch,
     test_error_type_mismatch_multi,
