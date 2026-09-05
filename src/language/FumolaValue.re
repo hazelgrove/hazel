@@ -42,6 +42,14 @@ let element_anas =
   | _ => List.init(arity, _ => unknown())
   };
 
+/* The expected type of a list's elements. */
+let element_ana =
+    (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t): TermBase.Typ.t =>
+  switch (tools.normalize(ana).term) {
+  | List(ty) => ty
+  | _ => unknown()
+  };
+
 /* The expected type of a record field, by label. */
 let field_ana =
     (~tools: LivelitCtx.type_tools, ana: TermBase.Typ.t, name: string)
@@ -169,6 +177,7 @@ let rec typ_of_json =
     switch (tagged(obj, "tag")) {
     | Some(`String("Int")) => Typ.fresh(Atom(Int))
     | Some(`String("Bool")) => Typ.fresh(Atom(Bool))
+    | Some(`String("Float")) => Typ.fresh(Atom(Float))
     | Some(`String("String")) => Typ.fresh(Atom(String))
     /* A symbol becomes its text, so its type is String. */
     | Some(`String("Symbol")) => Typ.fresh(Atom(String))
@@ -177,6 +186,15 @@ let rec typ_of_json =
       switch (value) {
       | `List(items) =>
         Typ.fresh(Prod(List.map(typ_of_json(~eval, ~seen), items)))
+      | _ => unknown()
+      }
+    /* Every element of a Hazel list has one type; the first is as good a
+       witness as any, and an empty list leaves it unknown. */
+    | Some(`String("List")) =>
+      switch (value) {
+      | `List([item, ..._]) =>
+        Typ.fresh(List(typ_of_json(~eval, ~seen, item)))
+      | `List([]) => Typ.fresh(List(unknown()))
       | _ => unknown()
       }
     | Some(`String("Record")) =>
@@ -330,8 +348,11 @@ let rec symbol_exp =
 let rec describe_value = (e: TermBase.Exp.t): string =>
   switch (e.term) {
   | Atom(Int(n)) => Bigint.to_string(n)
+  | Atom(Float(f)) => Printf.sprintf("%g", f)
   | Atom(Bool(b)) => b ? "true" : "false"
   | Atom(String(s)) => "\"" ++ s ++ "\""
+  | ListLit(es) =>
+    "[" ++ String.concat(", ", List.map(describe_value, es)) ++ "]"
   | Tuple([]) => "()"
   | Tuple(es) =>
     "(" ++ String.concat(", ", List.map(describe_value, es)) ++ ")"
@@ -398,6 +419,11 @@ and exp_of_tagged =
     switch (Bigint.of_string_opt(n)) {
     | Some(n) => Ok(DHExp.fresh(Atom(Int(n))))
     | None => Error("Fumola returned an unreadable integer: " ++ n)
+    }
+  | ("Float", `String(f)) =>
+    switch (float_of_string_opt(f)) {
+    | Some(f) => Ok(DHExp.fresh(Atom(Float(f))))
+    | None => Error("Fumola returned an unreadable float: " ++ f)
     }
   | ("Bool", `Bool(b)) => Ok(DHExp.fresh(Atom(Bool(b))))
   | ("String", `String(str)) => Ok(DHExp.fresh(Atom(String(str))))
@@ -494,6 +520,19 @@ and exp_of_tagged =
     switch (all(translated)) {
     | Error(e) => Error(e)
     | Ok(items) => Ok(DHExp.fresh(Tuple(items)))
+    };
+  /* A Fumola array is a purely functional sequence, so it arrives as a Hazel
+     list: same shape, and the element type comes from the annotation. */
+  | ("List", `List(items)) =>
+    let ana = element_ana(~tools, ana);
+    let translated =
+      List.map(
+        item => exp_of_json(~instance_id, ~eval, ~seen, ~ana, ~tools, item),
+        items,
+      );
+    switch (all(translated)) {
+    | Error(e) => Error(e)
+    | Ok(items) => Ok(DHExp.fresh(ListLit(items)))
     };
   /* A Hazel record is a tuple of labelled elements. */
   | ("Record", `Assoc(fields)) =>
@@ -592,6 +631,7 @@ let rec describe = (json: Yojson.Safe.t): string =>
       };
     switch (tag, value) {
     | ("Int", `String(n)) => n
+    | ("Float", `String(f)) => f
     | ("Bool", `Bool(b)) => b ? "true" : "false"
     | ("String", `String(str)) => "\"" ++ str ++ "\""
     | ("Unit", _) => "()"
@@ -607,6 +647,8 @@ let rec describe = (json: Yojson.Safe.t): string =>
       }
     | ("Null", _) => "None"
     | ("Option", payload) => "Some(" ++ describe(payload) ++ ")"
+    | ("List", `List(items)) =>
+      "[" ++ String.concat(", ", List.map(describe, items)) ++ "]"
     | ("Tuple", `List(items)) =>
       "(" ++ String.concat(", ", List.map(describe, items)) ++ ")"
     | ("Record", `Assoc(fields)) =>

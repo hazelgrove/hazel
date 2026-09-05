@@ -192,6 +192,30 @@ let tests = (
       }
     ),
     translates("an integer", {|{"tag":"Int","value":"3"}|}, "Int 3"),
+    translates("a float", {|{"tag":"Float","value":"0.5"}|}, "Float 0.5"),
+    translates(
+      "a negative float",
+      {|{"tag":"Float","value":"-1.618"}|},
+      "Float -1.618",
+    ),
+    fails("an unreadable float", {|{"tag":"Float","value":"half"}|}),
+    /* A Fumola array is a purely functional sequence; it arrives as a list. */
+    translates(
+      "an array becomes a list",
+      {|{"tag":"List","value":[{"tag":"Int","value":"1"},{"tag":"Int","value":"2"}]}|},
+      "ListLit",
+    ),
+    translates("an empty array", {|{"tag":"List","value":[]}|}, "ListLit []"),
+    /* Nesting both ways: a list of structures, and a structure of lists. */
+    translates(
+      "a list of tuples",
+      {|{"tag":"List","value":[{"tag":"Tuple","value":[{"tag":"Int","value":"1"},{"tag":"Bool","value":true}]}]}|},
+      "ListLit",
+    ),
+    fails(
+      "a list holding something untranslatable",
+      {|{"tag":"List","value":[{"tag":"Nope","value":null}]}|},
+    ),
     translates(
       "a negative integer",
       {|{"tag":"Int","value":"-7"}|},
