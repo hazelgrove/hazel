@@ -554,4 +554,226 @@ let ana_meet_tests = {
   );
 };
 
-let tests = [meet_tests, fast_equal_tests, sig_tests, ana_meet_tests];
+/* Abstract type members and the paths that name them: `M.T` is a stuck
+   normal form equal only to itself, strengthening exposes a module's own
+   abstract members as such paths, and sealing at analysis positions realizes
+   an abstract member by whatever the module provides. */
+let sig_paths_tests = {
+  module F = IdTagged.FreshGrammar;
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
+  let sg = items => F.Typ.sig_(items);
+  let ti = F.Typ.int();
+  let tu = F.Typ.unknown(Internal);
+  let tv = F.Typ.var;
+  let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
+  let abstract_sig = sg([sa("T"), sv("x", tv("T"))]);
+  let manifest_sig = sg([st("T", ti), sv("x", tv("T"))]);
+  let var_entry = (name, typ) =>
+    Ctx.VarEntry({
+      name,
+      id: Id.invalid,
+      typ,
+      custom_statics: None,
+    });
+  /* M is sealed, N is transparent, S is a signature alias. */
+  let ctx =
+    Builtins.ctx_init(None)
+    |> Ctx.extend(_, var_entry("M", abstract_sig))
+    |> Ctx.extend(_, var_entry("N", manifest_sig))
+    |> Ctx.extend_alias(_, "S", Id.invalid, abstract_sig);
+  let opt_typ = option(typ);
+  let meet = (a, b) => Typ.meet(ctx, a, b);
+  let ana_meet = (ana, syn) => Typ.ana_meet(ctx, ~ana, ~syn);
+  (
+    "Typ.SigPaths",
+    [
+      test_case("abstract members meet exactly", `Quick, () =>
+        check(
+          opt_typ,
+          "same",
+          Some(abstract_sig),
+          meet(abstract_sig, abstract_sig),
+        )
+      ),
+      test_case(
+        "abstract and manifest members do not meet",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "abstract/manifest",
+            None,
+            meet(abstract_sig, manifest_sig),
+          );
+          check(
+            opt_typ,
+            "manifest/abstract",
+            None,
+            meet(manifest_sig, abstract_sig),
+          );
+        },
+      ),
+      test_case(
+        "a path meets itself and unknown only",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "self",
+            Some(path("M", "T")),
+            meet(path("M", "T"), path("M", "T")),
+          );
+          check(
+            opt_typ,
+            "unknown",
+            Some(path("M", "T")),
+            meet(path("M", "T"), tu),
+          );
+          check(opt_typ, "int", None, meet(path("M", "T"), ti));
+          check(
+            opt_typ,
+            "other path",
+            None,
+            meet(path("M", "T"), path("N", "T")),
+          );
+          check(
+            opt_typ,
+            "manifest path reduces",
+            Some(ti),
+            meet(path("N", "T"), ti),
+          );
+        },
+      ),
+      test_case(
+        "weak head normalization of paths",
+        `Quick,
+        () => {
+          check(
+            typ,
+            "abstract member is stuck",
+            path("M", "T"),
+            Typ.weak_head_normalize(ctx, path("M", "T")),
+          );
+          check(
+            typ,
+            "manifest member reduces",
+            ti,
+            Typ.weak_head_normalize(ctx, path("N", "T")),
+          );
+          check(
+            typ,
+            "alias route has no path to name the member",
+            tu,
+            Typ.weak_head_normalize(ctx, path("S", "T")),
+          );
+        },
+      ),
+      test_case(
+        "member projection through a path",
+        `Quick,
+        () => {
+          let items = [sa("T"), sv("x", tv("T"))];
+          check(
+            opt_typ,
+            "through M",
+            Some(path("M", "T")),
+            Typ.sig_project_value(~self=F.Typ.var("M"), items, "x"),
+          );
+          check(
+            opt_typ,
+            "no path",
+            Some(tu),
+            Typ.sig_project_value(items, "x"),
+          );
+          check(
+            opt_typ,
+            "local",
+            Some(tv("T")),
+            Typ.sig_project_value(~keep_local=_ => true, items, "x"),
+          );
+        },
+      ),
+      test_case(
+        "strengthening",
+        `Quick,
+        () => {
+          let m = F.Typ.var("M");
+          let strengthened =
+            sg([st("T", path("M", "T")), sv("x", tv("T"))]);
+          check(
+            typ,
+            "exposes abstract members as paths",
+            strengthened,
+            Typ.strengthen(ctx, abstract_sig, ~path=m),
+          );
+          check(
+            typ,
+            "idempotent",
+            strengthened,
+            Typ.strengthen(
+              ctx,
+              Typ.strengthen(ctx, abstract_sig, ~path=m),
+              ~path=m,
+            ),
+          );
+          check(
+            typ,
+            "identity without abstract members",
+            manifest_sig,
+            Typ.strengthen(ctx, manifest_sig, ~path=m),
+          );
+        },
+      ),
+      test_case(
+        "sealing at analysis positions",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "manifest fits abstract",
+            Some(abstract_sig),
+            ana_meet(abstract_sig, manifest_sig),
+          );
+          check(
+            opt_typ,
+            "abstract does not fit manifest",
+            None,
+            ana_meet(manifest_sig, abstract_sig),
+          );
+          check(
+            opt_typ,
+            "abstract fits abstract",
+            Some(abstract_sig),
+            ana_meet(abstract_sig, abstract_sig),
+          );
+        },
+      ),
+      test_case("normalize keeps abstract members", `Quick, () =>
+        check(
+          typ,
+          "normalized",
+          abstract_sig,
+          Typ.normalize(ctx, abstract_sig),
+        )
+      ),
+      test_case("pretty printing", `Quick, () =>
+        check(
+          string,
+          "printed",
+          "{ type T; let x : T }",
+          Typ.pretty_print(abstract_sig),
+        )
+      ),
+    ],
+  );
+};
+
+let tests = [
+  meet_tests,
+  fast_equal_tests,
+  sig_tests,
+  ana_meet_tests,
+  sig_paths_tests,
+];

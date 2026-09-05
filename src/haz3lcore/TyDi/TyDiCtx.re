@@ -118,7 +118,8 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
          | Val(label, _) =>
            Typ.sig_project_value(items, label)
            |> Option.map(field_ty => (label, field_ty))
-         | TypeManifest(_) => None
+         | TypeManifest(_)
+         | TypeAbstract(_) => None
          }
        )
   | _ => []

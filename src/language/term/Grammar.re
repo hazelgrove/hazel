@@ -146,6 +146,8 @@ and sig_term('a) =
   | MultiHole(list(any_t('a)))
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
+  /* `type T` with no definition: an abstract type member. */
+  | SigTypeAbstract(tpat_t('a))
   /* `module M : S` declares a sub-module member (the MPat carries the
      optional signature). */
   | SigModule(mpat_t('a))
@@ -477,6 +479,7 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | SigTypeAbstract(tp) => SigTypeAbstract(map_tpat_annotation(f, tp))
         | SigModule(mp) => SigModule(map_mpat_annotation(f, mp))
         },
       annotation: new_annotation,
@@ -1070,6 +1073,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_module = (~ann=?, mp): sig_t(DefaultAnnotation.t) => {
       term: SigModule(mp),
+      annotation: default_annotation(ann),
+    };
+    let sig_type_abstract = (~ann=?, tp): sig_t(DefaultAnnotation.t) => {
+      term: SigTypeAbstract(tp),
       annotation: default_annotation(ann),
     };
   };

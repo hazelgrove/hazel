@@ -243,4 +243,46 @@ let pick = fun b -> if b then {let x = 1} else {let x = 1; let y = 2} in
 # 32. ...unless the wider branch is sealed by an ascription #
 let pick = fun b ->
   if b then {let x = 1} else ({let x = 1; let y = 2} : {let x : Int}) in
+
+
+# F. ABSTRACT TYPE MEMBERS #
+
+# A signature may declare `type T` without a definition. A module #
+# sealed by it must define T, but outside the module T is known #
+# only as the path M.T: its representation is hidden. #
+
+# 33. Sealing hides the representation #
+module Counter : {
+  type T;
+  let zero : T;
+  let incr : T -> T;
+  let get : T -> Int
+} = {
+  type T = Int;
+  let zero = 0;
+  let incr = fun c -> c + 1;
+  let get = fun c -> c
+} in
+let two = Counter.get(Counter.incr(Counter.incr(Counter.zero))) in
+
+# 34. Error: Counter.zero is a Counter.T, not an Int #
+let leak = Counter.zero + 1 in
+
+# 35. The path type names the abstract type #
+let c : Counter.T = Counter.incr(Counter.zero) in
+
+# 36. Aliasing a module keeps its abstract type #
+module C2 = Counter in
+let c2 : C2.T = c in
+
+# 37. Error: separately sealed modules have distinct types #
+module Other : {type T; let zero : T} = {type T = Int; let zero = 0} in
+let mixed : Counter.T = Other.zero in
+
+# 38. A manifest member stays transparent #
+module Open : {type T = Int; let x : T} = {type T = Int; let x = 1} in
+let visible = Open.x + 1 in
+
+# 39. Error: the module must define the abstract type #
+module Missing : {type T; let x : T} = {let x = 1} in
 ¿

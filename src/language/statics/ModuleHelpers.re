@@ -136,7 +136,9 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 /* Expected types for the module's value members when it is analyzed
    against a signature: each member's declared type with the signature's own
    manifest type members substituted away, so `{ type T = Int; let x : T }`
-   expects `x : Int`. */
+   expects `x : Int`. An abstract member keeps its bare name: inside the
+   lowered body it resolves to the module's own `type T` (the ML rule that a
+   sealed member is checked against the module's realization of T). */
 let ana_value_types =
     (~defined: list(Var.t), ana_items: option(list(Sig.t)))
     : list((Var.t, Typ.t)) =>
@@ -158,6 +160,20 @@ let ana_value_types =
               )
             )
        )
+  };
+
+/* The module path an expression denotes, if any: a module variable
+   (possibly written capitalized), or a member projection out of one. */
+let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
+  switch (e.term) {
+  | Var(x)
+  | Constructor(x, _) when Ctx.lookup_var(ctx, x) != None =>
+    Some(Var(x) |> Typ.temp)
+  | Dot(e, {term: Label(l), _}) =>
+    path_of_exp(ctx, e)
+    |> Option.map(p => ProdProjection(p, Label(l) |> Typ.temp) |> Typ.temp)
+  | Parens(e) => path_of_exp(ctx, e)
+  | _ => None
   };
 
 /* Annotate a bare variable pattern with the type its signature expects, so
@@ -371,7 +387,7 @@ let missing_members =
       |> List.filter(x => Sig.find_value(have, x) == None);
     let missing_types =
       Sig.type_names(want)
-      |> List.filter(t => Sig.find_type_def(have, t) == None);
+      |> List.filter(t => Sig.find_type(have, t) == None);
     missing_values @ missing_types;
   | _ => []
   };

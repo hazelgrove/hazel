@@ -1017,6 +1017,18 @@ let ex5 = list_of_mylist(x) in
         {|type S = { module Inner; let y : Int } in 1|},
       ),
       menhir_maketerm_equivalent_test(
+        "Sig abstract type member",
+        {|module M : { type T; let x : T } = { type T = Int; let x = 1 } in M.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with only an abstract type member",
+        {|type S = { type T } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig abstract type member after a value member",
+        {|let m : { let x : Int; type T } = { let x = 1; type T = Int } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Sig type unannotated member",
         {|let m : { let x } = { let x = 1 } in m|},
       ),

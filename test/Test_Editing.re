@@ -2431,6 +2431,61 @@ let module_tests = [
   ),
 ];
 
+/* ===== ABSTRACT SIGNATURE MEMBERS =====
+   In a signature `type` expands to the bare form `type T` (an abstract type
+   member). Typing `=` right after its type pattern upgrades the tile to the
+   manifest form `type T = ?` (Insert.upgrade_bare_sig_type); there is no
+   downgrade. In a module body `type` still expands to `type T = ?`. */
+let sig_abstract_tests = [
+  test_complete(
+    ~name="Sig abstract: bare type member typed left-to-right",
+    ~acts=
+      mk(
+        {|let m : { type T; let x : T } = { type T = Int; let x = 1 } in m¦|},
+      ),
+    ~goal=
+      {|let m : { type T; let x : T } = { type T = Int; let x = 1 } in m¦|},
+  ),
+  test_complete(
+    ~name="Sig abstract: = upgrades a bare member to a manifest one",
+    ~acts=
+      mk({|let m : { type T¦ } = 1 in m|}) @ string_to_ltr_actions(" = Int"),
+    ~goal={|let m : { type T = Int¦ } = 1 in m|},
+  ),
+  /* The hole lands before the space, as it does when `=` is put down after
+     `type ` in a module body or an expression. */
+  test_complete(
+    ~name="Sig abstract: = after a hole type pattern",
+    ~acts=
+      mk({|let m : { type ¦ } = 1 in m|}) @ string_to_ltr_actions("= Int"),
+    ~goal={|let m : { type? = Int¦ } = 1 in m|},
+  ),
+  test(
+    ~name="Sig abstract: = typed before the closing brace",
+    ~acts=mk({|let m : { type T¦|}) @ string_to_ltr_actions(" = Int"),
+    ~goal={|let m : { type T = Int¦|},
+  ),
+  test(
+    ~name="Sig abstract: no upgrade across a semicolon",
+    ~acts=mk({|let m : { type T; ¦} = 1 in m|}) @ [Insert("=")],
+    ~goal={|let m : { type T;? =¦?} = 1 in m|},
+  ),
+  /* Term selection grows from the type pattern to the whole signature, as it
+     does from `Int` in a manifest `type T = Int` item. */
+  test(
+    ~name="Sig abstract Cmd+D: type pattern, then the signature",
+    ~acts=
+      mk({|let m : { type ¦T; let x : T } = 1 in m|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|let m : §{ type T; let x : T }¦ = 1 in m|},
+  ),
+  test_complete(
+    ~name="Mod: type in a module body still expands to a definition",
+    ~acts=mk({|{ type T = Int; let x = 1 }¦|}),
+    ~goal={|{ type T = Int; let x = 1 }¦|},
+  ),
+];
+
 /* ===== SHARD THEFT / PREPEND EDITING TESTS =====
    These test scenarios where typing new code directly before existing
    multi-delimiter forms (let/=/in, fun/->, if/then/else) causes delimiter
@@ -5359,6 +5414,7 @@ let tests = [
   ("Editing.Rescan", rescan_tests),
   ("Editing.Paste", paste_tests),
   ("Editing.Module", module_tests),
+  ("Editing.SigAbstract", sig_abstract_tests),
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),

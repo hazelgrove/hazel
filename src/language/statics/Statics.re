@@ -669,7 +669,10 @@ and uexp_to_info_map =
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
-        | Some(var) => (var.typ, [])
+        | Some(var) =>
+          /* A module variable names its own abstract types: `M : { type T }`
+             synthesizes `{ type T = M.T }`. */
+          (Typ.strengthen(ctx, var.typ, ~path=Var(name) |> Typ.temp), [])
         };
       add(
         ~elab_term=Var(name) |> rewrap,
@@ -1411,12 +1414,28 @@ and uexp_to_info_map =
         };
       | Sig(items) =>
         /* Value member of a module. Manifest type members declared in the
-           signature are substituted into the member's type. */
+           signature are substituted into the member's type; abstract ones
+           become paths through the module when the module is a path
+           (`m.x : m.T`), `?` otherwise. */
         let labels = Sig.value_names(Sig.members(items));
+        let self = ModuleHelpers.path_of_exp(ctx, e1);
         switch (e2.term) {
         | Label(name) =>
-          switch (Typ.sig_project_value(items, name)) {
+          switch (Typ.sig_project_value(~self?, items, name)) {
           | Some(typ) =>
+            /* A sub-module member names its abstract types through the
+               extended path (`m.inner.T`). */
+            let typ =
+              switch (self) {
+              | Some(path) =>
+                Typ.strengthen(
+                  ctx,
+                  typ,
+                  ~path=
+                    ProdProjection(path, Label(name) |> Typ.temp) |> Typ.temp,
+                )
+              | None => typ
+              };
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
@@ -1425,7 +1444,7 @@ and uexp_to_info_map =
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
               m,
-            )
+            );
           | None =>
             add(
               ~elab_term=dot_elab,
@@ -1617,6 +1636,7 @@ and uexp_to_info_map =
         | Some({typ, _}) =>
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
+          let typ = Typ.strengthen(ctx, typ, ~path=Var(name) |> Typ.temp);
           let (info, _, m) =
             add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
           let m =
@@ -3729,13 +3749,14 @@ and utyp_to_info_map =
         | _ => None
         };
       switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
-      | (Some(items), _, _) =>
+      | (Some((items, _)), _, _) =>
         /* A module path (`M.P`) used as the left of a further projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
-      | (None, Some(items), Label(l)) =>
+      | (None, Some((items, self)), Label(l)) =>
         /* `M.T`: a type member of a module path or signature alias. */
-        switch (Typ.sig_project_type(items, l)) {
-        | Some(ty') =>
+        switch (Typ.sig_project_type_member(~self?, items, l)) {
+        | Some((TypeAbstract(_), ty')) => ok(Message.PathAbstract(ty'))
+        | Some((_, ty')) =>
           ok(
             Message.WHNormalizedTo({
               unnormalized: utyp,
@@ -3837,7 +3858,7 @@ and utyp_to_info_map =
       }
     | (ProductExpected, _) =>
       switch (Typ.path_sig(ctx, utyp)) {
-      | Some(items) =>
+      | Some((items, _)) =>
         /* A module variable used as the left of a type projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
       | None =>
@@ -3984,7 +4005,7 @@ and utyp_to_info_map =
   | ProdProjection(t, label) =>
     let label_expects: TypExpectation.t =
       switch (Typ.path_sig(ctx, t)) {
-      | Some(items) =>
+      | Some((items, _)) =>
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
            at the end it names a type member. */
         switch (expects) {
@@ -4399,6 +4420,9 @@ and sig_to_info_map =
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   | SigModule(mp) =>
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, MPat(mp), m);
+    (CoCtx.empty, Sig(s_term), add_sig_info(m));
+  | SigTypeAbstract(tp) =>
+    let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   };
 }
