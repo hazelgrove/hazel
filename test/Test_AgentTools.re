@@ -2582,7 +2582,7 @@ let sequential_operations_tests = (
           bool,
           "render mentions recursive call g(y - 1)",
           true,
-          StringUtil.plain_search("g\\(y - 1\\)", result, 0) >= 0,
+          StringUtil.plain_search("g(y - 1)", result, 0) >= 0,
         );
         let z = mk_zipper(result);
         let errs = ErrorPrint.all(mk_statics(z));

@@ -617,39 +617,52 @@ module Local = {
             )
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
-      switch (
-        fast
-          ? FastParse.of_text(
-              ~materialize=Triggers.invoked_projector,
-              ~collect_refractors=false,
-              ~root,
-              String.trim(code),
-            )
-          : None
-      ) {
-      | Some(segment) =>
-        /* Source tokens + formatting verbatim, molds from ExpToSegment +
-           splice-time remold. No size cap needed on this path. */
-        let segment =
-          if (keep_edge_ws) {
-            let (lead, trail) = edge_ws(code);
-            ws_secondaries(lead) @ segment @ ws_secondaries(trail);
-          } else {
-            segment;
-          };
-        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
+      /* A binder named after a keyword (`let eval = ...`) is refused up
+         front with the note: left to the parsers, the keyword form swallows
+         what follows and the result is a broken buffer that may or may not
+         be refused depending on incidental typing rules. */
+      switch (find_reserved_binder(code)) {
+      | Some(_) =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Inserted code failed to parse." ++ reserved_word_note(code),
+          ),
+        )
       | None =>
-        if (fast) {
-          /* console-visible fallback telemetry (dev): which construct
-             pushed us onto the quadratic path, and roughly how bad */
-          print_endline(
-            "FastParse fallback ("
-            ++ string_of_int(String.length(code))
-            ++ " chars): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note"),
-          );
-        };
-        introduce_slow(~root, z, code);
+        switch (
+          fast
+            ? FastParse.of_text(
+                ~materialize=Triggers.invoked_projector,
+                ~collect_refractors=false,
+                ~root,
+                String.trim(code),
+              )
+            : None
+        ) {
+        | Some(segment) =>
+          /* Source tokens + formatting verbatim, molds from ExpToSegment +
+             splice-time remold. No size cap needed on this path. */
+          let segment =
+            if (keep_edge_ws) {
+              let (lead, trail) = edge_ws(code);
+              ws_secondaries(lead) @ segment @ ws_secondaries(trail);
+            } else {
+              segment;
+            };
+          Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
+        | None =>
+          if (fast) {
+            /* console-visible fallback telemetry (dev): which construct
+               pushed us onto the quadratic path, and roughly how bad */
+            print_endline(
+              "FastParse fallback ("
+              ++ string_of_int(String.length(code))
+              ++ " chars): "
+              ++ Option.value(FastParse.bail_note^, ~default="no note"),
+            );
+          };
+          introduce_slow(~root, z, code);
+        }
       };
     }
     and introduce_slow =
