@@ -3,7 +3,7 @@
 # The graphical semantics keeps a graph of what it did, and that graph      #
 # can be read back -- as a table, since it is a list of records.            #
 #                                                                           #
-# The three livelits, in brief:                                             #
+# The four livelits, in brief:                                              #
 #                                                                           #
 #   ^fumola_new(id, mode)             declare a runtime                     #
 #   ^fumola_put_force(id, name, src)  run src in a named thunk              #

@@ -12,7 +12,7 @@
 # and can hold another time as an ordinary value while it stands there.     #
 # Times are somewhere you can go, and go back to.                           #
 #                                                                           #
-# The three livelits, in brief:                                             #
+# The four livelits, in brief:                                              #
 #                                                                           #
 #   ^fumola_new(id, mode)             declare a runtime                     #
 #   ^fumola_put_force(id, name, src)  run src in a named thunk              #

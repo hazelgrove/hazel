@@ -3,7 +3,7 @@
 # text, tuples, records, lists, variants and options all have a Hazel       #
 # counterpart, and cross as themselves.                                     #
 #                                                                           #
-# The three livelits, in brief:                                             #
+# The four livelits, in brief:                                              #
 #                                                                           #
 #   ^fumola_new(id, mode)             declare a runtime                     #
 #   ^fumola_put_force(id, name, src)  run src in a named thunk              #

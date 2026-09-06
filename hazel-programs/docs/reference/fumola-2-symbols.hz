@@ -5,7 +5,7 @@
 #                                                                           #
 # Spaces and times are built from symbols, so they are here too.            #
 #                                                                           #
-# The three livelits, in brief:                                             #
+# The four livelits, in brief:                                              #
 #                                                                           #
 #   ^fumola_new(id, mode)             declare a runtime                     #
 #   ^fumola_put_force(id, name, src)  run src in a named thunk              #

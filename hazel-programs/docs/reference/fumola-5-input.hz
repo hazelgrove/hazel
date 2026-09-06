@@ -2,7 +2,7 @@
 # Every other chapter reports outward: a Fumola program runs, and its       #
 # result becomes a Hazel value. This one goes the other way as well.        #
 #                                                                           #
-# The three livelits, in brief:                                             #
+# The four livelits, in brief:                                              #
 #                                                                           #
 #   ^fumola_new(id, mode)             declare a runtime                     #
 #   ^fumola_put_force(id, name, src)  run src in a named thunk              #
