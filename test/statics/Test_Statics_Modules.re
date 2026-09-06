@@ -996,6 +996,95 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+/* ===== FUNCTION SHORTHAND MEMBERS =====
+   `let f(x) = ...` in a module body binds `f` through the same desugaring
+   as a top-level shorthand (see Test_Statics_FunctionSugar); its parameters
+   are not members. */
+
+let test_shorthand_member_exported =
+  fully_consistent_typecheck(
+    "Shorthand member is exported with its function type",
+    {|{ let f(x: Int): Int = x + 1 }|},
+    Some(sig_([val_("f", arrow(int(), int()))])),
+  );
+
+let test_shorthand_member_forms =
+  fully_consistent_typecheck(
+    "Shorthand members: unannotated, nullary, and recursive",
+    {|module M = { let f(x) = x + 1; let g() = 2; let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) } in M.f(1) + M.g() + M.fact(4)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_signature =
+  fully_consistent_typecheck(
+    "Shorthand member checked against its signature",
+    {|module M : { let f : Int -> Int } = { let f(x) = x + 1 } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_signature_return_type =
+  fully_consistent_typecheck(
+    "Shorthand member with a return type, checked against its signature",
+    {|module M : { let f : Int -> Int } = { let f(x): Int = x + 1 } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_shadowed =
+  fully_consistent_typecheck(
+    "A later binding shadows a shorthand member",
+    {|{ let f(x: Int) = x; let f = 2 }|},
+    Some(sig_([val_("f", int())])),
+  );
+
+let test_shorthand_parameter_not_member =
+  single_mark_test(
+    "A shorthand's parameter is not a member",
+    {|{ let f(x: Int) = x }.x|},
+    fun
+    | Language.Mark.ModuleMemberNotFound({name: "x", members: ["f"], _}) =>
+      true
+    | _ => false,
+  );
+
+/* The signature's type is pushed onto the definition, as for a plain
+   member: the body is marked, the module is not. */
+let test_shorthand_member_mismatch_on_definition =
+  Alcotest.test_case(
+    "A shorthand member's mismatch is reported on its definition",
+    `Quick,
+    () => {
+      let src = {|module M : { let f : Int -> Bool } = { let f(x) = x + 1 } in M|};
+      let is_mismatch: Language.Mark.t => bool =
+        fun
+        | ExpectationMismatch(_) => true
+        | _ => false;
+      Alcotest.(check(bool))(
+        "definition marked",
+        true,
+        List.exists(
+          is_mismatch,
+          subexp_marks(
+            src,
+            fun
+            | BinOp(_) => true
+            | _ => false,
+          ),
+        ),
+      );
+      Alcotest.(check(bool))(
+        "module unmarked",
+        true,
+        subexp_marks(
+          src,
+          fun
+          | Module(_) => true
+          | _ => false,
+        )
+        == [],
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1119,5 +1208,13 @@ let tests = (
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    /* Function shorthand members */
+    test_shorthand_member_exported,
+    test_shorthand_member_forms,
+    test_shorthand_member_signature,
+    test_shorthand_member_signature_return_type,
+    test_shorthand_member_shadowed,
+    test_shorthand_parameter_not_member,
+    test_shorthand_member_mismatch_on_definition,
   ],
 );

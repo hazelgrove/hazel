@@ -87,18 +87,11 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
-/* Funlet members (`let f(x) = e`) bind only the head var; Pat.bound_vars
-   descends an Ap pattern's ARGUMENT (right for constructor patterns,
-   wrong here — it would export the parameters instead of the function). */
-let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
-  switch (FunctionSugar.detect(pat)) {
-  | Some((f_name, _, _)) => Pat.bound_vars(f_name)
-  | None => Pat.bound_vars(pat)
-  };
-
+/* A `let f(x) = ...` item binds `f`; its binder is read through
+   `FunctionSugar.binder`, as the shorthand's parameters are not members. */
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
-  | ModLet(pat, _) => modlet_bound_vars(pat)
+  | ModLet(pat, _) => Pat.bound_vars(FunctionSugar.binder(pat))
   | ModuleMod(mp, _) => mpat_names(mp)
   | ModVal(x, _) => [x]
   | ModType(_, _)
@@ -115,12 +108,12 @@ let collect_later_names = (items: list(Mod.t)): list(Var.t) =>
    each paired with the sub-pattern that binds it. */
 let item_exports = (item: Mod.t, ~later: list(Mod.t)): list((Var.t, Pat.t)) => {
   let later_names = collect_later_names(later);
-  let of_pat = (~bound_vars=Pat.bound_vars, pat) =>
-    bound_vars(pat)
+  let of_pat = pat =>
+    Pat.bound_vars(pat)
     |> List.filter(name => !List.mem(name, later_names))
     |> List.map(name => (name, pat_for_bound_name(name, pat)));
   switch (item.term) {
-  | ModLet(pat, _) => of_pat(~bound_vars=modlet_bound_vars, pat)
+  | ModLet(pat, _) => of_pat(FunctionSugar.binder(pat))
   | ModuleMod(mp, _) => of_pat(mpat_to_pat(mp))
   | ModVal(x, _) => of_pat(Pat.fresh(Var(x)))
   | ModType(_, _)
@@ -170,17 +163,21 @@ let ana_value_types =
   };
 
 /* Annotate a bare variable pattern with the type its signature expects, so
-   a mismatch is reported on the definition rather than on the module.
-   Funlet patterns are deliberately left unascribed: Asc(f(args), member_ty)
-   would be read by FunctionSugar.detect as a RETURN-type annotation. */
-let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
-  switch (pat.term) {
-  | Var(name) =>
-    switch (List.assoc_opt(name, ana_labels)) {
-    | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
-    | None => pat
+   a mismatch is reported on the definition rather than on the module. The
+   function shorthand `let f(x) = ...` is annotated at its name: the `Let`
+   case of statics then desugars it as it does any other shorthand. */
+let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
+  switch (FunctionSugar.detect(pat)) {
+  | Some(_) => FunctionSugar.map_binder(modlet_pat(ana_labels), pat)
+  | None =>
+    switch (pat.term) {
+    | Var(name) =>
+      switch (List.assoc_opt(name, ana_labels)) {
+      | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
+      | None => pat
+      }
+    | _ => pat
     }
-  | _ => pat
   };
 
 let wrap_item =
@@ -467,10 +464,11 @@ let check_ana_type_members =
    with their elaborated definitions, in order. Type items have no runtime
    content (TyAlias elaborates to its body) and are dropped. The synthetic
    ascription `modlet_pat` adds to a bare variable binder is stripped; a
-   `module M : S = ...` item keeps its elaborated (ascribed) binder. */
+   `module M : S = ...` item keeps its elaborated (ascribed) binder. A
+   shorthand item `let f(x) = ...` elaborates to a binding of `f`. */
 let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
   let strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t =>
-    switch (user_pat.term, p_elab.term) {
+    switch (FunctionSugar.binder(user_pat).term, p_elab.term) {
     | (Var(_), Asc(inner, _)) => inner
     | _ => p_elab
     };
