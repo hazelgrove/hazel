@@ -943,6 +943,110 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   };
 };
 
+/* ===== ITEMS CONVERGENCE (plans/agent-items-convergence.md) =====
+   The same node map, built from the per-item statics engine: each
+   top-level item (DefStatics.item) is a binding chain element whose own
+   map is complete and consistently rooted at the item, so [build_children]
+   run on an item's map yields exactly the item's subtree; the item chain
+   supplies the sibling order; module-literal members are nested items and
+   land as children of the enclosing binding, as before. */
+/* items whose own map could not answer the walk (Not_found), by root
+   constructor — observability for the parity tests */
+let items_fallbacks: ref(list(string)) = ref([]);
+
+let build_from_items = (ds: DefStatics.t): option(t) => {
+  let first_root =
+    List.find_map(
+      (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
+      ds.items,
+    );
+  switch (first_root) {
+  | None => None
+  | Some(root_info) =>
+    let dummy_root = Id.mk();
+    let node_map: t =
+      Id.Map.singleton(
+        dummy_root,
+        {
+          info: root_info,
+          path: [dummy_root],
+          children: [],
+          siblings: [],
+          sibling_idx: (-1),
+          name: "{dummy root}",
+        }: node,
+      );
+    /* an item root walked by its DEFINITION only: the item's map covers
+       the definition but not the hollow body (the chain supplies what the
+       body continuation used to: the siblings). Non-binding roots (test
+       statements, the trailing expression) walk the children the map
+       knows. */
+    let walk_root =
+        (info: Info.t, path: list(Id.t), acc: t, map: Id.Map.t(Info.t)): t => {
+      let descend_exp = (e: Exp.t, at: list(Id.t), acc: t): t =>
+        switch (Id.Map.find_opt(Exp.rep_id(e), map)) {
+        | Some(i) =>
+          switch (build_children(i, at, acc, map)) {
+          | nm => nm
+          | exception Not_found =>
+            items_fallbacks := ["inner", ...items_fallbacks^];
+            acc;
+          }
+        | None => acc
+        };
+      switch (info) {
+      | InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | Let(_, def, _)
+        | ModuleExp(_, def, _) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          descend_exp(def, node_path, acc);
+        | TyAlias(_, typ, _) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          switch (Id.Map.find_opt(Typ.rep_id(typ), map)) {
+          | Some(ti) =>
+            switch (build_children(ti, node_path, acc, map)) {
+            | nm => nm
+            | exception Not_found => acc
+            }
+          | None => acc
+          };
+        | _ =>
+          Utils.child_expressions_of_exp(user_term)
+          |> List.fold_left((acc, e) => descend_exp(e, path, acc), acc)
+        }
+      | _ => acc
+      };
+    };
+    let rec add_items =
+            (path: list(Id.t), items: list(DefStatics.item), node_map: t): t =>
+      List.fold_left(
+        (acc: t, it: DefStatics.item) =>
+          switch (Id.Map.find_opt(it.d_id, it.d_map)) {
+          | None => acc
+          | Some(info) =>
+            switch (it.d_members) {
+            | [] => walk_root(info, path, acc, it.d_map)
+            | members =>
+              /* a module binding analyzed member-granularly: the parent
+                 map does not describe the literal's body — the node, then
+                 the members as its children, each from its own map */
+              let node_path = path @ [Info.id_of(info)];
+              let acc = init_node(info, node_path, acc);
+              add_items(node_path, members, acc);
+            }
+          },
+        node_map,
+        items,
+      );
+    let node_map = add_items([dummy_root], ds.items, node_map);
+    let node_map = build_siblings_and_trim(node_map);
+    Some(Id.Map.remove(dummy_root, node_map));
+  };
+};
+
 module Public = {
   /*
    ================================

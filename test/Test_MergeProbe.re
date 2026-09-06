@@ -347,8 +347,151 @@ let module_probes = [
   ),
 ];
 
+/* which sub-terms of an item are absent from the item's own map? */
+let rec sub_terms = (e: Exp.t): list(Exp.t) => [
+  e,
+  ...List.concat_map(
+       sub_terms,
+       HighLevelNodeMap.Utils.child_expressions_of_exp(e),
+     ),
+];
+let missing_in_item_maps = (ds: DefStatics.t): unit => {
+  let rec go = (prefix, items: list(DefStatics.item)) =>
+    List.iter(
+      (it: DefStatics.item) => {
+        let name =
+          switch (Id.Map.find_opt(it.d_id, it.d_map)) {
+          | Some(info) =>
+            try(HighLevelNodeMap.Namer.mk_name(info)) {
+            | _ => "?"
+            }
+          | None => "<root not in map>"
+          };
+        let missing =
+          sub_terms(it.d_node)
+          |> List.filter(e => !Id.Map.mem(Exp.rep_id(e), it.d_map));
+        if (missing != []) {
+          let ctor = (e: Exp.t) =>
+            switch (Exp.term_of(e)) {
+            | Let(_) => "Let"
+            | Fun(_) => "Fun"
+            | Ap(_) => "Ap"
+            | Var(_) => "Var"
+            | Module(_) => "Module"
+            | ModuleExp(_) => "ModuleExp"
+            | EmptyHole => "Hole"
+            | Match(_) => "Match"
+            | Tuple(_) => "Tuple"
+            | Parens(_) => "Parens"
+            | _ => "exp"
+            };
+          print_endline(
+            "ITEMMAP "
+            ++ prefix
+            ++ name
+            ++ ": "
+            ++ string_of_int(List.length(missing))
+            ++ " missing, first: "
+            ++ String.concat(
+                 ",",
+                 List.filteri((i, _) => i < 4, List.map(ctor, missing)),
+               ),
+          );
+        };
+        go(prefix ++ name ++ "/", it.d_members);
+      },
+      items,
+    );
+  go("", ds.items);
+};
+
+/* parity: node map from the per-item engine == node map from the
+   monolithic map (same node ids, same paths) */
+let parity = (code: string): (int, int, int) =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let z = Move.to_end(z);
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    let mono =
+      switch (HighLevelNodeMap.build(z, mk_statics(z))) {
+      | Some(nm) => nm
+      | None => fail("monolithic node map: None")
+      };
+    let ds = DefStatics.calc(~settings=CoreSettings.on, term);
+    HighLevelNodeMap.items_fallbacks := [];
+    missing_in_item_maps(ds);
+    let items =
+      switch (HighLevelNodeMap.build_from_items(ds)) {
+      | Some(nm) => nm
+      | None => fail("items node map: None")
+      };
+    let paths = (nm: HighLevelNodeMap.t) =>
+      Id.Map.bindings(nm)
+      |> List.map(((id, n: HighLevelNodeMapModel.node)) => (id, n.path));
+    let (pm, pi) = (paths(mono), paths(items));
+    let name_of = (nm: HighLevelNodeMap.t, id) =>
+      switch (Id.Map.find_opt(id, nm)) {
+      | Some(n: HighLevelNodeMapModel.node) => n.name
+      | None => "?"
+      };
+    List.iter(
+      c => print_endline("PARITY fallback " ++ c),
+      HighLevelNodeMap.items_fallbacks^,
+    );
+    let missing = List.filter(b => !List.mem(b, pi), pm);
+    let extra = List.filter(b => !List.mem(b, pm), pi);
+    List.iter(
+      ((id, _)) =>
+        print_endline(
+          "PARITY missing-in-items "
+          ++ Id.to_string(id)
+          ++ " "
+          ++ name_of(mono, id),
+        ),
+      missing,
+    );
+    List.iter(
+      ((id, _)) =>
+        print_endline(
+          "PARITY extra-in-items "
+          ++ Id.to_string(id)
+          ++ " "
+          ++ name_of(items, id),
+        ),
+      extra,
+    );
+    (Id.Map.cardinal(mono), List.length(missing), List.length(extra));
+  };
+let parity_probes = [
+  test_case(
+    "node map parity: small module program",
+    `Quick,
+    () => {
+      let (n, missing, extra) =
+        parity(
+          "module Foo = {\n  let f = fun n -> \"x\";\n  type T = Int\n};\nlet g = fun y -> let h = 1 in y in\ntest Foo.f(0) == \"x\" end;\n?",
+        );
+      check(bool, "nonempty", true, n > 0);
+      check(int, "missing", 0, missing);
+      check(int, "extra", 0, extra);
+    },
+  ),
+  test_case(
+    "node map parity: dungeon program",
+    `Quick,
+    () => {
+      let (n, missing, extra) = parity(program);
+      check(bool, "nonempty", true, n > 0);
+      check(int, "missing", 0, missing);
+      check(int, "extra", 0, extra);
+    },
+  ),
+];
+
 let tests =
-  module_probes
+  parity_probes
+  @ module_probes
   @ [
     test_case("let-chain program", `Quick, () =>
       check(
