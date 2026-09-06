@@ -1907,7 +1907,13 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      /* As for a tuple component: a body that already reports its mismatch
+         with the expected return type takes that type here, so the function
+         is not reported a second time. */
+      let body_ty =
+        List.exists(Mark.is_expectation_mismatch, e.marks)
+          ? mode_body : e.elab_syn_ty;
+      let syn_ty_fun = Arrow(p.ty, body_ty) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
