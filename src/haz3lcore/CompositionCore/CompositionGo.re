@@ -11,6 +11,61 @@ let build = (z, info_map) =>
    core stays UI-agnostic */
 let fallback_notice: ref(option(string => unit)) = ref(None);
 
+/* DIAGNOSTIC (merge verification): why the node map could not be built */
+let derive_fail_note = (tag: string, z: Zipper.t, info_map: StaticsBase.Map.t) => {
+  let id = Indicated.index(z);
+  let ci =
+    switch (id) {
+    | Some(id) => Id.Map.find_opt(id, info_map)
+    | None => None
+    };
+  let anc =
+    switch (ci) {
+    | Some(i) => Info.ancestors_of(i)
+    | None => []
+    };
+  let ctor = (id: Id.t): string =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoExp({user_term, _})) =>
+      switch (Exp.term_of(user_term)) {
+      | Let(_) => "Let"
+      | Seq(_) => "Seq"
+      | ModuleExp(_) => "ModuleExp"
+      | TyAlias(_) => "TyAlias"
+      | Parens(_) => "Parens"
+      | EmptyHole => "Hole"
+      | _ => "exp"
+      }
+    | Some(_) => "non-exp"
+    | None => "MISSING"
+    };
+  let chain =
+    anc
+    |> List.filteri((k, _) => k < 14)
+    |> List.map(ctor)
+    |> String.concat(">");
+  let text = Printer.of_zipper(~holes="?", z);
+  let n = String.length(text);
+  let tail = n > 90 ? String.sub(text, n - 90, 90) : text;
+  Js_of_ocaml.Firebug.console##error(
+    Js_of_ocaml.Js.string(
+      Printf.sprintf(
+        "[derive-fail %s] indicated=%s in_map=%b map=%d anc=%d chain=%s tail=%S",
+        tag,
+        switch (id) {
+        | Some(id) => Id.to_string(id)
+        | None => "none"
+        },
+        ci != None,
+        Id.Map.cardinal(info_map),
+        List.length(anc),
+        chain,
+        tail,
+      ),
+    ),
+  );
+};
+
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
 
@@ -1032,7 +1087,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1107,7 +1164,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1153,7 +1212,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
           switch (
@@ -1288,7 +1349,9 @@ module Local = {
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
         switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | None =>
+          derive_fail_note("new_z", new_z, new_info_map);
+          Error(Action.Failure.Cant_derive_local_AST_information);
         | Some(new_node_map) =>
           switch (
             PerformUtils.static_error_check(
@@ -1438,7 +1501,9 @@ module Local = {
       | None => mk_statics(z)
       };
     switch (build(z, initial_info_map)) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information)
+    | None =>
+      derive_fail_note("z", z, initial_info_map);
+      Error(Action.Failure.Cant_derive_local_AST_information);
     | Some(initial_node_map) =>
       edit_dispatch(
         ~e=a,
@@ -1550,6 +1615,11 @@ module Public = {
                 ...settings,
                 probe_all: settings.probe_all && !AgentPulse.in_burst(),
               };
+            /* MONOLITHIC on purpose: the agent's node map
+               (HighLevelNodeMap.build) walks Info.ancestors up to the
+               program's top level, and the per-item engine's map records
+               ancestors per ITEM — build returns None on it. Moving the
+               tools onto per-item statics is the next convergence step. */
             let full =
               CachedStatics.init(
                 ~settings,

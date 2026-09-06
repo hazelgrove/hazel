@@ -344,7 +344,12 @@ let rec go =
        it, but via a separate path from the Insert arm */
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     switch (
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+      Buffer.go(
+        ~root,
+        ~ci=Indicated.ci_for_completion(z, statics.info_map),
+        a,
+        z,
+      )
     ) {
     | Ok(z) => Ok(LocalReformat.go(~before, z))
     | Error(_) as e => e
@@ -626,8 +631,11 @@ let rec go =
     let run =
       switch (CachedStatics.for_zipper(z, statics)) {
       | Some(initial) when initial.info_map != Language.Id.Map.empty =>
-        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go
+        PerfTimer.record("statics-path/reuse", 0.);
+        CompositionGo.Public.go_with_editor_statics(~settings, ~initial);
+      | _ =>
+        PerfTimer.record("statics-path/fresh", 0.);
+        CompositionGo.Public.go;
       };
     switch (run(~syntax, ~z, ~a)) {
     | Ok(z) =>

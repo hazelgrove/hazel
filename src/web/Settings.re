@@ -67,6 +67,8 @@ module Model = {
        (a parse failure makes Store discard ALL settings) */
     [@sexp.default false] [@yojson.default false]
     simple_indication: bool,
+    /* grey re-evaluation-progress backings after edits */
+    show_pending_eval: bool,
   };
 
   let init = {
@@ -156,6 +158,7 @@ module Model = {
     canvas_follow: true,
     canvas_tick: 0,
     simple_indication: false,
+    show_pending_eval: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -231,7 +234,8 @@ module Update = {
     | CapUndoStack
     | ShowRowLines
     | ShowIncrementalDeco
-    | SimpleIndication;
+    | SimpleIndication
+    | ShowPendingEval;
 
   let is_canvas_geometry = (action: t): bool =>
     switch (action) {
@@ -721,6 +725,12 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        {
+          ...settings,
+          show_pending_eval: !settings.show_pending_eval,
+        };
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,

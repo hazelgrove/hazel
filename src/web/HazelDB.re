@@ -52,12 +52,13 @@ let kv_save = (key: string, value: string): unit => {
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
 
-let kv_delete = (key: string): unit => {
+let kv_remove = (key: string): unit => {
   cache := Util.Maps.StringMap.remove(key, cache^);
   with_db(db =>
-    IDBStore.delete(~error=_ => (), ~callback=_ => (), kv_store(db), K(key))
+    IDBStore.delete(~callback=_ => (), kv_store(db), IDBStore.K(key))
   );
 };
+let kv_delete = kv_remove;
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;

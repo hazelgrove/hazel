@@ -60,12 +60,12 @@ let rec entries_of_segment = (seg: Segment.t): list(entry) =>
 let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
   switch (k) {
   | Shard(id, i) =>
-    switch (Id.Map.find_opt(id, m.tiles)) {
+    switch (Measured.find_shards_by_id(id, m)) {
     | Some(shards) => List.assoc_opt(i, shards)
     | None => None
     }
-  | GroutK(id) => Id.Map.find_opt(id, m.grout)
-  | CommentK(id) => Id.Map.find_opt(id, m.secondary)
+  | GroutK(id)
+  | CommentK(id) => Measured.find_by_id(id, m)
   };
 
 /* a tile's label, found anywhere in a segment */
@@ -105,7 +105,10 @@ let find_meas_end_aligned =
     : option(Measured.measurement) =>
   switch (k) {
   | Shard(id, i) =>
-    switch (Id.Map.find_opt(id, m.tiles), Id.Map.find_opt(id, other.tiles)) {
+    switch (
+      Measured.find_shards_by_id(id, m),
+      Measured.find_shards_by_id(id, other),
+    ) {
     | (Some(m_shards), Some(o_shards)) =>
       let last = shards => shards |> List.map(fst) |> List.fold_left(max, 0);
       let (m_last, o_last) = (last(m_shards), last(o_shards));

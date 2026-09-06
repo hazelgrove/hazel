@@ -202,8 +202,13 @@ module Update = {
            survive the action when the same construct stays indicated
            (focus-follows-content), which is exactly when motion makes
            sense — otherwise the request drops out harmlessly */
+        /* rapid input snaps instead of gliding (theirs): a fresh caret
+           glide per key-repeat left the caret perpetually trailing */
         Animation.request(
-          [Animation.Actions.move("caret")]
+          (
+            Animation.caret_glide_available()
+              ? [Animation.Actions.move("caret")] : []
+          )
           @ (
             JsUtil.ids_with_prefix("indication-")
             @ JsUtil.ids_with_prefix("varhl-")
@@ -804,7 +809,6 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
@@ -821,10 +825,16 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers, as Effects: the clipboard is touched
-       when the row/key fires, not when its Effect is built. Bypass the
-       page-level on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements. */
+    let escape_vertical =
+      switch (edit_mode) {
+      | ReadOnly => None
+      | Editable({escape_vertical, _}) => escape_vertical
+      };
+    /* Editor-level clipboard helpers. Bypass the page-level
+       on_copy/on_paste path because Firefox refuses to dispatch
+       native clipboard events to non-editable focused elements
+       (the editor div has tabindex(0) but is not contenteditable).
+       Shared by the keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -1028,29 +1038,29 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* Both the ReusePass predictions (frozen tint) and the pending-eval
-     * progress sweep are gated on the nut-menu setting: with fast statics
-     * the sweep reads as flicker on every short evaluation rather than
-     * as progress feedback. */
     let incr_eval_overlay =
-      switch (predicted_reuse, globals.settings.show_incremental_deco) {
-      | (Some(predicted_reuse), true) => [
+      if ((
+            globals.settings.show_pending_eval
+            || globals.settings.show_incremental_deco
+          )
+          && pending_eval_ids != []) {
+        [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                ~visible?,
                 ~pending_eval_ids,
                 ~show_active_eval,
-                ~show_frozen=globals.settings.show_incremental_deco,
-                predicted_reuse,
+                (),
               ),
             ],
           ),
-        ]
-      | (None, _)
-      | (Some(_), false) => []
+        ];
+      } else {
+        [];
       };
     let overlays =
       incr_eval_overlay
@@ -1233,11 +1243,53 @@ module View = {
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
-        Key.listener(~f=key => {
+        /* row-edge detection for escape_vertical: hosts that stack
+           editors (see EditMode) get Up-on-first-row / Down-on-last-row
+           BEFORE the core move snaps the caret to line start/end */
+        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+          switch (escape_vertical) {
+          | None => None
+          | Some(_) when z.selection.content != [] => None
+          | Some(_) =>
+            let measured = model.editor.syntax.measured;
+            let Util.Point.{row, col} =
+              Haz3lcore.Zipper.Caret.point(measured, z);
+            let last_row = max(0, measured.total_rows - 1);
+            switch (v) {
+            | Up when row == 0 => Some(col)
+            | Down when row == last_row => Some(col)
+            | _ => None
+            };
+          };
+        Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
+          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Up)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Up,
+                Option.get(caret_row_edge(Up)),
+              ),
+            ])
+          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Down)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Down,
+                Option.get(caret_row_edge(Down)),
+              ),
+            ])
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,

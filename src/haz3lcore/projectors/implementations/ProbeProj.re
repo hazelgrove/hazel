@@ -392,7 +392,7 @@ module DrawerHeight = {
    * because reassemble re-nests the formatter's flat output). */
   let row_count = (seg: Segment.t): int =>
     Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
-    |> Measured.total_rows;
+    |> Measured.num_rows;
 
   let sample_rows =
       (~lengths: SampleLength.t, utility: utility, sample: Sample.t): int => {

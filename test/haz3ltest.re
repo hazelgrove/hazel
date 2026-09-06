@@ -8,6 +8,10 @@ Printexc.register_printer(exn => {
   }
 });
 
+/* every editing action in the suite asserts sparse-normalize parity
+   (Zipper.remold_regrout runs BOTH pipelines and compares) */
+Haz3lcore.Zipper.normalize_parity := true;
+
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
    function exit with the test status rather than raise Test_error. */
@@ -36,6 +40,20 @@ let (suite, exit_with_test_status) =
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_PatRootEditor.tests,
+      Test_StackFocus.tests,
+      Test_Restructure.tests,
+      Test_BenchStatics.tests,
+      Test_MegaCorpus.tests,
+      Test_MeasuredChunks.tests,
+      Test_MakeTermIncr.tests,
+      Test_PieceIdentity.tests,
+      Test_ClickTeleport.tests,
+      Test_AliasProbe.tests,
+      Test_LabelBench.tests,
+      Test_FlatBench.tests,
+      Test_ModRoot.tests,
+      Test_TypeDeps.tests,
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
@@ -54,6 +72,9 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_ItemPersist.tests
+    @ Test_OutlinePaths.tests
+    @ Test_RunPin.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
@@ -61,6 +82,7 @@ let (suite, exit_with_test_status) =
     @ [("Canvas values", Test_CanvasValue.tests)]
     @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
     @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
+    @ [("Node map (dungeon program)", Test_MergeProbe.tests)]
     @ [("Canvas score", Test_CanvasScore.tests)]
     @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
@@ -72,6 +94,7 @@ let (suite, exit_with_test_status) =
     @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_StreamInterests.tests
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests

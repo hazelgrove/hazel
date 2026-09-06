@@ -6,6 +6,7 @@ open Util;
 type target =
   | Editor
   | Cell
+  | CellTop /* Cell + align its stack entry to the viewport top */
   | Probe(Id.t);
 
 let scheduled: ref(option(target)) = ref(None);
@@ -19,8 +20,19 @@ let schedule_editor = (): unit => {
 };
 
 /* a sidebar jump moves the model selection but not DOM focus; this restores it */
-let schedule_cell = (): unit => {
-  scheduled := Some(Cell);
+let schedule_cell = (): unit =>
+  /* don't downgrade a pending CellTop (align-to-top): several actions in
+     one frame can each request focus, and a plain cell-focus request
+     must not eat the alignment */
+  switch (scheduled^) {
+  | Some(CellTop) => ()
+  | _ => scheduled := Some(Cell)
+  };
+
+/* As schedule_cell, but also aligns the target's stack entry to the top
+   of the viewport (jump-to-definition, outline adds). */
+let schedule_cell_top = (): unit => {
+  scheduled := Some(CellTop);
 };
 
 let execute = (): bool =>
@@ -34,6 +46,11 @@ let execute = (): bool =>
   | Some(Cell) =>
     scheduled := None;
     JsUtil.focus_active_cell();
+  | Some(CellTop) =>
+    scheduled := None;
+    let focused = JsUtil.focus_active_cell();
+    JsUtil.align_active_cell_top();
+    focused;
   | Some(Probe(probe_id)) =>
     scheduled := None;
     let elem_id = Id.cls(probe_id);

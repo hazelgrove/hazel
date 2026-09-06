@@ -37,12 +37,10 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
-/* Find the leftmost column for decoration paths.
- * Uses content_start (first non-whitespace) instead of absolute left edge. */
-let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
+let min_col = (~first: Point.t, ~last: Point.t, ~rows: Measured.t): int =>
   min(
     first.col,
-    Rows.min_content_start(
+    Measured.min_col_of_rows(
       ListUtil.range(~lo=first.row, last.row + 1),
       rows,
     ),
@@ -197,7 +195,7 @@ let paths =
       tiles: tile_data,
       line_clss: list(string),
       font_metrics: FontMetrics.t,
-      rows: Rows.t,
+      rows: Measured.t,
       (first, last): (Point.t, Point.t),
     )
     : list(Node.t) =>
@@ -283,7 +281,7 @@ let term =
       ~attr: option(list(Attr.t))=?,
       ~dom_prefix: option(string)=?,
       ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
+      ~rows: Measured.t,
       ~tiles: tile_data,
       ~line_clss: list(string)=[],
       ~base_clss: option(string)=?,
@@ -362,7 +360,7 @@ let term =
       term(
         ~refine_sort,
         ~font_metrics,
-        ~rows=measured.rows,
+        ~rows=measured,
         ~tiles,
         (l, r),
         ~attr?,
@@ -407,7 +405,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
 let simple_arm =
     (
       ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
+      ~rows: Measured.t,
       ~path_cls: list(string),
       (first, last): (Point.t, Point.t),
     )
@@ -439,7 +437,7 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (Measured.find_pr_opt(p, syntax.measured)) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -481,7 +479,7 @@ module Errors = {
             | Some(range) =>
               simple_arm(
                 ~font_metrics,
-                ~rows=syntax.measured.rows,
+                ~rows=syntax.measured,
                 ~path_cls=[
                   "child-line",
                   "simple",
@@ -615,7 +613,7 @@ module Indicated = {
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=syntax.measured,
           ~path_cls=["child-line", Sort.class_of(sort)],
           range,
         );
@@ -674,7 +672,7 @@ module Refractors = {
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=syntax.measured,
           ~path_cls=[
             "child-line",
             cls ++ " " ++ kind_cls,

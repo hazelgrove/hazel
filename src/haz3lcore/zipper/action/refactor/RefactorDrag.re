@@ -206,11 +206,7 @@ module DragCandidate = {
   };
 };
 
-let total_rows = (m: Measured.t): int =>
-  switch (Measured.Rows.max_binding_opt(m.rows)) {
-  | Some((r, _)) => r + 1
-  | None => 0
-  };
+let total_rows = (m: Measured.t): int => Measured.num_rows(m);
 
 /* (from, to) anchor ids for a kind's track */
 let drag_anchor =
@@ -283,7 +279,7 @@ let drag_candidates =
     let shard_meas = (id: Id.t, m: Measured.t) =>
       switch (grab_shard) {
       | Some(k) when id == target =>
-        switch (Id.Map.find_opt(id, m.tiles)) {
+        switch (Measured.find_shards_by_id(id, m)) {
         | Some(shards) =>
           switch (List.assoc_opt(k, shards)) {
           | Some(meas) => Some(meas)

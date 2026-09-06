@@ -50,10 +50,13 @@ module Js = {
   };
 
   let client_height = (): float =>
-    Js.Optdef.get(
-      Js.Unsafe.get(Dom_html.document, "documentElement")##.clientHeight, _ =>
-      0.0
-    );
+    try(
+      JsUtil.cached_client_height(
+        Js.Unsafe.get(Dom_html.document, "documentElement"),
+      )
+    ) {
+    | _ => 0.0
+    };
 
   let inner_height = (): float =>
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
@@ -218,6 +221,20 @@ let stagger_step = (per: int): int =>
   min(per, stagger_span_cap / max(1, stagger_total^));
 let stagger_span = (per: int): int =>
   min(stagger_span_cap, stagger_total^ * stagger_step(per));
+
+/* the caret glide is 125ms (Actions.move); a new request while the
+   previous glide is still in flight reads as decoration lag */
+let last_caret_glide: ref(float) = ref(0.);
+let caret_glide_available = (): bool => {
+  let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();
+  if (now -. last_caret_glide^ > 170.) {
+    last_caret_glide := now;
+    true;
+  } else {
+    last_caret_glide := now; /* keep suppressing until input pauses */
+    false;
+  };
+};
 
 /* Request animations. Call this during the MVU update */
 /* ids under these prefixes belong to another timeline (the canvas score)

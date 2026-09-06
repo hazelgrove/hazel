@@ -1,0 +1,401 @@
+/* Outline sidebar (modular-editors phase 1): a REAL grid panel in
+   column 1, spanning the focus-bar + main rows — it takes space from
+   the editor rather than hovering over it. Collapsed, it is just its
+   thin vertical tab (fit-content column). */
+
+#outline-sidebar {
+  grid-row: 2 / span 2;
+  grid-column: 1 / span 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  color: var(--BR3, #6a5a3a);
+  background: var(--ui-bkg, #f6efdc);
+  /* the panel edge: the sidebar owns the divider (editor cells are
+     borderless in outline modes — a cell-side border stopped where
+     the cell content did) */
+  border-right: 0.6px solid var(--BR2, #b5a377);
+}
+
+#outline-sidebar[open] {
+  width: var(--outline-w, 210px);
+}
+
+/* Chrome slots details content into an internal ::details-content
+   box; without this the flex sizing never reaches .outline-body and
+   the sidebar can't scroll */
+#outline-sidebar[open]::details-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* the resize handle is an invisible grab strip with the resize
+   cursor, straddling the border */
+#outline-sidebar .outline-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+#outline-sidebar .outline-resize:hover {
+  background: color-mix(in srgb, var(--BR2, #b5a377) 25%, transparent);
+}
+
+#outline-sidebar:not([open]) .outline-resize {
+  pointer-events: none;
+}
+
+#outline-sidebar > summary.outline-title {
+  cursor: pointer;
+  user-select: none;
+  writing-mode: vertical-rl;
+  padding: 10px 4px;
+  opacity: 0.75;
+  list-style: none;
+}
+
+#outline-sidebar > summary.outline-title::-webkit-details-marker {
+  display: none;
+}
+
+#outline-sidebar[open] > summary.outline-title {
+  writing-mode: horizontal-tb;
+  opacity: 1;
+  padding: 4px 10px;
+  border-bottom: 0.6px solid var(--BR2, #b5a377);
+}
+
+#outline-sidebar .outline-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px 12px 8px;
+}
+
+#outline-sidebar .outline-label {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+#outline-sidebar .outline-label:hover {
+  background: var(--BR1, #d8c9a3);
+}
+
+#outline-sidebar .outline-glyph {
+  display: inline-block;
+  width: 13px;
+  opacity: 0.7;
+}
+
+#outline-sidebar .outline-kids {
+  margin-left: 14px;
+  border-left: 0.6px solid
+    color-mix(in srgb, var(--BR2, #b5a377) 50%, transparent);
+  padding-left: 4px;
+}
+
+#outline-sidebar summary.outline-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+#outline-sidebar summary.outline-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* taller chevrons, close to icon height (andrew, tentative) */
+#outline-sidebar summary.outline-summary::before {
+  content: "\276f";
+  display: inline-block;
+  width: 9px;
+  font-size: 10.5px;
+  opacity: 0.55;
+  transform-origin: 40% 55%;
+}
+
+#outline-sidebar details[open] > summary.outline-summary::before {
+  content: "\276f";
+  transform: rotate(90deg);
+}
+
+#outline-sidebar .ol-module {
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-type {
+  color: var(--token-typ, #9457c9);
+}
+
+/* statement / test / trailing-expression rows (symbolic, no name) */
+#outline-sidebar .ol-trail,
+#outline-sidebar .ol-stmt {
+  opacity: 0.85;
+}
+
+#outline-sidebar .ol-trail .outline-glyph,
+#outline-sidebar .ol-stmt .outline-glyph {
+  opacity: 0.9;
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-tests {
+  font-style: italic;
+}
+
+/* live test status: glyph carries the ✓/✗/? */
+#outline-sidebar .ol-pass .outline-glyph {
+  color: var(--test-pass, #2a9d3a);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-fail .outline-glyph {
+  color: var(--test-fail, #c93030);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-indet .outline-glyph {
+  color: var(--BR3, #6a5a3a);
+}
+
+#outline-sidebar .outline-unfocus.outline-hidden {
+  display: none;
+}
+
+#outline-sidebar .outline-empty {
+  opacity: 0.6;
+  padding: 6px;
+}
+
+/* focus affordances (phase 2) */
+#outline-sidebar .outline-focus-btn {
+  display: none;
+  margin-left: 6px;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+#outline-sidebar .outline-label:hover .outline-focus-btn {
+  display: inline;
+}
+
+#outline-sidebar .outline-focus-btn:hover {
+  opacity: 1;
+}
+
+#outline-sidebar .outline-label.outline-focused {
+  background: var(--BR1, #d8c9a3);
+  font-weight: bold;
+}
+
+#outline-sidebar .outline-unfocus {
+  cursor: pointer;
+  padding: 3px 6px;
+  margin-bottom: 6px;
+  border: 0.6px solid var(--BR2, #b5a377);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--BR1, #d8c9a3) 45%, white);
+}
+
+#outline-sidebar .outline-unfocus:hover {
+  background: var(--BR1, #d8c9a3);
+}
+
+/* editor panes carry no borders in outline modes — the outline
+   sidebar owns the left divider, headers own the entry rules */
+#main.Scratch .cell,
+#main.Documentation .cell {
+  border-left: none;
+}
+
+/* focused-definition header band (the `name : type` pat editor):
+   distinguished by background, not rules — top border only between
+   entries (the topmost header has no preceding body) */
+#main .focus-header {
+  background: var(--T2, #f1e9d2);
+  display: flex;
+  align-items: baseline;
+}
+
+/* module-path chip; reads as one path with the name, so the header
+   cell's own inset collapses after it */
+#main .focus-header .focus-qualifier {
+  padding-left: 16px;
+  opacity: 0.5;
+  font-family: var(--code-font, monospace);
+  white-space: nowrap;
+}
+
+#main .focus-header .focus-qualifier ~ * .cell-item {
+  padding: 0 16px 0 1px;
+}
+
+/* stacked body cells keep the master editor's lighter surface: the
+   generic cell-background rule matches `#main > * > .code-editor`,
+   but stack cells sit one wrapper deeper (`.focus-body > .cell`).
+   (The frozen-tint deco used to paper over this; removed upstream.) */
+:is(#main.Scratch, #main.Documentation)
+  > .focus-body
+  > .cell
+  > .code-editor {
+  background-color: var(--cell-active);
+}
+
+/* trailing slack below the stack: jump targets can align to the
+   viewport top even near the program's end */
+#main .stack-slack {
+  flex: 0 0 auto;
+  height: calc(100% - 6em);
+}
+
+#main .focus-body ~ .focus-header {
+  border-top: 0.6px solid var(--BR2, #b5a377);
+}
+
+#main .focus-header .cell {
+  background: transparent;
+  border: none;
+}
+
+/* the standard cell inset is 16px all around; the header keeps only
+   the horizontal share (andrew: no vertical padding) */
+#main .focus-header .cell-item {
+  padding: 0 16px;
+}
+
+/* headerless entries (statements, the trailing ⇒): a static symbol
+   chip where the header editor would be */
+#main .focus-header.focus-header-sym .focus-sym {
+  /* left inset matches the NAMED headers' text start (their cell
+     carries ~49px of gutter before the 16px cell-item padding) */
+  padding: 1px 16px 1px 65px;
+  font-family: var(--code-font, monospace);
+  font-weight: bold;
+  opacity: 0.55;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-on {
+  display: inline;
+  opacity: 0.9;
+}
+
+/* error badge on outline rows whose definition carries type errors */
+#outline-sidebar .outline-err-badge {
+  margin-left: 5px;
+  font-size: 7px;
+  vertical-align: 1px;
+  color: var(--R1, #c33);
+  opacity: 0.85;
+}
+
+/* erroring rows also tint the name itself (keep the dot; andrew) */
+#outline-sidebar .outline-label.outline-has-err {
+  color: var(--R1, #c33);
+}
+
+/* roll-up badge: an ancestor row shows the dot only while COLLAPSED
+   (expanded, the deepest containing row carries it instead) */
+#outline-sidebar .outline-err-roll {
+  display: none;
+}
+#outline-sidebar details:not([open]) > summary .outline-err-roll {
+  display: inline;
+}
+
+/* right-click def menu: new-below / duplicate / move / delete */
+.outline-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.outline-def-menu {
+  position: fixed;
+  z-index: 41;
+  min-width: 12em;
+  background: var(--T0, #fff);
+  border: 1px solid var(--T3, #ccc);
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  padding: 3px 0;
+}
+.outline-def-menu-item {
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.outline-def-menu-item:hover {
+  background: var(--T2, #eee);
+}
+
+/* slide-loading frame (SwitchSlide paints this before hydration) */
+#main .slide-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40vh;
+  color: var(--BR3, #6a5a3a);
+  opacity: 0.7;
+  font-family: var(--code-font, monospace);
+}
+
+/* the boot-screen spinner (loading.css markup), scaled down;
+   .loader's ring rule is global, only the scoped bits need mirrors */
+#main .slide-loading .spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 0.6em;
+}
+
+#main .slide-loading .spinner .loader {
+  width: 40px;
+  height: 40px;
+  border-width: 5px;
+}
+
+#main .slide-loading .spinner .nut-container {
+  background-color: var(--nut-menu);
+  border-radius: 10em;
+  width: 1.6em;
+  height: 1.6em;
+  position: fixed;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#main .slide-loading .spinner img {
+  width: 1em;
+  animation: rotation 0.75s linear infinite;
+  animation-direction: reverse;
+}
+
+@keyframes slide-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* the whole-program result, live below the stack */
+#main .stack-result {
+  border-top: 0.6px solid var(--BR2, #b5a377);
+  background: var(--T2, #f1e9d2);
+}

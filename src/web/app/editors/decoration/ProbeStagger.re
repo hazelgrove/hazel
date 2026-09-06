@@ -69,8 +69,8 @@ let update = (~measured: Measured.t, ~font_metrics: FontMetrics.t): unit => {
       items^,
     );
   let row_end = (r: int): int =>
-    switch (IntMap.find_opt(r, measured.rows)) {
-    | Some(row) => Measured.Rows.(row.max_col)
+    switch (Measured.row_shape(r, measured)) {
+    | Some(sh) => sh.max_col
     | None => 0
     };
   /* (first row, last row, left col, right col) of placed displays */
