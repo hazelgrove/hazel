@@ -275,6 +275,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  | (Implicit(mp1), _) => match_pat(Pat.of_mpat(mp1), pat)
+  | (_, Implicit(mp2)) => match_pat(pat_r, Pat.of_mpat(mp2))
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

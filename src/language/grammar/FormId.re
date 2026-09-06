@@ -145,7 +145,10 @@ type family =
   | ModuleExp
   | ModuleMod
   | SigLet
-  | SigModule;
+  | SigModule
+  // IMPLICIT MODULE BINDERS
+  | ImplicitPat
+  | ImplicitTyp;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -264,7 +267,9 @@ let label_of_family: family => Label.t =
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
   | SigLet => ["let"]
-  | SigModule => ["module"];
+  | SigModule => ["module"]
+  | ImplicitPat => ["implicit"]
+  | ImplicitTyp => ["implicit", ":"];
 
 let label_of: t => Label.t =
   fun

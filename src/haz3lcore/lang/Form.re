@@ -161,11 +161,11 @@ let rows_of: family => list(row) =
     ]
   | Dot => [
       mk_infix(Exp, P.dot),
-      mk_infix(Typ, P.dot),
+      mk_infix(Typ, P.type_dot),
       /* deliberately duplicated Typ row: `.` is offered twice as a
        * remold candidate at Typ (two historically distinct forms
        * whose molds coincide) */
-      mk_infix(Typ, P.dot),
+      mk_infix(Typ, P.type_dot),
       mk_infix(Drv(Exp), P.dot),
     ]
   | TupleExtension => [mk_infix(Exp, P.plus), mk_infix(Typ, P.ap)]
@@ -304,7 +304,14 @@ let rows_of: family => list(row) =
   | ModuleMod => [mk_pre_c'(L, P.let_, Mod, [MPat], Exp)]
   | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)]
   | SigTypeAbstract => [mk_pre_c'(L, P.let_, Sig, [], TPat)]
-  | SigModule => [mk_pre_c'(L, P.let_, Sig, [], MPat)];
+  | SigModule => [mk_pre_c'(L, P.let_, Sig, [], MPat)]
+  /* `implicit S : SIG` as a component of a function parameter: the MPat
+     body (`S` or `S : SIG`) ends at `,`, `=` or `->`. */
+  | ImplicitPat => [mk_pre_c'(L, P.implicit_pat, Pat, [], MPat)]
+  /* The same as a component of an arrow domain. The type-level `,` binds
+     tighter than the MPat's `:`, so here the `:` is the tile's own shard
+     and the signature is the body, bounded by the tile's precedence. */
+  | ImplicitTyp => [mk_pre_c(L, P.type_implicit, Typ, [MPat])];
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
@@ -707,6 +714,20 @@ let base_candidates = (label: Label.t): list((t, Mold.t)) => {
       };
     let (backups, atomics) =
       List.partition(is_backup, atomic_candidates(t));
+    /* A keyword is its own form wherever that form has a row: `implicit`
+       in a pattern is the binder, not a variable named implicit. */
+    let atomics =
+      Token.is_keyword(t)
+        ? List.filter(
+            ((_, m): (t, Mold.t)) =>
+              !
+                List.exists(
+                  ((_, c): (t, Mold.t)) => c.out == m.out,
+                  compounds,
+                ),
+            atomics,
+          )
+        : atomics;
     atomics @ compounds @ backups;
   | _ => compounds
   };
