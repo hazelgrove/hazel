@@ -3,9 +3,30 @@ open HighLevelNodeMap.Public;
 open Language;
 open OptUtil.Syntax;
 
+/* ===== ITEMS MODE (plans/agent-items-convergence.md) =====
+   The tool path on the per-item statics engine: the node map from the
+   item chain, the maps from DefStatics (a diff-walk plus the dirty items
+   instead of a whole-program pass). Set for the duration of one structural
+   action by Public.go_items; the editor keeps its own statics meanwhile. */
+let items_mode: ref(option(Language.CoreSettings.t)) = ref(None);
+let items_for = (settings: Language.CoreSettings.t, z: Zipper.t): DefStatics.t => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  DefStatics.calc_auto(
+    ~settings,
+    ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+    term,
+  );
+};
+
 /* phase timers for the journal's perf lines */
 let build = (z, info_map) =>
-  PerfTimer.time("node-map", () => build(z, info_map));
+  PerfTimer.time("node-map", () =>
+    switch (items_mode^) {
+    | Some(settings) =>
+      HighLevelNodeMap.build_from_items(items_for(settings, z))
+    | None => build(z, info_map)
+    }
+  );
 
 /* web-side listener for FastParse fallback telemetry (the journal);
    core stays UI-agnostic */
@@ -126,10 +147,29 @@ module Local = {
        Let/TyAlias wrapper, reclassified to a Mod cls. Their pat/def ids are
        real syntax; their "body" is the expansion continuation (the REST of
        the members), which must never be an edit target. */
-    let is_module_member = (node: node): bool =>
-      switch (node.info) {
-      | InfoExp({cls: Mod(_), _}) => true
-      | _ => false
+    /* structural: the node's parent binds a module literal. (The info's
+       cls is not a reliable signal — monolithic statics leaves the LAST
+       member's wrapper classed as a plain let, and per-item statics
+       classes every member so; both sent last-member inserts down the
+       expression path, which adds no `;` — dungeon runs: everything
+       inserted after the last member of Creatures was swallowed into it.) */
+    let is_module_member = (node_map: node_map, node: node): bool =>
+      switch (HighLevelNodeMap.parent_id_of(node)) {
+      | None => false
+      | Some(pid) =>
+        switch (Id.Map.find_opt(pid, node_map)) {
+        | Some({info: InfoExp({user_term, _}), _}) =>
+          switch (Exp.term_of(user_term)) {
+          | Let(_, def, _)
+          | ModuleExp(_, def, _) =>
+            switch (Exp.term_of(def)) {
+            | Module(_) => true
+            | _ => false
+            }
+          | _ => false
+          }
+        | _ => false
+        }
       };
 
     let member_body_error = (what: string) =>
@@ -200,15 +240,11 @@ module Local = {
       let old_statics =
         PerfTimer.time("diff/statics", () => mk_statics(old_zipper));
       let* old_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(old_zipper, old_statics)
-        );
+        PerfTimer.time("diff/node-map", () => build(old_zipper, old_statics));
       let new_statics =
         PerfTimer.time("diff/statics", () => mk_statics(new_zipper));
       let* new_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(new_zipper, new_statics)
-        );
+        PerfTimer.time("diff/node-map", () => build(new_zipper, new_statics));
       let old_target_id =
         PerfTimer.time("diff/path", () => path_to_id(old_node_map, path));
       let* old_segment =
@@ -1143,7 +1179,11 @@ module Local = {
         };
       };
     | Update(Body, path, code)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+        when
+          Utils.is_module_member(
+            initial_node_map,
+            path_to_node(initial_node_map, path),
+          ) =>
       ignore(code);
       Utils.member_body_error("update the body");
     | Update(Body, path, code) =>
@@ -1334,7 +1374,9 @@ module Local = {
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      let root = Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
+      let root =
+        Utils.is_module_member(initial_node_map, initial_node)
+          ? Sort.Mod : Sort.Exp;
       switch (
         PerformUtils.overwrite_term(
           ~root,
@@ -1378,7 +1420,10 @@ module Local = {
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
+        Utils.is_module_member(
+          initial_node_map,
+          path_to_node(initial_node_map, path),
+        );
       switch (
         is_member
           ? PerformUtils.insert_member(
@@ -1419,7 +1464,10 @@ module Local = {
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
+        Utils.is_module_member(
+          initial_node_map,
+          path_to_node(initial_node_map, path),
+        );
       switch (
         is_member
           ? PerformUtils.insert_member(
@@ -1465,7 +1513,11 @@ module Local = {
         syntax,
       );
     | Delete(Body, path)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+        when
+          Utils.is_module_member(
+            initial_node_map,
+            path_to_node(initial_node_map, path),
+          ) =>
       Utils.member_body_error("delete the body")
     | Delete(Body, path) =>
       let node = path_to_node(initial_node_map, path);
@@ -1591,6 +1643,38 @@ module Public = {
     );
   let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
     mk_statics_with(Language.CoreSettings.on, z);
+  /* per-item statics for a zipper (items mode): the merged map */
+  let mk_statics_items =
+      (~settings: Language.CoreSettings.t, z: Zipper.t)
+      : Language.StaticsBase.Map.t =>
+    PerfTimer.time("items-statics", () =>
+      ItemsSpine.merged_with_spine(items_for(settings, z))
+    );
+  /* the whole structural action on per-item statics; no offer to the editor
+     (it recomputes its own way until the canvas reads items too) */
+  let go_items =
+      (~settings: Language.CoreSettings.t, ~syntax, ~z, ~a)
+      : result(Zipper.t, Action.Failure.t) => {
+    let saved = items_mode^;
+    items_mode := Some(settings);
+    let res =
+      try(
+        Local.go(
+          ~mk_statics=z => mk_statics_items(~settings, z),
+          ~initial_info_map=None,
+          ~syntax,
+          ~z,
+          ~a,
+        )
+      ) {
+      | e =>
+        items_mode := saved;
+        raise(e);
+      };
+    items_mode := saved;
+    res;
+  };
+  let use_items: ref(bool) = ref(true);
   let go =
     Local.go(
       ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(z)),

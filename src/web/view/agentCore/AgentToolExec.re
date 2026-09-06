@@ -61,6 +61,7 @@ let add_tool_result_to_active_subtask =
 
 let mk_diff =
     (
+      ~settings: Settings.t,
       ~old_editor: Editor.t,
       ~old_statics: CachedStatics.t,
       ~new_editor: Editor.t,
@@ -80,9 +81,14 @@ let mk_diff =
         switch (CachedStatics.for_zipper(z, old_statics)) {
         | Some(st) when st.info_map != Id.Map.empty => st.info_map
         | _ =>
-          Util.PerfTimer.time("diff-statics", () =>
-            CompositionGo.Public.mk_statics(z)
-          )
+          CompositionGo.Public.use_items^
+            ? CompositionGo.Public.mk_statics_items(
+                ~settings=settings.core,
+                z,
+              )
+            : Util.PerfTimer.time("diff-statics", () =>
+                CompositionGo.Public.mk_statics(z)
+              )
         }
       };
     switch (
@@ -271,6 +277,7 @@ let execute_one_tool_call =
           Ok(
             Util.PerfTimer.time("tool/diff", () =>
               mk_diff(
+                ~settings,
                 ~old_editor=cell_editor.editor.editor,
                 ~old_statics=cell_editor.editor.statics,
                 ~new_editor=editor.editor,

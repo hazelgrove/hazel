@@ -955,11 +955,20 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
 let items_fallbacks: ref(list(string)) = ref([]);
 
 let build_from_items = (ds: DefStatics.t): option(t) => {
+  /* an empty editor derives nothing (the monolithic build finds no
+     indicated term there); tools then report Cant_derive, not a path miss */
+  let empty =
+    switch (Exp.term_of(ds.term)) {
+    | EmptyHole => true
+    | _ => false
+    };
   let first_root =
-    List.find_map(
-      (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
-      ds.items,
-    );
+    empty
+      ? None
+      : List.find_map(
+          (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
+          ds.items,
+        );
   switch (first_root) {
   | None => None
   | Some(root_info) =>
@@ -1020,13 +1029,53 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
       | _ => acc
       };
     };
+    /* the node's info must name the REAL syntax, the way monolithic
+       statics would: the analyzed root is the hollow node, a module
+       item's definition is a surrogate for the literal, and a memoized
+       item's own node keeps the body it had when last analyzed. Only the
+       head (pat, def) of [d_node] is current, so the chain is re-spined:
+       each root's body becomes the next root (members end in the exports
+       tail, like the monolithic expansion). */
+    let rec respine = (items: list(DefStatics.item)): list(Exp.t) =>
+      switch (items) {
+      | [] => []
+      | [it] => [it.d_node]
+      | [it, ...rest] =>
+        let rest = respine(rest);
+        let next = List.hd(rest);
+        let node: Exp.t = it.d_node;
+        let term: Exp.term =
+          switch (node.term) {
+          | Let(p, d, _) => Let(p, d, next)
+          | TyAlias(tp, ty, _) => TyAlias(tp, ty, next)
+          | ModuleExp(mp, d, _) => ModuleExp(mp, d, next)
+          | Seq(e, _) => Seq(e, next)
+          | t => t
+          };
+        [
+          {
+            ...node,
+            term,
+          },
+          ...rest,
+        ];
+      };
     let rec add_items =
             (path: list(Id.t), items: list(DefStatics.item), node_map: t): t =>
       List.fold_left(
-        (acc: t, it: DefStatics.item) =>
+        (acc: t, (it: DefStatics.item, node: Exp.t)) =>
           switch (Id.Map.find_opt(it.d_id, it.d_map)) {
           | None => acc
-          | Some(info) =>
+          | Some(analyzed) =>
+            let info =
+              switch (analyzed) {
+              | Info.InfoExp(e) =>
+                Info.InfoExp({
+                  ...e,
+                  user_term: node,
+                })
+              | other => other
+              };
             switch (it.d_members) {
             | [] => walk_root(info, path, acc, it.d_map)
             | members =>
@@ -1036,10 +1085,10 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
               let node_path = path @ [Info.id_of(info)];
               let acc = init_node(info, node_path, acc);
               add_items(node_path, members, acc);
-            }
+            };
           },
         node_map,
-        items,
+        List.combine(items, respine(items)),
       );
     let node_map = add_items([dummy_root], ds.items, node_map);
     let node_map = build_siblings_and_trim(node_map);

@@ -184,6 +184,267 @@ let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
     ),
   );
 
+/* the dungeon program after a 28-tool agent run (harness replay,
+   2026-09-05): modules inserted, members added, bodies updated */
+let evolved = {hz|module Lists = {
+  let length : poly A -> [A] -> Int =
+  typfun A -> fun xs ->
+  case xs
+      | [] => 0
+      | _ :: tl => 1 + length@<A>(tl)
+      end;
+
+  let map : poly A -> poly B -> ((A -> B), [A]) -> [B] =
+  typfun A -> typfun B -> fun f, xs ->
+  case xs
+      | [] => []
+      | hd :: tl => f(hd) :: map@<A>@<B>(f, tl)
+      end;
+
+  let foldl : poly A -> poly B -> ((B, A) -> B, B, [A]) -> B =
+  typfun A -> typfun B -> fun f, acc, xs ->
+  case xs
+      | [] => acc
+      | hd :: tl => foldl@<A>@<B>(f, f(acc, hd), tl)
+      end;
+
+  let nth : poly A -> ([A], Int, A) -> A =
+  typfun A -> fun xs, i, dflt ->
+  case xs
+      | [] => dflt
+      | hd :: tl =>
+        if i <= 0
+        then hd
+        else nth@<A>(tl, i - 1, dflt)
+      end;
+
+  let set_nth : poly A -> ([A], Int, A) -> [A] =
+  typfun A -> fun xs, i, v ->
+  case xs
+      | [] => []
+      | hd :: tl =>
+        if i <= 0
+        then v :: tl
+        else hd :: set_nth@<A>(tl, i - 1, v)
+      end;
+
+  let range(n: Int): [Int] =
+  if n <= 0
+    then []
+    else range(n - 1) @ [n - 1]
+  } in
+
+  module Show = {
+  let digit(n: Int): String =
+  case n
+    | 0 => "0"
+    | 1 => "1"
+    | 2 => "2"
+    | 3 => "3"
+    | 4 => "4"
+    | 5 => "5"
+    | 6 => "6"
+    | 7 => "7"
+    | 8 => "8"
+    | _ => "9"
+    end;
+
+  let nat(n: Int): String =
+  if n < 10
+    then digit(n)
+    else nat(n / 10) ++ digit(int_mod(n, 10));
+
+  let int(n: Int): String =
+  if n < 0
+    then "-" ++ nat(0 - n)
+    else nat(n)
+  } in
+
+  module Pos = {
+  type T = (Int, Int);
+
+  type Dir =
+  + North
+  + South
+  + East
+  + West;
+
+  let step(d: Dir, p: T): T =
+  let (x, y) = p in
+  case d
+    | North => (x, y - 1)
+    | South => (x, y + 1)
+    | East => (x + 1, y)
+    | West => (x - 1, y)
+    end;
+
+  let neighbors(p: T): [T] =
+  [step(North, p), step(South, p), step(East, p), step(West, p)];
+
+  let abs_int(n: Int): Int =
+  if n < 0
+    then 0 - n
+    else n;
+
+  let manhattan(a: T, b: T): Int =
+  let (ax, ay) = a in
+  let (bx, by) = b in
+  abs_int(ax - bx) + abs_int(ay - by);
+
+  let eq(a: T, b: T): Bool =
+  let (ax, ay) = a in
+  let (bx, by) = b in
+  ax == bx && ay == by
+  } in
+
+  module Dungeon = {
+  type Tile =
+  + Floor
+  + Wall
+  + Door(Bool)
+  + Stairs;
+
+  type Room = (Int, Int, [Tile]);
+
+  let width(r: Room): Int =
+  let (w, _, _) = r in
+  w;
+
+  let height(r: Room): Int =
+  let (_, h, _) = r in
+  h;
+
+  let in_bounds(r: Room, p: Pos.T): Bool =
+  let (w, h, _) = r in
+  let (x, y) = p in
+  x >= 0 && x < w && y >= 0 && y < h;
+
+  let get(r: Room, p: Pos.T): Tile =
+  let (w, _, ts) = r in
+  let (x, y) = p in
+  if in_bounds(r, p)
+    then Lists.nth@<Tile>(ts, y * w + x, Wall)
+    else Wall;
+
+  let set(r: Room, p: Pos.T, t: Tile): Room =
+  let (w, h, ts) = r in
+  let (x, y) = p in
+  if in_bounds(r, p)
+    then (w, h, Lists.set_nth@<Tile>(ts, y * w + x, t))
+    else r;
+
+  let passable(t: Tile): Bool =
+  case t
+    | Floor => true
+    | Stairs => true
+    | Door(open) => open
+    | Wall => false
+    end;
+
+  let can_enter(r: Room, p: Pos.T): Bool =
+  passable(get(r, p));
+
+  module Carve = {
+  let solid(w: Int, h: Int): Room =
+  (w, h, Lists.map@<Int>@<Tile>(fun _ -> Wall, Lists.range(w * h)));
+
+  let on_border(w: Int, h: Int, p: Pos.T): Bool =
+  let (x, y) = p in
+  x == 0 || y == 0 || x == w - 1 || y == h - 1;
+
+  let rect(w: Int, h: Int): Room =
+  let cells = Lists.range(w * h) in
+  let tile_at(i: Int): Tile =
+        let p = (int_mod(i, w), i / w) in
+        if on_border(w, h, p)
+        then Wall
+        else Floor
+      in
+  (w, h, Lists.map@<Int>@<Tile>(tile_at, cells));
+
+  let cut_door(r: Room, p: Pos.T, open: Bool): Room =
+  case get(r, p)
+      | Wall => set(r, p, Door(open))
+      | _ => r
+      end;
+
+  let place_stairs(r: Room, p: Pos.T): Room =
+  case get(r, p)
+      | Floor => set(r, p, Stairs)
+      | _ => r
+      end
+  }
+  } in
+
+  module Creatures = {
+  module Items = {
+  type Item =
+  + Potion(Int)
+  + Bomb(Int)
+  + Torch;
+
+  let name(i: Item): String =
+  case i
+      | Potion(n) => "potion(" ++ Show.int(n) ++ ")"
+      | Bomb(n) => "bomb(" ++ Show.int(n) ++ ")"
+      | Torch => "torch"
+      end
+  };
+
+  type Kind =
+  + Goblin
+  + Orc
+  + Slime;
+
+  type Creature =
+  + Player(Int, [Items.Item])
+  + Monster(Kind, Int, Int)
+  + Trap(Int, Bool);
+
+  let hp(c: Creature): Int =
+  case c
+    | Player(h, _) => h
+    | Monster(_, h, _) => h
+    | Trap(_, armed) =>
+      if armed
+      then 1
+      else 0
+    end;
+
+  let alive(c: Creature): Bool =
+  hp(c) > 0;
+
+  let with_hp(c: Creature, h: Int): Creature =
+  case c
+    | Player(_, inv) => Player(h, inv)
+    | Monster(k, _, p) => Monster(k, h, p)
+    | Trap(d, _) => Trap(d, h > 0)
+    end;
+
+  let label(c: Creature): String =
+  case c
+    | Player(_, _) => "player"
+    | Monster(Goblin, _, _) => "goblin"
+    | Monster(Orc, _, _) => "orc"
+    | Monster(Slime, _, _) => "slime"
+    | Trap(_, _) => "trap"
+    end
+  let player(h: Int, inv: [Items.Item]): Creature = Player(h, inv);
+
+  let monster(k: Kind, h: Int, p: Int): Creature = Monster(k, h, p);
+
+  let trap(d: Int, armed: Bool): Creature = Trap(d, armed);
+
+  let goblin : Kind = Goblin;
+
+  let orc : Kind = Orc;
+
+  let slime : Kind = Slime
+  } in
+  test Pos.manhattan((1, 1), (4, 5)) == 7 end;
+  test Pos.eq(Pos.step(North, (2, 2)), (2, 1)) end;
+  test Pos.neighbors((0, 0)) == [(0, -1), (0, 1), (1, 0), (-1, 0)] end;|hz};
+
 let build_at_end = (code: string): int =>
   switch (Parser.to_zipper(~root=Exp, code)) {
   | None => fail("parse failed")
@@ -407,7 +668,12 @@ let missing_in_item_maps = (ds: DefStatics.t): unit => {
 
 /* parity: node map from the per-item engine == node map from the
    monolithic map (same node ids, same paths) */
-let parity = (code: string): (int, int, int) =>
+let term_of_code = (code: string): Exp.t =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) => MakeTerm.from_zip_for_sem(z, ~root=Exp).term
+  };
+let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
   switch (Parser.to_zipper(~root=Exp, code)) {
   | None => fail("parse failed")
   | Some(z) =>
@@ -418,7 +684,7 @@ let parity = (code: string): (int, int, int) =>
       | Some(nm) => nm
       | None => fail("monolithic node map: None")
       };
-    let ds = DefStatics.calc(~settings=CoreSettings.on, term);
+    let ds = mk_ds(term);
     HighLevelNodeMap.items_fallbacks := [];
     missing_in_item_maps(ds);
     let items =
@@ -429,10 +695,46 @@ let parity = (code: string): (int, int, int) =>
     let paths = (nm: HighLevelNodeMap.t) =>
       Id.Map.bindings(nm)
       |> List.map(((id, n: HighLevelNodeMapModel.node)) => (id, n.path));
+    /* compared by NAME path: monolithic statics gives expression members
+       a fresh wrapper id per run, so ids under one are never stable */
+    let name_paths = (nm: HighLevelNodeMap.t) =>
+      Id.Map.bindings(nm)
+      |> List.map(((_, n: HighLevelNodeMapModel.node)) =>
+           String.concat(
+             "/",
+             List.map(
+               i =>
+                 switch (Id.Map.find_opt(i, nm)) {
+                 | Some(p: HighLevelNodeMapModel.node) => p.name
+                 | None => "?"
+                 },
+               n.path,
+             ),
+           )
+         )
+      |> List.sort(compare);
     let (pm, pi) = (paths(mono), paths(items));
+    let (nm_mono, nm_items) = (name_paths(mono), name_paths(items));
+    let name_missing = List.filter(k => !List.mem(k, nm_items), nm_mono);
+    let name_extra = List.filter(k => !List.mem(k, nm_mono), nm_items);
+    List.iter(k => print_endline("PARITY name-missing " ++ k), name_missing);
+    List.iter(k => print_endline("PARITY name-extra " ++ k), name_extra);
     let name_of = (nm: HighLevelNodeMap.t, id) =>
       switch (Id.Map.find_opt(id, nm)) {
-      | Some(n: HighLevelNodeMapModel.node) => n.name
+      | Some(n: HighLevelNodeMapModel.node) =>
+        n.name
+        ++ " @"
+        ++ String.concat(
+             "/",
+             List.map(
+               i =>
+                 switch (Id.Map.find_opt(i, nm)) {
+                 | Some(p: HighLevelNodeMapModel.node) => p.name
+                 | None => Id.to_string(i)
+                 },
+               n.path,
+             ),
+           )
       | None => "?"
       };
     List.iter(
@@ -461,9 +763,97 @@ let parity = (code: string): (int, int, int) =>
         ),
       extra,
     );
-    (Id.Map.cardinal(mono), List.length(missing), List.length(extra));
+    (
+      Id.Map.cardinal(mono),
+      List.length(name_missing),
+      List.length(name_extra),
+    );
   };
+let parity = (code: string) =>
+  parity_ds(code, DefStatics.calc(~settings=CoreSettings.on));
+/* items of [code] computed incrementally from [prev_code]'s items, the way
+   the tool path sees an edited program */
+let parity_incr = (prev_code: string, code: string) =>
+  parity_ds(code, term =>
+    DefStatics.calc(
+      ~settings=CoreSettings.on,
+      ~prev=
+        DefStatics.calc(~settings=CoreSettings.on, term_of_code(prev_code)),
+      term,
+    )
+  );
+/* monolithic node-map name paths of [code] */
+let node_names = (code: string): list(string) =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let z = Move.to_end(z);
+    switch (HighLevelNodeMap.build(z, mk_statics(z))) {
+    | None => []
+    | Some(nm) =>
+      Id.Map.bindings(nm)
+      |> List.map(((_, n: HighLevelNodeMapModel.node)) =>
+           String.concat(
+             "/",
+             List.map(
+               i =>
+                 switch (Id.Map.find_opt(i, nm)) {
+                 | Some(p: HighLevelNodeMapModel.node) => p.name
+                 | None => "?"
+                 },
+               n.path,
+             ),
+           )
+         )
+    };
+  };
+let member_sep_probe = (last_member: string) => {
+  let program =
+    "module M = {\n  let a = 1;\n  " ++ last_member ++ "\n} in\nM.a";
+  let result =
+    Test_AgentTools.apply_and_render(
+      program,
+      Insert(After, "M/b", "let c = 3;\nlet d = 4"),
+    );
+  let names = node_names(result);
+  let has = p => List.mem(p, names);
+  if (!(has("M/c") && has("M/d"))) {
+    print_endline("RESULT:\n" ++ result);
+    print_endline("NODES: " ++ String.concat(" ", names));
+  };
+  check(bool, "M/c and M/d are members", true, has("M/c") && has("M/d"));
+};
 let parity_probes = [
+  test_case(
+    "insert_after last member (case def) keeps it separated", `Quick, () =>
+    member_sep_probe(
+      "let b(x: Int): Int =\n    case x\n    | 0 => 1\n    | _ => 2\n    end",
+    )
+  ),
+  test_case(
+    "insert_after last member (simple def) keeps it separated", `Quick, () =>
+    member_sep_probe("let b = 2")
+  ),
+  test_case(
+    "node map parity: evolved dungeon program",
+    `Quick,
+    () => {
+      let (n, missing, extra) = parity(evolved);
+      check(bool, "nonempty", true, n > 0);
+      check(int, "missing", 0, missing);
+      check(int, "extra", 0, extra);
+    },
+  ),
+  test_case(
+    "node map parity: evolved dungeon program, incremental",
+    `Quick,
+    () => {
+      let (n, missing, extra) = parity_incr(program, evolved);
+      check(bool, "nonempty", true, n > 0);
+      check(int, "missing", 0, missing);
+      check(int, "extra", 0, extra);
+    },
+  ),
   test_case(
     "node map parity: small module program",
     `Quick,

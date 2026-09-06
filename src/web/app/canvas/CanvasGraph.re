@@ -1029,26 +1029,56 @@ let extract_impl =
 
   let binding_names =
     List.map(((_, n, _, _, _, _, _, _, _, _, _)) => n, bindings);
+  /* e_name must be unique (vdom keys, dom ids): same-named siblings —
+     shadowing, or an agent re-inserting a member — get the node map's
+     `#k` suffix (k-th binding of that name in program order). A lone
+     name stays bare. */
+  let qns = {
+    let key = ((path, name, _, _, _, _, _, _, _, _, _)) => (path, name);
+    let total = k => List.length(List.filter(b => key(b) == k, bindings));
+    List.mapi(
+      (i, b) => {
+        let (path, name) = key(b);
+        let base = path == [] ? name : qname(path, name);
+        if (total((path, name)) <= 1) {
+          base;
+        } else {
+          let k =
+            List.length(
+              List.filter(
+                b' => key(b') == (path, name),
+                List.filteri((j, _) => j < i, bindings),
+              ),
+            )
+            + 1;
+          base ++ "#" ++ string_of_int(k);
+        };
+      },
+      bindings,
+    );
+  };
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
     List.fold_left(
       (
         (es, vs),
         (
-          path,
-          name,
-          id,
-          ty,
-          doc,
-          err,
-          hole,
-          is_mod,
-          (arg_ids, whole_ids, out_id),
-          dvars,
-          def,
+          (
+            path,
+            name,
+            id,
+            ty,
+            doc,
+            err,
+            hole,
+            is_mod,
+            (arg_ids, whole_ids, out_id),
+            dvars,
+            def,
+          ),
+          qn,
         ),
       ) => {
-        let qn = path == [] ? name : qname(path, name);
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>
@@ -1211,7 +1241,7 @@ let extract_impl =
         };
       },
       ([], []),
-      bindings,
+      List.combine(bindings, qns),
     );
 
   /* Tests: attach to their lexical subject (see test_subject). */
