@@ -1,0 +1,97 @@
+# FUMOLA: THE BIG PICTURE #
+# Fumola is an experimental language whose execution model is Adapton: a    #
+# program's run leaves behind a graph of what it named, read and demanded,  #
+# and that graph is what the next run reuses.                               #
+#                                                                           #
+# Its surface is deliberately ordinary -- functions, records, variants,     #
+# modules, pattern matching, arithmetic, taken from Motoko -- so that the   #
+# way a program runs is the part worth looking at.                          #
+#                                                                           #
+# The four livelits, in brief:                                              #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# The cards after this one take an idea each. This one is the map.          #
+
+# ADAPTON, BRIEFLY #
+# A run builds a demanded computation graph: cells, which hold values, and  #
+# thunks, which are suspended computations, with an edge for every action a #
+# thunk took -- every cell written, every cell read, every thunk forced --  #
+# kept in the order it took them.                                           #
+#                                                                           #
+# The graph exists so that a later run can be repaired rather than redone.  #
+# When a cell changes, the thunks that read it are the ones whose results   #
+# are in question; the rest of the graph is still good, and is reused as it #
+# stands. What makes that addressable is that every cell and thunk has a    #
+# name: the run after an edit has to recognise the node it is about to      #
+# recompute as the same node as last time, and a name is how it does.       #
+
+# THE PRIMITIVES #
+# There are not many. Two ways to make a node, two ways to depend on one,   #
+# one way to look without depending, and a way to say where new nodes live. #
+#                                                                           #
+#   thunk { e }         suspend a computation; a thunk is an ordinary value #
+#   `n := e             put: write e into the cell `n, giving a pointer     #
+#   get(`n)   or  @p    get: read a cell, recording a dependency on it      #
+#   force(p)            demand a thunk, recording a dependency on it        #
+#   peek(`n)            read without recording anything; answers an option  #
+#   do within space `s { e }    where the nodes made inside e belong        #
+#                                                                           #
+# Not a primitive, but the idiom the rest are usually reached through:      #
+#                                                                           #
+#   force(`n := thunk { e })                                                #
+#                                                                           #
+# Name a thunk, put a computation in it, demand it. Running it again with   #
+# the same name is what an edit is -- and it is what the livelit below does #
+# to itself every time you change the program inside it.                    #
+let answer : Int =
+  ^fumola_put_force(0, "`gcd", "Gcd.gcd(12, 18)") in
+
+# The other livelit runs with no thunk around it, so the put and the get    #
+# here are recorded against the graph's root rather than a computation.     #
+let counted : Int =
+  ^fumola_eval(0, "`count := 41; get(`count) + 1") in
+
+# NAMES ARE VALUES #
+# A name is a symbol: an identifier written with a leading backtick, or a   #
+# number, and symbols compose by application as deeply as you like. So a    #
+# name can be computed -- which is what lets a recursive algorithm give     #
+# each of its nodes a name derived from its position rather than from a     #
+# counter.                                                                  #
+let aName : String =
+  ^fumola_put_force(0, "`aName", "`adapton(`settings)") in
+
+# A name has two dimensions rather than one. Space is where a cell lives,   #
+# so a subcomputation can allocate without colliding with its caller; time  #
+# is when it holds what it holds, which is what lets one name carry a       #
+# history rather than a single value.                                       #
+
+# TWO MODES #
+# Which mode a program is in is decided by whether a force is underway.     #
+#                                                                           #
+# The archivist runs inside one, and the tracked operations -- put, get,    #
+# and force itself -- belong to it, because there is a computation in       #
+# progress for a dependency to be recorded against. The editor runs on a    #
+# force-free stack: it is where changes come from, and where resetting the  #
+# store and reading the graph belong. peek is the editor's, but stays       #
+# available inside a force on purpose, since reading a cell without         #
+# recording a dependency is exactly how you look at a computation while it  #
+# runs.                                                                     #
+#                                                                           #
+# That distinction is the one between the two livelits above.               #
+
+# TWO SEMANTICS #
+# The primitives have two implementations, and a runtime runs one or the    #
+# other. Graphical keeps the graph proper -- nodes, edges, each thunk's     #
+# trace in the order it ran, and an event history -- which is what makes    #
+# the graph readable from inside the language, and what repair will need.   #
+# Simple keeps a store and no more: cells, and thunks with their cached     #
+# results. It is cheap and predictable, and it keeps no graph, so there is  #
+# nothing to introspect and nothing to repair.                              #
+#                                                                           #
+# Card 6 declares a graphical runtime and reads its event log as a table.   #
+
+(answer, counted, aName)
