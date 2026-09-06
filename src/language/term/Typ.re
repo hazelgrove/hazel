@@ -27,7 +27,8 @@ type cls =
   | ProdProjection
   | ProdExtension
   | Sig
-  | Escaped;
+  | Escaped
+  | Implicit;
 
 include TermBase.Typ;
 
@@ -59,6 +60,92 @@ let all_ids_temp = {
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
 };
+
+/* ==================== Implicit module binders ====================
+   `Implicit(mp)` is a component of an arrow domain that binds a module
+   variable, with the signature the MPat carries (`?` when unannotated), in
+   the later components of the domain and in the codomain. Everywhere else
+   the component behaves as its signature. */
+let implicit_binder = (mp: MPat.t): option((Var.t, t)) =>
+  switch (MPat.binder(mp)) {
+  | Some((x, Some(sig_))) => Some((x, sig_))
+  | Some((x, None)) => Some((x, Unknown(Internal) |> temp))
+  | None => None
+  };
+
+let implicit_sig = (mp: MPat.t): t =>
+  switch (implicit_binder(mp)) {
+  | Some((_, sig_)) => sig_
+  | None => Unknown(Internal) |> temp
+  };
+
+let rec strip_parens = (ty: t): t =>
+  switch (term_of(ty)) {
+  | Parens(ty) => strip_parens(ty)
+  | _ => ty
+  };
+
+/* The binder a domain component introduces, if it is an implicit one. */
+let component_binder = (c: t): option((Var.t, t)) =>
+  switch (term_of(strip_parens(c))) {
+  | Implicit(mp) => implicit_binder(mp)
+  | _ => None
+  };
+
+/* The top-level components of an arrow domain: a tuple's items, else the
+   domain itself. */
+let dom_items = (dom: t): list(t) =>
+  switch (term_of(strip_parens(dom))) {
+  | Prod(ts) => ts
+  | _ => [dom]
+  };
+
+/* Rebuild a domain from its transformed items, keeping the tuple node. */
+let rebuild_dom = (dom: t, items: list(t)): t =>
+  switch (term_of(strip_parens(dom)), items) {
+  | (Prod(_), _) => {
+      ...strip_parens(dom),
+      term: Prod(items),
+    }
+  | (_, [item]) => item
+  | (_, items) => Prod(items) |> temp
+  };
+
+let implicit_binders = (dom: t): list((Var.t, t)) =>
+  List.filter_map(component_binder, dom_items(dom));
+
+let has_implicit_binders = (dom: t): bool => implicit_binders(dom) != [];
+
+let binder_names = (bs: list((Var.t, t))): list(Var.t) =>
+  List.map(fst, bs);
+
+/* Each domain item paired with the binders of the items before it. */
+let dom_items_scoped = (dom: t): list((list((Var.t, t)), t)) =>
+  List.fold_left(
+    ((before, acc), c) =>
+      (
+        before @ Option.to_list(component_binder(c)),
+        [(before, c), ...acc],
+      ),
+    ([], []),
+    dom_items(dom),
+  )
+  |> snd
+  |> List.rev;
+
+let bind_implicit = (ctx: Ctx.t, (name, sig_): (Var.t, t)): Ctx.t =>
+  Ctx.extend(
+    ctx,
+    VarEntry({
+      name,
+      id: Id.invalid,
+      typ: sig_,
+      custom_statics: None,
+    }),
+  );
+
+let bind_implicits = (ctx: Ctx.t, bs: list((Var.t, t))): Ctx.t =>
+  List.fold_left(bind_implicit, ctx, bs);
 
 let (replace_temp, replace_temp_exp) = {
   let f:
@@ -103,7 +190,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
   | Sig(_) => Sig
-  | Escaped(_) => Escaped;
+  | Escaped(_) => Escaped
+  | Implicit(_) => Implicit;
 
 let show_cls: cls => string =
   fun
@@ -131,7 +219,8 @@ let show_cls: cls => string =
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type"
-  | Escaped => "Escaped abstract type";
+  | Escaped => "Escaped abstract type"
+  | Implicit => "Implicit module binder";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -155,6 +244,7 @@ let rec is_arrow = (typ: t) => {
   | ProdExtension(_)
   | Sig(_)
   | Escaped(_) => false
+  | Implicit(_) => false
   };
 };
 
@@ -184,6 +274,7 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Implicit(mp) => has_fun(implicit_sig(mp))
   | Sig(items) =>
     List.exists(
       (m: Sig.member) =>
@@ -269,8 +360,23 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
-  | ProdExtension(t1, t2)
+  | ProdExtension(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | Arrow(dom, cod) when has_implicit_binders(dom) =>
+    /* Implicit binders scope over the later components and the codomain. */
+    let (bound', fv) =
+      List.fold_left(
+        ((bound, acc), (before, c)) =>
+          (
+            bound @ binder_names(before),
+            acc @ free_vars(~bound=bound @ binder_names(before), c),
+          ),
+        (bound, []),
+        dom_items_scoped(dom),
+      );
+    let bound' = bound' @ binder_names(implicit_binders(dom));
+    fv @ free_vars(~bound=bound', cod);
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | Implicit(mp) => free_vars(~bound, implicit_sig(mp))
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => List.concat_map(free_vars(~bound), tys)
   | ProdProjection(t1, _) => free_vars(~bound, t1)
@@ -338,6 +444,7 @@ let rec count_unknowns = (ty: t): int =>
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Escaped(_) => 0
+  | Implicit(mp) => count_unknowns(implicit_sig(mp))
   | Sig(items) =>
     List.fold_left(
       (acc, m: Sig.member) =>
@@ -379,8 +486,28 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Label(name) => Grammar.Label(name) |> rewrap
     | ExplicitNonlabel => ExplicitNonlabel |> rewrap
     | Unknown(prov) => Unknown(prov) |> rewrap
+    | Arrow(dom, cod) when has_implicit_binders(dom) =>
+      /* An implicit binder named like the type variable shadows it in the
+         later components and the codomain. */
+      let (shadowed, items) =
+        List.fold_left(
+          ((shadowed, acc), (before, c)) => {
+            let shadowed = shadowed || List.mem(str, binder_names(before));
+            (shadowed, [shadowed ? c : subst(s, x, c), ...acc]);
+          },
+          (false, []),
+          dom_items_scoped(dom),
+        );
+      let shadowed =
+        shadowed || List.mem(str, binder_names(implicit_binders(dom)));
+      Arrow(
+        rebuild_dom(dom, List.rev(items)),
+        shadowed ? cod : subst(s, x, cod),
+      )
+      |> rewrap;
     | Arrow(ty1, ty2) =>
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | Implicit(mp) => Implicit(MPat.map_typ(subst(s, x), mp)) |> rewrap
     | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
@@ -853,9 +980,18 @@ let rec path_roots = (ty: t): list(Var.t) =>
   /* Closed: an escaped type names no binder. */
   | Escaped(_)
   | Label(_) => []
+  | Arrow(dom, cod) when has_implicit_binders(dom) =>
+    let except = (bs, roots) =>
+      List.filter(r => !List.mem(r, binder_names(bs)), roots);
+    List.concat_map(
+      ((before, c)) => except(before, path_roots(c)),
+      dom_items_scoped(dom),
+    )
+    @ except(implicit_binders(dom), path_roots(cod));
   | Arrow(t1, t2)
   | ProdProjection(t1, t2)
   | ProdExtension(t1, t2) => path_roots(t1) @ path_roots(t2)
+  | Implicit(mp) => path_roots(implicit_sig(mp))
   | Prod(tys) => List.concat_map(path_roots, tys)
   | Sum(sm) =>
     List.concat_map(
@@ -881,6 +1017,79 @@ let rec path_roots = (ty: t): list(Var.t) =>
       Sig.members(items),
     )
   };
+
+/* Rename the root of every module path rooted at [from] to [to_] (the
+   alpha-renaming of an implicit binder, or its instantiation by a module
+   path). A bare `Var` is a type variable and is left alone. Stops at a
+   binder that shadows [from]. */
+let rec subst_path_root = (~from: Var.t, ~to_: t, ty: t): t => {
+  let go = subst_path_root(~from, ~to_);
+  let rewrap = (term: term): t => {
+    ...ty,
+    term,
+  };
+  let shadows_tpat = tp => TPat.tyvar_of_utpat(tp) == Some(from);
+  switch (term_of(ty)) {
+  | ProdProjection(p, {term: Label(_), _} as l) =>
+    switch (term_of(strip_parens(p))) {
+    | Var(x) when x == from => rewrap(ProdProjection(to_, l))
+    | _ => rewrap(ProdProjection(go(p), l))
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ProofOf(_)
+  | ExplicitNonlabel
+  | Escaped(_)
+  | Label(_) => ty
+  | Arrow(dom, cod) when has_implicit_binders(dom) =>
+    let shadowed = bs => List.mem(from, binder_names(bs));
+    let items =
+      List.map(
+        ((before, c)) => shadowed(before) ? c : go(c),
+        dom_items_scoped(dom),
+      );
+    rewrap(
+      Arrow(
+        rebuild_dom(dom, items),
+        shadowed(implicit_binders(dom)) ? cod : go(cod),
+      ),
+    );
+  | Arrow(t1, t2) => rewrap(Arrow(go(t1), go(t2)))
+  | Implicit(mp) => rewrap(Implicit(MPat.map_typ(go, mp)))
+  | Prod(tys) => rewrap(Prod(List.map(go, tys)))
+  | Sum(sm) => rewrap(Sum(ConstructorMap.map(Option.map(go), sm)))
+  | Rec(tp, t) => shadows_tpat(tp) ? ty : rewrap(Rec(tp, go(t)))
+  | Poly(tp, t) => shadows_tpat(tp) ? ty : rewrap(Poly(tp, go(t)))
+  | List(t) => rewrap(List(go(t)))
+  | Parens(t) => rewrap(Parens(go(t)))
+  | Projector(d, t) => rewrap(Projector(d, go(t)))
+  | TupLabel(l, t) => rewrap(TupLabel(l, go(t)))
+  | ProdProjection(t1, t2) => rewrap(ProdProjection(go(t1), go(t2)))
+  | ProdExtension(t1, t2) => rewrap(ProdExtension(go(t1), go(t2)))
+  | Sig(items) =>
+    /* A value member named [from] shadows it for the later items. */
+    let (_, rev) =
+      List.fold_left(
+        ((shadowed, acc), item: Sig.t) => {
+          let item' = shadowed ? item : Sig.map_typ(go, item);
+          let shadowed =
+            shadowed
+            || (
+              switch (Sig.member_of_item(item)) {
+              | Some(Val(x, _)) => x == from
+              | _ => false
+              }
+            );
+          (shadowed, [item', ...acc]);
+        },
+        (false, []),
+        items,
+      );
+    rewrap(Sig(List.rev(rev)));
+  };
+};
 
 /* Avoidance: [ty] is the type of a body whose binders [escaping] go out of
    scope. A module path rooted at one of them (`m.T`) is first reduced in
@@ -911,11 +1120,15 @@ let rec path_label = (ty: t): string =>
 
 let avoid =
     (ctx: Ctx.t, ~escape_to: escape_to, ~escaping: list(Var.t), ty: t): t => {
-  let escapes = (ty: t) =>
+  let escapes = (~escaping, ty: t) =>
     switch (path_root(ty)) {
     | Some(x) => List.mem(x, escaping) && Ctx.lookup_tvar(ctx, x) == None
     | None => false
     };
+  /* An implicit binder of an arrow domain is in scope for the later
+     components and the codomain: it does not escape there. */
+  let unbind = (escaping, bs) =>
+    List.filter(x => !List.mem(x, binder_names(bs)), escaping);
   /* [names]: escaping paths already named by an enclosing signature's type
      member, innermost first. */
   let named = (names, w) =>
@@ -926,15 +1139,16 @@ let avoid =
     | Some(name) => shadow(names, name)
     | None => names
     };
-  let rec go = (names: list((t, Var.t)), ty: t): t => {
+  let rec go = (~escaping, names: list((t, Var.t)), ty: t): t => {
     let rewrap = (term: term): t => {
       ...ty,
       term,
     };
+    let go' = go(~escaping);
     switch (term_of(ty)) {
-    | ProdProjection(_, {term: Label(_), _}) when escapes(ty) =>
+    | ProdProjection(_, {term: Label(_), _}) when escapes(~escaping, ty) =>
       let w = weak_head_normalize(ctx, ty);
-      if (is_stuck_path_term(w) && escapes(w)) {
+      if (is_stuck_path_term(w) && escapes(~escaping, w)) {
         switch (named(names, w)) {
         | Some(name) => Var(name) |> temp
         /* Nothing outside names this abstract type any more, so it becomes
@@ -955,7 +1169,7 @@ let avoid =
           }
         };
       } else {
-        go(names, w);
+        go'(names, w);
       };
     | Unknown(_)
     | Atom(_)
@@ -966,30 +1180,44 @@ let avoid =
     /* Already escaped: it cannot escape again. */
     | Escaped(_)
     | Label(_) => ty
-    | Arrow(t1, t2) => rewrap(Arrow(go(names, t1), go(names, t2)))
-    | Prod(tys) => rewrap(Prod(List.map(go(names), tys)))
+    | Arrow(dom, cod) when has_implicit_binders(dom) =>
+      let items =
+        List.map(
+          ((before, c)) =>
+            go(~escaping=unbind(escaping, before), names, c),
+          dom_items_scoped(dom),
+        );
+      rewrap(
+        Arrow(
+          rebuild_dom(dom, items),
+          go(~escaping=unbind(escaping, implicit_binders(dom)), names, cod),
+        ),
+      );
+    | Arrow(t1, t2) => rewrap(Arrow(go'(names, t1), go'(names, t2)))
+    | Implicit(mp) => rewrap(Implicit(MPat.map_typ(go'(names), mp)))
+    | Prod(tys) => rewrap(Prod(List.map(go'(names), tys)))
     | Sum(sm) =>
-      rewrap(Sum(ConstructorMap.map(Option.map(go(names)), sm)))
-    | Rec(tp, t) => rewrap(Rec(tp, go(shadow_tpat(names, tp), t)))
-    | Poly(tp, t) => rewrap(Poly(tp, go(shadow_tpat(names, tp), t)))
-    | List(t) => rewrap(List(go(names, t)))
-    | Parens(t) => rewrap(Parens(go(names, t)))
-    | Projector(d, t) => rewrap(Projector(d, go(names, t)))
-    | TupLabel(l, t) => rewrap(TupLabel(l, go(names, t)))
+      rewrap(Sum(ConstructorMap.map(Option.map(go'(names)), sm)))
+    | Rec(tp, t) => rewrap(Rec(tp, go'(shadow_tpat(names, tp), t)))
+    | Poly(tp, t) => rewrap(Poly(tp, go'(shadow_tpat(names, tp), t)))
+    | List(t) => rewrap(List(go'(names, t)))
+    | Parens(t) => rewrap(Parens(go'(names, t)))
+    | Projector(d, t) => rewrap(Projector(d, go'(names, t)))
+    | TupLabel(l, t) => rewrap(TupLabel(l, go'(names, t)))
     | ProdProjection(t1, t2) =>
-      rewrap(ProdProjection(go(names, t1), go(names, t2)))
+      rewrap(ProdProjection(go'(names, t1), go'(names, t2)))
     | ProdExtension(t1, t2) =>
-      rewrap(ProdExtension(go(names, t1), go(names, t2)))
+      rewrap(ProdExtension(go'(names, t1), go'(names, t2)))
     | Sig(items) =>
       let (_, rev) =
         List.fold_left(
           ((names, acc), item: Sig.t) =>
             switch (item.term, Sig.member_of_item(item)) {
             | (SigType(tp, def), Some(TypeManifest(name, _)))
-                when escapes(def) =>
+                when escapes(~escaping, def) =>
               let names = shadow(names, name);
               let w = weak_head_normalize(ctx, def);
-              if (is_stuck_path_term(w) && escapes(w)) {
+              if (is_stuck_path_term(w) && escapes(~escaping, w)) {
                 switch (named(names, w)) {
                 | Some(other) => (
                     names,
@@ -1013,14 +1241,14 @@ let avoid =
                   )
                 };
               } else {
-                (names, [Sig.map_typ(go(names), item), ...acc]);
+                (names, [Sig.map_typ(go'(names), item), ...acc]);
               };
             | (_, Some(TypeManifest(name, _) | TypeAbstract(name))) =>
               let names = shadow(names, name);
-              (names, [Sig.map_typ(go(names), item), ...acc]);
+              (names, [Sig.map_typ(go'(names), item), ...acc]);
             | (_, Some(Val(_))) => (
                 names,
-                [Sig.map_typ(go(names), item), ...acc],
+                [Sig.map_typ(go'(names), item), ...acc],
               )
             | (_, None) => (names, [item, ...acc])
             },
@@ -1030,7 +1258,7 @@ let avoid =
       rewrap(Sig(List.rev(rev)));
     };
   };
-  go([], ty);
+  go(~escaping, [], ty);
 };
 
 /* Value members of a signature whose own type is a signature: the
@@ -1094,8 +1322,26 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
+  | Arrow(dom, cod) when has_implicit_binders(dom) =>
+    /* Binders are in scope for the later components and the codomain. */
+    let (ctx', rev) =
+      List.fold_left(
+        ((ctx, acc), c) => {
+          let c' = normalize(ctx, c);
+          let ctx =
+            switch (component_binder(c')) {
+            | Some(b) => bind_implicit(ctx, b)
+            | None => ctx
+            };
+          (ctx, [c', ...acc]);
+        },
+        (ctx, []),
+        dom_items(dom),
+      );
+    Arrow(rebuild_dom(dom, List.rev(rev)), normalize(ctx', cod)) |> rewrap;
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | Implicit(mp) => Implicit(MPat.map_typ(normalize(ctx), mp)) |> rewrap
   | Prod(ts) =>
     let ts = List.map(normalize(ctx), ts);
     let duplicate_labels =
@@ -1211,6 +1457,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         | Prod(tys) => List.exists(go(~depth=depth + 1, ctx), tys)
         | ProdExtension(t1, t2) =>
           go(~depth=depth + 1, ctx, t1) || go(~depth=depth + 1, ctx, t2)
+        | Implicit(mp) => go(~depth=depth + 1, ctx, implicit_sig(mp))
         }
       );
   go(~depth=0, ctx, ty);
@@ -1275,8 +1522,34 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           };
         go_members(ctx, xs, ys);
       | (List(x), List(y)) => go(ctx, x, y)
+      | (Arrow(x1, y1), Arrow(x2, y2))
+          when has_implicit_binders(x1) || has_implicit_binders(x2) =>
+        /* Same implicit positions and binder names; a binder is in scope
+           for the later components and the codomain. */
+        let rec go_items = (ctx, xs, ys) =>
+          switch (xs, ys) {
+          | ([], []) => Some(ctx)
+          | ([c1, ...xs], [c2, ...ys]) =>
+            switch (component_binder(c1), component_binder(c2)) {
+            | (Some((n1, s1)), Some((n2, s2))) =>
+              n1 == n2 && go(ctx, s1, s2)
+                ? go_items(bind_implicit(ctx, (n1, s1)), xs, ys) : None
+            | (None, None) => go(ctx, c1, c2) ? go_items(ctx, xs, ys) : None
+            | _ => None
+            }
+          | _ => None
+          };
+        switch (go_items(ctx, dom_items(x1), dom_items(x2))) {
+        | Some(ctx') => go(ctx', y1, y2)
+        | None => false
+        };
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
+      | (Implicit(mp1), Implicit(mp2)) =>
+        switch (implicit_binder(mp1), implicit_binder(mp2)) {
+        | (Some((n1, s1)), Some((n2, s2))) => n1 == n2 && go(ctx, s1, s2)
+        | _ => false
+        }
       | (Prod(xs), Prod(ys)) =>
         List.length(xs) == List.length(ys)
         && List.for_all2(go(ctx), xs, ys)
@@ -1364,6 +1637,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  /* Outside an arrow domain an implicit binder is its signature. */
+  | (Implicit(mp1), Implicit(mp2)) =>
+    let+ s = meet'(implicit_sig(mp1), implicit_sig(mp2));
+    Implicit(MPat.with_typ(mp1, s)) |> temp;
+  | (Implicit(mp), _) => meet'(implicit_sig(mp), ty2)
+  | (_, Implicit(mp)) => meet'(ty1, implicit_sig(mp))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -1400,6 +1679,14 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
   | (Label(_), _) => None
+  | (Arrow(d1, c1), Arrow(d2, c2))
+      when has_implicit_binders(d1) || has_implicit_binders(d2) =>
+    /* Same implicit positions; the right side's binders are renamed to the
+       left's, which are in scope for the later components and the
+       codomain. */
+    let* (ctx', items, c2) = meet_dom(ctx, d1, d2, c2);
+    let+ c = meet(ctx', c1, c2);
+    Arrow(rebuild_dom(d1, items), c) |> temp;
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = meet'(ty1, ty1');
     let+ ty2 = meet'(ty2, ty2');
@@ -1506,6 +1793,43 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Grammar.escaped_equal(e1, e2) ? Some(ty1) : None
   | (Escaped(_), _) => None
   };
+}
+
+/* Pairwise meet of two arrow domains with implicit binders: same length,
+   implicit components at the same positions. Returns the context extended
+   with the left binders, the met items, and the right codomain with its
+   binders renamed to the left's. */
+and meet_dom =
+    (ctx: Ctx.t, d1: t, d2: t, c2: t): option((Ctx.t, list(t), t)) => {
+  let rec go = (ctx, xs, ys, c2, acc) =>
+    switch (xs, ys) {
+    | ([], []) => Some((ctx, List.rev(acc), c2))
+    | ([x, ...xs], [y, ...ys]) =>
+      switch (
+        term_of(strip_parens(x)),
+        component_binder(x),
+        component_binder(y),
+      ) {
+      | (Implicit(mp1), Some((n1, s1)), Some((n2, s2))) =>
+        let* s = meet(ctx, s1, s2);
+        let rename =
+          n1 == n2
+            ? Fun.id : subst_path_root(~from=n2, ~to_=Var(n1) |> temp);
+        go(
+          bind_implicit(ctx, (n1, s)),
+          xs,
+          List.map(rename, ys),
+          rename(c2),
+          [Implicit(MPat.with_typ(mp1, s)) |> temp, ...acc],
+        );
+      | (_, None, None) =>
+        let* c = meet(ctx, x, y);
+        go(ctx, xs, ys, c2, [c, ...acc]);
+      | _ => None
+      }
+    | _ => None
+    };
+  go(ctx, dom_items(d1), dom_items(d2), c2, []);
 };
 
 /* Coercive subtyping `from ≲ to_`, checked only at coercion sites: an
@@ -1538,6 +1862,11 @@ let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
       let* l = meet(ctx, lt, lf);
       let+ t = coercion(ctx, ~from=f, ~to_=t);
       TupLabel(l, t) |> temp;
+    /* Outside an arrow domain an implicit binder is its signature. */
+    | (Implicit(mpf), _) =>
+      coercion(ctx, ~from=implicit_sig(mpf), ~to_) |> Option.map(_ => to_)
+    | (_, Implicit(mpt)) =>
+      coercion(ctx, ~from, ~to_=implicit_sig(mpt)) |> Option.map(_ => to_)
     | _ => None
     }
   }
@@ -1672,7 +2001,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
-  | (Sig(_), _) => t1
+  | (Sig(_), _)
+  | (Implicit(_), _) => t1
   };
 };
 
@@ -1754,7 +2084,8 @@ let rec is_syn = (ty: t): bool =>
   | ProdExtension(_)
   | ExplicitNonlabel
   | Escaped(_)
-  | Sig(_) => false
+  | Sig(_)
+  | Implicit(_) => false
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -1778,7 +2109,8 @@ let rec is_ana_atom = (ty: t) =>
   | ProdExtension(_)
   | Sum(_)
   | Escaped(_)
-  | Sig(_) => None
+  | Sig(_)
+  | Implicit(_) => None
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -1803,7 +2135,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Escaped(_)
-  | Sig(_) => false
+  | Sig(_)
+  | Implicit(_) => false
   };
 
 let rec is_arrow_like = (ty: t): bool =>
@@ -1837,6 +2170,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Implicit(_) => true
   | Sig(_) => false /* already wrapped in {} */
   | Escaped(_) => false /* one atom: the path it came from */
   };
@@ -1897,6 +2231,15 @@ let rec pretty_print = (ty: t): string =>
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
+  | Implicit(mp) =>
+    "implicit "
+    ++ (
+      switch (MPat.binder(mp)) {
+      | Some((x, Some(s))) => x ++ " : " ++ pretty_print(s)
+      | Some((x, None)) => x
+      | None => "?"
+      }
+    )
   | Sig(items) =>
     let sig_item_str = (item: Sig.t) =>
       switch (item.term) {

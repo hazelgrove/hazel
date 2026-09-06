@@ -161,5 +161,30 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "implicit binders compare by signature",
+      `Quick,
+      () => {
+        let imp = (s, x) =>
+          Typ.implicit_(
+            MPat.asc(
+              MPat.var(s),
+              Typ.sig_([Sig.sig_let(Pat.asc(Pat.var(x), Typ.int()))]),
+            ),
+          );
+        check(
+          bool,
+          "implicit S : { let x : Int } === itself",
+          true,
+          Equality.semantic.typ(imp("S", "x"), imp("S", "x")),
+        );
+        check(
+          bool,
+          "different signatures differ",
+          false,
+          Equality.semantic.typ(imp("S", "x"), imp("S", "y")),
+        );
+      },
+    ),
   ],
 );

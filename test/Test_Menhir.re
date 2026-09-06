@@ -1060,6 +1060,34 @@ let ex5 = list_of_mylist(x) in
         {|let m : { let x : Int; type T } = { let x = 1; type T = Int } in m|},
       ),
       menhir_maketerm_equivalent_test(
+        "Implicit binder as a parameter component",
+        {|fun (implicit S : SHOW, x : S.T) -> S.show(x)|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Implicit binder as the whole parameter",
+        {|fun implicit S : SHOW -> S.show|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Unannotated implicit binder",
+        {|fun (implicit S, x) -> x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Implicit instance declaration",
+        {|let implicit m = { type T = Int; let x = 1 } in m.x|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Implicit binder in an arrow domain",
+        {|let f : (implicit S : SHOW, S.T) -> S.T = ? in f|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Implicit binder as the whole arrow domain",
+        {|let f : (implicit S : SHOW) -> Int = ? in f|},
+      ),
+      menhir_roundtrip_test(
+        "Implicit binders reprint identically",
+        {|let f : (implicit S : SHOW, S.T) -> S.T = fun (implicit S : SHOW, x : S.T) -> x in f|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Module-typed function parameter",
         {|fun (m : { type T; let x : T }) -> m.x|},
       ),

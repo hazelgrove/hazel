@@ -44,16 +44,7 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   | _ => CoCtx.empty
   };
 
-let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
-  switch (mp.term) {
-  | Var(name) => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Var(name)))
-  | Asc(inner, typ) =>
-    IdTagged.fast_copy(
-      MPat.rep_id(mp),
-      Pat.fresh(Asc(mpat_to_pat(inner), typ)),
-    )
-  | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
-  };
+let mpat_to_pat = Pat.of_mpat;
 
 let rec mpat_names = (mp: MPat.t): list(Var.t) =>
   switch (mp.term) {
@@ -235,6 +226,18 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
     | Parens(p) => rewrap(Parens(go(p)))
     | Projector(d, p) => rewrap(Projector(d, go(p)))
     | Ap(ctr, p) => rewrap(Ap(ctr, go(p)))
+    | Implicit(mp) =>
+      /* An unannotated implicit binder takes the signature's expectation
+         inside its MPat, so the binder stays the top of the pattern. */
+      switch (MPat.binder(mp)) {
+      | Some((name, None)) =>
+        switch (List.assoc_opt(name, ana_labels)) {
+        | Some(expected_type) =>
+          rewrap(Implicit(MPat.with_typ(mp, expected_type)))
+        | None => pat
+        }
+      | _ => pat
+      }
     | Asc(_)
     | Invalid(_)
     | EmptyHole
@@ -607,6 +610,13 @@ let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
       rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
     | (Asc(u, _), Asc(e, ty)) =>
       rewrap(Asc(strip_synthetic_asc(u, e), ty))
+    /* An implicit binder the user left unannotated drops the expectation
+       modlet_pat put inside its MPat. */
+    | (Implicit(u), Implicit(_)) =>
+      switch (MPat.binder(u)) {
+      | Some((_, None)) => rewrap(Implicit(u))
+      | _ => p_elab
+      }
     | _ => p_elab
     };
   };

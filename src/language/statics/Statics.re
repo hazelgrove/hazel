@@ -3789,6 +3789,29 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Implicit(mp) =>
+      /* `implicit S : SIG` binds S like `S : SIG`. Its type is the implicit
+         binder itself, so a function parameter's tuple type carries the
+         binder at the component's position. An expectation that is itself a
+         binder is met by its signature. */
+      let (_, _, m) =
+        mpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, mp, m);
+      let ana_inner =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
+        | Implicit(mp_ana) => Typ.implicit_sig(mp_ana)
+        | _ => ana
+        };
+      let (p, p_elab, m) = go(~ctx, ~ana=ana_inner, Pat.of_mpat(mp), m);
+      let _ = p_elab;
+      add(
+        ~elab_term=Implicit(MPat.map_typ(Typ.normalize(ctx), mp)) |> rewrap,
+        ~elab_syn_ty=Implicit(MPat.with_typ(mp, p.ty)) |> Typ.temp,
+        ~marks=[],
+        ~ctx=p.ctx,
+        ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -4108,6 +4131,11 @@ and utyp_to_info_map =
   | List(t)
   | Parens(t)
   | Projector(_, t) => add(go(t, m) |> snd)
+  | Implicit(mp) =>
+    /* The MPat pass checks the annotation. */
+    let (_, _, m) =
+      mpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, mp, m);
+    add(m);
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
