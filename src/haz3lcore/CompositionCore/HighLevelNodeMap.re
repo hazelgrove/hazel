@@ -904,7 +904,15 @@ let node_of_cursor =
   };
 };
 
-let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
+let rec build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) =>
+  /* the ancestor walk and the descent assume a whole-program map; on a
+     per-item map (an ancestor absent, a module item's surrogate
+     scaffolding stripped) the answer is "no map here", not a crash —
+     callers holding a compositional record use [build_for] */
+  try(build_whole(zipper, info_map)) {
+  | Not_found => None
+  }
+and build_whole = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   // Move to a valid, non-secondary, non-grout, non-convex term
   switch (
     {

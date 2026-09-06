@@ -614,10 +614,11 @@ let avatar_target =
           } else {
             "";
           };
-        let node_map = {
-          let z = editor.editor.state.zipper;
-          HighLevelNodeMap.build(z, editor.statics.info_map);
-        };
+        let node_map =
+          HighLevelNodeMap.build_for(
+            editor.editor.state.zipper,
+            editor.statics,
+          );
         switch (ToolCallSummary.of_tool_call(tr.tool_call)) {
         | None => None
         | Some(summary) =>
@@ -1127,10 +1128,7 @@ let view_impl =
      shadowed by a nested binding (which would land the stub inside a
      function). ---- */
   let node_map =
-    HighLevelNodeMap.build(
-      editor.editor.state.zipper,
-      editor.statics.info_map,
-    );
+    HighLevelNodeMap.build_for(editor.editor.state.zipper, editor.statics);
   let insert_path: option(string) =
     switch (graph.last_def, node_map) {
     | (None, _) => None /* empty program: pathless is the documented case */

@@ -83,6 +83,7 @@ let (suite, exit_with_test_status) =
     @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
     @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
     @ [("Node map (dungeon program)", Test_MergeProbe.tests)]
+    @ [("Snapshot text probe", Test_SnapProbe.tests)]
     @ [("Canvas score", Test_CanvasScore.tests)]
     @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
