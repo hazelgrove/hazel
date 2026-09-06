@@ -1537,8 +1537,21 @@ and uexp_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_res, marks_res) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-      switch (marks_res) {
-      | [FreeConstructor(name)] =>
+      /* A capitalized name is parsed as a constructor, but it may be a
+         VARIABLE binding (a module: `module M = … in M.x`). Constructors
+         and variables used to be consulted in a fixed order — constructor
+         first, variable only if no constructor of that name existed — so a
+         module named like ANY constructor in scope lost to it regardless of
+         which was bound later. Resolve like every other name: the most
+         recent binding of that name wins, whichever kind it is. */
+      let shadowing_var =
+        switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+        | (None, Some(`Var(v))) => Some(v)
+        | _ => None
+        };
+      switch (marks_res, shadowing_var) {
+      | ([FreeConstructor(name)], _)
+      | (_, Some({name, _})) =>
         /* If not a known constructor, try looking up as a variable.
            This supports capitalized module names like M.x where M is
            parsed as Constructor but is actually a variable binding. */
