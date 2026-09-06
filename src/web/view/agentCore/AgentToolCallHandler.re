@@ -155,7 +155,12 @@ let update =
         agent,
         CodeWithStatics.Model.{
           editor: updated_editor,
-          statics: editor.statics,
+          /* the old statics describe the program BEFORE this edit: kept,
+             they made the tool's canvas snapshot blank (its beat showed
+             nothing) and the content landed later as an anonymous state
+             change. Empty = the snapshot computes this program's (a
+             DefStatics memo hit) and the editor's calculate refreshes. */
+          statics: CachedStatics.empty,
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
