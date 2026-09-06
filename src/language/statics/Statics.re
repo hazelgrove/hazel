@@ -1633,8 +1633,17 @@ and uexp_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_res, marks_res) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-      switch (marks_res) {
-      | [FreeConstructor(name)] =>
+      /* a capitalized name bound as a VARIABLE more recently than any
+         constructor of that name (a module shadowing a builtin
+         constructor such as HTML's `Text`) is that variable */
+      let shadowing_var =
+        switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+        | (None, Some(`Var(v))) => Some(v)
+        | _ => None
+        };
+      switch (marks_res, shadowing_var) {
+      | ([FreeConstructor(name)], _)
+      | (_, Some({name, _})) =>
         /* If not a known constructor, try looking up as a variable.
            This supports capitalized module names like M.x where M is
            parsed as Constructor but is actually a variable binding. */

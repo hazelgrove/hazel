@@ -164,6 +164,26 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
+/* the NEWEST binding of a capitalized name: a module (or any variable)
+   bound after a constructor of the same name shadows it lexically — a
+   user module named like a builtin constructor (HTML's `Text`) must win
+   at its use sites */
+let newest_var_or_ctr =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `Var(var_entry)
+          | `Ctr(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(`Var(v))
+    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+    | _ => None,
+    ctx.entries,
+  );
+
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun

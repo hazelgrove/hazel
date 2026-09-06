@@ -196,24 +196,178 @@ let build_at_end = (code: string): int =>
     };
   };
 
-let tests = [
-  test_case("let-chain program", `Quick, () =>
+/* module member typing probes (mega-corpus regression after the merge) */
+let error_count = (code: string): int =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let m = mk_statics(z);
+    let errs = StaticsBase.Map.error_ids(m);
+    List.iter(e => print_endline("PROBE-ERR " ++ e), ErrorPrint.all(m));
+    List.length(errs);
+  };
+
+/* dump: top-level term shape + the type recorded for a variable */
+let dump_var_type = (code: string, var: string): unit =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    let ctor =
+      switch (Exp.term_of(term)) {
+      | ModuleExp(_) => "ModuleExp"
+      | Let(_) => "Let"
+      | Seq(_) => "Seq"
+      | _ => "other"
+      };
+    print_endline("DUMP top=" ++ ctor);
+    let m = mk_statics(z);
+    let found = ref(false);
+    Id.Map.iter(
+      (_, info) =>
+        switch (info) {
+        | Info.InfoExp({user_term: {term: Var(v), _}, ty, _}) when v == var =>
+          found := true;
+          print_endline("DUMP var " ++ v ++ " : " ++ Typ.show(ty));
+        | _ => ()
+        },
+      m,
+    );
+    if (! found^) {
+      print_endline("DUMP var " ++ var ++ " not in map");
+    };
+    /* the ctx at the Dot: is the module name bound there? */
+    Id.Map.iter(
+      (_, info) =>
+        switch (info) {
+        | Info.InfoExp({user_term: {term: Dot(_, _), _}, ctx, _}) =>
+          let names =
+            Ctx.get_var_entries(ctx)
+            |> List.map((v: Ctx.var_entry) => v.name);
+          print_endline(
+            "DUMP dot-ctx vars="
+            ++ String.concat(",", List.filteri((i, _) => i < 8, names))
+            ++ " lookup_var("
+            ++ var
+            ++ ")="
+            ++ string_of_bool(Ctx.lookup_var(ctx, var) != None),
+          );
+        | _ => ()
+        },
+      m,
+    );
+  };
+
+let module_probes = [
+  test_case(
+    "module named Foo (not a builtin constructor), member access", `Quick, () =>
     check(
-      bool,
-      "built",
-      true,
-      build_at_end("let x = 1 in\nlet y = 2 in\n?") >= 0,
+      int,
+      "errors",
+      0,
+      error_count(
+        "module Foo = {\n  let f = fun n -> \"x\"\n} in\nFoo.f(0) == \"x\"",
+      ),
     )
   ),
-  test_case("small ;-program (module item + test)", `Quick, () =>
+  test_case(
+    "dump module form",
+    `Quick,
+    () => {
+      dump_var_type(
+        "module Text = {\n  let f = fun n -> \"x\"\n} in\nText.f(0) == \"x\"",
+        "Text",
+      );
+      dump_var_type(
+        "let m = {\n  let f = fun n -> \"x\"\n} in\nm.f(0) == \"x\"",
+        "m",
+      );
+    },
+  ),
+  test_case("labeled tuple projection", `Quick, () =>
+    check(int, "errors", 0, error_count("let t = (a=1, b=2) in t.a == 1"))
+  ),
+  test_case("let-bound module, no member access", `Quick, () =>
     check(
-      bool,
-      "built",
-      true,
-      build_at_end("module Pos = {\n  let x = 1\n};\ntest true end;\n?") >= 0,
+      int,
+      "errors",
+      0,
+      error_count("let m = {\n  let f = fun n -> \"x\"\n} in\n1 == 1"),
     )
   ),
-  test_case("dungeon program", `Quick, () =>
-    check(bool, "built", true, build_at_end(program) >= 0)
+  test_case("let-bound module, member access", `Quick, () =>
+    check(
+      int,
+      "errors",
+      0,
+      error_count(
+        "let m = {\n  let f = fun n -> \"x\"\n} in\nm.f(0) == \"x\"",
+      ),
+    )
+  ),
+  test_case("module member, plain fun", `Quick, () =>
+    check(
+      int,
+      "errors",
+      0,
+      error_count(
+        "module Text = {\n  let f = fun n -> \"x\"\n};\ntest Text.f(0) == \"x\" end;\n?",
+      ),
+    )
+  ),
+  test_case("module member, ascribed fun", `Quick, () =>
+    check(
+      int,
+      "errors",
+      0,
+      error_count(
+        "module Text = {\n  let f : Int -> String = fun n -> \"x\"\n};\ntest Text.f(0) == \"x\" end;\n?",
+      ),
+    )
+  ),
+  test_case("module member used inside the module (ascribed)", `Quick, () =>
+    check(
+      int,
+      "errors",
+      0,
+      error_count(
+        "module Text = {\n  let f : Int -> String = fun n -> \"x\";\n  let g : () -> Bool = fun _ -> f(0) == \"x\"\n};\ntest Text.g() end;\n?",
+      ),
+    )
+  ),
+  test_case("let-in module (dev style)", `Quick, () =>
+    check(
+      int,
+      "errors",
+      0,
+      error_count(
+        "module Text = {\n  let f : Int -> String = fun n -> \"x\"\n} in\nText.f(0) == \"x\"",
+      ),
+    )
   ),
 ];
+
+let tests =
+  module_probes
+  @ [
+    test_case("let-chain program", `Quick, () =>
+      check(
+        bool,
+        "built",
+        true,
+        build_at_end("let x = 1 in\nlet y = 2 in\n?") >= 0,
+      )
+    ),
+    test_case("small ;-program (module item + test)", `Quick, () =>
+      check(
+        bool,
+        "built",
+        true,
+        build_at_end("module Pos = {\n  let x = 1\n};\ntest true end;\n?")
+        >= 0,
+      )
+    ),
+    test_case("dungeon program", `Quick, () =>
+      check(bool, "built", true, build_at_end(program) >= 0)
+    ),
+  ];
