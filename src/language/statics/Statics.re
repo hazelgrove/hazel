@@ -4374,10 +4374,27 @@ and mpat_to_info_map =
   };
 };
 
+/* Elaboration does not depend on the program alone.
+ *
+ * A Fumola livelit expands by asking a runtime that loads asynchronously, so
+ * the same term elaborates to "the runtime is not loaded" before it arrives
+ * and to a value after. The memo below is keyed on the term, which cannot
+ * see that difference, so the first answer would stand for the life of the
+ * page -- no edit helps, because an unedited zipper yields an equal term and
+ * hits the cache.
+ *
+ * Bumping this generation is how something outside the program says the
+ * answer may have changed. It is part of the memo key, so a bump costs one
+ * recomputation per live term and nothing after that. Core.Memo offers no
+ * way to clear an entry, which is why the key carries this instead. */
+let generation = ref(0);
+
+let invalidate = () => incr(generation);
+
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((ana, ctx, e, probe_ids, _generation: int)) => {
       let (_, elab, m) =
         uexp_to_info_map(
           ~ana,
@@ -4416,4 +4433,5 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, generation^))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));

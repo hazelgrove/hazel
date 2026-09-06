@@ -125,6 +125,22 @@ window.fumola = (() => {
     .catch((e) => {
       loadError = String(e);
       console.warn("Fumola livelit: wasm runtime unavailable:", e);
+    })
+    // Announce the outcome, either way.
+    //
+    // This load is asynchronous and the wasm is a few megabytes, usually
+    // fetched cross-origin, so a program is routinely elaborated before it
+    // arrives. Such a program is not wrong -- its Fumola livelits expand to
+    // "the runtime is still loading", which was true when it was said -- but
+    // nothing would ever revisit it, so the card stayed that way until the
+    // page was reloaded. Hazel listens for this and recalculates.
+    //
+    // Dispatched after wasm and loadError are set, so a listener that asks
+    // ready() gets the settled answer; and on failure too, so the message
+    // settles from "still loading" to "unavailable" rather than waiting on a
+    // load that is not coming.
+    .finally(() => {
+      window.dispatchEvent(new Event("fumola-runtime-ready"));
     });
 
   const ready = () => wasm !== null;
