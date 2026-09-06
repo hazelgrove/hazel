@@ -118,6 +118,7 @@ rule token =
     | "true" { TRUE }
     | "false" { FALSE }
     | "module" { MODULE }
+    | "implicit" { IMPLICIT }
     | "let" { LET }
     | "in" { IN }
     | "end" { END }
