@@ -65,6 +65,24 @@ let test_module_with_function =
     )
   });
 
+/* Test the function shorthand as a module member */
+let test_module_with_shorthand_function =
+  test_case("Module with a function shorthand member", `Quick, () => {
+    parse_and_evaluate_test(
+      "11",
+      {|{ let f(x) = x + 1; let result = f(10) }.result|},
+    )
+  });
+
+/* Test a shorthand member under a signature */
+let test_module_shorthand_under_signature =
+  test_case("Function shorthand member under a signature", `Quick, () => {
+    parse_and_evaluate_test(
+      "11",
+      {|module M : { let f : Int -> Int } = { let f(x) = x + 1 } in M.f(10)|},
+    )
+  });
+
 /* Test module bindings can refer to earlier bindings */
 let test_sequential_bindings =
   test_case("Sequential bindings can refer to earlier ones", `Quick, () => {
@@ -189,6 +207,8 @@ let tests = (
     test_module_as_tuple,
     test_bare_expression,
     test_module_with_function,
+    test_module_with_shorthand_function,
+    test_module_shorthand_under_signature,
     test_sequential_bindings,
     test_type_alias,
     test_pattern_binding,
