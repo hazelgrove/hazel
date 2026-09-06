@@ -121,6 +121,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
+  | Implicit(mp) => pat_to_exp(Pat.of_mpat(mp))
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
@@ -215,6 +216,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
+    | Implicit(mp) => dhpat_var_entry(Pat.of_mpat(mp), ty)
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
@@ -249,6 +251,7 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
+  | Implicit(mp) => get_inductive_hypotheses_inner(m, t, Pat.of_mpat(mp))
   | Label(_) => []
   | TupLabel(l, e) =>
     get_inductive_hypotheses_inner(m, t, l)
@@ -267,6 +270,7 @@ and get_inductive_hypotheses_inner = (m, t, pat) =>
   switch (pat |> Pat.term_of) {
   | Parens(x) => get_inductive_hypotheses_inner(m, t, x)
   | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
+  | Implicit(mp) => get_inductive_hypotheses_inner(m, t, Pat.of_mpat(mp))
   | _ => get_inductive_hypotheses_inner'(m, t, pat)
   };
 

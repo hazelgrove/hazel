@@ -26,6 +26,7 @@ let rec find_in_let =
   switch (upat.term, def.term) {
   | (Parens(up), Parens(ue))
   | (Projector(_, up), Projector(_, ue)) => find_in_let(name, up, ue, l)
+  | (Implicit(mp), _) => find_in_let(name, Pat.of_mpat(mp), def, l)
   | (Parens(up), _)
   | (Projector(_, up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue))
@@ -171,6 +172,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | Asc(up, _) => var_mention_upat(name, up)
+  | Implicit(mp) => MPat.name(mp) == Some(name)
   };
 };
 

@@ -454,6 +454,20 @@ let equality =
     | (EmptyHole, EmptyHole) => true
     | (Parens(x), Parens(y)) => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
+    | (Implicit(mp1), Implicit(mp2)) =>
+      switch (MPat.binder(mp1), MPat.binder(mp2)) {
+      | (Some((x, t1)), Some((y, t2))) =>
+        x == y
+        && (
+          switch (t1, t2) {
+          | (Some(t1), Some(t2)) => typ'(t1, t2)
+          | (None, None) => true
+          | _ => false
+          }
+        )
+      | (None, None) => true
+      | _ => false
+      }
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
@@ -543,6 +557,9 @@ let equality =
         None;
       }
     | (Asc(_), _) => None
+    | (Implicit(mp1), Implicit(mp2)) =>
+      mpat(alphas_exp, alphas_typ, mp1, mp2)
+    | (Implicit(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when exp_alpha => Some(Alphas.singleton(x, y))
@@ -664,6 +681,9 @@ let equality =
       | None => false
       }
     | (Poly(_, _), _) => false
+    | (Implicit(mp1), Implicit(mp2)) =>
+      Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2))
+    | (Implicit(_), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
