@@ -403,44 +403,51 @@ let save_current = (prefix: string, model: Model.t): unit => {
           };
         write_pins(prefix, sp.name, pins);
       };
-      switch (model.focus) {
-      | Some(f) =>
-        save_items(prefix, sp.name, Focus.splice_all(f) |> Zipper.unzip)
-      | None => save_items(prefix, sp.name, editor.editor.editor.state.zipper)
-      };
-      switch (
+      Util.PerfTimer.time("save/items", () =>
         switch (model.focus) {
-        | Some(f) => persist_spliced(f, editor)
+        | Some(f) =>
+          save_items(prefix, sp.name, Focus.splice_all(f) |> Zipper.unzip)
         | None =>
-          CellEditor.Model.{
-            editor:
-              Editor.Model.mk_persistent(
-                PersistentZipper.of_text(
-                  PersistentZipper.to_string(
-                    editor.editor.editor.state.zipper,
-                  )
-                  ++ "\n",
-                ),
-                /* the editor's OWN root: persisting a Mod-rooted
-                   slide as Exp made the reload re-parse it as an
-                   expression (backpack full of `in`s, editor wedged) */
-                ~root=editor.editor.editor.root,
-              ),
-            result: EvalResult.Model.persist(editor.result),
-          }
+          save_items(prefix, sp.name, editor.editor.editor.state.zipper)
         }
+      );
+      switch (
+        Util.PerfTimer.time("save/editor-record", () =>
+          switch (model.focus) {
+          | Some(f) => persist_spliced(f, editor)
+          | None =>
+            CellEditor.Model.{
+              editor:
+                Editor.Model.mk_persistent(
+                  PersistentZipper.of_text(
+                    PersistentZipper.to_string(
+                      editor.editor.editor.state.zipper,
+                    )
+                    ++ "\n",
+                  ),
+                  /* the editor's OWN root: persisting a Mod-rooted
+                     slide as Exp made the reload re-parse it as an
+                     expression (backpack full of `in`s, editor wedged) */
+                  ~root=editor.editor.editor.root,
+                ),
+              result: EvalResult.Model.persist(editor.result),
+            }
+          }
+        )
       ) {
       | e =>
         /* The slide blob carries the editor only; the conversation
            lives solely under the :agent key (it used to be embedded
            here TOO, doubling every write and boot deserialization). */
-        save_slide_kind(
-          prefix,
-          sp.name,
-          CodePersist({
-            editor: Some(e),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
-          }),
+        Util.PerfTimer.time("save/slide-blob", () =>
+          save_slide_kind(
+            prefix,
+            sp.name,
+            CodePersist({
+              editor: Some(e),
+              agent: Agent.Persistent.persist(Agent.Utils.init()),
+            }),
+          )
         )
       };
     };
@@ -451,7 +458,9 @@ let save_current = (prefix: string, model: Model.t): unit => {
       | None => false
       };
     if (!unchanged) {
-      save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
+      Util.PerfTimer.time("save/agent", () =>
+        save_agent(prefix, sp.name, Agent.Persistent.persist(agent))
+      );
       Hashtbl.replace(last_saved_agent, agent_key_str, agent);
     };
   | (false, Drv(_)) =>

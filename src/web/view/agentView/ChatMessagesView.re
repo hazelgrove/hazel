@@ -585,7 +585,7 @@ module ViewComponents = {
 };
 
 type timeline_node = {
-  segment: option(Segment.t),
+  segment: option(string), /* program text; parsed on click */
   label: string,
   index: int,
 };
@@ -1569,7 +1569,7 @@ let view =
                 Effect.Many([
                   agent_inject(
                     Agent.Update.Action.LoadTimelineSegment(
-                      segment,
+                      AgentToolResult.segment_of_text(segment),
                       node.index,
                     ),
                   ),
@@ -1668,7 +1668,7 @@ let view =
           };
 
           let initial_node: timeline_node = {
-            segment: first.before_segment,
+            segment: first.before_text,
             label: "Initial",
             index: 0,
           };
@@ -1681,7 +1681,7 @@ let view =
                   let tool_link = render_summary_tool_link(tool_result);
                   if (tool_result.success) {
                     let next_node: timeline_node = {
-                      segment: tool_result.after_segment,
+                      segment: tool_result.after_text,
                       label: "After Edit " ++ string_of_int(node_idx),
                       index: node_idx,
                     };

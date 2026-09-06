@@ -114,40 +114,60 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
+  /* the action's constructor path, three levels deep, off its sexp */
+  let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
+    switch (sx) {
+    | Sexplib.Sexp.Atom(a) => a
+    | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
+      a ++ "/" ++ head(depth - 1, inner)
+    | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
+    | _ => "?"
+    };
+  let t_upd = Util.PerfTimer.now();
   let updated: Updated.t(CrashHandling.Model.t) =
-    CrashHandling.Update.update(
-      ~import_log=Log.import,
-      ~get_log_and=Log.get_and,
-      ~schedule_action,
-      action,
-      model,
+    Util.PerfTimer.time("app/update", () =>
+      CrashHandling.Update.update(
+        ~import_log=Log.import,
+        ~get_log_and=Log.get_and,
+        ~schedule_action,
+        action,
+        model,
+      )
     );
+  if (Util.PerfTimer.now() -. t_upd > 100.) {
+    Util.PerfTimer.record(
+      "slow-update/" ++ head(3, CrashHandling.Update.sexp_of_t(action)),
+      0.,
+    );
+  };
   /* which actions count as edits (each one costs a statics/eval recompute):
      the perf journal names them */
   if (updated.is_edit) {
-    /* the action's constructor path, two levels deep, off its sexp */
-    let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
-      switch (sx) {
-      | Sexplib.Sexp.Atom(a) => a
-      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
-        a ++ "/" ++ head(depth - 1, inner)
-      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
-      | _ => "?"
-      };
     Util.PerfTimer.record(
       "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
       0.,
     );
   };
   // ---------- CALCULATE PHASE ----------
+  let t_calc = Util.PerfTimer.now();
   let model' =
-    CrashHandling.Update.calculate(
-      ~schedule_action,
-      ~is_edited=updated.is_edit,
-      ~dynamics=true,
-      model,
-      updated.model,
+    Util.PerfTimer.time("app/calculate", () =>
+      CrashHandling.Update.calculate(
+        ~schedule_action,
+        ~is_edited=updated.is_edit,
+        ~dynamics=true,
+        model,
+        updated.model,
+      )
     );
+  /* a calculate phase over 100 ms is a stall the journal should name by
+     its action (eval results landing, agent tool results, edits) */
+  if (Util.PerfTimer.now() -. t_calc > 100.) {
+    Util.PerfTimer.record(
+      "slow-calc/" ++ head(3, CrashHandling.Update.sexp_of_t(action)),
+      0.,
+    );
+  };
 
   if (updated.save) {
     schedule_autosave(
@@ -446,10 +466,12 @@ let start = default_model => {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    CrashHandling.View.view(
-      ~get_log_and=Log.get_and,
-      ~inject=app_inject,
-      app_model,
+    Util.PerfTimer.time("app/view", () =>
+      CrashHandling.View.view(
+        ~get_log_and=Log.get_and,
+        ~inject=app_inject,
+        app_model,
+      )
     )
   ) {
   | exc =>

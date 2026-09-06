@@ -84,8 +84,9 @@ let mk_diff =
     | Some((old_segment, new_segment)) =>
       Some(
         AgentToolResult.{
-          old_segment,
-          new_segment,
+          old_text: CompositionView.Public.print_segment(old_segment),
+          new_text:
+            Option.map(CompositionView.Public.print_segment, new_segment),
         },
       )
     | None => None
@@ -102,8 +103,8 @@ let mk_diff =
     } else {
       Some(
         AgentToolResult.{
-          old_segment,
-          new_segment: Some(new_segment),
+          old_text: old_s,
+          new_text: Some(new_s),
         },
       );
     };
@@ -117,16 +118,16 @@ let mk_segment_snapshots =
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
-    : (option(Segment.t), option(Segment.t)) => {
+    : (option(string), option(string)) => {
   switch (action) {
   | EditorAction(_)
   | InsertAtProgramBoundary(_)
   | ProbeAction(_)
   | StaticsAction(_)
   | SyntaxProjectorAction(_) =>
-    let old_segment = Select.all(old_editor.state.zipper).selection.content;
-    let new_segment = Select.all(new_editor.state.zipper).selection.content;
-    (Some(old_segment), Some(new_segment));
+    let text = (ed: Editor.t) =>
+      PersistentZipper.to_string(ed.state.zipper) ++ "\n";
+    (Some(text(old_editor)), Some(text(new_editor)));
   | _ => (None, None)
   };
 };
@@ -244,7 +245,7 @@ let execute_one_tool_call =
         "The "
         ++ tool_call.name
         ++ " tool call was successful and has been applied to the model.";
-      let (before_segment, after_segment) =
+      let (before_text, after_text) =
         Util.PerfTimer.time("tool/snapshots", () =>
           mk_segment_snapshots(
             ~old_editor=cell_editor.editor.editor,
@@ -277,12 +278,14 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment:
+          before_text:
             Some(
-              Select.all(cell_editor.editor.editor.state.zipper).selection.
-                content,
+              PersistentZipper.to_string(
+                cell_editor.editor.editor.state.zipper,
+              )
+              ++ "\n",
             ),
-          after_segment: None,
+          after_text: None,
           content: msg,
           content_is_payload: false,
         };
@@ -305,8 +308,8 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff,
-          before_segment,
-          after_segment,
+          before_text,
+          after_text,
           content: success_message,
           content_is_payload: false,
         };
@@ -330,12 +333,14 @@ let execute_one_tool_call =
     | Error(error) =>
       switch (error) {
       | Failure.Info(msg) =>
-        let before_segment =
+        let before_text =
           switch (action) {
           | EditorAction(_) =>
             Some(
-              Select.all(cell_editor.editor.editor.state.zipper).selection.
-                content,
+              PersistentZipper.to_string(
+                cell_editor.editor.editor.state.zipper,
+              )
+              ++ "\n",
             )
           | _ => None
           };
@@ -345,8 +350,8 @@ let execute_one_tool_call =
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment,
-          after_segment: None,
+          before_text,
+          after_text: None,
           content: msg,
           content_is_payload: false,
         };
@@ -383,8 +388,8 @@ let execute_one_tool_call =
       skipped: false,
       expanded: false,
       diff: None,
-      before_segment: None,
-      after_segment: None,
+      before_text: None,
+      after_text: None,
       content,
       content_is_payload: true,
     };
@@ -400,8 +405,8 @@ let execute_one_tool_call =
       skipped: false,
       expanded: false,
       diff: None,
-      before_segment: None,
-      after_segment: None,
+      before_text: None,
+      after_text: None,
       content: msg,
       content_is_payload: false,
     };
