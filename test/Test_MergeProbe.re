@@ -823,7 +823,87 @@ let member_sep_probe = (last_member: string) => {
   };
   check(bool, "M/c and M/d are members", true, has("M/c") && has("M/d"));
 };
+/* canvas extraction parity: monolithic statics record vs the compositional
+   one (CachedStatics.items) — the canvas reads error ownership and module
+   structure from the spine when it has one */
+let canvas_parity = (code: string): (int, list(string)) =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let z = Move.to_end(z);
+    let mono =
+      CachedStatics.init(
+        ~settings=CoreSettings.on,
+        ~is_dynamic_term=false,
+        ~stitch=x => x,
+        ~root=Exp,
+        z,
+      );
+    let comp =
+      CachedStatics.init_compositional(
+        ~settings=CoreSettings.on,
+        ~stitch=x => x,
+        ~root=Exp,
+        z,
+      );
+    let sig_of = (g: Web.CanvasGraph.t): list(string) =>
+      List.sort(
+        compare,
+        List.map(
+          (n: Web.CanvasGraph.tynode) =>
+            "node " ++ n.key ++ (n.n_err ? " ERR" : ""),
+          g.nodes,
+        )
+        @ List.map(
+            (e: Web.CanvasGraph.edge) =>
+              "edge "
+              ++ e.e_name
+              ++ " "
+              ++ e.e_src
+              ++ "->"
+              ++ e.dst
+              ++ (e.e_err ? " ERR" : "")
+              ++ (e.e_hole ? " HOLE" : ""),
+            g.edges,
+          )
+        @ List.map(
+            (v: Web.CanvasGraph.value) =>
+              "value " ++ v.v_name ++ " " ++ v.v_key ++ (v.v_err ? " ERR" : ""),
+            g.values,
+          ),
+      );
+    let (a, b) = (
+      sig_of(Web.CanvasGraph.extract(mono)),
+      sig_of(Web.CanvasGraph.extract(comp)),
+    );
+    let diffs =
+      List.map(x => "mono-only " ++ x, List.filter(x => !List.mem(x, b), a))
+      @ List.map(
+          x => "items-only " ++ x,
+          List.filter(x => !List.mem(x, a), b),
+        );
+    List.iter(print_endline, diffs);
+    (List.length(a), diffs);
+  };
 let parity_probes = [
+  test_case(
+    "canvas parity: dungeon program",
+    `Quick,
+    () => {
+      let (n, diffs) = canvas_parity(program);
+      check(bool, "nonempty", true, n > 0);
+      check(int, "diffs", 0, List.length(diffs));
+    },
+  ),
+  test_case(
+    "canvas parity: evolved dungeon program",
+    `Quick,
+    () => {
+      let (n, diffs) = canvas_parity(evolved);
+      check(bool, "nonempty", true, n > 0);
+      check(int, "diffs", 0, List.length(diffs));
+    },
+  ),
   test_case(
     "insert_after last member (case def) keeps it separated", `Quick, () =>
     member_sep_probe(

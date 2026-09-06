@@ -61,6 +61,8 @@ let project_cell_statics =
       Haz3lcore.CachedStatics.probe_ids_of_zipper(
         cell.editor.editor.state.zipper,
       ),
+    /* a cell's projection of one item: no spine of its own */
+    items: None,
   };
 };
 let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
@@ -1611,6 +1613,7 @@ module Update = {
                     ~probe_ids,
                   ),
                 probe_ids,
+                items: Some(ds),
               },
             );
           let fresh = it => !List.exists(p => p === it, prev_items);
@@ -1690,11 +1693,10 @@ module Update = {
             ~autoprobe_mode,
             ~is_edited,
             ~statics_mode,
-            /* MONOLITHIC for now: the canvas graph and the agent's node map read
-               Info.ancestors up to the program top, which the per-item engine
-               records per item (module structure duplicates, node map = None).
-               Convergence step: port those consumers to items, then flip. */
-            ~compositional=false,
+            /* per-item statics: only the edited item re-analyzes. The agent
+               node map and the canvas read the items (CachedStatics.items),
+               not Info.ancestors to the program top. */
+            ~compositional=true,
             ~queue_worker,
             ~stitch=x => x,
             editor,

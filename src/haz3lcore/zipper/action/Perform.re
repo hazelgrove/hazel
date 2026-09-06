@@ -628,21 +628,7 @@ let rec go =
           LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z),
         )
       );
-    let run =
-      if (CompositionGo.Public.use_items^) {
-        PerfTimer.record("statics-path/items", 0.);
-        CompositionGo.Public.go_items(~settings);
-      } else {
-        switch (CachedStatics.for_zipper(z, statics)) {
-        | Some(initial) when initial.info_map != Language.Id.Map.empty =>
-          PerfTimer.record("statics-path/reuse", 0.);
-          CompositionGo.Public.go_with_editor_statics(~settings, ~initial);
-        | _ =>
-          PerfTimer.record("statics-path/fresh", 0.);
-          CompositionGo.Public.go;
-        };
-      };
-    switch (run(~syntax, ~z, ~a)) {
+    switch (CompositionGo.Public.go_items(~settings, ~syntax, ~z, ~a)) {
     | Ok(z) =>
       let final =
         PerfTimer.time("reformat", () =>

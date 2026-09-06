@@ -747,9 +747,38 @@ let extract_impl =
     | IResult(_) => None
     };
   let roots = List.filter_map(((_, it)) => item_root(it), items);
+  /* per-item statics know each item's errors directly; the monolithic
+     record needs the ancestor walk */
+  let payload_root = (node: Exp.t): option(Id.t) =>
+    switch (node.term) {
+    | Let(_, d, _)
+    | ModuleExp(_, d, _) => Some(Exp.rep_id(d))
+    | TyAlias(_, ty, _) => Some(Typ.rep_id(ty))
+    | Seq(s, _) =>
+      switch (strip_exp(s).term) {
+      | Test(b)
+      | HintedTest(b, _) => Some(Exp.rep_id(b))
+      | _ => None
+      }
+    | Test(b)
+    | HintedTest(b, _) => Some(Exp.rep_id(b))
+    | _ => None
+    };
+  let rec items_error_roots = (its: list(DefStatics.item)): list(Id.t) =>
+    List.concat_map(
+      (it: DefStatics.item) =>
+        (it.d_error_ids == [] ? [] : Option.to_list(payload_root(it.d_node)))
+        @ items_error_roots(it.d_members),
+      its,
+    );
   let err_roots: list(Id.t) =
-    statics.error_ids
-    |> List.filter_map(err_owner(~info_map, ~roots))
+    (
+      switch (statics.items) {
+      | Some(ds) => items_error_roots(ds.items)
+      | None =>
+        statics.error_ids |> List.filter_map(err_owner(~info_map, ~roots))
+      }
+    )
     |> List.sort_uniq(Id.compare);
   let root_has_err = (root: option(Id.t)): bool =>
     switch (root) {

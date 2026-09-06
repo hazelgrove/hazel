@@ -267,15 +267,7 @@ module Update = {
                           )
         }
       );
-    let statics =
-      needs_refresh
-        ? switch (CachedStatics.offered_for(editor.state.zipper)) {
-          | Some(st) =>
-            Util.PerfTimer.record("editor-statics/offered", 0.);
-            st;
-          | None => do_init(editor)
-          }
-        : statics;
+    let statics = needs_refresh ? do_init(editor) : statics;
 
     let editor =
       Editor.Update.calculate(

@@ -157,7 +157,6 @@ let update_context =
       let printed =
         CompositionView.Public.print(
           ~probe_map=editor.dynamics,
-          ~info_map,
           editor.editor,
           curr_chat.agent_view,
         );

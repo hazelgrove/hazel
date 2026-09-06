@@ -9,14 +9,30 @@ open OptUtil.Syntax;
    instead of a whole-program pass). Set for the duration of one structural
    action by Public.go_items; the editor keeps its own statics meanwhile. */
 let items_mode: ref(option(Language.CoreSettings.t)) = ref(None);
-let items_for = (settings: Language.CoreSettings.t, z: Zipper.t): DefStatics.t => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  DefStatics.calc_auto(
-    ~settings,
-    ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
-    term,
-  );
-};
+/* the per-item analysis of a zipper's program, the way the editor makes
+   it (CachedStatics.init_compositional): the incremental per-item parse,
+   so the tool path and the editor share DefStatics' memo slot for the
+   same program. One structural action asks for the same zipper several
+   times (statics, node map, diff): memoized on zipper identity. */
+let items_memo: ref(option((Zipper.t, DefStatics.t))) = ref(None);
+let items_for = (settings: Language.CoreSettings.t, z: Zipper.t): DefStatics.t =>
+  switch (items_memo^) {
+  | Some((z0, ds)) when z0 === z => ds
+  | _ =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let term =
+      Segment.global_missing_shards(seg) == []
+        ? MakeTerm.Incr.term_of_root(~root=Exp, seg)
+        : MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    let ds =
+      DefStatics.calc_auto(
+        ~settings,
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+        term,
+      );
+    items_memo := Some((z, ds));
+    ds;
+  };
 
 /* phase timers for the journal's perf lines */
 let build = (z, info_map) =>
@@ -1631,27 +1647,51 @@ module Local = {
 };
 
 module Public = {
-  let mk_statics_with = (settings: Language.CoreSettings.t, z: Zipper.t) =>
-    Language.(
-      fst(
-        Statics.mk(
-          settings,
-          Builtins.ctx_init(Some(Operators.default_mode)),
-          MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
-        ),
-      )
-    );
-  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
-    mk_statics_with(Language.CoreSettings.on, z);
-  /* per-item statics for a zipper (items mode): the merged map */
+  /* per-item statics for a zipper: the merged map with spine ancestors */
   let mk_statics_items =
       (~settings: Language.CoreSettings.t, z: Zipper.t)
       : Language.StaticsBase.Map.t =>
     PerfTimer.time("items-statics", () =>
       ItemsSpine.merged_with_spine(items_for(settings, z))
     );
-  /* the whole structural action on per-item statics; no offer to the editor
-     (it recomputes its own way until the canvas reads items too) */
+  /* display-side callers without an editor record in hand */
+  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
+    mk_statics_items(~settings=Language.CoreSettings.on, z);
+  let node_map_of = (z: Zipper.t): option(HighLevelNodeMap.t) =>
+    HighLevelNodeMap.build_from_items(
+      items_for(Language.CoreSettings.on, z),
+    );
+  /* the diff of a structural action, both programs on per-item statics */
+  let get_diff =
+      (
+        ~settings: Language.CoreSettings.t,
+        old_z,
+        new_z,
+        action,
+        ~old_syntax,
+        ~new_syntax,
+      ) => {
+    let saved = items_mode^;
+    items_mode := Some(settings);
+    let res =
+      try(
+        Local.get_diff(
+          old_z,
+          new_z,
+          action,
+          mk_statics_items(~settings),
+          ~old_syntax,
+          ~new_syntax,
+        )
+      ) {
+      | e =>
+        items_mode := saved;
+        raise(e);
+      };
+    items_mode := saved;
+    res;
+  };
+  /* the whole structural action on per-item statics */
   let go_items =
       (~settings: Language.CoreSettings.t, ~syntax, ~z, ~a)
       : result(Zipper.t, Action.Failure.t) => {
@@ -1674,47 +1714,4 @@ module Public = {
     items_mode := saved;
     res;
   };
-  let use_items: ref(bool) = ref(true);
-  let go =
-    Local.go(
-      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(z)),
-      ~initial_info_map=None,
-    );
-  /* With the editor's statics for this zipper in hand (CachedStatics.
-     for_zipper), both maps of the error check are computed the editor's
-     way — same settings — so the comparison stays fair while the initial
-     pass is skipped. */
-  let go_with_editor_statics =
-      (~settings: Language.CoreSettings.t, ~initial: CachedStatics.t) =>
-    Local.go(
-      ~mk_statics=
-        z =>
-          PerfTimer.time("statics", () => {
-            /* the full record, computed the editor's way (probe_all is
-               masked during an agent burst as in CodeWithStatics), and
-               OFFERED: the editor's recompute for this program takes it
-               instead of running statics again */
-            let settings =
-              Language.CoreSettings.{
-                ...settings,
-                probe_all: settings.probe_all && !AgentPulse.in_burst(),
-              };
-            /* MONOLITHIC on purpose: the agent's node map
-               (HighLevelNodeMap.build) walks Info.ancestors up to the
-               program's top level, and the per-item engine's map records
-               ancestors per ITEM — build returns None on it. Moving the
-               tools onto per-item statics is the next convergence step. */
-            let full =
-              CachedStatics.init(
-                ~settings,
-                ~is_dynamic_term=false,
-                ~stitch=x => x,
-                ~root=Sort.Exp,
-                z,
-              );
-            CachedStatics.offer(z, full);
-            full.info_map;
-          }),
-      ~initial_info_map=Some(initial.info_map),
-    );
 };

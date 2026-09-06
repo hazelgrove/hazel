@@ -52,7 +52,7 @@ let apply_overlay_action =
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
   let info_map = CompositionGo.Public.mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
+  switch (CompositionGo.Public.node_map_of(z)) {
   | None =>
     Error(
       Failure.Info(
@@ -191,19 +191,16 @@ let update =
       };
     let full_statics = (z: Zipper.t): CachedStatics.t =>
       Util.PerfTimer.time("statics", () =>
-        CachedStatics.init(
+        CachedStatics.init_compositional(
           ~settings=eff_settings,
-          ~is_dynamic_term=false,
           ~stitch=x => x,
           ~root=Exp,
           z,
         )
       );
     let initial_info_map =
-      switch (CachedStatics.for_zipper(z, editor.statics)) {
-      | Some(st) when st.info_map != Id.Map.empty => st.info_map
-      | _ => full_statics(z).info_map
-      };
+      editor.statics.info_map != Id.Map.empty
+        ? editor.statics.info_map : full_statics(z).info_map;
     let z_at_boundary =
       switch ((direction: Action.Structural.insert_target)) {
       | Before => Move.to_start(z)
@@ -227,9 +224,7 @@ let update =
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_full = full_statics(new_z);
-      CachedStatics.offer(new_z, new_full);
-      let new_statics = new_full.info_map;
+      let new_statics = full_statics(new_z).info_map;
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {

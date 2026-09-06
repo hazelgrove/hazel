@@ -677,6 +677,10 @@ let locate =
   };
 };
 
+/* journal the program's static error count whenever it changes (the
+   replay harness asserts on the last value) */
+let last_static_errs: ref(int) = ref(-1);
+
 let view_impl =
     (
       ~globals: Globals.t,
@@ -691,6 +695,19 @@ let view_impl =
     : Node.t => {
   let test_results = test_results_of(editors);
   let slide = current_slide(editors);
+  {
+    let n = List.length(editor.statics.error_ids);
+    /* readable by harnesses at any time (the journal's ring evicts) */
+    Js_of_ocaml.Js.Unsafe.set(
+      Js_of_ocaml.Js.Unsafe.global,
+      "__staticErrorCount",
+      Js_of_ocaml.Js.Unsafe.inject(n),
+    );
+    if (n != last_static_errs^) {
+      last_static_errs := n;
+      CanvasLog.log(Printf.sprintf("statics: %d error(s)", n));
+    };
+  };
   /* a run's trace records where it started: the slide and its program
      (printed only when a run begins) */
   CanvasTrajectory.slide_name := slide;

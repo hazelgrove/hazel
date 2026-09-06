@@ -14,6 +14,10 @@ type t = {
      this: it refreshes only `targets`, so a mismatch against the zipper's
      current probes means the map itself is stale for probing. */
   probe_ids: Id.Map.t(unit),
+  /* the per-item analysis this record was made from (compositional
+     records only): the spine — consumers that need program structure
+     (node map, canvas) read it instead of walking Info.ancestors */
+  items: [@opaque] option(DefStatics.t),
 };
 
 let empty: t = {
@@ -30,6 +34,7 @@ let empty: t = {
   warning_ids: [],
   targets: Sample.no_targets,
   probe_ids: Id.Map.empty,
+  items: None,
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -171,6 +176,7 @@ let init_from_term =
     warning_ids,
     targets,
     probe_ids,
+    items: None,
   };
 };
 
@@ -214,71 +220,6 @@ let init =
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };
 
-/* The zipper the editor's statics were last computed for, and that
-   result: a structural (agent) action on the very same zipper can start
-   from this map instead of a fresh full pass (CompositionGo). Physical
-   identity is the freshness test — an edited zipper is a new value. */
-/* statics computed for a zipper by someone who is not the editor (the
-   agent tool path checks the program it just produced): offered here so the
-   editor's own recompute for that very program can take them instead.
-   Keyed by a fingerprint of the program's piece ids (secondaries left out:
-   normalization and re-indentation only move whitespace, and the editor
-   rebuilds its zipper record on every calculate, so object identity does
-   not survive the trip) */
-let rec fingerprint_seg = (seg: Segment.t, acc: list(Id.t)): list(Id.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Secondary(_) => acc
-      | Grout(g) => [g.id, ...acc]
-      | Projector(pr) => [pr.id, ...acc]
-      | Tile(t) =>
-        List.fold_left(
-          (acc, ch) => fingerprint_seg(ch, acc),
-          [t.id, ...acc],
-          t.children,
-        )
-      },
-    acc,
-    seg,
-  );
-let fingerprint = (z: Zipper.t): list(Id.t) =>
-  fingerprint_seg(Zipper.unselect_and_zip(~erase_buffer=true, z), []);
-/* the last few inits (other editors and the canvas snapshot also init),
-   keyed by program fingerprint */
-let last_inits: ref(list((list(Id.t), t))) = ref([]);
-let offered: ref(list((list(Id.t), t))) = ref([]);
-let offer = (z: Zipper.t, st: t): unit => {
-  let fp = fingerprint(z);
-  offered := [(fp, st), ...List.filteri((i, _) => i < 3, offered^)];
-  /* an editor that takes the offer holds statics that never went through
-     init: enter them in the ring too, so the next tool's initial-statics
-     reuse (for_zipper) recognizes them */
-  last_inits := [(fp, st), ...List.filteri((i, _) => i < 5, last_inits^)];
-};
-let offered_for = (z: Zipper.t): option(t) =>
-  switch (offered^) {
-  | [] =>
-    PerfTimer.record("offer/miss-none", 0.);
-    None;
-  | offers =>
-    let fp = fingerprint(z);
-    switch (List.find_opt(((fp0, _)) => fp0 == fp, offers)) {
-    | Some((_, st)) => Some(st)
-    | None =>
-      PerfTimer.record("offer/miss-fp", 0.);
-      None;
-    };
-  };
-/* the editor's own statics, when they were computed from the program the
-   zipper holds now (the editor rebuilds its zipper record on every
-   calculate, so this is a fingerprint match, not identity) */
-let for_zipper = (z: Zipper.t, st: t): option(t) =>
-  switch (List.find_opt(((_, st0)) => st0 === st, last_inits^)) {
-  | Some((fp0, _)) when fp0 == fingerprint(z) => Some(st)
-  | _ => None
-  };
-
 let init =
     (
       ~settings: CoreSettings.t,
@@ -291,14 +232,7 @@ let init =
     ) =>
   if (settings.statics) {
     PerfTimer.record("cs/init", 0.);
-    let st =
-      init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z);
-    last_inits :=
-      [
-        (fingerprint(z), st),
-        ...List.filteri((i, _) => i < 5, last_inits^),
-      ];
-    st;
+    init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z);
   } else {
     empty;
   };
@@ -330,6 +264,7 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       probe_ids: Id.Map.empty,
+      items: None,
     };
   };
 
@@ -357,6 +292,7 @@ let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       probe_ids: Id.Map.empty,
+      items: None,
     };
   };
 
@@ -389,6 +325,7 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       warning_ids: [],
       targets: Sample.no_targets,
       probe_ids: Id.Map.empty,
+      items: None,
     };
   };
 
@@ -426,6 +363,7 @@ let init_compositional_term =
     warning_ids: DefStatics.all_warning_ids(ds),
     targets: compute_targets(~settings, ~info_map, ~probe_ids),
     probe_ids,
+    items: Some(ds),
   };
 };
 
@@ -461,11 +399,6 @@ let init_compositional =
       | Some(p) => p
       | None => probe_ids_of_zipper(z)
       };
-    /* NOT entered in the reuse ring: the agent tool path reuses ring
-       records as its initial map and builds its node map from them
-       (HighLevelNodeMap.build walks Info.ancestors to the program top; the
-       per-item map records ancestors per item → build = None). The tools
-       need a monolithic map until they are converged onto items. */
     PerfTimer.record("cs/init-compositional", 0.);
     init_compositional_term(~settings, ~probe_ids, term);
   };

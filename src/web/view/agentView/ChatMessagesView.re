@@ -863,8 +863,9 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    HighLevelNodeMap.build(z, info_map);
+    Id.Map.is_empty(code_with_statics.statics.info_map)
+      ? CompositionGo.Public.node_map_of(z)
+      : HighLevelNodeMap.build_for(z, code_with_statics.statics);
   };
 
   // Auto-resize textarea helper

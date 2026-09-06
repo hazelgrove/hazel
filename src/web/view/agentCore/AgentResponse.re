@@ -184,23 +184,14 @@ let handle_llm_response =
                   if (Haz3lcore.Id.Map.is_empty(ed.statics.info_map)) {
                     let t0 = CanvasBuffer.now();
                     let statics =
-                      switch (
-                        Haz3lcore.CachedStatics.offered_for(
+                      PerfTimer.time("snapshot-statics", () =>
+                        Haz3lcore.CachedStatics.init_compositional(
+                          ~settings=settings.core,
+                          ~stitch=x => x,
+                          ~root=ed.editor.root,
                           ed.editor.state.zipper,
                         )
-                      ) {
-                      | Some(st) => st
-                      | None =>
-                        PerfTimer.time("snapshot-statics", () =>
-                          Haz3lcore.CachedStatics.init(
-                            ~settings=settings.core,
-                            ~is_dynamic_term=false,
-                            ~stitch=x => x,
-                            ~root=ed.editor.root,
-                            ed.editor.state.zipper,
-                          )
-                        )
-                      };
+                      );
                     let ms = CanvasBuffer.now() -. t0;
                     if (ms > 30.) {
                       CanvasLog.log(
@@ -225,9 +216,9 @@ let handle_llm_response =
                       let ed = snap;
                       let node_map =
                         PerfTimer.time("summary-nodemap", () =>
-                          Haz3lcore.HighLevelNodeMap.build(
+                          Haz3lcore.HighLevelNodeMap.build_for(
                             ed.editor.state.zipper,
-                            ed.statics.info_map,
+                            ed.statics,
                           )
                         );
                       ToolCallSummary.of_tool_call(tr.tool_call)

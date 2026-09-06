@@ -63,40 +63,20 @@ let mk_diff =
     (
       ~settings: Settings.t,
       ~old_editor: Editor.t,
-      ~old_statics: CachedStatics.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
     : option(AgentToolResult.diff) => {
   switch (action) {
   | EditorAction(edit_action) =>
-    /* the diff of an Update/Delete resolves its path in both programs'
-       node maps, which want statics: the editor already has the old
-       program's, the tool path offered the new program's — a fresh pass
-       here was ~2 s of a 2.8 s update_definition */
-    let mk_statics = (z: Zipper.t) =>
-      switch (CachedStatics.offered_for(z)) {
-      | Some(st) => st.info_map
-      | None =>
-        switch (CachedStatics.for_zipper(z, old_statics)) {
-        | Some(st) when st.info_map != Id.Map.empty => st.info_map
-        | _ =>
-          CompositionGo.Public.use_items^
-            ? CompositionGo.Public.mk_statics_items(
-                ~settings=settings.core,
-                z,
-              )
-            : Util.PerfTimer.time("diff-statics", () =>
-                CompositionGo.Public.mk_statics(z)
-              )
-        }
-      };
+    /* per-item statics: DefStatics memoizes per program, so the passes
+       the tool path already ran for both programs are reused here */
     switch (
-      CompositionGo.Local.get_diff(
+      CompositionGo.Public.get_diff(
+        ~settings=settings.core,
         old_editor.state.zipper,
         new_editor.state.zipper,
         edit_action,
-        mk_statics,
         ~old_syntax=old_editor.syntax,
         ~new_syntax=new_editor.syntax,
       )
@@ -109,7 +89,7 @@ let mk_diff =
         },
       )
     | None => None
-    };
+    }
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
@@ -279,7 +259,6 @@ let execute_one_tool_call =
               mk_diff(
                 ~settings,
                 ~old_editor=cell_editor.editor.editor,
-                ~old_statics=cell_editor.editor.statics,
                 ~new_editor=editor.editor,
                 action,
               )

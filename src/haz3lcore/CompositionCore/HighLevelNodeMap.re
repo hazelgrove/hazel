@@ -1126,3 +1126,11 @@ module Public = {
     // Useful for post-edit checks and operations
     node_of_cursor;
 };
+
+/* the node map for an editor's statics record: from the spine when the
+   record is compositional, else the monolithic ancestor walk */
+let build_for = (z: Zipper.t, statics: CachedStatics.t): option(t) =>
+  switch (statics.items) {
+  | Some(ds) => build_from_items(ds)
+  | None => build(z, statics.info_map)
+  };
