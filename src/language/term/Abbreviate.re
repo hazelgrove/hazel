@@ -1417,6 +1417,15 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      | Implicit(mp) =>
+        if (available^ <= 9) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 9; /* "implicit " */
+          Implicit(abbreviate_mpat(mp));
+        }
+
       | Asc(p, t1) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
@@ -1717,6 +1726,14 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
               },
             );
           };
+        }
+      | Implicit(mp) =>
+        if (available^ <= 9) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          available := available^ - 9; /* "implicit " */
+          Implicit(abbreviate_mpat(mp));
         }
       | Poly(tp, t) =>
         if (available^ <= 6) {

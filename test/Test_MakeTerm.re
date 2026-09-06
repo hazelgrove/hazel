@@ -439,6 +439,48 @@ let tests =
           {|fun (m : { type T; let x : T }) -> m.x|},
         )
       ),
+      test_case("Implicit binder as a parameter component", `Quick, () =>
+        exp_check(
+          fn(
+            Pat.tuple([
+              Pat.implicit_(MPat.asc(MPat.var("S"), Typ.var("SHOW"))),
+              Pat.asc(
+                Pat.var("x"),
+                Typ.prod_projection(Typ.var("S"), Typ.label("T")),
+              ),
+            ]),
+            var("x"),
+            None,
+            None,
+          ),
+          {|fun (implicit S : SHOW, x : S.T) -> x|},
+        )
+      ),
+      test_case("Implicit instance declaration", `Quick, () =>
+        exp_check(
+          let_(Pat.implicit_(MPat.var("m")), int(1), var("m")),
+          {|let implicit m = 1 in m|},
+        )
+      ),
+      test_case("Implicit binder in an arrow domain", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(
+              Pat.var("f"),
+              Typ.arrow(
+                Typ.prod([
+                  Typ.implicit_(MPat.asc(MPat.var("S"), Typ.int())),
+                  Typ.int(),
+                ]),
+                Typ.int(),
+              ),
+            ),
+            empty_hole(),
+            var("f"),
+          ),
+          {|let f : (implicit S : Int, Int) -> Int = ? in f|},
+        )
+      ),
       test_case("Signature with module item", `Quick, () =>
         exp_check(
           let_(

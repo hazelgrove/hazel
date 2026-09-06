@@ -516,6 +516,10 @@ and Typ: {
         );
       sum(converted_terms);
     | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | ImplicitType(x, t) =>
+      implicit_(
+        IndicatedG.MPat.asc(IndicatedG.MPat.var(x), of_menhir_ast(t)),
+      )
     | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
@@ -551,6 +555,12 @@ and Typ: {
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
+    | Implicit(mp) =>
+      switch (mp.term) {
+      | Var(x) => ImplicitType(x, UnknownType(EmptyHole))
+      | Asc({term: Var(x), _}, t) => ImplicitType(x, of_core(t))
+      | _ => ImplicitType("?", UnknownType(EmptyHole))
+      }
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => ParenTyp(of_core(t))
@@ -615,6 +625,13 @@ and Pat: {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
+    /* `implicit S : T` parses as an ascribed implicit binder; the MPat
+       carries the annotation. */
+    | AscPat(ImplicitPat(inner), t) =>
+      implicit_(
+        mpat_of_pat(asc(of_menhir_ast(inner), Typ.of_menhir_ast(t))),
+      )
+    | ImplicitPat(inner) => implicit_(mpat_of_pat(of_menhir_ast(inner)))
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
@@ -651,6 +668,13 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
+    | Implicit(mp) =>
+      /* The annotation prints outside the binder: `implicit S : T`. */
+      switch (mp.term) {
+      | Asc(inner, t) =>
+        AscPat(ImplicitPat(Exp.pat_of_mpat(inner)), Typ.of_core(t))
+      | _ => ImplicitPat(Exp.pat_of_mpat(mp))
+      }
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
