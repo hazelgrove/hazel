@@ -37,7 +37,8 @@ let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | ProdExtension(_)
   | Sig(_)
   | TypeMember(_)
-  | Escaped(_) => ty
+  | Escaped(_)
+  | Implicit(_) => ty
   };
 };
 

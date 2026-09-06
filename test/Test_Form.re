@@ -31,13 +31,16 @@ let tests = (
   "Form",
   [
     test_case(
-      "the only forms a shorter form spells are the module and signature items",
+      "the only forms a shorter form spells are the module and signature items and the implicit binder",
       `Quick,
       () =>
       check(
         testable(Fmt.(list(string)), List.equal(String.equal)),
         "form labels that are prefixes of another form's label",
         [
+          /* The type form's `:` is a second shard, since the type-level
+             comma binds tighter than the module pattern's `:`. */
+          "implicit : -> implicit",
           "let = -> let",
           "let = in -> let",
           "let = in -> let =",

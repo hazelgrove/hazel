@@ -144,6 +144,19 @@ let rec expected_pat_type =
            names: [x],
          }
        )
+  /* `let implicit M = ...`: the instance is expected at the member's type,
+     like a plain binder of its name. */
+  | Implicit(mp) =>
+    MPat.name(mp)
+    |> Option.bind(_, x =>
+         Sig.find_value(expected, x)
+         |> Option.map(ty =>
+              {
+                ty,
+                names: [x],
+              }
+            )
+       )
   | Asc(p, _)
   | Parens(p)
   | Projector(_, p) => go(p)

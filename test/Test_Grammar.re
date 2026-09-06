@@ -128,6 +128,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | ApCons => ap(constructor("A", None), empty_hole())
       | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
+      | Implicit => implicit_(MPat.asc(MPat.var("m"), Typ.string()))
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
       | Projector =>
@@ -191,6 +192,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Sig => assert(false) /* Excluded: Sig is surface syntax only */
       | TypeMember => type_member("T")
       | Escaped => assert(false) /* Excluded: avoidance produces it, not syntax */
+      | Implicit => implicit_(MPat.asc(MPat.var("m"), string()))
       }
     )
   );
