@@ -129,18 +129,84 @@ window.fumola = (() => {
     await mod.default({ module_or_path: from.wasm });
     return mod;
   };
+  // A source that fails is fine: the loop moves on. A source that HANGS is
+  // not. Nothing in fetch or import times out on its own, so a source that
+  // stalls at the TCP or TLS level -- rather than refusing -- parks the loop
+  // forever. No later source is tried and no event is dispatched, which is
+  // exactly the stuck "still loading" this event exists to end, reached by a
+  // different road.
+  //
+  // The budget is generous because a slow connection is not a broken one and
+  // the wasm is several megabytes. And an overrunning source is set aside
+  // rather than cancelled: if it lands later and nothing else has won by
+  // then, it is still the runtime we wanted, so it is taken and announced.
+  // Per source, so a page where every source stalls waits this many times the
+  // number of sources before it can say "unavailable" -- currently 90s. Long,
+  // but it replaces a message that was wrong forever rather than slow.
+  const LOAD_TIMEOUT_MS = 30000;
+
+  const withTimeout = (attempt, ms, name) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(name + " did not answer within " + ms + "ms")),
+        ms
+      );
+      attempt.then(
+        (v) => {
+          clearTimeout(timer);
+          resolve(v);
+        },
+        (e) => {
+          clearTimeout(timer);
+          reject(e);
+        }
+      );
+    });
+
   (async () => {
     try {
-      // Sequential on purpose: a later source is a fallback, not a race. Loading
-      // two runtimes and discarding one would instantiate wasm twice.
+      // Sequential by default: a later source is a fallback, not a race, so
+      // the common path loads one runtime and no more.
+      //
+      // The budget below is the one exception, and it is deliberate. A source
+      // that overruns is set aside rather than cancelled -- cancelling an
+      // in-flight import is not on offer anyway -- so two loads can briefly
+      // be in flight, and an abandoned one that lands after another has won
+      // will have instantiated a second module before it is discarded. That
+      // is a transient second copy of several megabytes on an uncommon path,
+      // accepted because the alternative is throwing away a source that was
+      // merely slow.
       const failures = [];
       for (const from of SOURCES) {
+        // Set when this source overruns its budget and the search moves on.
+        // The late claim below is conditional on it: without that test the
+        // claim also fires on the ordinary path, because it is attached
+        // before the one inside withTimeout and so runs first, while wasm is
+        // still null.
+        let abandoned = false;
         try {
-          wasm = await load(from);
+          const attempt = load(from);
+          // Claim a late arrival, but only if the search gave up on it and
+          // nothing else has answered since.
+          attempt.then(
+            (mod) => {
+              if (abandoned && wasm === null) {
+                wasm = mod;
+                loadedFrom = from.name;
+                console.info(
+                  "Fumola livelit: runtime loaded from " + from.name + " (late)"
+                );
+                window.dispatchEvent(new Event("fumola-runtime-ready"));
+              }
+            },
+            () => {}
+          );
+          wasm = await withTimeout(attempt, LOAD_TIMEOUT_MS, from.name);
           loadedFrom = from.name;
           console.info("Fumola livelit: runtime loaded from " + from.name);
           return;
         } catch (e) {
+          abandoned = true;
           failures.push(from.name + " (" + e + ")");
         }
       }
