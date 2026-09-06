@@ -63,9 +63,9 @@ hotkeys.filter = event => {
 window.fumola = (() => {
   let wasm = null;
   let loadError = null;
-  // "local" or "published", once something has loaded. Worth being able to
-  // ask: the two are indistinguishable in behaviour, so without this there is
-  // no way to tell which one a page is actually running.
+  // The name of the source that answered, once something has loaded. Worth
+  // being able to ask: the sources are indistinguishable in behaviour, so
+  // without this there is no way to tell which one a page is running.
   let loadedFrom = null;
 
   // instance_id -> owner token (a projector's Hazel id)
@@ -78,7 +78,8 @@ window.fumola = (() => {
   // invariant that sigma(i) is synchronized with the model's program text.
   const lastEval = new Map();
 
-  // Where the runtime is fetched from.
+  // Where the runtime is fetched from. Tried in order; the first that loads
+  // wins, and the rest are never asked.
   //
   // The local pair is what scripts/build-fumola-wasm.sh writes, and is used
   // when working on Fumola and Hazel together. Otherwise the canonical build
@@ -87,18 +88,39 @@ window.fumola = (() => {
   // (A GitHub release asset cannot be used -- release downloads carry no
   // Access-Control-Allow-Origin header, so a browser cannot fetch one.)
   //
+  // That published build is listed twice, under the two names the same files
+  // answer to. fumola.org is where the Fumola Pages site is going;
+  // adapton.github.io is where it is served from until that domain is
+  // claimed. Both are here because the switch cannot be made atomically from
+  // this side: giving a Pages site a custom domain makes its old URL 301 to
+  // the new one, and a redirect response carries no
+  // Access-Control-Allow-Origin -- which a cross-origin import must have on
+  // every hop of the chain, not merely on the last. So each URL works on
+  // exactly one side of the switch, and listing both spans it from either
+  // side. Once the domain has settled, the adapton.github.io entry only ever
+  // redirects, and can be dropped.
+  //
   // The glue and the .wasm are always taken from the same place. They are
   // generated together by wasm-bindgen and will not load if their versions
   // disagree.
   const here = (path) => new URL(path, document.baseURI).href;
-  const LOCAL = {
-    glue: here("./fumola/fumola_wasm.js"),
-    wasm: here("./fumola/fumola_wasm_bg.wasm"),
-  };
-  const PUBLISHED = {
-    glue: "https://adapton.github.io/fumola/fumola_wasm.js",
-    wasm: "https://adapton.github.io/fumola/fumola_wasm_bg.wasm",
-  };
+  const SOURCES = [
+    {
+      name: "local",
+      glue: here("./fumola/fumola_wasm.js"),
+      wasm: here("./fumola/fumola_wasm_bg.wasm"),
+    },
+    {
+      name: "fumola.org",
+      glue: "https://fumola.org/fumola_wasm.js",
+      wasm: "https://fumola.org/fumola_wasm_bg.wasm",
+    },
+    {
+      name: "adapton.github.io",
+      glue: "https://adapton.github.io/fumola/fumola_wasm.js",
+      wasm: "https://adapton.github.io/fumola/fumola_wasm_bg.wasm",
+    },
+  ];
 
   // Hidden from the bundler so that Hazel builds without the generated files.
   const dynamicImport = new Function("p", "return import(p)");
@@ -107,41 +129,41 @@ window.fumola = (() => {
     await mod.default({ module_or_path: from.wasm });
     return mod;
   };
-  load(LOCAL)
-    .then((mod) => {
-      loadedFrom = "local";
-      return mod;
-    })
-    .catch(() =>
-      load(PUBLISHED).then((mod) => {
-        loadedFrom = "published";
-        return mod;
-      })
-    )
-    .then((mod) => {
-      wasm = mod;
-      console.info("Fumola livelit: runtime loaded from the " + loadedFrom + " build");
-    })
-    .catch((e) => {
-      loadError = String(e);
-      console.warn("Fumola livelit: wasm runtime unavailable:", e);
-    })
-    // Announce the outcome, either way.
-    //
-    // This load is asynchronous and the wasm is a few megabytes, usually
-    // fetched cross-origin, so a program is routinely elaborated before it
-    // arrives. Such a program is not wrong -- its Fumola livelits expand to
-    // "the runtime is still loading", which was true when it was said -- but
-    // nothing would ever revisit it, so the card stayed that way until the
-    // page was reloaded. Hazel listens for this and recalculates.
-    //
-    // Dispatched after wasm and loadError are set, so a listener that asks
-    // ready() gets the settled answer; and on failure too, so the message
-    // settles from "still loading" to "unavailable" rather than waiting on a
-    // load that is not coming.
-    .finally(() => {
+  (async () => {
+    try {
+      // Sequential on purpose: a later source is a fallback, not a race. Loading
+      // two runtimes and discarding one would instantiate wasm twice.
+      const failures = [];
+      for (const from of SOURCES) {
+        try {
+          wasm = await load(from);
+          loadedFrom = from.name;
+          console.info("Fumola livelit: runtime loaded from " + from.name);
+          return;
+        } catch (e) {
+          failures.push(from.name + " (" + e + ")");
+        }
+      }
+      loadError = "tried " + failures.join("; ");
+      console.warn("Fumola livelit: wasm runtime unavailable: " + loadError);
+    } finally {
+      // Announce the outcome, either way.
+      //
+      // This load is asynchronous and the wasm is a few megabytes, usually
+      // fetched cross-origin, so a program is routinely elaborated before it
+      // arrives. Such a program is not wrong -- its Fumola livelits expand to
+      // "the runtime is still loading", which was true when it was said -- but
+      // nothing would ever revisit it, so the card stayed that way until the
+      // page was reloaded. Hazel listens for this and recalculates.
+      //
+      // In a finally so that it covers the early return above as well as
+      // running out of sources, and so it is reached after wasm and loadError
+      // are set: a listener that asks ready() gets the settled answer. On
+      // failure it matters too -- the message settles from "still loading" to
+      // "unavailable" rather than waiting on a load that is not coming.
       window.dispatchEvent(new Event("fumola-runtime-ready"));
-    });
+    }
+  })();
 
   const ready = () => wasm !== null;
 
