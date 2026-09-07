@@ -1,0 +1,74 @@
+# MODULE IMPLICITS #
+
+# Continues the Module Signatures slide: implicit module #
+# parameters, resolved at each call from the instances in scope. #
+
+# H. IMPLICIT PARAMETERS AND INSTANCES #
+
+# A parameter component `implicit S : SIG` binds a module the #
+# caller may leave out. `let implicit` declares a module an #
+# instance; a call with only the explicit arguments resolves S #
+# to the one instance whose signature and type members fit. #
+
+# 45. A signature and two instances #
+type SHOW = {type T; let show : T -> String} in
+let implicit ShowInt = {type T = Int; let show = string_of_int} in
+let implicit ShowBool = {
+  type T = Bool;
+  let show = fun b -> if b then "true" else "false"
+} in
+
+# 46. A function with an implicit parameter #
+let show = fun (implicit S : SHOW, x : S.T) -> S.show(x) in
+
+# 47. Resolved by the argument's type #
+let s1 = show(3) in
+let s2 = show(true) in
+
+# 48. Inside the body the parameter is itself an instance #
+let twice = fun (implicit S : SHOW, x : S.T) -> show(x) ++ show(x) in
+let s3 = twice(3) in
+
+# 49. Only an implicit parameter: call with () #
+type NAMED = {let name : String} in
+let implicit N = {let name = "n"} in
+let named = fun implicit X : NAMED -> X.name in
+let s4 = named() in
+
+# 50. Resolved by the expected type #
+type DEF = {type T; let default : T} in
+let implicit DI = {type T = Int; let default = 0} in
+let implicit DB = {type T = Bool; let default = true} in
+let default = fun implicit D : DEF -> D.default in
+let d : Int = default() in
+
+# I. PASSING AN INSTANCE EXPLICITLY #
+
+# A call whose arity includes the implicit components passes #
+# them in place; with several implicits, a passed module fills #
+# the one whose signature it fits. #
+
+# 51. Explicit instance #
+let s5 = show(ShowBool, true) in
+
+# 52. The annotation form of an implicit function's type #
+let show2 : (implicit S : SHOW, S.T) -> String = show in
+let s6 = show2(3) in
+
+# 53. Two implicits, one passed #
+let both = fun (implicit S : SHOW, implicit X : NAMED, x : S.T) ->
+  S.show(x) ++ X.name in
+let s7 = both(N, 3) in
+
+# J. ERRORS #
+
+# 54. Error: no instance fits the argument #
+let e1 = show("s") in
+
+# 55. Error: several instances fit #
+let count = fun (implicit S : SHOW, n : Int) -> n in
+let e2 = count(3) in
+
+# 56. Error: an instance must be a module #
+let implicit bad : Int = 3 in
+¿
