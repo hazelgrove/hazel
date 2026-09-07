@@ -146,10 +146,9 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  /* one line, always: mid-gesture wrapping shifted the canvas under
-     the cursor (mode hints float over the canvas instead) */
-  flex-wrap: nowrap;
-  overflow: hidden;
+  /* wraps when the pane is narrow (mode hints float over the canvas,
+     so nothing appears here mid-gesture any more); nothing is cut off */
+  flex-wrap: wrap;
   gap: 4px;
   font-size: 11px;
 }
@@ -2015,4 +2014,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* the header wraps in a narrow pane: title and placement buttons first,
+   the toolbar on its own line when it does not fit */
+.canvas-header {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.canvas-placement {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.canvas-info-close {
+  height: 20px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.canvas-info-close:hover {
+  opacity: 1;
 }

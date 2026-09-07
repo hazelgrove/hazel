@@ -147,6 +147,7 @@ module Model = {
       width: None,
       canvas_tab: "definition",
       canvas_panel_height: None,
+      canvas_panel_hidden: false,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
@@ -486,6 +487,13 @@ module Update = {
             canvas_panel_height: h,
           },
         }
+      | Sidebar(SetCanvasPanelHidden(b)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_panel_hidden: b,
+          },
+        }
       | Sidebar(SetCanvasProbeModel(key, model)) => {
           ...settings,
           sidebar: {
@@ -710,6 +718,8 @@ module Update = {
               enabling || settings.canvas_split ? HelpfulAssistant : Canvas,
             /* entering: the definition tab is the point */
             canvas_tab: enabling ? "definition" : settings.sidebar.canvas_tab,
+            canvas_panel_hidden:
+              enabling ? false : settings.sidebar.canvas_panel_hidden,
           },
         };
       | ToggleCanvasSplit =>

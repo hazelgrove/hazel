@@ -382,7 +382,14 @@ let view =
                         ~attrs=[
                           clss(["canvas-split-btn"]),
                           Attr.on_click(_ =>
-                            globals.inject_global(Set(ToggleCanvasMain))
+                            Effect.Many([
+                              globals.inject_global(Set(ToggleCanvasMain)),
+                              editors_inject(
+                                Editors.Update.Scratch(
+                                  ScratchMode.Update.UnfocusDef,
+                                ),
+                              ),
+                            ])
                           ),
                         ],
                         [text({js|⇱ leave constellation mode|js})],

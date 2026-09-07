@@ -212,6 +212,10 @@ module Settings = {
        None = the default cap */
     [@sexp.default None] [@yojson.default None]
     canvas_panel_height: option(int),
+    /* the info panel dismissed (✕): nothing under the constellation
+       until the next selection brings it back */
+    [@sexp.default false] [@yojson.default false]
+    canvas_panel_hidden: bool,
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -262,5 +266,6 @@ module Settings = {
     | SetCanvasProbeModel(string, string)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
+    | SetCanvasPanelHidden(bool)
     | SetWidth(int);
 };

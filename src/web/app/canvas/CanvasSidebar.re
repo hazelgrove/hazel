@@ -1197,12 +1197,15 @@ let view_impl =
   /* MAIN mode: a canvas click selects the definition as the ONE open
      cell (the info panel's definition tab); the outline row scrolls into
      view (source = canvas, so the canvas itself holds still) */
+  let show_panel =
+    globals.inject_global(Set(Sidebar(SetCanvasPanelHidden(false))));
   let select_def = (id: Id.t) =>
     Effect.Many([
       editors_inject(
         Editors.Update.Scratch(ScratchMode.Update.FocusDef(id)),
       ),
       globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+      show_panel,
       Ui_effect.of_sync_fun(scroll_outline_to_selection, ()),
       Effect.Stop_propagation,
     ]);
@@ -1293,6 +1296,7 @@ let view_impl =
           : [
             set_focus(Some(e.e_name)),
             globals.inject_global(SelectTile(e.e_id)),
+            show_panel,
             Effect.Stop_propagation,
           ]
       )
@@ -1404,13 +1408,19 @@ let view_impl =
     | (true, Some(id)) => select_def(id)
     /* a glyph: look at its values without changing the selected definition */
     | (true, None) =>
-      globals.inject_global(Set(Sidebar(SetCanvasFocusTy(Some(n.key)))))
+      Effect.Many([
+        globals.inject_global(
+          Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+        ),
+        show_panel,
+      ])
     | (false, _) =>
       Effect.Many(
         [
           globals.inject_global(
             Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
           ),
+          show_panel,
         ]
         @ (
           switch (n.n_id) {
@@ -2624,7 +2634,23 @@ let view_impl =
     div(
       ~attrs=[
         clss(["canvas-split-btn"] @ (on ? ["canvas-main-btn-on"] : [])),
-        Attr.on_click(_ => globals.inject_global(Set(ToggleCanvasMain))),
+        Attr.on_click(_ =>
+          Effect.Many(
+            [globals.inject_global(Set(ToggleCanvasMain))]
+            /* leaving: the one open cell would be all the editor showed
+               (a small cell over a page of slack) — close the stack so
+               the whole program comes back */
+            @ (
+              on
+                ? [
+                  editors_inject(
+                    Editors.Update.Scratch(ScratchMode.Update.UnfocusDef),
+                  ),
+                ]
+                : []
+            ),
+          )
+        ),
         Attr.title(
           on
             ? "leave constellation mode: the editor returns to the main area"
@@ -3056,6 +3082,20 @@ let view_impl =
       div(
         ~attrs=[clss(["canvas-info-tabs"])],
         [
+          div(
+            ~attrs=[
+              clss(["canvas-info-tab", "canvas-info-close"]),
+              Attr.title(
+                "dismiss the panel (it comes back with the next selection, or ▤ in the toolbar)",
+              ),
+              Attr.on_click(_ =>
+                globals.inject_global(
+                  Set(Sidebar(SetCanvasPanelHidden(true))),
+                )
+              ),
+            ],
+            [span([text({js|✕|js})])],
+          ),
           tab_btn(
             "values",
             {js|≡|js},
@@ -3150,20 +3190,27 @@ let view_impl =
         [],
       );
     };
-    div(
-      ~attrs=[
-        Attr.id("canvas-info"),
-        clss(["canvas-info", "tab-" ++ tab]),
-        Attr.create(
-          "style",
-          switch (explicit) {
-          | Some(h) => Printf.sprintf("height: %dpx; max-height: %dpx;", h, h)
-          | None => Printf.sprintf("max-height: %dpx;", cap)
-          },
-        ),
-      ],
-      [handle, tabs, div(~attrs=[clss(["canvas-info-body"])], content)],
-    );
+    globals.settings.sidebar.canvas_panel_hidden
+      ? div([])
+      : div(
+          ~attrs=[
+            Attr.id("canvas-info"),
+            clss(["canvas-info", "tab-" ++ tab]),
+            Attr.create(
+              "style",
+              switch (explicit) {
+              | Some(h) =>
+                Printf.sprintf("height: %dpx; max-height: %dpx;", h, h)
+              | None => Printf.sprintf("max-height: %dpx;", cap)
+              },
+            ),
+          ],
+          [
+            handle,
+            tabs,
+            div(~attrs=[clss(["canvas-info-body"])], content),
+          ],
+        );
   };
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
@@ -3293,11 +3340,26 @@ let view_impl =
             : "agent look: minimal @ glyph — click for the constellation rig with moods",
           globals.inject_global(Set(CanvasTick)),
         ),
+        btn(
+          ~cls=
+            globals.settings.sidebar.canvas_panel_hidden ? "" : "tool-active",
+          {js|▤|js},
+          globals.settings.sidebar.canvas_panel_hidden
+            ? "show the info panel under the canvas"
+            : "hide the info panel under the canvas",
+          globals.inject_global(
+            Set(
+              Sidebar(
+                SetCanvasPanelHidden(
+                  !globals.settings.sidebar.canvas_panel_hidden,
+                ),
+              ),
+            ),
+          ),
+        ),
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         CanvasReplayView.rec_dot(),
-        main_btn,
-        split_btn,
       ],
     );
   };
@@ -3306,6 +3368,7 @@ let view_impl =
       ~attrs=[clss(["canvas-header"])],
       [
         div(~attrs=[clss(["canvas-title"])], [text("Constellation")]),
+        div(~attrs=[clss(["canvas-placement"])], [main_btn, split_btn]),
         toolbar,
       ],
     );
