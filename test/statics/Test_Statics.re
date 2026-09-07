@@ -9,6 +9,7 @@ let tests =
     Test_Statics_Void.tests,
     Test_Statics_Types.tests,
     Test_Statics_Modules.tests,
+    Test_Statics_BuiltinsModules.tests,
     Test_Statics_Implicits.tests,
   ]
   @ Test_Statics_BuiltinsTupleOperations.tests

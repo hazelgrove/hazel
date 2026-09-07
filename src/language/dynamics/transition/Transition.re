@@ -216,6 +216,17 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 
+/* Whether a definition reached by a lookup, out of an environment or out of
+   a module value, is already final. Everything an environment holds is a
+   value except a fixpoint, which still has to unroll, and a let, which may
+   be a mutually recursive one. */
+let looked_up_is_final = (d: DHExp.t): bool =>
+  switch (d |> Exp.term_of) {
+  | FixF(_, _, _)
+  | Let(_, _, _) => false
+  | _ => true
+  };
+
 /* A `module M = ...` item binds its name like a let; the module name pattern
    is a variable, optionally ascribed. */
 let rec pat_of_mpat = (mp: MPat.t): Pat.t =>
@@ -513,18 +524,12 @@ module Transition = (EV: EV_MODE) => {
       switch (Environment.lookup(env, x)) {
       | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
-        let is_value =
-          switch (d |> Exp.term_of) {
-          | FixF(_, _, _) => false // fixpoints aren't final
-          | Let(_, _, _) => false // could be mutually-recursive fixpoint
-          | _ => true // all other closure entries should be final
-          };
         Step({
           expr: d |> fast_copy(Id.mk()),
           side_effects: [],
           kind: VarLookup,
-          is_value,
-        });
+          is_value: looked_up_is_final(d),
+        })
       | None =>
         let.wrap_closure _ = (env, d);
         Indet;
@@ -1096,14 +1101,17 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
             });
           | Module(items) =>
-            /* Member of a module value; definitions are already values. */
+            /* Member of a module value. A module the program built has
+               already evaluated its definitions, but one that came from the
+               environment carries them raw, so a definition is judged the
+               same way a variable's is: a fixpoint still has to unroll. */
             switch (Mod.modval_lookup(items, name)) {
             | Some(v) =>
               Step({
                 expr: v,
                 side_effects: [],
                 kind: Dot,
-                is_value: true,
+                is_value: looked_up_is_final(v),
               })
             | None => Indet
             }
