@@ -26,7 +26,8 @@ type cls =
   | ProofOf
   | ProdProjection
   | ProdExtension
-  | Sig;
+  | Sig
+  | Escaped;
 
 include TermBase.Typ;
 
@@ -101,7 +102,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
-  | Sig(_) => Sig;
+  | Sig(_) => Sig
+  | Escaped(_) => Escaped;
 
 let show_cls: cls => string =
   fun
@@ -128,7 +130,8 @@ let show_cls: cls => string =
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
-  | Sig => "Signature type";
+  | Sig => "Signature type"
+  | Escaped => "Escaped abstract type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -150,7 +153,8 @@ let rec is_arrow = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sig(_) => false
+  | Sig(_)
+  | Escaped(_) => false
   };
 };
 
@@ -190,6 +194,7 @@ let rec has_fun = (typ: t) =>
         },
       Sig.members(items),
     )
+  | Escaped(_) => false
   };
 
 let is_void = (typ: t) =>
@@ -259,6 +264,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
+  /* The label is provenance, not a type: the binder it names is gone. */
+  | Escaped(_) => []
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -330,6 +337,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Escaped(_) => 0
   | Sig(items) =>
     List.fold_left(
       (acc, m: Sig.member) =>
@@ -396,6 +404,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | ProdExtension(t1, t2) =>
       ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProofOf(e) => ProofOf(e) |> rewrap
+    | Escaped(e) => Escaped(e) |> rewrap
     | Sig(items) =>
       /* Type members bind their name for later items and cannot be renamed
          (member names are labels and `M.T` keys), so on capture we fall
@@ -839,6 +848,8 @@ let rec path_roots = (ty: t): list(Var.t) =>
   | Var(_)
   | ProofOf(_)
   | ExplicitNonlabel
+  /* Closed: an escaped type names no binder. */
+  | Escaped(_)
   | Label(_) => []
   | Arrow(t1, t2)
   | ProdProjection(t1, t2)
@@ -915,6 +926,8 @@ let avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
     | Var(_)
     | ProofOf(_)
     | ExplicitNonlabel
+    /* Already escaped: it cannot escape again. */
+    | Escaped(_)
     | Label(_) => ty
     | Arrow(t1, t2) => rewrap(Arrow(go(names, t1), go(names, t2)))
     | Prod(tys) => rewrap(Prod(List.map(go(names), tys)))
@@ -995,6 +1008,30 @@ let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
        }
      );
 
+/* Give every distinct escaped abstract type in [ty] an id derived from
+   [site] and its old id, so each application site sees its own abstract
+   types (the generative reading: two calls of the same function return
+   incomparable types) while the same site stays stable across statics
+   passes, which is what keeps re-checking an elaboration type-equal. */
+let freshen_escaped = (~site: Id.t, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (cont, ty) =>
+        switch (term_of(ty)) {
+        | Escaped({id, label}) => {
+            ...ty,
+            term:
+              Escaped({
+                id:
+                  Id.mk_str(Id.to_string(site) ++ ":" ++ Id.to_string(id)),
+                label,
+              }),
+          }
+        | _ => cont(ty)
+        },
+    ty,
+  );
+
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
    type escapes its scope, keeping global/builtin aliases compact. */
@@ -1015,6 +1052,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Atom(_)
   | DrvQuoteTy(_)
   | ExplicitNonlabel
+  | Escaped(_)
   | Label(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
@@ -1102,6 +1140,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         | Atom(_)
         | DrvQuoteTy(_)
         | Label(_)
+        | Escaped(_)
         | ExplicitNonlabel => false
         | Sig(items) =>
           items
@@ -1424,6 +1463,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       Sig(items) |> temp;
     };
   | (Sig(_), _) => None
+  /* An escaped abstract type is consistent with itself and, through the
+     Unknown cases above, with `?`. Nothing else. */
+  | (Escaped(e1), Escaped(e2)) =>
+    Grammar.escaped_equal(e1, e2) ? Some(ty1) : None
+  | (Escaped(_), _) => None
   };
 };
 
@@ -1567,7 +1611,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Rec(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
-  | (ProdExtension(_), _) => t1
+  | (ProdExtension(_), _)
+  | (Escaped(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -1671,6 +1716,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -1694,6 +1740,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sum(_)
+  | Escaped(_)
   | Sig(_) => None
   };
 
@@ -1718,6 +1765,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -1753,6 +1801,7 @@ let rec needs_parens = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
+  | Escaped(_) => false /* one atom: the path it came from */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1849,6 +1898,7 @@ let rec pretty_print = (ty: t): string =>
       | MultiHole(_) => "?"
       };
     "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
+  | Escaped({label, _}) => label
   }
 and ctr_pretty_print =
   fun
