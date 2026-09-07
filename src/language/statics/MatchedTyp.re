@@ -104,3 +104,13 @@ let label = (ctx, ty): option((Typ.t, Typ.t)) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
   | _ => None
   };
+
+/* The components of an arrow domain that has implicit binders, each with
+   its binder (name and signature) if it is an implicit one; None when the
+   domain has no implicit component. */
+let implicit_components =
+    (ctx, dom): option(list((option((Var.t, Typ.t)), Typ.t))) => {
+  let dom = weak_head_normalize(ctx, dom);
+  has_implicit_binders(dom)
+    ? Some(List.map(c => (component_binder(c), c), dom_items(dom))) : None;
+};

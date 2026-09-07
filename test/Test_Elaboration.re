@@ -467,6 +467,44 @@ module PlainTests = {
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
     test_case("Free variable", `Quick, free_var),
+    test_case(
+      "Implicit instance spliced into the argument",
+      `Quick,
+      () => {
+        /* show(3) elaborates to show(ShowInt, 3): the resolved instance is an
+           ordinary argument component. */
+        let src = {|type SHOW = { type T; let show : T -> String } in
+let implicit ShowInt = { type T = Int; let show = string_of_int } in
+let show = fun (implicit S : SHOW, x : S.T) -> S.show(x) in
+show(3)|};
+        let elab = dhexp_of_uexp(parse_exp(src));
+        let found = ref(None);
+        let _ =
+          Language.Exp.map_term(
+            ~f_exp=
+              (cont, e: Language.Exp.t) => {
+                switch (e.term) {
+                | Ap(_, {term: Var("show"), _}, arg) when found^ == None =>
+                  found := Some(arg)
+                | _ => ()
+                };
+                cont(e);
+              },
+            elab,
+          );
+        module F = IdTagged.FreshGrammar;
+        switch (found^) {
+        | Some(arg) =>
+          check(
+            dhexp_typ,
+            "spliced argument",
+            F.Exp.tuple([F.Exp.var("ShowInt"), F.Exp.int(3)]),
+            arg,
+          )
+        | None => Alcotest.fail("no application of show in the elaboration")
+        };
+      },
+    ),
     test_case("Let expression", `Quick, let_exp),
     test_case("Consistent if statement", `Quick, consistent_if),
     test_case("An unapplied function", `Quick, unapplied_function),
