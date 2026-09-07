@@ -71,7 +71,194 @@ let try_canvas_nodemap = (label, code, ~caret_token) =>
     }
   );
 
+/* nested-growth trajectory, step 2: are module member functions edges? */
+let nested_prog = "module Geo = {\n  type P = (Int, Int);\n  let origin : P = (0, 0);\n  let add(a: P, b: P): P =\n    let (ax, ay) = a in\n    let (bx, by) = b in\n    (ax + bx, ay + by)\n} in\n?";
+let canvas_edges_of =
+    (comp: bool, code: string): (list(string), list(string)) =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | None => fail("parse failed")
+  | Some(z) =>
+    let z = Move.to_end(z);
+    let st =
+      comp
+        ? CachedStatics.init_compositional(
+            ~settings=Language.CoreSettings.on,
+            ~stitch=x => x,
+            ~root=Exp,
+            z,
+          )
+        : CachedStatics.init(
+            ~settings=Language.CoreSettings.on,
+            ~is_dynamic_term=false,
+            ~stitch=x => x,
+            ~root=Exp,
+            z,
+          );
+    let g = Web.CanvasGraph.extract(st);
+    List.iter(
+      (e: Web.CanvasGraph.edge) =>
+        print_endline(
+          (comp ? "comp " : "mono ")
+          ++ e.e_name
+          ++ " : "
+          ++ e.e_ty
+          ++ "  src="
+          ++ e.e_src
+          ++ " dst="
+          ++ e.dst,
+        ),
+      g.edges,
+    );
+    (
+      List.map((e: Web.CanvasGraph.edge) => e.e_name, g.edges),
+      List.map((v: Web.CanvasGraph.value) => v.v_name, g.values),
+    );
+  };
+
+/* the replay's path: statics of the program BEFORE the member insert, then
+   the agent's insert_after, then the (incremental) statics after */
+let incremental_member_edges = () => {
+  let prog1 = "module Geo = {\n  type P = (Int, Int);\n  let origin : P = (0, 0)\n} in\n?";
+  let z1 = Test_AgentTools.mk_zipper(prog1);
+  let st1 =
+    CachedStatics.init_compositional(
+      ~settings=Language.CoreSettings.on,
+      ~stitch=x => x,
+      ~root=Exp,
+      z1,
+    );
+  let g1 = Web.CanvasGraph.extract(st1);
+  print_endline(
+    "before: edges "
+    ++ String.concat(
+         ",",
+         List.map((e: Web.CanvasGraph.edge) => e.e_name, g1.edges),
+       )
+    ++ " values "
+    ++ String.concat(
+         ",",
+         List.map((v: Web.CanvasGraph.value) => v.v_name, g1.values),
+       ),
+  );
+  switch (
+    Test_AgentTools.run_agent_action(
+      prog1,
+      Insert(
+        After,
+        "Geo/origin",
+        "let add(a: P, b: P): P =\n  let (ax, ay) = a in\n  let (bx, by) = b in\n  (ax + bx, ay + by)",
+      ),
+    )
+  ) {
+  | Error(e) => fail("insert failed: " ++ Action.Failure.show(e))
+  | Ok(z2) =>
+    print_endline("after program:\n" ++ Printer.of_zipper(~holes="?", z2));
+    let st2 =
+      CachedStatics.init_compositional(
+        ~settings=Language.CoreSettings.on,
+        ~stitch=x => x,
+        ~root=Exp,
+        z2,
+      );
+    let g2 = Web.CanvasGraph.extract(st2);
+    let edges = List.map((e: Web.CanvasGraph.edge) => e.e_name, g2.edges);
+    let values = List.map((v: Web.CanvasGraph.value) => v.v_name, g2.values);
+    print_endline(
+      "after (incremental): edges "
+      ++ String.concat(",", edges)
+      ++ " values "
+      ++ String.concat(",", values),
+    );
+    /* and fresh, for comparison */
+    let z3 = Test_AgentTools.mk_zipper(Printer.of_zipper(~holes="?", z2));
+    let st3 =
+      CachedStatics.init_compositional(
+        ~settings=Language.CoreSettings.on,
+        ~stitch=x => x,
+        ~root=Exp,
+        z3,
+      );
+    let g3 = Web.CanvasGraph.extract(st3);
+    print_endline(
+      "after (fresh): edges "
+      ++ String.concat(
+           ",",
+           List.map((e: Web.CanvasGraph.edge) => e.e_name, g3.edges),
+         ),
+    );
+    check(
+      bool,
+      "add is an edge after the incremental insert",
+      true,
+      List.mem("Geo.add", edges),
+    );
+  };
+};
+
 let tests = [
+  test_case(
+    "incremental member insert: the new function is an edge",
+    `Quick,
+    incremental_member_edges,
+  ),
+  test_case(
+    "nested module members are edges (mono vs compositional)",
+    `Quick,
+    () => {
+      let (em, vm) = canvas_edges_of(false, nested_prog);
+      let (ec, vc) = canvas_edges_of(true, nested_prog);
+      print_endline(
+        "mono edges: "
+        ++ String.concat(",", em)
+        ++ " values: "
+        ++ String.concat(",", vm),
+      );
+      print_endline(
+        "comp edges: "
+        ++ String.concat(",", ec)
+        ++ " values: "
+        ++ String.concat(",", vc),
+      );
+      check(list(string), "edges agree", em, ec);
+      check(list(string), "values agree", vm, vc);
+      check(bool, "add is an edge", true, List.mem("Geo.add", em));
+    },
+  ),
+  test_case(
+    "a member typed with a local alias attaches to the alias", `Quick, () =>
+    switch (Parser.to_zipper(~root=Exp, nested_prog)) {
+    | None => fail("parse failed")
+    | Some(z) =>
+      let st =
+        CachedStatics.init_compositional(
+          ~settings=Language.CoreSettings.on,
+          ~stitch=x => x,
+          ~root=Exp,
+          Move.to_end(z),
+        );
+      let g = Web.CanvasGraph.extract(st);
+      switch (
+        List.find_opt(
+          (e: Web.CanvasGraph.edge) => e.e_name == "Geo.add",
+          g.edges,
+        )
+      ) {
+      | None => fail("no Geo.add edge")
+      | Some(e) =>
+        check(string, "codomain is the alias", "Geo.P", e.dst);
+        let src =
+          List.find_opt(
+            (n: Web.CanvasGraph.tynode) => n.key == e.e_src,
+            g.nodes,
+          );
+        switch (src) {
+        | Some(n) =>
+          check(list(string), "domain parts", ["Geo.P", "Geo.P"], n.parts)
+        | None => fail("no source node")
+        };
+      };
+    }
+  ),
   try_canvas_nodemap(
     "canvas node map: caret inside a module member (compositional record)",
     "let x = 1 in\nmodule M = {\n  let a = x;\n  let b = a + 1;\n} in\nM.b",

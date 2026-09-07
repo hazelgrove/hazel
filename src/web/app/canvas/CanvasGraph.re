@@ -672,16 +672,25 @@ let extract_impl =
      binding appears there as a VarEntry with its (ascription-respecting)
      type — one lookup instead of per-binding statics spelunking. */
   let result_ctx: option(Ctx.t) =
-    List.find_map(
-      fun
-      | ([], IResult(e)) =>
-        switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
-        | Some(info) => Some(Info.ctx_of(info))
-        | None => None
-        }
-      | _ => None,
-      items,
-    );
+    switch (
+      switch (statics.items) {
+      | Some(ds) => DefStatics.final_ctx(ds)
+      | None => None
+      }
+    ) {
+    | Some(ctx) => Some(ctx)
+    | None =>
+      List.find_map(
+        fun
+        | ([], IResult(e)) =>
+          switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+          | Some(info) => Some(Info.ctx_of(info))
+          | None => None
+          }
+        | _ => None,
+        items,
+      )
+    };
   let lookup_type = (name: string): option(Typ.t) =>
     switch (result_ctx) {
     | Some(ctx) =>
@@ -723,6 +732,42 @@ let extract_impl =
       | [_, ...rev_parent] => resolve_internal(List.rev(rev_parent), k)
       };
     };
+  /* a module's exported member types have its LOCAL aliases inlined
+     (statics: `P` is unbound outside the braces), so `add : (P, P) -> P`
+     arrives as `((Int, Int), (Int, Int)) -> (Int, Int)` and would attach
+     to structural glyphs instead of the type the programmer named. Fold
+     them back: a component that prints like a local alias's body — the
+     nearest enclosing module's first — is that alias. */
+  let internal_alias_bodies: list((list(string), string, string)) =
+    List.filter_map(
+      fun
+      | (path, IAlias(_, _, tpat, ty)) when path != [] =>
+        switch (tpat.term) {
+        | Var(n) => Some((path, n, pretty_ty(ty)))
+        | _ => None
+        }
+      | _ => None,
+      items,
+    );
+  let rec refold_local = (path: list(string), ty: Typ.t): option(string) =>
+    if (path == []) {
+      None;
+    } else {
+      let printed = pretty_ty(ty);
+      switch (
+        List.find_opt(
+          ((p, _, body)) => p == path && body == printed,
+          internal_alias_bodies,
+        )
+      ) {
+      | Some((p, n, _)) => Some(qname(p, n))
+      | None =>
+        switch (List.rev(path)) {
+        | [] => None
+        | [_, ...rev_parent] => refold_local(List.rev(rev_parent), ty)
+        }
+      };
+    };
   /* qualified ty_ref: internal alias names map to their qualified keys */
   let ty_ref_at =
       (~path: list(string), ~anchor: string, ty: Typ.t): (string, node_kind) => {
@@ -732,6 +777,12 @@ let extract_impl =
     | Ghost =>
       switch (resolve_internal(path, k)) {
       | Some(q) => (q, kind)
+      | None => (k, kind)
+      }
+    | Builtin
+    | Derived =>
+      switch (refold_local(path, ty)) {
+      | Some(q) => (q, Alias)
       | None => (k, kind)
       }
     | _ => (k, kind)

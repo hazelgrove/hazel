@@ -1314,6 +1314,21 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
 
 let current = (): option(t) => slot^;
 
+/* the type environment at the program's end: the last BINDING's ctx_out.
+   (The trailing expression's own info may be a clean reuse whose ctx
+   predates a changed export upstream — an item is re-analyzed only when
+   a name it USES changed, and a hole uses none.) */
+let final_ctx = (ds: t): option(Ctx.t) =>
+  List.fold_left(
+    (acc, it) =>
+      switch (it.d_hole) {
+      | Some(_) => Some(it.d_ctx_out)
+      | None => acc
+      },
+    None,
+    ds.items,
+  );
+
 /* item ids (outline id domain) currently carrying errors — the
    outline badge feed; reads the auto-cache slot */
 let error_item_ids = (): list(Id.t) =>
