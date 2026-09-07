@@ -104,30 +104,69 @@ window.fumola = (() => {
   // generated together by wasm-bindgen and will not load if their versions
   // disagree.
   const here = (path) => new URL(path, document.baseURI).href;
+  // A published origin offers two ways in. `runtime.json` names a
+  // content-addressed directory for the current build; the pair at the root
+  // is that same build, at a URL that does not change.
+  //
+  // The manifest is what makes a deploy visible. GitHub Pages stamps
+  // `Cache-Control: max-age=600` on everything it serves and offers no way to
+  // change it, so a new build cannot invalidate a binary a browser already
+  // holds. Giving each build its own URL sidesteps that: the stale copy is
+  // simply never requested again. Without it, a livelit can run against a
+  // runtime a version behind and look like a bug rather than a cache.
+  // See Adapton/fumola#69.
+  //
+  // Both remain one source with one timeout budget, rather than two entries
+  // each -- doubling the source count would double the worst case a page
+  // waits before reporting the runtime unavailable.
+  const published = (name, origin) => ({
+    name,
+    origin,
+    manifest: origin + "/runtime.json",
+    glue: origin + "/fumola_wasm.js",
+    wasm: origin + "/fumola_wasm_bg.wasm",
+  });
   const SOURCES = [
     {
       name: "local",
       glue: here("./fumola/fumola_wasm.js"),
       wasm: here("./fumola/fumola_wasm_bg.wasm"),
     },
-    {
-      name: "fumola.org",
-      glue: "https://fumola.org/fumola_wasm.js",
-      wasm: "https://fumola.org/fumola_wasm_bg.wasm",
-    },
-    {
-      name: "adapton.github.io",
-      glue: "https://adapton.github.io/fumola/fumola_wasm.js",
-      wasm: "https://adapton.github.io/fumola/fumola_wasm_bg.wasm",
-    },
+    published("fumola.org", "https://fumola.org"),
+    published("adapton.github.io", "https://adapton.github.io/fumola"),
   ];
 
   // Hidden from the bundler so that Hazel builds without the generated files.
   const dynamicImport = new Function("p", "return import(p)");
   const load = async (from) => {
-    const mod = await dynamicImport(from.glue);
-    await mod.default({ module_or_path: from.wasm });
-    return mod;
+    let { glue, wasm } = from;
+    let version = "stable";
+    if (from.manifest) {
+      try {
+        // `no-cache` revalidates rather than trusting the 600s window: this
+        // is the one fetch whose staleness would defeat the point, and it is
+        // a few hundred bytes answered by a 304.
+        const reply = await fetch(from.manifest, { cache: "no-cache" });
+        if (reply.ok) {
+          const manifest = await reply.json();
+          // The two are taken together or not at all. wasm-bindgen emits them
+          // as a matched set and they do not load if their versions disagree,
+          // so a half-applied manifest would be worse than ignoring it.
+          if (manifest.js && manifest.wasm) {
+            glue = from.origin + manifest.js;
+            wasm = from.origin + manifest.wasm;
+            version = manifest.hash || "unknown";
+          }
+        }
+      } catch (e) {
+        // No manifest, or it did not parse: fall through to the pair at the
+        // root, which is this origin's current build at publish time. This is
+        // also the path for an origin published before manifests existed.
+      }
+    }
+    const mod = await dynamicImport(glue);
+    await mod.default({ module_or_path: wasm });
+    return { mod, version };
   };
   // A source that fails is fine: the loop moves on. A source that HANGS is
   // not. Nothing in fetch or import times out on its own, so a source that
@@ -189,21 +228,26 @@ window.fumola = (() => {
           // Claim a late arrival, but only if the search gave up on it and
           // nothing else has answered since.
           attempt.then(
-            (mod) => {
+            (loaded) => {
               if (abandoned && wasm === null) {
-                wasm = mod;
-                loadedFrom = from.name;
+                wasm = loaded.mod;
+                loadedFrom = from.name + " @ " + loaded.version;
                 console.info(
-                  "Fumola livelit: runtime loaded from " + from.name + " (late)"
+                  "Fumola livelit: runtime loaded from " + loadedFrom + " (late)"
                 );
                 window.dispatchEvent(new Event("fumola-runtime-ready"));
               }
             },
             () => {}
           );
-          wasm = await withTimeout(attempt, LOAD_TIMEOUT_MS, from.name);
-          loadedFrom = from.name;
-          console.info("Fumola livelit: runtime loaded from " + from.name);
+          const loaded = await withTimeout(attempt, LOAD_TIMEOUT_MS, from.name);
+          wasm = loaded.mod;
+          // The version is part of the answer, not decoration: "which Fumola
+          // is this page holding?" is otherwise unanswerable from a browser,
+          // and it is the first question worth asking when a livelit
+          // misbehaves for someone and not for you.
+          loadedFrom = from.name + " @ " + loaded.version;
+          console.info("Fumola livelit: runtime loaded from " + loadedFrom);
           return;
         } catch (e) {
           abandoned = true;
