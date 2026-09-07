@@ -820,6 +820,24 @@ let test_capitalized_dot_access =
     Some(int()),
   );
 
+/* A capitalized module name parses as a constructor, so a module whose name
+   is also a constructor's must still win in dot position: the JSON type
+   contributes `List`, `Int`, `String`, `Float` and `Bool` to every program's
+   constructor namespace, and projecting a constructor means nothing. */
+let test_module_shadowing_a_constructor =
+  fully_consistent_typecheck(
+    "A module named like a constructor is still a module when projected",
+    {|module List = { let second = 2 } in List.second|},
+    Some(int()),
+  );
+
+let test_constructor_still_applies =
+  fully_consistent_typecheck(
+    "The constructor of that name still applies",
+    {|module List = { let second = 1 } in let j : JSON = List([Int(2)]) in List.second|},
+    Some(int()),
+  );
+
 /* Module keyword with prod annotation is rejected */
 let test_module_keyword_prod_annotation =
   inconsistent_typecheck(
@@ -1182,6 +1200,8 @@ let tests = (
     test_module_keyword_in_mod,
     test_module_keyword_returns_module,
     test_capitalized_dot_access,
+    test_module_shadowing_a_constructor,
+    test_constructor_still_applies,
     /* Module keyword annotation tests */
     test_module_keyword_prod_annotation,
     test_module_keyword_sig_annotation,
