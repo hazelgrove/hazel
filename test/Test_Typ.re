@@ -933,7 +933,155 @@ let avoid_tests = {
   );
 };
 
+/* An escaped abstract type: what avoidance leaves where a path outlived the
+   binder it was rooted at. Its identity is its id, it is consistent with `?`
+   and with itself and with nothing else, and it is closed. */
+let escaped_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let esc = (~id, label) => F.Typ.escaped(~id, label);
+  let a = esc(~id=Id.mk_str("a"), "m.T");
+  let a' = esc(~id=Id.mk_str("a"), "m.T");
+  let b = esc(~id=Id.mk_str("b"), "m.T");
+  let ti = F.Typ.int();
+  let tu = F.Typ.unknown(Internal);
+  let meet = (t1, t2) => Typ.meet(ctx, t1, t2);
+  let coercion = (~to_, ~from) => Typ.coercion(ctx, ~from, ~to_);
+  let opt_typ = option(typ);
+  (
+    "Typ.Escaped",
+    [
+      test_case(
+        "consistent with itself",
+        `Quick,
+        () => {
+          check(opt_typ, "same id", Some(a), meet(a, a'));
+          check(opt_typ, "idempotent", Some(a), meet(a, a));
+        },
+      ),
+      test_case(
+        "inconsistent with a different escape of the same path",
+        `Quick,
+        () => {
+          check(opt_typ, "different ids", None, meet(a, b));
+          check(opt_typ, "symmetric", None, meet(b, a));
+        },
+      ),
+      test_case(
+        "inconsistent with everything concrete",
+        `Quick,
+        () => {
+          check(opt_typ, "int", None, meet(a, ti));
+          check(opt_typ, "int flipped", None, meet(ti, a));
+          check(
+            opt_typ,
+            "at an analysis position",
+            None,
+            coercion(~to_=ti, ~from=a),
+          );
+          check(
+            opt_typ,
+            "analysis flipped",
+            None,
+            coercion(~to_=a, ~from=ti),
+          );
+        },
+      ),
+      test_case(
+        "consistent with unknown, which it refines",
+        `Quick,
+        () => {
+          check(opt_typ, "unknown on the right", Some(a), meet(a, tu));
+          check(opt_typ, "unknown on the left", Some(a), meet(tu, a));
+          check(
+            opt_typ,
+            "analyzed against unknown",
+            Some(a),
+            coercion(~to_=tu, ~from=a),
+          );
+        },
+      ),
+      test_case(
+        "closed: it names no binder",
+        `Quick,
+        () => {
+          check(list(string), "no path roots", [], Typ.path_roots(a));
+          check(list(string), "no free variables", [], Typ.free_vars(a));
+          check(
+            list(string),
+            "nor inside an arrow",
+            [],
+            Typ.path_roots(F.Typ.arrow(a, b)),
+          );
+        },
+      ),
+      test_case(
+        "normalization and avoidance leave it alone",
+        `Quick,
+        () => {
+          check(typ, "normalize", a, Typ.normalize(ctx, a));
+          check(typ, "whnf", a, Typ.weak_head_normalize(ctx, a));
+          check(typ, "avoid", a, Typ.avoid(ctx, ~escaping=["m"], a));
+        },
+      ),
+      test_case("prints as the path it came from", `Quick, () =>
+        check(string, "printed", "m.T", Typ.pretty_print(a))
+      ),
+      test_case(
+        "freshening derives a new identity per site, stable per site",
+        `Quick,
+        () => {
+          let site1 = Id.mk_str("site1");
+          let site2 = Id.mk_str("site2");
+          let f1 = Typ.freshen_escaped(~site=site1, a);
+          let f2 = Typ.freshen_escaped(~site=site2, a);
+          check(opt_typ, "not the original", None, meet(a, f1));
+          check(opt_typ, "not another site", None, meet(f1, f2));
+          check(
+            opt_typ,
+            "stable for the same site",
+            Some(f1),
+            meet(f1, Typ.freshen_escaped(~site=site1, a)),
+          );
+          check(string, "keeps its label", "m.T", Typ.pretty_print(f1));
+          check(
+            opt_typ,
+            "reaches inside a type",
+            None,
+            meet(
+              F.Typ.arrow(ti, a),
+              Typ.freshen_escaped(~site=site1, F.Typ.arrow(ti, a)),
+            ),
+          );
+        },
+      ),
+      test_case(
+        "a hand-written escape matches by label",
+        `Quick,
+        () => {
+          /* Id.invalid is the wildcard a test writes, since real ids come from
+             the term whose scope closed. */
+          let any = F.Typ.escaped("m.T");
+          check(
+            opt_typ,
+            "matches an id-carrying escape",
+            Some(any),
+            meet(any, a),
+          );
+          check(
+            opt_typ,
+            "but not a different label",
+            None,
+            meet(F.Typ.escaped("m.U"), a),
+          );
+        },
+      ),
+    ],
+  );
+};
+
 let tests = [
+  escaped_tests,
   meet_tests,
   fast_equal_tests,
   sig_tests,

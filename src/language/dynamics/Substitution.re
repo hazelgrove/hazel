@@ -288,6 +288,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
+        | Escaped(_)
         | DrvQuoteTy(_) => cont(t)
         // Signature items carry patterns, which this traversal cannot visit
         | Sig(_) => t

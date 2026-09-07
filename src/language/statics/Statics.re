@@ -4055,6 +4055,9 @@ and utyp_to_info_map =
     add(m);
   | Unknown(_)
   | DrvQuoteTy(_) => add(m)
+  /* Not surface syntax: only avoidance produces it, so no node of the user's
+     program is ever an escaped type. */
+  | Escaped(_) => add(m)
   | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in this function's status rules */

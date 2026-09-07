@@ -725,6 +725,8 @@ let equality =
     | (Sig(_), _) => false
     | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
     | (DrvQuoteTy(_), _) => false
+    | (Escaped(e1), Escaped(e2)) => Grammar.escaped_equal(e1, e2)
+    | (Escaped(_), _) => false
     };
   }
   and sig_ =
