@@ -27,7 +27,8 @@ type cls =
   | ProdProjection
   | ProdExtension
   | Sig
-  | TypeMember;
+  | TypeMember
+  | Escaped;
 
 include TermBase.Typ;
 
@@ -103,7 +104,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
   | Sig(_) => Sig
-  | TypeMember(_) => TypeMember;
+  | TypeMember(_) => TypeMember
+  | Escaped(_) => Escaped;
 
 let show_cls: cls => string =
   fun
@@ -131,7 +133,8 @@ let show_cls: cls => string =
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type"
-  | TypeMember => "Type member";
+  | TypeMember => "Type member"
+  | Escaped => "Escaped abstract type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -154,7 +157,8 @@ let rec is_arrow = (typ: t) => {
   | ProdProjection(_)
   | ProdExtension(_)
   | Sig(_)
-  | TypeMember(_) => false
+  | TypeMember(_)
+  | Escaped(_) => false
   };
 };
 
@@ -253,6 +257,8 @@ let rec free_vars =
     | `Var
     | `TypeMember => []
     }
+  /* The label is provenance, not a type: the binder it names is gone. */
+  | Escaped(_) => []
   | Parens(ty)
   | Projector(_, ty) => go(ty)
   | List(ty) => go(ty)
@@ -362,6 +368,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Escaped(_) => 0
   /* A hole item could declare anything, so it counts as one. */
   | Sig(s) =>
     List.fold_left(
@@ -413,7 +420,8 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
       | ExplicitNonlabel
       | Unknown(_)
       | ProofOf(_)
-      | DrvQuoteTy(_) => ty
+      | DrvQuoteTy(_)
+      | Escaped(_) => ty
       | TypeMember(y) =>
         switch (binder) {
         | `TypeMember when String.equal(str, y) => s
@@ -614,7 +622,8 @@ let rec has_fun = (typ: t) =>
   | Label(_)
   | ExplicitNonlabel
   | Var(_)
-  | TypeMember(_) => false
+  | TypeMember(_)
+  | Escaped(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -741,7 +750,8 @@ let rec var_ids = (ty: t): list((string, Id.t)) =>
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
-  | ProofOf(_) => []
+  | ProofOf(_)
+  | Escaped(_) => []
   | Rec(_, ty)
   | Poly(_, ty)
   | Parens(ty)
@@ -775,6 +785,7 @@ let rec binders = (ty: t): list((string, Id.t)) => {
   | DrvQuoteTy(_)
   | Var(_)
   | TypeMember(_)
+  | Escaped(_)
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => []
@@ -1073,7 +1084,8 @@ let rec path_root = (ty: t): option(Var.t) =>
   | Rec(_)
   | Poly(_)
   | Sig(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
   };
 
 /* The roots of every type path in [ty]. */
@@ -1091,7 +1103,8 @@ let rec path_roots = (ty: t): list(Var.t) =>
   | ProofOf(_)
   | ExplicitNonlabel
   | Label(_)
-  | TypeMember(_) => []
+  | TypeMember(_)
+  | Escaped(_) => []
   | Arrow(t1, t2)
   | ProdProjection(t1, t2)
   | ProdExtension(t1, t2) => path_roots(t1) @ path_roots(t2)
@@ -1138,7 +1151,8 @@ let rec leaf_rooted = (ty: t): bool =>
   | Sum(_)
   | Rec(_)
   | Poly(_)
-  | Sig(_) => false
+  | Sig(_)
+  | Escaped(_) => false
   };
 
 /* Whether a type path is rooted at a module value, as against a signature
@@ -1327,7 +1341,8 @@ let strengthen = (ty: t, ~path: t): t =>
   | Rec(_)
   | Poly(_)
   | Sig(Open(_))
-  | TypeMember(_) => ty
+  | TypeMember(_)
+  | Escaped(_) => ty
   };
 
 /* The signature items a module path denotes, if any, each independent of
@@ -1363,7 +1378,8 @@ let head_sig =
   | Sum(_)
   | Rec(_)
   | Poly(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
   };
 
 /* The items of [ty]'s signature, if it is one, each independent. */
@@ -1525,6 +1541,30 @@ let unshadow = (ctx: Ctx.t, name: string): option(string) =>
   } else {
     None;
   };
+
+/* Give every distinct escaped abstract type in [ty] an id derived from
+   [site] and its old id, so each application site sees its own abstract
+   types (the generative reading: two calls of the same function return
+   incomparable types) while the same site stays stable across statics
+   passes, which is what keeps re-checking an elaboration type-equal. */
+let freshen_escaped = (~site: Id.t, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (cont, ty) =>
+        switch (term_of(ty)) {
+        | Escaped({id, label}) => {
+            ...ty,
+            term:
+              Escaped({
+                id:
+                  Id.mk_str(Id.to_string(site) ++ ":" ++ Id.to_string(id)),
+                label,
+              }),
+          }
+        | _ => cont(ty)
+        },
+    ty,
+  );
 
 /* A `Rec` or `Poly` binder and its body, renamed by `unshadow` when the
    binder's name would capture. */
@@ -1750,7 +1790,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
-  | TypeMember(_) => ty
+  | TypeMember(_)
+  | Escaped(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -1848,7 +1889,8 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
         | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel
-        | TypeMember(_) => None
+        | TypeMember(_)
+        | Escaped(_) => None
         | Sig(s) =>
           List.find_map(
             (m: Sig.member) =>
@@ -2039,6 +2081,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | ExplicitNonlabel
   | Var(_)
   | TypeMember(_)
+  | Escaped(_)
   | ProofOf(_) => ty
   | Parens(t) => Parens(close(ctx, t)) |> rewrap
   | Projector(d, t) => Projector(d, close(ctx, t)) |> rewrap
@@ -2204,7 +2247,8 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
     | Rec(_)
     | Poly(_)
     | Sig(_)
-    | TypeMember(_) => Some(reduced)
+    | TypeMember(_)
+    | Escaped(_) => Some(reduced)
     };
   | Unknown(_)
   | Atom(_)
@@ -2223,7 +2267,8 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
   | Rec(_)
   | Poly(_)
   | Sig(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
   };
 
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
@@ -2480,6 +2525,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Sig(Open(_)), _)
   | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
   | (Sig(_), _) => None
+  /* An escaped abstract type is consistent with itself and, through the
+     Unknown cases above, with `?`. Nothing else. */
+  | (Escaped(e1), Escaped(e2)) =>
+    Grammar.escaped_equal(e1, e2) ? Some(ty1) : None
+  | (Escaped(_), _) => None
   };
 };
 
@@ -2592,7 +2642,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Rec(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
-  | (ProdExtension(_), _) => t1
+  | (ProdExtension(_), _)
+  | (Escaped(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -2698,6 +2749,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdExtension(_)
   | ExplicitNonlabel
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -2722,6 +2774,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdExtension(_)
   | Sum(_)
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => None
   };
 
@@ -2747,6 +2800,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -2783,6 +2837,7 @@ let rec needs_parens = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
+  | Escaped(_) => false /* one atom: the path it came from */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -2882,6 +2937,7 @@ let rec pretty_print = (ty: t): string =>
     "{ "
     ++ String.concat("; ", List.map(sig_item_str, Sig.items(s)))
     ++ " }";
+  | Escaped({label, _}) => label
   }
 and ctr_pretty_print =
   fun
@@ -2946,6 +3002,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | ExplicitNonlabel
     | Var(_)
     | TypeMember(_)
+    | Escaped(_)
     | ProofOf(_) => ()
     /* Syntactic, not `Sig.members`: an item whose name is a hole still
        prints. */
@@ -3111,5 +3168,7 @@ let rec diff =
   | (Sum(_), _) => get_ids()
   | (Sig(_), Sig(_)) when fast_equal(ty, ty') => []
   | (Sig(_), _) => get_ids()
+  | (Escaped(_), Escaped(_)) when fast_equal(ty, ty') => []
+  | (Escaped(_), _) => get_ids()
   };
 };

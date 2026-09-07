@@ -4584,7 +4584,10 @@ and utyp_to_info_map =
   | Atom(_)
   | Label(_)
   | Var(_)
-  | TypeMember(_) =>
+  | TypeMember(_)
+  /* Not surface syntax: only avoidance produces it, so no node of the
+     user's program is ever an escaped type. */
+  | Escaped(_) =>
     /* Names are resolved in this function's status rules */
     add(~ty=utyp, m)
   | List(t) =>
