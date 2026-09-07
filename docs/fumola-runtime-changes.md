@@ -86,10 +86,10 @@ API change was to `fumola_modules()`, which is in the eleven Hazel does not
 call. The six it does call were untouched. The published and locally built
 runtimes were confirmed to have an identical 17-function export list.
 
-That "none" is a verified claim, not an assumption — and the verification took
-minutes because the contract above was written down. Had the change touched
-`fumola_eval`'s reply shape instead, the same check would have flagged it
-immediately, and *nothing else we have would have*.
+That "none" is a verified claim, not an assumption, and it held. But the check
+that produced it is narrower than it looked — see the addendum below, where
+the same change broke a page in the Fumola repo and this method could not have
+seen it.
 
 **Verification performed.**
 
@@ -105,6 +105,36 @@ immediately, and *nothing else we have would have*.
 
 **Note on the last two.** They passed, and they would have passed just as
 happily against the *old* runtime, or with the wasm deleted. See the gap below.
+
+#### Addendum: what the export-diff check does not cover
+
+fumola#74 did break something — not in Hazel, but in Fumola's own web-play
+page, and it is worth recording because **the check I used could not have found
+it.**
+
+`importsOf` in `pages/web-play/index.html` decided whether an import path was
+absolute by testing for a `/`. That was correct while a bare name meant a
+symlinked neighbour. Deleting the symlinks made every relative path contain a
+slash, so the test silently began meaning something else, and opening an
+example body failed with `ModuleFileNotFound("../system/adapton")`. Found and
+fixed by the session working on that page (fumola#78).
+
+Nothing about the API changed. The export list was identical, all six of
+Hazel's calls resolved, and every one of those checks passed while the feature
+was broken. What changed was **the shape of the data flowing through an
+unchanged interface**.
+
+So "the contract is six functions wide" is true and is not sufficient. The
+export diff catches a changed *signature*; it is blind to a changed
+*convention* — a path that gains a slash, an id that starts being a string, a
+list that starts arriving empty rather than absent. Those are exactly the
+changes a generated fixture would catch (tier 4) and a hand-written one will
+not, because a hand-written fixture keeps asserting the old convention in
+perfect health.
+
+When reading a Fumola diff for blast radius, ask both questions: did any
+signature change, **and** did the meaning of any value crossing the boundary
+change? The second has no mechanical check today.
 
 ## The coverage gap
 
@@ -148,6 +178,20 @@ the one that does not exist yet.
 
 Run this whenever Fumola's `main` moves. It is what caught (or rather,
 cleared) fumola#74.
+
+0. **Do not trust a fetch made in the ten minutes after a deploy.** Pages
+   serves `max-age=600` through an edge cache, and the edge will hand you a
+   pre-deploy object inside that window. Observed directly on 2026-09-07: a
+   fetch just after a successful deploy returned bytes *byte-identical to the
+   pre-deploy copy*, and a fetch a minute later returned the new object with
+   `X-Cache: MISS` and a matching `Last-Modified`. A deploy was nearly
+   reported as half-broken on the strength of the first read.
+
+   So when verifying a deploy, check `X-Cache` and the content, not just the
+   status code, and re-fetch before concluding anything. This is the same
+   failure the content-addressed URLs remove for *page* loads — but the
+   unversioned URLs stay published for older clients, so verifying by fetching
+   them keeps this hazard.
 
 1. **Confirm what is published, and from which commit.** The deploy workflow
    triggers on push to `main`, and `actions-gh-pages` records the source
