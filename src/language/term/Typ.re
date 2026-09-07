@@ -886,9 +886,29 @@ let rec path_roots = (ty: t): list(Var.t) =>
    stays stuck is an abstract type that nothing outside can name. Inside a
    signature, a manifest member defined as such a path becomes abstract and
    later mentions of the path use its name, so `fun (m : S) -> m` has type
-   `S -> S` (generativity); anywhere else the path becomes `?`. Identity on
-   types without escaping paths. */
-let avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
+   `S -> S` (generativity); anywhere else it becomes what [escape_to] says:
+   an escaped abstract type identified by that site and the path, or plain
+   unknown. Identity on types without escaping paths. */
+/* What an escaping abstract path becomes where nothing names it: an escaped
+   abstract type whose identity comes from a site, or plain unknown, which is
+   what a failed implicit resolution wants, since the failure is already
+   reported and opacity would only cascade. */
+type escape_to =
+  | EscapesAt(Id.t)
+  | ErasesToUnknown;
+
+/* `m.Inner.T` as text: the label an escaped type keeps for display. */
+let rec path_label = (ty: t): string =>
+  switch (term_of(ty)) {
+  | Var(x) => x
+  | Parens(ty)
+  | Projector(_, ty) => path_label(ty)
+  | ProdProjection(p, {term: Label(l), _}) => path_label(p) ++ "." ++ l
+  | _ => "?"
+  };
+
+let avoid =
+    (ctx: Ctx.t, ~escape_to: escape_to, ~escaping: list(Var.t), ty: t): t => {
   let escapes = (ty: t) =>
     switch (path_root(ty)) {
     | Some(x) => List.mem(x, escaping) && Ctx.lookup_tvar(ctx, x) == None
@@ -915,7 +935,22 @@ let avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
       if (is_stuck_path_term(w) && escapes(w)) {
         switch (named(names, w)) {
         | Some(name) => Var(name) |> temp
-        | None => Unknown(Internal) |> temp
+        /* Nothing outside names this abstract type any more, so it becomes
+           an escaped one rather than `?`: still abstract, still consistent
+           with `?`, and no longer consistent with a concrete type. The id is
+           derived from [site] and the path, so the same escape at the same
+           site is the same type on every pass. */
+        | None =>
+          switch (escape_to) {
+          | ErasesToUnknown => Unknown(Internal) |> temp
+          | EscapesAt(site) =>
+            let label = path_label(w);
+            Escaped({
+              id: Id.mk_str(Id.to_string(site) ++ "!" ++ label),
+              label,
+            })
+            |> temp;
+          }
         };
       } else {
         go(names, w);
@@ -1898,7 +1933,7 @@ let rec pretty_print = (ty: t): string =>
       | MultiHole(_) => "?"
       };
     "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
-  | Escaped({label, _}) => label
+  | Escaped(e) => Grammar.escaped_label(e)
   }
 and ctr_pretty_print =
   fun

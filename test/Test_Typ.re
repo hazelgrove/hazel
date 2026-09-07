@@ -840,7 +840,6 @@ let avoid_tests = {
   let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
   let sg = items => F.Typ.sig_(items);
   let ti = F.Typ.int();
-  let tu = F.Typ.unknown(Internal);
   let tv = F.Typ.var;
   let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
   let abstract_sig = sg([sa("T"), sv("x", tv("T"))]);
@@ -856,7 +855,9 @@ let avoid_tests = {
     Builtins.ctx_init(None)
     |> Ctx.extend(_, var_entry("M", abstract_sig))
     |> Ctx.extend(_, var_entry("N", manifest_sig));
-  let avoid = (escaping, ty) => Typ.avoid(ctx, ~escaping, ty);
+  let site = Id.mk_str("avoid-tests");
+  let avoid = (escaping, ty) =>
+    Typ.avoid(ctx, ~escape_to=EscapesAt(site), ~escaping, ty);
   (
     "Typ.Avoid",
     [
@@ -880,14 +881,15 @@ let avoid_tests = {
         },
       ),
       test_case(
-        "an escaping abstract path becomes unknown",
+        "an escaping abstract path becomes an escaped abstract type",
         `Quick,
         () => {
-          check(typ, "bare", tu, avoid(["M"], path("M", "T")));
+          let esc = F.Typ.escaped("M.T");
+          check(typ, "bare", esc, avoid(["M"], path("M", "T")));
           check(
             typ,
             "nested",
-            F.Typ.arrow(tu, ti),
+            F.Typ.arrow(esc, ti),
             avoid(["M"], F.Typ.arrow(path("M", "T"), ti)),
           );
         },
@@ -1021,11 +1023,26 @@ let escaped_tests = {
         () => {
           check(typ, "normalize", a, Typ.normalize(ctx, a));
           check(typ, "whnf", a, Typ.weak_head_normalize(ctx, a));
-          check(typ, "avoid", a, Typ.avoid(ctx, ~escaping=["m"], a));
+          check(
+            typ,
+            "avoid",
+            a,
+            Typ.avoid(
+              ctx,
+              ~escape_to=EscapesAt(Id.mk_str("s")),
+              ~escaping=["m"],
+              a,
+            ),
+          );
         },
       ),
-      test_case("prints as the path it came from", `Quick, () =>
-        check(string, "printed", "m.T", Typ.pretty_print(a))
+      test_case("prints as the path it came from, plus a tag", `Quick, () =>
+        check(
+          bool,
+          "printed",
+          true,
+          String.starts_with(~prefix="m.T~", Typ.pretty_print(a)),
+        )
       ),
       test_case(
         "freshening derives a new identity per site, stable per site",
@@ -1043,7 +1060,12 @@ let escaped_tests = {
             Some(f1),
             meet(f1, Typ.freshen_escaped(~site=site1, a)),
           );
-          check(string, "keeps its label", "m.T", Typ.pretty_print(f1));
+          check(
+            bool,
+            "keeps its path",
+            true,
+            String.starts_with(~prefix="m.T~", Typ.pretty_print(f1)),
+          );
           check(
             opt_typ,
             "reaches inside a type",
