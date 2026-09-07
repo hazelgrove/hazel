@@ -114,14 +114,35 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  /* the action's constructor path, three levels deep, off its sexp */
-  let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
-    switch (sx) {
-    | Sexplib.Sexp.Atom(a) => a
-    | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
-      a ++ "/" ++ head(depth - 1, inner)
-    | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
-    | _ => "?"
+  /* the action's constructor path, by hand: serializing the whole
+     action (its sexp) hung the page on evaluation results — closure
+     environments in streamed values serialize exponentially */
+  let kind = (action: CrashHandling.Update.t): string =>
+    switch (action) {
+    | Globals(Set(CanvasTick)) => "Globals/Set/CanvasTick"
+    | Globals(Set(Sidebar(_))) => "Globals/Set/Sidebar"
+    | Globals(Set(_)) => "Globals/Set"
+    | Globals(ActiveEditor(_)) => "Globals/ActiveEditor"
+    | Globals(SelectTile(_) | JumpToTile(_)) => "Globals/Jump"
+    | Globals(SetAgentGlobals(_)) => "Globals/SetAgentGlobals"
+    | Globals(AppViewMsg(_)) => "Globals/AppViewMsg"
+    | Globals(Undo | Redo) => "Globals/Undo"
+    | Globals(_) => "Globals/other"
+    | Editors(Scratch(CellAction(MainEditor(_)))) => "Editors/CellAction/MainEditor"
+    | Editors(Scratch(CellAction(ResultAction(_)))) => "Editors/CellAction/Result"
+    | Editors(Scratch(StackBody(_) | StackHeader(_))) => "Editors/Stack"
+    | Editors(Scratch(AgentAction(_))) => "Editors/AgentAction"
+    | Editors(
+        Scratch(FocusDef(_) | FocusToggle(_) | FocusEnsure(_) | UnfocusDef),
+      ) => "Editors/Focus"
+    | Editors(Scratch(_)) => "Editors/Scratch/other"
+    | Editors(_) => "Editors/other"
+    | ExplainThis(_) => "ExplainThis"
+    | MakeActive(_) => "MakeActive"
+    | Benchmark(_) => "Benchmark"
+    | Refresh => "Refresh"
+    | Start => "Start"
+    | Save => "Save"
     };
   let t_upd = Util.PerfTimer.now();
   let updated: Updated.t(CrashHandling.Model.t) =
@@ -135,24 +156,15 @@ let apply =
       )
     );
   if (Util.PerfTimer.now() -. t_upd > 100.) {
-    Util.PerfTimer.record(
-      "slow-update/" ++ head(3, CrashHandling.Update.sexp_of_t(action)),
-      0.,
-    );
+    Util.PerfTimer.record("slow-update/" ++ kind(action), 0.);
   };
   /* every action, by kind: the perf journal's re-render census (a score
      ran the app at 4 Hz with the agent idle — who was ticking?) */
-  Util.PerfTimer.record(
-    "action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
-    0.,
-  );
+  Util.PerfTimer.record("action/" ++ kind(action), 0.);
   /* which actions count as edits (each one costs a statics/eval recompute):
      the perf journal names them */
   if (updated.is_edit) {
-    Util.PerfTimer.record(
-      "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
-      0.,
-    );
+    Util.PerfTimer.record("edit-action/" ++ kind(action), 0.);
   };
   // ---------- CALCULATE PHASE ----------
   let t_calc = Util.PerfTimer.now();
@@ -169,10 +181,7 @@ let apply =
   /* a calculate phase over 100 ms is a stall the journal should name by
      its action (eval results landing, agent tool results, edits) */
   if (Util.PerfTimer.now() -. t_calc > 100.) {
-    Util.PerfTimer.record(
-      "slow-calc/" ++ head(3, CrashHandling.Update.sexp_of_t(action)),
-      0.,
-    );
+    Util.PerfTimer.record("slow-calc/" ++ kind(action), 0.);
   };
 
   if (updated.save) {
