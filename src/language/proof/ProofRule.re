@@ -62,7 +62,10 @@ let rule_to_exp = (rule: t): Exp.t => {
           Forall(Pat.fresh(Asc(Pat.fresh(Var(name)), typ)), body),
         ),
       )
-    | [ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_), ...rs] =>
+    | [
+        ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_) | ImplicitEntry(_),
+        ...rs,
+      ] =>
       wrap_foralls(rs, body)
     };
   let body =

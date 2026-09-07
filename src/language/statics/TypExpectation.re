@@ -20,5 +20,8 @@ type t =
       unnameable: list(Var.t),
     })
   | ProductExpected
+  /* A component of an arrow domain: the one place an implicit binder type
+     may appear. Otherwise as TypeExpected. */
+  | ArrowDomainExpected
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
