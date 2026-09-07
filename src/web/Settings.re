@@ -33,6 +33,12 @@ module Model = {
        divider-drag end (the drag itself updates styles imperatively) */
     [@sexp.default None] [@yojson.default None]
     canvas_pane_width: option(int),
+    /* Constellation MAIN mode: the canvas fills the main area, the editor
+       stack is not shown as such — the selected definition (one at a
+       time, picked in the outline or on the canvas) edits in the info
+       panel under the constellation */
+    [@sexp.default false] [@yojson.default false]
+    canvas_main: bool,
     /* user rearrangements of canvas nodes: ((slide, node key), delta from
        the auto layout). Deltas rather than absolute positions so a dragged
        node shifts WITH its neighborhood as the program grows, and layout
@@ -139,6 +145,8 @@ module Model = {
       canvas_expand: None,
       canvas_probe_models: [],
       width: None,
+      canvas_tab: "definition",
+      canvas_panel_height: None,
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
@@ -150,6 +158,7 @@ module Model = {
     show_incremental_deco: false,
     canvas_split: false,
     canvas_pane_width: None,
+    canvas_main: false,
     canvas_node_offsets: [],
     canvas_node_pins: [],
     canvas_frames: [],
@@ -211,6 +220,7 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ToggleCanvasSplit
+    | ToggleCanvasMain
     | SetCanvasPaneWidth(int)
     | SetCanvasNodeOffset(string, string, float, float)
     | SetCanvasNodePin(string, string, float, float)
@@ -247,6 +257,7 @@ module Update = {
     | ClearCanvasNodeOffsets(_)
     | SetCanvasPaneWidth(_)
     | ToggleCanvasSplit
+    | ToggleCanvasMain
     | ToggleCanvasPace
     | ToggleCanvasFollow
     /* sidebar panel state (which panel, canvas focus, collapsed sections)
@@ -461,6 +472,20 @@ module Update = {
             canvas_expand: x,
           },
         }
+      | Sidebar(SetCanvasTab(t)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_tab: t,
+          },
+        }
+      | Sidebar(SetCanvasPanelHeight(h)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_panel_height: h,
+          },
+        }
       | Sidebar(SetCanvasProbeModel(key, model)) => {
           ...settings,
           sidebar: {
@@ -670,6 +695,23 @@ module Update = {
             ),
           canvas_frames: List.remove_assoc(slide, settings.canvas_frames),
         }
+      | ToggleCanvasMain =>
+        let enabling = !settings.canvas_main;
+        {
+          ...settings,
+          canvas_main: enabling,
+          /* like the split: the main mode is for watching/steering the
+             agent, so the sidebar shows the chat; leaving it brings the
+             canvas back to the sidebar unless the split is on */
+          sidebar: {
+            ...settings.sidebar,
+            show: true,
+            panel:
+              enabling || settings.canvas_split ? HelpfulAssistant : Canvas,
+            /* entering: the definition tab is the point */
+            canvas_tab: enabling ? "definition" : settings.sidebar.canvas_tab,
+          },
+        };
       | ToggleCanvasSplit =>
         let enabling = !settings.canvas_split;
         {

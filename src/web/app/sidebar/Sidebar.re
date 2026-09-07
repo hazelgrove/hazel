@@ -370,31 +370,52 @@ let view =
                 ~editor,
               )
             | Canvas =>
-              globals.settings.canvas_split
-                /* the canvas lives in the main-area split; avoid a second
-                   instance (duplicate DOM ids would break FLIP/jumps) */
+              globals.settings.canvas_main
+                /* constellation MAIN mode: the canvas IS the main area */
                 ? div(
                     ~attrs=[clss(["canvas-split-note"])],
                     [
-                      text("The canvas is in split view beside the editor."),
+                      text(
+                        "The canvas is the main area (constellation mode).",
+                      ),
                       div(
                         ~attrs=[
                           clss(["canvas-split-btn"]),
                           Attr.on_click(_ =>
-                            globals.inject_global(Set(ToggleCanvasSplit))
+                            globals.inject_global(Set(ToggleCanvasMain))
                           ),
                         ],
-                        [text({js|⇱ dock it back here|js})],
+                        [text({js|⇱ leave constellation mode|js})],
                       ),
                     ],
                   )
-                : CanvasSidebar.view(
-                    ~globals,
-                    ~editors,
-                    ~editors_inject,
-                    ~editor,
-                    (),
-                  )
+                : globals.settings.canvas_split
+                    /* the canvas lives in the main-area split; avoid a second
+                       instance (duplicate DOM ids would break FLIP/jumps) */
+                    ? div(
+                        ~attrs=[clss(["canvas-split-note"])],
+                        [
+                          text(
+                            "The canvas is in split view beside the editor.",
+                          ),
+                          div(
+                            ~attrs=[
+                              clss(["canvas-split-btn"]),
+                              Attr.on_click(_ =>
+                                globals.inject_global(Set(ToggleCanvasSplit))
+                              ),
+                            ],
+                            [text({js|⇱ dock it back here|js})],
+                          ),
+                        ],
+                      )
+                    : CanvasSidebar.view(
+                        ~globals,
+                        ~editors,
+                        ~editors_inject,
+                        ~editor,
+                        (),
+                      )
             | Projectors => ProjectorPanel.view(~globals, ~editor)
             | LogControl =>
               LogSidebar.view(

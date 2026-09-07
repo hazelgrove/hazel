@@ -396,6 +396,33 @@ and follow_site = (~aw: float, ~ah: float, dest: (float, float)): unit => {
   };
 };
 
+/* a selection made in another view (the outline): bring the point into
+   view with the smallest pan, no zoom change; nothing moves if it is
+   already visible (the view you clicked in never scrolls; this one
+   follows only as far as it must) */
+let reveal = (~aw: float, ~ah: float, (px, py): (float, float)): unit =>
+  switch (center(~aw, ~ah)) {
+  | None => ()
+  | Some((cx, cy)) =>
+    let z = zoom_now^;
+    let hw = aw /. 2. /. z
+    and hh = ah /. 2. /. z;
+    let m = 56. /. z;
+    let over = (p, lo, hi) => p < lo ? p -. lo : p > hi ? p -. hi : 0.;
+    let dx = over(px, cx -. hw +. m, cx +. hw -. m)
+    and dy = over(py, cy -. hh +. m, cy +. hh -. m);
+    if (dx != 0. || dy != 0.) {
+      CanvasLog.log(
+        Printf.sprintf(
+          "camera: reveal selection -> pan (%.0f, %.0f)",
+          dx,
+          dy,
+        ),
+      );
+      animate(~aw, ~ah, ~dur=380., ~easing=EaseOut, (cx +. dx, cy +. dy));
+    };
+  };
+
 /* console testers: __canvasCameraTo(x, y[, z]) and __canvasFollowTo(x, y)
    drive the camera against the live pane (pane size from the DOM) */
 /* called per render with the nodes' board positions; credits the time

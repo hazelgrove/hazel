@@ -401,6 +401,15 @@ module Update = {
       /* replace the whole stack with this one definition */
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
+      /* already exactly this one: keep the live cell (its caret, its
+         undo) instead of re-splicing and rebuilding it */
+      | Code(_)
+          when
+            switch (model.focus) {
+            | Some({f_entries: [e], _}) => e.e_id == fid
+            | _ => false
+            } =>
+        model |> Updated.return_quiet
       | Code({editor, _}) =>
         let master_seg =
           switch (model.focus) {
@@ -2025,7 +2034,12 @@ module Selection = {
      caret). Serves goto-definition from any pane AND result-strip /
      test jumps (which used to move the hidden master's caret). */
   let cross_cell_target =
-      (~target_id: Haz3lcore.Id.t, ~model: Model.t, ~f: Model.focus_t)
+      (
+        ~single: bool,
+        ~target_id: Haz3lcore.Id.t,
+        ~model: Model.t,
+        ~f: Model.focus_t,
+      )
       : option((Update.t, t, Update.t)) => {
     Util.OptUtil.Syntax.(
       {
@@ -2055,7 +2069,10 @@ module Selection = {
               id => List.mem(id, items),
               [target_id, ...Language.Info.ancestors_of(info)],
             );
-          let j = stack_position(~term=statics.term, fid, f.f_entries);
+          /* single-definition mode (constellation main): the jump
+             REPLACES the one open cell instead of adding to the stack */
+          let j =
+            single ? 0 : stack_position(~term=statics.term, fid, f.f_entries);
           /* the target lives in the pattern (header cell) for def
              binders, in the body for everything else */
           let in_header =
@@ -2066,7 +2083,7 @@ module Selection = {
           let caret: CellEditor.Update.t =
             MainEditor(Perform(Move(Goal(TileId(target_id)))));
           Some((
-            Update.FocusEnsure(fid),
+            single ? Update.FocusDef(fid) : Update.FocusEnsure(fid),
             in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
             in_header
               ? Update.StackHeader(j, caret) : Update.StackBody(j, caret),
@@ -2077,7 +2094,8 @@ module Selection = {
   };
 
   let stack_jump_override =
-      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
+      (~single: bool=false, action: Update.t, model: Model.t)
+      : option((Update.t, t, Update.t)) => {
     Util.OptUtil.Syntax.(
       switch (action, model.focus) {
       | (
@@ -2104,7 +2122,7 @@ module Selection = {
         if (Id.Map.mem(binding_id, cell_map)) {
           None; /* binder is inside this cell: the cell's own jump works */
         } else {
-          cross_cell_target(~target_id=binding_id, ~model, ~f);
+          cross_cell_target(~single, ~target_id=binding_id, ~model, ~f);
         };
       | _ => None
       }
@@ -2129,6 +2147,7 @@ module Selection = {
       };
     };
     switch (action, model.focus) {
+    | (FocusDef(_), _) => Some(StackB(0, MainEditor))
     | (FocusEnsure(fid), Some(f)) => target(fid, f.f_entries)
     | (FocusToggle(fid), Some(f)) =>
       List.exists((e: Model.stack_entry) => e.e_id == fid, f.f_entries)
@@ -2550,7 +2569,12 @@ module View = {
                   /* the jump target lives in the HIDDEN master while a
                      stack is open: open the containing item instead */
                   switch (
-                    Selection.cross_cell_target(~target_id=id, ~model, ~f)
+                    Selection.cross_cell_target(
+                      ~single=globals.settings.canvas_main,
+                      ~target_id=id,
+                      ~model,
+                      ~f,
+                    )
                   ) {
                   | Some((ensure, sel, caret)) =>
                     Virtual_dom.Vdom.Effect.Many([

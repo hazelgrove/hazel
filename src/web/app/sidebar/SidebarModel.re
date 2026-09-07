@@ -204,6 +204,14 @@ module Settings = {
        canvas) re-render, and so the width survives reloads. */
     [@sexp.default None] [@yojson.default None]
     width: option(int),
+    /* Canvas info panel (under the constellation): which tab is up —
+       "values" | "definition" | "tests" */
+    [@sexp.default "definition"] [@yojson.default "definition"]
+    canvas_tab: string,
+    /* Canvas info panel max height in px (drag handle on its top edge);
+       None = the default cap */
+    [@sexp.default None] [@yojson.default None]
+    canvas_panel_height: option(int),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -252,5 +260,7 @@ module Settings = {
     | SetCanvasPlace(option((string, list(string))))
     | SetCanvasExpand(option((int, int)))
     | SetCanvasProbeModel(string, string)
+    | SetCanvasTab(string)
+    | SetCanvasPanelHeight(option(int))
     | SetWidth(int);
 };

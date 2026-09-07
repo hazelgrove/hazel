@@ -467,7 +467,13 @@ module Update = {
          is stacked, select it, then a follow-up caret jump) — mirroring
          the JumpToTile flow above. */
       let (action, selection, followup) =
-        switch (Editors.Selection.stack_jump_override(action, model.editors)) {
+        switch (
+          Editors.Selection.stack_jump_override(
+            ~single=model.globals.settings.canvas_main,
+            action,
+            model.editors,
+          )
+        ) {
         | Some((action', selection, followup)) => (
             action',
             selection,
@@ -852,6 +858,7 @@ type outline_memo_key = {
   ok_collapsed: list(OutlineTree.path),
   ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
   ok_results: option(Language.TestResults.t),
+  ok_main: bool /* constellation main mode rewires the row clicks */
 };
 let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
   ref(Option.none);
@@ -869,6 +876,7 @@ let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
   && a.ok_name == b.ok_name
   && a.ok_collapsed == b.ok_collapsed
   && a.ok_menu == b.ok_menu
+  && a.ok_main == b.ok_main
   && (
     switch (a.ok_results, b.ok_results) {
     | (Some(x), Some(y)) => x === y
@@ -1160,16 +1168,15 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    /* every stacked definition's id (+ live header name) */
+    let focused_entries =
+      switch (model.editors) {
+      | Scratch(m)
+      | Documentation(m) => ScratchMode.Model.focused_names(m)
+      | _ => []
+      };
     /* module/definition outline (modular-editors phases 1-2) */
     let outline = {
-      /* every stacked definition's id (+ live header name) */
-      let focused_entries =
-        switch (model.editors) {
-        | Scratch(m)
-        | Documentation(m) => ScratchMode.Model.focused_names(m)
-        | _ => []
-        };
-
       /* structural def ops only make sense in scratch-style modes */
       let is_scratch =
         switch (model.editors) {
@@ -1221,6 +1228,7 @@ module View = {
         ok_collapsed: collapsed_paths,
         ok_menu: menu,
         ok_results: test_results,
+        ok_main: globals.settings.canvas_main,
       };
       switch (outline_memo^) {
       | Some((k, node)) when outline_key_same(k, memo_key) => node
@@ -1309,12 +1317,34 @@ module View = {
               error_ids,
             );
           };
+          /* constellation MAIN mode: one definition at a time — every
+             outline click SELECTS that definition (the info panel under
+             the constellation edits it); no stacking, no master jumps.
+             The canvas reveals the selection (source = outline). */
+          let select_one = id =>
+            Effect.Many([
+              inject(Editors(Scratch(FocusDef(id)))),
+              globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+              Ui_effect.of_sync_fun(CanvasSidebar.request_reveal, id),
+            ]);
+          let main = globals.settings.canvas_main;
           OutlineSidebar.view(
-            ~jump=id => globals.inject_global(JumpToTile(id)),
+            ~jump=
+              id =>
+                main
+                  ? select_one(id) : globals.inject_global(JumpToTile(id)),
             /* plain click with a stack open ADDS (or moves to) that cell —
                never replaces the stack (andrew: replacing was a footgun) */
-            ~focus=id => inject(Editors(Scratch(FocusEnsure(id)))),
-            ~toggle=id => inject(Editors(Scratch(FocusToggle(id)))),
+            ~focus=
+              id =>
+                main
+                  ? select_one(id)
+                  : inject(Editors(Scratch(FocusEnsure(id)))),
+            ~toggle=
+              id =>
+                main
+                  ? select_one(id)
+                  : inject(Editors(Scratch(FocusToggle(id)))),
             ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
             ~is_collapsed=path => List.mem(path, collapsed_paths),
             ~toggle_collapse=
@@ -1399,127 +1429,31 @@ module View = {
           Attr.classes(
             [Editors.Model.mode_string(editors)]
             @ Editors.Model.extra_main_classes(editors)
-            @ (globals.settings.canvas_split ? ["has-canvas-split"] : []),
+            @ (
+              globals.settings.canvas_main
+                ? ["has-canvas-main"]
+                : globals.settings.canvas_split ? ["has-canvas-split"] : []
+            ),
           ),
           Attr.on_scroll(on_scroll),
         ],
-        globals.settings.canvas_split
+        globals.settings.canvas_main
+          /* constellation MAIN: the canvas fills the main area; the
+             editor stack (exactly one definition, selected in the
+             outline or on the canvas) renders inside the info panel
+             under the constellation */
           ? {
-            let pane_w = globals.settings.canvas_pane_width;
-            let divider = {
-              /* imperative drag (no per-move renders); one settings action
-                 at drag end re-layouts the canvas and persists the width */
-              let dragged = ref(None: option(int));
-              let rec on_move = evt => {
-                switch (JsUtil.get_elem_by_id_opt("main")) {
-                | Some(main) =>
-                  let rect =
-                    Js.Unsafe.meth_call(main, "getBoundingClientRect", [||]);
-                  let right: float = Js.Unsafe.coerce(rect)##.right;
-                  let width: float = Js.Unsafe.coerce(rect)##.width;
-                  let x: int = Js.Unsafe.coerce(evt)##.clientX;
-                  let w =
-                    max(
-                      300,
-                      min(
-                        int_of_float(width) - 360,
-                        int_of_float(right) - x,
-                      ),
-                    );
-                  dragged := Some(w);
-                  let set = (sel, prop, v) =>
-                    switch (
-                      Js.Opt.to_option(
-                        Dom_html.document##querySelector(Js.string(sel)),
-                      )
-                    ) {
-                    | Some(el) =>
-                      Js.Unsafe.set(
-                        Js.Unsafe.coerce(el)##.style,
-                        prop,
-                        Js.string(v),
-                      )
-                    | None => ()
-                    };
-                  set(
-                    ".main-split-editors",
-                    "right",
-                    string_of_int(w) ++ "px",
-                  );
-                  set("#canvas-main", "width", string_of_int(w) ++ "px");
-                  set(
-                    "#canvas-divider",
-                    "right",
-                    string_of_int(w - 4) ++ "px",
-                  );
-                | None => ()
-                };
-                ();
-              }
-              and on_up = _ => {
-                let doc = Js.Unsafe.coerce(Dom_html.document);
-                let _ = doc##removeEventListener("mousemove", on_move);
-                let _ = doc##removeEventListener("mouseup", on_up);
-                switch (dragged^) {
-                | Some(w) =>
-                  Effect.Expert.handle_non_dom_event_exn(
-                    globals.inject_global(Set(SetCanvasPaneWidth(w))),
-                  )
-                | None => ()
-                };
-                ();
+            let selected_item =
+              switch (focused_entries) {
+              | [(id, _)] => Some(id)
+              | _ => None
               };
-              div(
-                ~attrs=[
-                  Attr.id("canvas-divider"),
-                  Attr.create(
-                    "style",
-                    switch (pane_w) {
-                    | Some(w) => Printf.sprintf("right: %dpx;", w - 4)
-                    | None => "right: calc(44% - 4px);"
-                    },
-                  ),
-                  Attr.on_mousedown(_ => {
-                    let doc = Js.Unsafe.coerce(Dom_html.document);
-                    let _ = doc##addEventListener("mousemove", on_move);
-                    let _ = doc##addEventListener("mouseup", on_up);
-                    Effect.Prevent_default;
-                  }),
-                ],
-                [],
-              );
-            };
             [
               div(
-                ~attrs=
-                  [Attr.classes(["main-split-editors"])]
-                  @ (
-                    switch (pane_w) {
-                    | Some(w) => [
-                        Attr.create(
-                          "style",
-                          Printf.sprintf("right: %dpx;", w),
-                        ),
-                      ]
-                    | None => []
-                    }
-                  ),
-                editors_view,
-              ),
-              div(
-                ~attrs=
-                  [Attr.id("canvas-main")]
-                  @ (
-                    switch (pane_w) {
-                    | Some(w) => [
-                        Attr.create(
-                          "style",
-                          Printf.sprintf("width: %dpx;", w),
-                        ),
-                      ]
-                    | None => []
-                    }
-                  ),
+                ~attrs=[
+                  Attr.id("canvas-main"),
+                  Attr.classes(["canvas-main-full"]),
+                ],
                 [
                   CanvasSidebar.view(
                     ~globals,
@@ -1528,14 +1462,160 @@ module View = {
                       (a: Editors.Update.t) => inject(Editors(a)),
                     ~editor=current_editor,
                     ~use_sidebar_width=false,
+                    ~main_mode=true,
+                    ~selected_item,
+                    ~definition_view=
+                      selected_item == None
+                        ? None
+                        : Some(
+                            div(
+                              ~attrs=[Attr.classes(["canvas-def-stack"])],
+                              editors_view,
+                            ),
+                          ),
                     (),
                   ),
                 ],
               ),
-              divider,
             ];
           }
-          : editors_view,
+          : globals.settings.canvas_split
+              ? {
+                let pane_w = globals.settings.canvas_pane_width;
+                let divider = {
+                  /* imperative drag (no per-move renders); one settings action
+                     at drag end re-layouts the canvas and persists the width */
+                  let dragged = ref(None: option(int));
+                  let rec on_move = evt => {
+                    switch (JsUtil.get_elem_by_id_opt("main")) {
+                    | Some(main) =>
+                      let rect =
+                        Js.Unsafe.meth_call(
+                          main,
+                          "getBoundingClientRect",
+                          [||],
+                        );
+                      let right: float = Js.Unsafe.coerce(rect)##.right;
+                      let width: float = Js.Unsafe.coerce(rect)##.width;
+                      let x: int = Js.Unsafe.coerce(evt)##.clientX;
+                      let w =
+                        max(
+                          300,
+                          min(
+                            int_of_float(width) - 360,
+                            int_of_float(right) - x,
+                          ),
+                        );
+                      dragged := Some(w);
+                      let set = (sel, prop, v) =>
+                        switch (
+                          Js.Opt.to_option(
+                            Dom_html.document##querySelector(Js.string(sel)),
+                          )
+                        ) {
+                        | Some(el) =>
+                          Js.Unsafe.set(
+                            Js.Unsafe.coerce(el)##.style,
+                            prop,
+                            Js.string(v),
+                          )
+                        | None => ()
+                        };
+                      set(
+                        ".main-split-editors",
+                        "right",
+                        string_of_int(w) ++ "px",
+                      );
+                      set("#canvas-main", "width", string_of_int(w) ++ "px");
+                      set(
+                        "#canvas-divider",
+                        "right",
+                        string_of_int(w - 4) ++ "px",
+                      );
+                    | None => ()
+                    };
+                    ();
+                  }
+                  and on_up = _ => {
+                    let doc = Js.Unsafe.coerce(Dom_html.document);
+                    let _ = doc##removeEventListener("mousemove", on_move);
+                    let _ = doc##removeEventListener("mouseup", on_up);
+                    switch (dragged^) {
+                    | Some(w) =>
+                      Effect.Expert.handle_non_dom_event_exn(
+                        globals.inject_global(Set(SetCanvasPaneWidth(w))),
+                      )
+                    | None => ()
+                    };
+                    ();
+                  };
+                  div(
+                    ~attrs=[
+                      Attr.id("canvas-divider"),
+                      Attr.create(
+                        "style",
+                        switch (pane_w) {
+                        | Some(w) => Printf.sprintf("right: %dpx;", w - 4)
+                        | None => "right: calc(44% - 4px);"
+                        },
+                      ),
+                      Attr.on_mousedown(_ => {
+                        let doc = Js.Unsafe.coerce(Dom_html.document);
+                        let _ = doc##addEventListener("mousemove", on_move);
+                        let _ = doc##addEventListener("mouseup", on_up);
+                        Effect.Prevent_default;
+                      }),
+                    ],
+                    [],
+                  );
+                };
+                [
+                  div(
+                    ~attrs=
+                      [Attr.classes(["main-split-editors"])]
+                      @ (
+                        switch (pane_w) {
+                        | Some(w) => [
+                            Attr.create(
+                              "style",
+                              Printf.sprintf("right: %dpx;", w),
+                            ),
+                          ]
+                        | None => []
+                        }
+                      ),
+                    editors_view,
+                  ),
+                  div(
+                    ~attrs=
+                      [Attr.id("canvas-main")]
+                      @ (
+                        switch (pane_w) {
+                        | Some(w) => [
+                            Attr.create(
+                              "style",
+                              Printf.sprintf("width: %dpx;", w),
+                            ),
+                          ]
+                        | None => []
+                        }
+                      ),
+                    [
+                      CanvasSidebar.view(
+                        ~globals,
+                        ~editors,
+                        ~editors_inject=
+                          (a: Editors.Update.t) => inject(Editors(a)),
+                        ~editor=current_editor,
+                        ~use_sidebar_width=false,
+                        (),
+                      ),
+                    ],
+                  ),
+                  divider,
+                ];
+              }
+              : editors_view,
       ),
       sidebar,
       outline,

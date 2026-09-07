@@ -1830,3 +1830,189 @@
 .canvas-avatar .bubble-tails {
   pointer-events: none;
 }
+
+/* ---- constellation MAIN mode: the canvas fills the main area ---- */
+
+#main.has-canvas-main {
+  position: relative;
+  overflow: hidden;
+}
+
+#canvas-main.canvas-main-full {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  min-width: 0;
+  border-left: none;
+}
+
+.canvas-main-btn-on {
+  background: var(--Y0, #f6efd8);
+}
+
+/* ---- the info panel under the constellation: side tabs (values ·
+   definition · tests), content-sized up to a draggable cap ---- */
+
+.canvas-info {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 78px; /* the three tabs */
+  border-top: 0.6px solid var(--BR2, #ccc);
+  overflow: hidden;
+  font-family: var(--code-font, monospace);
+  background: var(--ui-bkg, #fbf6e6);
+}
+
+.canvas-info-handle {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 3;
+}
+
+.canvas-info-handle:hover {
+  background: rgba(120, 160, 90, 0.25);
+}
+
+.canvas-info-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: 2em;
+  border-right: 0.6px solid var(--BR2, #ccc);
+}
+
+.canvas-info-tab {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--BR3, #a08a5a);
+  transition: background-color 0.2s ease;
+}
+
+.canvas-info-tab.active {
+  color: var(--BR4, #6b5330);
+  border-right: 0.2em solid var(--BR3, #a08a5a);
+  padding-left: 0.2em;
+  font-weight: bold;
+}
+
+.canvas-info-tab:hover {
+  background-color: var(--T2, #f1e9d2);
+}
+
+.canvas-info-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+/* the focus strip's content keeps its own styling, minus the strip
+   chrome (the panel carries the border and the cap now) */
+.canvas-info .canvas-focus {
+  max-height: none;
+  border-top: none;
+}
+
+.canvas-info-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  opacity: 0.7;
+  font-family: var(--ui-font, sans-serif);
+}
+
+/* the legend lives in the values tab while nothing is selected */
+.canvas-info .canvas-legend {
+  border-top: none;
+  padding: 8px 12px;
+}
+
+/* the selected definition's live cell (MAIN mode): just the cell —
+   the program result and the stack's trailing slack stay out */
+.canvas-def-stack {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 6px;
+}
+
+.canvas-def-stack .stack-result,
+.canvas-def-stack .stack-slack {
+  display: none;
+}
+
+/* the main editor's measured scroll width must not size this cell
+   (cell.css sets .cell width from --main-scroll-width) */
+#main .canvas-def-stack .cell,
+#main.Scratch.has-canvas-main .canvas-def-stack .cell,
+#main.Documentation.has-canvas-main .canvas-def-stack .cell {
+  width: auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.canvas-def-stack .focus-body > .cell > .code-editor {
+  background-color: var(--cell-active, #fffdf5);
+}
+
+/* read-only preview (sidebar / split placements) */
+.canvas-def-preview {
+  padding: 6px 12px;
+}
+
+.canvas-def-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.canvas-def-code {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* tests tab */
+.canvas-test-head {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  opacity: 0.7;
+  font-family: var(--ui-font, sans-serif);
+}
+
+.canvas-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.canvas-test-row:hover {
+  background-color: var(--T2, #f1e9d2);
+}
+
+.canvas-test-row .test-pip {
+  flex: 0 0 auto;
+}
+
+.canvas-test-no {
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+
+.canvas-test-body {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

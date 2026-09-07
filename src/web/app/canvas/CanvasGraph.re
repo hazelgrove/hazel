@@ -51,7 +51,12 @@ type tynode = {
 
 type test_info = {
   t_id: Id.t,
-  status: option(TestStatus.t) /* None = not yet evaluated */
+  status: option(TestStatus.t), /* None = not yet evaluated */
+  t_body: Exp.t, /* the tested expression (the info panel prints it) */
+  /* every function (edge name) the body mentions — the info panel's
+     tests tab lists a definition's tests by mention, not just by
+     subject (a test that drives two functions belongs to both) */
+  t_refs: list(string),
 };
 
 type edge = {
@@ -94,6 +99,8 @@ type t = {
   edges: list(edge),
   values: list(value),
   loose_tests: list(test_info),
+  /* every test in program order (subject-attached ones included) */
+  all_tests: list(test_info),
   /* the last top-level binding (name, term rep id): canvas-authored
      stubs insert_after it (pathless insert_after goes after the trailing
      expression, which the statics guard rightly rejects). The id lets the
@@ -107,6 +114,7 @@ let empty: t = {
   edges: [],
   values: [],
   loose_tests: [],
+  all_tests: [],
   last_def: None,
 };
 
@@ -317,6 +325,44 @@ let exp_vars = (e: Exp.t): list(string) => {
         (cont, e) => {
           switch (e.term) {
           | Var(x) => acc := [x, ...acc^]
+          | _ => ()
+          };
+          cont(e);
+        },
+      e,
+    );
+  List.rev(acc^);
+};
+
+/* a module path `M.N.f` as the parser leaves it: Dot(Dot(Var M, Label
+   N), Label f) — the qualified name, or None for any other shape */
+let rec dot_path = (e: Exp.t): option(string) =>
+  switch (e.term) {
+  | Var(x) => Some(x)
+  | Constructor(m, _) => Some(m) /* a module name parses as a constructor */
+  | Dot(l, {term: Label(name), _}) =>
+    Option.map(p => p ++ "." ++ name, dot_path(l))
+  | Parens(e) => dot_path(e)
+  | _ => None
+  };
+
+/* every name an expression refers to: bare variables AND qualified
+   member paths ("Pos.manhattan"). Test attribution reads this; the
+   dependency/use counts keep exp_vars (bare only), so member edges'
+   thickness is unchanged. */
+let exp_refs = (e: Exp.t): list(string) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          switch (e.term) {
+          | Var(x) => acc := [x, ...acc^]
+          | Dot(_, {term: Label(_), _}) =>
+            switch (dot_path(e)) {
+            | Some(q) => acc := [q, ...acc^]
+            | None => ()
+            }
           | _ => ()
           };
           cont(e);
@@ -563,6 +609,7 @@ let test_subject = (~edge_names: list(string), body: Exp.t): option(string) => {
   let rec head_of = (e: Exp.t): option(string) =>
     switch (strip_exp(e).term) {
     | Var(x) => Some(x)
+    | Dot(_) => dot_path(strip_exp(e)) /* Pos.manhattan(...) */
     | Ap(_, f, _) => head_of(f)
     | _ => None
     };
@@ -592,7 +639,7 @@ let test_subject = (~edge_names: list(string), body: Exp.t): option(string) => {
   switch (names) {
   | [] =>
     /* no applications: fall back to any bare mention */
-    exp_vars(body) |> List.find_opt(v => List.mem(v, edge_names))
+    exp_refs(body) |> List.find_opt(v => List.mem(v, edge_names))
   | [x] => Some(x)
   | _ =>
     hits^
@@ -1363,23 +1410,40 @@ let extract_impl =
       TestMap.lookup(id, tr.test_map) |> Option.map(TestMap.joint_status)
     | None => None
     };
-  let (edge_tests, loose_tests) =
+  let (edge_tests, loose_tests, all_tests) =
     List.fold_left(
-      ((et, lt), (_, item)) =>
+      ((et, lt, all), (_, item)) =>
         switch (item) {
         | ITest(term, body) =>
           let t_id = Exp.rep_id(term);
+          let vars = exp_refs(body);
+          /* a mention matches an edge by its qualified name or its bare
+             label (module members are referenced either way) */
+          let t_refs =
+            List.filter(
+              name => {
+                let bare =
+                  switch (List.rev(String.split_on_char('.', name))) {
+                  | [b, ..._] => b
+                  | [] => name
+                  };
+                List.mem(name, vars) || List.mem(bare, vars);
+              },
+              edge_names,
+            );
           let info = {
             t_id,
             status: status_of(t_id),
+            t_body: body,
+            t_refs,
           };
           switch (test_subject(~edge_names, body)) {
-          | Some(target) => ([(target, info), ...et], lt)
-          | None => (et, lt @ [info])
+          | Some(target) => ([(target, info), ...et], lt, all @ [info])
+          | None => (et, lt @ [info], all @ [info])
           };
-        | _ => (et, lt)
+        | _ => (et, lt, all)
         },
-      ([], []),
+      ([], [], []),
       items,
     );
   let edges =
@@ -1444,6 +1508,7 @@ let extract_impl =
     edges,
     values,
     loose_tests,
+    all_tests,
     last_def,
   };
 };

@@ -9,6 +9,61 @@ open Haz3lcore;
    the agent appears as an avatar at its current work site. See
    plans/agent-canvas.md. */
 
+/* a selection made elsewhere (the outline) asks the canvas to reveal
+   the definition on its next render: the camera frames it if it is off
+   screen (the view you clicked in never scrolls; the others follow) */
+let reveal_request: ref(option(Id.t)) = ref(None: option(Id.t));
+let request_reveal = (id: Id.t): unit => reveal_request := Some(id);
+
+/* the outline row of a definition selected on the CANVAS scrolls into
+   view after the render that highlights it */
+let scroll_outline_to_selection = (): unit => {
+  let go = () =>
+    switch (
+      Js_of_ocaml.(
+        Js.Opt.to_option(
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.document,
+            "querySelector",
+            [|Js.Unsafe.inject(Js.string(".outline-focused"))|],
+          ),
+        )
+      )
+    ) {
+    | Some(el) =>
+      ignore(
+        Js_of_ocaml.Js.Unsafe.meth_call(
+          el,
+          "scrollIntoView",
+          [|
+            Js_of_ocaml.Js.Unsafe.inject(
+              Js_of_ocaml.Js.Unsafe.obj([|
+                (
+                  "block",
+                  Js_of_ocaml.Js.Unsafe.inject(
+                    Js_of_ocaml.Js.string("nearest"),
+                  ),
+                ),
+              |]),
+            ),
+          |],
+        ),
+      )
+    | None => ()
+    };
+  /* two frames: the action renders on the next, the DOM has the row then */
+  ignore(
+    Js_of_ocaml.Js.Unsafe.meth_call(
+      Js_of_ocaml.Js.Unsafe.global##.window,
+      "setTimeout",
+      [|
+        Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.Unsafe.callback(go)),
+        Js_of_ocaml.Js.Unsafe.inject(60),
+      |],
+    ),
+  );
+};
+
 let current_code =
     (editors: Editors.Model.t): option(ScratchMode.Scratchpad.code) =>
   switch (editors) {
@@ -741,6 +796,14 @@ let view_impl =
       /* false when hosted in the main-area split, whose width is the
          pane's own, not the sidebar setting's */
       ~use_sidebar_width=true,
+      /* constellation MAIN mode: one definition is selected at a time
+         (the editor stack's single entry); clicks on the canvas select
+         definitions instead of moving a hidden caret */
+      ~main_mode=false,
+      ~selected_item: option(Id.t)=None,
+      /* the selected definition's live cell (the editor stack), shown in
+         the info panel's definition tab */
+      ~definition_view: option(Node.t)=None,
       (),
     )
     : Node.t => {
@@ -906,13 +969,15 @@ let view_impl =
       }
     };
   };
-  let avail_height =
+  /* two heights: the LAYOUT is framed as if the info panel were closed
+     (the panel opening used to shrink the pane, re-derive the vertical
+     scale, and make bystander nodes jump on click), while the CAMERA
+     sees only the visible part (reveals and whole-fits keep the
+     selection out from under the panel) */
+  let (avail_height, layout_height) =
     switch (Util.JsUtil.get_elem_by_id_opt("canvas-scroll")) {
     | Some(el) =>
       let h: int = Js_of_ocaml.Js.Unsafe.coerce(el)##.clientHeight;
-      /* measure as if the focus strip were closed: the strip opening
-         shrank the pane, re-derived the vertical scale, and made
-         bystander nodes jump on click */
       let strip =
         Js_of_ocaml.(
           switch (
@@ -920,11 +985,7 @@ let view_impl =
               Js.Unsafe.meth_call(
                 Js.Unsafe.global##.document,
                 "querySelector",
-                [|
-                  Js.Unsafe.inject(
-                    Js.string("#canvas-sidebar .canvas-focus"),
-                  ),
-                |],
+                [|Js.Unsafe.inject(Js.string("#canvas-info"))|],
               ),
             )
           ) {
@@ -937,9 +998,11 @@ let view_impl =
           | None => 0
           }
         );
-      let h = h + strip;
-      h > 100 ? Some(float_of_int(h)) : None;
-    | None => None
+      (
+        h > 100 ? Some(float_of_int(h)) : None,
+        h + strip > 100 ? Some(float_of_int(h + strip)) : None,
+      );
+    | None => (None, None)
     };
   /* frame freeze during drags (see drag_active) */
   let avail_width =
@@ -1071,7 +1134,7 @@ let view_impl =
          final layout applies the frozen frame plus the user's edits. */
       let virgin = CanvasLayout.layout(graph);
       let y_scale =
-        switch (avail_height) {
+        switch (layout_height) {
         | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
         | None => 1.
         };
@@ -1131,6 +1194,44 @@ let view_impl =
       globals.inject_global(SelectTile(id)),
       Effect.Stop_propagation,
     ]);
+  /* MAIN mode: a canvas click selects the definition as the ONE open
+     cell (the info panel's definition tab); the outline row scrolls into
+     view (source = canvas, so the canvas itself holds still) */
+  let select_def = (id: Id.t) =>
+    Effect.Many([
+      editors_inject(
+        Editors.Update.Scratch(ScratchMode.Update.FocusDef(id)),
+      ),
+      globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+      Ui_effect.of_sync_fun(scroll_outline_to_selection, ()),
+      Effect.Stop_propagation,
+    ]);
+  /* MAIN mode: the selection is the stack's one entry; its canvas
+     element (an edge by e_id, a node by n_id) wears the indication and
+     feeds the values tab. A glyph node (no definition of its own) can
+     still be looked at: canvas_focus_ty then overrides until the next
+     definition pick. */
+  let selected_edge =
+    main_mode
+      ? Option.bind(selected_item, id =>
+          List.find_opt((e: CanvasGraph.edge) => e.e_id == id, graph.edges)
+        )
+      : None;
+  let selected_node =
+    main_mode
+      ? Option.bind(selected_item, id =>
+          List.find_opt(
+            (n: CanvasGraph.tynode) => n.n_id == Some(id),
+            graph.nodes,
+          )
+        )
+      : None;
+  let selected_value =
+    main_mode
+      ? Option.bind(selected_item, id =>
+          List.find_opt((v: CanvasGraph.value) => v.v_id == id, graph.values)
+        )
+      : None;
   let set_focus = (f: option(string)) =>
     globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
   /* clicking a function: focus it in the detail strip AND select its
@@ -1186,11 +1287,15 @@ let view_impl =
       };
     };
     Effect.Many(
-      [
-        set_focus(Some(e.e_name)),
-        globals.inject_global(SelectTile(e.e_id)),
-        Effect.Stop_propagation,
-      ]
+      (
+        main_mode
+          ? [select_def(e.e_id)]
+          : [
+            set_focus(Some(e.e_name)),
+            globals.inject_global(SelectTile(e.e_id)),
+            Effect.Stop_propagation,
+          ]
+      )
       @ align,
     );
   };
@@ -1294,17 +1399,27 @@ let view_impl =
      aliases also select their definition */
   let click_effect = (n: CanvasGraph.tynode) => {
     focused_value := None;
-    Effect.Many(
-      [
-        globals.inject_global(Set(Sidebar(SetCanvasFocusTy(Some(n.key))))),
-      ]
-      @ (
-        switch (n.n_id) {
-        | Some(id) => [globals.inject_global(SelectTile(id))]
-        | None => []
-        }
-      ),
-    );
+    switch (main_mode, n.n_id) {
+    /* a definition: select it (the halo and values follow the selection) */
+    | (true, Some(id)) => select_def(id)
+    /* a glyph: look at its values without changing the selected definition */
+    | (true, None) =>
+      globals.inject_global(Set(Sidebar(SetCanvasFocusTy(Some(n.key)))))
+    | (false, _) =>
+      Effect.Many(
+        [
+          globals.inject_global(
+            Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+          ),
+        ]
+        @ (
+          switch (n.n_id) {
+          | Some(id) => [globals.inject_global(SelectTile(id))]
+          | None => []
+          }
+        ),
+      )
+    };
   };
   /* drag-vs-click on a node: document listeners move the div imperatively;
      release either commits a layout delta or fires the click */
@@ -2198,8 +2313,21 @@ let view_impl =
         ];
       },
     );
-  let focused = globals.settings.sidebar.canvas_focus;
-  let focused_ty = globals.settings.sidebar.canvas_focus_ty;
+  /* MAIN mode: the indication and the values tab follow the selected
+     definition (a looked-at glyph overrides the values/halo only) */
+  let focused =
+    main_mode
+      ? globals.settings.sidebar.canvas_focus_ty == None
+          ? Option.map((e: CanvasGraph.edge) => e.e_name, selected_edge)
+          : None
+      : globals.settings.sidebar.canvas_focus;
+  let focused_ty =
+    main_mode
+      ? switch (globals.settings.sidebar.canvas_focus_ty) {
+        | Some(_) as k => k
+        | None => Option.map((n: CanvasGraph.tynode) => n.key, selected_node)
+        }
+      : globals.settings.sidebar.canvas_focus_ty;
   /* hand a hole-bodied function to the agent as an obligation */
   let ask_agent =
     switch (current_code(editors)) {
@@ -2379,6 +2507,18 @@ let view_impl =
     )
   | _ => ()
   };
+  /* a selection made in the outline: reveal it here (after layout, so
+     the element has a position) */
+  switch (reveal_request^, avail_width, avail_height) {
+  | (Some(id), Some(aw), Some(ah)) =>
+    reveal_request := None;
+    switch (locate(~info_map=editor.statics.info_map, lay, id)) {
+    | Some(p) => CanvasCamera.reveal(~aw, ~ah, (p.x, p.y))
+    | None => ()
+    };
+  | (Some(_), _, _) => reveal_request := None
+  | (None, _, _) => ()
+  };
   /* camera follow: a hop (or a resting avatar waking) hands the site to
      the camera; the dead zone decides whether it actually moves */
   switch (avatar, avail_width, avail_height) {
@@ -2460,17 +2600,38 @@ let view_impl =
   CanvasBubble.ensure_loop();
   let split_btn = {
     let split = globals.settings.canvas_split;
+    globals.settings.canvas_main
+      ? div([])
+      : div(
+          ~attrs=[
+            clss(["canvas-split-btn"]),
+            Attr.on_click(_ =>
+              globals.inject_global(Set(ToggleCanvasSplit))
+            ),
+            Attr.title(
+              split
+                ? "dock the canvas back into the sidebar"
+                : "split view: canvas beside the editor, agent chat in the sidebar — watch the graph update live as the agent works",
+            ),
+          ],
+          [text(split ? {js|⇱ dock|js} : {js|⇲ split|js})],
+        );
+  };
+  /* constellation MAIN mode toggle: the canvas takes the main area and
+     the selected definition edits in the info panel below */
+  let main_btn = {
+    let on = globals.settings.canvas_main;
     div(
       ~attrs=[
-        clss(["canvas-split-btn"]),
-        Attr.on_click(_ => globals.inject_global(Set(ToggleCanvasSplit))),
+        clss(["canvas-split-btn"] @ (on ? ["canvas-main-btn-on"] : [])),
+        Attr.on_click(_ => globals.inject_global(Set(ToggleCanvasMain))),
         Attr.title(
-          split
-            ? "dock the canvas back into the sidebar"
-            : "split view: canvas beside the editor, agent chat in the sidebar — watch the graph update live as the agent works",
+          on
+            ? "leave constellation mode: the editor returns to the main area"
+            : "constellation mode: the canvas fills the main area; pick a definition in the outline or on the canvas and edit it in the panel below",
         ),
       ],
-      [text(split ? {js|⇱ dock|js} : {js|⇲ split|js})],
+      [text(on ? {js|⇱ editor|js} : {js|▣ mode|js})],
     );
   };
   let legend = {
@@ -2616,7 +2777,12 @@ let view_impl =
           ~globals,
           ~editor,
           ~inject_jump,
-          ~on_close=set_focus(None),
+          ~on_close=
+            main_mode
+              ? editors_inject(
+                  Editors.Update.Scratch(ScratchMode.Update.UnfocusDef),
+                )
+              : set_focus(None),
           ~ask_agent,
           ~graph,
           name,
@@ -2625,6 +2791,380 @@ let view_impl =
       | (None, None) => []
       }
     };
+
+  /* harness: the live program's text (the master buffer; a stack's
+     cells are spliced in) */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__programText",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        switch (editors) {
+        | Scratch(m)
+        | Documentation(m) =>
+          switch (List.nth_opt(m.scratchpads, m.current), m.focus) {
+          | (Some({kind: Code(_), _}), Some(f)) =>
+            Printer.of_segment(~holes="?", ScratchFocus.splice_all(f))
+          | (Some({kind: Code({editor, _}), _}), None) =>
+            Printer.of_segment(~holes="?", ScratchFocus.zip_of_cell(editor))
+          | _ => ""
+          }
+        | _ => ""
+        },
+      )
+    ),
+  );
+  /* harness: the tests the graph knows, with their mentions */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__canvasTests",
+    Js_of_ocaml.Js.Unsafe.callback(() =>
+      Js_of_ocaml.Js.string(
+        graph.all_tests
+        |> List.map((t: CanvasGraph.test_info) =>
+             Printf.sprintf(
+               "%s | refs=[%s] | seen=[%s] | edges=[%s] | %s",
+               switch (t.status) {
+               | Some(Pass) => "pass"
+               | Some(Fail) => "FAIL"
+               | Some(Indet) => "indet"
+               | None => "?"
+               },
+               String.concat(",", t.t_refs),
+               String.concat(",", CanvasGraph.exp_refs(t.t_body)),
+               String.concat(
+                 ",",
+                 List.map((e: CanvasGraph.edge) => e.e_name, graph.edges)
+                 |> List.filteri((i, _) => i < 6),
+               ),
+               CanvasFocus.print_value(t.t_body),
+             )
+           )
+        |> String.concat("\n"),
+      )
+    ),
+  );
+  /* ---- the info panel under the constellation: tabs on the side
+     (vertical space is shared with the graph), one of values ·
+     definition · tests for the selected definition ---- */
+  let info_panel = {
+    let tab = globals.settings.sidebar.canvas_tab;
+    let set_tab = t =>
+      globals.inject_global(Set(Sidebar(SetCanvasTab(t))));
+    /* the definition the panel is about: the selected edge (by name in
+       every placement — MAIN mode derives the name from the selection) */
+    let focus_edge =
+      Option.bind(focused, name =>
+        List.find_opt((e: CanvasGraph.edge) => e.e_name == name, graph.edges)
+      );
+    let focus_node =
+      Option.bind(focused_ty, key =>
+        List.find_opt((n: CanvasGraph.tynode) => n.key == key, graph.nodes)
+      );
+    let placeholder = (msg: string) =>
+      div(~attrs=[clss(["canvas-info-empty"])], [text(msg)]);
+    /* VALUES: the focus strip's content; with nothing focused, the
+       legend lives here (it left the canvas to save its corner) */
+    let values_content =
+      switch (focus_strip) {
+      | [] => [legend]
+      | xs => xs
+      };
+    /* DEFINITION: in MAIN mode the live cell; elsewhere a read-only
+       preview with "open in editor" (the selection there is the caret) */
+    let definition_content =
+      switch (main_mode, definition_view) {
+      | (true, Some(v)) => [v]
+      | (true, None) =>
+        switch (selected_item, focus_node) {
+        | (None, Some(n)) when n.n_id == None => [
+            placeholder(
+              Printf.sprintf(
+                "%s is a %s type: nothing to edit. Pick a definition in the outline or on the canvas.",
+                n.label,
+                switch (n.kind) {
+                | Builtin => "builtin"
+                | Product => "product"
+                | Derived => "derived"
+                | Ghost => "ghost"
+                | Alias => "alias"
+                },
+              ),
+            ),
+          ]
+        | _ => [
+            placeholder(
+              "Pick a definition in the outline or on the canvas to edit it here.",
+            ),
+          ]
+        }
+      | (false, _) =>
+        let target: option((string, Id.t)) =
+          switch (focus_edge, focus_node) {
+          | (Some(e), _) => Some((e.e_name ++ " : " ++ e.e_ty, e.e_id))
+          | (None, Some({n_id: Some(id), label, _})) => Some((label, id))
+          | _ => None
+          };
+        switch (target) {
+        | None => [
+            placeholder(
+              "Pick a function or type on the canvas to preview its definition; ▣ mode edits it here.",
+            ),
+          ]
+        | Some((title, id)) =>
+          let seg = editor.editor.syntax.segment;
+          let body =
+            switch (ScratchFocus.find_def(id, seg)) {
+            | Some(def) => [
+                CanvasDefPreview.view(~globals, ~key=seg, ~id, def),
+              ]
+            | None => [placeholder("(definition not found in the buffer)")]
+            };
+          [
+            div(
+              ~attrs=[clss(["canvas-def-preview"])],
+              [
+                div(
+                  ~attrs=[clss(["canvas-def-head"])],
+                  [
+                    span(~attrs=[clss(["focus-name"])], [text(title)]),
+                    div(
+                      ~attrs=[
+                        clss(["canvas-tool-btn"]),
+                        Attr.title("open this definition in the editor"),
+                        Attr.on_click(_ => inject_jump(id)),
+                      ],
+                      [text({js|↗ editor|js})],
+                    ),
+                  ],
+                ),
+                ...body,
+              ],
+            ),
+          ];
+        };
+      };
+    /* TESTS: every test mentioning the selected function (its lexical
+       subject tests marked); a selected test shows itself */
+    let tests_content = {
+      let print_body = (t: CanvasGraph.test_info) => {
+        let s = CanvasFocus.print_value(t.t_body);
+        String.length(s) > 90 ? String.sub(s, 0, 88) ++ {js|…|js} : s;
+      };
+      let index_of = (t: CanvasGraph.test_info) => {
+        let rec go = (i, xs) =>
+          switch (xs) {
+          | [] => 0
+          | [x, ...rest] =>
+            (x: CanvasGraph.test_info).t_id == t.t_id ? i : go(i + 1, rest)
+          };
+        go(1, graph.all_tests);
+      };
+      let row = (~subject: bool, t: CanvasGraph.test_info) =>
+        div(
+          ~attrs=[
+            clss(["canvas-test-row"] @ (subject ? ["test-subject"] : [])),
+            Attr.title(
+              subject
+                ? "a unit test of this function (click: open the test)"
+                : "mentions this function (click: open the test)",
+            ),
+            Attr.on_click(_ =>
+              main_mode
+                ? Effect.Many([select_def(t.t_id), set_tab("definition")])
+                : inject_jump(t.t_id)
+            ),
+          ],
+          [
+            CanvasView.test_pip(t),
+            span(
+              ~attrs=[clss(["canvas-test-no"])],
+              [text("#" ++ string_of_int(index_of(t)))],
+            ),
+            span(
+              ~attrs=[clss(["canvas-test-body"])],
+              [text(print_body(t))],
+            ),
+          ],
+        );
+      switch (focus_edge) {
+      | Some(e) =>
+        let subjects =
+          List.map((t: CanvasGraph.test_info) => t.t_id, e.tests);
+        let rows =
+          graph.all_tests
+          |> List.filter((t: CanvasGraph.test_info) =>
+               List.mem(t.t_id, subjects) || List.mem(e.e_name, t.t_refs)
+             )
+          |> List.map(t =>
+               row(~subject=List.mem(t.CanvasGraph.t_id, subjects), t)
+             );
+        switch (rows) {
+        | [] => [placeholder("No test mentions " ++ e.e_label ++ ".")]
+        | _ => [
+            div(
+              ~attrs=[clss(["canvas-test-head"])],
+              [text("tests mentioning " ++ e.e_label)],
+            ),
+            ...rows,
+          ]
+        };
+      | None =>
+        switch (
+          Option.bind(selected_item, id =>
+            List.find_opt(
+              (t: CanvasGraph.test_info) => t.t_id == id,
+              graph.all_tests,
+            )
+          )
+        ) {
+        | Some(t) => [
+            row(~subject=false, t),
+            div(
+              ~attrs=[clss(["canvas-test-head"])],
+              [
+                text(
+                  t.t_refs == []
+                    ? "mentions no function"
+                    : "mentions " ++ String.concat(", ", t.t_refs),
+                ),
+              ],
+            ),
+          ]
+        | None =>
+          switch (graph.all_tests) {
+          | [] => [placeholder("No tests in this program.")]
+          | _ => [
+              placeholder(
+                "Pick a function to list the tests that mention it.",
+              ),
+            ]
+          }
+        }
+      };
+    };
+    let tab_btn = (key, glyph, tip) =>
+      div(
+        ~attrs=[
+          clss(["canvas-info-tab"] @ (tab == key ? ["active"] : [])),
+          Attr.title(tip),
+          Attr.on_click(_ => set_tab(key)),
+        ],
+        [span([text(glyph)])],
+      );
+    let tabs =
+      div(
+        ~attrs=[clss(["canvas-info-tabs"])],
+        [
+          tab_btn(
+            "values",
+            {js|≡|js},
+            "values: observed samples of the selection",
+          ),
+          tab_btn(
+            "definition",
+            {js|ƒ|js},
+            "definition: the selected definition's code",
+          ),
+          tab_btn("tests", {js|✓|js}, "tests mentioning the selection"),
+        ],
+      );
+    let content =
+      switch (tab) {
+      | "values" => values_content
+      | "tests" => tests_content
+      | _ => definition_content
+      };
+    /* height: content-sized up to 240 px by default; a dragged height
+       is EXPLICIT (the panel holds it, content scrolls inside) and a
+       double-click on the handle returns to content-sized. The drag
+       writes styles imperatively; one settings action at the end
+       persists it. */
+    let explicit = globals.settings.sidebar.canvas_panel_height;
+    let cap = Option.value(explicit, ~default=240);
+    let handle = {
+      let dragged = ref(None: option(int));
+      let rec on_move = evt => {
+        switch (Util.JsUtil.get_elem_by_id_opt("canvas-info")) {
+        | Some(panel) =>
+          let rect =
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              panel,
+              "getBoundingClientRect",
+              [||],
+            );
+          let bottom: float = Js_of_ocaml.Js.Unsafe.coerce(rect)##.bottom;
+          let y: float = Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientY;
+          let h = max(60, min(900, int_of_float(bottom -. y)));
+          dragged := Some(h);
+          let px = Js_of_ocaml.Js.string(string_of_int(h) ++ "px");
+          Js_of_ocaml.Js.Unsafe.set(
+            Js_of_ocaml.Js.Unsafe.coerce(panel)##.style,
+            "maxHeight",
+            px,
+          );
+          Js_of_ocaml.Js.Unsafe.set(
+            Js_of_ocaml.Js.Unsafe.coerce(panel)##.style,
+            "height",
+            px,
+          );
+
+        | None => ()
+        };
+        ();
+      }
+      and on_up = _ => {
+        let doc = Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Dom_html.document);
+        let _ = doc##removeEventListener("mousemove", on_move);
+        let _ = doc##removeEventListener("mouseup", on_up);
+        switch (dragged^) {
+        | Some(h) =>
+          Effect.Expert.handle_non_dom_event_exn(
+            globals.inject_global(
+              Set(Sidebar(SetCanvasPanelHeight(Some(h)))),
+            ),
+          )
+        | None => ()
+        };
+        ();
+      };
+      div(
+        ~attrs=[
+          clss(["canvas-info-handle"]),
+          Attr.title(
+            explicit == None
+              ? "drag to set the panel's height"
+              : "drag to set the panel's height; double-click: size to content again",
+          ),
+          Attr.on_double_click(_ =>
+            globals.inject_global(Set(Sidebar(SetCanvasPanelHeight(None))))
+          ),
+          Attr.on_mousedown(_ => {
+            let doc =
+              Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Dom_html.document);
+            let _ = doc##addEventListener("mousemove", on_move);
+            let _ = doc##addEventListener("mouseup", on_up);
+            Effect.Prevent_default;
+          }),
+        ],
+        [],
+      );
+    };
+    div(
+      ~attrs=[
+        Attr.id("canvas-info"),
+        clss(["canvas-info", "tab-" ++ tab]),
+        Attr.create(
+          "style",
+          switch (explicit) {
+          | Some(h) => Printf.sprintf("height: %dpx; max-height: %dpx;", h, h)
+          | None => Printf.sprintf("max-height: %dpx;", cap)
+          },
+        ),
+      ],
+      [handle, tabs, div(~attrs=[clss(["canvas-info-body"])], content)],
+    );
+  };
   let toolbar = {
     let btn = (~cls="", ~on_press: unit => unit=() => (), label, tooltip, eff) =>
       div(
@@ -2756,6 +3296,7 @@ let view_impl =
         div(~attrs=[clss(["toolbar-spacer"])], []),
         div(~attrs=[Attr.id("canvas-clock"), clss(["canvas-clock"])], []),
         CanvasReplayView.rec_dot(),
+        main_btn,
         split_btn,
       ],
     );
@@ -3870,8 +4411,7 @@ let view_impl =
         ],
       ),
     ]
-    @ focus_strip
-    @ [legend, menu_layer],
+    @ [info_panel, menu_layer],
   );
 };
 
@@ -3883,6 +4423,9 @@ let view =
       ~editors_inject: Editors.Update.t => Effect.t(unit),
       ~editor: CodeWithStatics.Model.t,
       ~use_sidebar_width=true,
+      ~main_mode=false,
+      ~selected_item: option(Id.t)=None,
+      ~definition_view: option(Node.t)=None,
       (),
     )
     : Node.t => {
@@ -3896,6 +4439,9 @@ let view =
       ~editors_inject,
       ~editor,
       ~use_sidebar_width,
+      ~main_mode,
+      ~selected_item,
+      ~definition_view,
       (),
     );
   let ms = CanvasBuffer.now() -. t0;
