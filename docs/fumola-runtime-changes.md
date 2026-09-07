@@ -124,6 +124,13 @@ Hazel's calls resolved, and every one of those checks passed while the feature
 was broken. What changed was **the shape of the data flowing through an
 unchanged interface**.
 
+The breakage was also invisible from the most obvious test path, which is the
+part worth internalising. The default view of that page still worked:
+`exampleMergeSort`'s body names no alias but `M`, and unused imports are
+filtered out before they can fail. It took clicking the one body that reached
+for its module's *neighbours*. So "I opened the page and it was fine" was true
+and meant nothing.
+
 So "the contract is six functions wide" is true and is not sufficient. The
 export diff catches a changed *signature*; it is blind to a changed
 *convention* — a path that gains a slash, an id that starts being a string, a
