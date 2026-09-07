@@ -155,7 +155,9 @@ type example_id =
   | SigType1
   | ModuleKeyword1
   | ModuleKeywordDecl1
-  | SigTypeAbstract1;
+  | SigTypeAbstract1
+  | ImplicitPat1
+  | ImplicitTyp1;
 
 /* No deriving: nothing serializes an `example`, `form` or `group`. Only the id
    enums need serializers, because `ExplainThisModel.t` is what `Store`
@@ -307,7 +309,9 @@ type form_id =
   | SigTypeDecl
   | ModuleKeywordExp
   | ModuleKeywordDecl
-  | SigTypeAbstractDecl;
+  | SigTypeAbstractDecl
+  | ImplicitPat
+  | ImplicitTyp;
 
 type form = {
   id: form_id,

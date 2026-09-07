@@ -11,6 +11,7 @@ let tests =
     Test_Statics_Types.tests,
     Test_Statics_Modules.tests,
     Test_Statics_TypeBinders.tests,
+    Test_Statics_Implicits.tests,
   ]
   @ Test_Statics_BuiltinsTupleOperations.tests
   @ [

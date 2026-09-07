@@ -134,20 +134,6 @@ let dom_items_scoped = (dom: t): list((list((Var.t, t)), t)) =>
   |> snd
   |> List.rev;
 
-let bind_implicit = (ctx: Ctx.t, (name, sig_): (Var.t, t)): Ctx.t =>
-  Ctx.extend(
-    ctx,
-    VarEntry({
-      name,
-      id: Id.invalid,
-      typ: sig_,
-      custom_statics: None,
-    }),
-  );
-
-let bind_implicits = (ctx: Ctx.t, bs: list((Var.t, t))): Ctx.t =>
-  List.fold_left(bind_implicit, ctx, bs);
-
 let (replace_temp, replace_temp_exp) = {
   let f:
     'a.
@@ -1891,6 +1877,7 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
         (`TVar, name, bare(name)),
       ]
     | ConstructorEntry(_)
+    | ImplicitEntry(_)
     | LivelitEntry(_) => []
     };
   switch (
@@ -1920,6 +1907,7 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
           kind: Singleton(closed(def)),
         })
       | TVarEntry({kind: Abstract, _})
+      | ImplicitEntry(_)
       | LivelitEntry(_) => entry
       };
     Ctx.extend(
@@ -1931,6 +1919,22 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
     );
   };
 };
+
+/* An implicit binder binds its name as a module of its signature for the
+   later components of the domain and the codomain. */
+let bind_implicit = (ctx: Ctx.t, (name, sig_): (Var.t, t)): Ctx.t =>
+  extend_ctx(
+    ctx,
+    VarEntry({
+      name,
+      id: Id.invalid,
+      typ: sig_,
+      custom_statics: None,
+    }),
+  );
+
+let bind_implicits = (ctx: Ctx.t, bs: list((Var.t, t))): Ctx.t =>
+  List.fold_left(bind_implicit, ctx, bs);
 
 /* Bind the member declared by a closed signature item, if any. Written
    items scope sequentially: later items may mention earlier type members,
@@ -2801,10 +2805,13 @@ let rec meet =
     Some(ty1)
   | (Label(_), _) => None
   | (Arrow(d1, c1), Arrow(d2, c2))
-      when has_implicit_binders(d1) || has_implicit_binders(d2) =>
+      when
+        (has_implicit_binders(d1) || has_implicit_binders(d2))
+        && !(unknown_dom(ctx, d1) || unknown_dom(ctx, d2)) =>
     /* Same implicit positions; the right side's binders are renamed to the
        left's, which are in scope for the later components and the
-       codomain. */
+       codomain. An unknown domain meets any domain, binders included, in
+       the ordinary arm below. */
     let* (ctx', items, c2) = meet_dom(~seen, ctx, d1, d2, c2);
     let+ c = meet(~seen, ctx', c1, c2);
     Arrow(rebuild_dom(d1, items), c) |> temp;
@@ -2957,6 +2964,13 @@ let rec meet =
   | (Escaped(_), _) => None
   };
 }
+
+/* An arrow domain that is unknown after alias expansion. */
+and unknown_dom = (ctx: Ctx.t, dom: t): bool =>
+  switch (term_of(weak_head_normalize(ctx, dom))) {
+  | Unknown(_) => true
+  | _ => false
+  }
 
 /* Pairwise meet of two arrow domains with implicit binders: same length,
    implicit components at the same positions. Returns the context extended
@@ -3135,8 +3149,19 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
   | (TypeMember(_), _)
-  | (Sig(_), _)
-  | (Implicit(_), _) => t1
+  | (Sig(_), _) => t1
+  /* An implicit binder whose signature is still to be inferred takes the
+     expected one, a binder's or a plain module's. */
+  | (Implicit(mp), _) =>
+    let expected =
+      switch (term_of(t2)) {
+      | Implicit(mp2) => implicit_sig(mp2)
+      | _ => t2
+      };
+    Implicit(
+      MPat.with_typ(mp, match_synswitch(implicit_sig(mp), expected)),
+    )
+    |> rewrap1;
   };
 };
 

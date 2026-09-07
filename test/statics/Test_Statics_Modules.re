@@ -12,9 +12,6 @@ let mod_ = (x, ty) => Sig.sig_module(MPat.asc(MPat.var(x), ty));
 let closed_sig_ = items =>
   Language.Typ.temp(Sig(Closed(Language.ClosedSig.of_items(items))));
 
-let marks_of = (source): list(Language.Mark.t) =>
-  statics(parse_exp(source)) |> errors |> List.concat_map(snd);
-
 /* The marks on the nodes satisfying [pred]; fails if no node does. */
 let marks_at = (source, pred: Language.Info.t => bool): list(Language.Mark.t) =>
   switch (
@@ -68,24 +65,8 @@ let subexp_type_test =
     },
   );
 
-/* Assert that some mark in the program satisfies [pred]. */
-let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
-  Alcotest.test_case(name, `Quick, () =>
-    Alcotest.(check(bool))(name, true, List.exists(pred, marks_of(source)))
-  );
-
-/* Exactly one mark in the whole program, and it satisfies [pred]. */
-let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
-  Alcotest.test_case(name, `Quick, () =>
-    Alcotest.(check(bool))(
-      name,
-      true,
-      switch (marks_of(source)) {
-      | [m] => pred(m)
-      | _ => false
-      },
-    )
-  );
+/* marks_of, has_mark_test and single_mark_test come from
+   Test_Statics_Prelude. */
 
 /* No marks at all in the program. */
 let no_marks_test = (name, source) =>
