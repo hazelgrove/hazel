@@ -749,24 +749,46 @@ let extract_impl =
       | _ => None,
       items,
     );
-  let rec refold_local = (path: list(string), ty: Typ.t): option(string) =>
+  /* the local alias (nearest enclosing module first) whose body prints
+     like [printed] */
+  let rec alias_for = (path: list(string), printed: string): option(string) =>
     if (path == []) {
       None;
     } else {
-      let printed = pretty_ty(ty);
       switch (
         List.find_opt(
           ((p, _, body)) => p == path && body == printed,
           internal_alias_bodies,
         )
       ) {
-      | Some((p, n, _)) => Some(qname(p, n))
+      | Some((_, n, _)) => Some(n)
       | None =>
         switch (List.rev(path)) {
         | [] => None
-        | [_, ...rev_parent] => refold_local(List.rev(rev_parent), ty)
+        | [_, ...rev_parent] => alias_for(List.rev(rev_parent), printed)
         }
       };
+    };
+  /* bottom-up: inner components fold first, so `[Tile]` is recognized
+     inside `(Int, Int, [Tile])` — the alias bodies name their aliases */
+  let refold_ty = (path: list(string), ty: Typ.t): Typ.t =>
+    path == []
+      ? ty
+      : Typ.map_term(
+          ~f_typ=
+            (cont, t) => {
+              let t' = cont(t);
+              switch (alias_for(path, pretty_ty(t'))) {
+              | Some(n) => Typ.temp(Var(n))
+              | None => t'
+              };
+            },
+          ty,
+        );
+  let refold_local = (path: list(string), ty: Typ.t): option(string) =>
+    switch (Typ.term_of(refold_ty(path, ty))) {
+    | Var(n) => Option.map(q => q, resolve_internal(path, n))
+    | _ => None
     };
   /* qualified ty_ref: internal alias names map to their qualified keys */
   let ty_ref_at =
@@ -783,7 +805,12 @@ let extract_impl =
     | Derived =>
       switch (refold_local(path, ty)) {
       | Some(q) => (q, Alias)
-      | None => (k, kind)
+      | None =>
+        /* not an alias itself, but its components may be: key the
+           folded form ("[Tile]", "(Int, Tile)") so glyphs read as the
+           programmer wrote them */
+        let folded = refold_ty(path, ty);
+        folded === ty ? (k, kind) : ty_ref(~anchor, folded);
       }
     | _ => (k, kind)
     };
@@ -1159,6 +1186,10 @@ let extract_impl =
           qn,
         ),
       ) => {
+        /* fold the module's inlined local aliases back BEFORE reading
+           the arrow: `width : Room -> Int` arrives as
+           `(Int, Int, [Tile]) -> Int`, which would read as three args */
+        let ty = refold_ty(path, ty);
         let (args, ret) = flatten_arrow(ty);
         switch (args) {
         | [] =>

@@ -3320,8 +3320,25 @@ let view_impl =
                  },
                ([], []),
              );
+        /* a label leader that appears on an EXISTING edge (its pill was
+           pushed by the relayout) belongs to the drift, not to a beat's
+           default stagger */
+        let drift_t = Option.value(CanvasScore.drift_at(score), ~default=0);
+        let old_leaders =
+          lay.edges
+          |> List.filter_map((el: CanvasLayout.edge_layout) =>
+               List.exists(
+                 (e: CanvasScore.new_edge) => e.name == el.edge.e_name,
+                 new_edges,
+               )
+                 ? None
+                 : Some((
+                     "clead-" ++ CanvasView.sanitize(el.edge.e_name),
+                     Option.some(drift_t),
+                   ))
+             );
         Animation.set_geom_schedule(
-          forms @ deps @ draws @ leaders @ hull_geoms,
+          forms @ deps @ draws @ leaders @ old_leaders @ hull_geoms,
         );
       };
       CanvasBuffer.extend_dwell(float_of_int(score.total_ms) +. 600.);

@@ -793,10 +793,26 @@ let frame_for =
       ~cur: frame,
       ~all: list(pos),
       ~required: list(pos),
+      /* wanted in view when they fit (C2's unexposed nodes); a set the
+         view cannot hold at the minimum zoom made the minimal pan chase
+         one edge then the other, every act */
+      ~soft: list(pos)=[],
+      (),
     )
     : option(frame) => {
   let (w, h) = pane;
   let pad = 44.;
+  let fit_of = (b: bbox) =>
+    min(
+      (w -. 2. *. frame_margin) /. max(1., b.x1 -. b.x0),
+      (h -. 2. *. frame_margin) /. max(1., b.y1 -. b.y0),
+    );
+  let with_soft = bbox_of(~pad, required @ soft);
+  let required =
+    switch (with_soft) {
+    | Some(b) when fit_of(b) >= 0.5 => required @ soft
+    | _ => required
+    };
   switch (bbox_of(~pad, required)) {
   | None => None
   | Some(req) =>
@@ -845,7 +861,10 @@ let frame_for =
       };
     | None =>
       let vr = view_rect(~pane, cur);
-      if (contains(~margin=frame_margin, vr, req)) {
+      /* hysteresis: a target that is in view, even inside the margin
+         band, holds the camera — panning it to the band's edge on every
+         act made a 26-act score rock 20 px left and right per act */
+      if (contains(~margin=6., vr, req)) {
         None;
       } else {
         /* zoom out only if the required set cannot fit at this zoom; and
@@ -946,16 +965,36 @@ let with_frames =
   let all = List.filter_map(pos_of, all_keys);
   let unexposed =
     List.filter_map(k => List.mem(k, exposed) ? None : pos_of(k), all_keys);
+  /* C3: the beat is framed WHOLE before its first act — everything its
+     acts will touch, in one view — and held; per-act frames only when an
+     act's targets leave it (a 26-act module insert used to pan 200–500 px
+     on every act, following the actor around) */
+  let beat_targets =
+    List.concat_map(((_, a)) => act_targets(~pos_of, a), s.acts);
+  let (frames0, cur) =
+    switch (
+      frame_for(
+        ~pane,
+        ~cur,
+        ~all,
+        ~required=beat_targets,
+        ~soft=unexposed,
+        (),
+      )
+    ) {
+    | Some(f) => ([(0, f)], f)
+    | None => ([], cur)
+    };
   let (frames, _) =
     List.fold_left(
       ((acc, cur), (t, a)) => {
-        let required = act_targets(~pos_of, a) @ unexposed;
-        switch (frame_for(~pane, ~cur, ~all, ~required)) {
+        let required = act_targets(~pos_of, a);
+        switch (frame_for(~pane, ~cur, ~all, ~required, ())) {
         | Some(f) => ([(t, f), ...acc], f)
         | None => (acc, cur)
         };
       },
-      ([], cur),
+      (frames0, cur),
       s.acts,
     );
   {

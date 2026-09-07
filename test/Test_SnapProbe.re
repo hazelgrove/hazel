@@ -225,6 +225,63 @@ let tests = [
     },
   ),
   test_case(
+    "nested local aliases fold bottom-up (Room = (Int, Int, [Tile]))",
+    `Quick,
+    () => {
+      let prog = "module D = {\n  type Tile =\n    + Floor\n    + Wall;\n  type Room = (Int, Int, [Tile]);\n  let width(r: Room): Int =\n    let (w, _, _) = r in\n    w;\n  let nth(ts: [Tile], i: Int): Tile =\n    case ts\n    | [] => Wall\n    | hd :: tl => hd\n    end\n} in\n?";
+      switch (Parser.to_zipper(~root=Exp, prog)) {
+      | None => fail("parse failed")
+      | Some(z) =>
+        let st =
+          CachedStatics.init_compositional(
+            ~settings=Language.CoreSettings.on,
+            ~stitch=x => x,
+            ~root=Exp,
+            Move.to_end(z),
+          );
+        let g = Web.CanvasGraph.extract(st);
+        let edge = n =>
+          List.find_opt((e: Web.CanvasGraph.edge) => e.e_name == n, g.edges);
+        switch (edge("D.width"), edge("D.nth")) {
+        | (Some(w), Some(nth)) =>
+          check(string, "width's domain is Room", "D.Room", w.e_src);
+          let src =
+            List.find_opt(
+              (n: Web.CanvasGraph.tynode) => n.key == nth.e_src,
+              g.nodes,
+            );
+          switch (src) {
+          | Some(n) =>
+            check(
+              bool,
+              "nth's first part folds to [Tile]",
+              true,
+              switch (n.parts) {
+              | ["[Tile]", ..._] => true
+              | _ => false
+              },
+            )
+          | None => fail("no product for nth")
+          };
+          check(string, "nth's codomain is Tile", "D.Tile", nth.dst);
+        | _ => fail("edges missing")
+        };
+        /* no inlined-body glyph survives as a node */
+        let keys = List.map((n: Web.CanvasGraph.tynode) => n.key, g.nodes);
+        check(
+          bool,
+          "no '(Int, Int, [Floor…' glyph",
+          false,
+          List.exists(
+            k =>
+              String.length(k) > 12 && String.sub(k, 0, 12) == "(Int, Int, [",
+            keys,
+          ),
+        );
+      };
+    },
+  ),
+  test_case(
     "a member typed with a local alias attaches to the alias", `Quick, () =>
     switch (Parser.to_zipper(~root=Exp, nested_prog)) {
     | None => fail("parse failed")

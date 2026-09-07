@@ -265,14 +265,16 @@ let framing = () => {
     bool,
     "hold when all visible",
     true,
-    S.frame_for(~pane, ~cur, ~all, ~required=[p(500., 300.)]) == None,
+    S.frame_for(~pane, ~cur, ~all, ~required=[p(500., 300.)], ()) == None,
   );
   /* the whole program fits but sits off-center: frame it */
   let far_cur: S.frame = {
     center: p(1400., 300.),
     zoom: 1.,
   };
-  switch (S.frame_for(~pane, ~cur=far_cur, ~all, ~required=[p(500., 300.)])) {
+  switch (
+    S.frame_for(~pane, ~cur=far_cur, ~all, ~required=[p(500., 300.)], ())
+  ) {
   | Some(f) =>
     check(
       bool,
@@ -288,7 +290,9 @@ let framing = () => {
     List.init(40, i =>
       p(float_of_int(i) *. 100., float_of_int(i mod 7) *. 150.)
     );
-  switch (S.frame_for(~pane, ~cur, ~all=big, ~required=[p(1000., 300.)])) {
+  switch (
+    S.frame_for(~pane, ~cur, ~all=big, ~required=[p(1000., 300.)], ())
+  ) {
   | Some(f) =>
     check(
       bool,
