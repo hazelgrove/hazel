@@ -1251,6 +1251,26 @@ and uexp_to_info_map =
       );
 
     | Dot(e1, e2) =>
+      /* A capitalized module name parses as a constructor, so a projection
+         off one is a module access whenever a module of that name is in
+         scope: projecting a constructor itself means nothing, and a
+         constructor of the same name still applies as before. Without this
+         a constructor shadows the module, which the JSON type's `List`,
+         `Int`, `String`, `Float` and `Bool` do for every program. */
+      let e1 =
+        switch (Exp.term_of(e1)) {
+        | Constructor(name, _)
+            when
+              Ctx.lookup_var(ctx, name)
+              |> Option.map((v: Ctx.var_entry) =>
+                   Typ.as_sig(~rec_counter=0, ctx, v.typ) != None
+                 )
+              |> Option.value(~default=false) => {
+            ...e1,
+            term: (Var(name): Exp.term),
+          }
+        | _ => e1
+        };
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
       /* Dot looks through one List level (column projection over a list
          of labeled tuples), so the element head must be resolved too. */
