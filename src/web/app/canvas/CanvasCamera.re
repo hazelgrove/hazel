@@ -213,7 +213,9 @@ let dead_zone_frac = 0.6;
 /* a glide pulls the destination this far toward center (not all the way:
    hysteresis, and it reads as "dragging along" rather than snapping) */
 let recenter_pull = 0.7;
-let zoom_min = 0.7;
+/* the whole program is shown down to this zoom (the score's framing uses
+   the same floor); below it the camera follows the actor */
+let zoom_min = 0.5;
 let zoom_max = 1.3;
 /* board-px padding around the region of interest when fitting it */
 let roi_pad = 110.;

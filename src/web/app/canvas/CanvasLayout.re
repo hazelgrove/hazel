@@ -456,8 +456,8 @@ let layout_impl =
         @ formation_edges
         @ module_flow_pull,
       attachments,
-      col_gap: 126.,
-      row_gap: 72.,
+      col_gap: 160.,
+      row_gap: 96.,
       margin,
       x_stretch: x_scale,
       y_stretch: y_scale,

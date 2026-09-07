@@ -798,7 +798,10 @@ let formation =
   | Some(dot) =>
     let part_pts = List.filter_map(node_board, parts);
     let n = List.length(part_pts);
-    let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
+    /* the dot grows over the last part of the act's duration (a
+       compressed score shortens the visits and the growth alike) */
+    let form_ms = min(form_ms, dur *. 0.4);
+    let visit = n > 0 ? max(0., dur -. form_ms) /. float_of_int(n) : 0.;
     let t_visited = t +. visit *. float_of_int(n);
     cancel_anims(dot);
     animate(

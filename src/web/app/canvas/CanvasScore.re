@@ -365,8 +365,9 @@ let edge_act =
   let (form, t_draw) =
     switch (e.product) {
     | Some((pk, parts)) =>
-      /* 400 ms per part visited, then the lines draw in (form_ms) */
-      let dur = 400 * List.length(parts) + 320;
+      /* a visit per part (a pause each), then the lines draw in — all on
+         the beat's tempo, so a compressed score compresses here too */
+      let dur = (tempo.pause - 100) * List.length(parts) + tempo.effect;
       (
         [
           {
@@ -1022,7 +1023,7 @@ let appear_times = (s: score): list((string, int)) =>
     ((t, _, e: timed_effect)) =>
       switch (e.effect) {
       | Appear(k) => Some((k, t))
-      | Form(pk, _) => Some((pk, t + e.dur - 320))
+      | Form(pk, _) => Some((pk, t + e.dur - min(320, e.dur * 2 / 5)))
       | _ => None
       },
     effects_abs(s),

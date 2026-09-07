@@ -1080,13 +1080,17 @@ let view_impl =
         | Some(avail) =>
           /* fill the pane, less a margin the camera can see as "all in" */
           let target = avail -. 56.;
-          let s1 = min(1.8, max(0.7, target /. virgin.width));
-          if (s1 >= 1.8 || s1 <= 0.7) {
+          /* never tighter than the layout's natural size: a wide program
+             was squeezed to 0.7× and then the camera zoomed out on top of
+             that (a double squeeze, "everything in the same place"). Now
+             the layout keeps its spacing and the camera does the fitting. */
+          let s1 = min(1.8, max(1., target /. virgin.width));
+          if (s1 >= 1.8 || s1 <= 1.) {
             s1;
           } else {
             let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
             v1.width >= target -. 30. && v1.width <= target +. 30.
-              ? s1 : min(1.8, max(0.7, s1 *. target /. v1.width));
+              ? s1 : min(1.8, max(1., s1 *. target /. v1.width));
           };
         | None => 1.
         };
