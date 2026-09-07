@@ -2,7 +2,7 @@
 show_report version=1 id=e0000004-0004-0004-0004-000000000004
 
 @prompt
-Probes produce **samples**, the green rectangles at the end of the line. You can right-click a sample to see the values of the variables feeding it.
+Probes produce **samples**, the green rectangles at the end of the line. You can right-click a sample to see the values of the variables feeding it. On a function call's sample, it also shows each argument's value.
 
 # Tasks
 The Night Gardener almanac says: a base of **250 ml**, **7** days, and a **50 ml** new-moon bonus, for a weekly total of **1800 ml**.
@@ -11,6 +11,7 @@ The Night Gardener almanac says: a base of **250 ml**, **7** days, and a **50 ml
 2. Probe the `weekly` definition: caret on the `+`, then **Cmd/Ctrl+E**. The sample does not read 1800. Either the formula is wrong, or one of the numbers feeding it is.
 3. Check the inputs first: **right-click the sample** showing `1755` (a two-finger tap on a Mac trackpad, or Option-click). The dropdown lists the value of every variable the probed expression uses (now in the Quick Reference); only variables from *outside* the expression appear. Here, you can just see those values immediately above in the code, but this may not always be the case.
 4. Compare those values against the almanac. Fix the binding that is off, and `weekly` comes to **1800** (and the result flips to `true`).
+5. Calls show more: probe the `weekly_water` call and right-click its sample. The dropdown also lists each argument's value by parameter name (`daily = 250`, `topup = 50`). Handy when an argument is computed, like `2 * 125`: reading it otherwise would take a probe of its own.
 
 @hint
 The dropdown shows `base`, `days`, and `bonus` next to their values. One of them does not match the almanac.
@@ -23,6 +24,8 @@ let base = 250 in
 let days = 7 in
 let bonus = 5 in
 let weekly = base * days + bonus in
+let weekly_water(daily: Int, topup: Int): Int = daily * 7 + topup in
+weekly_water(2 * 125, 50);
 weekly == 1800
 
 @test
