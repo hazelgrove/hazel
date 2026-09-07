@@ -22,7 +22,16 @@ type spring = {
   mutable ty: float,
   mutable r: float,
   mutable seen: bool,
+  /* a scored relayout: the circle GLIDES from (gx, gy) to its target on
+     the nodes' own schedule (start, duration, ease-out-expo) instead of
+     springing — springs led the nodes by most of a second and overshot
+     ("the metaballs are out of sync with the nodes") */
+  mutable glide: option((float, float, float, float)) /* gx gy t0 dur */
 };
+
+/* ease-out-expo, the movers' curve (Animation.easeOutExpo) */
+let ease = (u: float): float =>
+  u >= 1. ? 1. : 1. -. Float.pow(2., (-10.) *. u);
 
 let springs: Hashtbl.t(string, spring) = Hashtbl.create(64);
 let running = ref(false);
@@ -50,15 +59,31 @@ let rec tick = (): unit => {
   let dead: ref(list(string)) = ref([]);
   Hashtbl.iter(
     (id, s) => {
-      /* stiffness scales inversely with radius: big = heavy = sloshy */
-      let k = 260. *. (42. /. max(20., s.r));
-      let c = 2. *. Float.sqrt(k) *. 0.62; /* underdamped: wobble */
-      let ax = k *. (s.tx -. s.x) -. c *. s.vx
-      and ay = k *. (s.ty -. s.y) -. c *. s.vy;
-      s.vx = s.vx +. ax *. dt;
-      s.vy = s.vy +. ay *. dt;
-      s.x = s.x +. s.vx *. dt;
-      s.y = s.y +. s.vy *. dt;
+      switch (s.glide) {
+      | Some((gx, gy, t0, dur)) =>
+        let u = dur <= 0. ? 1. : (t -. t0) /. dur;
+        if (u >= 1.) {
+          s.x = s.tx;
+          s.y = s.ty;
+          s.vx = 0.;
+          s.vy = 0.;
+          s.glide = None;
+        } else if (u > 0.) {
+          let e = ease(u);
+          s.x = gx +. (s.tx -. gx) *. e;
+          s.y = gy +. (s.ty -. gy) *. e;
+        };
+      | None =>
+        /* stiffness scales inversely with radius: big = heavy = sloshy */
+        let k = 260. *. (42. /. max(20., s.r));
+        let c = 2. *. Float.sqrt(k) *. 0.62; /* underdamped: wobble */
+        let ax = k *. (s.tx -. s.x) -. c *. s.vx
+        and ay = k *. (s.ty -. s.y) -. c *. s.vy;
+        s.vx = s.vx +. ax *. dt;
+        s.vy = s.vy +. ay *. dt;
+        s.x = s.x +. s.vx *. dt;
+        s.y = s.y +. s.vy *. dt;
+      };
       energy :=
         energy^
         +. abs_float(s.tx -. s.x)
@@ -119,12 +144,27 @@ let kick = (): unit =>
 
 /* push fresh targets; unseen circles are born AT their target (no
    fly-in), known circles keep their current state and chase */
-let set_targets = (ts: list((string, CanvasLayout.pos, float))): unit => {
+let set_targets =
+    /* Some((start, dur)): a staged beat — existing circles glide on the
+       nodes' schedule; None: springs (drags, idle relayouts) */
+    (
+      ~glide: option((float, float))=None,
+      ts: list((string, CanvasLayout.pos, float)),
+    )
+    : unit => {
   Hashtbl.iter((_, s) => s.seen = false, springs);
   List.iter(
     ((id, p: CanvasLayout.pos, r)) =>
       switch (Hashtbl.find_opt(springs, id)) {
       | Some(s) =>
+        let moved =
+          abs_float(p.x -. s.tx) > 0.5 || abs_float(p.y -. s.ty) > 0.5;
+        if (moved) {
+          switch (glide) {
+          | Some((t0, dur)) => s.glide = Some((s.x, s.y, t0, dur))
+          | None => ()
+          };
+        };
         s.tx = p.x;
         s.ty = p.y;
         s.r = r;
@@ -142,6 +182,7 @@ let set_targets = (ts: list((string, CanvasLayout.pos, float))): unit => {
             ty: p.y,
             r,
             seen: true,
+            glide: None,
           },
         )
       },

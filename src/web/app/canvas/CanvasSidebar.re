@@ -2779,9 +2779,10 @@ let view_impl =
   | _ => ()
   };
   ensure_scroll_anchor(slide);
-  /* hull circles chase these targets with springs (jelly): layout
-     changes, drags, and collapses all wobble through CanvasJelly */
-  CanvasJelly.set_targets(CanvasView.hull_targets(lay));
+  /* hull circles follow these targets (CanvasJelly): on a scored render
+     they glide on the nodes' schedule (set below, once the score is
+     planned); otherwise they spring — drags and collapses wobble */
+  let hull_targets = CanvasView.hull_targets(lay);
   {
     let (prev_slide, prev_nodes) = last_node_snapshot^;
     if (prev_slide != slide) {
@@ -3241,6 +3242,22 @@ let view_impl =
         @ hull_arrivals,
       );
       Animation.set_movers_at(CanvasScore.drift_at(score));
+      /* the hulls move with the nodes: same start (the drift act, or the
+         beat's lead), same duration, same curve */
+      CanvasJelly.set_targets(
+        ~glide=
+          Some((
+            CanvasBuffer.now()
+            +. float_of_int(
+                 max(
+                   CanvasBuffer.lead_ms,
+                   Option.value(CanvasScore.drift_at(score), ~default=0),
+                 ),
+               ),
+            float_of_int(CanvasBuffer.relayout_ms),
+          )),
+        hull_targets,
+      );
       {
         /* new geometry follows its act: formation/dep lines draw on right
            after the node they attach to blooms; new function paths stay
@@ -3389,10 +3406,16 @@ let view_impl =
         CanvasEnact.check_jumps(~zoom);
         CanvasEnact.play(~zoom, score);
       });
-    } else if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
-      CanvasLog.log(
-        Printf.sprintf("+%d node(s) (unscored render)", List.length(added)),
-      );
+    } else {
+      if (prev_slide == slide && CanvasBuffer.in_burst() && added != []) {
+        CanvasLog.log(
+          Printf.sprintf(
+            "+%d node(s) (unscored render)",
+            List.length(added),
+          ),
+        );
+      };
+      CanvasJelly.set_targets(hull_targets);
     };
     {
       /* data-flow pulses: when a function's output samples GROW, send a
