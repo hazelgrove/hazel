@@ -53,6 +53,11 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         Kind.view(~globals, kind),
       ],
     )
+  | ImplicitEntry({name, _}) =>
+    div(
+      ~attrs=[clss(["context-entry", "code"])],
+      [div_name([text("implicit " ++ name)])],
+    )
   | LivelitEntry({name, expansion_t, _}) =>
     div(
       ~attrs=[

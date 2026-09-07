@@ -38,6 +38,12 @@ type exp =
       name: LabeledTuple.label,
       labels: list(LabeledTuple.label),
     })
+  /* An application whose implicit parameters were resolved: each binder
+     with the instance chosen for it, plus the usual type payload. */
+  | ImplicitResolved({
+      resolved: list((Var.t, Var.t)),
+      common: ok_common,
+    })
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

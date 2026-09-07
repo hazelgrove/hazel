@@ -1680,10 +1680,13 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(ty1)
   | (Label(_), _) => None
   | (Arrow(d1, c1), Arrow(d2, c2))
-      when has_implicit_binders(d1) || has_implicit_binders(d2) =>
+      when
+        (has_implicit_binders(d1) || has_implicit_binders(d2))
+        && !(unknown_dom(ctx, d1) || unknown_dom(ctx, d2)) =>
     /* Same implicit positions; the right side's binders are renamed to the
        left's, which are in scope for the later components and the
-       codomain. */
+       codomain. An unknown domain meets any domain, binders included, in
+       the ordinary arm below. */
     let* (ctx', items, c2) = meet_dom(ctx, d1, d2, c2);
     let+ c = meet(ctx', c1, c2);
     Arrow(rebuild_dom(d1, items), c) |> temp;
@@ -1794,6 +1797,13 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Escaped(_), _) => None
   };
 }
+
+/* An arrow domain that is unknown after alias expansion. */
+and unknown_dom = (ctx: Ctx.t, dom: t): bool =>
+  switch (term_of(weak_head_normalize(ctx, dom))) {
+  | Unknown(_) => true
+  | _ => false
+  }
 
 /* Pairwise meet of two arrow domains with implicit binders: same length,
    implicit components at the same positions. Returns the context extended

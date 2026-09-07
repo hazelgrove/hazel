@@ -178,6 +178,86 @@ knows, that `m` is a particular module, cannot be written in an ordinary
 arrow type; an implicit binder can hold it, and an ML sharing constraint for
 ordinary module parameters is the missing feature.
 
+Avoidance is lossy where the equation could be kept. A parameter component
+annotated with an earlier component's member is erased along with the
+result, so nothing is checked at the call:
+
+```
+let dup = fun (m : SHOW, x : m.T) -> (x, x) in
+let out : (String, String) = dup(ShowInt, 3) in out   -- no error, runs to (3:String, 3:String)
+```
+
+An ordinary arrow has nowhere to bind `m`, so `?` is the sound reading. An
+implicit binder does have that binder, and marking the parameter `implicit`
+keeps the equation and reports the annotation (see "Implicit modules"). Only
+the spelling for an ordinary module parameter, an ML sharing constraint, is
+missing.
+
+### Implicit modules
+
+```
+type SHOW = { type T; let show : T -> String } in
+let implicit ShowInt = { type T = Int; let show = string_of_int } in
+let implicit ShowBool = { type T = Bool; let show = fun b -> ... } in
+let show = fun (implicit S : SHOW, x : S.T) -> S.show(x) in
+   -- show : (implicit S : SHOW, S.T) -> String
+show(3) ++ show(true)          -- "3true": S resolved to ShowInt, then ShowBool
+show(ShowBool, true)           -- passed explicitly: the arity includes S
+let count = fun (implicit S : SHOW, n : Int) -> n in count(3)   -- error: ambiguous
+show("s")                      -- error: no instance fits
+```
+
+A parameter component `implicit S : SIG` (`Pat.Implicit`) binds a module of
+signature `SIG` that callers may leave out, and it makes `S` an implicit
+instance inside the body. `let implicit M = ...` (in an expression or as a
+module item) declares `M` an instance for the rest of its scope
+(`Ctx.ImplicitEntry`); only such bindings take part in resolution. The
+function's type is an ordinary arrow whose domain carries the binder as a
+component, `(implicit S : SHOW, S.T) -> String` (`Typ.Implicit`): the
+binder scopes over the later components and the codomain, so type-level
+operations thread it (`Typ.implicit_binders`, `subst_path_root`,
+`meet_dom`).
+
+At a call `f(args)` with `p` domain components, `k` of them implicit and
+`n = p - k` explicit, the argument decides how the implicit ones are
+supplied (`Implicits.re`). A literal tuple's items are the components:
+walking the domain left to right, an implicit component takes the current
+item when items beyond the `n` explicit ones remain and that item is a
+module fitting the component's signature; otherwise it is resolved. If items
+are left over and there is one explicit component, the whole tuple is that
+component's argument (so `g((true, 1))` fits `(implicit S : SHOW, (S.T,
+Int))`). A non-literal argument counts as one component when `n = 1` and as
+its product type's arity otherwise. A resolved component
+searches the instances in scope for those whose type fits its signature; if
+several fit, the explicit arguments' types and then the expected type narrow
+them. One left is the instance; none is `ImplicitNotFound`, several is
+`ImplicitAmbiguous`, both on the application, and a hole is passed in the
+instance's place so evaluation proceeds around the error. A failure names
+the signature and the type members the call requires of the instance, `no
+implicit instance of SHOW with T = String`: matching each component that
+mentions the binder against the type supplied there, and the codomain
+against the expected type, reads those members off (`Implicits.member_eqs`).
+An unannotated binder has no signature to name, so the message leaves it
+out rather than printing an unknown type. The application
+also carries the "S is ShowInt" message when instances were resolved. Binders are
+instantiated left to right in the later components and the codomain: a
+resolved or passed binder by its instance's path, an unresolved one by
+avoidance (`Typ.avoid`). The instances are spliced into the elaborated
+argument (with ids derived from the application's), so the runtime sees an
+ordinary application and incremental evaluation re-keys on the elaboration.
+
+Instances should not seal their type members: `let implicit M : SHOW = ...`
+makes `M.T` abstract, so no argument type can select `M`. Declare instances
+unannotated or with a manifest signature, and annotate their function
+members: an unannotated `fun b -> ...` types as `? -> String`, which fits
+every `{ let show : X -> String }`. When one binder's signature depends on
+another's, prefer a manifest type member, `implicit S : { type T = E.T; let
+show : T -> String }`, which the type member of an instance decides. An instance must be a module
+(`ImplicitBinderNotModule`), and an implicit binder type belongs only in an
+arrow domain (`ImplicitBinderPosition`). Tuples are compared componentwise
+at analysis positions (`Typ.ana_meet`), so a module passed for an implicit
+parameter may be wider than its signature.
+
 ### Member Access and `module`
 
 ```
@@ -236,6 +316,7 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 | Module aliasing (`module N = M`)     | Works  |
 | Abstract type members, sealing, path types (`M.T`) | Works |
 | Module-typed functions, generative results | Works |
+| Implicit module parameters and instances (`implicit`) | Works |
 
 ## Not Yet Supported
 
@@ -458,8 +539,9 @@ used only for mispositioned items.
 | `src/language/term/Typ.re`              | Sig normalization, meet, member projection, `path_sig`             |
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
-| `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature`, `SigDuplicateMember` |
+| `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types, implicit binders in `Fun`/`Ap` and in types |
+| `src/language/statics/Implicits.re`     | Resolution of implicit parameters at applications                  |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature`, `SigDuplicateMember`, `ImplicitNotFound`, `ImplicitAmbiguous`, `ImplicitBinderNotModule`, `ImplicitBinderPosition` |
 | `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
@@ -475,12 +557,14 @@ used only for mispositioned items.
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
 | `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
-| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.AnaMeet`, `Typ.SigPaths`: meet, subtyping, paths, strengthening |
+| `test/statics/Test_Statics_Implicits.re`   | Resolution, explicit passing, ambiguity and not-found marks, binder marks |
+| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.AnaMeet`, `Typ.SigPaths`, `Typ.Implicit`: meet, subtyping, paths, strengthening, binders |
 | `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
+| `test/evaluator/Test_Evaluator_Implicits.re` | Resolved and explicitly passed instances at runtime                     |
 | `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
 | `test/Test_TyDi.re`                        | Value/type member completion                                              |
 | `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
-| `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade                 |
+| `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade; `Editing.Implicit`: the `implicit` tiles |
 | `test/statics/Test_Statics_Properties.re` | `Root type mentions no internal binder` (QCheck, signatures generated)     |
 
 ### In-Editor Documentation
@@ -491,4 +575,5 @@ used only for mispositioned items.
 | `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
 | `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide (width sealing) |
 | `hazel-programs/docs/reference/module-abstract-types.hz` | The Module Abstract Types slide (abstract members, module-typed functions). The four slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
-| `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
+| `hazel-programs/docs/reference/module-implicits.hz` | The Module Implicits slide (instances, resolution, explicit passing, errors); a separate file for the same reason |
+| `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re`, `Implicit*.re` | Explain-this content |
