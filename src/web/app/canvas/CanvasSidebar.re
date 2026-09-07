@@ -819,6 +819,24 @@ let view_impl =
      already-settled graph */
   let (graph, collapsed_counts) =
     collapse_filter(extract_cached(~test_results, editor.statics));
+  CanvasEnact.label_of :=
+    (
+      k =>
+        switch (value_of_score_key(k)) {
+        | Some(v) => v
+        | None =>
+          switch (
+            List.find_opt((n: CanvasGraph.tynode) => n.key == k, graph.nodes)
+          ) {
+          | Some(n) =>
+            /* a module's former: its name; a terminal: its type */
+            String.length(k) >= 3 && String.sub(k, 0, 3) == "{}@"
+              ? String.sub(k, 3, String.length(k) - 3) : n.label
+          | None => CanvasGraph.display_label(k)
+          }
+        }
+    );
+
   {
     /* on fresh statics, note the probe-sample volume when it moved
        meaningfully (floods here are a known freeze suspect) */

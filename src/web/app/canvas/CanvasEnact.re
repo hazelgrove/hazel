@@ -1200,6 +1200,10 @@ let avatar_timeline =
 /* the score on stage, and the clock reading when it began */
 let current_score: ref(option((CanvasScore.score, float))) = ref(None);
 
+/* what to call a node in the bubble: the graph's label (set per render by
+   the sidebar); keys are internal ("Int@(Monster, Int)c1", "{}@Pos") */
+let label_of: ref(string => string) = ref(k => k);
+
 /* a re-render request (the sidebar's tick), for cues whose effect is a
    rendered swap: a changed element's new look lands at its cue */
 let request_tick: ref(float => unit) = ref(_ => ());
@@ -1317,9 +1321,10 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           /* the speech bubble calls the action out for the act's stay */
           let site =
             switch (a.at) {
-            | Node(k) => CanvasGraph.display_label(k)
+            | Node(k) => label_of^(k)
             | Edge(n) => {js|ƒ|js} ++ n
-            | Centroid(ks) => Printf.sprintf("%d nodes", List.length(ks))
+            /* a tidy (drift) act has no one place to name */
+            | Centroid(_)
             | Point(_)
             | Here => ""
             };

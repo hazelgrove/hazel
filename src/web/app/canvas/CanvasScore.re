@@ -777,7 +777,10 @@ let contains = (~margin: float, outer: bbox, inner: bbox): bool =>
   && inner.y1 <= outer.y1
   -. margin;
 
-let whole_fit_min = 0.75;
+/* the whole program is shown whenever it fits at this zoom or better —
+   a node cut off at the pane's edge is worse than smaller glyphs
+   (2026-09-06: at 0.74 the rule fell to a pan that halved `Kind`) */
+let whole_fit_min = 0.6;
 let frame_margin = 30.;
 
 /* the camera's decision for one act: the required set (actor's site, the
@@ -797,7 +800,10 @@ let frame_for =
   switch (bbox_of(~pad, required)) {
   | None => None
   | Some(req) =>
-    let whole = bbox_of(~pad, all @ required);
+    /* the program's box is its NODES padded by a node's size — the same
+       box the camera's own whole-program framing judges by; the act's
+       targets (label points, arrow ends) only have to be in view */
+    let whole = bbox_of(~pad=32., all);
     let fit = (b: bbox) =>
       min(
         (w -. 2. *. frame_margin) /. max(1., b.x1 -. b.x0),
@@ -805,58 +811,96 @@ let frame_for =
       );
     let same = (a: frame, b: frame) =>
       dist(a.center, b.center) < 8. && abs_float(a.zoom -. b.zoom) < 0.02;
+    /* the whole program is framed as tightly as the camera frames it
+       (12 px), so the two never disagree about its zoom */
+    let fit_tight = (b: bbox) =>
+      min(
+        (w -. 24.) /. max(1., b.x1 -. b.x0),
+        (h -. 24.) /. max(1., b.y1 -. b.y0),
+      );
     let whole_frame =
       switch (whole) {
-      | Some(wb) when fit(wb) >= whole_fit_min =>
+      | Some(wb) when fit_tight(wb) >= whole_fit_min =>
         Some({
           center: bbox_center(wb),
-          zoom: min(1., fit(wb)),
+          zoom: min(1., fit_tight(wb)),
         })
       | _ => None
       };
     switch (whole_frame) {
     | Some(f) =>
-      /* the whole program fits: show it, but do not fidget */
+      /* the whole program fits: hold while it (and the act's targets) is
+         in view; otherwise frame it — never zooming IN mid-score (the
+         zoom is a slow variable; the camera eases in between bursts) */
       let vr = view_rect(~pane, cur);
-      if (contains(~margin=frame_margin, vr, Option.get(whole))
-          && abs_float(cur.zoom -. f.zoom) < 0.1) {
-        None;
-      } else if (same(cur, f)) {
+      if (contains(~margin=0., vr, Option.get(whole))
+          && contains(~margin=0., vr, req)) {
         None;
       } else {
-        Some(f);
+        let f = {
+          ...f,
+          zoom: min(cur.zoom, f.zoom),
+        };
+        same(cur, f) ? None : Some(f);
       };
     | None =>
       let vr = view_rect(~pane, cur);
       if (contains(~margin=frame_margin, vr, req)) {
         None;
       } else {
-        /* zoom out only if the required set cannot fit at this zoom */
-        let zoom = min(cur.zoom, max(0.5, fit(req)));
-        let f0 = {
-          ...cur,
-          zoom,
+        /* zoom out only if the required set cannot fit at this zoom; and
+           when everything currently in view plus the required set fits
+           at a readable zoom, keep it all rather than pan a node off the
+           edge (C1: the most other content in frame) */
+        let in_view =
+          List.filter(
+            (p: pos) =>
+              p.x >= vr.x0 && p.x <= vr.x1 && p.y >= vr.y0 && p.y <= vr.y1,
+            all,
+          );
+        let keep = bbox_of(~pad=32., in_view @ required);
+        /* only when the viewer had the WHOLE program in view: then losing
+           a node off the edge is the greater harm. A large program pans. */
+        let had_whole = List.length(in_view) == List.length(all);
+        switch (keep) {
+        | Some(kb)
+            when
+              had_whole
+              && !contains(~margin=frame_margin, vr, kb)
+              && fit(kb) >= 0.5
+              && fit(kb) < cur.zoom =>
+          let f = {
+            center: bbox_center(kb),
+            zoom: fit(kb),
+          };
+          same(cur, f) ? None : Some(f);
+        | _ =>
+          let zoom = min(cur.zoom, max(0.5, fit(req)));
+          let f0 = {
+            ...cur,
+            zoom,
+          };
+          let vr = view_rect(~pane, f0);
+          /* minimal pan: shift just enough to bring req inside the margin */
+          let dx =
+            req.x0 < vr.x0 +. frame_margin
+              ? req.x0 -. (vr.x0 +. frame_margin)
+              : req.x1 > vr.x1 -. frame_margin
+                  ? req.x1 -. (vr.x1 -. frame_margin) : 0.;
+          let dy =
+            req.y0 < vr.y0 +. frame_margin
+              ? req.y0 -. (vr.y0 +. frame_margin)
+              : req.y1 > vr.y1 -. frame_margin
+                  ? req.y1 -. (vr.y1 -. frame_margin) : 0.;
+          let f = {
+            center: {
+              x: cur.center.x +. dx,
+              y: cur.center.y +. dy,
+            },
+            zoom,
+          };
+          same(cur, f) ? None : Some(f);
         };
-        let vr = view_rect(~pane, f0);
-        /* minimal pan: shift just enough to bring req inside the margin */
-        let dx =
-          req.x0 < vr.x0 +. frame_margin
-            ? req.x0 -. (vr.x0 +. frame_margin)
-            : req.x1 > vr.x1 -. frame_margin
-                ? req.x1 -. (vr.x1 -. frame_margin) : 0.;
-        let dy =
-          req.y0 < vr.y0 +. frame_margin
-            ? req.y0 -. (vr.y0 +. frame_margin)
-            : req.y1 > vr.y1 -. frame_margin
-                ? req.y1 -. (vr.y1 -. frame_margin) : 0.;
-        let f = {
-          center: {
-            x: cur.center.x +. dx,
-            y: cur.center.y +. dy,
-          },
-          zoom,
-        };
-        same(cur, f) ? None : Some(f);
       };
     };
   };
@@ -1158,6 +1202,23 @@ let change_times = (s: score): list((string, int)) =>
 
 /* ---------------- journal ---------------- */
 
+/* a Point site is named by what the act does there (its first targeted
+   effect), so the journal reads "edit@damage" not "edit@·" */
+let act_target_name = (a: act): option(string) =>
+  List.find_map(
+    (e: timed_effect) =>
+      switch (e.effect) {
+      | Change(k)
+      | Vanish(k)
+      | Appear(k) => Some(k)
+      | Erase(n)
+      | Draw(n)
+      | Reveal(n) => Some(n)
+      | _ => None
+      },
+    a.effects,
+  );
+
 let site_to_string = (s: site): string =>
   switch (s) {
   | Node(k) => k
@@ -1225,7 +1286,10 @@ let act_to_string = ((t, a): (int, act)): string => {
     "%.1fs %s@%s %s",
     float_of_int(t) /. 1000.,
     emote_to_string(a.emote),
-    site_to_string(a.at),
+    switch (a.at, act_target_name(a)) {
+    | (Point(_), Some(n)) => n
+    | _ => site_to_string(a.at)
+    },
     String.concat(" ", bits),
   );
 };
