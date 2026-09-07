@@ -64,16 +64,21 @@ let same = fun (c : {type T; let zero : T}) -> c in
 module C3 = same(Counter) in
 let z3 : C3.T = C3.zero in
 
-# 42. A member of abstract type escaping its function is unknown #
+# 42. A member of abstract type escaping its function keeps #
+# an abstract type: nothing outside can name it, so it stays #
+# opaque instead of becoming unknown. #
 let leak = fun (c : {type T; let zero : T}) -> c.zero in
-let escaped = leak(Counter) in
+let opaque = leak(Counter) in
 
-# 43. Generative: each call yields a module with a fresh type #
+# 43. Error: an escaped abstract type is not Int #
+let sum = opaque + 1 in
+
+# 44. Generative: each call yields a module with a fresh type #
 let make = fun () -> ({type U = Int; let y = 1} : {type U; let y : U}) in
 module A = make() in
 module B = make() in
 let ya : A.U = A.y in
 
-# 44. Error: A.U and B.U are distinct #
+# 45. Error: A.U and B.U are distinct #
 let mixed : A.U = B.y in
 ¿
