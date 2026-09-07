@@ -23,6 +23,11 @@ type escaped = {
   label: string,
 };
 
+/* How an escaped type shows in a type: the path it came from plus a short
+   tag of its identity, since two escapes of the same path are different
+   types and would otherwise print alike. */
+let escaped_label = (e: escaped): string => e.label ++ "~" ++ Id.str3(e.id);
+
 /* Two escaped types are the same type when their ids agree. Id.invalid is a
    wildcard matched by label, which only a hand-written (test) type uses:
    avoidance always derives its ids from the term whose scope closed. */
