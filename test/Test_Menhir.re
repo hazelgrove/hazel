@@ -356,6 +356,37 @@ let tests =
         "Ascribed cons-chain parameter (element vs chain binding)",
         "fun x :: y : [T] -> 1",
       ),
+      /* PRE-EXISTING divergence, printer side: an ascription immediately
+         followed by a sum prints as `:+` with no space, and the editor lexes
+         that as one operator token, so MakeTerm gives a MultiHole (the `_` as
+         a pattern, the constructor as an expression) where menhir reads
+         `Asc(_, Sum)`. Spacing it as `: +` parses the same both ways, and
+         `menhir_roundtrip_test` on the spaced form shows the printer is not
+         stable here either. Nothing to do with signatures: the expression
+         form below diverges on its own; a signature member is only how the
+         QCheck generator reaches it, which is why `Menhir and maketerm are
+         equivalent` started failing per-seed from part 4 (its Sig generator)
+         and reproduces with QCHECK_SEED=803422318. Fix belongs in the
+         printer's spacing (or the lexer's token rule), both of which are
+         dev's. */
+      skip_menhir_maketerm_equivalent_test(
+        "Ascription abutting a sum type (`:+` lexes as one token)",
+        "let x :+ To = To in x",
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "Ascription abutting a sum type in a signature member",
+        "(()) @< ({ let y :+ To }) >",
+      ),
+      /* The same programs, spaced: these must keep passing, and they are what
+         the printer should have produced. */
+      menhir_maketerm_equivalent_test(
+        "Ascription spaced from a sum type",
+        "let x : + To = To in x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Ascription spaced from a sum type in a signature member",
+        "(()) @< ({ let y : + To }) >",
+      ),
       full_parser_test(
         "String Literal",
         string("Hello World"),
