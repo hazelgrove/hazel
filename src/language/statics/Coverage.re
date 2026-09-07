@@ -427,11 +427,12 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Sig(_)
+    /* A stuck path (`m.T`) is an abstract type: opaque, like a variable. */
     | TypeMember(_)
+    | ProdProjection(_)
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
-    | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>
@@ -568,10 +569,10 @@ module UnseenPatternList: UnseenPatternList = {
     | DrvQuoteTy(_)
     | Sig(_)
     | TypeMember(_)
+    | ProdProjection(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
-    | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>
@@ -634,10 +635,10 @@ module UnseenPatternList: UnseenPatternList = {
     | DrvQuoteTy(_)
     | Sig(_)
     | TypeMember(_)
+    | ProdProjection(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
-    | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
     | Label(_) =>
