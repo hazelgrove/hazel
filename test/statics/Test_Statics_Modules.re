@@ -1571,6 +1571,23 @@ let test_error_unknown_member_on_sealed =
     sealed_m ++ {|M.y|} |> parse_exp,
   );
 
+/* Matching on a member of abstract type: the stuck path is opaque to the
+   coverage check, like a type variable, so a variable or wildcard pattern
+   exhausts it (the checker used to fail on the path as non-normalized). */
+let test_match_on_abstract_member =
+  fully_consistent_typecheck(
+    "Matching on a member of abstract type is checked for coverage",
+    {|fun (m : { type T; let x : T }) -> case m.x | y => 1 end|},
+    Some(arrow(sig_([abs_("T"), val_("x", var("T"))]), int())),
+  );
+
+let test_match_on_abstract_list =
+  fully_consistent_typecheck(
+    "Matching on a list of an abstract type is checked for coverage",
+    {|fun (m : { type T; let xs : [T] }) -> case m.xs | [] => 0 | y::rest => 1 end|},
+    Some(arrow(sig_([abs_("T"), val_("xs", list(var("T")))]), int())),
+  );
+
 /* ===== MODULE KEYWORD TESTS ===== */
 
 /* Test module keyword with lowercase name */
@@ -2091,6 +2108,8 @@ let tests = (
     test_error_forward_reference_in_sig,
     test_sealing_through_abstract_path,
     test_non_path_projection_is_unknown,
+    test_match_on_abstract_member,
+    test_match_on_abstract_list,
     test_error_abstract_member_through_alias,
     test_error_abstract_member_through_alias_of_module_value,
     test_manifest_member_through_alias_ok,
