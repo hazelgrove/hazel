@@ -1416,7 +1416,7 @@ let test_abstract_path_annotation =
   fully_consistent_typecheck(
     "An abstract path annotates a binding; it does not leave M's scope",
     sealed_m ++ {|let q : M.T = M.x in q|},
-    Some(unknown(Internal)),
+    Some(escaped("M.T")),
   );
 
 let test_error_distinct_sealings =
@@ -1438,14 +1438,14 @@ let test_module_alias_shares_abstract_type =
   fully_consistent_typecheck(
     "module N = M shares M's abstract type",
     sealed_m ++ {|module N = M in let y : N.T = M.x in y|},
-    Some(unknown(Internal)),
+    Some(escaped("M.T")),
   );
 
 let test_variable_alias_shares_abstract_type =
   fully_consistent_typecheck(
     "let m = M shares M's abstract type",
     sealed_m ++ {|let m = M in let z : m.T = m.x in z|},
-    Some(unknown(Internal)),
+    Some(escaped("M.T")),
   );
 
 let test_manifest_member_stays_transparent =
@@ -1664,18 +1664,18 @@ let test_parameter_member_has_path_type_inside =
     path("m", "T"),
   );
 
-let test_escaping_member_type_is_unknown =
+let test_escaping_member_type_escapes =
   fully_consistent_typecheck(
     "A member of abstract type cannot escape its function parameter",
     {|fun (m : { type T; let x : T }) -> m.x|},
-    Some(arrow(s_tx, unknown(Internal))),
+    Some(arrow(s_tx, escaped("m.T"))),
   );
 
-let test_escaping_path_nested_is_unknown =
+let test_escaping_path_nested_escapes =
   fully_consistent_typecheck(
-    "An escaping path nested in a larger type becomes unknown there",
+    "An escaping path nested in a larger type escapes there too",
     {|fun (m : { type T; let x : T }) -> (m.x, 1)|},
-    Some(arrow(s_tx, prod([unknown(Internal), int()]))),
+    Some(arrow(s_tx, prod([escaped("m.T"), int()]))),
   );
 
 let test_returning_parameter_is_generative =
@@ -1713,11 +1713,11 @@ let test_generative_result_wellformed =
     Some(int()),
   );
 
-let test_generative_result_escapes_as_unknown =
+let test_generative_result_escapes =
   fully_consistent_typecheck(
-    "A path rooted at a let binder is unknown outside the let",
+    "A path rooted at a let binder escapes outside the let",
     generative ++ {|let m = f() in m.y|},
-    Some(unknown(Internal)),
+    Some(escaped("m.U")),
   );
 
 let test_error_generative_distinct_calls =
@@ -1738,18 +1738,78 @@ let test_match_binder_path_inside_arm =
     path("n", "U"),
   );
 
-let test_match_binder_path_escapes_as_unknown =
+let test_match_binder_path_escapes =
   fully_consistent_typecheck(
-    "A path rooted at a case binder is unknown outside the case",
+    "A path rooted at a case binder escapes outside the case",
     generative ++ {|case f() | n => n.y end|},
-    Some(unknown(Internal)),
+    Some(escaped("n.U")),
   );
 
-let test_sealed_let_member_escapes_as_unknown =
+let test_sealed_let_member_escapes =
   fully_consistent_typecheck(
-    "A sealed module's member type is unknown outside the module's let",
+    "A sealed module's member type escapes outside the module's let",
     sealed_m ++ {|M.x|},
-    Some(unknown(Internal)),
+    Some(escaped("M.T")),
+  );
+
+/* An escaped abstract type is still a type: it may be bound and passed
+   where nothing concrete is required, and using it at a concrete type is an
+   error that says the type escaped its module's scope. */
+let boxed = {|type BOX = {type T; let x : T} in
+module B : BOX = {type T = Int; let x = 1} in
+let get = fun (m : BOX) -> m.x in
+|};
+
+let test_escaped_value_is_not_concrete =
+  single_mark_test(
+    "An escaped abstract type cannot be used where a concrete type is required",
+    boxed ++ {|get(B) + 1|},
+    fun
+    | Language.Mark.EscapedType({path, side}) =>
+      path == "m.T" && side == Supplied
+    | _ => false,
+  );
+
+let test_escaped_value_flows_into_unknown =
+  fully_consistent_typecheck(
+    "An escaped abstract type still fits an unannotated binding",
+    boxed ++ {|let id = fun y -> y in let z : ? = get(B) in id(z)|},
+    Some(unknown(SynSwitch)),
+  );
+
+/* Generativity: each application site escapes its own abstract type, so two
+   calls yield types that do not join, while one call's value joins with
+   itself. */
+let test_escapes_are_generative_per_call =
+  has_mark_test(
+    "Two calls escape two different abstract types",
+    boxed ++ {|if true then get(B) else get(B)|},
+    fun
+    | Language.Mark.NoMeet(_, _) => true
+    | _ => false,
+  );
+
+let test_escape_joins_with_itself =
+  fully_consistent_typecheck(
+    "One call's escaped type joins with itself",
+    boxed ++ {|let y = get(B) in if true then y else y|},
+    Some(escaped("m.T")),
+  );
+
+/* A parameter annotated with an earlier component's member is closed the
+   same way, so the caller's argument is checked against an escaped type
+   rather than against nothing. */
+let test_dependent_parameter_escapes =
+  has_mark_test(
+    "A parameter annotated with a sibling module parameter's member escapes",
+    {|type SHOW = {type T; let show : T -> String} in
+module ShowInt : SHOW = {type T = Int; let show = string_of_int} in
+let dup = fun (m : SHOW, x : m.T) -> (x, x) in
+dup(ShowInt, 3)|},
+    fun
+    | Language.Mark.EscapedType({path, side}) =>
+      path == "m.T" && side == Required
+    | _ => false,
   );
 
 /* Sibling members: a member typed by another member's abstract type
@@ -2310,18 +2370,23 @@ let tests = (
     /* Module-typed functions */
     test_module_typed_parameter_interface,
     test_parameter_member_has_path_type_inside,
-    test_escaping_member_type_is_unknown,
-    test_escaping_path_nested_is_unknown,
+    test_escaping_member_type_escapes,
+    test_escaping_path_nested_escapes,
     test_returning_parameter_is_generative,
     test_signature_identity_function,
     test_escaping_into_module_becomes_abstract,
     test_module_typed_argument_application,
     test_generative_result_wellformed,
-    test_generative_result_escapes_as_unknown,
+    test_generative_result_escapes,
     test_error_generative_distinct_calls,
     test_match_binder_path_inside_arm,
-    test_match_binder_path_escapes_as_unknown,
-    test_sealed_let_member_escapes_as_unknown,
+    test_match_binder_path_escapes,
+    test_sealed_let_member_escapes,
+    test_escaped_value_is_not_concrete,
+    test_escaped_value_flows_into_unknown,
+    test_escapes_are_generative_per_call,
+    test_escape_joins_with_itself,
+    test_dependent_parameter_escapes,
     test_sibling_member_path_projects_through_module,
     test_error_sibling_member_path_is_abstract,
     test_written_out_signature_projection,

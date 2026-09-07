@@ -137,7 +137,8 @@ module body `type` still produces `type T = …`.
 ```
 fun (m : { type T; let x : T; let f : T -> Int }) -> m.f(m.x)   -- : S -> Int
 fun (m : { type T; let x : T }) -> m                            -- : S -> S
-fun (m : { type T; let x : T }) -> m.x                          -- : S -> ?
+fun (m : { type T; let x : T }) -> m.x                          -- : S -> m.T~a1b
+let get = fun (m : { type T; let x : T }) -> m.x in get(M) + 1  -- error: m.T escaped
 let make = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U })
 in let a = make() in let b = make() in (b.y : a.U)              -- error: distinct types
 ```
@@ -147,13 +148,33 @@ subtyping and sealing applied to arguments and results. Inside a body, a
 parameter's abstract types are the paths `m.T`. A path cannot leave the
 scope of its root: when a function body, a `let` body or a `case` arm is
 typed (`Typ.avoid`), a path rooted at the binder is first reduced (a
-manifest member is simply expanded), and one that is still abstract becomes
-`?`, except that a signature member defined as that path becomes abstract
-and later members refer to it by name. So a function returning its module
+manifest member is simply expanded), and one that is still abstract escapes,
+except that a signature member defined as that path becomes abstract and
+later members refer to it by name. So a function returning its module
 parameter has type `S -> S`, and each call of a function returning a module
-with abstract members yields a fresh abstract type (generativity). The same
-rule makes `module M : { type T; ... } = ... in M.x` have type `?` as a
-whole, while `M.x : M.T` inside the `in`.
+with abstract members yields a fresh abstract type (generativity).
+
+An escaped abstract type (`Typ.Escaped`) is still abstract: consistent with
+`?` and with itself, inconsistent with everything else, and closed, since it
+names no binder. It prints as the path it came from plus a short tag of its
+identity, because two escapes of one path are different types. So an escaped
+value may be bound, passed to an unannotated function or given to a hole, and
+using it where a concrete type is required is an error (`Mark.EscapedType`,
+which says which side escaped). The same rule makes `module M : { type T; ...
+} = ... in M.x` escape as a whole, while `M.x : M.T` inside the `in`.
+
+Escaping is generative per application: `Typ.freshen_escaped` gives each call
+its own identity, so `if b then get(m) else get(m)` is an error, two calls in
+a tuple are not, and a value bound once and used twice is not. Identities are
+derived from the application's id rather than generated, so re-checking an
+elaboration yields the same type.
+
+A parameter component annotated with an earlier component's member, `fun (m :
+SHOW, x : m.T)`, is closed the same way, so the caller's argument is checked
+against an escaped type and the call is an error naming it. What the caller
+knows, that `m` is a particular module, cannot be written in an ordinary
+arrow type; an implicit binder can hold it, and an ML sharing constraint for
+ordinary module parameters is the missing feature.
 
 ### Member Access and `module`
 

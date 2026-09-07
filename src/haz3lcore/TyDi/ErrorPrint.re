@@ -178,6 +178,24 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
+  | EscapedType({path, side}) =>
+    switch (side) {
+    | Required =>
+      prn(
+        "%s escaped the scope of its module, so nothing here can have that type; mark the parameter implicit, or annotate it with a manifest signature, to keep the caller's type",
+        path,
+      )
+    | Supplied =>
+      prn(
+        "This has the abstract type %s, which escaped the scope of its module, so it cannot be used where a concrete type is required",
+        path,
+      )
+    | TwoDifferent =>
+      prn(
+        "These are two different abstract types, each %s escaping the scope of its module at a different call",
+        path,
+      )
+    }
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
