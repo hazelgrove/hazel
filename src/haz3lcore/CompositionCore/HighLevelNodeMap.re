@@ -1137,8 +1137,18 @@ module Public = {
 
 /* the node map for an editor's statics record: from the spine when the
    record is compositional, else the monolithic ancestor walk */
+let items_memo: ref(option((DefStatics.t, option(t)))) = ref(None);
 let build_for = (z: Zipper.t, statics: CachedStatics.t): option(t) =>
   switch (statics.items) {
-  | Some(ds) => build_from_items(ds)
+  | Some(ds) =>
+    /* pure in the items record; the canvas asks twice per render and
+       renders on every update */
+    switch (items_memo^) {
+    | Some((ds', m)) when ds' === ds => m
+    | _ =>
+      let m = build_from_items(ds);
+      items_memo := Some((ds, m));
+      m;
+    }
   | None => build(z, statics.info_map)
   };

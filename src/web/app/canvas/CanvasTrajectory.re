@@ -976,6 +976,27 @@ let install_testers = (): unit => {
     let set = (name, f) => Js.Unsafe.set(g, name, Js.Unsafe.callback(f));
     set("__constellationTrajectory", () => Js.string(latest_json()));
     set("__constellationTrajectoryClear", () => clear());
+    /* __streamBurst(n, ms): n stream ticks ms apart — the live
+       token-rate render load, which recorded runs throttle to 10/s */
+    set("__streamBurst", (n: float, ms: float) => {
+      let left = ref(int_of_float(n));
+      let rec go = () =>
+        if (left^ > 0) {
+          decr(left);
+          dispatch_tick^();
+          ignore(
+            Js.Unsafe.meth_call(
+              Js.Unsafe.global##.window,
+              "setTimeout",
+              [|
+                Js.Unsafe.inject(Js.Unsafe.callback(go)),
+                Js.Unsafe.inject(ms),
+              |],
+            ),
+          );
+        };
+      go();
+    });
     set(
       "__replayTrajectory",
       (text: Js.t(Js.js_string), speed: Js.Optdef.t(float)) =>

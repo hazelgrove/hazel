@@ -140,6 +140,12 @@ let apply =
       0.,
     );
   };
+  /* every action, by kind: the perf journal's re-render census (a score
+     ran the app at 4 Hz with the agent idle — who was ticking?) */
+  Util.PerfTimer.record(
+    "action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
+    0.,
+  );
   /* which actions count as edits (each one costs a statics/eval recompute):
      the perf journal names them */
   if (updated.is_edit) {

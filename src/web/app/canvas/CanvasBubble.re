@@ -275,13 +275,16 @@ let speech_path =
   ++ " Z";
 };
 
+/* the last placement's inputs: a frame that would write the same
+   values back skips the writes (each one invalidates style) */
+let last_place: ref(string) = ref("");
 let place = (): unit =>
   switch (CanvasAvatar.body()) {
   | None => ()
   | Some(b) =>
     switch (child(b, ".canvas-avatar-bubble")) {
     | None => ()
-    | Some(bub) =>
+    | Some(bub) when mode() != Hidden =>
       let m = mode();
       let (cx, cy, r) = CanvasAvatar.bounding_circle();
       /* which way is there room: the circle's position in the pane */
@@ -330,35 +333,45 @@ let place = (): unit =>
           and ccy = tipy +. dy *. (17. +. re);
           (ccx -. w /. 2., ccy -. h /. 2.);
         };
-      set_style(bub, "left", f1(left) ++ "px");
-      set_style(bub, "top", f1(top) ++ "px");
-      /* the speech skin's outline, tail included */
-      switch (child(bub, ".say-shape path")) {
-      | Some(path) when m == Speech =>
-        set_attr(
-          path,
-          "d",
-          speech_path(~w, ~h, ~sx, ~sy, (tipx -. left, tipy -. top)),
-        )
-      | _ => ()
+      let key =
+        String.concat(
+          "/",
+          List.map(f1, [left, top, w, h, tipx, tipy, sx, sy])
+          @ [mode_class(m)],
+        );
+      if (key != last_place^) {
+        last_place := key;
+        set_style(bub, "left", f1(left) ++ "px");
+        set_style(bub, "top", f1(top) ++ "px");
+        /* the speech skin's outline, tail included */
+        switch (child(bub, ".say-shape path")) {
+        | Some(path) when m == Speech =>
+          set_attr(
+            path,
+            "d",
+            speech_path(~w, ~h, ~sx, ~sy, (tipx -. left, tipy -. top)),
+          )
+        | _ => ()
+        };
+        /* the cloud's puffs: small, a little space, larger, a little space */
+        switch (child(b, ".bubble-tails")) {
+        | Some(t) =>
+          List.iter(
+            ((sel, along, rad)) =>
+              switch (child(t, sel)) {
+              | Some(c) =>
+                set_attr(c, "cx", f1(tipx +. dx *. along));
+                set_attr(c, "cy", f1(tipy +. dy *. along));
+                set_attr(c, "r", f1(rad));
+                set_attr(c, "opacity", m == Thought ? "1" : "0");
+              | None => ()
+              },
+            [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
+          )
+        | None => ()
+        };
       };
-      /* the cloud's puffs: small, a little space, larger, a little space */
-      switch (child(b, ".bubble-tails")) {
-      | Some(t) =>
-        List.iter(
-          ((sel, along, rad)) =>
-            switch (child(t, sel)) {
-            | Some(c) =>
-              set_attr(c, "cx", f1(tipx +. dx *. along));
-              set_attr(c, "cy", f1(tipy +. dy *. along));
-              set_attr(c, "r", f1(rad));
-              set_attr(c, "opacity", m == Thought ? "1" : "0");
-            | None => ()
-            },
-          [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
-        )
-      | None => ()
-      };
+    | Some(_) => ()
     }
   };
 

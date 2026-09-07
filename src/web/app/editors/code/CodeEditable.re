@@ -723,6 +723,25 @@ module View = {
       };
   };
 
+  /* the quiver engine's segment (the program with the suggestion
+     buffer erased): a function of the cached display segment and the
+     selection, so it is memoized on those — the zipper's own identity
+     churns through the probe effects on every update */
+  let engine_seg_memo: ref(option((Segment.t, list(Piece.t), Segment.t))) =
+    ref(None);
+  let engine_seg_of = (~syntax: CachedSyntax.t, z: Zipper.t): Segment.t => {
+    let sel = z.selection.content;
+    switch (engine_seg_memo^) {
+    | Some((seg', sel', s))
+        when
+          seg' === syntax.segment && (sel' === sel || sel == [] && sel' == []) => s
+    | _ =>
+      let s = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      engine_seg_memo := Some((syntax.segment, sel, s));
+      s;
+    };
+  };
+
   let deco =
       (
         ~expand_selection=false,
@@ -775,7 +794,7 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
+            ~engine_seg=engine_seg_of(~syntax, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));

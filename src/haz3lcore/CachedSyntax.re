@@ -294,9 +294,15 @@ let calculate =
              || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
-    {
-      ...old,
-      selection_ids: Selection.selection_ids(z.selection),
-    };
+    /* keep the record's identity when nothing changed: view memos key
+       on it, and every non-editor update (a streamed chat token) lands
+       here */
+    let selection_ids = Selection.selection_ids(z.selection);
+    selection_ids == old.selection_ids
+      ? old
+      : {
+        ...old,
+        selection_ids,
+      };
   };
 };

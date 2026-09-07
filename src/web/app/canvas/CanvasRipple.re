@@ -31,12 +31,15 @@ open Js_of_ocaml;
 let zoom: ref(float) = ref(1.);
 let pan_slack = 392.; /* keep in sync with CanvasSidebar.pan_slack */
 
-let cell = 7.; /* field resolution, screen px */
+/* field resolution, screen px. 7 was ~40% of the main thread during a
+   score (a splash per act keeps the medium live; the step allocated a
+   fresh field per substep and every dot was redrawn every frame) */
+let cell = 9.;
 /* live-tunable from the console while the feel is being dialed in:
      __waveTune("stiffness", 0.3)   __waveGet()
    stiffness = (c*dt/cell)^2, CFL-stable below ~0.5 */
 let stiffness = ref(0.32);
-let damping = ref(0.991); /* per substep */
+let damping = ref(0.987); /* per substep: settles in ~1.5 s, not ~3 */
 let grad_gain = ref(9.); /* field gradient -> dot displacement px */
 let default_amp = 9.;
 let stroke_amp = ref(3.6); /* drag-wake deposit per sample point */
@@ -76,6 +79,11 @@ let apply_preset = (l: bool): unit =>
 let deposit_fwd: ref((float, float, float) => unit) = ref((_, _, _) => ());
 let suction_fwd: ref(((float, float)) => unit) = ref(_ => ());
 let knobs_installed = ref(false);
+let n_full: ref(int) = ref(0)
+and n_partial: ref(int) = ref(0)
+and n_skip: ref(int) = ref(0)
+and n_partial_area: ref(float) = ref(0.);
+
 let install_knobs = (): unit =>
   if (! knobs_installed^) {
     knobs_installed := true;
@@ -96,6 +104,22 @@ let install_knobs = (): unit =>
         | "disp_cap" => disp_cap := max(1., v)
         | _ => ()
         }
+      ),
+    );
+    Js.Unsafe.set(
+      Js.Unsafe.global,
+      "__rippleCounters",
+      Js.Unsafe.callback(() =>
+        Js.string(
+          Printf.sprintf(
+            "full=%d partial=%d skip=%d partial_area=%.2f",
+            n_full^,
+            n_partial^,
+            n_skip^,
+            n_partial^ == 0
+              ? 0. : n_partial_area^ /. float_of_int(n_partial^),
+          ),
+        )
       ),
     );
     Js.Unsafe.set(
@@ -140,6 +164,71 @@ let u_prev: ref(array(float)) = ref([||]);
 let origin_x: ref(float) = ref(0.);
 let origin_y: ref(float) = ref(0.);
 let sim_active: ref(bool) = ref(false);
+let frame_parity: ref(bool) = ref(false);
+/* the screen region drawn with live displacement last frame: with
+   the viewport still, only the union of that and the current live
+   region is cleared and redrawn (the lattice at rest is unchanged
+   pixels). None forces a full redraw. */
+let dirty_prev: ref(option((float, float, float, float))) = ref(None);
+let last_fill: ref(string) = ref("");
+
+/* content-px box of cells the medium is displacing (None: calm) */
+let field_box = (): option((float, float, float, float)) =>
+  if (gw^ == 0) {
+    None;
+  } else {
+    let w = gw^
+    and h = gh^;
+    let u = u_cur^;
+    let eps = 0.05 /. grad_gain^;
+    let i0 = ref(w)
+    and i1 = ref(-1)
+    and j0 = ref(h)
+    and j1 = ref(-1);
+    for (j in 0 to h - 1) {
+      let row = j * w;
+      for (i in 0 to w - 1) {
+        if (abs_float(u[row + i]) > eps) {
+          if (i < i0^) {
+            i0 := i;
+          };
+          if (i > i1^) {
+            i1 := i;
+          };
+          if (j < j0^) {
+            j0 := j;
+          };
+          if (j > j1^) {
+            j1 := j;
+          };
+        };
+      };
+    };
+    if (i1^ < 0) {
+      None;
+    } else {
+      /* bilinear sampling reaches two cells out */
+      Some((
+        origin_x^ +. float_of_int(i0^ - 2) *. cell,
+        origin_y^ +. float_of_int(j0^ - 2) *. cell,
+        origin_x^ +. float_of_int(i1^ + 2) *. cell,
+        origin_y^ +. float_of_int(j1^ + 2) *. cell,
+      ));
+    };
+  };
+
+let box_union = (a, b) =>
+  switch (a, b) {
+  | (None, x)
+  | (x, None) => x
+  | (Some((ax0, ay0, ax1, ay1)), Some((bx0, by0, bx1, by1))) =>
+    Some((
+      Float.min(ax0, bx0),
+      Float.min(ay0, by0),
+      Float.max(ax1, bx1),
+      Float.max(ay1, by1),
+    ))
+  };
 let last_step: ref(float) = ref(0.);
 
 let zoom_ref = zoom; /* alias for clarity below */
@@ -263,7 +352,9 @@ let step_sim = (substeps: int): unit => {
     for (_ in 1 to substeps) {
       let u = u_cur^
       and up = u_prev^;
-      let un = Array.make(w * h, 0.);
+      /* double-buffer: the previous field becomes the next (no
+         allocation per substep) */
+      let un = up;
       for (j in 1 to h - 2) {
         for (i in 1 to w - 2) {
           let k = j * w + i;
@@ -272,34 +363,52 @@ let step_sim = (substeps: int): unit => {
         };
       };
       if (sponge_k^ > 0.001) {
-        /* absorb over the outer band (both fields, so no velocity kick) */
+        /* absorb over the outer band (both fields, so no velocity
+           kick); only the band's cells are visited, and with int
+           comparisons (polymorphic min was a quarter of the step) */
         let band = sponge_band;
-        for (j in 0 to h - 1) {
+        let absorb = (i, j) => {
+          let d = Int.min(Int.min(i, w - 1 - i), Int.min(j, h - 1 - j));
+          if (d < band) {
+            let t = 1. -. float_of_int(d) /. float_of_int(band);
+            let f = 1. -. sponge_k^ *. t *. t;
+            let k = j * w + i;
+            un[k] = un[k] *. f;
+            u[k] = u[k] *. f;
+          };
+        };
+        for (j in 0 to band - 1) {
           for (i in 0 to w - 1) {
-            let d = min(min(i, w - 1 - i), min(j, h - 1 - j));
-            if (d < band) {
-              let t = 1. -. float_of_int(d) /. float_of_int(band);
-              let f = 1. -. sponge_k^ *. t *. t;
-              let k = j * w + i;
-              un[k] = un[k] *. f;
-              u[k] = u[k] *. f;
-            };
+            absorb(i, j);
+            absorb(i, h - 1 - j);
+          };
+        };
+        for (j in band to h - 1 - band) {
+          for (i in 0 to band - 1) {
+            absorb(i, j);
+            absorb(w - 1 - i, j);
           };
         };
       };
       u_prev := u;
       u_cur := un;
     };
-    /* cheap liveness probe: sample every 5th cell */
-    let e = ref(0.);
+    /* liveness: the medium is live while some cell could still move a
+       dot visibly (peak |u| against the gradient gain; a summed
+       criterion kept it "live" for seconds after the motion faded,
+       redrawing every dot for nothing) */
+    let m = ref(0.);
     let u = u_cur^;
     let n = Array.length(u);
     let i = ref(0);
     while (i^ < n) {
-      e := e^ +. abs_float(u[i^]);
-      i := i^ + 5;
+      let a = abs_float(u[i^]);
+      if (a > m^) {
+        m := a;
+      };
+      i := i^ + 3;
     };
-    sim_active := e^ > 0.4;
+    sim_active := m^ *. grad_gain^ > 0.08;
   };
 };
 
@@ -533,6 +642,8 @@ let get_dot_sprite = (fill: string, dpr: float): Js.Unsafe.any => {
 /* geometry of the last static draw, to skip redundant repaints */
 let last_geom: ref((int, int, float, float, float)) =
   ref((0, 0, 0., 0., 0.));
+let geom_unchanged = (cw, ch, sl, st, z): bool =>
+  last_geom^ == (cw, ch, sl, st, z);
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
@@ -658,14 +769,27 @@ let rec draw = (): unit => {
           suctions^,
         );
     };
-    if (sim_active^) {
+    /* the medium runs at half rate: a wave field at 30 Hz reads the
+       same, and the full redraw of every dot is the expensive part */
+    frame_parity := ! frame_parity^;
+    let skip = frame_parity^ && geom_unchanged(cw, ch, sl, st, z);
+    if (skip) {
+      incr(n_skip);
+    };
+    if (sim_active^ && !skip) {
       let dt_ms = 8.;
       let elapsed = last_step^ == 0. ? dt_ms : min(48., t -. last_step^);
-      step_sim(max(1, int_of_float(elapsed /. dt_ms)));
+      step_sim(max(1, min(6, int_of_float(elapsed /. dt_ms))));
+      last_step := t;
+    } else if (! sim_active^) {
+      last_step := t;
     };
-    last_step := t;
     let geom = (cw, ch, sl, st, z);
-    if (sim_active^ || pulses^ != [] || suctions^ != [] || geom != last_geom^) {
+    if (!skip
+        && (
+          sim_active^ || pulses^ != [] || suctions^ != [] || geom != last_geom^
+        )) {
+      let geom_changed = geom != last_geom^;
       last_geom := geom;
       let ctx =
         Js.Unsafe.meth_call(
@@ -675,6 +799,83 @@ let rec draw = (): unit => {
         );
       let mw = float_of_int(cw)
       and mh = float_of_int(ch);
+      let fmin = (a: float, b: float) => a < b ? a : b
+      and fmax = (a: float, b: float) => a > b ? a : b;
+      /* the live region this frame, screen px: the medium's active
+         cells, each suction's reach, and every pulse's head-to-tail
+         span (pulse positions are computed again below; they are few) */
+      let live_box = {
+        let su_box =
+          List.fold_left(
+            (acc, su: suction_t) => {
+              let age = (t -. su.su_t0) /. suction_pull_ms;
+              if (age >= 0. && age <= 1.) {
+                let (mx, my) = su.su_p;
+                let (cx, cy) = model_to_content((mx, my));
+                let r = suction_pull_r *. 2.5;
+                box_union(acc, Some((cx -. r, cy -. r, cx +. r, cy +. r)));
+              } else {
+                acc;
+              };
+            },
+            None,
+            suctions^,
+          );
+        let pulse_box =
+          List.fold_left(
+            (acc, p: pulse) => {
+              let tt = (t -. p.t0) /. pulse_ms;
+              List.fold_left(
+                (acc, back) => {
+                  let tk = fmax(0., tt -. back);
+                  let (mx, my) = bezier((p.p0, p.p1, p.p2, p.p3), tk);
+                  let cx = mx *. z +. pan_slack
+                  and cy = my *. z +. pan_slack;
+                  box_union(
+                    acc,
+                    Some((cx -. 4., cy -. 4., cx +. 4., cy +. 4.)),
+                  );
+                },
+                acc,
+                [0., 0.06, 0.12, 0.18],
+              );
+            },
+            None,
+            pulses^,
+          );
+        switch (box_union(box_union(field_box(), su_box), pulse_box)) {
+        | None => None
+        | Some((x0, y0, x1, y1)) =>
+          /* content -> screen, padded by a dot's sprite plus the
+             largest displacement, clipped to the viewport */
+          let pad = sprite_size /. 2. +. disp_cap^ +. suction_pull_px +. 2.;
+          let bx0 = fmax(0., x0 -. sl -. pad)
+          and by0 = fmax(0., y0 -. st -. pad)
+          and bx1 = fmin(mw, x1 -. sl +. pad)
+          and by1 = fmin(mh, y1 -. st +. pad);
+          bx0 < bx1 && by0 < by1 ? Some((bx0, by0, bx1, by1)) : None;
+        };
+      };
+      let fill: Js.t(Js.js_string) =
+        Js.Unsafe.meth_call(
+          Js.Unsafe.global##.window,
+          "getComputedStyle",
+          [|Js.Unsafe.inject(scroll)|],
+        )##getPropertyValue(
+          Js.string("--BR1"),
+        );
+      let fill = Js.to_string(fill);
+      let fill = fill == "" ? "#d8c9a3" : fill;
+      let full = geom_changed || fill != last_fill^;
+      last_fill := fill;
+      if (full) {
+        incr(n_full);
+      } else {
+        incr(n_partial);
+      };
+      let region =
+        full ? Some((0., 0., mw, mh)) : box_union(live_box, dirty_prev^);
+      dirty_prev := live_box;
       let _ =
         Js.Unsafe.meth_call(
           ctx,
@@ -688,27 +889,37 @@ let rec draw = (): unit => {
             Js.Unsafe.inject(0.),
           |],
         );
+      let (rx0, ry0, rx1, ry1) =
+        Option.value(region, ~default=(0., 0., 0., 0.));
+      if (!full) {
+        n_partial_area :=
+          n_partial_area^ +. (rx1 -. rx0) *. (ry1 -. ry0) /. (mw *. mh);
+      };
+      let _ = Js.Unsafe.meth_call(ctx, "save", [||]);
+      let _ = Js.Unsafe.meth_call(ctx, "beginPath", [||]);
+      let _ =
+        Js.Unsafe.meth_call(
+          ctx,
+          "rect",
+          [|
+            Js.Unsafe.inject(rx0),
+            Js.Unsafe.inject(ry0),
+            Js.Unsafe.inject(rx1 -. rx0),
+            Js.Unsafe.inject(ry1 -. ry0),
+          |],
+        );
+      let _ = Js.Unsafe.meth_call(ctx, "clip", [||]);
       let _ =
         Js.Unsafe.meth_call(
           ctx,
           "clearRect",
           [|
-            Js.Unsafe.inject(0.),
-            Js.Unsafe.inject(0.),
-            Js.Unsafe.inject(mw),
-            Js.Unsafe.inject(mh),
+            Js.Unsafe.inject(rx0),
+            Js.Unsafe.inject(ry0),
+            Js.Unsafe.inject(rx1 -. rx0),
+            Js.Unsafe.inject(ry1 -. ry0),
           |],
         );
-      let fill: Js.t(Js.js_string) =
-        Js.Unsafe.meth_call(
-          Js.Unsafe.global##.window,
-          "getComputedStyle",
-          [|Js.Unsafe.inject(scroll)|],
-        )##getPropertyValue(
-          Js.string("--BR1"),
-        );
-      let fill = Js.to_string(fill);
-      let fill = fill == "" ? "#d8c9a3" : fill;
       Js.Unsafe.coerce(ctx)##.fillStyle := Js.string(fill);
       let sprite = get_dot_sprite(fill, dpr);
       let two_pi = 2. *. Float.pi;
@@ -734,8 +945,8 @@ let rec draw = (): unit => {
          frame now, not the board: no more island-and-abyss) */
       let edge = 26.;
       let fade1 = (v: float, extent: float): float => {
-        let d = min(v, extent -. v);
-        d <= 0. ? 0. : min(1., d /. edge);
+        let d = fmin(v, extent -. v);
+        d <= 0. ? 0. : fmin(1., d /. edge);
       };
       /* board model coord -> screen px */
       let to_screen_x = (m: float): float => m *. z +. pan_slack -. sl
@@ -758,10 +969,11 @@ let rec draw = (): unit => {
           suctions^,
         );
       let draw_pass = (step: float, alpha: float, ~skip_coarse: bool) => {
-        let m0x = (0. +. sl -. pan_slack) /. z
-        and m1x = (mw +. sl -. pan_slack) /. z;
-        let m0y = (0. +. st -. pan_slack) /. z
-        and m1y = (mh +. st -. pan_slack) /. z;
+        let reach = sprite_size /. 2. +. disp_cap^ +. suction_pull_px;
+        let m0x = (rx0 -. reach +. sl -. pan_slack) /. z
+        and m1x = (rx1 +. reach +. sl -. pan_slack) /. z;
+        let m0y = (ry0 -. reach +. st -. pan_slack) /. z
+        and m1y = (ry1 +. reach +. st -. pan_slack) /. z;
         let i0 = int_of_float(Float.floor(m0x /. step))
         and i1 = int_of_float(Float.ceil(m1x /. step));
         let j0 = int_of_float(Float.floor(m0y /. step))
@@ -879,6 +1091,8 @@ let rec draw = (): unit => {
         live_pulses,
       );
       Js.Unsafe.coerce(ctx)##.globalAlpha := 1.;
+      let _ = Js.Unsafe.meth_call(ctx, "restore", [||]);
+      ();
     };
     if (sim_active^ || pulses^ != [] || suctions^ != [] || zoom_settling) {
       if (! raf_running^) {

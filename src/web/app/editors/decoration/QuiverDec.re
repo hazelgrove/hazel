@@ -392,6 +392,14 @@ let coalesce_overlaps =
   go([], chips);
 };
 
+/* one entry: the last engine segment and its result, keyed by the
+   segment's identity (the caller keeps it stable across renders that
+   leave the program alone; the engine walk was ~19ms per render on a
+   7k-char program, paid on every streamed chat token) */
+let engine_memo:
+  ref(option((Segment.t, CanonicalCompletion.completion_result))) =
+  ref(None: option((Segment.t, CanonicalCompletion.completion_result)));
+
 /* Main view function: renders quiver decorations for a segment */
 let view =
     (
@@ -414,7 +422,14 @@ let view =
   ignore(seg);
   let seg = engine_seg;
   /* Get completion result with insertions */
-  let result = CanonicalCompletion.for_editor(seg);
+  let result =
+    switch (engine_memo^) {
+    | Some((s, r)) when s === seg => r
+    | _ =>
+      let r = CanonicalCompletion.for_editor(seg);
+      engine_memo := Some((seg, r));
+      r;
+    };
   let insertions = result.insertions;
 
   /* reset even when nothing draws: a vanished quiver must not leave

@@ -10,6 +10,10 @@
    doesn't spam every frame. */
 
 let last_report: ref(string) = ref("");
+/* renders that leave the buffer alone (canvas ticks, agent chatter)
+   skip the walk: the segment is a persistent value, so physical
+   identity is the change test */
+let last_seg: ref(option(Haz3lcore.Segment.t)) = ref(None);
 
 let rec ids_of_segment =
         (seg: Haz3lcore.Segment.t, acc): list(Haz3lcore.Id.t) =>
@@ -30,7 +34,14 @@ let rec ids_of_segment =
        acc,
      );
 
-let check = (seg: Haz3lcore.Segment.t): unit => {
+let rec check = (seg: Haz3lcore.Segment.t): unit =>
+  switch (last_seg^) {
+  | Some(s) when s === seg => ()
+  | _ =>
+    last_seg := Some(seg);
+    check_now(seg);
+  }
+and check_now = (seg: Haz3lcore.Segment.t): unit => {
   let ids = ids_of_segment(seg, []);
   let seen = Hashtbl.create(List.length(ids));
   let dups =
