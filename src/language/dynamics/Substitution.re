@@ -86,14 +86,16 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                 let (env', item') =
                   switch (item.term) {
                   | ModLet(p, e) =>
-                    let (env', p') = in_pat(env, env, p);
+                    /* Shadow rather than rename here too: a pending binding
+                       names a member, so renaming it away from capture would
+                       rename the member and break `M.x`. */
                     (
-                      env',
+                      List.fold_left(shadow, env, Pat.bound_vars(p)),
                       {
                         ...item,
-                        term: (ModLet(p', in_exp(env, e)): Mod.term),
+                        term: (ModLet(p, in_exp(env, e)): Mod.term),
                       },
-                    );
+                    )
                   | ModuleMod(mp, e) =>
                     let env' =
                       switch (mpat_name(mp)) {
