@@ -289,6 +289,56 @@ let cached_frame: ref(option(frame_cache)) =
 
 /* keys of recently placed nodes (canvas gestures AND agent-created
    arrivals); their node views get a grow-in animation for a moment */
+/* the previous render's layout, and the elements a score is still erasing:
+   a removed node or arrow stays on the board as a ghost (rendered from
+   this layout, at its old place) until its act's cue — A2 for removals */
+let last_layout: ref(option(CanvasLayout.t)) = ref(Option.none);
+type leaving = {
+  l_nodes: list(CanvasLayout.node_layout),
+  l_edges: list(CanvasLayout.edge_layout),
+  l_until: float /* ms; dropped from the render after this */
+};
+let leaving: ref(option(leaving)) = ref(Option.none);
+
+/* an element's LOOK: what a viewer would notice changing without an
+   actor (A2 for modifications). Tests/values from evaluation are not
+   the agent's edit and are exempt. */
+let node_look = (n: CanvasGraph.tynode) => (
+  n.label,
+  n.ctrs,
+  n.n_ty,
+  n.n_err,
+  n.deps,
+);
+let edge_look = (e: CanvasGraph.edge) => (
+  e.e_label,
+  e.e_ty,
+  e.e_err,
+  e.e_hole,
+  e.e_src,
+  e.dst,
+  e.e_deps,
+);
+/* a changed element renders with its OLD record until its act's cue
+   (absolute ms), then swaps with a pulse */
+type staged = {
+  s_nodes: list((string, float, CanvasGraph.tynode)),
+  s_edges: list((string, float, CanvasGraph.edge)),
+};
+let staged: ref(staged) =
+  ref({
+    s_nodes: [],
+    s_edges: [],
+  });
+
+/* value badges present at the previous render, for the score's diff */
+let last_value_snapshot: ref((string, list(string))) = ref(("", []));
+/* values share the score's node namespace under a prefix */
+let value_score_key = (v_name: string): string => "val:" ++ v_name;
+let value_of_score_key = (k: string): option(string) =>
+  String.length(k) > 4 && String.sub(k, 0, 4) == "val:"
+    ? Some(String.sub(k, 4, String.length(k) - 4)) : None;
+
 let last_placed: ref(list((string, float))) = ref([]);
 let note_placed = (key: string): unit =>
   last_placed :=
@@ -754,6 +804,7 @@ let view_impl =
         });
       ignore(Js.Unsafe.global##setTimeout(cb, delay));
     };
+    CanvasEnact.request_tick := schedule_tick;
     CanvasBuffer.observe(
       ~enabled=globals.settings.canvas_pace,
       ~viable=(m: CodeWithStatics.Model.t) => viable_cached(m.statics),
@@ -2718,6 +2769,65 @@ let view_impl =
       List.map((nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
     let removed =
       List.filter(((k, _)) => !List.mem(k, cur_keys), prev_nodes);
+    let cur_edge_names =
+      List.map((el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
+    let removed_edge_layouts =
+      switch (last_layout^) {
+      | Some(prev) when prev_slide == slide =>
+        List.filter(
+          (el: CanvasLayout.edge_layout) =>
+            !List.mem(el.edge.e_name, cur_edge_names),
+          prev.edges,
+        )
+      | _ => []
+      };
+    let removed_node_layouts =
+      switch (last_layout^) {
+      | Some(prev) when prev_slide == slide =>
+        List.filter(
+          (nl: CanvasLayout.node_layout) =>
+            List.mem_assoc(nl.node.key, removed),
+          prev.nodes,
+        )
+      | _ => []
+      };
+    /* elements present in both renders whose look differs */
+    let (changed_nodes, changed_edges) =
+      switch (last_layout^) {
+      | Some(prev) when prev_slide == slide => (
+          List.filter_map(
+            (nl: CanvasLayout.node_layout) =>
+              switch (
+                List.find_opt(
+                  (pl: CanvasLayout.node_layout) =>
+                    pl.node.key == nl.node.key,
+                  prev.nodes,
+                )
+              ) {
+              | Some(pl) when node_look(pl.node) != node_look(nl.node) =>
+                Some((nl, pl.node))
+              | _ => None
+              },
+            lay.nodes,
+          ),
+          List.filter_map(
+            (el: CanvasLayout.edge_layout) =>
+              switch (
+                List.find_opt(
+                  (pe: CanvasLayout.edge_layout) =>
+                    pe.edge.e_name == el.edge.e_name,
+                  prev.edges,
+                )
+              ) {
+              | Some(pe) when edge_look(pe.edge) != edge_look(el.edge) =>
+                Some((el, pe.edge))
+              | _ => None
+              },
+            lay.edges,
+          ),
+        )
+      | _ => ([], [])
+      };
     if (prev_slide == slide
         && removed != []
         && CanvasBuffer.now() > collapse_fx_until^) {
@@ -2748,6 +2858,23 @@ let view_impl =
           !List.mem_assoc(nl.node.key, prev_nodes)
           && !List.mem_assoc(nl.node.key, last_placed^),
         lay.nodes,
+      );
+    /* value badges (constants, module values) are canvas content too: a
+       new one is a terminal of its type's definition act (A2) */
+    let (_, prev_values) = last_value_snapshot^;
+    let added_values =
+      List.filter(
+        (vl: CanvasLayout.value_layout) =>
+          !List.mem(vl.value.v_name, prev_values),
+        lay.values,
+      );
+    last_value_snapshot :=
+      (
+        slide,
+        List.map(
+          (vl: CanvasLayout.value_layout) => vl.value.v_name,
+          lay.values,
+        ),
       );
     /* ---- the beat's score (A1): ONE plan from this render's diff. The
        actor visits each new definition, pulls each new arrow, and the
@@ -2813,7 +2940,15 @@ let view_impl =
       && globals.settings.canvas_pace
       && (
         CanvasBuffer.pacing_live()
-        && (added != [] || new_edges != [] || removed != [])
+        && (
+          added != []
+          || added_values != []
+          || new_edges != []
+          || removed != []
+          || removed_edge_layouts != []
+          || changed_nodes != []
+          || changed_edges != []
+        )
         || big_move
       );
     if (scored) {
@@ -2830,6 +2965,83 @@ let view_impl =
         lay.nodes
         |> List.find_opt((nl: CanvasLayout.node_layout) => nl.node.key == k)
         |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+      /* the story's order (CanvasScore.new_node.order): graph nodes and
+         edges are extracted in program order; a glyph nobody names takes
+         the place of the first edge that touches it */
+      let order_of = (k: string): int => {
+        let rec idx = (i, ks) =>
+          switch (ks) {
+          | [] => Option.none
+          | [x, ..._] when x == k => Option.some(i)
+          | [_, ...rest] => idx(i + 1, rest)
+          };
+        let is_module = key =>
+          String.length(key) >= 3 && String.sub(key, 0, 3) == "{}@";
+        let named =
+          List.filter_map(
+            (n: CanvasGraph.tynode) =>
+              switch (n.kind) {
+              | CanvasGraph.Builtin => None
+              | CanvasGraph.Product => is_module(n.key) ? Some(n.key) : None
+              | _ => Some(n.key)
+              },
+            graph.nodes,
+          );
+        /* a module leads its members: the agent wrote `module M = {`
+           before anything inside it */
+        let module_first = (k: string): int =>
+          if (is_module(k)) {
+            let root = String.sub(k, 3, String.length(k) - 3);
+            let first_member =
+              List.mapi((i, key) => (i, key), named)
+              |> List.find_opt(((_, key)) =>
+                   List.exists(
+                     (n: CanvasGraph.tynode) =>
+                       n.key == key
+                       && (
+                         switch (n.m_path) {
+                         | [r, ..._] => r == root
+                         | [] => false
+                         }
+                       ),
+                     graph.nodes,
+                   )
+                 );
+            switch (first_member) {
+            | Some((i, _)) => 2 * i - 1 /* just before that member */
+            | None => max_int
+            };
+          } else {
+            max_int;
+          };
+        switch (idx(0, named)) {
+        | Some(i) => min(2 * i, module_first(k))
+        | None =>
+          let n = List.length(named);
+          let touching =
+            List.mapi((i, e: CanvasGraph.edge) => (i, e), graph.edges)
+            |> List.find_opt(((_, e: CanvasGraph.edge)) =>
+                 e.e_src == k
+                 || e.dst == k
+                 || List.mem(k, e.e_deps)
+                 || (
+                   switch (
+                     List.find_opt(
+                       (pn: CanvasGraph.tynode) => pn.key == e.e_src,
+                       graph.nodes,
+                     )
+                   ) {
+                   | Some(pn) => List.mem(k, pn.parts)
+                   | None => false
+                   }
+                 )
+               );
+          switch (touching) {
+          | Some((i, _)) => 2 * (n + i)
+          | None => max_int
+          };
+        };
+      };
       let diff =
         CanvasScore.{
           d_cause: Option.value(~default="edit", CanvasBuffer.shown_label^),
@@ -2840,9 +3052,20 @@ let view_impl =
                   key: nl.node.key,
                   anchor: Option.map(fst, nl.node.sat),
                   p: nl.p,
+                  order: order_of(nl.node.key),
                 },
               added,
-            ),
+            )
+            @ List.map(
+                (vl: CanvasLayout.value_layout) =>
+                  CanvasScore.{
+                    key: value_score_key(vl.value.v_name),
+                    anchor: Some(vl.value.v_key),
+                    p: vl.p,
+                    order: order_of(vl.value.v_key),
+                  },
+                added_values,
+              ),
           edges: new_edges,
           removed:
             List.map(
@@ -2856,6 +3079,21 @@ let view_impl =
                 ),
               removed,
             ),
+          removed_edges:
+            List.map(
+              (el: CanvasLayout.edge_layout) => (el.edge.e_name, el.label_p),
+              removed_edge_layouts,
+            ),
+          changed:
+            List.map(
+              ((nl: CanvasLayout.node_layout, _)) => (nl.node.key, nl.p),
+              changed_nodes,
+            )
+            @ List.map(
+                ((el: CanvasLayout.edge_layout, _)) =>
+                  (el.edge.e_name, el.label_p),
+                changed_edges,
+              ),
           moved,
           actor: last_avatar_pos^,
         };
@@ -2970,7 +3208,11 @@ let view_impl =
       };
       Animation.set_arrival_schedule(
         List.map(
-          ((k, t)) => (CanvasView.node_dom_id(k), t),
+          ((k, t)) =>
+            switch (value_of_score_key(k)) {
+            | Some(v) => (CanvasView.value_dom_id(v), t)
+            | None => (CanvasView.node_dom_id(k), t)
+            },
           CanvasScore.appear_times(score),
         )
         @ pills
@@ -3065,10 +3307,42 @@ let view_impl =
         );
       };
       CanvasBuffer.extend_dwell(float_of_int(score.total_ms) +. 600.);
+      {
+        let t0 = CanvasBuffer.now();
+        let cue = k =>
+          switch (List.assoc_opt(k, CanvasScore.change_times(score))) {
+          | Some(t) => t0 +. float_of_int(t)
+          | None => t0
+          };
+        staged :=
+          {
+            s_nodes:
+              List.map(
+                ((nl: CanvasLayout.node_layout, old)) =>
+                  (nl.node.key, cue(nl.node.key), old),
+                changed_nodes,
+              ),
+            s_edges:
+              List.map(
+                ((el: CanvasLayout.edge_layout, old)) =>
+                  (el.edge.e_name, cue(el.edge.e_name), old),
+                changed_edges,
+              ),
+          };
+      };
+      if (removed_node_layouts != [] || removed_edge_layouts != []) {
+        leaving :=
+          Option.some({
+            l_nodes: removed_node_layouts,
+            l_edges: removed_edge_layouts,
+            l_until:
+              CanvasBuffer.now() +. float_of_int(score.total_ms) +. 400.,
+          });
+      };
       CanvasLog.log(CanvasScore.to_string(score));
       List.iter(
         v => CanvasLog.log("SCORE: " ++ v),
-        CanvasScore.validate(score),
+        CanvasScore.validate(score) @ CanvasScore.coverage(diff, score),
       );
       let zoom = CanvasCamera.zoom_now^;
       CanvasEnact.jump_snapshot(~zoom);
@@ -3168,6 +3442,7 @@ let view_impl =
           lay.nodes,
         ),
       );
+    last_layout := Option.some(lay);
 
     /* the edge set for the next render's diff (edges are enacted by the
        score planned above) */
@@ -3431,7 +3706,104 @@ let view_impl =
             ~focused,
             ~avatar,
             ~loose_tests=graph.loose_tests,
-            lay,
+            {
+              /* ghosts of what a running score is erasing ride along, at
+                 their old places, until the score is done */
+
+              let now = CanvasBuffer.now();
+              /* changed elements keep their old look until their cue */
+              let lay = {
+                let st = staged^;
+                if (st.s_nodes == [] && st.s_edges == []) {
+                  lay;
+                } else {
+                  let live =
+                    List.exists(((_, t, _)) => now < t, st.s_nodes)
+                    || List.exists(((_, t, _)) => now < t, st.s_edges);
+                  if (!live) {
+                    staged :=
+                      {
+                        s_nodes: [],
+                        s_edges: [],
+                      };
+                    lay;
+                  } else {
+                    CanvasLayout.{
+                      ...lay,
+                      nodes:
+                        List.map(
+                          (nl: CanvasLayout.node_layout) =>
+                            switch (
+                              List.find_opt(
+                                ((k, t, _)) => k == nl.node.key && now < t,
+                                st.s_nodes,
+                              )
+                            ) {
+                            | Some((_, _, old)) => {
+                                ...nl,
+                                node: old,
+                              }
+                            | None => nl
+                            },
+                          lay.nodes,
+                        ),
+                      edges:
+                        List.map(
+                          (el: CanvasLayout.edge_layout) =>
+                            switch (
+                              List.find_opt(
+                                ((n, t, _)) =>
+                                  n == el.edge.e_name && now < t,
+                                st.s_edges,
+                              )
+                            ) {
+                            | Some((_, _, old)) => {
+                                ...el,
+                                edge: old,
+                              }
+                            | None => el
+                            },
+                          lay.edges,
+                        ),
+                    };
+                  };
+                };
+              };
+              switch (leaving^) {
+              | Some(l) when now < l.l_until =>
+                let cur =
+                  List.map(
+                    (nl: CanvasLayout.node_layout) => nl.node.key,
+                    lay.nodes,
+                  );
+                let cur_e =
+                  List.map(
+                    (el: CanvasLayout.edge_layout) => el.edge.e_name,
+                    lay.edges,
+                  );
+                CanvasLayout.{
+                  ...lay,
+                  nodes:
+                    lay.nodes
+                    @ List.filter(
+                        (nl: CanvasLayout.node_layout) =>
+                          !List.mem(nl.node.key, cur),
+                        l.l_nodes,
+                      ),
+                  edges:
+                    lay.edges
+                    @ List.filter(
+                        (el: CanvasLayout.edge_layout) =>
+                          !List.mem(el.edge.e_name, cur_e),
+                        l.l_edges,
+                      ),
+                };
+              | Some(_) =>
+                leaving := Option.none;
+                lay;
+              | None => lay
+              };
+            },
           ),
         ],
       ),

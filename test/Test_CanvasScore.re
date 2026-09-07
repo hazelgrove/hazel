@@ -9,17 +9,29 @@ let p = (x, y): S.pos => {
   x,
   y,
 };
-let node = (~anchor=?, key, x, y): S.new_node => {
+let node = (~anchor=?, ~order=max_int, key, x, y): S.new_node => {
   key,
   anchor,
   p: p(x, y),
+  order,
 };
 
-let diff = (~cause="test", ~added=[], ~edges=[], ~removed=[], ~moved=[], ()) => {
+let diff =
+    (
+      ~cause="test",
+      ~added=[],
+      ~edges=[],
+      ~removed=[],
+      ~removed_edges=[],
+      ~moved=[],
+      (),
+    ) => {
   S.d_cause: cause,
   added,
   edges,
   removed,
+  removed_edges,
+  changed: [],
   moved,
   actor: Some(p(0., 0.)),
 };
@@ -136,7 +148,9 @@ let edge_after_types = () => {
   check(bool, "edge act is last", true, last.at == S.Edge("quiz"));
 };
 
-let batch = () => {
+/* A2 without exception (2026-09-06): many definitions are many acts, each
+   at its own site; a long beat compresses its tempo instead of merging */
+let no_batch = () => {
   let d =
     diff(
       ~added=
@@ -146,9 +160,69 @@ let batch = () => {
       (),
     );
   let s = S.plan(~pos_of=pos_of_added(d), d);
-  check(int, "one batch act", 1, List.length(s.acts));
-  no_violations("batch", s);
+  check(int, "one act per definition", 14, List.length(s.acts));
+  List.iter(
+    ((_, a): (int, S.act)) =>
+      switch (a.at) {
+      | S.Centroid(_) => fail("a centroid act (batch) in a scored beat")
+      | _ => ()
+      },
+    s.acts,
+  );
+  no_violations("no batch", s);
+  check(list(string), "coverage", [], S.coverage(d, s));
   check(int, "all appear", 14, List.length(S.appear_times(s)));
+  check(bool, "within budget", true, s.total_ms <= S.tempo.budget_ms);
+};
+
+/* many edges: every one ridden by its own act, none left to a "rest" act */
+let every_edge_ridden = () => {
+  let types = ["A", "B", "C", "D"];
+  let d =
+    diff(
+      ~added=
+        List.mapi((i, k) => node(k, float_of_int(i) *. 120., 40.), types),
+      ~edges=
+        List.init(8, i =>
+          {
+            S.name: "f" ++ string_of_int(i),
+            src: List.nth(types, i mod 4),
+            dst: List.nth(types, (i + 1) mod 4),
+            product: None,
+          }
+        ),
+      (),
+    );
+  let s = S.plan(~pos_of=pos_of_added(d), d);
+  let edge_acts =
+    List.filter(
+      ((_, a): (int, S.act)) =>
+        switch (a.at) {
+        | S.Edge(_) => true
+        | _ => false
+        },
+      s.acts,
+    );
+  check(int, "one act per edge", 8, List.length(edge_acts));
+  check(list(string), "coverage", [], S.coverage(d, s));
+  no_violations("every edge ridden", s);
+};
+
+/* the coverage check names what the score forgot */
+let coverage_catches = () => {
+  let d = diff(~added=[node("A", 0., 0.), node("B", 100., 0.)], ());
+  let s = S.plan(~pos_of=pos_of_added(d), d);
+  let d' =
+    diff(
+      ~added=[node("A", 0., 0.), node("B", 100., 0.), node("Z", 200., 0.)],
+      (),
+    );
+  check(
+    list(string),
+    "unstaged node named",
+    ["ORPHAN: node Z unstaged"],
+    S.coverage(d', s),
+  );
 };
 
 let drift_last = () => {
@@ -233,6 +307,78 @@ let framing = () => {
   };
 };
 
+/* removals are acts: the arrow first, at its label, then the node */
+let removals_choreographed = () => {
+  let d =
+    diff(
+      ~removed=[("Old", p(300., 100.))],
+      ~removed_edges=[("f", p(200., 120.))],
+      (),
+    );
+  let s = S.plan(~pos_of=_ => None, d);
+  check(int, "two acts", 2, List.length(s.acts));
+  check(
+    bool,
+    "erase emote",
+    true,
+    List.for_all(
+      ((_, a): (int, S.act)) =>
+        switch (a.emote) {
+        | S.Erase => true
+        | _ => false
+        },
+      s.acts,
+    ),
+  );
+  check(list(string), "coverage", [], S.coverage(d, s));
+  no_violations("removals", s);
+  switch (s.acts) {
+  | [(_, first), ..._] =>
+    check(
+      bool,
+      "the arrow goes before the node",
+      true,
+      List.exists(
+        (e: S.timed_effect) =>
+          switch (e.effect) {
+          | S.Erase("f") => true
+          | _ => false
+          },
+        first.effects,
+      ),
+    )
+  | [] => fail("no acts")
+  };
+};
+
+/* a modification is an act too: the actor touches the element, the look
+   swaps at the cue (the view stages the old look until then) */
+let changes_choreographed = () => {
+  let d = {
+    ...diff(~added=[node("New", 300., 100.)], ()),
+    changed: [("f", p(120., 80.)), ("Kind", p(40., 40.))],
+  };
+  let s = S.plan(~pos_of=_ => None, d);
+  check(int, "three acts", 3, List.length(s.acts));
+  check(list(string), "coverage", [], S.coverage(d, s));
+  no_violations("changes", s);
+  let cues = S.change_times(s);
+  check(
+    bool,
+    "both cued",
+    true,
+    List.mem_assoc("f", cues) && List.mem_assoc("Kind", cues),
+  );
+  /* changes come before additions */
+  let t_new = appear(s, "New");
+  check(
+    bool,
+    "changes precede the addition",
+    true,
+    List.for_all(((_, t)) => t < t_new, cues),
+  );
+};
+
 let tests = [
   test_case(
     "three types, terminals with their type, path monotonic",
@@ -241,7 +387,18 @@ let tests = [
   ),
   test_case("the actor precedes every effect", `Quick, actor_first),
   test_case("edges after types, pill after arrow", `Quick, edge_after_types),
-  test_case("more than 12 definitions is one batch act", `Quick, batch),
+  test_case(
+    "many definitions: one act each, no centroid batch",
+    `Quick,
+    no_batch,
+  ),
+  test_case("many edges: every one ridden", `Quick, every_edge_ridden),
+  test_case("coverage names unstaged elements", `Quick, coverage_catches),
+  test_case(
+    "removals: arrow then node, erase acts",
+    `Quick,
+    removals_choreographed,
+  ),
   test_case("a drift makes room before arrivals", `Quick, drift_last),
   test_case("framing: hold, frame whole, minimal pan", `Quick, framing),
 ];

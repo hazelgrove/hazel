@@ -317,6 +317,46 @@ let reveal = (~delay: float, ~dur: float, el): unit => {
   );
 };
 
+/* the inverse of [reveal]: the stroke retracts toward its start and its
+   arrowhead goes with it (the ghost of an erased arrow) */
+let retract = (~delay: float, ~dur: float, el): unit => {
+  cancel_anims(el);
+  let total: float = Js.Unsafe.meth_call(el, "getTotalLength", [||]);
+  let on_len = arm_dash(el, total);
+  later(delay, () => set_attr(el, "marker-end", "none"));
+  animate(
+    el,
+    [
+      [("strokeDashoffset", num(0.))],
+      [("strokeDashoffset", num(on_len))],
+    ],
+    [
+      ("duration", num(dur)),
+      ("delay", num(delay)),
+      ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
+      ("fill", str("forwards")),
+    ],
+  );
+};
+
+/* an element shrinks away (a ghost node, a pill) and stays gone */
+let shrink_out = (~delay: float, ~dur: float, el): unit => {
+  cancel_anims(el);
+  animate(
+    el,
+    [
+      [("transform", str("scale(1)")), ("opacity", num(1.))],
+      [("transform", str("scale(0)")), ("opacity", num(0.))],
+    ],
+    [
+      ("duration", num(dur)),
+      ("delay", num(delay)),
+      ("easing", str("cubic-bezier(0.55, 0, 1, 0.45)")),
+      ("fill", str("forwards")),
+    ],
+  );
+};
+
 /* screen-space waypoint the avatar passes at a time (ms into the beat) */
 type waypoint = ((float, float), float);
 
@@ -1160,6 +1200,19 @@ let avatar_timeline =
 /* the score on stage, and the clock reading when it began */
 let current_score: ref(option((CanvasScore.score, float))) = ref(None);
 
+/* a re-render request (the sidebar's tick), for cues whose effect is a
+   rendered swap: a changed element's new look lands at its cue */
+let request_tick: ref(float => unit) = ref(_ => ());
+
+/* a brief highlight on an element the actor just changed */
+let pulse_class = (el, ms: float): unit => {
+  let cl = Js.Unsafe.get(el, "classList");
+  ignore(Js.Unsafe.meth_call(cl, "add", [|str("just-changed")|]));
+  later(ms, () =>
+    ignore(Js.Unsafe.meth_call(cl, "remove", [|str("just-changed")|]))
+  );
+};
+
 let play = (~zoom: float, s: CanvasScore.score): unit => {
   current_score := Some((s, clock()));
   ignore(zoom);
@@ -1284,7 +1337,6 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     s.acts,
   );
   /* the effects */
-  let vanish = ref(0);
   List.iter(
     ((t, a, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
       let tf = float_of_int(t);
@@ -1308,23 +1360,67 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
         ignore(ride(~t=tf, ~dur=float_of_int(e.dur), name));
       | Form(pk, parts) =>
         ignore(formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts))
-      | Vanish(_)
-      | Erase(_) => incr(vanish)
+      | Vanish(k) =>
+        /* the ghost node (rendered from the previous layout) shrinks
+           away at the cue; its value badge, if any, goes with it */
+        later(tf, () => CanvasAvatar.set_mood("erase"));
+        List.iter(
+          id =>
+            switch (by_id(id)) {
+            | Some(el) => shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
+            | None => ()
+            },
+          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)],
+        );
+      | Erase(name) =>
+        later(tf, () => CanvasAvatar.set_mood("erase"));
+        switch (by_id(CanvasView.path_dom_id(name))) {
+        | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
+        | None => ()
+        };
+        List.iter(
+          id =>
+            switch (by_id(id)) {
+            | Some(el) =>
+              shrink_out(~delay=tf +. 120., ~dur=float_of_int(e.dur), el)
+            | None => ()
+            },
+          [
+            CanvasView.edge_dom_id(name),
+            CanvasView.orbit_dom_id(name),
+            "clead-" ++ CanvasView.sanitize(name),
+          ],
+        );
+      | Change(k) =>
+        /* the view swaps the staged old look for the new one on the next
+           render: ask for it at the cue, and pulse the element */
+        later(
+          tf,
+          () => {
+            request_tick^(0.);
+            List.iter(
+              id =>
+                switch (by_id(id)) {
+                | Some(el) => pulse_class(el, 900.)
+                | None => ()
+                },
+              [
+                CanvasView.node_dom_id(k),
+                CanvasView.edge_dom_id(k),
+                CanvasView.value_dom_id(k),
+              ],
+            );
+          },
+        )
       | Appear(_)
       | Reveal(_)
       | Pill(_)
-      | Change(_)
       | Drift
       | Say(_) => ()
       };
     },
     CanvasScore.effects_abs(s),
   );
-  if (vanish^ > 0) {
-    CanvasLog.log(
-      Printf.sprintf("vanish: %d removal(s) not yet choreographed", vanish^),
-    );
-  };
   /* the camera: the score's frames, each leading its act's travel */
   List.iter(
     ((t, f): (int, CanvasScore.frame)) =>

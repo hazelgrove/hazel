@@ -79,8 +79,12 @@ type tempo = {
   bloom_gap: int, /* a type's terminals bloom this far apart */
   min_gap: int, /* between effects of different acts */
   drift_ms: int,
-  batch_over: int, /* more definitions than this = one batch act */
-  max_edge_acts: int,
+  /* A2 without exception: every definition and every edge is its own act
+     (2026-09-06, andrew: a batch at a centroid reads as "functions
+     appearing with the agent standing still"). A long beat is bounded by
+     COMPRESSING the tempo toward [floor], never by merging acts. */
+  budget_ms: int, /* compress when the beat would run longer than this */
+  floor: float /* the smallest compression factor (trial 6: 1.1 s/act was "boom boom boom") */
 };
 
 /* 2026-09-04: slowed after trial 6 ("boom boom boom") — about 1.9 s per act */
@@ -94,8 +98,26 @@ let tempo = {
   bloom_gap: 120,
   min_gap: 150,
   drift_ms: 700,
-  batch_over: 12,
-  max_edge_acts: 3,
+  budget_ms: 24000,
+  floor: 0.6,
+};
+
+/* the same tempo, every phase scaled by [f] (the ride's own minimum in
+   edge_act scales with travel) */
+let compress = (t: tempo, f: float): tempo => {
+  let sc = x => max(1, int_of_float(float_of_int(x) *. f));
+  {
+    ...t,
+    travel_min: sc(t.travel_min),
+    travel_max: sc(t.travel_max),
+    px_per_ms: t.px_per_ms /. f,
+    pause: sc(t.pause),
+    effect: sc(t.effect),
+    settle: sc(t.settle),
+    bloom_gap: sc(t.bloom_gap),
+    min_gap: sc(t.min_gap),
+    drift_ms: sc(t.drift_ms),
+  };
 };
 
 /* ---------------- inputs ---------------- */
@@ -104,6 +126,12 @@ type new_node = {
   key: string,
   anchor: option(string), /* a terminal's anchor node, if it is one */
   p: pos,
+  /* the story's order: a named definition's place in the program; an
+     unnamed glyph (a builtin, a product) the place of the first function
+     that needs it; [max_int] when nothing says. Acts follow this, not the
+     screen position (2026-09-06: the score opened on `(Int, Int)` at the
+     far left instead of the module the agent wrote). */
+  order: int,
 };
 
 type new_edge = {
@@ -118,6 +146,10 @@ type diff = {
   added: list(new_node),
   edges: list(new_edge),
   removed: list((string, pos)),
+  removed_edges: list((string, pos)), /* name, a point on the arrow */
+  /* elements whose LOOK changed (a hole filled, a constructor added, an
+     error fixed, a type changed): key or edge name, and where to touch */
+  changed: list((string, pos)),
   moved: list((string, pos, pos)), /* key, from, to */
   actor: option(pos),
 };
@@ -182,9 +214,9 @@ let definitions = (added: list(new_node)): list(definition) => {
         },
       added,
     )
-    /* reading order: left to right, then top to bottom */
+    /* program order first; the screen's reading order breaks ties */
     |> List.sort((a: new_node, b: new_node) =>
-         compare((a.p.x, a.p.y), (b.p.x, b.p.y))
+         compare((a.order, a.p.x, a.p.y), (b.order, b.p.x, b.p.y))
        );
   List.map(
     (p: new_node) =>
@@ -349,8 +381,9 @@ let edge_act =
     };
   let ride =
     switch (sp, dp) {
-    | (Some(s), Some(d)) => max(700, travel_for(~tempo, dist(s, d) *. 1.6))
-    | _ => 900
+    | (Some(s), Some(d)) =>
+      max(tempo.travel_min + 250, travel_for(~tempo, dist(s, d) *. 1.6))
+    | _ => tempo.travel_max
     };
   /* a terminal this edge lands on (or leaves from) blooms as it arrives */
   let ends =
@@ -416,6 +449,75 @@ let removal_act =
         at: t0,
         dur: tempo.effect,
       },
+      {
+        effect: Ripple(Node(k)),
+        at: t0 + 60,
+        dur: 0,
+      },
+    ],
+    settle_ms: tempo.settle,
+  };
+};
+
+/* an arrow is erased at its label: the actor travels there, the line
+   retracts and the pill fades */
+let erase_act =
+    (~tempo, ~cause, ~from: option(pos), (name, p): (string, pos)): act => {
+  let travel_ms =
+    switch (from) {
+    | Some(f) => travel_for(~tempo, dist(f, p))
+    | None => tempo.travel_min
+    };
+  let t0 = travel_ms + tempo.pause;
+  {
+    cause,
+    at: Point(p),
+    emote: Erase,
+    travel_ms,
+    pause_ms: tempo.pause,
+    effects: [
+      {
+        effect: Erase(name),
+        at: t0,
+        dur: tempo.effect + 200,
+      },
+      {
+        effect: Ripple(Point(p)),
+        at: t0 + 60,
+        dur: 0,
+      },
+    ],
+    settle_ms: tempo.settle,
+  };
+};
+
+/* a changed element keeps its old look until the actor touches it: the
+   swap and a pulse are the effect */
+let change_act =
+    (~tempo, ~cause, ~from: option(pos), (k, p): (string, pos)): act => {
+  let travel_ms =
+    switch (from) {
+    | Some(f) => travel_for(~tempo, dist(f, p))
+    | None => tempo.travel_min
+    };
+  let t0 = travel_ms + tempo.pause;
+  {
+    cause,
+    at: Point(p),
+    emote: Edit,
+    travel_ms,
+    pause_ms: tempo.pause,
+    effects: [
+      {
+        effect: Change(k),
+        at: t0,
+        dur: tempo.effect,
+      },
+      {
+        effect: Ripple(Point(p)),
+        at: t0 + 60,
+        dur: 0,
+      },
     ],
     settle_ms: tempo.settle,
   };
@@ -474,28 +576,40 @@ let sequence = (acts: list(act)): (list((int, act)), int) => {
   (List.rev(rev), t);
 };
 
-let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => {
+let rec plan =
+        (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => {
+  let s = plan_at(~tempo, ~pos_of, diff);
+  /* over budget: the same acts, compressed — never merged (A2) */
+  if (s.total_ms > tempo.budget_ms && tempo.floor < 1.) {
+    let f =
+      max(
+        tempo.floor,
+        float_of_int(tempo.budget_ms) /. float_of_int(s.total_ms),
+      );
+    plan_at(~tempo=compress(tempo, f), ~pos_of, diff);
+  } else {
+    s;
+  };
+}
+and plan_at = (~tempo, ~pos_of: string => option(pos), diff: diff): score => {
   let cause = diff.d_cause;
   let pos_of' = k =>
     switch (pos_of(k)) {
     | Some(p) => Some(p)
     | None =>
-      List.find_opt((n: new_node) => n.key == k, diff.added)
-      |> Option.map((n: new_node) => n.p)
+      switch (List.find_opt((n: new_node) => n.key == k, diff.added)) {
+      | Some(n) => Some(n.p)
+      | None => List.assoc_opt(k, diff.removed)
+      }
     };
   /* a new anonymous product that sources a new edge is formed by that
      edge's act (Form: visit the parts, lines draw in, the dot grows) —
      not a definition of its own */
-  let many_edges = List.length(diff.edges) > tempo.max_edge_acts;
-  /* ... unless no edge act rides them: then the products are definitions
-     of their own (the rest act only reveals the edges) */
   let formed =
-    many_edges
-      ? []
-      : List.filter_map(
-          (e: new_edge) => Option.map(fst, e.product),
-          diff.edges,
-        );
+    List.filter_map(
+      (e: new_edge) => Option.map(fst, e.product),
+      diff.edges,
+    );
   let defs =
     definitions(
       List.filter((n: new_node) => !List.mem(n.key, formed), diff.added),
@@ -512,7 +626,7 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
       defs,
     );
   let orphans = List.map((d: definition) => d.primary, edge_orphans);
-  let edges = many_edges ? [] : diff.edges;
+  let edges = diff.edges;
   /* threading the actor's position through the acts */
   let from = ref(diff.actor);
   let mk = f => {
@@ -530,21 +644,29 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
     };
     a;
   };
-  /* removals are not choreographed yet: the node is gone at render, so an
-     actor visiting the empty spot would be an orphan gesture (docket:
-     "removals — actor first, then the render") */
-  let removals = {
-    ignore(removal_act);
-    ignore(diff.removed);
-    [];
-  };
+  /* removals: the board keeps the removed elements as ghosts until their
+     act (CanvasSidebar's leaving set), so the actor erases something that
+     is still there — arrows first (a function goes before its type),
+     then nodes, each with its own act */
+  let removals =
+    List.map(
+      e => mk(from => erase_act(~tempo, ~cause, ~from, e)),
+      diff.removed_edges,
+    )
+    @ List.map(
+        r => mk(from => removal_act(~tempo, ~cause, ~from, r)),
+        diff.removed,
+      );
+  let changes =
+    List.map(
+      c => mk(from => change_act(~tempo, ~cause, ~from, c)),
+      diff.changed,
+    );
   let additions =
-    List.length(own_defs) > tempo.batch_over
-      ? [mk(from => batch_act(~tempo, ~cause, ~from, own_defs))]
-      : List.map(
-          d => mk(from => definition_act(~tempo, ~cause, ~from, d)),
-          own_defs,
-        );
+    List.map(
+      d => mk(from => definition_act(~tempo, ~cause, ~from, d)),
+      own_defs,
+    );
   let edge_acts =
     List.map(
       e =>
@@ -580,21 +702,12 @@ let plan = (~tempo=tempo, ~pos_of: string => option(pos), diff: diff): score => 
   /* existing nodes make room FIRST when something new arrives, so a new
      node's lines meet nodes that are already where they will be; a beat
      that only moves things is a closing tidy */
-  /* the edges the actor does not ride are still the score's: one act
-     reveals them, after the definitions they connect */
-  let rest =
-    many_edges
-      ? [
-        mk(from =>
-          rest_act(~tempo, ~cause, ~from, ~pos_of=pos_of', diff.edges)
-        ),
-      ]
-      : [];
+  ignore(rest_act);
   let (acts, total_ms) =
-    additions @ edge_acts @ leftover_orphans @ rest == []
-      ? sequence(removals @ drift)
+    additions @ edge_acts @ leftover_orphans == []
+      ? sequence(removals @ changes @ drift)
       : sequence(
-          removals @ drift @ additions @ edge_acts @ leftover_orphans @ rest,
+          removals @ changes @ drift @ additions @ edge_acts @ leftover_orphans,
         );
   {
     cause,
@@ -818,11 +931,15 @@ let effects_abs = (s: score): list((int, act, timed_effect)) =>
   |> List.sort(((t1, _, _), (t2, _, _)) => compare(t1, t2));
 
 /* node key -> absolute ms its grow-in starts */
+/* when each new node becomes visible: Appear at its cue; a product formed
+   by an edge act grows at the END of the formation (the player visits
+   the parts first, then the dot scales in over its last 320 ms) */
 let appear_times = (s: score): list((string, int)) =>
   List.filter_map(
     ((t, _, e: timed_effect)) =>
       switch (e.effect) {
       | Appear(k) => Some((k, t))
+      | Form(pk, _) => Some((pk, t + e.dur - 320))
       | _ => None
       },
     effects_abs(s),
@@ -956,6 +1073,88 @@ let validate = (~tempo=tempo, s: score): list(string) => {
   };
   List.rev(v^);
 };
+
+/* A2's coverage: every element the diff adds is staged by some effect of
+   the score (Appear/Form for nodes, Draw/Reveal for edges); anything else
+   would appear at render with no actor — an ORPHAN. Removals are listed
+   until removal choreography exists (they vanish at render today). */
+let coverage = (diff: diff, s: score): list(string) => {
+  let effects =
+    List.map(((_, _, e: timed_effect)) => e.effect, effects_abs(s));
+  let node_staged = k =>
+    List.exists(
+      fun
+      | Appear(k') => k' == k
+      | Form(pk, _) => pk == k
+      | _ => false,
+      effects,
+    );
+  let edge_staged = n =>
+    List.exists(
+      fun
+      | Draw(n')
+      | Reveal(n') => n' == n
+      | _ => false,
+      effects,
+    );
+  List.filter_map(
+    (n: new_node) =>
+      node_staged(n.key)
+        ? None : Some("ORPHAN: node " ++ n.key ++ " unstaged"),
+    diff.added,
+  )
+  @ List.filter_map(
+      (e: new_edge) =>
+        edge_staged(e.name)
+          ? None : Some("ORPHAN: edge " ++ e.name ++ " unstaged"),
+      diff.edges,
+    )
+  @ List.filter_map(
+      ((k, _)) =>
+        List.exists(
+          fun
+          | Vanish(k') => k' == k
+          | _ => false,
+          effects,
+        )
+          ? None : Some("ORPHAN: removal " ++ k ++ " unstaged"),
+      diff.removed,
+    )
+  @ List.filter_map(
+      ((n, _)) =>
+        List.exists(
+          fun
+          | Erase(n') => n' == n
+          | _ => false,
+          effects,
+        )
+          ? None : Some("ORPHAN: erased edge " ++ n ++ " unstaged"),
+      diff.removed_edges,
+    )
+  @ List.filter_map(
+      ((k, _)) =>
+        List.exists(
+          fun
+          | Change(k') => k' == k
+          | _ => false,
+          effects,
+        )
+          ? None : Some("ORPHAN: change of " ++ k ++ " unstaged"),
+      diff.changed,
+    );
+};
+
+/* absolute cue times of the Change effects (the staged old looks swap
+   then) */
+let change_times = (s: score): list((string, int)) =>
+  List.filter_map(
+    ((t, _, e: timed_effect)) =>
+      switch (e.effect) {
+      | Change(k) => Some((k, t))
+      | _ => None
+      },
+    effects_abs(s),
+  );
 
 /* ---------------- journal ---------------- */
 

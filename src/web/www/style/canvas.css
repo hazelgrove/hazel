@@ -414,6 +414,25 @@
   animation: node-grow 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+/* the actor just changed this element (a hole filled, a type grown, an
+   error fixed): a short glow so the swap reads as the actor's doing */
+.canvas-node.just-changed,
+.canvas-edge-label.just-changed,
+.canvas-value.just-changed {
+  animation: cnv-change-pulse 0.9s ease-out;
+}
+@keyframes cnv-change-pulse {
+  0% {
+    filter: brightness(1) drop-shadow(0 0 0 rgba(120, 90, 200, 0));
+  }
+  25% {
+    filter: brightness(1.25) drop-shadow(0 0 8px rgba(120, 90, 200, 0.8));
+  }
+  100% {
+    filter: brightness(1) drop-shadow(0 0 0 rgba(120, 90, 200, 0));
+  }
+}
+
 @keyframes node-grow {
   from {
     scale: 0.18;

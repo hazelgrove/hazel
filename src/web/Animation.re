@@ -453,7 +453,13 @@ let go_impl = (): unit => {
         let delay =
           switch (List.assoc_opt(id, arrival_schedule^)) {
           | Some(d) => d
-          | None => b.b_delay + stagger_index^ * step
+          | None =>
+            /* a scored beat stages every arrival; one the score did not
+               name appears with the generic stagger — no actor (A2) */
+            if (arrival_schedule^ != []) {
+              slow_hook^("ORPHAN: arrival " ++ id ++ " unscheduled");
+            };
+            b.b_delay + stagger_index^ * step;
           };
         arrival_span_override :=
           max(arrival_span_override^, delay - b.b_delay);
@@ -641,7 +647,7 @@ let go_impl = (): unit => {
                switch (List.assoc_opt(id, geom_schedule^)) {
                | Some(None) => "owned"
                | Some(Some(d)) => Printf.sprintf("at %dms", d)
-               | None => "UNSCHEDULED (beat default)"
+               | None => "ORPHAN: unscheduled (beat default)"
                },
              ),
            );
