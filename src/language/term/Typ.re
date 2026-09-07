@@ -1387,12 +1387,49 @@ let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   head_sig(ctx, ty)
   |> Option.map(s => ClosedSig.of_items(resolved_items(s)));
 
+/* What an escaping abstract path becomes where nothing names it: an escaped
+   abstract type whose identity comes from a site, or plain unknown, which is
+   what a failed implicit resolution wants, since the failure is already
+   reported and opacity would only cascade. */
+type escape_to =
+  | EscapesAt(Id.t)
+  | ErasesToUnknown;
+
+/* `m.Inner.T` as text: the label an escaped type keeps for display. */
+let rec path_label = (ty: t): string =>
+  switch (term_of(ty)) {
+  | Var(x)
+  | TypeMember(x) => x
+  | Parens(ty)
+  | Projector(_, ty) => path_label(ty)
+  | ProdProjection(p, {term: Label(l), _}) => path_label(p) ++ "." ++ l
+  | Escaped(e) => Grammar.escaped_label(e)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | ProofOf(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_) => "?"
+  };
+
 /* [ty] read outside the scope of the values [escaping] bind: a type path
    rooted at one of them (`m.T`) is replaced by what it denotes in [ctx],
-   the scope's context, or by `?` where it denotes nothing there. A path
-   root names the newest type or value of its name, so a path through a
-   type of that name does not escape. */
-let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
+   the scope's context, or, where it denotes nothing there, by what
+   [escape_to] says: an escaped abstract type identified by that site and
+   the path, or plain unknown. A path root names the newest type or value
+   of its name, so a path through a type of that name does not escape. */
+let rec avoid =
+        (ctx: Ctx.t, ~escape_to: escape_to, ~escaping: list(Var.t), ty: t): t => {
   let escapes = root =>
     List.exists(String.equal(root), escaping)
     && (
@@ -1408,17 +1445,39 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
       (ty: t)
       : [
           | `Denotes(t)
-          | `Stuck
+          | `Stuck(t)
           | `No
         ] =>
     switch (term_of(ty), path_root(ty)) {
     | (ProdProjection(_), Some(root)) when escapes(root) =>
       let denoted = weak_head_normalize(ctx, ty);
       switch (term_of(denoted), path_root(denoted)) {
-      | (ProdProjection(_), Some(root')) when String.equal(root, root') => `Stuck
+      | (ProdProjection(_), Some(root')) when String.equal(root, root') =>
+        `Stuck(denoted)
       | _ => `Denotes(denoted)
       };
     | _ => `No
+    };
+  let stuck = (ty: t) =>
+    switch (escaping_path(ty)) {
+    | `Stuck(_) => true
+    | `Denotes(_)
+    | `No => false
+    };
+  /* Nothing outside names this abstract type any more: it becomes an
+     escaped one rather than `?` (still abstract, still consistent with `?`,
+     no longer consistent with a concrete type), its identity derived from
+     the site and the path so the same escape at the same site is the same
+     type on every pass. */
+  let escaped = (w: t): term =>
+    switch (escape_to) {
+    | ErasesToUnknown => Unknown(Internal)
+    | EscapesAt(site) =>
+      let label = path_label(w);
+      Escaped({
+        id: Id.mk_str(Id.to_string(site) ++ "!" ++ label),
+        label,
+      });
     };
   switch (escaping) {
   | [] => ty
@@ -1428,8 +1487,8 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
         (continue, ty) => {
           let (_, rewrap) = unwrap(ty);
           switch (escaping_path(ty)) {
-          | `Stuck => Unknown(Internal) |> rewrap
-          | `Denotes(denoted) => avoid(ctx, ~escaping, denoted)
+          | `Stuck(w) => escaped(w) |> rewrap
+          | `Denotes(denoted) => avoid(ctx, ~escape_to, ~escaping, denoted)
           | `No =>
             switch (term_of(ty)) {
             /* Generativity: a member defined as a stuck escaping path is
@@ -1461,7 +1520,7 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
                     let item = Sig.map_typ(name_paths(named), item);
                     switch (item.term) {
                     | SigType({term: Var(name), _} as tp, def)
-                        when escaping_path(def) == `Stuck => (
+                        when stuck(def) => (
                         [(def, name), ...named],
                         [
                           {
@@ -1471,7 +1530,7 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
                           ...acc,
                         ],
                       )
-                    | SigType(tp, def) when escaping_path(def) == `Stuck => (
+                    | SigType(tp, def) when stuck(def) => (
                         named,
                         [
                           {
@@ -1489,7 +1548,13 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
                     | EmptyHole
                     | MultiHole(_) => (
                         named,
-                        [Sig.map_typ(avoid(ctx, ~escaping), item), ...acc],
+                        [
+                          Sig.map_typ(
+                            avoid(ctx, ~escape_to, ~escaping),
+                            item,
+                          ),
+                          ...acc,
+                        ],
                       )
                     };
                   },
@@ -2937,7 +3002,7 @@ let rec pretty_print = (ty: t): string =>
     "{ "
     ++ String.concat("; ", List.map(sig_item_str, Sig.items(s)))
     ++ " }";
-  | Escaped({label, _}) => label
+  | Escaped(e) => Grammar.escaped_label(e)
   }
 and ctr_pretty_print =
   fun

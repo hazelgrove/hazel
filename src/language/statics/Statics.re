@@ -2121,6 +2121,11 @@ and uexp_to_info_map =
           )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+          /* Generativity: an abstract type that escaped the function's own
+             scope is a fresh one at every call, so two calls of the same
+             function return incomparable types. Deriving the identity from
+             this application's id keeps it stable across passes. */
+          let ty_out = Typ.freshen_escaped(~site=Exp.rep_id(uexp), ty_out);
           let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
@@ -2303,9 +2308,20 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let avoid = Typ.avoid(p.ctx, ~escaping=Pat.bound_vars(p.user_term));
+      let avoid =
+        Typ.avoid(
+          p.ctx,
+          ~escape_to=EscapesAt(Exp.rep_id(uexp)),
+          ~escaping=Pat.bound_vars(p.user_term),
+        );
       /* At a coercion site the body's checked type is the codomain, and the
-         elaborated body carries the sealing cast. */
+         elaborated body carries the sealing cast. Paths rooted at the
+         parameter cannot leave the body (Typ.avoid), and that includes the
+         later components of the parameter itself: a component annotated
+         `x : m.T` says nothing to a caller, who cannot name `m`. Only this
+         copy of the domain is closed; `p.ty` keeps the precise type for the
+         coverage check and for the elaborated ascription, so runtime casts
+         do not move. */
       let e_elab =
         coercible
           ? fresh_ascription(ctx, e_elab, e.elab_syn_ty, Some(e.ty)) : e_elab;
@@ -2409,6 +2425,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=
           Typ.avoid(
             b.ctx_scope,
+            ~escape_to=EscapesAt(Exp.rep_id(uexp)),
             ~escaping=Pat.bound_vars(binder),
             body.elab_syn_ty,
           ),
@@ -2594,7 +2611,12 @@ and uexp_to_info_map =
       let e_syn_tys =
         List.map2(
           ((e: Info.exp, ctx), p) =>
-            Typ.avoid(ctx, ~escaping=Pat.bound_vars(p), e.elab_syn_ty),
+            Typ.avoid(
+              ctx,
+              ~escape_to=EscapesAt(Exp.rep_id(e.user_term)),
+              ~escaping=Pat.bound_vars(p),
+              e.elab_syn_ty,
+            ),
           List.combine(es, p_ctxs),
           ps,
         );
