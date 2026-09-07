@@ -248,6 +248,7 @@ let ctx_entry_node = (~globals, entry: Ctx.entry): Node.t =>
   | TVarEntry({name, kind: Abstract, _}) =>
     ctx_row(text("type " ++ name), None)
   | LivelitEntry(_) => ctx_row(text("livelit"), None)
+  | ImplicitEntry({name, _}) => ctx_row(text("implicit " ++ name), None)
   };
 
 let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
@@ -302,6 +303,7 @@ let ctx_entry_text = (entry: Ctx.entry): string =>
     "type " ++ name ++ " = " ++ typ_to_text(~settings=code_settings, ty)
   | TVarEntry({name, kind: Abstract, _}) => "type " ++ name
   | LivelitEntry(_) => "livelit"
+  | ImplicitEntry({name, _}) => "implicit " ++ name
   };
 
 let ctx_to_text = (ctx: Ctx.t): string =>

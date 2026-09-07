@@ -8,36 +8,7 @@ let val_ = (x, ty) => Sig.sig_let(Pat.asc(Pat.var(x), ty));
 let type_ = (t, ty) => Sig.sig_type(TPat.var(t), ty);
 let mod_ = (x, ty) => Sig.sig_module(MPat.asc(MPat.var(x), ty));
 
-/* Assert that some mark in the program satisfies [pred]. */
-let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
-  Alcotest.test_case(
-    name,
-    `Quick,
-    () => {
-      let marks =
-        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
-      Alcotest.(check(bool))(name, true, List.exists(pred, marks));
-    },
-  );
-
-/* Exactly one mark in the whole program, and it satisfies [pred]. */
-let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
-  Alcotest.test_case(
-    name,
-    `Quick,
-    () => {
-      let marks =
-        statics(parse_exp(source)) |> errors |> List.concat_map(snd);
-      Alcotest.(check(bool))(
-        name,
-        true,
-        switch (marks) {
-        | [m] => pred(m)
-        | _ => false
-        },
-      );
-    },
-  );
+/* has_mark_test and single_mark_test come from Test_Statics_Prelude. */
 
 /* ===== PROJECTION ERROR ATTRIBUTION ===== */
 

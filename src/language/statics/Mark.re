@@ -107,6 +107,22 @@ type t =
       path: string,
       side: escaped_side,
     })
+  /* An implicit parameter [binder] of type [signature] that no instance in
+     scope fits ([candidates]: the instances in scope), or that several fit
+     ([candidates]: those); on the application. [constraints] are the type
+     members the call's arguments and expectation require of the instance
+     (`T = String`), which is usually why none fits. */
+  | ImplicitNotFound({
+      binder: Var.t,
+      signature: Typ.t,
+      constraints: list((string, Typ.t)),
+      candidates: list(Var.t),
+    })
+  | ImplicitAmbiguous({
+      binder: Var.t,
+      signature: Typ.t,
+      candidates: list(Var.t),
+    })
   | BadToken(string)
   | BadLabel(Any.t)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
@@ -135,6 +151,11 @@ type t =
   /* `S.T` where S is a signature alias and T is abstract in it: no module is
      named, so there is no T to name. */
   | TypAbstractMemberOfSignature(Var.t)
+  /* `implicit x : T` where T is not a signature type: no module can be
+     resolved to it. */
+  | ImplicitBinderNotModule(Typ.t)
+  /* An implicit binder type outside an arrow domain. */
+  | ImplicitBinderPosition
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure

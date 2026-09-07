@@ -272,6 +272,10 @@ let core_mark_err_view =
     | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | EscapedType(_)
+    | ImplicitNotFound(_)
+    | ImplicitAmbiguous(_)
+    | ImplicitBinderNotModule(_)
+    | ImplicitBinderPosition
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -817,6 +821,65 @@ let exp_mark_err_view =
       text("Module is missing members required by its signature: "),
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
+  | ImplicitNotFound({binder, signature, constraints, candidates}) =>
+    div_err(
+      [text("No implicit instance")]
+      @ (
+        switch (Typ.term_of(signature)) {
+        | Unknown(_) => [] /* an unannotated binder: nothing to name */
+        | _ => [text(" of "), view_type(signature)]
+        }
+      )
+      @ (
+        switch (constraints) {
+        | [] => []
+        | _ =>
+          [text(" with ")]
+          @ List.concat(
+              ListUtil.join(
+                [text(", ")],
+                List.map(
+                  ((name, ty)) =>
+                    [code(name), text(" = "), view_type(ty)],
+                  constraints,
+                ),
+              ),
+            )
+        }
+      )
+      @ [text(" for "), code(binder)]
+      @ (
+        switch (candidates) {
+        | [] => [text("; no implicit instances are in scope")]
+        | _ => [
+            text("; the implicit instances in scope are "),
+            ...ListUtil.join(text(", "), List.map(code, candidates)),
+          ]
+        }
+      ),
+    )
+  | ImplicitAmbiguous({binder, signature, candidates}) =>
+    div_err(
+      [text("Implicit "), code(binder)]
+      @ (
+        switch (Typ.term_of(signature)) {
+        | Unknown(_) => [] /* an unannotated binder: nothing to name */
+        | _ => [text(" : "), view_type(signature)]
+        }
+      )
+      @ [text(" is ambiguous: ")]
+      @ ListUtil.join(text(", "), List.map(code, candidates))
+      @ [text(" all fit")],
+    )
+  | ImplicitBinderNotModule(ty) =>
+    div_err([
+      text("An implicit binder needs a signature type, not "),
+      view_type(ty),
+    ])
+  | ImplicitBinderPosition =>
+    div_err([
+      text("An implicit binder belongs in a function's parameter type"),
+    ])
   | ModuleMemberNotFound({name, members, type_member}) =>
     if (type_member) {
       div_err([
@@ -990,6 +1053,31 @@ let exp_view =
           cls,
           ok,
         ),
+      )
+    | Exp(ImplicitResolved({resolved, common})) =>
+      div_ok(
+        List.concat_map(
+          ((binder, inst)) =>
+            [
+              text("implicit "),
+              code(binder),
+              text(" is "),
+              code(inst),
+              text("; "),
+            ],
+          resolved,
+        )
+        @ common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            common,
+          ),
       )
     | Pat(_)
     | TypOk(_)
