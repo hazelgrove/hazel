@@ -30,3 +30,69 @@
     display: flex;
     flex-direction: column;
 }
+/* The fumola livelit: an editable Fumola program, its current result, and the
+   id of the external Fumola runtime the model names. */
+.livelit > .fumola-livelit {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    width: 100%;
+}
+.livelit > .fumola-livelit input {
+    flex: 1 1 auto;
+    min-width: 4em;
+    font-family: inherit;
+    outline: none;
+}
+.livelit > .fumola-livelit .fumola-result {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+/* The instance id is diagnostic, not something to read while programming. */
+.livelit > .fumola-livelit .fumola-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}
+
+/* The fumola_new livelit: the semantics a runtime runs, and the id naming
+   it. The mode is the part worth reading; the id is diagnostic, like the one
+   above. */
+.livelit > .fumola-new {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+}
+.livelit > .fumola-new .fumola-new-mode {
+    flex: 0 0 auto;
+}
+.livelit > .fumola-new .fumola-new-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}
+
+/* The widget for a Fumola reference: the program that reads the cell, and
+   what it held. Produced by translation, never chosen by a user. */
+.fumola-peek {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+    padding: 0 0.3em;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 0.3em;
+    background: rgba(0, 0, 0, 0.03);
+    white-space: nowrap;
+}
+.fumola-peek-reads {
+    opacity: 0.65;
+}
+.fumola-peek-arrow {
+    opacity: 0.4;
+}
+.fumola-peek-value {
+    font-weight: 600;
+}

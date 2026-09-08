@@ -1,0 +1,101 @@
+# FUMOLA: VALUES #
+# What each kind of Fumola value becomes on the Hazel side. Numbers,        #
+# text, tuples, records, lists, variants and options all have a Hazel       #
+# counterpart, and cross as themselves.                                     #
+#                                                                           #
+# The four livelits, in brief:                                              #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+let myInt : Int =
+  ^fumola_put_force(0, "`myInt", "1 + 2") in
+
+# Booleans too. #
+let myBool : Bool =
+  ^fumola_put_force(0, "`myBool", "true") in
+
+# Floats cross as floats. Fumola prints them as text and Hazel reads that   #
+# text, so no precision is lost passing through JSON.                        #
+let myFloat : Float =
+  ^fumola_put_force(0, "`myFloat", "0.5") in
+
+# A Fumola array is a purely functional sequence under the hood, and it     #
+# arrives as a Hazel list. The element type comes from the annotation.      #
+let myList : [Int] =
+  ^fumola_put_force(0, "`myList", "[1, 2, 3]") in
+
+# An empty array is still a list; only its element type is left open.       #
+let myEmptyList : [Int] =
+  ^fumola_put_force(0, "`myEmptyList", "[]") in
+
+# Lists nest with everything else, so a list of records works.             #
+let myListOfPairs : [(Int, Bool)] =
+  ^fumola_put_force(0, "`myListOfPairs", "[(1, true), (2, false)]") in
+
+# A symbol is Fumola's notion of a name, written with a leading backtick.   #
+# It arrives in Hazel as its text, which is also the only way to produce a  #
+# String here: a Hazel string literal cannot contain a quote, so neither    #
+# can the program above.                                                    #
+let myString : String =
+  ^fumola_put_force(0, "`myString", "`hello") in
+
+# Fumola's unit is Hazel's empty tuple. #
+let myUnit : () =
+  ^fumola_put_force(0, "`myUnit", "()") in
+
+# Tuples cross as tuples, so the parts keep their own types. #
+let myPair : (Int, Bool) =
+  ^fumola_put_force(0, "`myPair", "(1, true)") in
+
+# A Fumola record is written with semicolons, and becomes a Hazel labeled   #
+# tuple. Fields come back in name order.                                    #
+let myRecord : (x=Int, y=Bool) =
+  ^fumola_put_force(0, "`myRecord", "{x = 1; y = true}") in
+
+# A record of floats is the shape of a Vec3 in Adapton.Scene, which is how  #
+# a scene says where to draw something. Note that 0.0 prints as 0.          #
+let myVec3 : (x=Float, y=Float, z=Float) =
+  ^fumola_put_force(0, "`myVec3", "{x = 0.0; y = 1.5; z = -2.25}") in
+
+# Variants are written with a leading hash, as in the program below.        #
+# A Fumola variant names no type of its own, so the expected type is        #
+# what decides which constructor is meant -- which is why these             #
+# livelits need an annotation.                                              #
+type Shape = + Circle(Int) + Square(Int) in
+let myVariant : Shape =
+  ^fumola_put_force(0, "`myVariant", "#Circle(3)") in
+
+# Fumola's option is Hazel's: ?(x) is Some(x) and null is None. #
+let mySome : Option =
+  ^fumola_put_force(0, "`mySome", "?(3)") in
+
+let myNone : Option =
+  ^fumola_put_force(0, "`myNone", "null") in
+
+# These compose, so a structure of structures translates as one. #
+let myNested : (Int, (a=Int, b=String)) =
+  ^fumola_put_force(0, "`myNested", "(1, {a = 2; b = `word})") in
+
+(
+  myInt,
+  myBool,
+  myFloat,
+  myList,
+  myEmptyList,
+  myListOfPairs,
+  myString,
+  myUnit,
+  myPair,
+  myRecord,
+  myVec3,
+  myVariant,
+  mySome,
+  myNone,
+  myNested
+)

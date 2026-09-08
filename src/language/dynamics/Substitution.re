@@ -105,6 +105,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | BuiltinFun(_)
         | Asc(_)
         | LivelitName(_)
+        /* The carried value is a translated Fumola result, so it is closed:
+           there is nothing in it for a substitution to reach. */
+        | FumolaPeek(_)
         | ProofObject(_)
         | Undefined
         | Module(_)

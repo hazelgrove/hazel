@@ -45,6 +45,9 @@ let rec match_exp =
   /* Parens */
   | (Parens(e1), _)
   | (Projector(_, e1), _) => match_exp(alphas, ctx, e1, exp)
+  /* A reference matches as the value it denotes. */
+  | (FumolaPeek({value, _}), _) => match_exp(alphas, ctx, value, exp)
+  | (_, FumolaPeek({value, _})) => match_exp(alphas, ctx, exp_r, value)
   | (_, Parens(e2))
   | (_, Projector(_, e2)) => match_exp(alphas, ctx, exp_r, e2)
   // TODO: Better cast logic

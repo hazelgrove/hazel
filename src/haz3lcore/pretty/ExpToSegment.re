@@ -130,6 +130,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
+  | FumolaPeek(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -358,6 +359,7 @@ let rec parenthesize =
   | DrvQuote(_)
   | EmptyHole
   | LivelitName(_)
+  | FumolaPeek(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | ExplicitNonlabel
@@ -1920,6 +1922,73 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | LivelitName(s) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s))
+  /* Shows both halves: the cell being referenced, and what it holds.
+
+     There is no concrete syntax for this form -- it is only ever produced by
+     translating a Fumola result, never written or parsed -- so the rendering
+     is free to be whatever reads best, and this is a first cut rather than a
+     settled choice. */
+  | FumolaPeek({reads, value, holds, _}) =>
+    let id = exp |> Exp.rep_id;
+    let+ value_seg = go(value);
+    /* The widget is drawn by emitting a projector HERE, at rendering time,
+       rather than by wrapping the value in a Projector term. Evaluation
+       strips a Projector -- it steps to its body -- so a wrapper never
+       reaches a result, and a result is exactly where these values are seen.
+       Building it during rendering means there is nothing to strip.
+
+       The syntax underneath is the text form, so unprojecting still reads. */
+    let text = str =>
+      Piece.Tile({
+        id: Id.mk(),
+        label: [str],
+        mold: Mold.mk_op(Sort.Exp, []),
+        shards: [0],
+        children: [],
+      });
+    /* peek answers an option, so a value that was found reads as Some of it.
+       When Hazel has no value for what the cell holds, the runtime's own
+       description stands in -- a thunk prints itself -- and it is still Some,
+       since the cell is occupied. A hole with nothing to say about it is left
+       bare: Some of a hole would claim more than is known. */
+    /* No reference means an opaque value: it is just what it holds, and it
+       needs no parentheses, being a single token already. Everything else
+       reads "<reference> = <value>", which does: bare, a multi-part value
+       sitting in a comma-separated list would look like several. */
+    let opaque = reads == "" && holds != "";
+    let shown_seg =
+      switch (value.term, holds) {
+      | (EmptyHole, holds) when opaque => [text(holds)]
+      | (EmptyHole, holds) when holds != "" => [
+          text(reads ++ " = Some(" ++ holds ++ ")"),
+        ]
+      | (EmptyHole, _) => [text(reads ++ " = "), ...value_seg]
+      | _ => [text(reads ++ " = Some(")] @ value_seg @ [text(")")]
+      };
+    let syntax =
+      switch (shown_seg) {
+      | [only] when opaque => only
+      | _ => Segment.parenthesize(shown_seg)
+      };
+    let model =
+      Language.FumolaPeekModel.serialize({
+        reads,
+        shown:
+          opaque ? holds : Language.FumolaValue.shown_value(~holds, value),
+      });
+    wrap(
+      exp,
+      [
+        Piece.Projector(
+          ProjectorCore.mk(
+            ~id,
+            Language.ProjectorKind.FumolaPeek,
+            syntax,
+            model,
+          ),
+        ),
+      ],
+    );
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

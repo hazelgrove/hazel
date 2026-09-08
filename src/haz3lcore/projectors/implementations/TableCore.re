@@ -7,7 +7,14 @@ open Language;
 
 /* --- Cell Rendering --- */
 
-let max_column_length = 12;
+/* Per-cell abbreviation budget, in characters.
+ *
+ * Only cells longer than this abbreviate, so raising it widens nothing that
+ * already fits -- names and numbers are unaffected. It was 12, which is
+ * enough for a word or a number but not for a constructor with a payload:
+ * an adapton event reads "AddNode(Symbol(\"g\"), Now, 1)", and at 12 every
+ * such cell came out as "AddNode(...+3)", which says nothing. */
+let max_column_length = 32;
 
 let value_view = (utility: utility, view_seg, exp) => {
   let (seg, _length) =
@@ -45,7 +52,12 @@ let rec extract_entry = (e: Exp.t): option((option(string), Exp.t)) =>
 
 /* Peel Parens and push outer Asc wrappers into the tuple so labeled
  * entries surface in their normal shape. Revisit if elaboration changes
- * how it adds ascriptions to list rows. */
+ * how it adds ascriptions to list rows.
+ *
+ * Used on the list itself as well as on its rows: a table whose list is
+ * ascribed -- (e : [Row]) -- is the ordinary way to write one whose
+ * elements a reader cannot infer, and it is the only way to write one that
+ * comes from a livelit, since those expand only in checking mode. */
 let rec normalize_row = (e: Exp.t): Exp.t =>
   switch (e.term) {
   | Parens(inner) => normalize_row(inner)
@@ -56,7 +68,7 @@ let rec normalize_row = (e: Exp.t): Exp.t =>
   };
 
 let parse_table = (exp: Exp.t): option(table_data) =>
-  switch (exp.term) {
+  switch (normalize_row(exp).term) {
   | ListLit(es) =>
     let data =
       List.map(

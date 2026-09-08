@@ -32,6 +32,7 @@ let tests = (
             ~settings,
             ~default_names=names,
             ~default_current=0,
+            ~reconcile=false,
           );
         check(
           int,

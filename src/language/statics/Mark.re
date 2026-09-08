@@ -62,6 +62,9 @@ type t =
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  /* A livelit that only expands in checking mode, used with no expected
+     type. It cannot know what to produce, so it says so. */
+  | LivelitNeedsAnnotation(string)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

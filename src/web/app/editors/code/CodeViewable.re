@@ -31,8 +31,12 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
+/* This view draws no projector layer either, so it flattens for the same
+   reason ProjectorView.flex_code does. (Probes do NOT come through here;
+   they go through flex_code.) */
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {
-  let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let segment = Printer.unproject_segment(segment);
+  let shape_map = ProjectorCore.Shape.Map.empty; // no projectors, by construction above
   let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
   view(

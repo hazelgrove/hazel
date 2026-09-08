@@ -5,6 +5,25 @@ let remove_projector: Piece.t => Segment.t =
   | Projector(pr) => Triggers.projector_to_invoke(pr)
   | x => [x];
 
+/* Replace each projector with the syntax it wraps.
+ *
+ * A view that draws no projector layer renders a projector piece as blank
+ * space -- the room reserved for a widget nobody paints -- so a value
+ * containing one shows up as a gap. Flattening first makes such a view show
+ * the text form of what the widget would have drawn. Recurses into tile
+ * children, since a projector is often nested inside a tuple or record.
+ *
+ * The syntax keeps its parentheses: unwrapped, a multi-part value reads as
+ * several -- "peek(`t)! = 1, true" sitting in a comma-separated list looks
+ * like two elements rather than one. */
+let unproject_segment = (segment: Segment.t): Segment.t =>
+  ZipperBase.MapPiece.of_segment(
+    fun
+    | Piece.Projector(pr) => [pr.syntax]
+    | p => [p],
+    segment,
+  );
+
 let measured_no_projectors = (segment: Segment.t) =>
   segment
   |> ZipperBase.MapPiece.of_segment(remove_projector)
