@@ -888,7 +888,7 @@ run(0, [1, 2, 3])|};
           pin_stack,
           None,
         );
-      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      let z' = Haz3lcore.ProbeFocus.drop_dead_pin(~dynamics, z);
       check(
         bool,
         "pin through builtin frames survives",
@@ -915,7 +915,7 @@ run(0, [1, 2, 3])|};
           dead_stack,
           None,
         );
-      let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
+      let z' = Haz3lcore.ProbeFocus.drop_dead_pin(~dynamics, z);
       check(
         bool,
         "pin with a retired call site is dropped",
@@ -929,8 +929,7 @@ run(0, [1, 2, 3])|};
           dead_stack,
           None,
         );
-      let z' =
-        Haz3lcore.ProbePerform.drop_dead_pin(~dynamics=Id.Map.empty, z);
+      let z' = Haz3lcore.ProbeFocus.drop_dead_pin(~dynamics=Id.Map.empty, z);
       check(
         bool,
         "pin untouched when dynamics is empty",

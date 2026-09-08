@@ -439,14 +439,16 @@ let start = default_model => {
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
         RefractorShift.update(
+          ~editor_key=
+            Editors.Model.editor_key(model.model.current.current.editors),
           ~font_metrics,
           ~refractor_rows=editor.syntax.refractor_rows,
           ~measured,
           zipper,
         );
         /* stagger multi-row offside displays clear of code and of each
-           other (top-down priority) */
-        ProbeStagger.update(~measured, ~font_metrics);
+           other (top-down priority, first-fit), per code container */
+        ProbeStagger.update(~font_metrics);
         /* measure AFTER the shift/stagger patches so the published scroll
            width includes displays pushed right by staggering */
         ScrollWidth.update(

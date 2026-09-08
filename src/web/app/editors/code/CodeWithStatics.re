@@ -343,7 +343,12 @@ module View = {
   };
 
   let view =
-      (~globals: Globals.t, ~overlays: list(Node.t)=[], model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -450,7 +455,17 @@ module View = {
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
       @ (globals.settings.core.drag_refactor ? ["drag-refactor-mode"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
-    Node.div(~attrs=[Attr.classes(container_classes)], nodes @ overlays);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
+    Node.div(
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
+      nodes @ overlays,
+    );
   };
 };

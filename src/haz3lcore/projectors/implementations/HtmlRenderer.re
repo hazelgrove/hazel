@@ -31,6 +31,10 @@ let parse = (sort: Sort.t, exp: Exp.t): option(value) =>
 let empty = ();
 let init = (_: value) => ();
 
+/* `parse` already gates on MvuShape.is_html, so any parsed value is real
+   evidence for the html view. */
+let auto_applies = (_: value): bool => true;
+
 let drawer_rows = (_: value): int => 8;
 
 let render =

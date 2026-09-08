@@ -243,7 +243,7 @@ module Update = {
      *    step-into focus resolution, and cursor reset. May mutate
      *    refractors (manuals/ephemerals). */
     let zipper =
-      ProbePerform.editor_effects(
+      ProbeFocus.editor_effects(
         ~is_edited,
         ~syntax,
         ~info_map=statics.info_map,
@@ -255,7 +255,7 @@ module Update = {
     let zipper =
       switch (autoprobe_mode) {
       | Off =>
-        ProbePerform.clear_autoprobe(
+        AutoProbePerform.clear_autoprobe(
           ~syntax,
           ~info_map=statics.info_map,
           zipper,
@@ -263,7 +263,7 @@ module Update = {
       | Caret
       | All =>
         let z =
-          ProbePerform.update_autoprobe(
+          AutoProbePerform.update_autoprobe(
             ~mode=autoprobe_mode,
             ~syntax,
             ~info_map=statics.info_map,
@@ -271,7 +271,7 @@ module Update = {
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
-        ProbePerform.resolve_pending_probe_cursor(
+        ProbeFocus.resolve_pending_probe_cursor(
           ~dynamics=new_dynamics,
           ~syntax,
           ~info_map=statics.info_map,

@@ -370,18 +370,6 @@ let pretty_seg_of_value =
 /* rich content at most this many rows renders IN the offside row;
    taller content lives in the drawer instead (an explicit activation
    auto-opens it) */
-/* An empty list parses as an empty hand (and vacuously "matches" any
-   list-shaped renderer), so it is NO EVIDENCE for auto-picking a rich
-   renderer: [] of Int was rendering as an empty card hand. Auto paths
-   require a non-vacuous match; explicit picks are unaffected, and card
-   probes keep their empty-hand silhouettes because the probe-level gate
-   accepts evidence from any SIBLING sample. */
-let vacuous_value = (exp: Exp.t): bool =>
-  switch (CardSyntax.strip_wraps_exp(exp).term) {
-  | ListLit([]) => true
-  | _ => false
-  };
-
 let inline_rows_cap = 4;
 
 module DrawerHeight = {
@@ -788,14 +776,13 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.id != "table"
-                && r.can_handle(ctx.sort, sample.value)
+                r.can_handle(ctx.sort, sample.value)
+                /* a vacuous match (empty hand) still renders when a
+                   SIBLING sample at this site is real evidence */
                 && (
-                  !vacuous_value(sample.value)
+                  r.auto_applies(ctx.sort, sample.value)
                   || List.exists(
-                       (s: Sample.t) =>
-                         !vacuous_value(s.value)
-                         && r.can_handle(ctx.sort, s.value),
+                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
                        ctx.dynamics.samples,
                      )
                 )
@@ -836,13 +823,10 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    vacuous_value(value)
-      ? (None: option(packed_renderer))
-      : List.find_opt(
-          (r: packed_renderer) =>
-            r.id != "table" && r.can_handle(sort, value),
-          renderers,
-        );
+    List.find_opt(
+      (r: packed_renderer) => r.auto_applies(sort, value),
+      renderers,
+    );
   switch (pick) {
   | Some(r) =>
     switch (r.init_model(sort, value)) {
@@ -862,7 +846,6 @@ let standalone_rich =
   | None => None
   };
 };
-
 /* Hard cap for code in the sample dropdown (env values + call args), so a
  * wide sample doesn't make them uselessly long. */
 let dropdown_value_width = 50;
@@ -1865,12 +1848,10 @@ let prepare_offside =
       && model.active_renderer == None
       && List.exists(
            (sample: Sample.t) =>
-             !vacuous_value(sample.value)
-             && List.exists(
-                  (r: packed_renderer) =>
-                    r.id != "table" && r.can_handle(sort, sample.value),
-                  renderers,
-                ),
+             List.exists(
+               (r: packed_renderer) => r.auto_applies(sort, sample.value),
+               renderers,
+             ),
            dynamics.samples,
          );
     let ctx = {
@@ -2215,14 +2196,13 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
     }
   | None when model.auto_rich =>
     switch (get_current(~settings=Settings.s^, info)) {
-    | Some(exp) when !vacuous_value(exp) =>
+    | Some(exp) =>
       List.find_opt(
-        (r: packed_renderer) => r.id != "table" && r.can_handle(sort, exp),
+        (r: packed_renderer) => r.auto_applies(sort, exp),
         renderers,
       )
       |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
       |> Option.join
-    | Some(_)
     | None => None
     }
   | None => None

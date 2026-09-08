@@ -827,6 +827,7 @@ module View = {
         ~edit_mode: EditMode.t(Update.t, unit),
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
+        ~cull: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
@@ -995,10 +996,12 @@ module View = {
           )
         : [];
     let zipper = model.editor.state.zipper;
-    /* cull only in auto-probe mode, else a stale range could hide manual probes */
+    /* never cull a cell that opted out (the range is measured on another
+       cell), and cull only in auto-probe mode, else a stale range could hide
+       manual probes */
     let visible =
-      globals.settings.autoprobe_mode == Haz3lcore.AutoProbe.Off
-        ? None : globals.visible_rows;
+      cull && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+        ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -1087,7 +1090,8 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
+    let code_view =
+      CodeWithStatics.View.view(~globals, ~overlays, ~cull, model);
 
     let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(
@@ -1280,7 +1284,9 @@ module View = {
             | _ => None
             };
           };
-        Key.handler(~f=key => {
+        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
+           duplicating this div's tabindex — vdom warns every render */
+        Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
