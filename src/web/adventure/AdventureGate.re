@@ -23,7 +23,7 @@ let has_probe_on_indicated =
   | None => false
   | Some(id) =>
     /* Check if this ID or any of its target subterm IDs have a probe */
-    let target_ids = ProbePerform.target_subterm_ids(id, info_map);
+    let target_ids = ProbeTargets.target_subterm_ids(id, info_map);
     List.exists(
       target_id => List.mem_assoc(target_id, zipper.refractors.manuals),
       target_ids,
