@@ -223,6 +223,7 @@ depends: [
   "time_now" {= "v0.16.0"}
   "timezone" {= "v0.16.0"}
   "topkg" {= "1.1.1"}
+  "ts2ocaml-jsoo-stdlib" {= "1.4.6"}
   "typerep" {= "v0.16.0"}
   "tyxml" {= "4.6.0"}
   "uchar" {= "0.0.2"}
@@ -256,3 +257,9 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/hazelgrove/hazel.git"
+pin-depends: [
+  [
+    "ts2ocaml-jsoo-stdlib.1.4.6"
+    "git+https://github.com/ocsigen/ts2ocaml.git#jsoo-stdlib-v1.4.6"
+  ]
+]

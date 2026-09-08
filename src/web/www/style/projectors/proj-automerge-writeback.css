@@ -1,0 +1,98 @@
+/* PROJECTOR: AUTOMERGE WRITE-BACK */
+
+/* Turn off caret when write-back projector is focused */
+.code-deco:has(~ .projectors .projector.AutomergeWriteBack *:focus) #caret .caret-path {
+  fill: #0000;
+}
+
+.projector.AutomergeWriteBack {
+  cursor: default;
+}
+
+.projector.AutomergeWriteBack > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+
+.projector.AutomergeWriteBack .wrapper {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+}
+
+.projector.AutomergeWriteBack .cols {
+  height: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
+  display: flex;
+  align-items: center;
+  color: var(--SAND);
+}
+
+.projector.AutomergeWriteBack.indicated .cols,
+.projector.AutomergeWriteBack:has(input:focus) .cols {
+  color: var(--R1);
+}
+
+.projector.AutomergeWriteBack.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.AutomergeWriteBack.selected > svg {
+  filter: drop-shadow(1px 1px 0 var(--R0));
+}
+
+.projector.AutomergeWriteBack input {
+  outline: none;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  overflow: hidden;
+}
+
+.projector.AutomergeWriteBack input::placeholder {
+  opacity: 0.5;
+}
+
+.projector.AutomergeWriteBack input::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}
+
+.projector.AutomergeWriteBack .wb-arrow {
+  flex-shrink: 0;
+  font-size: 0.7em;
+  margin-right: 2px;
+}
+
+.projector.AutomergeWriteBack .wb-status-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: 4px;
+  display: inline-block;
+}
+
+.projector.AutomergeWriteBack .wb-status-dot.write-active {
+  background-color: var(--test-pass);
+}
+
+.projector.AutomergeWriteBack .wb-status-dot.write-idle {
+  background-color: #888;
+}
+
+.projector.AutomergeWriteBack .wb-status-dot.write-waiting {
+  background-color: #cc0;
+}
+
+.projector.AutomergeWriteBack .wb-status-dot.write-error {
+  background-color: var(--test-fail);
+}

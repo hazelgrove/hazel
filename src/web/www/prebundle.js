@@ -5,6 +5,19 @@ import hotkeys from 'hotkeys-js'
 import Algebrite from 'algebrite';
 window.Algebrite = Algebrite;
 
+// Automerge repo setup: exposes window.repo for the Automerge projectors.
+import {
+  IndexedDBStorageAdapter,
+  WebSocketClientAdapter,
+  Repo,
+} from "@automerge/vanillajs";
+
+window.repo = new Repo({
+  storage: new IndexedDBStorageAdapter(),
+  network: [new WebSocketClientAdapter("wss://sync3.automerge.org")],
+  enableRemoteHeadsGossiping: true,
+});
+
 // This is the default behavior for the hotkeys module but I'm overriding it for the
 // clipboard-shim and the ninja-keys command palette (which lives inside a shadow DOM).
 hotkeys.filter = event => {
