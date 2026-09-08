@@ -2880,6 +2880,80 @@ let view_impl =
 
   /* harness: the live program's text (the master buffer; a stack's
      cells are spliced in) */
+  /* memory diagnostics: sample counts and marshalled size of the current
+     editor's dynamics map, and of its statics info map */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__dynamicsStats",
+    Js_of_ocaml.Js.Unsafe.callback(() => {
+      let dyn = editor.dynamics;
+      let ids = Id.Map.cardinal(dyn);
+      let samples = Id.Map.fold((_, ss, n) => n + List.length(ss), dyn, 0);
+      /* node counts (capped) of sample values and env entries, and the
+         five biggest sites */
+      let nodes = (e: Language.Exp.t) =>
+        switch (Language.TermPrune.size_within(20000, e)) {
+        | Some(n) => n
+        | None => 20000
+        };
+      let sample_nodes = (sm: Language.Sample.t) =>
+        nodes(sm.value)
+        + List.fold_left(
+            (acc, en: Language.Sample.Env.entry) =>
+              acc
+              + (
+                switch (en.value) {
+                | Val(e) => nodes(e)
+                | Opaque => 1
+                }
+              ),
+            0,
+            sm.env,
+          );
+      let total = ref(0);
+      let total_val = ref(0);
+      let sites =
+        Id.Map.fold(
+          (id, ss, acc) => {
+            let n = List.fold_left((a, sm) => a + sample_nodes(sm), 0, ss);
+            let nv =
+              List.fold_left(
+                (a, sm: Language.Sample.t) => a + nodes(sm.value),
+                0,
+                ss,
+              );
+            total := total^ + n;
+            total_val := total_val^ + nv;
+            [(Id.to_string(id), List.length(ss), n, nv), ...acc];
+          },
+          dyn,
+          [],
+        )
+        |> List.sort(((_, _, a, _), (_, _, b, _)) => compare(b, a));
+      let top =
+        Util.ListUtil.take(5, sites)
+        |> List.map(((id, k, n, nv)) =>
+             Printf.sprintf(
+               "%s:%d samples/%d nodes (values %d)",
+               String.sub(id, 0, 8),
+               k,
+               n,
+               nv,
+             )
+           )
+        |> String.concat("; ");
+      Js_of_ocaml.Js.string(
+        Printf.sprintf(
+          "ids=%d samples=%d total_nodes=%d value_nodes=%d top=[%s]",
+          ids,
+          samples,
+          total^,
+          total_val^,
+          top,
+        ),
+      );
+    }),
+  );
   Js_of_ocaml.Js.Unsafe.set(
     Js_of_ocaml.Js.Unsafe.global,
     "__programText",
