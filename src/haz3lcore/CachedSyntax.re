@@ -28,6 +28,18 @@ type t = {
    * underlying editor. In principle calculating this can involve
    * both static and dynamic information, so we cache this for perf */
   shape_map: ProjectorCore.Shape.Map.t,
+  /* Rows reserved below a refractor's tile, e.g. an open probe drawer.
+   * Nonzero entries only, so consumers may treat the map as "open
+   * drawers" and iterate it wholesale (Move, RefractorShift). Measured
+   * and Code.view must agree on these rows or decorations drift from
+   * caret/text; both defer them to the linebreak after the tile.
+   * Rebuilds with unchanged contents reuse the old map, so physical
+   * identity doubles as a did-anything-change signal downstream. */
+  refractor_rows: Id.Map.t(int),
+  /* Refractor inputs last used to compute refractor_rows/shape_map;
+   * compared by physical eq in `calculate` to skip the rebuild. */
+  cached_manuals: Refractors.RefractorList.t,
+  cached_ephemerals: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   cached_backpack: list(Tile.t),
@@ -45,6 +57,63 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+/* fallback Secondary covers ids with no resolvable segment yet
+ * (early frames before MakeTerm has populated term_data). */
+let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
+  Option.value(
+    TermData.segment(id, term_data)
+    |> Option.map(Segment.unparenthesize)
+    |> Option.map(Segment.trim_secondary(Left))
+    |> Option.map(Segment.trim_secondary(Right))
+    |> Option.map(Segment.parenthesize),
+    ~default=
+      Base.Secondary({
+        id: Id.invalid,
+        content: Whitespace(""),
+      }),
+  );
+
+let mk_refractor_rows =
+    (
+      z: Zipper.t,
+      term_data: TermData.t,
+      info_map,
+      dyn_map,
+      ~elaborated: option(Language.Exp.t),
+    )
+    : Id.Map.t(int) => {
+  let entries =
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      z.refractors.manuals |> Id.Map.of_list,
+      z.refractors.multis.ephemerals,
+    );
+  Id.Map.filter_map(
+    (id, entry: Refractors.entry) => {
+      let syntax_piece = refractor_syntax_piece(id, term_data);
+      let p = Refractors.to_projector(syntax_piece, id, entry);
+      let info =
+        ProjectorInfo.mk_info(
+          p,
+          ~sample_focus=z.refractors.sample_focus,
+          ~statics=info_map,
+          ~dynamics=dyn_map,
+          ~elaborated,
+        );
+      let (module P) = ProjectorInit.to_module(entry.kind);
+      let shape = P.placeholder(entry.model, info);
+      switch (shape.vertical) {
+      | Inline
+      | Block(0)
+      | Tab(0) => None
+      | Tab(n)
+      | Block(n) => Some(n)
+      };
+    },
+    entries,
+  );
+};
+
 let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
@@ -57,9 +126,10 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
+  let refractor_rows =
+    mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_shape_map);
+    Measured.of_segment(segment, projector_shapes, refractor_rows);
   {
     old: false,
     segment,
@@ -70,6 +140,9 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projectors,
     projector_list,
     shape_map: projector_shapes,
+    refractor_rows,
+    cached_manuals: z.refractors.manuals,
+    cached_ephemerals: z.refractors.multis.ephemerals,
     projector_errors,
     cached_backpack: Segment.global_missing_shards(segment),
     shape_info_map: info_map,
@@ -87,11 +160,8 @@ let mark_old: t => t =
     old: true,
   };
 
-/* Recompute only the statics-derived fields (shape_map, projector_errors,
- * measured) while reusing the segment/term_data from a prior `mk` pass.
- * Used on refresh-only frames: statics changed but the segment did not,
- * so a full `mk` would be wasteful but shapes/measured need the new
- * elaborated expression (e.g. TableProj placeholder size). */
+/* statics or refractor model changed but the segment didn't: reuse
+ * segment/term_data, recompute only the shape-derived fields. */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
@@ -102,24 +172,28 @@ let refresh_shapes =
       dyn_map,
       ~elaborated,
     );
-  let refractor_shape_map = Id.Map.empty;
-  let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  let refractor_rows =
+    mk_refractor_rows(z, old.term_data, info_map, dyn_map, ~elaborated);
+  let refractor_rows =
+    Id.Map.equal((==), refractor_rows, old.refractor_rows)
+      ? old.refractor_rows : refractor_rows;
+  let measured = Measured.of_segment(old.segment, shape_map, refractor_rows);
   {
     ...old,
     shape_map,
+    refractor_rows,
     projector_errors,
     measured,
+    cached_manuals: z.refractors.manuals,
+    cached_ephemerals: z.refractors.multis.ephemerals,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
   };
 };
 
-/* Physical equality on option(Exp.t): `None === None` holds (shared
- * immediate), but `Some(x) === Some(y)` is always false (new box). Hit the
- * cache when the underlying Exp.t ref matches — same stability guarantee
- * as info_map/dyn_map, which are persistent Id.Maps compared by ref. */
+/* phys-eq on option(Exp.t): None===None holds but Some(x)===Some(y) is
+ * always false (new box), so compare the inner Exp ref. */
 let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
@@ -128,16 +202,16 @@ let elaborated_phys_eq =
   | _ => false
   };
 
-/* Decide how much work to do based on what changed:
- *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
- *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
- *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+  let refractor_inputs_changed =
+    z.refractors.manuals !== old.cached_manuals
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
-             || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
+             || !elaborated_phys_eq(elaborated, old.shape_elaborated)
+             || refractor_inputs_changed) {
     refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
     {
@@ -145,3 +219,4 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
       selection_ids: Selection.selection_ids(z.selection),
     };
   };
+};

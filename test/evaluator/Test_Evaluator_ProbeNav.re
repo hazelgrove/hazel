@@ -41,6 +41,7 @@ let mk_sample =
   env: Sample.Env.empty,
   call_stack: stack,
   args: None,
+  frame: None,
   time: 0.0,
   seq,
   origin: Probe,
@@ -57,6 +58,8 @@ let mk_focus = (~pinned=None, stack: CallStack.t): Sample.Focus.t => {
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 /* Fixed ids for readable tests */
