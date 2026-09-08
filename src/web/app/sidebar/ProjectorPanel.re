@@ -85,24 +85,6 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
       ~editor_active=true,
       ~elaborated=Some(editor.statics.elaborated),
     );
-  /* Probes are refractors: they live in the zipper rather than the syntax
-   * tree, so they need their own data pass to be asked for docked content. */
-  let refractor_ids =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      zipper.refractors.manuals |> Id.Map.of_list,
-      zipper.refractors.multis.ephemerals,
-    );
-  let refractor_data =
-    RefractorView.mk_data(
-      ~refractors=refractor_ids,
-      ~syntax=editor.editor.syntax,
-      ~indicated=Indicated.for_decoration(zipper),
-      ~statics=editor.statics.info_map,
-      ~dynamics=editor.dynamics,
-      ~sample_focus=zipper.refractors.sample_focus,
-      ~editor_active=true,
-    );
   let docked_projectors =
     ProjectorView.sidebar_views(
       inject,
@@ -116,16 +98,7 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
            inject(Action.Project(TogglePlacement))
          )
        );
-  let docked_probes =
-    ProjectorView.docked_views(
-      inject,
-      globals.font_metrics,
-      ~core_settings=globals.settings.core,
-      refractor_data,
-      Id.Map.bindings(refractor_ids) |> List.map(fst),
-    )
-    |> List.map(((p, view, undock)) => card(~globals, p, view, ~undock));
-  let cards = docked_projectors @ docked_probes;
+  let cards = docked_projectors;
   div(
     ~attrs=[Attr.id("projector-panel")],
     [

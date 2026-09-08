@@ -57,8 +57,18 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
     None;
   };
 
+/* Both constructors are real evidence: `parse` only succeeds on genuine HTML
+   or an MVU app, so there is no vacuous match to decline the way an empty
+   card hand is. This is the canvas-value-well case auto-rich exists for. */
+let auto_applies = (_: value): bool => true;
+
 let empty = ();
 let init = (_: value) => empty;
+
+/* Rendered HTML is arbitrary-height UI rather than a few lines of value, so
+   it reports more than inline_rows_cap and opens in the drawer. */
+let drawer_rows = (_: value): int => 8;
+
 let update = (model: model, _: action) => model;
 
 let html_icon =

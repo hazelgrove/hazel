@@ -186,6 +186,7 @@ let probe_info =
       ~dynamics=model.dynamics,
       ~sample_focus=model.editor.state.zipper.refractors.sample_focus,
       ~editor_active=true,
+      (),
     );
   switch (
     List.find_opt(
