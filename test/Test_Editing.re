@@ -5277,8 +5277,77 @@ let pending_delim_tests = [
   ),
 ];
 
+/* Consumers (token color, arms, probing, indentation) recognize a pending
+ * delimiter by its backup mold, so a `-` or `=` carrying a real infix mold
+ * must not read as one. */
+let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (acc, p) {
+      | (Some(_), _) => acc
+      | (None, Tile(t)) when t.label == [tok] => Some(t)
+      | (None, Tile(t)) =>
+        List.fold_left(
+          (acc, kid) => acc == None ? find_tile(tok, kid) : acc,
+          None,
+          t.children,
+        )
+      | (None, _) => None
+      },
+    None,
+    seg,
+  );
+
+let test_delim_prefix = (~name, ~acts, ~tok, ~expect): test_case(_) =>
+  test_case(name, `Quick, () =>
+    switch (find_tile(tok, acts |> perform(Zipper.init()) |> Zipper.zip)) {
+    | None => Alcotest.fail("no tile with label " ++ tok)
+    | Some(t) =>
+      check(
+        bool,
+        "Piece.is_infix_delimiter_op_prefix",
+        expect,
+        Piece.is_infix_delimiter_op_prefix(Tile(t)),
+      )
+    }
+  );
+
+let delim_prefix_class_tests = [
+  test_delim_prefix(
+    ~name="Pat: minus pending -> is a delimiter prefix",
+    ~acts=mk({|fun x -¦|}),
+    ~tok="-",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: partial keyword is a delimiter prefix",
+    ~acts=mk({|if x th¦|}),
+    ~tok="th",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: infix minus is not a delimiter prefix",
+    ~acts=mk({|1 - 2¦|}),
+    ~tok="-",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Exp: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|(a=1)¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Pat: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|fun (a=x) -> x¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
+];
+
 let tests = [
   ("Editing.PendingDelim", pending_delim_tests),
+  ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),
