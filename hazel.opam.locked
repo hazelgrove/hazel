@@ -224,7 +224,7 @@ depends: [
   "timezone" {= "v0.16.0"}
   "topkg" {= "1.1.1"}
   "typerep" {= "v0.16.0"}
-  "tyxml" {= "4.6.0"}
+  "tyxml" {= "5.0.0"}
   "uchar" {= "0.0.2"}
   "unionFind" {= "20250818"}
   "uri" {= "4.4.0"}
