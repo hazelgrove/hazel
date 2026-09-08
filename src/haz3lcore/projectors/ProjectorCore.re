@@ -72,11 +72,21 @@ let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);
    JSON docs through editor segment text. */
 let bypass_table: ref(Id.Map.t(Language.Exp.t)) = ref(Id.Map.empty);
 
-let set_bypass = (id: Id.t, exp: Language.Exp.t): unit =>
+/* The bypass is a term-construction INPUT that leaves no trace in the
+   pieces: a data arrival re-puts the same syntax. Incremental parse
+   memos (MakeTerm.Incr) that saw a bypassed projector record the
+   generation they were built under and are stale once it moves. */
+let bypass_gen: ref(int) = ref(0);
+
+let set_bypass = (id: Id.t, exp: Language.Exp.t): unit => {
   bypass_table := Id.Map.add(id, exp, bypass_table^);
+  incr(bypass_gen);
+};
 
 let get_bypass = (id: Id.t): option(Language.Exp.t) =>
   Id.Map.find_opt(id, bypass_table^);
 
-let remove_bypass = (id: Id.t): unit =>
+let remove_bypass = (id: Id.t): unit => {
   bypass_table := Id.Map.remove(id, bypass_table^);
+  incr(bypass_gen);
+};
