@@ -172,7 +172,11 @@ let entry_name = (e: Ctx.entry): string =>
   | VarEntry({name, _})
   | ConstructorEntry({name, _}) => name
   | TVarEntry({name, _}) => name
-  | LivelitEntry({name, _}) => name
+  /* a use's co_ctx names a livelit as "^name" (Statics' LivelitName
+     case); the export must carry the same spelling or an edit to the
+     definition never dirties its uses — their items kept the old
+     LivelitEntry, and every projector rendered the stale view */
+  | LivelitEntry({name, _}) => "^" ++ name
   };
 
 let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>

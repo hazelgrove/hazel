@@ -644,6 +644,45 @@ let module_def_compositional = () => {
   };
 };
 
+/* Editing a livelit DEFINITION must re-analyze its uses under the
+   per-item engine: a use's item holds the LivelitEntry (with the
+   definition's elaboration) in its ctx, and the projector renders
+   from it — a stale entry keeps showing the old view. */
+let def_edit_dirties_uses = () => {
+  let settings = CoreSettings.on;
+  let prog = view =>
+    "let ^pct = {\ntype Model = Int;\ntype Action = Int;\nlet init : Model = 50;\nlet update = fun (m, a) -> a;\nlet view = fun m -> "
+    ++ view
+    ++ ";\nlet expand = fun m -> m\n} in\nlet a = ^^livelit(^pct(25)) in\na + ^^livelit(^pct(75))";
+  let t0 = parse_exp(prog("Text(string_of_int(m) ++ \"%\")"));
+  let ds0 = Haz3lcore.DefStatics.calc(~settings, t0);
+  /* the edit keeps every id (as the incremental parse does): rewrite the
+     string literal in place */
+  let t1 =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (e.term) {
+          | Atom(String("%")) => {
+              ...e,
+              term: Atom(String("$")),
+            }
+          | _ => continue(e)
+          },
+      t0,
+    );
+  let ds1 = Haz3lcore.DefStatics.calc(~settings, ~prev=ds0, t1);
+  /* the definition item AND both use items (ids unchanged, so only the
+     dependency tracking can make the uses re-analyze) */
+  check(
+    int,
+    "definition edit re-analyzes the uses",
+    3,
+    Haz3lcore.DefStatics.last_analyzed^,
+  );
+  ignore(ds1);
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -664,6 +703,11 @@ let tests = [
       test_case("bad arity marked", `Quick, bad_arity_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
+      test_case(
+        "definition edit re-analyzes uses",
+        `Quick,
+        def_edit_dirties_uses,
+      ),
       test_case(
         "module definition via compositional engine",
         `Quick,
