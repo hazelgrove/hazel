@@ -106,7 +106,7 @@ let probe_data =
     (
       ~can_probe: bool,
       ~is_def: bool,
-      probe_status: ProbePerform.probe_status,
+      probe_status: ProbeTargets.probe_status,
       ci: option(Language.Info.t),
     )
     : list(Menu.item(command)) =>
@@ -144,7 +144,7 @@ let probe_data =
 let type_annotation_data =
     (
       ~can_type: bool,
-      probe_status: ProbePerform.probe_status,
+      probe_status: ProbeTargets.probe_status,
       ci: option(Language.Info.t),
     )
     : list(Menu.item(command)) =>
@@ -443,7 +443,7 @@ let refractor_actions_data =
     )
     : list(Menu.item(command)) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
-  let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
+  let probe_status = ProbeTargets.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
   let can_player = ProbePerform.can_player(id, info_map);
