@@ -26,7 +26,7 @@
 #                                                                           #
 # Runtimes default to the simple semantics: predictable, but it keeps no    #
 # graph. The graph introspection needs the graphical one, so runtime 7      #
-# asks for it below. Runtime 0, which every other livelit on this card      #
+# asks for it below. Runtime 0, which every other livelit on this slide     #
 # uses, stays simple -- ask it for an event count and it fails, since       #
 # there is no graph there to count.                                         #
 let myRuntime : Int =

@@ -64,7 +64,7 @@ let appliedAsSymbol : Symbol =
 
 # SYMBOLS, THE OTHER WAY #
 # Symbols also travel from Hazel into Fumola, in one specific place: the    #
-# thunk name, the second argument of every livelit on this card. It is not  #
+# thunk name, the second argument of every livelit on this slide. It is not #
 # an identifier this side invents a syntax for -- it is Fumola source,      #
 # which Fumola parses in a runtime kept only for that purpose. So any form  #
 # the language spells as a symbol works as a name.                          #

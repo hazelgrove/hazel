@@ -14,7 +14,7 @@
 #   ^fumola_eval(id, src)             run src on a force-free stack         #
 #   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
 #                                                                           #
-# The cards after this one take an idea each. This one is the map.          #
+# The slides after this one take an idea each. This one is the map.         #
 
 # ADAPTON, BRIEFLY #
 # A run builds a demanded computation graph: cells, which hold values, and  #
@@ -92,6 +92,6 @@ let aName : String =
 # results. It is cheap and predictable, and it keeps no graph, so there is  #
 # nothing to introspect and nothing to repair.                              #
 #                                                                           #
-# Card 6 declares a graphical runtime and reads its event log as a table.   #
+# Slide 6 declares a graphical runtime and reads its event log as a table.  #
 
 (answer, counted, aName)

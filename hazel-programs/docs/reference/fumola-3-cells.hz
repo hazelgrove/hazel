@@ -3,7 +3,7 @@
 # is still there in the next. A pointer names a cell, and arrives in        #
 # Hazel as a reference carrying what it points at.                          #
 #                                                                           #
-# This chapter is also where the two modes matter, since peek belongs       #
+# This slide is also where the two modes matter, since peek belongs         #
 # to one of them.                                                           #
 #                                                                           #
 # The four livelits, in brief:                                              #
