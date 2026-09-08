@@ -19,6 +19,7 @@ let confirm: string => bool;
 let focus_clipboard_shim: unit => unit;
 let active_cell_id: string;
 let focus_active_cell: unit => bool;
+let focus_active_editor: unit => unit;
 let clipboard_shim: Virtual_dom__Node.t;
 let copy_via_shim: string => unit;
 let show_copy_toast: unit => unit;
@@ -40,10 +41,14 @@ let releasePointerCapture:
 let hasPointerCapture:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => 'a;
 let set_css_custom_property: (string, string) => unit;
+let update_main_scroll_width: unit => unit;
+let sync_at_bottom_class:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.event) => unit;
 let delay: (float, unit => unit) => unit;
 let setup_focus_bar_scroll_compensation: unit => unit;
 let prompt: (string, string) => option(string);
 let font_metrics_from_specimen: unit => (float, float);
+let code_viewport_geometry: unit => option((float, float));
 let on_dpr_change: (unit => unit) => unit;
 module QueryParams: {
   let get_param: string => option(string);
