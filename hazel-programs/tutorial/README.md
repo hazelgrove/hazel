@@ -87,8 +87,9 @@ Authoring rules, pinned by `test/Test_Tutorial.re`:
   dropdown.
 - Keep a folder's lessons **contiguous** in `src/tutorialslides/Slides.re` —
   dropdown options appear in first-appearance order.
-- Keep `Basics / Holes` first in that list. It is the lesson a fresh profile
-  opens on (`TutorialsMode.StoreTutorialKey.default`).
+
+Whichever lesson is first in `src/tutorialslides/Slides.re` is the one a fresh
+profile opens on (`TutorialsMode.StoreTutorialKey.default`).
 
 Retitling a lesson is safe: identity comes from the `id=<uuid>` flag, not the
 title, so moving a lesson between folders does not reset anyone's progress.

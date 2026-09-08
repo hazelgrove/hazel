@@ -1,45 +1,40 @@
 open Alcotest;
 open Web;
 
-/* A ratchet over the authored .hzt lessons: their titles are SlidePaths, and
-   the folder navigation in TutorialsMode plus the breadcrumb in
-   EditorModeView both depend on how they are shaped. */
+/* Rules that must hold for whatever lessons are authored in
+   hazel-programs/tutorial/, not facts about the current set: their titles are
+   SlidePaths, and the folder navigation in TutorialsMode plus the breadcrumb
+   in EditorModeView both depend on how those are shaped. */
 
 let lessons = TutorialSettings.lessons;
 let paths = List.map(Tutorial.path_of, lessons);
 let strings = list(string);
 let ints = list(int);
 
-/* Folders in first-appearance order. */
 let folder_of = (p: SlidePath.t): string =>
   SlidePath.folder(p) |> Option.value(~default="<no folder>");
 
+/* Folders in first-appearance order. */
 let folders =
   paths
   |> List.map(folder_of)
   |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
 
-/* The categorization: the intro track runs through Labeled Tuple Projection,
-   then the remaining labeled-tuple structural features get a folder, and
-   Tables holds the table lessons, the rich probe built for tables, and the
-   three tasks ported from the tables-study branch. */
-let expected_folders = [
-  "Basics x19",
-  "Tuple Structural Operations x3",
-  "Tables x6",
-];
+let lessons_in = folder =>
+  paths
+  |> List.mapi((i, p) => (i, p))
+  |> List.filter_map(((i, p)) => folder_of(p) == folder ? Some(i) : None);
 
 let tests = [
   (
     "Tutorial lesson paths",
     [
-      test_case("every lesson names a folder", `Quick, () =>
+      test_case("every lesson names exactly one folder", `Quick, () =>
         List.iter(
           (p: SlidePath.t) =>
             check(
               bool,
-              "folder is a single non-empty segment: "
-              ++ SlidePath.to_string(p),
+              "one non-empty folder segment: " ++ SlidePath.to_string(p),
               true,
               switch (SlidePath.folders(p)) {
               | [f] => f != ""
@@ -49,24 +44,6 @@ let tests = [
           paths,
         )
       ),
-      test_case("the folders are the four expected tracks", `Quick, ()
-        /* Sizes included so an accidental recategorization is caught, not
-           just a renamed or missing folder. */
-        =>
-          check(
-            strings,
-            "folders in order, with lesson counts",
-            expected_folders,
-            folders
-            |> List.map(f =>
-                 Printf.sprintf(
-                   "%s x%d",
-                   f,
-                   paths |> List.filter(p => folder_of(p) == f) |> List.length,
-                 )
-               ),
-          )
-        ),
       test_case("each folder's lessons are contiguous", `Quick, ()
         /* Grouping tolerates gaps, but the dropdown's option order and the
            reading order of Slides.re both assume contiguity. */
@@ -87,16 +64,6 @@ let tests = [
                ),
           )
         ),
-      test_case("the default lesson is Basics / Holes", `Quick, ()
-        /* TutorialsMode.StoreTutorialKey.default opens lesson 0. */
-        =>
-          check(
-            string,
-            "lesson 0",
-            "Basics / Holes",
-            SlidePath.to_string(List.nth(paths, 0)),
-          )
-        ),
       test_case(
         "next walks exactly one folder, then stops",
         `Quick,
@@ -115,12 +82,7 @@ let tests = [
           };
           List.iter(
             folder => {
-              let expected =
-                paths
-                |> List.mapi((i, p) => (i, p))
-                |> List.filter_map(((i, p)) =>
-                     folder_of(p) == folder ? Some(i) : None
-                   );
+              let expected = lessons_in(folder);
               check(
                 ints,
                 "forward through " ++ folder,
@@ -140,10 +102,10 @@ let tests = [
       ),
       test_case("folder edges are where the arrows stop", `Quick, () =>
         List.iteri(
-          (i, _) => {
+          (i, p) => {
             let {index_in_folder, folder_size}: SlidePath.folder_position =
               SlidePath.folder_position(~current=i, paths);
-            let at = string_of_int(i);
+            let at = SlidePath.to_string(p);
             check(
               bool,
               "is_first agrees with a clamped prev at " ++ at,
