@@ -285,7 +285,7 @@ let mk_inner =
     )
     |> DisplayFork.extend_t2(~info_map, ~armed, z);
   let selected = DisplayFork.ghost_selection(~armed, z, assist);
-  let caret_after = CanonicalCompletion.caret_left_atom(z);
+  let caret_after = DisplayFork.caret_left_atom(z);
   /* Build the fork. `use_replaces` chooses whether engine witnesses
      (in / => / -> / then) become REAL reified shards in place
      (sub-token styled) or stay on the ghost-splice path. A witness

@@ -38,6 +38,160 @@ type t = {
    a comma and gets dropped. The promise still owes it — restore any
    ghost-marked grout that normalization removed, right after its
    pre-normalization neighbor. */
+/* Caret-relative splice helpers: they read the caret only through its
+   atoms, and live here rather than in CanonicalCompletion so that
+   module stays Zipper-free (Indentation depends on it, and
+   PrettySegment on Indentation). */
+/* the atom (piece, or tile shard) immediately left of the caret —
+   the boundary for the no-changes-before-the-cursor policy */
+let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
+  let of_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Util.ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
+  /* an Inner caret sits INSIDE a token — that host token is partly
+     left of the caret (e.g. deleting `(` lands the caret Inner in
+     the preceding name; typing `=` before `>` gloms to `=>` with an
+     Inner caret). The host is the TOKEN neighbor, whichever side it
+     sits on (mirrors Zipper.Caret.inner_offset's preference) —
+     picking a grout neighbor let pads mint left of the caret. */
+  switch (z.caret) {
+  | Inner(_) =>
+    let ll = Util.ListUtil.last_opt(fst(z.relatives.siblings));
+    let rh =
+      switch (snd(z.relatives.siblings)) {
+      | [p, ..._] => Some(p)
+      | [] => None
+      };
+    let host =
+      switch (ll, rh) {
+      | (Some(Piece.Tile(_)), _) => ll
+      | (_, Some(Piece.Tile(_))) => rh
+      | (Some(_), _) => ll
+      | _ => rh
+      };
+    host |> Option.map(of_piece);
+  | Outer =>
+    /* selection content renders at the caret's left when focus is
+       Right (e.g. a delimiter deletion leaving content selected) */
+    switch (z.selection.content, z.selection.focus) {
+    | ([_, ..._] as content, Util.Direction.Right) =>
+      Util.ListUtil.last_opt(content) |> Option.map(of_piece)
+    | _ =>
+      switch (Util.ListUtil.last_opt(fst(z.relatives.siblings))) {
+      | Some(p) => Some(of_piece(p))
+      | None =>
+        let rec go = ancs =>
+          switch (ancs) {
+          | [] => None
+          | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
+            switch (Util.ListUtil.last_opt(fst(a.shards))) {
+            | Some(i) => Some((a.id, i))
+            | None =>
+              switch (Util.ListUtil.last_opt(fst(sibs))) {
+              | Some(p) => Some(of_piece(p))
+              | None => go(rest)
+              }
+            }
+          };
+        go(z.relatives.ancestors);
+      }
+    }
+  };
+};
+
+/* A ghost may never appear strictly BEFORE the caret (andrew's
+   policy — pre-caret ghosts shake the cursor; e.g. deleting a `(`
+   makes completion propose an opener at line start). Side-Right
+   splices land after their ref: pre-caret iff ref < caret's left
+   atom. Side-Left splices land before their ref: pre-caret iff
+   ref <= it. Suppressed ghosts keep their chip. */
+let splice_precedes_caret =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): bool =>
+  switch (ins.splice, caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, side)), Some(caret_key)) =>
+    let rank = CanonicalCompletion.rank_map(Zipper.unselect_and_zip(z));
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) =>
+      switch (side) {
+      | Util.Direction.Right => r < cr
+      | Util.Direction.Left => r <= cr
+      }
+    | _ => false
+    };
+  };
+
+/* The ghost hugs the caret when only spaces separate it from the
+   run's true position: Tab lands at the caret, and a closer drawn
+   left of the caret would portray typing OUTSIDE the completed
+   form. Sliding crosses WHITESPACE only — never content or holes
+   (the caret-lock misorder janks). Linebreaks are whitespace: a
+   caret on a fresh line is a valid drop position, and a closer
+   ghosted there sits on its own line (andrew's post-Enter case). */
+let slide_to_caret =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion)
+    : CanonicalCompletion.insertion =>
+  switch (ins.splice, z.caret) {
+  | (Some((id, sh, Util.Direction.Right)), Outer) =>
+    let (l, _) = z.relatives.siblings;
+    let ref_ok = (p: Piece.t) =>
+      Id.equal(Piece.id(p), id)
+      && (
+        switch (p, sh) {
+        | (Tile(t), Some(i)) =>
+          /* a mid-tile ref lives INSIDE the tile — sliding past the
+             whole piece would cross its later shards */
+          switch (List.rev(t.shards)) {
+          | [last, ..._] => last == i
+          | [] => false
+          }
+        | _ => true
+        }
+      );
+    let all_spaces =
+      List.for_all((q: Piece.t) =>
+        switch (q) {
+        | Secondary(_) => true
+        | _ => false
+        }
+      );
+    let rec go = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] when ref_ok(p) =>
+        rest != [] && all_spaces(rest)
+          ? Util.ListUtil.last_opt(rest)
+            |> Option.map(last =>
+                 (Piece.id(last), None, Util.Direction.Right)
+               )
+          : None
+      | [_, ...rest] => go(rest)
+      };
+    switch (go(l)) {
+    | Some(splice) =>
+      CanonicalCompletion.{
+        ...ins,
+        splice: Some(splice),
+      }
+    | None => ins
+    };
+  | _ => ins
+  };
+
 let restore_ghost_holes =
     (~marks: list((Id.t, option(int))), ~pre: Segment.t, post: Segment.t)
     : Segment.t => {
@@ -275,9 +429,8 @@ let ghost_selection =
          );
     zone
     |> List.filter_map(orig => {
-         let ins = CanonicalCompletion.slide_to_caret(z, orig);
-         CanonicalCompletion.splice_precedes_caret(z, ins)
-           ? None : Some((orig, ins));
+         let ins = slide_to_caret(z, orig);
+         splice_precedes_caret(z, ins) ? None : Some((orig, ins));
        });
   } else {
     [];
@@ -386,7 +539,7 @@ let mk_inner =
           |> CanonicalCompletion.finish_display(
                ~marks=ghost_marks,
                ~raw,
-               ~caret_after=CanonicalCompletion.caret_left_atom(z),
+               ~caret_after=caret_left_atom(z),
              );
     if (ghost_marks != [] && !tiles_well_formed(segment)) {
       failwith("DisplayFork: malformed splice");

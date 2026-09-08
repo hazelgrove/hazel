@@ -177,7 +177,7 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
-        ~autoprobe_mode: bool,
+        ~autoprobe_mode: AutoProbe.t,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -225,7 +225,7 @@ module Update = {
      *    step-into focus resolution, and cursor reset. May mutate
      *    refractors (manuals/ephemerals). */
     let zipper =
-      ProbePerform.editor_effects(
+      ProbeFocus.editor_effects(
         ~is_edited,
         ~syntax,
         ~info_map=statics.info_map,
@@ -233,29 +233,31 @@ module Update = {
         zipper,
       );
 
-    /* 4. Handle auto probe: probe follows cursor to current def */
+    /* 4. Handle auto probe (Off/Caret/All — see AutoProbe.t). */
     let zipper =
-      if (autoprobe_mode) {
+      switch (autoprobe_mode) {
+      | Off =>
+        AutoProbePerform.clear_autoprobe(
+          ~syntax,
+          ~info_map=statics.info_map,
+          zipper,
+        )
+      | Caret
+      | All =>
         let z =
-          ProbePerform.update_autoprobe(
+          AutoProbePerform.update_autoprobe(
+            ~mode=autoprobe_mode,
             ~syntax,
             ~info_map=statics.info_map,
             zipper,
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
-        ProbePerform.resolve_pending_probe_cursor(
+        ProbeFocus.resolve_pending_probe_cursor(
           ~dynamics=new_dynamics,
           ~syntax,
           ~info_map=statics.info_map,
           z,
-        );
-      } else {
-        /* If mode is off, clear any existing auto probe */
-        ProbePerform.clear_autoprobe(
-          ~syntax,
-          ~info_map=statics.info_map,
-          zipper,
         );
       };
 

@@ -341,7 +341,7 @@ let check_invariants =
           CanonicalCompletion.finish_display(
             ~marks=chip_marks,
             ~raw=Zipper.unselect_and_zip(zc),
-            ~caret_after=CanonicalCompletion.caret_left_atom(zc),
+            ~caret_after=DisplayFork.caret_left_atom(zc),
             seg,
           )
         ) {
