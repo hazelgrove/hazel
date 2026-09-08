@@ -198,12 +198,19 @@ module Update = {
      * and the worker's incremental cache then replays sampleless until
      * the next edit. A probe change recomputes NOW (cheap: DefStatics
      * probe-aware dirtying re-analyzes only the probed item). */
+    /* dynamics-requesting projectors (livelit uses, HTML apps) count as
+       probes: statics folds a livelit use's VIEW into the evaluation
+       only for probed ids, and without that sample the projector falls
+       back to evaluating the raw model itself — which breaks as soon
+       as an interaction leaves the `^name.update(prev, a)` redex in
+       the syntax (^name is unbound in the builtin env) */
+    let zipper_probe_ids = (editor: Editor.t) =>
+      CachedStatics.probe_ids_of_zipper(
+        ~projectors=editor.syntax.projectors,
+        editor.state.zipper,
+      );
     let probes_changed =
-      Id.Map.compare(
-        compare,
-        CachedStatics.probe_ids_of_zipper(editor.state.zipper),
-        statics.probe_ids,
-      )
+      Id.Map.compare(compare, zipper_probe_ids(editor), statics.probe_ids)
       != 0;
     let needs_refresh =
       statics_mode == StaticsForce
@@ -254,6 +261,7 @@ module Update = {
                             ~settings,
                             ~stitch,
                             ~root=editor.root,
+                            ~probe_ids=zipper_probe_ids(editor),
                             editor.state.zipper,
                           )
                         : CachedStatics.init(
@@ -283,11 +291,7 @@ module Update = {
      * probe_targets match. Compared against the statics computed above, so
      * this fires only when calculate itself changed the probe set. */
     let statics =
-      Id.Map.compare(
-        compare,
-        CachedStatics.probe_ids_of_zipper(editor.state.zipper),
-        statics.probe_ids,
-      )
+      Id.Map.compare(compare, zipper_probe_ids(editor), statics.probe_ids)
       != 0
         ? do_init(editor) : statics;
 
