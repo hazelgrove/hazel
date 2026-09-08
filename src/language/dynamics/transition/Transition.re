@@ -161,6 +161,9 @@ let provenance_of_kind: step_kind => provenance =
   | Seq
   | LetBind(_)
   | TheoremBind
+  | ModuleBind(_)
+  | ModuleDiscardExp
+  | ModuleDiscardType
   | UpdateTest
   | TypFunAp
   | FunAp
