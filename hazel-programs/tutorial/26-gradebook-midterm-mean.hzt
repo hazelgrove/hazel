@@ -1,0 +1,119 @@
+@title
+Tables / Gradebook Midterm Mean
+
+@flags
+show_report version=1 id=5075659c-d40f-4970-9820-fccc91f38a3c
+
+@prompt
+Finish implementing the `midterm_mean` function. The function takes in a gradebook and should return the mean of all the midterm scores as a floating point number.
+
+Feel free to define any helper functions you may find useful. The task reference to the right provides functions and operations we think may be helpful for this task.
+
+@hint
+Reminder the mean is the sum of a list of numbers divided by the size of the list
+
+@reference
+## Quick Reference
+
+### Column Projection
+Access a column from a table (list of labeled tuples):
+```hazel
+let t = [
+(name="A", score=90),
+(name="B", score=80)
+] in
+t.score
+```
+
+
+### Partial Application
+Use `_` to defer arguments:
+```hazel
+let double =
+map(_, fun x -> x * 2)
+in
+double([1, 2, 3])
+```
+
+### fold_left
+```hazel
+fold_left(
+  [1, 2, 3],
+  fun (acc, x) -> acc + x,
+  0
+)
+```
+```hazelnostatics
+fold_left : ([T], (U, T) -> U, U) -> U
+```
+
+### length
+`length : [T] -> Int` return the length of a list
+```hazel
+length([1.0, 2.0, 3.0])
+```
+
+### Type Conversions
+- `float_of_int : Int -> Float` converts an integer to a float
+```hazel
+float_of_int(1)
+```
+
+### Function Definition
+```hazel
+fun n -> n + 1 # Increments n by 1 #
+```
+
+### Binding and Calling a Function
+```hazel
+let inc : Int -> Int =
+fun n -> n + 1
+in
+inc(1)
+```
+
+### Float Arithmetic
+- `2.0 +. 3.0` — addition
+- `5.0 -. 1.0` — subtraction
+- `3.0 *. 2.0` — multiplication
+- `6.0 /. 3.0` — division
+
+Float literals need a decimal point: `0.`, `1.0`, `3.14`
+
+@hints
+Example gradebook mean should be 81.6
+Make sure you're taking the total and dividing by the length
+
+@code
+type Semester = +Spring +Fall in
+type GradebookEntry = 
+(
+student_id=Int,
+year=Int, 
+semester=Semester, 
+quiz1=Float, 
+quiz2=Float, 
+midterm=Float,
+final=Float
+)
+in
+
+let midterm_mean : [GradebookEntry] -> Float = fun (gradebook) -> 
+¿
+in
+
+let gradebook : [GradebookEntry] =
+^^table([(student_id=1, year=2025, semester=Spring, quiz1=7.0, quiz2=5.0, midterm=85.0, final=88.0),
+(student_id=2, year=2025, semester=Fall, quiz1=5.0, quiz2=8.0, midterm=90.0,  final=82.0), 
+(student_id=3, year=2024, semester=Fall, quiz1=8.0, quiz2=7.0, midterm=78.0, final=80.0), 
+(student_id=4, year=2025, semester=Spring, quiz1=9.0, quiz2=10.0, midterm=95.0, final=98.0),
+(student_id=5, year=2024, semester=Fall, quiz1=4.0, quiz2=3.0, midterm=60.0,  final=65.0)])
+in
+midterm_mean(gradebook)
+
+@test
+test midterm_mean(gradebook) == 81.6 end;
+test midterm_mean([
+(student_id=?, year=?, semester=?, quiz1=?, quiz2=?, midterm=1., final=?),
+(student_id=?, year=?, semester=?, quiz1=?, quiz2=?, midterm=2., final=?)
+]) == 1.5 end

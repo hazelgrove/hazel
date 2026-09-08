@@ -18,11 +18,12 @@ let folders =
 
 /* The categorization: the intro track runs through Labeled Tuple Projection,
    then the remaining labeled-tuple structural features get a folder, and
-   Tables holds the table lessons plus the rich probe built for tables. */
+   Tables holds the table lessons, the rich probe built for tables, and the
+   three tasks ported from the tables-study branch. */
 let expected_folders = [
   "Basics x19",
   "Tuple Structural Operations x3",
-  "Tables x3",
+  "Tables x6",
 ];
 
 let tests = [
