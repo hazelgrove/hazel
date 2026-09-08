@@ -1335,7 +1335,10 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
+          List.map(
+            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            model.scratchpads,
+          ),
         ),
       (),
     );

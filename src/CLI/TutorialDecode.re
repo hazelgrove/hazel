@@ -93,8 +93,14 @@ let write_all = (dir: string): unit => {
   let specs = Web.TutorialSettings.lessons;
   List.iteri(
     (i, spec) => {
+      /* Only the leaf: kebab maps the SlidePath separator to dashes, so a
+         folder-bearing title would give "01-basics---holes.hzt". */
       let name =
-        Printf.sprintf("%02d-%s.hzt", i + 1, kebab(title_of(spec)));
+        Printf.sprintf(
+          "%02d-%s.hzt",
+          i + 1,
+          kebab(Web.Tutorial.path_of(spec).leaf),
+        );
       Core.Out_channel.write_all(
         dir ++ "/" ++ name,
         ~data=decode_spec(spec),

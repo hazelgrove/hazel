@@ -84,6 +84,8 @@ let (suite, exit_with_test_status) =
       Test_ObsBench.tests,
     ]
     @ [Test_GradingReport.tests]
+    @ Test_SlidePath.tests
+    @ Test_Tutorial.tests
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
