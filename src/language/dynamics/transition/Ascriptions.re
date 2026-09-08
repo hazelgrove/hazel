@@ -186,7 +186,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when Typ.is_consistent(ctx, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
+            sumt' |> Typ.temp,
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -201,7 +206,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(ctx, Typ.unroll(t), t' |> Typ.temp) =>
+        when
+          Typ.is_consistent(
+            ctx,
+            /* the constructor's own type may be a compact alias of a
+               recursive builtin sum (Null : JSON): resolve it the way
+               the ascription's type was, or the unrolled target never
+               reads as consistent and the cast sticks */
+            Typ.unroll(Typ.weak_head_normalize(ctx, t)),
+            t' |> Typ.temp,
+          ) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(

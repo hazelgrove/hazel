@@ -694,5 +694,19 @@ let tests = (
         {|Jq.string_prepend("x")(Int(5))|},
       )
     ),
+    // ---- Ascriptions to the builtin recursive type ----
+    // `Null : JSON` / `Assoc(..) : JSON` used to stick as casts (the
+    // constructor's own type is a compact alias of a Rec sum) and every
+    // case on an annotated JSON binding stayed indeterminate.
+    test_case("JSON-annotated binding matches in case", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|(1, 1, 1)|},
+        {|let j : JSON = Assoc([("k", String("v"))]) in
+let f = fun (v: JSON) -> case v | Assoc(_) => 1 | _ => 0 end in
+let n : JSON = Null in
+(f(j), case j | Assoc(_) => 1 | _ => 0 end, case n | Null => 1 | _ => 0 end)|},
+      )
+    ),
   ],
 );
