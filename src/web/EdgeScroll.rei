@@ -3,4 +3,6 @@
 
 let stop: unit => unit;
 
+let is_active: unit => bool;
+
 let update: (~client_y: float, ~on_scroll: unit => unit) => unit;
