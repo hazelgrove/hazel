@@ -1,5 +1,5 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
-SERVER="http://0.0.0.0:8000/"
+SERVER="http://0.0.0.0:8009/"
 
 .PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check dead-code dead-code-json dead-code-summary clean setup-zarith
 
@@ -61,7 +61,7 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+	cd $(HTML_DIR); python3 -m http.server 8014 --bind 0.0.0.0
 
 hot:
 	npx vite

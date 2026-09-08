@@ -42,7 +42,8 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
   /* exolivelit widgets: no agent-prompt copy */
   | Graph
   | ObservablePlot
-  | Exo(_) => None
+  | Exo(_)
+  | Patchwork => None
   };
 
 let uniq_livelit_lines: list(string) = {
