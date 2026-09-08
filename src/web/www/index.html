@@ -14,22 +14,32 @@
 					"@automerge/automerge/slim": "https://gaios.sgai.uk/packages/@automerge/automerge/slim.js",
 					"@automerge/automerge-repo": "https://gaios.sgai.uk/packages/@automerge/automerge-repo.js",
 					"@automerge/automerge-repo/slim": "https://gaios.sgai.uk/packages/@automerge/automerge-repo/slim.js",
+					"@automerge/automerge-repo/worker-port": "https://gaios.sgai.uk/packages/@automerge/automerge-repo/worker-port.js",
+					"@automerge/automerge-repo/subduction-websocket-worker-shared": "https://gaios.sgai.uk/packages/@automerge/automerge-repo/subduction-websocket-worker-shared.js",
+					"@automerge/automerge-repo-network-messagechannel": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-network-messagechannel.js",
+					"@automerge/automerge-repo-network-websocket": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-network-websocket.js",
+					"@automerge/automerge-repo-storage-indexeddb": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-storage-indexeddb.js",
 					"@automerge/automerge-repo-keyhive": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-keyhive.js",
-					"@automerge/vanillajs": "https://esm.sh/@automerge/vanillajs",
+					"@automerge/automerge-subduction": "https://gaios.sgai.uk/packages/@automerge/automerge-subduction.js",
+					"@automerge/automerge-subduction/slim": "https://gaios.sgai.uk/packages/@automerge/automerge-subduction/slim.js",
 					"@keyhive/keyhive": "https://gaios.sgai.uk/packages/@keyhive/keyhive.js",
 					"@keyhive/keyhive/slim": "https://gaios.sgai.uk/packages/@keyhive/keyhive/slim.js",
 					"@inkandswitch/patchwork-bootloader": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-bootloader.js",
 					"@inkandswitch/patchwork-elements": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-elements.js",
 					"@inkandswitch/patchwork-filesystem": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-filesystem.js",
 					"@inkandswitch/patchwork-plugins": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-plugins.js",
+					"@inkandswitch/patchwork-providers": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-providers.js",
+					"@inkandswitch/patchwork": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork.js",
 					"@codemirror/state": "https://gaios.sgai.uk/packages/@codemirror/state.js",
 					"@codemirror/view": "https://gaios.sgai.uk/packages/@codemirror/view.js",
 					"@codemirror/language": "https://gaios.sgai.uk/packages/@codemirror/language.js",
+					"@codemirror/commands": "https://gaios.sgai.uk/packages/@codemirror/commands.js",
 					"solid-js": "https://gaios.sgai.uk/packages/solid-js.js",
-          "solid-js/html": "https://gaios.sgai.uk/packages/solid-js/html.js",
-          "solid-js/web": "https://gaios.sgai.uk/packages/solid-js/web.js",
-          "solid-js/h": "https://gaios.sgai.uk/packages/solid-js/h.js",
-          "solid-js/store": "https://gaios.sgai.uk/packages/solid-js/store.js"
+					"solid-js/html": "https://gaios.sgai.uk/packages/solid-js/html.js",
+					"solid-js/web": "https://gaios.sgai.uk/packages/solid-js/web.js",
+					"solid-js/h": "https://gaios.sgai.uk/packages/solid-js/h.js",
+					"solid-js/store": "https://gaios.sgai.uk/packages/solid-js/store.js",
+					"solid-js/jsx-runtime": "https://gaios.sgai.uk/packages/solid-js/jsx-runtime.js"
 				},
 				"scopes": {}
 			}
@@ -53,17 +63,22 @@
 		} */
 	</style>
 	<script>
-		// The patchwork/automerge packages loaded from the importmap fetch their
-		// wasm at an origin-absolute path ("/assets/automerge_wasm_bg-*.wasm"),
-		// which 404s when the app is deployed under a subpath (hazel.org/build/
-		// <branch>/). Rewrite those fetches to the app-relative copy in assets/.
+		// The gaios-hosted automerge bundle (loaded via the importmap) fetches
+		// its wasm at an origin-absolute path "/assets/automerge_wasm_bg-<hash>.wasm"
+		// — a path that only exists on gaios.sgai.uk itself, and whose hash
+		// rotates on every gaios rebuild. Redirect those fetches to gaios (served
+		// with CORS), falling back to a local copy under assets/ if gaios fails.
 		(() => {
+			const GAIOS = "https://gaios.sgai.uk";
 			const origFetch = window.fetch;
 			window.fetch = function (input, init) {
 				const url = typeof input === "string" ? input : input?.url;
 				const m = url && url.match(/^(?:https?:\/\/[^/]+)?(\/assets\/automerge_wasm_bg-[^/?#]+\.wasm)$/);
 				if (m && (!url.startsWith("http") || url.startsWith(location.origin))) {
-					return origFetch.call(this, new URL("." + m[1], document.baseURI), init);
+					const local = new URL("." + m[1], document.baseURI);
+					return origFetch.call(this, GAIOS + m[1], init)
+						.then(r => (r.ok ? r : origFetch.call(this, local, init)))
+						.catch(() => origFetch.call(this, local, init));
 				}
 				return origFetch.call(this, input, init);
 			};
@@ -73,6 +88,8 @@
 </head>
 
 <body spellcheck="false">
+	<!-- repo-provider: see prebundle.js; display:contents, layout-transparent -->
+	<repo-provider>
 	<div id="container">
 		<div class="loading">
 			<div class="spinner">
@@ -84,6 +101,7 @@
 			loading
 		</div>
 	</div>
+	</repo-provider>
 </body>
 <ninja-keys id="ninja-keys" placeholder="Find Action" hideBreadcrumbs></ninja-keys>
 

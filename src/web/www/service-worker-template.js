@@ -1,6 +1,8 @@
 /// <reference types="service-worker-types" />
 
 import {initializeWasm} from "@automerge/automerge/slim"
+// (the default export is wasm-bindgen's async loader; `init` is a Rust fn)
+import initSubductionWasm from "@automerge/automerge-subduction/slim"
 import {
 	Repo,
 	isValidAutomergeUrl,
@@ -58,7 +60,17 @@ let repoPromise = null
 function getRepo() {
 	if (!repoPromise) {
 		repoPromise = (async () => {
-			const wasmResponse = await fetch("https://gaios.sgai.uk/automerge.wasm")
+			// Both wasm blobs come from the same gaios deploy as the JS chunks
+			// the importmap points at. Repo (automerge-repo 2.6) needs the
+			// subduction wasm up before construction; a service worker can't
+			// use initSubduction() (dynamic import() is disallowed here).
+			const [wasmResponse, subductionResponse] = await Promise.all([
+				fetch("https://gaios.sgai.uk/automerge.wasm"),
+				fetch("https://gaios.sgai.uk/subduction.wasm"),
+			])
+			await initSubductionWasm({
+				module_or_path: new Uint8Array(await subductionResponse.arrayBuffer()),
+			})
 			await initializeWasm(new Uint8Array(await wasmResponse.arrayBuffer()))
 			const repo = new Repo({
 				storage: new IndexedDBStorageAdapter(),

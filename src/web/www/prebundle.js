@@ -6,7 +6,8 @@ import Algebrite from "algebrite"
 import * as Plot from "@observablehq/plot"
 
 import {registerPatchworkViewElement} from "@inkandswitch/patchwork-elements"
-import {importModuleFromFolderDocUrl} from "@inkandswitch/patchwork-filesystem"
+import {registerRepoProviderElement} from "@inkandswitch/patchwork-providers"
+import {importPackageFromFolderDocUrl} from "@inkandswitch/patchwork-filesystem"
 import {registerPlugins, getRegistry} from "@inkandswitch/patchwork-plugins"
 
 import {
@@ -14,6 +15,11 @@ import {
 	Repo,
 } from "@automerge/vanillajs/slim"
 import {WebSocketClientAdapter} from "@automerge/automerge-repo-network-websocket"
+import {initSubduction} from "@automerge/automerge-repo/slim"
+
+// automerge-repo 2.6 (the gaios-hosted build) constructs a Subduction sync
+// source inside Repo, which needs the subduction wasm initialized first.
+await initSubduction()
 
 const repo = new Repo({
 	storage: new IndexedDBStorageAdapter(),
@@ -132,7 +138,7 @@ window.plugins = getRegistry("patchwork:tool")
 // doc which is auth-gated upstream.)
 async function loadModule(url) {
 	try {
-		const mod = await importModuleFromFolderDocUrl(url)
+		const mod = await importPackageFromFolderDocUrl(url)
 		console.log("Module loaded:", url, mod)
 		if (Array.isArray(mod.plugins)) {
 			registerPlugins(mod.plugins, url)
@@ -144,6 +150,12 @@ async function loadModule(url) {
 
 moduleUrls.forEach(loadModule)
 
+// patchwork-elements >= 6 resolves a view's doc through an OverlayRepo that
+// asks the DOM (a bubbling `patchwork:subscribe` event) for a
+// `repo:handle-descriptor`; nothing answers it, `find` never settles and the
+// view stays blank. <repo-provider> (wrapping #container in index.html) is the
+// root-level answerer. Define it before the views so upgraded views find it.
+registerRepoProviderElement(repo)
 registerPatchworkViewElement({repo})
 
 // Prevent tldraw popover focus from scrolling #main.
