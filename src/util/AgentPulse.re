@@ -20,3 +20,9 @@ let now = (): float =>
 let note_action = (): unit => last_action := now();
 
 let in_burst = (): bool => now() -. last_action^ < burst_window_ms;
+
+/* A projector just committed new syntax (a livelit gesture, a slider,
+   a checkbox): a discrete edit, not a keystroke in a burst of typing,
+   so the statics debounce that smooths typing only adds latency to the
+   interaction. Set by ProjectorPerform, consumed by the debounce. */
+let projector_commit: ref(bool) = ref(false);

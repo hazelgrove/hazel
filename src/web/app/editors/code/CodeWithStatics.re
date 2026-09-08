@@ -106,7 +106,19 @@ module StaticsDebounce = {
   let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    /* a projector commit is one discrete edit: run statics now rather
+       than after the typing debounce (livelit drag → result: -225ms) */
+    let projector_edit = Util.AgentPulse.projector_commit^;
+    Util.AgentPulse.projector_commit := false;
+    if (is_edited && projector_edit) {
+      switch (timer_id^) {
+      | Some(id) =>
+        Js_of_ocaml.Dom_html.window##clearTimeout(id);
+        timer_id := None;
+      | None => ()
+      };
+      StaticsForce;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
