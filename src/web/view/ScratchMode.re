@@ -66,6 +66,33 @@ let project_cell_statics =
   };
 };
 let stacked_statics: ref(option(Haz3lcore.CachedStatics.t)) = ref(None);
+/* the probe_all setting the stacked statics' TARGETS were computed under:
+   toggling it must recompute them, or the master's eval keeps sampling
+   the old target set while the stack is open */
+let stacked_probe_all: ref(option(bool)) = ref(None);
+
+/* Ambient sampling is masked while the agent is bursting (AgentPulse);
+   when the burst settles nothing else necessarily dispatches, so arm one
+   refresh for that moment — the wells repopulate from that eval. */
+module BurstSettle = {
+  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
+  let arm = (~schedule_refresh: unit => unit): unit => {
+    switch (timer_id^) {
+    | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+    | None => ()
+    };
+    timer_id :=
+      Some(
+        Js_of_ocaml.Dom_html.window##setTimeout(
+          Js_of_ocaml.Js.wrap_callback(() => {
+            timer_id := None;
+            schedule_refresh();
+          }),
+          Util.AgentPulse.ms_to_settle() +. 80.,
+        ),
+      );
+  };
+};
 /* incremental-parse cache for the stacked Force frame: the plain
    memoized term_of cost ~312ms/edit at 4k (ledger §14) — the go_incr
    path with a persistent cache replays the top frame exactly and
@@ -1485,6 +1512,11 @@ module Update = {
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
         schedule_action(RefreshStatics)
       );
+    if (settings.Language.CoreSettings.probe_all && Util.AgentPulse.in_burst()) {
+      BurstSettle.arm(~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+    };
 
     let scratchpad = List.nth(model.scratchpads, model.current);
     /* pending restore state applies only to the slide it was read
@@ -1548,6 +1580,7 @@ module Update = {
          forces their own recalc below. */
       if (model.focus == None) {
         stacked_statics := None;
+        stacked_probe_all := None;
         stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
       };
       let model =
@@ -1555,7 +1588,10 @@ module Update = {
         | Some(f)
             when
               statics_mode == CodeWithStatics.StaticsForce
-              || stacked_statics^ == None =>
+              || stacked_statics^ == None
+              || stacked_probe_all^
+              != Some(settings.Language.CoreSettings.probe_all) =>
+          stacked_probe_all := Some(settings.Language.CoreSettings.probe_all);
           let prev_items =
             switch (Haz3lcore.DefStatics.current()) {
             | Some(p) => p.items
@@ -1694,10 +1730,24 @@ module Update = {
               synth,
               editor.result,
             );
-          {
-            ...editor,
+          /* the master's EDITOR is frozen while stacked, but readers of
+             whole-program samples through it (canvas wells, type-value
+             tallies) must see this eval's samples, not the pre-stack
+             ones; the master's statics stay the frozen copy */
+          let dyn = EvalResult.Model.dynamics(result);
+          let master: CodeWithStatics.Model.t = editor.editor;
+          let master: CodeWithStatics.Model.t =
+            dyn === master.dynamics
+              ? master
+              : {
+                ...master,
+                dynamics: dyn,
+              };
+          let cell: CellEditor.Model.t = {
+            editor: master,
             result,
           };
+          cell;
         | (Some(_), None) => editor
         | (None, _) =>
           CellEditor.Update.calculate(
