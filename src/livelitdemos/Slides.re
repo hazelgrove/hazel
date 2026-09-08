@@ -13,6 +13,10 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       ("Curve Editor", [%blob "curve-editor.hz"]),
       ("Logic Circuit", [%blob "logic-circuit.hz"]),
       ("Task DAG", [%blob "task-dag.hz"]),
+      ("Dispatch", [%blob "dispatch.hz"]),
+      ("Cold Chain", [%blob "cold-chain.hz"]),
+      ("Range Picker", [%blob "range-picker.hz"]),
+      ("Dial", [%blob "dial.hz"]),
     ]
     |> List.map(((name, text)) => ("Livelits / " ++ name, text))
   )
