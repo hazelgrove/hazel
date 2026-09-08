@@ -54,7 +54,12 @@ let mk_tests = [
       )
     ),
   test_case("a leaf alone has no folders", `Quick, () =>
-    check(strings, "folders", [], SlidePath.folders(SlidePath.mk("Holes")))
+    check(
+      strings,
+      "folders of a bare leaf",
+      [],
+      SlidePath.folders(SlidePath.mk("Holes")),
+    )
   ),
 ];
 
@@ -86,7 +91,7 @@ let leaf_tests = [
   test_case("the last segment", `Quick, () =>
     check(
       string,
-      "c",
+      "leaf of a / b / c",
       "c",
       SlidePath.leaf(SlidePath.of_string("a / b / c")),
     )
@@ -97,7 +102,7 @@ let folders_tests = [
   test_case("every segment but the last", `Quick, () =>
     check(
       strings,
-      "a, b",
+      "folders of a / b / c",
       ["a", "b"],
       SlidePath.folders(SlidePath.of_string("a / b / c")),
     )
@@ -108,7 +113,7 @@ let segments_tests = [
   test_case("the folders and the leaf", `Quick, () =>
     check(
       strings,
-      "a, b, c",
+      "segments of a / b / c",
       ["a", "b", "c"],
       SlidePath.segments(SlidePath.of_string("a / b / c")),
     )
@@ -119,7 +124,7 @@ let folder_tests = [
   test_case("joins the folder segments", `Quick, () =>
     check(
       option(string),
-      "a / b",
+      "folder of a / b / c",
       Some("a / b"),
       SlidePath.folder(SlidePath.of_string("a / b / c")),
     )
@@ -127,7 +132,7 @@ let folder_tests = [
   test_case("none when the path has no folder segment", `Quick, () =>
     check(
       option(string),
-      "Holes",
+      "folder of Holes",
       None,
       SlidePath.folder(SlidePath.of_string("Holes")),
     )
@@ -202,7 +207,7 @@ let folder_position_tests = [
   test_case("first slide of a folder of two", `Quick, () =>
     check(
       folder_position,
-      "Basics / Holes",
+      "position of Basics / Holes",
       at(0, 2),
       position_of("Basics / Holes"),
     )
@@ -210,7 +215,7 @@ let folder_position_tests = [
   test_case("last slide of a folder of two", `Quick, () =>
     check(
       folder_position,
-      "Tables / Column Projection",
+      "position of Tables / Column Projection",
       at(1, 2),
       position_of("Tables / Column Projection"),
     )
@@ -218,7 +223,7 @@ let folder_position_tests = [
   test_case("the only slide in its folder", `Quick, () =>
     check(
       folder_position,
-      "Rich Probes / Sampling",
+      "position of Rich Probes / Sampling",
       at(0, 1),
       position_of("Rich Probes / Sampling"),
     )
@@ -231,13 +236,13 @@ let folder_position_tests = [
          even with "B / y" between them. */
       check(
         folder_position,
-        "A / x",
+        "position of A / x",
         at(0, 2),
         position_of(~space=scattered, "A / x"),
       );
       check(
         folder_position,
-        "A / z",
+        "position of A / z",
         at(1, 2),
         position_of(~space=scattered, "A / z"),
       );
@@ -313,7 +318,7 @@ let breadcrumb_tests = [
   test_case("one crumb per segment, siblings as options", `Quick, () =>
     check(
       crumbs,
-      "Tables / Filtering",
+      "breadcrumb for Tables / Filtering",
       [
         ("Tables", ["Basics", "Tables", "Rich Probes"]),
         ("Filtering", ["Filtering", "Column Projection"]),
@@ -332,7 +337,7 @@ let breadcrumb_tests = [
       ];
       check(
         crumbs,
-        "B2T2 / API / Constructors / vcat",
+        "breadcrumb for B2T2 / API / Constructors / vcat",
         [
           ("B2T2", ["B2T2"]),
           ("API", ["API", "Datasheet"]),
@@ -370,7 +375,7 @@ let breadcrumb_tests = [
   test_case("a position outside the space has no breadcrumb", `Quick, () =>
     check(
       crumbs,
-      "empty",
+      "no crumbs",
       [],
       SlidePath.breadcrumb(~current=99, paths_of(nav_space))
       |> List.map((c: SlidePath.crumb) =>
