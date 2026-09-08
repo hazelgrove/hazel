@@ -300,22 +300,29 @@ let rec operand_to_left = (seg: Segment.t, j: int): bool =>
     );
 
 /* A prefix-token witness for a missing shard: a token whose text is
- * a proper prefix of the expected shard's text: (1) molded as an
- * infix-delimiter prefix, or (2) symbolic with no legitimate
+ * a proper prefix of the expected shard's text: (1) an infix-molded
+ * delimiter-prefix token, or (2) symbolic with no legitimate
  * non-label mold at the slot's sort AND position. `-` outs at Pat
  * only as unary minus, a prefix, so after a complete Pat operand it
  * can only be a broken `->`; label-precedence molds don't block. The
  * tile independently EXPECTS the delimiter; the token only witnesses
- * WHERE. */
+ * WHERE.
+ *
+ * (1) is deliberately NOT Piece.is_infix_delimiter_op_prefix: that
+ * predicate wants the BACKUP mold (#2484, pending-delimiter display),
+ * but the broken `>` of `=>` leaves an `=` that remolds as real infix
+ * equality. Any infix mold witnesses here; the expectation gate is
+ * what keeps it honest. */
 let is_prefix_witness =
     (~slot: Sort.t, ~operand_left: bool, p: Piece.t, shard_text: Token.t)
     : bool =>
   switch (p) {
-  | Tile({label: [tok], _}) =>
+  | Tile({label: [tok], mold, _}) =>
     Token.length(tok) < Token.length(shard_text)
     && String.sub(shard_text, 0, Token.length(tok)) == tok
     && (
-      Piece.is_infix_delimiter_op_prefix(p)
+      Mold.is_infix_op(mold)
+      && Form.is_infix_delimiter_op_prefix(tok)
       || Token.is_symbolic(tok)
       && !
            List.exists(

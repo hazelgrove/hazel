@@ -196,8 +196,7 @@ let view =
       is_consistent(sort, t),
       ghost_mark(t.id, Option.some(i)),
       Tile.is_complete(t) && !tile_ghosted(t),
-      Mold.is_infix_op(t.mold)
-      && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      Piece.is_infix_delimiter_op_prefix(Tile(t)),
       typed_len_of(t.id, i),
       font_metrics,
     );
