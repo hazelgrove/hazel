@@ -34,6 +34,11 @@
   box-sizing: border-box;
 }
 
+#page,
+#page * {
+  overscroll-behavior-x: contain;
+}
+
 svg {
   overflow: visible;
   box-sizing: content-box;
@@ -168,7 +173,7 @@ select {
 #sample-focus-bar .title {
   font-size: 0.85em;
   font-family: var(--ui-font);
-  color: var(--text-inverse);
+  color: rgb(255, 255, 255);
   background-color: var(--surface-success);
   border-radius: 0.3em 1.5em 1.3em 1.3em;
   padding: 4px 8px;
@@ -206,7 +211,7 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-entry:hover {
-  background-color: var(--menu-item-hover-bkg);
+  background-color: white;
 }
 
 #sample-focus-bar .breadcrumb-entry.focused {
@@ -287,7 +292,7 @@ select {
   width: 1em;
   height: 1em;
   border-radius: 1em;
-  background: url(../img/noun-pinned-1560993.svg) var(--surface-error);
+  background: url(img/noun-pinned-1560993.svg) var(--surface-error);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -318,7 +323,7 @@ select {
 }
 
 #sample-focus-bar .breadcrumb-body:hover {
-  background-color: var(--menu-item-hover-bkg);
+  background-color: white;
   color: var(--text-accent);
 }
 

@@ -19,6 +19,8 @@ let timer_id: ref(option(Dom_html.interval_id)) = ref(None);
 let last_client_y: ref(float) = ref(0.0);
 let on_tick: ref(option(unit => unit)) = ref(None);
 
+let is_active = (): bool => timer_id^ != None;
+
 let clear_timer = () =>
   switch (timer_id^) {
   | Some(id) =>

@@ -56,7 +56,7 @@ let update_once =
     );
   Editor.Update.calculate(
     ~settings,
-    ~autoprobe_mode=false,
+    ~autoprobe_mode=AutoProbe.Off,
     ~is_edited=true,
     new_statics,
     Language.Dynamics.Map.empty,
