@@ -13,6 +13,69 @@ open Util;
 
 type insertion = CanonicalCompletion.insertion;
 
+/* the atom (piece, or tile shard) immediately left of the caret —
+   the boundary for the no-changes-before-the-cursor policy */
+let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
+  let of_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
+  /* an Inner caret sits INSIDE a token — that host token is partly
+     left of the caret (e.g. deleting `(` lands the caret Inner in
+     the preceding name; typing `=` before `>` gloms to `=>` with an
+     Inner caret). The host is the TOKEN neighbor, whichever side it
+     sits on (mirrors Zipper.Caret.inner_offset's preference) —
+     picking a grout neighbor let pads mint left of the caret. */
+  switch (z.caret) {
+  | Inner(_) =>
+    let ll = ListUtil.last_opt(fst(z.relatives.siblings));
+    let rh =
+      switch (snd(z.relatives.siblings)) {
+      | [p, ..._] => Some(p)
+      | [] => None
+      };
+    let host =
+      switch (ll, rh) {
+      | (Some(Piece.Tile(_)), _) => ll
+      | (_, Some(Piece.Tile(_))) => rh
+      | (Some(_), _) => ll
+      | _ => rh
+      };
+    host |> Option.map(of_piece);
+  | Outer =>
+    /* selection content renders at the caret's left when focus is
+       Right (e.g. a delimiter deletion leaving content selected) */
+    switch (z.selection.content, z.selection.focus) {
+    | ([_, ..._] as content, Direction.Right) =>
+      ListUtil.last_opt(content) |> Option.map(of_piece)
+    | _ =>
+      switch (ListUtil.last_opt(fst(z.relatives.siblings))) {
+      | Some(p) => Some(of_piece(p))
+      | None =>
+        let rec go = ancs =>
+          switch (ancs) {
+          | [] => None
+          | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
+            switch (ListUtil.last_opt(fst(a.shards))) {
+            | Some(i) => Some((a.id, i))
+            | None =>
+              switch (ListUtil.last_opt(fst(sibs))) {
+              | Some(p) => Some(of_piece(p))
+              | None => go(rest)
+              }
+            }
+          };
+        go(z.relatives.ancestors);
+      }
+    }
+  };
+};
+
 /* a witness record: its head delimiter carries a typed prefix */
 let is_pure_witness = (ins: insertion): bool =>
   switch (ins.delimiters) {
@@ -273,7 +336,7 @@ let tab_slice =
         },
       sg,
     );
-  switch (CanonicalCompletion.caret_left_atom(z)) {
+  switch (caret_left_atom(z)) {
   | None => None
   | Some((cid, csh)) =>
     /* hole-HOSTING cells are not text: a space consumed as a hole's

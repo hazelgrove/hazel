@@ -46,6 +46,147 @@ type t = {
    a comma and gets dropped. The promise still owes it — restore any
    ghost-marked grout that normalization removed, right after its
    pre-normalization neighbor. */
+/* Caret-relative splice helpers: they read the caret only through its
+   atoms, and live here rather than in CanonicalCompletion so that
+   module stays Zipper-free (Indentation depends on it, and
+   PrettySegment on Indentation). */
+/* A ghost may never appear strictly BEFORE the caret (andrew's
+   policy — pre-caret ghosts shake the cursor; e.g. deleting a `(`
+   makes completion propose an opener at line start). Side-Right
+   splices land after their ref: pre-caret iff ref < caret's left
+   atom. Side-Left splices land before their ref: pre-caret iff
+   ref <= it. Suppressed ghosts keep their chip. */
+let splice_precedes_caret =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): bool =>
+  switch (ins.splice, CompletionQuery.caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, side)), Some(caret_key)) =>
+    let rank = CanonicalCompletion.rank_map(Zipper.unselect_and_zip(z));
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) =>
+      switch (side) {
+      | Util.Direction.Right => r < cr
+      | Util.Direction.Left => r <= cr
+      }
+    | _ => false
+    };
+  };
+
+/* a linebreak strictly separates the splice from the caret: the
+   span sits at an EARLIER LINE's end — free space per the legality
+   rule (it can displace nothing at the caret). Used by the
+   inline-persist scope: pre-caret spans persist iff line-separated;
+   same-row-before-caret spans always demote. */
+let linebreak_between =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): bool =>
+  switch (ins.splice, CompletionQuery.caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, _)), Some(caret_key)) =>
+    let seg = Zipper.unselect_and_zip(z);
+    let rank = CanonicalCompletion.rank_map(seg);
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) when r < cr =>
+      let rec lb_in_range = (sg: Segment.t): bool =>
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(w) as lb when Piece.is_linebreak(lb) =>
+              switch (Hashtbl.find_opt(rank, (w.id, (-1)))) {
+              | Some(lr) => r < lr && lr <= cr
+              | None => false
+              }
+            | Tile(t) => List.exists(lb_in_range, t.children)
+            | _ => false
+            },
+          sg,
+        );
+      lb_in_range(seg);
+    | _ => false
+    };
+  };
+
+/* The ghost hugs the caret when only spaces separate it from the
+   run's true position: Tab lands at the caret, and a closer drawn
+   left of the caret would portray typing OUTSIDE the completed
+   form. Sliding crosses WHITESPACE only — never content or holes
+   (the caret-lock misorder janks). Linebreaks are whitespace: a
+   caret on a fresh line is a valid drop position, and a closer
+   ghosted there sits on its own line (andrew's post-Enter case). */
+/* SLIDE TO CARET, SPACES ONLY (P8, andrew 2026-07-24).
+   A ghost anchored at a token separated from the caret by nothing
+   but SPACES renders at the caret rather than tight against its
+   anchor. This is load-bearing, not cosmetic: with a trailing space
+   typed (`let ¦`) the ghost's true anchor precedes the caret, so the
+   no-pre-caret rule would otherwise suppress the whole entry-time
+   ghost to a chip.
+
+   RETIRED (2026-07-24): the V3.3 extension that let the slide cross
+   LINEBREAKS ("whitespace is whitespace"). That is what made a ghost
+   jump to the caret's line and mint a pad there on a single arrow
+   press — andrew's "spooky space" report, and a movement-purity
+   violation since the ghost relocated across lines as the caret
+   moved. Within a line the hug stays; a linebreak is a wall. */
+let slide_to_caret =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion)
+    : CanonicalCompletion.insertion =>
+  switch (ins.splice, z.caret) {
+  | (Some((id, sh, Util.Direction.Right)), Outer) =>
+    let (l, _) = z.relatives.siblings;
+    let ref_ok = (p: Piece.t) =>
+      Id.equal(Piece.id(p), id)
+      && (
+        switch (p, sh) {
+        | (Tile(t), Some(i)) =>
+          /* a mid-tile ref lives INSIDE the tile — sliding past the
+             whole piece would cross its later shards */
+          switch (List.rev(t.shards)) {
+          | [last, ..._] => last == i
+          | [] => false
+          }
+        | _ => true
+        }
+      );
+    /* SPACES only: a linebreak is a wall (see above) */
+    let all_spaces = List.for_all(Piece.is_space);
+    let rec go = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] when ref_ok(p) =>
+        rest != [] && all_spaces(rest)
+          ? Util.ListUtil.last_opt(rest)
+            |> Option.map(last =>
+                 (Piece.id(last), None, Util.Direction.Right)
+               )
+          : None
+      | [_, ...rest] => go(rest)
+      };
+    switch (go(l)) {
+    | Some(splice) =>
+      CanonicalCompletion.{
+        ...ins,
+        splice: Some(splice),
+      }
+    | None => ins
+    };
+  | _ => ins
+  };
+
 let restore_ghost_holes =
     (~marks: list((Id.t, option(int))), ~pre: Segment.t, post: Segment.t)
     : Segment.t => {
@@ -375,8 +516,7 @@ let ghost_selection =
      BEFORE the caret ON ITS ROW (pre-caret width). Zero-width
      borrowed-cell material passes everywhere by construction. */
   let fails_appearance = (ins: CanonicalCompletion.insertion): bool =>
-    CanonicalCompletion.splice_precedes_caret(z, ins)
-    && !CanonicalCompletion.linebreak_between(z, ins);
+    splice_precedes_caret(z, ins) && !linebreak_between(z, ins);
   let (known, held) = persist_state;
   let (known', held') =
     switch (inline_persist) {
@@ -444,9 +584,8 @@ let ghost_selection =
     let zoned =
       zone
       |> List.filter_map(orig => {
-           let ins = CanonicalCompletion.slide_to_caret(z, orig);
-           CanonicalCompletion.splice_precedes_caret(z, ins)
-             ? None : Some((orig, ins));
+           let ins = slide_to_caret(z, orig);
+           splice_precedes_caret(z, ins) ? None : Some((orig, ins));
          });
     /* zone wins on overlap: a caret-zone ghost may be slid; the
        persisted copy of the same insertion is dropped */
