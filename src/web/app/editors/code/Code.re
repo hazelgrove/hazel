@@ -136,8 +136,7 @@ let view =
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
-      Mold.is_infix_op(Tile.mold(t))
-      && Form.is_infix_delimiter_op_prefix(Tile.token(t, i)),
+      Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
     );
   };

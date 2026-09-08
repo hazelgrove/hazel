@@ -190,8 +190,8 @@ let is_term = (p: t) =>
 let is_infix_delimiter_op_prefix = (p: t) =>
   switch (p) {
   | Tile(t) when Tile.arity(t) == 1 =>
-    Mold.is_infix_op(Tile.mold(t))
-    && Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
+    Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
+    && Form.is_infix_delimiter_prefix_mold(Tile.mold(t))
   | _ => false
   };
 
