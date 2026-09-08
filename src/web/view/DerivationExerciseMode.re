@@ -366,7 +366,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let stitched_elabs = DerivationExercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -400,6 +407,7 @@ module Update = {
           )
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
@@ -436,7 +444,7 @@ module Update = {
        statics to take */
     let editors: DerivationExercise.eds = {
       let calculate =
-        Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
+        Editor.Update.calculate(~settings, ~autoprobe_mode, ~is_edited);
       {
         ...model.editors,
         prelude:

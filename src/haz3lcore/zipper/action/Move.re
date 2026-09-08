@@ -175,13 +175,49 @@ let to_next_grout: (Direction.t, t) => option(t) =
     }
   );
 
+/* Refractors reserve empty rows below the probed tile that hold no caret
+ * positions; vertical movement skips past a reserved range in dir. */
+let skip_refractor_dead_rows =
+    (
+      ~refractor_rows: Id.Map.t(int),
+      ~measured: Measured.t,
+      ~dir: int,
+      candidate: int,
+    )
+    : int =>
+  Id.Map.fold(
+    (id, height, acc) =>
+      switch (Measured.find_by_id(id, measured)) {
+      | Some({last, _})
+          when height > 0 && acc >= last.row + 1 && acc <= last.row + height =>
+        dir > 0 ? last.row + height + 1 : last.row
+      | _ => acc
+      },
+    refractor_rows,
+    candidate,
+  );
+
 let vertical =
-    (~col_target: int, ~measured: Measured.t, d: Action.vertical, z: t)
+    (
+      ~col_target: int,
+      ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
+      d: Action.vertical,
+      z: t,
+    )
     : option(t) => {
+  let dir = d == Down ? 1 : (-1);
+  let from_row = Zipper.Caret.point(measured, z).row;
   let goal =
     Point.{
       col: col_target,
-      row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
+      row:
+        skip_refractor_dead_rows(
+          ~refractor_rows,
+          ~measured,
+          ~dir,
+          from_row + dir,
+        ),
     };
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
@@ -254,6 +290,7 @@ let move_dispatch =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
       d: Action.move,
       z: t,
     )
@@ -263,7 +300,7 @@ let move_dispatch =
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
-  | Vertical(d, _) => vertical(~measured, ~col_target, d, z)
+  | Vertical(d, _) => vertical(~measured, ~refractor_rows, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
@@ -304,12 +341,21 @@ let go =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
       a: Action.move,
       z: t,
     )
     : option(t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z);
+    move_dispatch(
+      ~statics,
+      ~problem_ids,
+      ~col_target,
+      ~measured,
+      ~refractor_rows,
+      a,
+      z,
+    );
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
@@ -318,7 +364,15 @@ let go =
     | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
       switch (
-        move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
+        move_dispatch(
+          ~statics,
+          ~problem_ids,
+          ~col_target,
+          ~measured,
+          ~refractor_rows,
+          a,
+          z,
+        )
       ) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,

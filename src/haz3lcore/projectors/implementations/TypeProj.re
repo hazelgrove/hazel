@@ -154,6 +154,7 @@ module M: Projector = {
           ),
         ),
       overlay: None,
+      below: None,
       error: false,
     };
 };
