@@ -127,10 +127,7 @@ let perform_soft = (z: Zipper.t, acts: list(Action.t)): option(Zipper.t) => {
 };
 
 let completed_tokens = (z: Zipper.t): list(string) => {
-  let seg =
-    z
-    |> Zipper.clear_unparsed_buffer
-    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.for_editor(seg);
   tokens(result.completed_seg);
 };
@@ -336,10 +333,7 @@ let run_pairs = (name: string, text: string): joint_outcome => {
           j_total: acc.j_total + 1,
         };
       | Some(z') =>
-        let seg =
-          z'
-          |> Zipper.clear_unparsed_buffer
-          |> Zipper.unselect_and_zip(~erase_buffer=true);
+        let seg = z' |> Zipper.unselect_and_zip(~erase_buffer=true);
         let result = CanonicalCompletion.for_editor(seg);
         let got = tokens(result.completed_seg);
         let ok = got == original;
@@ -427,10 +421,7 @@ let run_accept = (name: string, text: string): accept_outcome => {
       switch (perform_soft(z0, acts)) {
       | None => acc
       | Some(z') =>
-        let seg =
-          z'
-          |> Zipper.clear_unparsed_buffer
-          |> Zipper.unselect_and_zip(~erase_buffer=true);
+        let seg = z' |> Zipper.unselect_and_zip(~erase_buffer=true);
         let entries = entries_of(seg);
         let tiles =
           entries
@@ -454,9 +445,7 @@ let run_accept = (name: string, text: string): accept_outcome => {
                   | Some(z2) =>
                     let entries2 =
                       entries_of(
-                        z2
-                        |> Zipper.clear_unparsed_buffer
-                        |> Zipper.unselect_and_zip(~erase_buffer=true),
+                        z2 |> Zipper.unselect_and_zip(~erase_buffer=true),
                       );
                     let survivors =
                       entries
@@ -565,10 +554,15 @@ let run_accept = (name: string, text: string): accept_outcome => {
    (end+in definition slot; fun-ap's paren). */
 let accept_pins = [
   ("let-chain", "2/0/0 of 2 | reverse 1/1"),
-  /* diff-derived anchors: +1 stable */
+  /* diff-derived anchors: +1 stable (anchors read off the landed
+     material survive acceptance better than the old records) */
   ("fun-ap", "11/1/0 of 12 | reverse 5/6"),
   ("case-multiline", "12/0/0 of 12 | reverse 6/6"),
-  /* reverse convergence +1 (tabs-vs-materialize equivalence work) */
+  /* junction crossing clamp (typed-juxtaposition reading wins over
+     the joint )+=> deletion reading — byte-identical states, entry
+     stability precedent; costs one pair-exactness, gains a reverse
+     convergence); reverse convergence +1 again on c-p
+     (tabs-vs-materialize equivalence work) */
   ("type-adt", "40/2/0 of 42 | reverse 21/21"),
   ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
   ("case-def-inline", "11/1/0 of 12 | reverse 6/6"),
@@ -613,7 +607,7 @@ let pair_pins = [
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
   ("case-multiline", "6/0/6"),
-  ("type-adt", "21/0/21"),
+  ("type-adt", "20/0/21"),
   ("tuple-list", "6/0/6"),
   ("case-def-inline", "6/0/6"), /* end+in restores exactly */
   ("case-def-multiline", "6/0/6"),

@@ -12,7 +12,6 @@ let exercise : DerivationExercise.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -65,7 +64,6 @@ let exercise : DerivationExercise.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -358,7 +356,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -533,7 +530,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -893,7 +889,6 @@ let exercise : DerivationExercise.spec =
                             {
                               focus = Left;
                               content = [];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -1096,7 +1091,6 @@ let exercise : DerivationExercise.spec =
                                   {
                                     focus = Left;
                                     content = [];
-                                    mode = Normal;
                                     anchor_caret = Outer;
                                     smart_rounded = false;
                                   };
@@ -1236,7 +1230,6 @@ let exercise : DerivationExercise.spec =
                                   {
                                     focus = Left;
                                     content = [];
-                                    mode = Normal;
                                     anchor_caret = Outer;
                                     smart_rounded = false;
                                   };

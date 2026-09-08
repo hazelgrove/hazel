@@ -80,17 +80,6 @@ type project =
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type completion_source =
-  | TyDi
-  | LLM(string);
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type buffer =
-  | Set(completion_source)
-  | Clear
-  | Accept;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paste = string;
 
 module Structural = {
@@ -165,7 +154,6 @@ type apply_target =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
-  | Buffer(buffer)
   | Paste(paste)
   | Copy
   | Cut
@@ -221,7 +209,6 @@ let is_edit: t => bool =
   | Put_down
   | ApplyCompletion(_)
   | Introduce
-  | Buffer(Accept | Clear | Set(_))
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
@@ -254,7 +241,6 @@ let is_historic: t => bool =
   | Select(_)
   | Unselect(_) => false
   | Cut
-  | Buffer(Accept | Clear | Set(_))
   | Paste(_)
   | Reparse
   | Insert(_)
@@ -301,7 +287,6 @@ let should_animate: t => bool =
   | Destruct(_)
   | Put_down
   | ApplyCompletion(_)
-  | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Structural(_)

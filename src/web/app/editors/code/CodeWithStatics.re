@@ -220,11 +220,12 @@ module View = {
           syntax:
             {
               measured,
-              selection_ids,
               segment,
               shape_map,
               refractor_rows,
               term_data,
+              ghost_marks,
+              typed_lens,
               _,
             },
           state: {zipper: z, _},
@@ -240,7 +241,8 @@ module View = {
         ~globals,
         ~measured,
         ~term_data,
-        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
+        ~ghost_marks,
+        ~typed_lens,
         ~shape_map,
         ~refractor_rows,
         ~refine_sort,

@@ -151,7 +151,13 @@ type delimiter_info = {
 type insertion = {
   adjacent_id: Id.t, /* ID of piece adjacent to insertion point */
   side: Direction.t, /* Which side of the adjacent piece (Left or Right) */
-  delimiters: list(delimiter_info) /* The delimiter tokens with hole info */
+  delimiters: list(delimiter_info), /* The delimiter tokens with hole info */
+  /* The run's exact flanking leaf in the completed segment — unlike
+     adjacent_id (the CONTENT anchor for chip zones, which skips
+     grout/whitespace), this preserves position truth for display
+     splicing: (piece/tile id, shard index for tile leaves, side the
+     run sits on). None = not spliceable (witness runs, legacy). */
+  splice: option((Id.t, option(int), Direction.t)),
 };
 
 /* The point an insertion's viz anchors at: the end of its adjacent
@@ -435,6 +441,361 @@ let middle_split_plan =
     };
   | _ => None
   };
+};
+
+/* Recursive same-id shard reassembly. Used by the completion
+ * pipeline (Phase 3) and by the display fork after ghost shards
+ * splice in: a segment holding a tile's shards as separate pieces
+ * (all present, unassembled) is unparseable — Skel sees an
+ * impossible sequence. Must recurse: an opener splice can capture
+ * still-unmerged shard pairs inside a fresh tile's child, which a
+ * top-level pass never revisits. */
+let rec deep_reassemble = (seg: Segment.t): Segment.t =>
+  seg
+  |> Segment.reassemble
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Piece.Tile({
+           ...t,
+           children: List.map(deep_reassemble, t.children),
+         })
+       | p => p
+       }
+     );
+
+/* Reassembly keeps the head shard's mold (Tile.reassemble); merging
+   shards onto a fallback-molded orphan (e.g. `|` typed at Exp gets
+   mk_op(Any, [])) yields a multi-shard tile whose mold.in_ can't
+   cover its children, and downstream child indexing (remold's
+   inner-sort check, MakeTerm's kid sorts) escapes label bounds.
+   Rebase such molds on a base form mold; the sort-filtered remold
+   still picks the final mold where one exists. Semantic-path only:
+   the display fork keeps raw molds for pre-caret raw parity. */
+let heal_mold = (t: Tile.t): Tile.t =>
+  List.length(t.shards) > 1
+  && List.length(t.mold.in_) != List.length(t.label)
+  - 1
+    ? switch (Form.Molds.get_base(t.label)) {
+      | [m, ..._] => {
+          ...t,
+          mold: m,
+        }
+      | [] => t
+      }
+    : t;
+
+let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
+  seg
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         let t = heal_mold(t);
+         Piece.Tile({
+           ...t,
+           children: List.map(heal_molds_deep, t.children),
+         });
+       | p => p
+       }
+     );
+
+/* Full shape normalization for a spliced DISPLAY segment — the same
+   phases completion runs (regrout, reassemble, remold, regrout).
+   Reassembly alone is not enough: ghost shards change the shape
+   context, and un-regrouted/un-remolded arrangements can violate
+   the tile shards/children invariant downstream (Skel). */
+let normalize_display = (seg: Segment.t): Segment.t =>
+  seg
+  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _)
+  |> deep_reassemble
+  |> Segment.remold(_, Sort.Exp)
+  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+
+/* F1 predicates shared by ghost display and Tab acceptance — the
+   ghost's spacing IS the promise of what Tab types */
+let f1_hugs_left = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[0]) {
+    | ','
+    | ')'
+    | ']'
+    | '}' => true
+    | _ => false
+    }
+  );
+let f1_closes = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | ')'
+    | ']'
+    | '}' => true
+    | _ => false
+    }
+  );
+let f1_opens = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | '('
+    | '[' => true
+    | _ => false
+    }
+  );
+
+/* === Display padding oracle ===
+ * ONE deterministic rule for whitespace around system material,
+ * applied AFTER normalization so nothing downstream can reorder it:
+ * (a) display-MINTED grout hops rightward over adjacent real spaces
+ *     — material the zipper doesn't have must never displace the
+ *     rendered caret from its typed neighbors;
+ * (b) every adjacency involving system material gets an F1 pad
+ *     unless the boundary hugs (after openers, before closers and
+ *     commas). System material = ghost-marked edges, minted grout,
+ *     and any grout inside a ghost-bearing tile. User material is
+ *     never reformatted: real-real adjacencies are left alone. */
+/* reading-order ranks of (piece id, shard idx | -1) atoms */
+let rank_map = (seg: Segment.t): Hashtbl.t((Id.t, int), int) => {
+  let rank: Hashtbl.t((Id.t, int), int) = Hashtbl.create(64);
+  let ctr = ref(0);
+  let rec walk_seg = (ps: Segment.t) => List.iter(walk_piece, ps)
+  and walk_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      let rec go = (shards, children) =>
+        switch (shards) {
+        | [] => ()
+        | [i, ...srest] =>
+          incr(ctr);
+          Hashtbl.replace(rank, (t.id, i), ctr^);
+          switch (srest, children) {
+          | ([], _) => ()
+          | (_, [c, ...crest]) =>
+            walk_seg(c);
+            go(srest, crest);
+          | (_, []) => go(srest, [])
+          };
+        };
+      go(t.shards, t.children);
+      /* whole-piece key (a beside-splice ref): the tile's right edge
+         — same-position splices must rank equal, not fall to max_int
+         (misordering a witness remainder past its sibling ghosts) */
+      Hashtbl.replace(rank, (t.id, (-1)), ctr^);
+    | p =>
+      incr(ctr);
+      Hashtbl.replace(rank, (Piece.id(p), (-1)), ctr^);
+    };
+  walk_seg(seg);
+  rank;
+};
+
+let finish_display =
+    (
+      ~marks: list((Id.t, option(int))),
+      ~raw: Segment.t,
+      ~caret_after: option((Id.t, int))=None,
+      seg: Segment.t,
+    )
+    : Segment.t => {
+  /* ranks confine pads to gaps AT or AFTER the caret (andrew's
+     policy: the display never changes strictly before the cursor);
+     computed AFTER the reorder pass, so late-bound via a cell */
+  let rank = ref(Hashtbl.create(0));
+  let caret_rank = () =>
+    switch (caret_after) {
+    | None => None
+    | Some(key) => Hashtbl.find_opt(rank^, key)
+    };
+  /* a pad site is identified by the atom LEFT of the gap */
+  let pad_allowed = (left: (Id.t, int)): bool =>
+    switch (caret_rank()) {
+    | None => true
+    | Some(cr) =>
+      switch (Hashtbl.find_opt(rank^, left)) {
+      | Some(r) => r >= cr
+      | None => true
+      }
+    };
+  let right_edge_atom = (p: Piece.t): (Id.t, int) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Util.ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
+  let raw_ids = Hashtbl.create(64);
+  let rec collect = (sg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
+        Hashtbl.replace(raw_ids, Piece.id(p), ());
+        switch (p) {
+        | Tile(t) => List.iter(collect, t.children)
+        | _ => ()
+        };
+      },
+      sg,
+    );
+  collect(raw);
+  let minted = (id: Id.t) => !Hashtbl.mem(raw_ids, id);
+  let is_space = (p: Piece.t) =>
+    switch (p) {
+    | Secondary(w) => Secondary.is_space(w)
+    | _ => false
+    };
+  let rec reorder = (ps: Segment.t): Segment.t =>
+    switch (ps) {
+    | [] => []
+    | [Piece.Grout(g) as pg, ...rest] when minted(g.id) =>
+      let rec take = (acc, rest) =>
+        switch (rest) {
+        | [p, ...tl] when is_space(p) => take([p, ...acc], tl)
+        | _ => (List.rev(acc), rest)
+        };
+      let (sps, rest) = take([], rest);
+      sps @ [pg, ...reorder(rest)];
+    | [Piece.Tile(t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: List.map(reorder, t.children),
+        }),
+        ...reorder(rest),
+      ]
+    | [p, ...rest] => [p, ...reorder(rest)]
+    };
+  let mark_mem = (id: Id.t, sh: option(int)) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
+      marks,
+    );
+  let tile_hot = (t: Tile.t) =>
+    List.exists(
+      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
+      marks,
+    );
+  /* facing token + system-ness of a piece's edge; None = separator */
+  let edge =
+      (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
+    switch (p) {
+    | Grout(g) => Some(("?", minted(g.id) || hot))
+    /* a comment is content-width material (a TyDi ghost IS a
+       display comment) — it separates nothing */
+    | Secondary(w) when Secondary.is_comment(w) =>
+      switch (w.content) {
+      | Comment(c) => Some((c, minted(w.id)))
+      | Whitespace(_) => None
+      }
+    | Secondary(_)
+    | Projector(_) => None
+    | Tile(t) =>
+      let sh =
+        side == Direction.Left
+          ? List.nth_opt(t.shards, 0) : Util.ListUtil.last_opt(t.shards);
+      switch (sh) {
+      | None => None
+      | Some(i) => Some((List.nth(t.label, i), mark_mem(t.id, Some(i))))
+      };
+    };
+  /* a left edge already ending in whitespace (a form-suggestion
+     remainder like `t ` — real tokens never do) is self-separated */
+  let ends_in_space = (t: string) =>
+    String.length(t) > 0 && t.[String.length(t) - 1] == ' ';
+  let needs_pad = ((lt, lsys), (rt, rsys)) =>
+    (lsys || rsys)
+    && !f1_opens(lt)
+    && !ends_in_space(lt)
+    && !f1_hugs_left(rt);
+  /* a MINTED comment is a witness-remainder ghost: it continues the
+     typed token, so its left edge always hugs */
+  let hugging_comment = (p: Piece.t): bool =>
+    switch (p) {
+    | Secondary(w) => Secondary.is_comment(w) && minted(w.id)
+    | _ => false
+    };
+  let space = (): Piece.t =>
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
+  let rec pad_seq = (~hot: bool, ps: Segment.t): Segment.t =>
+    switch (ps) {
+    | [] => []
+    | [p] => [pad_piece(~hot, p)]
+    | [a, ...rest] =>
+      let a = pad_piece(~hot, a);
+      let rest = pad_seq(~hot, rest);
+      switch (rest) {
+      | [b, ..._] =>
+        switch (
+          edge(~hot, a, ~side=Direction.Right),
+          edge(~hot, b, ~side=Direction.Left),
+        ) {
+        | (Some(l), Some(r))
+            when
+              needs_pad(l, r)
+              && !hugging_comment(b)
+              && pad_allowed(right_edge_atom(a)) => [
+            a,
+            space(),
+            ...rest,
+          ]
+        | _ => [a, ...rest]
+        }
+      | [] => [a]
+      };
+    }
+  and pad_piece = (~hot: bool, p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) =>
+      let hot = hot || tile_hot(t);
+      let bound = (k: int) => {
+        let i = List.nth(t.shards, k);
+        (List.nth(t.label, i), mark_mem(t.id, Some(i)));
+      };
+      let children =
+        t.children
+        |> List.mapi((k, c) => {
+             let c = pad_seq(~hot, c);
+             let c =
+               switch (c) {
+               | [first, ..._] =>
+                 switch (edge(~hot, first, ~side=Direction.Left)) {
+                 | Some(r)
+                     when
+                       needs_pad(bound(k), r)
+                       && pad_allowed((t.id, List.nth(t.shards, k))) => [
+                     space(),
+                     ...c,
+                   ]
+                 | _ => c
+                 }
+               | [] => c
+               };
+             switch (Util.ListUtil.last_opt(c)) {
+             | Some(last) =>
+               switch (edge(~hot, last, ~side=Direction.Right)) {
+               | Some(l)
+                   when
+                     needs_pad(l, bound(k + 1))
+                     && pad_allowed(right_edge_atom(last)) =>
+                 c @ [space()]
+               | _ => c
+               }
+             | None => c
+             };
+           });
+      Piece.Tile({
+        ...t,
+        children,
+      });
+    | p => p
+    };
+  /* rank AFTER reorder — hopped grout must carry its final position */
+  let seg = reorder(seg);
+  rank := rank_map(seg);
+  pad_seq(~hot=false, seg);
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
@@ -946,6 +1307,7 @@ let leading_insertions =
        |> Option.map(p =>
             {
               adjacent_id: Piece.id(p),
+              splice: None,
               /* a witness arrow sits at the END of the typed prefix
                  (the continuation point); splices/junctions point at
                  the position itself */
@@ -1011,6 +1373,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                    {
                      adjacent_id: aid,
                      side: aside,
+                     splice: None,
                      delimiters: [
                        {
                          text: List.nth(t.label, m),
@@ -1035,6 +1398,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                      {
                        adjacent_id: Piece.id(p),
                        side: Direction.Right,
+                       splice: None,
                        delimiters: [
                          {
                            text: List.nth(t.label, m),
@@ -1414,6 +1778,30 @@ let find_trailing_site =
     switch (r_nib.shape) {
     | Convex => None
     | Concave(_) =>
+      /* a junction inside an unmatched opener's pending span belongs
+         to that opener's own family: an enclosing tile's delimiter
+         must not dive into an unclosed subregion (fun x -> f(1  2:
+         the juxtaposition junction is the ap's territory, not a
+         deletion site for the let's in). The junction is inside the
+         pending span iff the content PAST it still fits the opener's
+         pending slot sort — `2` fits the paren's Exp slot, so the
+         paren absorbs across; `f` can't be a case's Rul content, so
+         a deleted-end+in junction there stays claimable. */
+      let crosses_open = (j: int) =>
+        slice(cursor, j, seg)
+        |> List.exists((p: Piece.t) =>
+             switch (p) {
+             | Tile(tt) when Tile.right_missing_shards(tt) != [] =>
+               switch (snd(Tile.nibs(tt)).shape) {
+               | Convex => false
+               | Concave(_) =>
+                 let right = slice(j + 1, strong_end, seg);
+                 has_content(right)
+                 && span_fits_sort(right, snd(Tile.nibs(tt)).sort);
+               }
+             | _ => false
+             }
+           );
       let legal =
         List.init(max(strong_end - cursor, 0), k => cursor + k)
         |> List.filter(j =>
@@ -1427,6 +1815,7 @@ let find_trailing_site =
              let right = slice(j + 1, strong_end, seg);
              has_content(left)
              && has_content(right)
+             && !crosses_open(j)
              && span_fits_sort(left, l_nib.sort)
              && span_fits_sort(right, r_nib.sort);
            });
@@ -1595,6 +1984,7 @@ let place_trailing_shards =
                     {
                       adjacent_id: Piece.id(a),
                       side: anchor_side,
+                      splice: None,
                       delimiters: [
                         {
                           text: List.nth(t.label, i),
@@ -1626,6 +2016,7 @@ let place_trailing_shards =
                       {
                         adjacent_id: Piece.id(a),
                         side: Direction.Right,
+                        splice: None,
                         delimiters: [
                           {
                             text: List.nth(t.label, i),
@@ -1732,6 +2123,7 @@ let place_trailing_shards =
                         {
                           adjacent_id: Piece.id(a),
                           side: Direction.Right,
+                          splice: None,
                           delimiters: [
                             {
                               text: List.nth(t.label, i),
@@ -1783,6 +2175,7 @@ let place_trailing_shards =
         {
           adjacent_id: Piece.id(pc),
           side: Direction.Right,
+          splice: None,
           delimiters,
         },
       ]
@@ -2017,6 +2410,7 @@ let rec complete_segment =
                       {
                         adjacent_id: Piece.id(lp),
                         side: Direction.Left,
+                        splice: None,
                         delimiters: [
                           {
                             text: "case",
@@ -2029,6 +2423,7 @@ let rec complete_segment =
                       {
                         adjacent_id: Piece.id(rp),
                         side: Direction.Right,
+                        splice: None,
                         delimiters: [
                           {
                             text: "end",
@@ -2135,20 +2530,10 @@ let rec complete_segment =
        molds. Must recurse: an opener splice can capture
        still-unmerged shard pairs inside a fresh tile's child, which a
        top-level pass never revisits. */
-    let rec deep_reassemble = (seg: Segment.t): Segment.t =>
-      seg
-      |> Segment.reassemble
-      |> List.map((p: Piece.t) =>
-           switch (p) {
-           | Tile(t) =>
-             Piece.Tile({
-               ...t,
-               children: List.map(deep_reassemble, t.children),
-             })
-           | p => p
-           }
-         );
-    let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
+    let reassembled =
+      deep_reassemble(regrouted)
+      |> heal_molds_deep
+      |> Segment.remold(_, sort);
 
     /* Regrout again: remold may have changed shapes */
     let completed_seg =
@@ -2392,13 +2777,18 @@ type leaf =
   | LShard(Tile.t, int)
   | LPiece(Piece.t);
 
-let derive_insertions =
+/* core diff: each maximal synthesized run yields its insertion AND
+   the run's REAL leaf pieces from the completed segment (the
+   projection material — shards materialized via Tile.shard_of,
+   grout/comments verbatim). derive_insertions projects to the
+   insertion list; the promise render keeps the pieces. */
+let derive_insertions' =
     (
       ~original: Segment.t,
       ~records: list(shard_record),
       completed: Segment.t,
     )
-    : list(insertion) => {
+    : list((insertion, Segment.t)) => {
   let orig_ids = Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
     List.iter(
@@ -2478,12 +2868,21 @@ let derive_insertions =
   let n = Array.length(arr);
   /* whitespace and grout never anchor but never block the walk;
      original CONTENT that can't anchor (a mid-tile shard) stops it —
-     better no chip than a chip on the wrong side of visible text */
-  let walkable = ((l, orig): (leaf, bool)): bool =>
+     better no chip than a chip on the wrong side of visible text.
+     A WITNESSED shard is visible material (its absorbed token is on
+     screen): it blocks the walk and anchors at that token. */
+  let witness_token = ((l, _): (leaf, bool)): option(Id.t) =>
+    switch (l) {
+    | LShard(t, i) =>
+      prefix_of(t, i)
+      |> Option.map((sp: Language.IdTagged.IdTag.shard_prefix) => sp.token_id)
+    | _ => None
+    };
+  let walkable = ((l, orig) as leaf: (leaf, bool)): bool =>
     switch (l) {
     | LPiece(Secondary(_))
     | LPiece(Grout(_)) => true
-    | _ => !orig
+    | _ => !orig && witness_token(leaf) == None
     };
   /* a run separated from its left content by a LINEBREAK lives on a
      later line: anchor on the leaf immediately before it (the
@@ -2504,9 +2903,13 @@ let derive_insertions =
           switch (anchor_of(~right=true, arr[j])) {
           | Some(_) as a => a
           | None =>
-            switch (fst(arr[j])) {
-            | LPiece(Secondary(w)) when Secondary.is_linebreak(w) => immediate
-            | _ => walkable(arr[j]) ? go(j - 1) : None
+            switch (witness_token(arr[j])) {
+            | Some(tok) => Some(tok)
+            | None =>
+              switch (fst(arr[j])) {
+              | LPiece(Secondary(w)) when Secondary.is_linebreak(w) => immediate
+              | _ => walkable(arr[j]) ? go(j - 1) : None
+              }
             }
           }
         );
@@ -2532,6 +2935,16 @@ let derive_insertions =
       let k = stop(j);
       runs(k, [(j, k), ...acc]);
     };
+  /* the run's real pieces from the completed segment (projection
+     material): shards materialized in place, grout/comments verbatim */
+  let run_pieces = (a: int, b: int): Segment.t =>
+    List.init(b - a, k => a + k)
+    |> List.map(j =>
+         switch (fst(arr[j])) {
+         | LShard(t, i) => Piece.Tile(Tile.shard_of(t, i))
+         | LPiece(p) => p
+         }
+       );
   runs(0, [])
   |> List.filter_map(((a, b)) => {
        let delims =
@@ -2577,30 +2990,74 @@ let derive_insertions =
                 | _ => None
                 }
               );
+         /* position truth: the run's immediate original neighbor,
+            grout/whitespace included (the anchor walks skip those) */
+         let splice_ref = ((l, _): (leaf, bool)): (Id.t, option(int)) =>
+           switch (l) {
+           | LPiece(p) => (Piece.id(p), None)
+           | LShard(t, i) => (t.id, Some(i))
+           };
+         let splice =
+           if (a > 0) {
+             switch (witness_token(arr[a - 1])) {
+             | Some(tok) => Some((tok, None, Direction.Right))
+             | None =>
+               let (id, sh) = splice_ref(arr[a - 1]);
+               Some((id, sh, Direction.Right));
+             };
+           } else if (b < n) {
+             let (id, sh) = splice_ref(arr[b]);
+             Some((id, sh, Direction.Left));
+           } else {
+             None;
+           };
+         let pieces = run_pieces(a, b);
          switch (witness_anchor, anchor_left(a), anchor_right(b)) {
          | (Some(tok), _, _) =>
-           Some({
-             adjacent_id: tok,
-             side: Direction.Right,
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: tok,
+               side: Direction.Right,
+               /* witness remainder ghosts beside its absorbed token */
+               splice: Some((tok, None, Direction.Right)),
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, Some(id), _) =>
-           Some({
-             adjacent_id: id,
-             side: Direction.Right,
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: id,
+               side: Direction.Right,
+               splice,
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, None, Some(id)) =>
-           Some({
-             adjacent_id: id,
-             side: Direction.Left,
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: id,
+               side: Direction.Left,
+               splice,
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, None, None) => None /* never lie about placement */
          };
        };
      });
 };
+
+let derive_insertions =
+    (
+      ~original: Segment.t,
+      ~records: list(shard_record),
+      completed: Segment.t,
+    )
+    : list(insertion) =>
+  derive_insertions'(~original, ~records, completed) |> List.map(fst);
 
 /* === Integration Points === */
 
@@ -2609,18 +3066,166 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
   (result.completed_seg, result.shard_records);
 };
 
-let for_editor = (seg: Segment.t): completion_result => {
+/* the E-side promise artifact: for_editor's result PLUS the kept
+   completed_seg and, per engine insertion, the run's REAL pieces
+   from completed_seg (the promise render's projection material —
+   completed_seg is KEPT, not diffed away). T1/T2 insertions (minted
+   later by TypeObligations) have no pairing here; their material
+   comes from ghost_pieces (stage 1). Pairing is by physical
+   insertion identity (memq). */
+type projection = {
+  result: completion_result,
+  completed: Segment.t,
+  run_pieces: list((insertion, Segment.t)),
+};
+
+let for_editor' = (seg: Segment.t): projection => {
   let result = complete_segment_deep(~sort=Sort.Exp, seg);
+  let pairs =
+    derive_insertions'(
+      ~original=seg,
+      ~records=result.shard_records,
+      result.completed_seg,
+    );
   {
-    ...result,
-    insertions:
-      derive_insertions(
-        ~original=seg,
-        ~records=result.shard_records,
-        result.completed_seg,
-      ),
+    result: {
+      ...result,
+      insertions: List.map(fst, pairs),
+    },
+    completed: result.completed_seg,
+    run_pieces: pairs,
   };
 };
+
+let for_editor = (seg: Segment.t): completion_result =>
+  for_editor'(seg).result;
+
+/* the projection material for an ENGINE insertion — keyed by
+   PHYSICAL identity (memq). A pure-engine insertion not at a T1 site
+   passes through as_insertions/chip_zone_all unwrapped, so it is the
+   very object derive_insertions' paired with its completed-seg run
+   pieces. Merged/slid/witness insertions are rewrapped (identity
+   breaks) and correctly miss — they fall back to reconstruction.
+   Splice ref is NOT unique across insertions, so it cannot key. */
+let projection_for =
+    (pairs: list((insertion, Segment.t)), ins: insertion)
+    : option(Segment.t) =>
+  pairs |> List.find_opt(((eng, _)) => eng === ins) |> Option.map(snd);
+
+/* === Ghost splicing (display fork v2) ===
+ * Splice ghost pieces into a DISPLAY segment at an insertion's true
+ * run position (the splice ref) — the real zipper is untouched.
+ * Returns the spliced segment plus (id, shard) marks so the view can
+ * style ghosts by membership; shard-precise marks keep a ghost
+ * closer from graying its tile's real opener. */
+let ghost_marks = (pieces: Segment.t): list((Id.t, option(int))) =>
+  pieces
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) => t.shards |> List.map(i => (t.id, Some(i)))
+       | _ => [(Piece.id(p), None)]
+       }
+     );
+
+let splice_ghost =
+    (seg: Segment.t, ~ins: insertion, ~pieces: Segment.t)
+    : option((Segment.t, list((Id.t, option(int))))) => {
+  switch (ins.splice) {
+  | None => None
+  | Some((id, shard, side)) =>
+    let shard_pos = (i: int, shards: list(int)): option(int) => {
+      let rec go = (k, s) =>
+        switch (s) {
+        | [] => None
+        | [x, ..._] when x == i => Some(k)
+        | [_, ...tl] => go(k + 1, tl)
+        };
+      go(0, shards);
+    };
+    /* Some(replacement) when this piece is the splice point. A shard
+       ref mid-tile splices inside the flanking child; a last/first
+       shard (or a whole-piece ref) splices beside the piece. */
+    let try_piece = (p: Piece.t): option(list(Piece.t)) =>
+      if (!Id.equal(Piece.id(p), id)) {
+        None;
+      } else {
+        switch (p, shard) {
+        | (Tile(t), Some(i)) =>
+          switch (shard_pos(i, t.shards), side) {
+          | (None, _) => None /* shard lives in a split-off piece */
+          | (Some(k), Direction.Right) when k == List.length(t.shards) - 1 =>
+            Some([p] @ pieces)
+          | (Some(0), Direction.Left) => Some(pieces @ [p])
+          | (Some(k), Direction.Right) =>
+            List.nth_opt(t.children, k)
+            |> Option.map(child =>
+                 [
+                   Piece.Tile({
+                     ...t,
+                     children:
+                       ListUtil.put_nth(k, pieces @ child, t.children),
+                   }),
+                 ]
+               )
+          | (Some(k), Direction.Left) =>
+            List.nth_opt(t.children, k - 1)
+            |> Option.map(child =>
+                 [
+                   Piece.Tile({
+                     ...t,
+                     children:
+                       ListUtil.put_nth(k - 1, child @ pieces, t.children),
+                   }),
+                 ]
+               )
+          }
+        | (_, _) =>
+          switch (side) {
+          | Direction.Right => Some([p] @ pieces)
+          | Direction.Left => Some(pieces @ [p])
+          }
+        };
+      };
+    let rec go_seg = (ps: Segment.t): option(Segment.t) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] =>
+        switch (try_piece(p)) {
+        | Some(repl) => Some(repl @ rest)
+        | None =>
+          switch (p) {
+          | Tile(t) =>
+            switch (go_children(t.children)) {
+            | Some(children) =>
+              Some([
+                Piece.Tile({
+                  ...t,
+                  children,
+                }),
+                ...rest,
+              ])
+            | None => go_seg(rest) |> Option.map(r => [p, ...r])
+            }
+          | _ => go_seg(rest) |> Option.map(r => [p, ...r])
+          }
+        }
+      }
+    and go_children = (cs: list(Segment.t)): option(list(Segment.t)) =>
+      switch (cs) {
+      | [] => None
+      | [c, ...rest] =>
+        switch (go_seg(c)) {
+        | Some(c') => Some([c', ...rest])
+        | None => go_children(rest) |> Option.map(r => [c, ...r])
+        }
+      };
+    go_seg(seg) |> Option.map(seg' => (seg', ghost_marks(pieces)));
+  };
+};
+
+/* Zipper-facing queries (which records the caret owns, what Tab does)
+   live in CompletionQuery; the ghost-splicing helpers above are the
+   display fork's and read the caret only through its atoms. */
 
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch — memoized on the

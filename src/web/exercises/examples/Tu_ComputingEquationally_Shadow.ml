@@ -23,7 +23,6 @@ let exercise : Tutorial.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -43,7 +42,6 @@ let exercise : Tutorial.spec =
               {
                 focus = Left;
                 content = [];
-                mode = Normal;
                 anchor_caret = Outer;
                 smart_rounded = false;
               };
@@ -179,7 +177,6 @@ let shadow_exercise : Tutorial.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -199,7 +196,6 @@ let shadow_exercise : Tutorial.spec =
               {
                 focus = Left;
                 content = [];
-                mode = Normal;
                 anchor_caret = Outer;
                 smart_rounded = false;
               };
