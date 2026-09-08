@@ -361,7 +361,7 @@ module Update = {
     // Turn state into dynamics map
     let dynamics_of_state = (state: EvaluatorState.t) =>
       Dynamics.{
-        probe_map: state |> EvaluatorState.get_probes,
+        probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
