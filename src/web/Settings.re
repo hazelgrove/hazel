@@ -295,7 +295,12 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
-      | ProbeAll => {
+      | ProbeAll =>
+        /* an explicit request for samples ends the agent-burst mask */
+        if (!settings.core.probe_all) {
+          Util.AgentPulse.release();
+        };
+        {
           ...settings,
           core: {
             ...settings.core,
@@ -304,7 +309,7 @@ module Update = {
             statics: !settings.core.probe_all || settings.core.statics,
             probe_all: !settings.core.probe_all,
           },
-        }
+        };
       | AutoReindent => {
           ...settings,
           core: {

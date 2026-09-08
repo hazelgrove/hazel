@@ -20,3 +20,11 @@ let now = (): float =>
 let note_action = (): unit => last_action := now();
 
 let in_burst = (): bool => now() -. last_action^ < burst_window_ms;
+
+/* The user asked for samples NOW (probe-all toggled by hand): end the
+   mask immediately rather than waiting the window out. */
+let release = (): unit => last_action := (-1.e12);
+
+/* ms until the current burst settles (0 when not in a burst) */
+let ms_to_settle = (): float =>
+  Float.max(0., last_action^ +. burst_window_ms -. now());
