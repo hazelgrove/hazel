@@ -266,7 +266,7 @@ module Update = {
            focus (which stays on the clicked sidebar row). Schedule a focus
            of the now-active cell after render so the editor receives
            keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -421,7 +421,7 @@ module Update = {
       switch (followup) {
       | Some(k) =>
         schedule_action(Editors(k));
-        Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
+        Haz3lcore.FocusEffect.schedule_cell_top();
       | None => ()
       };
       /* outline adds move the selection (and DOM focus, which also
@@ -434,7 +434,7 @@ module Update = {
             Editors.Selection.stack_add_selection(action, model.editors)
           ) {
           | Some(s) =>
-            Haz3lcore.ProbePerform.FocusEffect.schedule_cell_top();
+            Haz3lcore.FocusEffect.schedule_cell_top();
             s;
           | None => selection
           }
@@ -446,16 +446,17 @@ module Update = {
           action,
           model.editors,
         );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
+      /* A different editor (mode/slide/exercise switch) invalidates the
+       * culling range: stale bounds would hide its projectors until the next
+       * scroll. Main.seed_visible_rows re-seeds where culling applies. */
       let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
+        Editors.Model.editor_key(editors)
+        != Editors.Model.editor_key(model.editors)
+          ? {
             ...model.globals,
             visible_rows: None,
           }
-        | _ => model.globals
-        };
+          : model.globals;
       {
         ...model,
         editors,
@@ -974,9 +975,18 @@ module View = {
         ~log_count,
         ~cursor,
       );
+    /* culling bounds apply only where the mode supports them (one
+       cull-scope cell); elsewhere every cell renders unculled */
+    let editors_globals =
+      Editors.Model.supports_viewport_culling(model.editors)
+        ? globals
+        : {
+          ...globals,
+          visible_rows: None,
+        };
     let editors_view =
       Editors.View.view(
-        ~globals,
+        ~globals=editors_globals,
         ~signal=
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
@@ -1191,30 +1201,23 @@ module View = {
         ~indicated_id,
       );
 
-    /* Scroll handler for viewport culling. Only enabled for Scratch and
-     * Documentation modes where there's a single editor filling the
-     * scrollable area. Tutorial and Exercises have multiple editors. */
-    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+     * single-code-editor modes. Measured against the editor's own container so
+     * it's correct whether the editor fills #main or sits below prompt cells. */
+    let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
-        switch (editors) {
-        | Scratch(_)
-        | Documentation(_) => true
-        | Tutorial(_)
-        | Exercises(_) => false
-        };
+        Editors.Model.supports_viewport_culling(editors)
+        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
-        let container =
-          Js.Opt.to_option(evt##.currentTarget)
-          |> Option.map(Js.Unsafe.coerce);
-        switch (container) {
+        switch (JsUtil.code_viewport_geometry()) {
         | None => Effect.Ignore
-        | Some(c) =>
+        | Some((scroll_top, client_height)) =>
           let new_visible =
             Globals.VisibleRows.compute(
-              ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=JsUtil.cached_client_height(c),
+              ~scroll_top,
+              ~client_height,
               ~row_height=globals.font_metrics.row_height,
               (),
             );
@@ -1254,6 +1257,10 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
+    /* projector views can only dispatch external_actions, so toggles that
+     * update global Settings call out through these refs */
+    Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
+      (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);

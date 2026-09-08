@@ -80,7 +80,7 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* false for non-final chunks of a chunked render: their trailing
@@ -181,16 +181,22 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+           * side effects fire in document order, matching Measured.of_segment */
+          let nodes =
+            Aba.fold_left(
+              i => [of_delim(t, i)],
+              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              Aba.mk(t.shards, t.children),
+            );
           let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
+            switch (Id.Map.find_opt(t.id, refractor_rows)) {
+            | Some(n) =>
+              DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          nodes;
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
@@ -278,7 +284,7 @@ let view_chunked =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       ~refine_sort: (Id.t, Sort.t) => Sort.t,
@@ -309,7 +315,7 @@ let view_chunked =
         ~measured,
         ~settings,
         ~shape_map,
-        ~refractor_shape_map,
+        ~refractor_rows,
         ~font_metrics,
         ~term_data,
         ~reserve_trailing_row=final,
