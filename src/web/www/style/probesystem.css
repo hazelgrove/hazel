@@ -77,6 +77,18 @@
   justify-items: stretch; /* or center if you prefer tighter layout */
 }
 
+#probe-sidebar .legend.simple {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+#probe-sidebar .legend.simple > .title,
+#probe-sidebar .legend.simple > .legend-divider,
+#probe-sidebar .legend.simple > .segmented-control {
+  flex-basis: 100%;
+}
+
 #probe-sidebar .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
@@ -97,14 +109,15 @@
 }
 
 #probe-sidebar .sketch .sketch-toggle-image {
-  width: 160px;
-  height: 160px;
+  width: 200px;
+  height: 200px;
   transition: all 0.2s ease-in-out;
-  background-image: url("../img/probe-lenses.webp");
+  background-image: url(/img/probe-lenses.webp);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
+  filter: contrast(0.7) brightness(1.2);
 }
 
 #probe-sidebar .sketch[open] .sketch-toggle-image {
@@ -173,6 +186,26 @@
 
 #probe-sidebar .quick-ref .qr-how-text {
   flex: 1;
+}
+
+#probe-sidebar .quick-ref .arrow-icon {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.9em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  -webkit-mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+  mask: url(/img/noun-arrow-3130579.svg) no-repeat center / contain;
+}
+
+#probe-sidebar .quick-ref .arrow-icon.down {
+  transform: rotate(-90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.up {
+  transform: rotate(90deg);
+}
+#probe-sidebar .quick-ref .arrow-icon.right {
+  transform: rotate(180deg);
 }
 
 #probe-sidebar .quick-ref .qr-divider {
@@ -795,4 +828,9 @@ body:not(:has(.live-offside:focus))
   font-size: 0.85em;
   color: var(--text-primary);
   font-family: monospace;
+}
+
+.context-actions + .environment-section .live-env,
+.call-display + .environment-section .live-env {
+  border-top: 1px solid var(--BR1);
 }

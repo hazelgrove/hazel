@@ -38,6 +38,13 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
+/* caret-to-start via a single structural rebuild: preserves refractors and
+   avoids Move.to_start's slow per-token walk (too slow for many editors). */
+let caret_to_start = (z: t): t => {
+  ...unzip(~direction=Left, zip(z)),
+  refractors: z.refractors,
+};
+
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
