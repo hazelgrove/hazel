@@ -141,18 +141,19 @@ let tests = [
       test_case("folder edges are where the arrows stop", `Quick, () =>
         List.iteri(
           (i, _) => {
-            let (pos, size) = SlidePath.folder_position(~current=i, paths);
+            let {index_in_folder, folder_size}: SlidePath.folder_position =
+              SlidePath.folder_position(~current=i, paths);
             let at = string_of_int(i);
             check(
               bool,
               "is_first agrees with a clamped prev at " ++ at,
-              pos == 0,
+              index_in_folder == 0,
               SlidePath.step_in_folder(~current=i, ~by=-1, paths) == i,
             );
             check(
               bool,
               "is_last agrees with a clamped next at " ++ at,
-              pos == size - 1,
+              index_in_folder == folder_size - 1,
               SlidePath.step_in_folder(~current=i, ~by=1, paths) == i,
             );
           },

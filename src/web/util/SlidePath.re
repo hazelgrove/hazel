@@ -6,9 +6,9 @@ type t = {
   leaf: string,
 };
 
-/* Rendered between segments, and split on to recover them. */
-let separator = " / ";
+/* Split on to recover the segments, padded when rendering them back. */
 let separator_char = '/';
+let separator = Printf.sprintf(" %c ", separator_char);
 
 let of_string = (s: string): t => {
   let segs =
@@ -50,20 +50,28 @@ let folder_indices = (~current: int, paths: list(t)): list(int) =>
     |> List.filter_map(((i, p)) => same_folder(p, cur) ? Some(i) : None)
   };
 
-let folder_position = (~current: int, paths: list(t)): (int, int) => {
+type folder_position = {
+  index_in_folder: int,
+  folder_size: int,
+};
+
+let folder_position = (~current: int, paths: list(t)): folder_position => {
   let idxs = folder_indices(~current, paths);
-  let pos =
+  let index_in_folder =
     ListUtil.findi_opt(i => i == current, idxs)
     |> Option.map(fst)
     |> Option.value(~default=0);
-  (pos, List.length(idxs));
+  {
+    index_in_folder,
+    folder_size: List.length(idxs),
+  };
 };
 
 let step_in_folder = (~current: int, ~by: int, paths: list(t)): int => {
   let idxs = folder_indices(~current, paths);
-  let (pos, size) = folder_position(~current, paths);
-  let pos' = pos + by;
-  pos' < 0 || pos' >= size ? current : List.nth(idxs, pos');
+  let {index_in_folder, folder_size} = folder_position(~current, paths);
+  let stepped = index_in_folder + by;
+  stepped < 0 || stepped >= folder_size ? current : List.nth(idxs, stepped);
 };
 
 type crumb = {

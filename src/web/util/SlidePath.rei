@@ -12,7 +12,7 @@
  *
  *     0  "Basics / Holes"
  *     1  "Basics / Functions"
- *     2  "Tables / Tables"
+ *     2  "Tables / Filtering"
  *     3  "Tables / Column Projection"
  *
  * Should this grow more navigation operations, the alternative worth
@@ -57,15 +57,23 @@ let segments: t => list(string);
    folder(of_string("Holes"))     == None */
 let folder: t => option(string);
 
-/* (position of `current` within its folder, that folder's size).
+/* Where the path at `current` sits among the paths sharing its folder.
 
-   folder_position(~current=0, space) == (0, 2)
-   folder_position(~current=3, space) == (1, 2) */
-let folder_position: (~current: int, list(t)) => (int, int);
+   folder_position(~current=0, space)
+     == {index_in_folder: 0, folder_size: 2}
+   folder_position(~current=3, space)
+     == {index_in_folder: 1, folder_size: 2} */
+type folder_position = {
+  index_in_folder: int,
+  folder_size: int,
+};
 
-/* Move `by` places through the folder holding `current` and return where you
-   land. Movement stops at the folder's first and last path: a step that would
-   leave the folder returns `current` unchanged.
+let folder_position: (~current: int, list(t)) => folder_position;
+
+/* Move `by` places through the folder holding `current` and return the
+   position, in the same list, of the path you land on. Movement stops at the
+   folder's first and last path: a step that would leave the folder returns
+   `current` unchanged.
 
      step_in_folder(~current=0, ~by=1, space)  == 1
      step_in_folder(~current=1, ~by=1, space)  == 1  /* end of Basics */
@@ -88,7 +96,10 @@ type crumb = {
 
      breadcrumb(~current=2, space) == [
        {selected: "Tables", options: [(0, "Basics"), (2, "Tables")]},
-       {selected: "Tables", options: [(2, "Tables"), (3, "Column Projection")]},
+       {
+         selected: "Filtering",
+         options: [(2, "Filtering"), (3, "Column Projection")],
+       },
      ]
 
    A path with no segment at a given depth offers nothing there, which is what

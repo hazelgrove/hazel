@@ -33,10 +33,7 @@ module Model = {
     };
   };
   let get_current = (m: t) => List.nth(m.exercises, m.current);
-  /* Lesson titles are SlidePaths, so the lessons form folders. Navigation is
-     scoped to the current lesson's folder; crossing folders goes through the
-     breadcrumb dropdown. Read the raw title, never return_title -- that one
-     appends " ✔". */
+  /* The raw title, never return_title -- that one appends " ✔". */
   let paths = (m: t): list(SlidePath.t) =>
     List.map(
       (e: TutorialMode.Model.t) => Tutorial.path_of(e.editors),
@@ -47,10 +44,7 @@ module StoreTutorialKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
-    /* The lesson opened on a fresh profile: lesson 0, which is
-       "Basics / Holes" because src/tutorialslides/Slides.re lists
-       01-holes.hzt first. Keep the Basics folder first in that list, and
-       01-holes.hzt first within it. */
+    /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
       List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
@@ -333,13 +327,13 @@ module View = {
     /* First/last within the current lesson's folder, not the whole list: the
        arrows walk one folder and the last lesson of a folder shows the
        completion message instead of a next arrow. */
-    let (pos, size) =
+    let {index_in_folder, folder_size}: SlidePath.folder_position =
       SlidePath.folder_position(~current=model.current, Model.paths(model));
     TutorialMode.View.view(
       ~globals,
       ~inject=a => inject(Update.Tutorial(a)),
-      ~is_first=pos == 0,
-      ~is_last=pos == size - 1,
+      ~is_first=index_in_folder == 0,
+      ~is_last=index_in_folder == folder_size - 1,
       current,
     );
   };

@@ -7,11 +7,18 @@ open Web;
 let path = testable(Fmt.of_to_string(SlidePath.show), SlidePath.equal);
 let ints = list(int);
 let strings = list(string);
-let pos_pair =
+let folder_position =
   testable(
-    Fmt.of_to_string(((a, b)) => Printf.sprintf("(%d, %d)", a, b)),
+    Fmt.of_to_string(
+      ({index_in_folder, folder_size}: SlidePath.folder_position) =>
+      Printf.sprintf("%d of %d", index_in_folder, folder_size)
+    ),
     (==),
   );
+let at = (index_in_folder, folder_size): SlidePath.folder_position => {
+  index_in_folder,
+  folder_size,
+};
 
 let of_string_tests =
   [
@@ -127,69 +134,112 @@ let folder_tests = [
   ),
 ];
 
-/* A navigation space: two folders of two paths, then a folder of one. Named
-   so a failure message says which folder a position belongs to. */
-let basics_holes = 0
-and basics_functions = 1
-and tables_tables = 2
-and tables_projection = 3
-and probes_only = 4;
+/* A navigation space: two folders of two slides, then a folder of one,
+   written as the names a slide picker would show. The helpers below let each
+   test name the slide it acts on, and report where it lands by name too. */
+let nav_space = [
+  "Basics / Holes",
+  "Basics / Functions",
+  "Tables / Filtering",
+  "Tables / Column Projection",
+  "Rich Probes / Sampling",
+];
 
-let nav_paths =
-  List.map(
-    SlidePath.of_string,
-    [
-      "Basics / Holes",
-      "Basics / Functions",
-      "Tables / Tables",
-      "Tables / Column Projection",
-      "Rich Probes / Rich Probes",
-    ],
+let paths_of = (space: list(string)) =>
+  List.map(SlidePath.of_string, space);
+
+let index_of = (space: list(string), name: string): int =>
+  switch (Util.ListUtil.findi_opt(String.equal(name), space)) {
+  | Some((i, _)) => i
+  | None => failwith("not in this space: " ++ name)
+  };
+
+/* Where `name` sits among the slides sharing its folder. */
+let position_of = (~space=nav_space, name: string) =>
+  SlidePath.folder_position(
+    ~current=index_of(space, name),
+    paths_of(space),
   );
 
+/* The slide `by` steps away within `name`'s folder. */
+let step_from = (~space=nav_space, ~by: int, name: string): string =>
+  SlidePath.step_in_folder(
+    ~current=index_of(space, name),
+    ~by,
+    paths_of(space),
+  )
+  |> List.nth(space);
+
+/* Each crumb as (selected segment, the segments it offers). */
+let crumbs_of = (~space=nav_space, name: string) =>
+  SlidePath.breadcrumb(~current=index_of(space, name), paths_of(space))
+  |> List.map((c: SlidePath.crumb) =>
+       (c.selected, List.map(snd, c.options))
+     );
+
+/* Each crumb as (selected segment, the slides its options jump to). */
+let jumps_of = (~space=nav_space, name: string) =>
+  SlidePath.breadcrumb(~current=index_of(space, name), paths_of(space))
+  |> List.map((c: SlidePath.crumb) =>
+       (c.selected, List.map(((i, _)) => List.nth(space, i), c.options))
+     );
+
+let crumbs =
+  testable(
+    Fmt.of_to_string(cs =>
+      cs
+      |> List.map(((sel, opts)) =>
+           sel ++ ":[" ++ String.concat(", ", opts) ++ "]"
+         )
+      |> String.concat("  /  ")
+    ),
+    (==),
+  );
+
+let scattered = ["A / x", "B / y", "A / z"];
+
 let folder_position_tests = [
-  test_case("first path of a folder of two", `Quick, () =>
+  test_case("first slide of a folder of two", `Quick, () =>
     check(
-      pos_pair,
+      folder_position,
       "Basics / Holes",
-      (0, 2),
-      SlidePath.folder_position(~current=basics_holes, nav_paths),
+      at(0, 2),
+      position_of("Basics / Holes"),
     )
   ),
-  test_case("last path of a folder of two", `Quick, () =>
+  test_case("last slide of a folder of two", `Quick, () =>
     check(
-      pos_pair,
+      folder_position,
       "Tables / Column Projection",
-      (1, 2),
-      SlidePath.folder_position(~current=tables_projection, nav_paths),
+      at(1, 2),
+      position_of("Tables / Column Projection"),
     )
   ),
-  test_case("the only path in its folder", `Quick, () =>
+  test_case("the only slide in its folder", `Quick, () =>
     check(
-      pos_pair,
-      "Rich Probes / Rich Probes",
-      (0, 1),
-      SlidePath.folder_position(~current=probes_only, nav_paths),
+      folder_position,
+      "Rich Probes / Sampling",
+      at(0, 1),
+      position_of("Rich Probes / Sampling"),
     )
   ),
   test_case(
-    "a folder whose paths are not adjacent",
+    "a folder whose slides are not adjacent",
     `Quick,
     () => {
       /* Grouping is by folder, not by adjacency: "A / z" belongs with "A / x"
          even with "B / y" between them. */
-      let paths = List.map(SlidePath.of_string, ["A / x", "B / y", "A / z"]);
       check(
-        pos_pair,
-        "A / x is first of two",
-        (0, 2),
-        SlidePath.folder_position(~current=0, paths),
+        folder_position,
+        "A / x",
+        at(0, 2),
+        position_of(~space=scattered, "A / x"),
       );
       check(
-        pos_pair,
-        "A / z is second of two",
-        (1, 2),
-        SlidePath.folder_position(~current=2, paths),
+        folder_position,
+        "A / z",
+        at(1, 2),
+        position_of(~space=scattered, "A / z"),
       );
     },
   ),
@@ -198,37 +248,37 @@ let folder_position_tests = [
 let step_in_folder_tests = [
   test_case("forward within a folder", `Quick, () =>
     check(
-      int,
-      "Basics / Holes -> Basics / Functions",
-      basics_functions,
-      SlidePath.step_in_folder(~current=basics_holes, ~by=1, nav_paths),
+      string,
+      "Basics / Holes forward",
+      "Basics / Functions",
+      step_from(~by=1, "Basics / Holes"),
     )
   ),
   test_case("backward within a folder", `Quick, () =>
     check(
-      int,
-      "Basics / Functions -> Basics / Holes",
-      basics_holes,
-      SlidePath.step_in_folder(~current=basics_functions, ~by=-1, nav_paths),
+      string,
+      "Basics / Functions backward",
+      "Basics / Holes",
+      step_from(~by=-1, "Basics / Functions"),
     )
   ),
   test_case("stops at the end of a folder", `Quick, ()
-    /* Basics / Functions is last in Basics, and Tables / Tables is next in
-       the list, so an unclamped step would cross into another folder. */
+    /* "Basics / Functions" is last in Basics and "Tables / Filtering" is next
+       in the space, so an unclamped step would cross into another folder. */
     =>
       check(
-        int,
-        "Basics / Functions stays put",
-        basics_functions,
-        SlidePath.step_in_folder(~current=basics_functions, ~by=1, nav_paths),
+        string,
+        "Basics / Functions forward stays put",
+        "Basics / Functions",
+        step_from(~by=1, "Basics / Functions"),
       )
     ),
   test_case("stops at the start of a folder", `Quick, () =>
     check(
-      int,
-      "Tables / Tables stays put",
-      tables_tables,
-      SlidePath.step_in_folder(~current=tables_tables, ~by=-1, nav_paths),
+      string,
+      "Tables / Filtering backward stays put",
+      "Tables / Filtering",
+      step_from(~by=-1, "Tables / Filtering"),
     )
   ),
   test_case(
@@ -236,77 +286,50 @@ let step_in_folder_tests = [
     `Quick,
     () => {
       check(
-        int,
-        "Rich Probes / Rich Probes forward",
-        probes_only,
-        SlidePath.step_in_folder(~current=probes_only, ~by=1, nav_paths),
+        string,
+        "Rich Probes / Sampling forward",
+        "Rich Probes / Sampling",
+        step_from(~by=1, "Rich Probes / Sampling"),
       );
       check(
-        int,
-        "Rich Probes / Rich Probes backward",
-        probes_only,
-        SlidePath.step_in_folder(~current=probes_only, ~by=-1, nav_paths),
+        string,
+        "Rich Probes / Sampling backward",
+        "Rich Probes / Sampling",
+        step_from(~by=-1, "Rich Probes / Sampling"),
       );
     },
   ),
-  test_case(
-    "steps over a path from another folder",
-    `Quick,
-    () => {
-      let paths = List.map(SlidePath.of_string, ["A / x", "B / y", "A / z"]);
-      check(
-        int,
-        "A / x -> A / z, skipping B / y",
-        2,
-        SlidePath.step_in_folder(~current=0, ~by=1, paths),
-      );
-    },
+  test_case("steps over a slide from another folder", `Quick, () =>
+    check(
+      string,
+      "A / x forward, skipping B / y",
+      "A / z",
+      step_from(~space=scattered, ~by=1, "A / x"),
+    )
   ),
 ];
-
-let crumb_options = (paths, current) =>
-  SlidePath.breadcrumb(~current, paths)
-  |> List.map((c: SlidePath.crumb) =>
-       (c.selected, List.map(snd, c.options))
-     );
-
-let crumbs =
-  testable(
-    Fmt.of_to_string(cs =>
-      cs
-      |> List.map(((sel, opts)) =>
-           sel ++ ":[" ++ String.concat(",", opts) ++ "]"
-         )
-      |> String.concat(" / ")
-    ),
-    (==),
-  );
 
 let breadcrumb_tests = [
   test_case("one crumb per segment, siblings as options", `Quick, () =>
     check(
       crumbs,
-      "Tables / Tables",
+      "Tables / Filtering",
       [
         ("Tables", ["Basics", "Tables", "Rich Probes"]),
-        ("Tables", ["Tables", "Column Projection"]),
+        ("Filtering", ["Filtering", "Column Projection"]),
       ],
-      crumb_options(nav_paths, tables_tables),
+      crumbs_of("Tables / Filtering"),
     )
   ),
   test_case(
-    "deeper paths yield a deeper breadcrumb",
+    "deeper slides yield a deeper breadcrumb",
     `Quick,
     () => {
-      let paths =
-        List.map(
-          SlidePath.of_string,
-          [
-            "B2T2 / API / Constructors / vcat",
-            "B2T2 / API / Constructors / hcat",
-            "B2T2 / Datasheet",
-          ],
-        );
+      let space = [
+        "B2T2 / API / Constructors / vcat",
+        "B2T2 / API / Constructors / hcat",
+        "B2T2 / Datasheet",
+      ];
       check(
         crumbs,
         "B2T2 / API / Constructors / vcat",
@@ -316,42 +339,44 @@ let breadcrumb_tests = [
           ("Constructors", ["Constructors"]),
           ("vcat", ["vcat", "hcat"]),
         ],
-        crumb_options(paths, 0),
+        crumbs_of(~space, "B2T2 / API / Constructors / vcat"),
       );
     },
   ),
-  test_case(
-    "a folder option moves to the first path in it",
-    `Quick,
-    () => {
-      let outermost =
-        SlidePath.breadcrumb(~current=basics_holes, nav_paths) |> List.hd;
-      check(
-        ints,
-        "Basics, Tables, Rich Probes",
-        [basics_holes, tables_tables, probes_only],
-        List.map(fst, outermost.options),
-      );
-    },
+  test_case("a folder option jumps to the first slide in it", `Quick, () =>
+    check(
+      crumbs,
+      "the outermost crumb of Basics / Holes",
+      [
+        (
+          "Basics",
+          ["Basics / Holes", "Tables / Filtering", "Rich Probes / Sampling"],
+        ),
+      ],
+      jumps_of("Basics / Holes") |> List.filteri((i, _) => i == 0),
+    )
   ),
-  test_case(
-    "a name that is a prefix of another is skipped",
-    `Quick,
-    () => {
-      /* "Tables" has no segment at depth 1; before this module that raised
-         Failure("nth") and took down the whole top bar. */
-      let paths =
-        List.map(SlidePath.of_string, ["Tables", "Tables / Tables"]);
+  test_case("a name that is a prefix of another is skipped", `Quick, ()
+    /* "Tables" has no segment at depth 1; before this module that raised
+       Failure("nth") and took down the whole top bar. */
+    =>
       check(
         crumbs,
-        "the deeper crumb omits the shorter path",
+        "the deeper crumb omits the shorter name",
         [("Tables", ["Tables"]), ("Tables", ["Tables"])],
-        crumb_options(paths, 1),
-      );
-    },
-  ),
-  test_case("an out-of-range position has no breadcrumb", `Quick, () =>
-    check(crumbs, "empty", [], crumb_options(nav_paths, 99))
+        crumbs_of(~space=["Tables", "Tables / Tables"], "Tables / Tables"),
+      )
+    ),
+  test_case("a position outside the space has no breadcrumb", `Quick, () =>
+    check(
+      crumbs,
+      "empty",
+      [],
+      SlidePath.breadcrumb(~current=99, paths_of(nav_space))
+      |> List.map((c: SlidePath.crumb) =>
+           (c.selected, List.map(snd, c.options))
+         ),
+    )
   ),
 ];
 
