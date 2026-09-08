@@ -81,7 +81,7 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
@@ -179,20 +179,24 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+           * side effects fire in document order, matching Measured.of_segment */
+          let nodes =
+            Aba.fold_left(
+              i => [of_delim(t, i)],
+              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              Aba.mk(t.shards, t.children),
+            );
           let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
+            switch (Id.Map.find_opt(t.id, refractor_rows)) {
+            | Some(n) =>
+              DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };
-          let children =
-            Aba.mk(t.shards, t.children)
-            |> Aba.join(i => [of_delim(t, i)], of_segment)
-            |> List.concat;
           switch (classes(t.id)) {
-          | [] => children
-          | clss => [span(~attrs=[Attr.classes(clss)], children)]
+          | [] => nodes
+          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
           };
         }
       | Grout(g) => [of_grout(g)]

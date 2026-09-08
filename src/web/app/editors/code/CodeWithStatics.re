@@ -160,8 +160,8 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings: CoreSettings.t,
-        ~autoprobe_mode=false,
+        ~settings,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=StaticsNormal,
         ~ctx=?,
@@ -181,8 +181,35 @@ module Update = {
       )
       : Model.t => {
     let dynamics_map = Calc.map(dynamics, (d: Dynamics.t) => d.probe_map);
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+
+    /* Throttle gate for full statics recompute. Bypass the debounce when probe
+     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
+     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one */
+    let do_init = (editor: Editor.t) =>
+      CachedStatics.init(
+        ~settings,
+        ~stitch,
+        ~ctx?,
+        ~ana?,
+        ~is_dynamic_term,
+        ~root=editor.root,
+        editor.state.zipper,
+      );
+    let needs_refresh =
+      statics_mode == StaticsForce
+      || probes_differ(editor.state.zipper, statics)
+      || is_edited
+      && statics_mode != StaticsDefer;
+    let statics = needs_refresh ? do_init(editor) : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -194,41 +221,17 @@ module Update = {
         editor,
       );
 
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
-    let probes_changed =
-      !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
-        );
-
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
     let statics =
-      statics_mode == StaticsForce
-      || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
-        : statics;
-    /* Refresh `statics.targets` against the post-probe-effects refractors.
-     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
-     * the rest of statics stays valid. */
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
+
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
-
     let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 
     // Track the current sample focus state
@@ -292,16 +295,6 @@ module Update = {
       live_typing_info_map,
       live_typing_error_ids,
     };
-
-    let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics_map |> Calc.get_value,
-        editor,
-      );
     {
       editor,
       statics,
@@ -317,11 +310,21 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              refractor_rows,
+              term_data,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -337,13 +340,14 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty,
+        ~refractor_rows,
         ~refine_sort,
         segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -354,6 +358,7 @@ module View = {
       Arms.Errors.of_ids(
         ~kind=Warning,
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,
@@ -369,9 +374,16 @@ module View = {
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
     Node.div(
-      ~attrs=[Attr.classes(container_classes)],
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
       // errors after warnings to prioritize errors over warnings
       [code_text_view, warning_decos, error_decos, live_typing_decos]
       @ overlays,

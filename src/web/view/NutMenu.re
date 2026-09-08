@@ -301,6 +301,16 @@ let code_display_group = (~globals: Globals.t) => {
         tooltip: None,
         warning: None,
       },
+      {
+        name: "Simple Indication",
+        active: globals.settings.simple_indication,
+        setting: SimpleIndication,
+        tooltip:
+          Some(
+            "Indicate the caret's term with a minimal arm instead of shard backings",
+          ),
+        warning: None,
+      },
     ]
     @ (
       globals.settings.line_numbers

@@ -67,6 +67,12 @@ module Info = {
   type t = {
     samples: list(Sample.t),
     sample_focus: Sample.Focus.t,
+    /* The pinned span's step interval, resolved once at info-assembly
+     * time (the pinned sample usually belongs to a DIFFERENT probe than
+     * the one viewing). Lets filter_by_pin use temporal containment
+     * — "during the pinned evaluation" — instead of stack-id suffixes,
+     * which is also the correct semantics for pinning non-call spans. */
+    pinned_interval: option((int, int)),
   };
 
   let is_in = (di: t): option(Sample.t) => {
@@ -89,12 +95,12 @@ module Info = {
 };
 
 module Map = {
-  /* Just a wrapping around the Probe map (for now) */
+  /* holds FINALIZED maps (eval order) so lookup is a plain find — see Sample.Map.finalize */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Sample.Map.t;
   let empty: t = Sample.Map.empty;
   let mk: t => t = Fun.id;
-  let lookup = Sample.Map.lookup;
+  let lookup = (id, map: t) => Id.Map.find_opt(id, map);
 
   /* Apply pin filtering to all probes in the map, using the centralized
    * Sample.Selection.filter_by_pin helper so filtering matches the
