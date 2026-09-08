@@ -243,6 +243,7 @@ let go =
     switch (idx_to_id(kind, idx)) {
     | None => Error(Cant_project)
     | Some(id) =>
+      Util.AgentPulse.projector_commit := true;
       /* Strip trailing whitespace/newlines before parenthesizing,
        * as lift_syntax(~inline=false) may append trailing newlines */
       let trimmed_seg =
