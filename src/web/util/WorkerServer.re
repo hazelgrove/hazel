@@ -285,30 +285,66 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
+/* Incremental reuse pays for itself only past a certain program size:
+   the reuse pre-pass is a full evaluation-shaped walk and every
+   evaluated node runs a reuse check, which for a demo-sized program
+   (a few hundred statics entries) cost 2-3x the evaluation itself.
+   Below the threshold, evaluate from scratch. (Measured 2026-09-08 on
+   the graph livelit slide: 2.0s -> see the commit message.) */
+let incremental_min_statics = 2500;
+
+let wants_incremental = (req_value: Request.value): bool =>
+  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  >= incremental_min_statics;
+
+/* the reuse plan computed for a batch item, handed to its evaluation so
+   the pre-pass runs once per request (keyed by the item's expr identity:
+   the plan and the evaluation see the same decoded request) */
+let planned_reuse:
+  ref(
+    list((Language.Exp.t, Language.IncrEval.t(Language.EvaluatorState.t))),
+  ) =
+  ref([]);
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{expr, eval_info_map, prev} = req_value;
   let stream =
-    switch (
-      Language.ReusePass.reuse_pass(
-        ~prev,
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception _ => Language.IncrEval.empty
-    | stream => stream
+    if (!wants_incremental(req_value)) {
+      Language.IncrEval.empty;
+    } else {
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev,
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      };
     };
+  planned_reuse := [(expr, stream), ...planned_reuse^];
   (key, stream);
+};
+
+let take_planned_reuse =
+    (expr: Language.Exp.t)
+    : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
+  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
+  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
+  Option.map(snd, found);
 };
 
 let start_evaluation = (req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
+  let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev,
+      ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
+      ~reuse_stream=?planned,
       expr,
     )
   ) {
