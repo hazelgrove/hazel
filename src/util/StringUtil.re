@@ -95,6 +95,9 @@ let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
 let unescape_linebreaks: string => string =
   replace(regexp("\\\\n"), _, "\n");
 
+let normalize_line_endings = (s: string): string =>
+  s |> replace(regexp("\r\n"), _, "\n") |> replace(regexp("\r"), _, "\n");
+
 let trim_leading = (s: string): string => {
   s
   |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks

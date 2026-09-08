@@ -35,8 +35,13 @@ let of_text = (text: string): t => {
    leading spaces ON TOP of it (doubled, drifting) — so slide text is
    flattened here. The strip is blind per-line; slide sources must not
    contain multi-line string literals. */
+/* Slide text keeps its indentation: this editor's indentation is
+   EXPLICIT (spaces in the segment; see Measured.of_segment_inner), so
+   stripping leading whitespace — right when the level map was an
+   implicit offset — now just flattens every nested line. Only line
+   endings are normalized. */
 let of_slide_text = (text: string): t =>
-  of_text(StringUtil.trim_leading(text));
+  of_text(StringUtil.normalize_line_endings(text));
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the
