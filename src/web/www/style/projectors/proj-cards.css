@@ -9,9 +9,35 @@
   --card-height: 47px;
 }
 
+/* Modal context: the .projector base style is position:absolute, so the modal
+   doesn't size to the card. Pin it to relative so the modal sizes to content
+   and the close button at right:-18px sits cleanly outside the cards. */
+.modal-backdrop.live-offside .modal:has(> .projector.card) {
+  background-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+.modal-backdrop.live-offside .modal > .projector.card {
+  position: relative;
+  padding: 0 24px 0 0;
+}
+.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.show,
+.modal-backdrop.live-offside .modal > .projector.card .card-wrapper.flipped {
+  width: var(--card-width);
+  height: var(--card-height);
+}
+
+.code-deco:has(~ .projectors .projector.card.indicated) .indication {
+  display: none;
+}
 
 .projector.card {
   perspective: 300px;
+  /* top-anchor the card so it dips below its line rather than centering
+     on it (branches with the tab-extent wrapper pin it via explicit
+     insets, so this only bites where the card-wrapper is a direct
+     flex child) */
+  align-items: flex-start;
 }
 
 .projector.card.selected > svg {
@@ -162,4 +188,29 @@
 .projector.card .chooser .card-wrapper:hover {
   filter: invert(1);
   translate: 0px -5px;
+}
+
+/* ---- the empty hand: a card-footprint silhouette ---- */
+.card-empty {
+  width: var(--card-width, 35px);
+  height: var(--card-height, 47px);
+  border: 1.5px dotted var(--BR2, #b09a6a);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  opacity: 0.75;
+}
+
+.card-empty-badge {
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--BR2, #b09a6a);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--BR3, #8a744a);
 }
