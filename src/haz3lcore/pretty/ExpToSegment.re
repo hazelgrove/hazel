@@ -3619,6 +3619,51 @@ let strip_if_incomplete = (any: Any.t, seg: Segment.t): Segment.t => {
   Id.Map.is_empty(masks) ? seg : seg |> strip_synthesized_shards(masks);
 };
 
+/* Display segments must never contain two tile pieces claiming the same
+   (id, shard): Segment.reassemble (run by PrettySegment.format during
+   drawer layout, and by editor init on result views) groups tile pieces
+   BY ID, and duplicated complete tiles make it die with
+   "Tile.reassemble: out-of-order shards [0,1,2,0,1,2,...]" — the study
+   tile-shard crash ("Exception during Calculate"; see
+   test/Test_ShardCrashRepro.re and the study's bug dossier).
+
+   Printed VALUES can legitimately embed the same source subterm more than
+   once (shared substructure in captured probe samples, stale worker
+   results displayed against a newer program, adoption/absorption paths —
+   cf. the pad_ids HACK note above, which only de-dupes ids WITHIN one
+   term's id list, not across sibling subterms). The printer is not the
+   place to enforce evaluator invariants: after printing, freshen every
+   tile whose (id, shard) was already emitted, keeping the FIRST
+   occurrence's id so sample→source linking still works.
+
+   Keying on (id, shard) repeats — not bare id repeats — means a logical
+   tile legitimately split across pieces (distinct shard indices) is never
+   touched; only true duplicates are freshened. */
+let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
+  let seen: Hashtbl.t((Id.t, int), unit) = Hashtbl.create(64);
+  let rec go_seg = (seg: Segment.t): Segment.t => List.map(go_piece, seg)
+  and go_piece = (p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) =>
+      let dup = List.exists(i => Hashtbl.mem(seen, (t.id, i)), t.shards);
+      let id = dup ? Id.mk() : t.id;
+      List.iter(i => Hashtbl.replace(seen, (id, i), ()), t.shards);
+      Tile({
+        ...t,
+        id,
+        children: List.map(go_seg, t.children),
+      });
+    | Projector(pr) =>
+      Projector({
+        ...pr,
+        syntax: go_piece(pr.syntax),
+      })
+    | Grout(_)
+    | Secondary(_) => p
+    };
+  go_seg(seg);
+};
+
 let exp_to_segment =
     (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
@@ -3630,7 +3675,10 @@ let exp_to_segment =
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = exp_to_pretty(~settings, exp);
-  p |> PrettySegment.select |> strip_if_incomplete(Exp(exp));
+  p
+  |> PrettySegment.select
+  |> strip_if_incomplete(Exp(exp))
+  |> uniquify_repeated_tiles;
 };
 
 let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t =>
@@ -3648,7 +3696,10 @@ let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = typ_to_pretty(~settings, typ);
-  p |> PrettySegment.select |> strip_if_incomplete(Typ(typ));
+  p
+  |> PrettySegment.select
+  |> strip_if_incomplete(Typ(typ))
+  |> uniquify_repeated_tiles;
 };
 
 let any_to_segment =
@@ -3662,5 +3713,8 @@ let any_to_segment =
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = any_to_pretty(~settings, any);
-  p |> PrettySegment.select |> strip_if_incomplete(any);
+  p
+  |> PrettySegment.select
+  |> strip_if_incomplete(any)
+  |> uniquify_repeated_tiles;
 };

@@ -205,6 +205,18 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
   );
 };
 
+/* Whole-buffer re-indentation (the Format(Indent) action; also runs
+ * before spacing normalization in Format(Spacing)). Lives here, not in
+ * Indentation.re: PrettySegment depends on Indentation, and Zipper's
+ * dependency cone reaches PrettySegment through ProbeProj. */
+let reindent_zipper = (z: Zipper.t): Zipper.t => {
+  let indent_map = Indentation.level_map(Zipper.unselect_and_zip(z));
+  ZipperBase.MapSegment.go(
+    Indentation.fix_indentation_in_segment(indent_map),
+    z,
+  );
+};
+
 let rec go =
         (
           ~settings: Language.CoreSettings.t,
@@ -331,7 +343,7 @@ let rec go =
   | Format(Spacing) =>
     /* Re-indent, then canonicalize within-line spacing. Linebreaks
        and comments untouched; caret restored as in Format(Pretty). */
-    let z = Indentation.reindent_zipper(z);
+    let z = reindent_zipper(z);
     Some(
       CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
@@ -396,6 +408,7 @@ let rec go =
         ),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_rows=syntax.refractor_rows,
       d,
       z,
     )
@@ -424,6 +437,7 @@ let rec go =
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~refractor_rows=syntax.refractor_rows,
       ~chunkiness,
       d,
       z,
@@ -599,7 +613,7 @@ let rec go =
     )
     |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Format(Indent) => Ok(Indentation.reindent_zipper(z))
+  | Format(Indent) => Ok(reindent_zipper(z))
   | ToggleLineComment =>
     /* uncommenting can restore delimiters that complete enclosing
        forms; the comment-out direction leaves the trigger silent */

@@ -442,8 +442,3 @@ let make_indent_spaces = (indent_level: int): Segment.t =>
  * keybinding split. */
 let reindent_segment = (seg: Segment.t): Segment.t =>
   fix_indentation_in_segment(level_map(seg), seg);
-
-let reindent_zipper = (z: Zipper.t): Zipper.t => {
-  let indent_map = level_map(Zipper.unselect_and_zip(z));
-  ZipperBase.MapSegment.go(fix_indentation_in_segment(indent_map), z);
-};
