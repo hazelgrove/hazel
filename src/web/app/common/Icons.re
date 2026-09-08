@@ -1,31 +1,5 @@
 open Virtual_dom.Vdom;
-
-let icon_size = 20.;
-
-let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
-  /* takes a list of paths as strings, a viewport as a string,
-     and an optional (string) transform to apply to each */
-  Node.create_svg(
-    "svg",
-    ~attrs=
-      Attr.[
-        create("viewBox", view),
-        create("width", Printf.sprintf("%fpx", icon_size)),
-        create("height", Printf.sprintf("%fpx", icon_size)),
-        create("preserveAspectRatio", "none"),
-      ],
-    List.map(
-      d =>
-        Node.create_svg(
-          "path",
-          ~attrs=
-            [Attr.create("d", d)]
-            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
-          [],
-        ),
-      ds,
-    ),
-  );
+open Util.SvgUtil;
 
 let disk =
   simple_icon(
