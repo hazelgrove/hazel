@@ -89,7 +89,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~queue_worker,
@@ -212,6 +212,8 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
+        /* opt out for cells that are not the viewport-culling scope */
+        ~cull=true,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -267,6 +269,7 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
+          ~cull,
           ~dynamics=EvalResult.Model.dynamics(model.result),
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
