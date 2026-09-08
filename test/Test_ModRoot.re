@@ -316,6 +316,47 @@ let big_module = () => {
   };
 };
 
+/* The spine root's elab_term in the merged map must be the WHOLE
+   suffix: the incremental evaluator gates reuse of a node on its
+   elab_term being unchanged, and a hollow root (body = hole) read as
+   unchanged whatever happened downstream — editing any item but the
+   first was never re-evaluated. */
+let spine_elab_is_whole_suffix = () => {
+  let parse_exp = (src: string): Exp.t =>
+    switch (FastParse.of_text(~root=Exp, src)) {
+    | Some(seg) => MakeTerm.Incr.term_of(seg)
+    | None => fail("exp parse failed")
+    };
+  let t0 = parse_exp("let junk = 1 in\nlet x = 2 in\nx");
+  let ds0 = DefStatics.calc(~settings, t0);
+  let top_elab = (ds: DefStatics.t, t: Exp.t) =>
+    switch (
+      Statics.Map.lookup_exp(Exp.rep_id(DefStatics.strip(t)), ds.merged)
+    ) {
+    | Some({elab_term, _}) => elab_term
+    | None => fail("no root info")
+    };
+  let whole0 =
+    switch (DefStatics.whole_elab(ds0)) {
+    | Some(e) => e
+    | None => fail("whole_elab")
+    };
+  check(
+    bool,
+    "root elab_term is the whole program's elab",
+    true,
+    Exp.fast_equal(top_elab(ds0, t0), whole0),
+  );
+  let t1 = parse_exp("let junk = 1 in\nlet x = 3 in\nx");
+  let ds1 = DefStatics.calc(~settings, ~prev=ds0, t1);
+  check(
+    bool,
+    "editing item 2 changes the root's elab_term",
+    false,
+    Exp.fast_equal(top_elab(ds0, t0), top_elab(ds1, t1)),
+  );
+};
+
 let tests = (
   "ModRoot",
   [
@@ -325,6 +366,11 @@ let tests = (
     test_case("term_of_mod", `Quick, term_of_mod_matches),
     test_case("statics parity", `Quick, statics_parity),
     test_case("statics incremental", `Quick, statics_incremental),
+    test_case(
+      "spine elab_term is the whole suffix",
+      `Quick,
+      spine_elab_is_whole_suffix,
+    ),
     test_case("corpus mega-mod-1k", `Quick, corpus),
     test_case("big module (stage D)", `Quick, big_module),
   ],

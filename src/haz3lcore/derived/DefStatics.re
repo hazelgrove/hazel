@@ -376,80 +376,6 @@ let last_analyzed: ref(int) = ref(0);
    Patch the merged view: each non-tail root's witness/co_ctx becomes
    its own unioned with the items below it (minus its own bindings,
    for co_ctx — the same scoping a monolithic analysis applies). */
-let fix_spine_infos_full =
-    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
-    : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t) => {
-  let probes_in = (it: item): SubexpProbeTargets.t =>
-    Id.Map.fold(
-      (pid, (), acc) =>
-        Id.Map.mem(pid, it.d_map)
-          ? SubexpProbeTargets.add_self(~is_probed=true, pid, acc) : acc,
-      probe_ids,
-      SubexpProbeTargets.empty,
-    );
-  let (merged, top_wit, top_co) =
-    List.fold_right(
-      (it: item, (m, below_wit, below_co)) => {
-        let bound = List.map(entry_name, it.d_exports);
-        let below_co_scoped =
-          CoCtx.filter_names(name => !List.mem(name, bound), below_co);
-        /* CRITICAL: read the root's RAW info from the item's own
-           d_map, never from [m]. The incremental calc feeds the
-           previous run's PATCHED merged back in as the base — reading
-           the patched entry and unioning the suffix again DOUBLES the
-           co_ctx use-lists every calc (exponential memory: the mega
-           editors died within a few edits). d_maps stay raw, so
-           sourcing from them makes the patch idempotent. */
-        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, it.d_map)) {
-        | (Some(_), Some(raw)) =>
-          let co_ctx = CoCtx.union([raw.co_ctx, below_co_scoped]);
-          let m =
-            Id.Map.add(
-              it.d_id,
-              Info.InfoExp({
-                ...raw,
-                probe_targets:
-                  SubexpProbeTargets.union(raw.probe_targets, below_wit),
-                co_ctx,
-              }),
-              m,
-            );
-          (m, SubexpProbeTargets.union(probes_in(it), below_wit), co_ctx);
-        | _ =>
-          /* tail item (info already whole-suffix accurate) or no
-             InfoExp at the root (e.g. module forms): thread what we
-             know upward without patching */
-          let own_co =
-            switch (Statics.Map.lookup_exp(it.d_id, it.d_map)) {
-            | Some(raw) => raw.co_ctx
-            | None => CoCtx.empty
-            };
-          (
-            m,
-            SubexpProbeTargets.union(probes_in(it), below_wit),
-            CoCtx.union([own_co, below_co_scoped]),
-          );
-        };
-      },
-      items,
-      (merged, SubexpProbeTargets.empty, CoCtx.empty),
-    );
-  (merged, top_wit, top_co);
-};
-
-let fix_spine_infos =
-    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
-    : Statics.Map.t => {
-  let (merged, _, _) = fix_spine_infos_full(~probe_ids, items, merged);
-  merged;
-};
-
-let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
-  Id.Map.union((_, _x, y) => Some(y), a, b);
-
-let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
-  Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
-
 let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
   if (List.mem(hole_id, e.annotation.ids)) {
     Some(acc);
@@ -474,6 +400,106 @@ let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
   };
 
 /* graft a hollow-item chain's elabs into one expression */
+
+let fix_spine_infos_full =
+    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
+    : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t) => {
+  let probes_in = (it: item): SubexpProbeTargets.t =>
+    Id.Map.fold(
+      (pid, (), acc) =>
+        Id.Map.mem(pid, it.d_map)
+          ? SubexpProbeTargets.add_self(~is_probed=true, pid, acc) : acc,
+      probe_ids,
+      SubexpProbeTargets.empty,
+    );
+  let (merged, top_wit, top_co, _) =
+    List.fold_right(
+      (it: item, (m, below_wit, below_co, below_elab)) => {
+        let bound = List.map(entry_name, it.d_exports);
+        let below_co_scoped =
+          CoCtx.filter_names(name => !List.mem(name, bound), below_co);
+        /* the spine root's elab_term must be the WHOLE suffix (its
+           hollow item elab grafted onto the items below), not the
+           hollow form: the incremental evaluator gates reuse of a
+           node on its elab_term being unchanged, and a hollow root
+           reads as unchanged whatever happened downstream — an edit
+           to any item but the first was never re-evaluated. Grafting
+           shares the untouched items' subtrees, so this is the same
+           term whole_elab builds, kept per spine node. */
+        let suffix_elab =
+          switch (it.d_hole, below_elab) {
+          | (Some(h), Some(below)) => graft_at(h, below, it.d_elab)
+          | (None, _) => Some(it.d_elab)
+          | (Some(_), None) => None
+          };
+        /* CRITICAL: read the root's RAW info from the item's own
+           d_map, never from [m]. The incremental calc feeds the
+           previous run's PATCHED merged back in as the base — reading
+           the patched entry and unioning the suffix again DOUBLES the
+           co_ctx use-lists every calc (exponential memory: the mega
+           editors died within a few edits). d_maps stay raw, so
+           sourcing from them makes the patch idempotent. */
+        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, it.d_map)) {
+        | (Some(_), Some(raw)) =>
+          let co_ctx = CoCtx.union([raw.co_ctx, below_co_scoped]);
+          let m =
+            Id.Map.add(
+              it.d_id,
+              Info.InfoExp({
+                ...raw,
+                elab_term:
+                  switch (suffix_elab) {
+                  | Some(e) => e
+                  | None => raw.elab_term
+                  },
+                probe_targets:
+                  SubexpProbeTargets.union(raw.probe_targets, below_wit),
+                co_ctx,
+              }),
+              m,
+            );
+          (
+            m,
+            SubexpProbeTargets.union(probes_in(it), below_wit),
+            co_ctx,
+            suffix_elab,
+          );
+        | _ =>
+          /* tail item (info already whole-suffix accurate) or no
+             InfoExp at the root (e.g. module forms): thread what we
+             know upward without patching */
+          let own_co =
+            switch (Statics.Map.lookup_exp(it.d_id, it.d_map)) {
+            | Some(raw) => raw.co_ctx
+            | None => CoCtx.empty
+            };
+          (
+            m,
+            SubexpProbeTargets.union(probes_in(it), below_wit),
+            CoCtx.union([own_co, below_co_scoped]),
+            suffix_elab,
+          );
+        };
+      },
+      items,
+      (merged, SubexpProbeTargets.empty, CoCtx.empty, None),
+    );
+  (merged, top_wit, top_co);
+};
+
+let fix_spine_infos =
+    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
+    : Statics.Map.t => {
+  let (merged, _, _) = fix_spine_infos_full(~probe_ids, items, merged);
+  merged;
+};
+
+let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
+  Id.Map.union((_, _x, y) => Some(y), a, b);
+
+let map_remove_keys = (keys: Statics.Map.t, m: Statics.Map.t): Statics.Map.t =>
+  Id.Map.fold((k, _, m) => Id.Map.remove(k, m), keys, m);
+
 let graft_elabs = (items: list(item)): option(Exp.t) => {
   let rec go = (items: list(item)): option(Exp.t) =>
     switch (items) {
