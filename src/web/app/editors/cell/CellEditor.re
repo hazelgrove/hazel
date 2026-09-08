@@ -95,7 +95,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=CodeWithStatics.StaticsNormal,
         ~compositional=false,
@@ -236,7 +236,7 @@ module View = {
         ~locked=false,
         ~lines=false,
         /* stack cells: the MASTER's whole-program result feeds this
-           cell's dynamic decorations — samples, frozen-reuse tint,
+           cell's dynamic decorations — samples,
            pending/active-eval indicators (the cell's own result never
            evaluates while stacked) */
         ~master_result: option(EvalResult.Model.t)=?,
@@ -245,6 +245,8 @@ module View = {
         ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
         ~escape_vertical:
            option((Haz3lcore.Action.vertical, int) => Ui_effect.t(unit))=None,
+        /* opt out for cells that are not the viewport-culling scope */
+        ~cull=true,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -301,6 +303,7 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
+          ~cull,
           /* stack cells: whole-program SAMPLES flow in from the master's
              stacked eval (upstream removed the frozen tint, so samples
              are the only master-derived decoration left) */

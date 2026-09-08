@@ -1861,6 +1861,7 @@ module Update = {
       let new_m =
         DerivationExerciseMode.Update.calculate(
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           ~schedule_action=a => schedule_action(DrvAction(a)),
           m,
@@ -2310,7 +2311,7 @@ module View = {
                          pane (after render — the active-cell id moves
                          with the re-render) or the caret vanishes and
                          arrows scroll the page */
-                      Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
+                      Haz3lcore.FocusEffect.schedule_cell();
                       Virtual_dom.Vdom.Effect.Many([
                         signal(
                           MakeActive(
@@ -2484,6 +2485,7 @@ module View = {
                             ~lines=false,
                             ~escape=header_escape,
                             ~escape_vertical=Some(header_escape_vertical),
+                            ~cull=false,
                             e.e_header,
                           ),
                         ],
@@ -2508,6 +2510,13 @@ module View = {
                           ~master_result=editor.result,
                           ~escape=body_escape,
                           ~escape_vertical=Some(body_escape_vertical),
+                          /* culling measures ONE container (dev's
+                             `.cull-scope` invariant): in a focus stack only
+                             the first body cell opts in; the rest render
+                             unculled rather than against another cell's rows */
+                          ~cull={
+                            i == 0;
+                          },
                           e.e_body,
                         ),
                       ],

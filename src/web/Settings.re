@@ -14,9 +14,7 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -24,6 +22,7 @@ module Model = {
     show_row_lines: bool,
     /* grey re-evaluation-progress backings after edits */
     show_pending_eval: bool,
+    simple_indication: bool,
   };
 
   let init = {
@@ -84,13 +83,14 @@ module Model = {
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
     },
-    autoprobe_mode: false,
+    autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
     show_pending_eval: false,
+    simple_indication: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -145,11 +145,14 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
     | ShowRowLines
-    | ShowPendingEval;
+    | ShowPendingEval
+    | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -428,10 +431,32 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoprobeMode => {
+      | AutoprobeMode =>
+        /* The keyboard toggle deliberately skips Caret, cycling Off<->All
+         * only; Caret mode is opted into via the segmented control. */
+        {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
         }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
+        }
+      | SampleStickyInPlace =>
+        /* '/' toggles sticky */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            set_sticky(! sticky^);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -454,6 +479,10 @@ module Update = {
           ...settings,
           show_pending_eval: !settings.show_pending_eval,
         };
+      | SimpleIndication => {
+          ...settings,
+          simple_indication: !settings.simple_indication,
+        }
       }
     )
     |> Updated.return(

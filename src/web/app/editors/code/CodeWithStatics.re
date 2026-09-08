@@ -142,7 +142,7 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
         ~statics_mode=StaticsNormal,
         ~compositional=false,
@@ -159,66 +159,69 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated.
+    /* Throttle gate for a full statics recompute. When we reuse, `statics`
+     * keeps its ref — CachedSyntax.calculate then skips the shape pass via
+     * phys-eq on info_map/elaborated.
      * PROBE EXCEPTION: probe ids are an ANALYSIS input (per-node
      * probe_targets witnesses) — deferring the recompute lets this
      * frame's eval request go out with fresh targets but a stale map,
      * and the worker's incremental cache then replays sampleless until
      * the next edit. A probe change recomputes NOW (cheap: DefStatics
-     * probe-aware dirtying re-analyzes only the probed item). */
-    let probes_changed =
-      Id.Map.compare(
-        compare,
-        CachedStatics.probe_ids_of_zipper(editor.state.zipper),
-        statics.probe_ids,
-      )
-      != 0;
-    let statics =
+     * probe-aware dirtying re-analyzes only the probed item).
+     * Compared against `targets` (not probe_ids): `with_targets` refreshes
+     * only targets, so probe_ids would keep reporting a difference. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
+        );
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one */
+    let do_init = (editor: Editor.t) =>
+      editor.root == Sort.Typ
+        /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+           entries for the inspector) under the provided ctx */
+        ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+        : editor.root == Sort.Pat
+            ? CachedStatics.init_pat(~settings, ~ctx?, editor.state.zipper)
+            : editor.root == Sort.TPat
+                ? CachedStatics.init_tpat(
+                    ~settings,
+                    ~ctx?,
+                    editor.state.zipper,
+                  )
+                : compositional
+                    /* whole-program editors: per-item statics (DefStatics) —
+                       only the dirty items re-analyze, and no monolithic
+                       whole-program recursion runs (browser stack overflow on
+                       large programs) */
+                    ? CachedStatics.init_compositional(
+                        ~settings,
+                        ~stitch,
+                        ~root=editor.root,
+                        editor.state.zipper,
+                      )
+                    : CachedStatics.init(
+                        ~settings,
+                        ~stitch,
+                        ~ctx?,
+                        ~ana?,
+                        ~is_dynamic_term,
+                        ~root=editor.root,
+                        editor.state.zipper,
+                      );
+    let needs_refresh =
       statics_mode == StaticsForce
+      || probes_differ(editor.state.zipper, statics)
       || is_edited
-      && statics_mode != StaticsDefer
-      || probes_changed
+      && statics_mode != StaticsDefer;
+    let statics =
+      needs_refresh
         ? switch (projected) {
           | Some(p) => p
-          | None =>
-            editor.root == Sort.Typ
-              /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
-                 entries for the inspector) under the provided ctx */
-              ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
-              : editor.root == Sort.Pat
-                  ? CachedStatics.init_pat(
-                      ~settings,
-                      ~ctx?,
-                      editor.state.zipper,
-                    )
-                  : editor.root == Sort.TPat
-                      ? CachedStatics.init_tpat(
-                          ~settings,
-                          ~ctx?,
-                          editor.state.zipper,
-                        )
-                      : compositional
-                          /* whole-program editors: per-item statics (DefStatics) —
-                             only the dirty items re-analyze, and no monolithic
-                             whole-program recursion runs (browser stack overflow on
-                             large programs) */
-                          ? CachedStatics.init_compositional(
-                              ~settings,
-                              ~stitch,
-                              ~root=editor.root,
-                              editor.state.zipper,
-                            )
-                          : CachedStatics.init(
-                              ~settings,
-                              ~stitch,
-                              ~ctx?,
-                              ~ana?,
-                              ~is_dynamic_term,
-                              ~root=editor.root,
-                              editor.state.zipper,
-                            )
+          | None => do_init(editor)
           }
         : statics;
 
@@ -232,9 +235,15 @@ module Update = {
         editor,
       );
 
-    /* Refresh `statics.targets` against the post-probe-effects refractors.
-     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
-     * the rest of statics stays valid. */
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
+    let statics =
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
+
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
@@ -280,11 +289,25 @@ module View = {
   };
 
   let view =
-      (~globals: Globals.t, ~overlays: list(Node.t)=[], model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              refractor_rows,
+              term_data,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -296,6 +319,7 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let key = [|
       Obj.repr(measured),
+      Obj.repr(refractor_rows),
       Obj.repr(term_data),
       Obj.repr(shape_map),
       Obj.repr(segment),
@@ -323,13 +347,14 @@ module View = {
             ~term_data,
             ~buffer_ids,
             ~shape_map,
-            ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+            ~refractor_rows,
             ~refine_sort,
             ~statics_ident=Obj.repr(info_map),
           );
         let error_decos =
           Arms.Errors.of_ids(
             ~refine_sort,
+            ~simple_indication=globals.settings.simple_indication,
             ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
             model.statics.error_ids,
@@ -338,6 +363,7 @@ module View = {
           Arms.Errors.of_ids(
             ~refine_sort,
             ~is_warning=true,
+            ~simple_indication=globals.settings.simple_indication,
             ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
             warning_ids,
@@ -372,7 +398,17 @@ module View = {
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
-    Node.div(~attrs=[Attr.classes(container_classes)], nodes @ overlays);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
+    Node.div(
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
+      nodes @ overlays,
+    );
   };
 };
