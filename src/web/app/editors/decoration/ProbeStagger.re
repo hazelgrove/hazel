@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open Haz3lcore;
-open Util;
 open Virtual_dom.Vdom;
 
 /* Offside staggering, top-down greedy: an offside display spanning K rows
@@ -28,22 +27,16 @@ let row_ends_attr_name = "data-row-ends";
 
 /* Dense per-row line ends ("max_col,max_col,..." indexed by row; absent
    rows read as 0), attached to a code container for `update`. */
-let row_ends_attr = (measured: Measured.t): Attr.t => {
-  let rows = measured.rows;
-  let n =
-    switch (IntMap.max_binding_opt(rows)) {
-    | Some((r, _)) => r + 1
-    | None => 0
-    };
-  List.init(n, r =>
-    switch (IntMap.find_opt(r, rows)) {
-    | Some(row) => string_of_int(Measured.Rows.(row.max_col))
+let row_ends_attr = (measured: Measured.t): Attr.t =>
+  /* row_shape (not a direct rows map): Measured is chunked here */
+  List.init(Measured.num_rows(measured), r =>
+    switch (Measured.row_shape(r, measured)) {
+    | Some(sh) => string_of_int(Measured.Rows.(sh.max_col))
     | None => "0"
     }
   )
   |> String.concat(",")
   |> Attr.create(row_ends_attr_name);
-};
 
 let row_ends_of_container = (el: Js.t(Dom_html.element)): array(int) =>
   Js.Opt.case(
