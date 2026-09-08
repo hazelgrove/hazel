@@ -288,6 +288,11 @@ list # no probe #|},
 /* TUPLABEL SPECIAL CASES - probe RHS value, not the label */
 let tuplabel_tests = [
   test_probe_placement(
+    ~name="Infix minus - a real operator, not a pending -> prefix",
+    ~code={|let x = 1 - 2 in # 1 - 2 #
+x # no probe #|},
+  ),
+  test_probe_placement(
     ~name="Multi-line record - probe values not tuplabels",
     ~code=
       {|let x = ( # x #
