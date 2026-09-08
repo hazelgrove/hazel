@@ -1358,8 +1358,9 @@ let probe_tests = [
       "let f = 1 in\nf + 1 | top: let=in[0,1,2] f[0] +[0] 1[0] | inc: 0",
   ),
 ];
-/* Hole-minimizing append: a closer stops before a span-final
-   trailing operator when that is strictly fewer holes. */
+/* Hole-minimizing append, semi-only (2026-09 round): a closer stops
+   before a span-final trailing SEQUENCE SEPARATOR when content
+   follows — the semi legitimately binds across the boundary. */
 let probe2_tests = [
   edit_case(
     ~name="deleted test-end stops before the semicolon",
@@ -1532,9 +1533,9 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  switch (CanonicalCompletion.chip_at_caret(z)) {
+  switch (CompletionQuery.chip_at_caret(z)) {
   | Some(ins) =>
-    switch (CanonicalCompletion.tab_text(z, ins)) {
+    switch (CompletionQuery.tab_text(z, ins)) {
     | Some(text) => Some(Test_Editing.perform(z, [Paste(text)]))
     | None => None
     }
@@ -1565,6 +1566,15 @@ let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
 
 let tab_dispatch_tests = [
   tab_case(
+    /* the left neighbor is a case TILE whose effective last token is
+       `end`: the junction predicate must see it (tab pasted "in " and
+       produced endin) */
+    ~name="chip after a multi-token tile spaces the junction",
+    ~acts=Test_Editing.mk("let x = case y | _ => 1 end¦"),
+    ~expected="let x = case y | _ => 1 end in ¦?",
+    (),
+  ),
+  tab_case(
     ~name="tab after 4: space, in, caret past",
     ~acts=Test_Editing.mk("let a = 4¦"),
     ~expected="let a = 4 in ¦?",
@@ -1586,7 +1596,7 @@ let tab_dispatch_tests = [
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) =?in ¦?",
+    ~expected="let _: (Int, Bool) =? in ¦?",
     (),
   ),
   tab_case(
@@ -1687,7 +1697,7 @@ let materialize_tests = [
       check(
         string_testable,
         "all",
-        "let x = 1in?",
+        "let x = 1 in?",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
       );
     },
@@ -1710,7 +1720,7 @@ let materialize_tests = [
       check(
         string_testable,
         "one",
-        "(case x | 1 => 2end",
+        "(case x | 1 => 2 end",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
       );
     },
@@ -1867,8 +1877,13 @@ let clippable_guard_tests = {
         "coverage",
         /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
            Pat mold. Re-decided, not repinned blindly: 9/88 is still
-           real signal, so clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+           real signal, so clippable_sort stands.
+           Typ 14 -> 15, TPat 2 -> 4: #2448's symbolic delimiter-prefix
+           backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
+           the InfixDelimiterPrefix atomic, which molds at all four
+           sorts. Re-decided: both frontiers stay far from vacuous, so
+           clippable_sort stands. */
+        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
         table,
       )
     ),
@@ -1886,7 +1901,87 @@ let clippable_guard_tests = {
   ];
 };
 
+/* === Closer-severance round (2026-09-01, PR #2374 review) ===
+ * The hole-min back-over must not sever non-separator material.
+ * Cyrus's premature `end in` (a completed if-form counted as a
+ * span-final "trailing operator" and was backed over, landing the
+ * end after the rule arrow) and the `)`-before-`:` annotation flip
+ * are the same overfiring. Content at column 0 below is load-bearing
+ * in every input: it arms the content-follows gate. */
+let severance_tests = [
+  test(
+    ~name="end+in stay after the rule-body if (case-def)",
+    ~input="let f =\n    case 0\n    | 0 =>\n        if \n1",
+    ~expected=
+      "let f =\n    case 0\n    | 0 =>\n        if?then?else? endin\n1",
+  ),
+  test(
+    ~name="end+in stay after the rule-body if (Cyrus partition_at)",
+    ~input=
+      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if \n1",
+    ~expected=
+      "let partition_at(xs : [Int], pivot: Int) =\n  case xs\n  | [] => ([], [])\n  | hd::tl =>\n    if?then?else? endin\n1",
+  ),
+  test(
+    ~name="end stays after the rule-body if (standalone case)",
+    ~input="case 0\n| 0 =>\n    if \n1",
+    ~expected="case 0\n| 0 =>\n    if?then?else? end~\n1",
+  ),
+  test(
+    ~name="ap-pattern closer stays after the annotation colon",
+    ~input=
+      "let qsort(xs :\ntest qsort([5, 4, 8, 9, 3, 2, 7]) == [2, 3, 4, 5, 7, 8, 9] end",
+    ~expected=
+      "let qsort(xs :?)=?in\ntest qsort([5, 4, 8, 9, 3, 2, 7]) == [2, 3, 4, 5, 7, 8, 9] end",
+  ),
+  test(
+    ~name="paren closer stays after a trailing colon",
+    ~input="(x :\nf(3)",
+    ~expected="(x :?)~\nf(3)",
+  ),
+  test(
+    ~name="paren closer keeps a trailing + when in interposes",
+    ~input="let x = (1 +\nf(3)",
+    ~expected="let x = (1 +?)in\nf(3)",
+  ),
+];
+
+/* Completion recurses while the incomplete count strictly decreases —
+   no fixed pass ceiling. 30 obligations (the old fuel of 24 left 5). */
+let depth_tests = [
+  test(
+    ~name="30 nested openers complete fully",
+    ~input=String.make(30, '(') ++ "1",
+    ~expected=String.make(30, '(') ++ "1" ++ String.make(30, ')'),
+  ),
+];
+let depth_count_tests = [
+  test_case(
+    "30 nested let prefixes leave nothing incomplete",
+    `Quick,
+    () => {
+      let seg =
+        must_parse(String.concat("", List.init(30, _ => "let x = ")) ++ "1");
+      let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      check(
+        Alcotest.int,
+        "incomplete",
+        0,
+        count_incomplete_deep(r.completed_seg),
+      );
+    },
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  (
+    "CanonicalCompletion: depth",
+    run_completion_tests(depth_tests) @ depth_count_tests,
+  ),
+  (
+    "CanonicalCompletion: closer-severance",
+    run_completion_tests(severance_tests),
+  ),
   ("CanonicalCompletion: head-restoration", head_restoration_tests),
   ("CanonicalCompletion: reassociation-guards", probe_tests),
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),

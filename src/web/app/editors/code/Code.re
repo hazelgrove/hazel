@@ -33,7 +33,10 @@ let of_delim' =
         | _ when Token.is_llm_hole(token) => "llm-waiting"
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
-        | _ when is_infix_var => "Any" /* Budget error deco */
+        /* operator-in-progress (`=` toward `=>`): an obligation
+           mid-entry, not an inconsistency — same color as other
+           incomplete delimiters (was error-red via "Any") */
+        | _ when is_infix_var => "incomplete"
         | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
@@ -136,8 +139,7 @@ let view =
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
-      Mold.is_infix_op(t.mold)
-      && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
     );
   };

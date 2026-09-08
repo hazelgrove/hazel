@@ -625,7 +625,7 @@ let insertion_tests = [
     ~acts=
       mk({|¦if 1 then 2 else 3|})
       @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
-    ~goal={|if? then?else¦if 1 then 2 else 3|},
+    ~goal={|if? then?else¦ if 1 then 2 else 3|},
   ),
   test(
     ~name="Inserting let before existing let doesn't steal delimiters",
@@ -639,7 +639,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦let x = 2 in 3|},
+    ~goal={|let? =?in¦ let x = 2 in 3|},
   ),
   test(
     ~name="Inserting let before existing type doesn't steal delimiters",
@@ -653,7 +653,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦type x = 2 in 3|},
+    ~goal={|let? =?in¦ type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -2729,6 +2729,25 @@ let rescan_tests = [
       @ mv_r(6)  /* fun (a, b) -> )¦ */
       @ [Destruct(Local(Left, ByChar))], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
+  ),
+  /* #2446: completing `use _ in` remolds the following `-` from infix
+   * back to prefix; the convex grout inserted for the infix reading must
+   * not survive (it left a malformed grout-prefix junction whose tiles
+   * MakeTerm dropped from the terms map, crashing the view). */
+  test_complete(
+    ~name="Regrout: use-in typed before -5 leaves no stale grout",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦-5|},
+  ),
+  test_complete(
+    ~name="Regrout: use-in typed before prefix-only op",
+    ~acts=mk({|¦!true|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦!true|},
+  ),
+  test_complete(
+    ~name="Regrout: let-in typed before -5",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("let x = 1 in "),
+    ~goal={|let x = 1 in ¦-5|},
   ),
 ];
 
@@ -5759,7 +5778,136 @@ let grapheme_tests = [
   ),
 ];
 
+/* Prints only — for transient states where incomplete tiles are expected
+ * (e.g. a fun awaiting its ->). */
+let test_print = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+    },
+  );
+
+/* A symbolic delimiter prefix in operator position holds a backup infix
+ * mold (Form.symbolic_delim_prefixes) rather than molding prefix and
+ * drawing junction grout: `fun x -` reads as a pending `->`, not as
+ * unary minus applied to a missing operand. */
+let pending_delim_tests = [
+  test_print(
+    ~name="Pat: minus after complete pattern holds infix pending ->",
+    ~acts=mk({|fun x -¦|}),
+    ~goal={|fun x -¦?|},
+  ),
+  test_print(
+    ~name="Pat: minus completes to -> normally",
+    ~acts=mk({|fun x -¦|}) @ string_to_ltr_actions("> x"),
+    ~goal={|fun x -> x¦|},
+  ),
+  test_complete(
+    ~name="Pat: negative literal pattern still molds prefix",
+    ~acts=mk({|fun -5 -> p¦|}),
+    ~goal={|fun -5 -> p¦|},
+  ),
+  test_print(
+    ~name="Exp: infix minus unaffected",
+    ~acts=mk({|1 - 2¦|}),
+    ~goal={|1 - 2¦|},
+  ),
+  test_print(
+    ~name="Exp: unary minus unaffected",
+    ~acts=mk({|(-5)¦|}),
+    ~goal={|(-5)¦|},
+  ),
+  test_print(
+    ~name="Typ: minus pending arrow",
+    ~acts=mk({|type T = Int -¦|}),
+    ~goal={|type T = Int -¦?|},
+  ),
+  test_print(
+    ~name="Rul: = after pattern holds infix pending =>",
+    ~acts=mk({|case 1 | 1 =¦|}),
+    ~goal={|case 1 | 1 =¦?|},
+  ),
+];
+
+/* Consumers (token color, arms, probing, indentation) recognize a pending
+ * delimiter by its backup mold, so a `-` or `=` carrying a real infix mold
+ * must not read as one. */
+let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (acc, p) {
+      | (Some(_), _) => acc
+      | (None, Tile(t)) when t.label == [tok] => Some(t)
+      | (None, Tile(t)) =>
+        List.fold_left(
+          (acc, kid) => acc == None ? find_tile(tok, kid) : acc,
+          None,
+          t.children,
+        )
+      | (None, _) => None
+      },
+    None,
+    seg,
+  );
+
+let test_delim_prefix = (~name, ~acts, ~tok, ~expect): test_case(_) =>
+  test_case(name, `Quick, () =>
+    switch (find_tile(tok, acts |> perform(Zipper.init()) |> Zipper.zip)) {
+    | None => Alcotest.fail("no tile with label " ++ tok)
+    | Some(t) =>
+      check(
+        bool,
+        "Piece.is_infix_delimiter_op_prefix",
+        expect,
+        Piece.is_infix_delimiter_op_prefix(Tile(t)),
+      )
+    }
+  );
+
+let delim_prefix_class_tests = [
+  test_delim_prefix(
+    ~name="Pat: minus pending -> is a delimiter prefix",
+    ~acts=mk({|fun x -¦|}),
+    ~tok="-",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: partial keyword is a delimiter prefix",
+    ~acts=mk({|if x th¦|}),
+    ~tok="th",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: infix minus is not a delimiter prefix",
+    ~acts=mk({|1 - 2¦|}),
+    ~tok="-",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Exp: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|(a=1)¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Pat: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|fun (a=x) -> x¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
+];
+
 let tests = [
+  ("Editing.PendingDelim", pending_delim_tests),
+  ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),

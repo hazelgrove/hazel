@@ -272,7 +272,7 @@ let to_end: t => t =
     refractors: z.refractors,
   };
 
-/* Check if neighbor in direction d is a space (horizontal whitespace, not linebreak) */
+/* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
 let space_on = (d: Direction.t, z: t): bool =>
   switch (d, Zipper.generalized_neighbors(z)) {
   | (Right, (_, Some(Secondary(s)))) => Secondary.is_space(s)
@@ -280,7 +280,6 @@ let space_on = (d: Direction.t, z: t): bool =>
   | _ => false
   };
 
-/* Skip past spaces in direction d (move while neighbor is space) */
 let rec skip_spaces = (d: Direction.t, z: t): t =>
   if (space_on(d, z)) {
     switch (local(ByToken, d, z)) {
@@ -295,9 +294,8 @@ let rec skip_spaces = (d: Direction.t, z: t): t =>
 let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
 
-/* Move to line boundary, then skip past leading/trailing whitespace.
- * Line(Left): move to linebreak, then skip right past spaces to first content
- * Line(Right): move to linebreak, then skip left past spaces to last content */
+/* Move to the line boundary, then skip back past leading/trailing
+ * spaces to the first/last content on the line. */
 let to_linebreak = (d: Direction.t, z: t): option(t) => {
   let+ z = to_linebreak_raw(d, z);
   skip_spaces(Direction.toggle(d), z);

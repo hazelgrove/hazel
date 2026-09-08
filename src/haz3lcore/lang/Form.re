@@ -562,13 +562,16 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.filter_map(((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
-       /* NON-LEADING tokens only (matching the comment above):
-          leading-delimiter prefixes live in operand position where
-          the bin mold can never serve their entry path, and
-          including them made any short variable prefixing a keyword
-          (`c` for case, `l` for let) mold as an operator in broken
-          buffers. Leading prefixes are recognized by the completion
-          side instead (expectation-gated leading witnesses). */
+       /* Only NON-leading delimiters contribute prefixes. A
+          non-leading delimiter (the `in` of a let) is typed in infix
+          position, where the backup infix mold smooths entry. A
+          leading delimiter (`let`, `case`) is typed in operand
+          position, where an infix mold can't help — and including
+          its prefixes made ordinary short variables that happen to
+          prefix a keyword (`l`, `c`) mold as operators in broken
+          buffers. Leading-delimiter prefixes are handled by
+          CanonicalCompletion instead (its leading witnesses, gated
+          on the context expecting the delimiter). */
        | _ when List.length(form.label) >= 2 => Some(List.tl(form.label))
        | _ => None
        };
@@ -579,6 +582,23 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.map(Token.prefixes)
   |> List.concat;
 
+/* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
+ * of compound forms (`-` en route to `->`, `=` en route to `=>`), so
+ * that e.g. the `-` of a nascent `fun x ->` holds an infix mold rather
+ * than molding as unary minus and drawing junction grout. Stricter than
+ * the alphanumeric set above: leading delimiters and the complete
+ * tokens themselves are excluded, since complete symbolic operators
+ * have real molds that must govern. */
+let symbolic_delim_prefixes: list(Token.t) =
+  forms
+  |> List.filter_map(((_, {label, _}: t)) =>
+       List.length(label) >= 2 ? Some(List.tl(label)) : None
+     )
+  |> List.concat
+  |> List.filter(Token.is_potential_operator)
+  |> List.sort_uniq(compare)
+  |> List.concat_map(t => List.filter((!=)(t), Token.prefixes(t)));
+
 /* Hot predicate: runs per atomic-form candidate on every molding query
    (so, superlinearly during text parsing), so membership is a hash set
    rather than a List.mem scan with polymorphic compare. The table is
@@ -588,8 +608,21 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
 let is_infix_delimiter_op_prefix: Token.t => bool = {
   let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
   List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
+  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
   t => Hashtbl.mem(tbl, t);
 };
+
+/* Backup molds handed to delimiter prefixes in operator position. Mold
+   identity, not token, is what tells a backup-molded `-` (pending `->`)
+   from real infix minus or a labeled-tuple `=`. */
+let infix_delimiter_prefix_molds: list(Mold.t) = [
+  Mold.mk_bin(Precedence.concave_grout, Exp, []),
+  Mold.mk_bin(Precedence.concave_grout, Pat, []),
+  Mold.mk_bin(Precedence.concave_grout, Typ, []),
+  Mold.mk_bin(Precedence.concave_grout, TPat, []),
+];
+let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
+  List.mem(m, infix_delimiter_prefix_molds);
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
@@ -627,12 +660,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Var => (Token.is_var, [op(Exp), op(Pat)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
-      [
-        Mold.mk_bin(Precedence.concave_grout, Exp, []),
-        Mold.mk_bin(Precedence.concave_grout, Pat, []),
-        Mold.mk_bin(Precedence.concave_grout, Typ, []),
-        Mold.mk_bin(Precedence.concave_grout, TPat, []),
-      ],
+      infix_delimiter_prefix_molds,
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
@@ -701,10 +729,14 @@ module Molds = {
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
-  /* Base: get molds from form definitions without sort filtering */
+  /* Base: get molds from form definitions without sort filtering.
+     Form-defined molds precede atomic backups: mold order breaks ties
+     among junction-fitting candidates during remolding, and a token
+     like `-` carries both real operator molds and a delimiter-prefix
+     backup that must not shadow them. */
   let get_base = (label: Label.t): list(Mold.t) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], Some(molds)) when atomic(t) != [] => molds @ atomic(t)
     | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     | _ => []

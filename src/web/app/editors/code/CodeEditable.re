@@ -265,19 +265,12 @@ module Update = {
           ? Buffer(Accept)
           : (
             /* caret pinned to a quiver chip: Tab dispatches that
-               obligation, whether or not an inline buffer is showing
-               (buffers only appear on edits; the chip is always live) */
-            switch (CanonicalCompletion.chip_at_caret(z)) {
-            | Some(ins) =>
-              /* Tab = "type it for me": one chunk through the normal
-                 pipeline — spacing and caret land exactly as if the
-                 user typed it; the chip re-derives */
-              switch (CanonicalCompletion.tab_text(z, ins)) {
-              | Some(text) => Paste(text)
-              | None =>
-                Zipper.can_put_down(z)
-                  ? Put_down : Move(Goal(NextProblem(Right)))
-              }
+               obligation (CompletionQuery.tab_action — the same list
+               the quiver draws at the caret), whether or not an inline
+               buffer is showing (buffers only appear on edits; the
+               chip is always live) */
+            switch (CompletionQuery.tab_action(z)) {
+            | Some(a) => a
             | None =>
               Zipper.can_put_down(z)
                 ? Put_down : Move(Goal(NextProblem(Right)))
@@ -671,7 +664,16 @@ module View = {
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) =>
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
     [
       CaretDec.view(
         ~measured=syntax.measured,
@@ -684,6 +686,7 @@ module View = {
             Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
         ~font_metrics=globals.font_metrics,
         ~syntax,
+        ~completion,
         z,
       ),
       (
@@ -714,7 +717,6 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -729,7 +731,10 @@ module View = {
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
-            syntax.segment,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=
+              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+            Lazy.force(engine_seg),
           ),
         ]
         /* quiver off: clear stale claims so probes don't stack
@@ -739,6 +744,7 @@ module View = {
           [];
         }
     );
+  };
 
   let view =
       (
@@ -880,6 +886,7 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
+              ~completion=Arms.lazy_completion(model.editor.state.zipper),
               ~dynamics,
               model.editor.state.zipper,
             ),

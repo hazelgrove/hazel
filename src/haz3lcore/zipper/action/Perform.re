@@ -23,10 +23,7 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   /* The drop may have REASSEMBLED into its tile, making the junction
      interior (def-child `end` vs the tile's own `in` shard) —
      normalize_piece fixes child<->shard junctions; grout/holes have
-     no token so hole-adjacent layouts are untouched. Left junction
-     only at top level: the right side (dropped shard abutting a
-     following keyword) is a transient wrap state whose glued form is
-     load-bearing for existing flows. */
+     no token so hole-adjacent layouts are untouched. */
   let pre =
     switch (List.rev(pre)) {
     | [last, ...rest] =>
@@ -37,6 +34,19 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
       | _ => List.rev([last, ...rest])
       };
     | [] => pre
+    };
+  /* right junction: the dropped shard abutting following material
+     (dropping `then` before `false` gave then|false, which re-lexes
+     as one token). The space lands at the head of the suffix, so the
+     caret stays against the dropped shard. */
+  let suf =
+    switch (List.rev(pre), suf) {
+    | ([last, ..._], [first, ..._])
+        when needs(SpaceNormalize.normalize_piece(last), first) => [
+        SpaceNormalize.space(),
+        ...suf,
+      ]
+    | _ => suf
     };
   {
     ...z,
@@ -70,7 +80,7 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
    keystroke then removes the whole indentation AND its linebreak.
    The consumer gates on the run being no wider than the line's
    AUTO-INDENT level: spaces the user typed beyond the indent are
-   real material, deleted one per press (andrew 2026-07-22). */
+   real material, deleted one per press. */
 let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
   if (z.caret != Outer || z.selection.content != []) {
     None;
@@ -180,25 +190,18 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
         };
       drop(2, seg);
     };
-  let rec walk = (seg: Segment.t): Segment.t =>
+  let rec level = (seg: Segment.t): Segment.t =>
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w) as p, ...rest]
         when Secondary.is_linebreak(w) && Id.Set.mem(w.id, affected) => [
         p,
-        ...walk(adjust_run(rest)),
+        ...level(adjust_run(rest)),
       ]
-    | [Piece.Tile(t), ...rest] => [
-        Piece.Tile({
-          ...t,
-          children: List.map(walk, t.children),
-        }),
-        ...walk(rest),
-      ]
-    | [p, ...rest] => [p, ...walk(rest)]
+    | [p, ...rest] => [p, ...level(rest)]
     };
   CaretPreserving.transform(z, seg =>
-    (line0 ? adjust_run(seg) : seg) |> walk
+    (line0 ? adjust_run(seg) : seg) |> Segment.map_deep(level)
   );
 };
 
@@ -267,10 +270,10 @@ let rec go =
        Deletion can COMPLETE a tile (removing junk between split
        shards lets reassembly merge them), so the completion trigger
        applies; ordinary un-settling deletions leave it silent. */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Destruct.go(Local(Left, ByChar), z, ~root)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_destruct);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Destruct.go(Local(Left, ByChar), z, ~root)
+    )
+    |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -328,27 +331,24 @@ let rec go =
   | Format(Spacing) =>
     /* Re-indent, then canonicalize within-line spacing. Linebreaks
        and comments untouched; caret restored as in Format(Pretty). */
-    let z = AutoFormat.zipper(z);
+    let z = Indentation.reindent_zipper(z);
     Some(
       CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
     |> return(CantReparse);
   | Format(Pretty) =>
-    /* SpaceNormalize first: a repair no-op on parsed buffers (they
-       can't contain bare glom junctions) but totalizes synthesized
-       segments (agent/structural edits). */
+    /* SpaceNormalize first: a no-op on parsed buffers (they can't
+       contain bare glom junctions) but repairs the glom junctions in
+       synthesized segments (agent/structural edits) so prettify is
+       safe to run on them. */
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    switch (
+    LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
       Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
-    ) {
-    | Ok(z) => Ok(LocalReformat.go(~before, z))
-    | Error(_) as e => e
-    };
+    )
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)
@@ -496,15 +496,12 @@ let rec go =
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
     /* see Cut: fires only on completion-by-deletion */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let join =
       switch (d) {
       | Local(Left, ByChar) when settings.indentation_ux =>
         switch (indent_join_run(z)) {
         | Some((n, lb_id)) =>
-          /* the one-keystroke join covers AUTO-INDENT width only:
-             a run wider than the line's indent level means typed
-             spaces beyond it — those delete one per press */
+          /* width gate: see indent_join_run */
           let level =
             Indentation.level_of(
               ~target_id=lb_id,
@@ -517,11 +514,10 @@ let rec go =
       };
     switch (join) {
     | Some(_) =>
-      /* backspace inverts enter: delete indentation + linebreak as a
-         single action (one undo step). Adaptive: destruct's own
-         whitespace cleanup can consume more than one piece per call,
-         so re-inspect the left neighbor each step instead of
-         counting. */
+      /* indentation + linebreak go in one action (one undo step).
+         Adaptive: destruct's own whitespace cleanup can consume more
+         than one piece per call, so re-inspect the left neighbor each
+         step instead of counting. */
       let left_neighbor = (z: Zipper.t) =>
         switch (fst(z.relatives.siblings) |> List.rev) {
         | [Piece.Secondary(w), ..._] =>
@@ -540,23 +536,23 @@ let rec go =
             | `Other => Some(z)
             }
           );
-      del_run(z)
-      |> Option.map(maybe_reassoc)
-      |> Option.map(LocalReformat.go(~before))
+      LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+        del_run(z) |> Option.map(maybe_reassoc)
+      )
       |> return(Cant_destruct);
     | None =>
-      Destruct.go(d, z, ~root)
-      |> Option.map(maybe_reassoc)
-      |> Option.map(LocalReformat.go(~before))
+      LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+        Destruct.go(d, z, ~root) |> Option.map(maybe_reassoc)
+      )
       |> return(Cant_destruct)
     };
   | Insert(char) =>
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
-    |> Option.map(maybe_reassoc)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_insert);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      z
+      |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
+      |> Option.map(maybe_reassoc)
+    )
+    |> return(Cant_insert)
   | Refactor(k) =>
     Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
     |> Option.map(
@@ -596,21 +592,21 @@ let rec go =
     Materialize.one(z, ~root, id)
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | Put_down =>
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Zipper.put_down(z, ~root)
-    |> Option.map(space_put_down_boundary)
-    |> Option.map(maybe_reassoc)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_put_down);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Zipper.put_down(z, ~root)
+      |> Option.map(space_put_down_boundary)
+      |> Option.map(maybe_reassoc)
+    )
+    |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Format(Indent) => Ok(AutoFormat.zipper(z))
+  | Format(Indent) => Ok(Indentation.reindent_zipper(z))
   | ToggleLineComment =>
     /* uncommenting can restore delimiters that complete enclosing
        forms; the comment-out direction leaves the trigger silent */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    Comment.go(z, ~root)
-    |> Option.map(LocalReformat.go(~before))
-    |> return(Cant_destruct);
+    LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+      Comment.go(z, ~root)
+    )
+    |> return(Cant_destruct)
   | Structural(a) =>
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */
