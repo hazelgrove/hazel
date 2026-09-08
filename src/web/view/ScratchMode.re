@@ -1620,6 +1620,7 @@ module Update = {
                   probe_union(
                     acc,
                     Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                      ~projectors=e.e_body.editor.editor.syntax.projectors,
                       e.e_body.editor.editor.state.zipper,
                     ),
                   ),
@@ -1629,7 +1630,9 @@ module Update = {
                     e.e_header.editor.editor.state.zipper,
                   ),
                 ),
+              /* livelit uses / apps are probed for their live view */
               Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                ~projectors=editor.editor.editor.syntax.projectors,
                 editor.editor.editor.state.zipper,
               ),
               f.f_entries,
