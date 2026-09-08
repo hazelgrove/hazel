@@ -608,6 +608,44 @@ let expand = fun m -> m
   };
 };
 
+/* A livelit's model argument reaches the projector-side evaluation as
+   RAW syntax: its constructors carry no type. Ascribing such a
+   constructor to its sum (the view's `m : Model`) must type it rather
+   than stick, or every `case` on the model in the view is stuck. */
+let untyped_ctor_ascription = () => {
+  let gate: Typ.t =
+    Typ.temp(
+      Sum([
+        ConstructorMap.Variant(
+          "Nand",
+          ConstructorMap.empty_variant_ann,
+          Some(Typ.temp(Atom(Int))),
+        ),
+        ConstructorMap.Variant("Or", ConstructorMap.empty_variant_ann, None),
+      ]),
+    );
+  let asc = e => Exp.fresh(Asc(e, gate));
+  let bare = asc(Exp.fresh(Constructor("Or", None)));
+  switch (Exp.term_of(Ascriptions.transition_multiple(bare))) {
+  | Constructor("Or", Some(Some(_))) => ()
+  | _ => fail("bare untyped constructor did not take the sum's type")
+  };
+  let applied =
+    asc(
+      Exp.fresh(
+        Ap(
+          Forward,
+          Exp.fresh(Constructor("Nand", None)),
+          IdTagged.FreshGrammar.Exp.int(7),
+        ),
+      ),
+    );
+  switch (Exp.term_of(Ascriptions.transition_multiple(applied))) {
+  | Ap(_, {term: Constructor("Nand", Some(Some(_))), _}, _) => ()
+  | _ => fail("applied untyped constructor did not take the sum's type")
+  };
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -628,6 +666,11 @@ let tests = [
       test_case("bad arity marked", `Quick, bad_arity_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
+      test_case(
+        "untyped constructor takes its sum type under ascription",
+        `Quick,
+        untyped_ctor_ascription,
+      ),
       test_case("adapter contract", `Quick, adapter),
       test_case("positional shape field", `Quick, shape_field),
       test_case("commit vs ephemeral decision", `Quick, commit_decision),
