@@ -1069,6 +1069,20 @@
   row-gap: 5px;
 }
 
+/* the selected sample in a well: the editor's rule keys on the
+   probe's `.indicated` class, which wells never carry, so selection
+   read as a hairline at best. Inset outlines so the well's box does
+   not clip them. */
+.canvas-probe .live-offside .sample:has(.value.focus) .value {
+  outline: 2px solid var(--G0);
+  outline-offset: -2px;
+}
+.canvas-probe .live-offside:focus .sample:has(.value.focus) .value {
+  outline: 2px solid var(--R1);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 3px oklch(from var(--R1) l c h / 0.18);
+}
+
 /* rich content participates in the well's flow: the editor's projector
    base is position:absolute, which left wells 0-height and let cards
    overlap the strip row below */

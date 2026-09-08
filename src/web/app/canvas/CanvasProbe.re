@@ -17,6 +17,15 @@ open Haz3lcore;
 
 let probe_kind: ProjectorCore.Kind.t = Probe;
 
+/* Where a well's sample-focus / probe actions go: the WHOLE-PROGRAM
+   (master) editor, whose dynamics the wells display. Routing them to
+   the "active" editor sent them to the open definition cell in
+   constellation mode — the master's sample focus never moved, so ← →
+   did nothing and no sample read as selected. CanvasSidebar installs
+   the master dispatcher each render. */
+let master_perform: ref(option(Haz3lcore.Action.t => Effect.t(unit))) =
+  ref(Option.none);
+
 let stored_model = (~globals: Globals.t, key: string): option(string) =>
   List.assoc_opt(key, globals.settings.sidebar.canvas_probe_models);
 
@@ -79,11 +88,15 @@ let view =
         Set(Sidebar(SetCanvasProbeModel(key, new_model))),
       );
     };
+    let perform = (a: Haz3lcore.Action.t) =>
+      switch (master_perform^) {
+      | Option.Some(f) => f(a)
+      | Option.None => globals.inject_global(ActiveEditor(a))
+      };
     let parent = (a: ProjectorBase.external_action) =>
       switch (a) {
-      | SampleFocus(sc) =>
-        globals.inject_global(ActiveEditor(Project(SampleFocus(sc))))
-      | Probe(pa) => globals.inject_global(ActiveEditor(Probe(pa)))
+      | SampleFocus(sc) => perform(Project(SampleFocus(sc)))
+      | Probe(pa) => perform(Probe(pa))
       | _ => Effect.Ignore
       };
     let view_seg =

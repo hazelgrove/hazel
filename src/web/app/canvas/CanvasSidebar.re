@@ -1197,6 +1197,18 @@ let view_impl =
   /* MAIN mode: a canvas click selects the definition as the ONE open
      cell (the info panel's definition tab); the outline row scrolls into
      view (source = canvas, so the canvas itself holds still) */
+  /* wells act on the master editor (see CanvasProbe.master_perform) */
+  CanvasProbe.master_perform :=
+    Some(
+      (a: Haz3lcore.Action.t) =>
+        editors_inject(
+          Editors.Update.Scratch(
+            ScratchMode.Update.CellAction(
+              CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
+            ),
+          ),
+        ),
+    );
   let show_panel =
     globals.inject_global(Set(Sidebar(SetCanvasPanelHidden(false))));
   let select_def = (id: Id.t) =>
