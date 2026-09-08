@@ -549,7 +549,8 @@ module View = {
     };
     /* The breadcrumb in the top bar already names the folder, so the slide
        heading shows only the leaf of the lesson's SlidePath. */
-    let title_view = CellCommon.title_cell(Tutorial.path_of(eds).leaf);
+    let title_view =
+      CellCommon.title_cell(SlidePath.leaf(Tutorial.path_of(eds)));
 
     // let prompt_view =
     //   CellCommon.narrative_cell(

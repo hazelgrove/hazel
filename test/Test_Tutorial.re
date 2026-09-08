@@ -11,9 +11,12 @@ let strings = list(string);
 let ints = list(int);
 
 /* Folders in first-appearance order. */
+let folder_of = (p: SlidePath.t): string =>
+  SlidePath.folder(p) |> Option.value(~default="<no folder>");
+
 let folders =
   paths
-  |> List.map(SlidePath.folder)
+  |> List.map(folder_of)
   |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
 
 /* The categorization: the intro track runs through Labeled Tuple Projection,
@@ -38,7 +41,10 @@ let tests = [
               "folder is a single non-empty segment: "
               ++ SlidePath.to_string(p),
               true,
-              List.length(p.folders) == 1 && p.folders != [""],
+              switch (SlidePath.folders(p)) {
+              | [f] => f != ""
+              | _ => false
+              },
             ),
           paths,
         )
@@ -56,9 +62,7 @@ let tests = [
                  Printf.sprintf(
                    "%s x%d",
                    f,
-                   paths
-                   |> List.filter(p => SlidePath.folder(p) == f)
-                   |> List.length,
+                   paths |> List.filter(p => folder_of(p) == f) |> List.length,
                  )
                ),
           )
@@ -72,7 +76,7 @@ let tests = [
             "no folder is revisited",
             folders,
             paths
-            |> List.map(SlidePath.folder)
+            |> List.map(folder_of)
             |> List.fold_left(
                  (acc, f) =>
                    switch (List.rev(acc)) {
@@ -115,7 +119,7 @@ let tests = [
                 paths
                 |> List.mapi((i, p) => (i, p))
                 |> List.filter_map(((i, p)) =>
-                     SlidePath.folder(p) == folder ? Some(i) : None
+                     folder_of(p) == folder ? Some(i) : None
                    );
               check(
                 ints,
@@ -154,6 +158,27 @@ let tests = [
           },
           paths,
         )
+      ),
+      test_case(
+        "lesson ids are unique",
+        `Quick,
+        () => {
+          /* A lesson's identity is its id, not its title -- that is what makes
+             retitling and recategorizing safe, and it is why the per-lesson
+             store key is the id (TutorialsMode.Store.save_exercise). Two
+             lessons sharing an id would share saved work. */
+          let ids =
+            List.map(
+              spec => Tutorial.id_of(spec) |> Haz3lcore.Id.to_string,
+              lessons,
+            );
+          check(
+            int,
+            "distinct ids",
+            List.length(lessons),
+            ids |> List.sort_uniq(String.compare) |> List.length,
+          );
+        },
       ),
       test_case(
         "no title is a proper prefix of another",

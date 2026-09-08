@@ -99,7 +99,7 @@ let write_all = (dir: string): unit => {
         Printf.sprintf(
           "%02d-%s.hzt",
           i + 1,
-          kebab(Web.Tutorial.path_of(spec).leaf),
+          kebab(Web.SlidePath.leaf(Web.Tutorial.path_of(spec))),
         );
       Core.Out_channel.write_all(
         dir ++ "/" ++ name,

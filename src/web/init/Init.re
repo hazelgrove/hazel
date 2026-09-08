@@ -65,10 +65,9 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
   ]
   |> List.map((spec: DerivationExercise.spec) =>
        (
-         SlidePath.to_string({
-           folders: ["Derivations"],
-           leaf: spec.title,
-         }),
+         SlidePath.to_string(
+           SlidePath.mk(~folders=["Derivations"], spec.title),
+         ),
          spec,
        )
      );
