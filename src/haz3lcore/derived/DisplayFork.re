@@ -42,69 +42,6 @@ type t = {
    atoms, and live here rather than in CanonicalCompletion so that
    module stays Zipper-free (Indentation depends on it, and
    PrettySegment on Indentation). */
-/* the atom (piece, or tile shard) immediately left of the caret —
-   the boundary for the no-changes-before-the-cursor policy */
-let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
-  let of_piece = (p: Piece.t) =>
-    switch (p) {
-    | Tile(t) =>
-      switch (Util.ListUtil.last_opt(t.shards)) {
-      | Some(i) => (t.id, i)
-      | None => (t.id, (-1))
-      }
-    | p => (Piece.id(p), (-1))
-    };
-  /* an Inner caret sits INSIDE a token — that host token is partly
-     left of the caret (e.g. deleting `(` lands the caret Inner in
-     the preceding name; typing `=` before `>` gloms to `=>` with an
-     Inner caret). The host is the TOKEN neighbor, whichever side it
-     sits on (mirrors Zipper.Caret.inner_offset's preference) —
-     picking a grout neighbor let pads mint left of the caret. */
-  switch (z.caret) {
-  | Inner(_) =>
-    let ll = Util.ListUtil.last_opt(fst(z.relatives.siblings));
-    let rh =
-      switch (snd(z.relatives.siblings)) {
-      | [p, ..._] => Some(p)
-      | [] => None
-      };
-    let host =
-      switch (ll, rh) {
-      | (Some(Piece.Tile(_)), _) => ll
-      | (_, Some(Piece.Tile(_))) => rh
-      | (Some(_), _) => ll
-      | _ => rh
-      };
-    host |> Option.map(of_piece);
-  | Outer =>
-    /* selection content renders at the caret's left when focus is
-       Right (e.g. a delimiter deletion leaving content selected) */
-    switch (z.selection.content, z.selection.focus) {
-    | ([_, ..._] as content, Util.Direction.Right) =>
-      Util.ListUtil.last_opt(content) |> Option.map(of_piece)
-    | _ =>
-      switch (Util.ListUtil.last_opt(fst(z.relatives.siblings))) {
-      | Some(p) => Some(of_piece(p))
-      | None =>
-        let rec go = ancs =>
-          switch (ancs) {
-          | [] => None
-          | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
-            switch (Util.ListUtil.last_opt(fst(a.shards))) {
-            | Some(i) => Some((a.id, i))
-            | None =>
-              switch (Util.ListUtil.last_opt(fst(sibs))) {
-              | Some(p) => Some(of_piece(p))
-              | None => go(rest)
-              }
-            }
-          };
-        go(z.relatives.ancestors);
-      }
-    }
-  };
-};
-
 /* A ghost may never appear strictly BEFORE the caret (andrew's
    policy — pre-caret ghosts shake the cursor; e.g. deleting a `(`
    makes completion propose an opener at line start). Side-Right
@@ -113,7 +50,7 @@ let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
    ref <= it. Suppressed ghosts keep their chip. */
 let splice_precedes_caret =
     (z: Zipper.t, ins: CanonicalCompletion.insertion): bool =>
-  switch (ins.splice, caret_left_atom(z)) {
+  switch (ins.splice, CompletionQuery.caret_left_atom(z)) {
   | (None, _)
   | (_, None) => false
   | (Some((id, sh, side)), Some(caret_key)) =>
@@ -539,7 +476,7 @@ let mk_inner =
           |> CanonicalCompletion.finish_display(
                ~marks=ghost_marks,
                ~raw,
-               ~caret_after=caret_left_atom(z),
+               ~caret_after=CompletionQuery.caret_left_atom(z),
              );
     if (ghost_marks != [] && !tiles_well_formed(segment)) {
       failwith("DisplayFork: malformed splice");
