@@ -28,7 +28,7 @@ let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
   | m => m
   };
 
-let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
+let parse = (~statics as _, _sort: Sort.t, exp: Exp.t): option(value) =>
   switch (CardSyntax.any_to_state(Exp(exp))) {
   | Some((Exp, c)) => Some(c)
   | _ => None
