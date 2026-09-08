@@ -1315,19 +1315,10 @@ module View = {
       ~add_tooltip,
       ~signal=
         fun
-        | Previous =>
-          inject(
-            SwitchSlide(
-              (model.current + List.length(model.scratchpads) - 1)
-              mod List.length(model.scratchpads),
-            ),
-          )
-        | Next =>
-          inject(
-            SwitchSlide(
-              (model.current + 1) mod List.length(model.scratchpads),
-            ),
-          )
+        /* No arrows in these modes (~nav_buttons=false above): slides are
+           reached through the breadcrumb dropdowns. */
+        | Previous
+        | Next => Virtual_dom.Vdom.Effect.Ignore
         | Add => inject(AddSlide)
         | Rename => inject(RenameSlide)
         | Delete => inject(DeleteSlide),

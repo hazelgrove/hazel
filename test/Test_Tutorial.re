@@ -9,7 +9,6 @@ open Web;
 let lessons = TutorialSettings.lessons;
 let paths = List.map(Tutorial.path_of, lessons);
 let strings = list(string);
-let ints = list(int);
 
 let folder_of = (p: SlidePath.t): string =>
   SlidePath.folder(p) |> Option.value(~default="<no folder>");
@@ -19,11 +18,6 @@ let folders =
   paths
   |> List.map(folder_of)
   |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
-
-let lessons_in = folder =>
-  paths
-  |> List.mapi((i, p) => (i, p))
-  |> List.filter_map(((i, p)) => folder_of(p) == folder ? Some(i) : None);
 
 let tests = [
   (
@@ -64,64 +58,6 @@ let tests = [
                ),
           )
         ),
-      test_case(
-        "next walks exactly one folder, then stops",
-        `Quick,
-        () => {
-          /* Drives the real navigation the arrows use: from a folder's first
-             lesson, repeated "next" must visit that folder's lessons in order
-             and then clamp -- clamping is what makes the view show the
-             completion message instead of a next arrow. */
-          let rec walk = (acc, i) => {
-            let next = SlidePath.step_in_folder(~current=i, ~by=1, paths);
-            next == i ? List.rev([i, ...acc]) : walk([i, ...acc], next);
-          };
-          let rec back = (acc, i) => {
-            let prev = SlidePath.step_in_folder(~current=i, ~by=-1, paths);
-            prev == i ? [i, ...acc] : back([i, ...acc], prev);
-          };
-          List.iter(
-            folder => {
-              let expected = lessons_in(folder);
-              check(
-                ints,
-                "forward through " ++ folder,
-                expected,
-                walk([], List.hd(expected)),
-              );
-              check(
-                ints,
-                "backward through " ++ folder,
-                expected,
-                back([], List.nth(expected, List.length(expected) - 1)),
-              );
-            },
-            folders,
-          );
-        },
-      ),
-      test_case("folder edges are where the arrows stop", `Quick, () =>
-        List.iteri(
-          (i, p) => {
-            let {index_in_folder, folder_size}: SlidePath.folder_position =
-              SlidePath.folder_position(~current=i, paths);
-            let at = SlidePath.to_string(p);
-            check(
-              bool,
-              "is_first agrees with a clamped prev at " ++ at,
-              index_in_folder == 0,
-              SlidePath.step_in_folder(~current=i, ~by=-1, paths) == i,
-            );
-            check(
-              bool,
-              "is_last agrees with a clamped next at " ++ at,
-              index_in_folder == folder_size - 1,
-              SlidePath.step_in_folder(~current=i, ~by=1, paths) == i,
-            );
-          },
-          paths,
-        )
-      ),
       test_case(
         "lesson ids are unique",
         `Quick,

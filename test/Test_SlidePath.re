@@ -175,6 +175,29 @@ let step_from = (~space=nav_space, ~by: int, name: string): string =>
   )
   |> List.nth(space);
 
+/* The slides sharing `name`'s folder, in space order. */
+let folder_of_slide = (space: list(string), name: string): list(string) => {
+  let folder = SlidePath.folder(SlidePath.of_string(name));
+  space
+  |> List.filter(n => SlidePath.folder(SlidePath.of_string(n)) == folder);
+};
+
+/* Step repeatedly from `name` until movement clamps, collecting where it
+   went. Single steps are checked above; this is what a user holding the arrow
+   down does. Bounded by the size of the space so a clamp that stops working
+   fails the check with a too-long walk instead of looping forever. */
+let walk = (~space=nav_space, ~by: int, name: string): list(string) => {
+  let rec go = (budget, acc, at) =>
+    if (budget <= 0) {
+      List.rev([at, ...acc]);
+    } else {
+      let next = step_from(~space, ~by, at);
+      String.equal(next, at)
+        ? List.rev([at, ...acc]) : go(budget - 1, [at, ...acc], next);
+    };
+  go(List.length(space), [], name);
+};
+
 /* Each crumb as (selected segment, the segments it offers). */
 let crumbs_of = (~space=nav_space, name: string) =>
   SlidePath.breadcrumb(~current=index_of(space, name), paths_of(space))
@@ -314,6 +337,67 @@ let step_in_folder_tests = [
   ),
 ];
 
+let traversal_tests = [
+  test_case("stepping a folder to its end visits it in order", `Quick, () =>
+    List.iter(
+      space =>
+        List.iter(
+          name => {
+            let folder = folder_of_slide(space, name);
+            check(
+              strings,
+              "forward from the start of " ++ name ++ "'s folder",
+              folder,
+              walk(~space, ~by=1, List.hd(folder)),
+            );
+            /* walk reports visit order, so going backward from the last
+               slide sees the folder in reverse. */
+            check(
+              strings,
+              "backward from the end of " ++ name ++ "'s folder",
+              List.rev(folder),
+              walk(
+                ~space,
+                ~by=-1,
+                List.nth(folder, List.length(folder) - 1),
+              ),
+            );
+          },
+          space,
+        ),
+      [nav_space, scattered],
+    )
+  ),
+  test_case("a slide clamps exactly when it is at a folder edge", `Quick, ()
+    /* The view reads is_first/is_last off folder_position and expects the
+       arrows, which use step_in_folder, to agree. */
+    =>
+      List.iter(
+        space =>
+          List.iter(
+            name => {
+              let {index_in_folder, folder_size}: SlidePath.folder_position =
+                position_of(~space, name);
+              check(
+                bool,
+                "prev clamps at " ++ name ++ " iff it is first in its folder",
+                index_in_folder == 0,
+                String.equal(step_from(~space, ~by=-1, name), name),
+              );
+              check(
+                bool,
+                "next clamps at " ++ name ++ " iff it is last in its folder",
+                index_in_folder == folder_size - 1,
+                String.equal(step_from(~space, ~by=1, name), name),
+              );
+            },
+            space,
+          ),
+        [nav_space, scattered],
+      )
+    ),
+];
+
 let breadcrumb_tests = [
   test_case("one crumb per segment, siblings as options", `Quick, () =>
     check(
@@ -395,5 +479,6 @@ let tests = [
   ("SlidePath.folder", folder_tests),
   ("SlidePath.folder_position", folder_position_tests),
   ("SlidePath.step_in_folder", step_in_folder_tests),
+  ("SlidePath folder traversal", traversal_tests),
   ("SlidePath.breadcrumb", breadcrumb_tests),
 ];
