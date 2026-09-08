@@ -170,7 +170,7 @@ let type_annotation_data =
 let player_data =
     (
       ~can_player: bool,
-      probe_status: ProbePerform.probe_status,
+      probe_status: ProbeTargets.probe_status,
       ci: option(Language.Info.t),
     )
     : list(Menu.item(command)) =>

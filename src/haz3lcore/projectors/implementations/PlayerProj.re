@@ -99,6 +99,7 @@ module M: Projector = {
     View.{
       inline: div([]),
       overlay: None,
+      below: None,
       error: false,
       offside:
         Some(

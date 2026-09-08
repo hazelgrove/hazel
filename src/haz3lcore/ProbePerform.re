@@ -500,6 +500,7 @@ let step_into_call_stack =
       | Multi
       | Manual(_)
       | Statics(_)
+      | Player(_)
       | Ephemeral(_) => z
       | Suppressed(_)
       | Non => add_multi(args_id, ~syntax, ~info_map, z)
