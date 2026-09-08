@@ -4,18 +4,13 @@ open Language;
 
 module Sexp = Sexplib.Sexp;
 
-/* Signature for domain-specific representations with clear parsing and rendering phases.
-      Each RichProbe module handles a specific visualization of syntax elements.
-
-      - 'value': The abstract data type representing the parsed internal representation of the probed value.
-        This is parsed and it's presence signifies the ability to visualize the expression.
-
-      - 'model': The UI state for the probe's interactive elements and controls.
-        Stores user inputs, selected options, and transient state.
-
-      - 'action': Events that can change the probe's model, like user interactions
-        (button clicks, input changes) or system updates. This can also be used to update the syntax/
-   */
+/* A rich probe renderer: a domain-specific view of probed values.
+   - value: the parsed representation; `parse` succeeding means the
+     renderer can show the expression.
+   - model: UI state of the rendering's controls, persisted with the probe.
+   - action: events that update the model. A rendering can also request
+     editor-level effects (syntax edits, focus) through its `~parent`
+     callback (external_action). */
 module type RichProbe = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -28,11 +23,20 @@ module type RichProbe = {
   /* Parse an expression into its domain-specific value representation.
      This extracts the structured data needed for interactive visualization. */
   let parse: (Sort.t, Exp.t) => option(value);
+  /* Whether a parsed value is positive evidence that this renderer should
+     be picked AUTOMATICALLY (auto-rich embeds, wells). Explicit picks ignore
+     it. Lets a renderer decline vacuous matches (an empty list parses as an
+     empty card hand) or opt out of auto-selection altogether (tables). */
+  let auto_applies: value => bool;
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
   /* Default state independent of any sample value — the model a
      text-level renderer selection (`^^probe@<id>`) starts with. */
   let empty: model;
+
+  /* Height in editor rows when the rendering replaces the sample view in
+     the drawer, so the framework can reserve the right number of lines. */
+  let drawer_rows: value => int;
 
   let badge: Node.t;
 
@@ -71,9 +75,13 @@ type packed_action =
 type packed_renderer = {
   id: string,
   can_handle: (Sort.t, Exp.t) => bool,
+  /* can_handle AND the renderer's auto_applies — the predicate every
+     automatic renderer pick goes through */
+  auto_applies: (Sort.t, Exp.t) => bool,
   init_model: (Sort.t, Exp.t) => option(packed_model),
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
+  drawer_rows: (Sort.t, Exp.t) => option(int),
   render_model:
     (
       packed_model,
@@ -140,9 +148,16 @@ let pack_renderer =
   {
     id,
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
+    auto_applies: (sort, exp) =>
+      switch (R.parse(sort, exp)) {
+      | Some(v) => R.auto_applies(v)
+      | None => false
+      },
     init_model: (sort, exp) =>
       R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
+    drawer_rows: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(R.drawer_rows),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
