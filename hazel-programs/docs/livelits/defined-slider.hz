@@ -14,9 +14,9 @@ let ^pct = {
 
   let init : Model = 50;
 
-  let update = fun (m, a) : (Model, Action) -> a;
+  let update(_m: Model, a: Action): Model = a;
 
-  let view = fun m : Model ->
+  let view(m: Model): HTML =
     Div(
       [Style([("display", "flex"), ("gap", "0.5em"),
               ("align-items", "center"),
@@ -26,15 +26,15 @@ let ^pct = {
         Input([
           Type("range"), Min("0"), Max("100"),
           Value(string_of_int(m)),
-          OnInput(fun s -> int_of_string(s))
+          OnInput(fun (s: String) -> int_of_string(s))
         ]),
         Text(string_of_int(m) ++ "%")
       ]
     );
 
-  let expand = fun m : Model -> m;
+  let expand(m: Model): Int = m;
 
-  let shape = Inline(20)
+  let shape : LivelitShape = Inline(20)
 } in
 
 # Each use below carries its own model, stored right here in the #

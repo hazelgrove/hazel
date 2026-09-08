@@ -8,19 +8,27 @@
 type Trace = + Trace([Int], Int, Int) in
 
 let ^trace = {
-  # (readings in C, low, high, dragging: a reading index, -2 the low line, -3 the high line, -1 none) #
+  # (readings in C, low, high, dragging: a reading index, #
+  #  -2 the low line, -3 the high line, -1 none)          #
   type Model = ([Int], Int, Int, Int);
   type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up;
+
   let init : Model = ([4, 5, 5, 6, 9, 11, 7, 5, 4, 3, 1, 2], 2, 8, -1);
 
   # hour i sits at x = 20 + 20 i; t degrees at y = 136 - 8 t (0..16 C) #
-  let s = string_of_int;
-  let x_of = fun i -> 20 + 20 * i;
-  let y_of = fun t -> 136 - 8 * t;
-  let t_of = fun y -> let t = (140 - y) / 8 in if t < 0 then 0 else if t > 16 then 16 else t;
-  let near = fun (y, t) -> abs(y - y_of(t)) <= 7;
+  let s : Int -> String = string_of_int;
 
-  let update = fun ((rs, lo, hi, drag), a) : (Model, Action) ->
+  let x_of(i: Int): Int = 20 + 20 * i;
+
+  let y_of(t: Int): Int = 136 - 8 * t;
+
+  let t_of(y: Int): Int =
+    let t = (140 - y) / 8 in
+    if t < 0 then 0 else if t > 16 then 16 else t;
+
+  let near(y: Int, t: Int): Bool = abs(y - y_of(t)) <= 7;
+
+  let update((rs, lo, hi, drag): Model, a: Action): Model =
     case a
     | Down(x, y) =>
       let i = (x - 10) / 20 in
@@ -30,79 +38,117 @@ let ^trace = {
       else (rs, lo, hi, -1)
     | MoveTo(_, y) =>
       let t = t_of(y) in
-      if drag >= 0 then (mapi(rs, fun (j, r) -> if j == drag then t else r), lo, hi, drag)
+      if drag >= 0 then
+        (mapi(rs, fun (j: Int, r: Int) -> if j == drag then t else r), lo, hi, drag)
       else if drag == -2 then (rs, if t < hi then t else hi - 1, hi, drag)
       else if drag == -3 then (rs, lo, if t > lo then t else lo + 1, drag)
       else (rs, lo, hi, drag)
     | Up => (rs, lo, hi, -1)
     end;
 
-  let limit = fun (t, label) ->
-    [Node("line", [Create("x1", "20"), Create("y1", s(y_of(t))), Create("x2", "250"), Create("y2", s(y_of(t))),
-                   Create("stroke", "#3a3"), Create("stroke-dasharray", "5 3")], []),
-     Node("text", [Create("x", "2"), Create("y", s(y_of(t) + 3)), Create("font-size", "9"), Create("fill", "#3a3")],
-          [Text(label ++ s(t))])];
+  # a dashed band line with its label #
+  let limit(t: Int, label: String): HTML =
+    Node("g", [], [
+      Node("line",
+        [Create("x1", "20"), Create("y1", s(y_of(t))),
+         Create("x2", "250"), Create("y2", s(y_of(t))),
+         Create("stroke", "#3a3"), Create("stroke-dasharray", "5 3")],
+        []),
+      Node("text",
+        [Create("x", "2"), Create("y", s(y_of(t) + 3)), Create("font-size", "9"),
+         Create("fill", "#3a3")],
+        [Text(label ++ s(t))])]);
 
-  let reading = fun (i, t, lo, hi, held) ->
+  # one reading: its hour column (tinted red when out of band), dot and label #
+  let reading(i: Int, t: Int, lo: Int, hi: Int, held: Bool): HTML =
     let bad = t < lo || t > hi in
-    [Node("rect", [Create("x", s(x_of(i) - 10)), Create("y", "4"), Create("width", "20"), Create("height", "132"),
-                   Create("fill", if bad then "#f003" else "none")], []),
-     Node("circle", [Create("cx", s(x_of(i))), Create("cy", s(y_of(t))), Create("r", "5"),
-                     Create("fill", if held then "orange" else if bad then "#c33" else "teal")], []),
-     Node("text", [Create("x", s(x_of(i))), Create("y", "144"), Create("font-size", "8"), Create("text-anchor", "middle"),
-                   Create("fill", "#888")], [Text(s(i) ++ "h")])];
+    Node("g", [], [
+      Node("rect",
+        [Create("x", s(x_of(i) - 10)), Create("y", "4"), Create("width", "20"),
+         Create("height", "132"), Create("fill", if bad then "#f003" else "none")],
+        []),
+      Node("circle",
+        [Create("cx", s(x_of(i))), Create("cy", s(y_of(t))), Create("r", "5"),
+         Create("fill", if held then "orange" else if bad then "#c33" else "teal")],
+        []),
+      Node("text",
+        [Create("x", s(x_of(i))), Create("y", "144"), Create("font-size", "8"),
+         Create("text-anchor", "middle"), Create("fill", "#888")],
+        [Text(s(i) ++ "h")])]);
 
-  let view = fun (rs, lo, hi, drag) : Model ->
-    Div([Create("data-hint", "drag dots and dashed lines"), Style([("cursor", "ns-resize")])], [
-      Node("svg",
-        [Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
-         Style([("border", "1px solid #ccc"), ("background", "#fafafa"), ("font-family", "sans-serif")]),
-         OnMouseDownAt(fun (x, y) -> Down(x, y)), OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)),
-         OnMouseUpAt(fun _ -> Up)],
-        Node("rect", [Create("x", "20"), Create("y", s(y_of(hi))), Create("width", "230"),
-                      Create("height", s(8 * (hi - lo))), Create("fill", "#3a31")], [])
-        :: Node("polyline", [Create("points", string_join(" ", mapi(rs, fun (i, t) -> s(x_of(i)) ++ "," ++ s(y_of(t))))),
-                             Create("fill", "none"), Create("stroke", "#888"), Create("stroke-width", "2")], [])
-        :: limit(lo, "low ") @ limit(hi, "high ")
-        @ concat(mapi(rs, fun (i, t) -> reading(i, t, lo, hi, i == drag))))
-    ]);
+  let view((rs, lo, hi, drag): Model): HTML =
+    Div(
+      [Create("data-hint", "drag dots and dashed lines"),
+       Style([("cursor", "ns-resize")])],
+      [Node("svg",
+         [Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
+          Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
+                 ("font-family", "sans-serif")]),
+          OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
+          OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
+          OnMouseUpAt(fun _ -> Up)],
+         Node("rect",
+           [Create("x", "20"), Create("y", s(y_of(hi))), Create("width", "230"),
+            Create("height", s(8 * (hi - lo))), Create("fill", "#3a31")],
+           [])
+         :: Node("polyline",
+              [Create("points",
+                 string_join(" ",
+                   mapi(rs, fun (i: Int, t: Int) -> s(x_of(i)) ++ "," ++ s(y_of(t))))),
+               Create("fill", "none"), Create("stroke", "#888"),
+               Create("stroke-width", "2")],
+              [])
+         :: limit(lo, "low ")
+         :: limit(hi, "high ")
+         :: mapi(rs, fun (i: Int, t: Int) -> reading(i, t, lo, hi, i == drag)))]);
 
-  let expand = fun (rs, lo, hi, _) : Model -> Trace(rs, lo, hi);
+  let expand((rs, lo, hi, _): Model): Trace = Trace(rs, lo, hi);
 
-  let wrap : Trace -> Model = fun v -> case v | Trace(rs, lo, hi) => (rs, lo, hi, -1) end;
+  let wrap(v: Trace): Model =
+    case v
+    | Trace(rs, lo, hi) => (rs, lo, hi, -1)
+    end;
 
-  let shape = Block(26, 6)
+  let shape : LivelitShape = Block(26, 6)
 } in
 
-let show : Trace -> HTML = fun v -> ^trace.view(^trace.wrap(v)) in
+let show(v: Trace): HTML = ^trace.view(^trace.wrap(v)) in
 
 # Maximal runs of consecutive hours outside the band, as (first hour, last hour) #
-let excursions : Trace -> [(Int, Int)] =
-  fun tr -> case tr | Trace(rs, lo, hi) =>
-    let out = fun t -> t < lo || t > hi in
-    # walk the readings with the index and the start hour of the current run (-1 outside a run) #
-    let runs : ([Int], Int, Int) -> [(Int, Int)] =
-      fun rest, i, start ->
-        case rest
-        | [] => if start == -1 then [] else [(start, i - 1)]
-        | t :: tl =>
-          if out(t) then runs(tl, i + 1, if start == -1 then i else start)
-          else if start == -1 then runs(tl, i + 1, -1)
-          else (start, i - 1) :: runs(tl, i + 1, -1)
-        end in
-    runs(rs, 0, -1) end in
+let excursions(tr: Trace): [(Int, Int)] =
+  case tr
+  | Trace(rs, lo, hi) =>
+    let out(t: Int): Bool = t < lo || t > hi in
+    # walk the readings with the hour and the start of the current run #
+    # (-1 while inside the band)                                        #
+    let runs(rest: [Int], i: Int, start: Int): [(Int, Int)] =
+      case rest
+      | [] => if start == -1 then [] else [(start, i - 1)]
+      | t :: tl =>
+        if out(t) then runs(tl, i + 1, if start == -1 then i else start)
+        else if start == -1 then runs(tl, i + 1, -1)
+        else (start, i - 1) :: runs(tl, i + 1, -1)
+      end
+    in
+    runs(rs, 0, -1)
+  end
+in
 
 # A batch passes when no excursion lasts longer than the tolerance, in hours #
-let batch_ok : (Trace, Int) -> Bool =
-  fun (tr, tolerance) -> all(excursions(tr), fun (a, b) -> b - a + 1 <= tolerance) in
+let batch_ok(tr: Trace, tolerance: Int): Bool =
+  all(excursions(tr), fun (a: Int, b: Int) -> b - a + 1 <= tolerance)
+in
 
-let verdict : Bool -> HTML =
-  fun ok ->
-    Span([Style([("padding", "2px 8px"), ("border-radius", "4px"), ("color", "#fff"), ("font-weight", "bold"),
-                 ("background", if ok then "#3a3" else "#c33")])],
-         [Text(if ok then "OK" else "REJECT")]) in
+let verdict(ok: Bool): HTML =
+  Span(
+    [Style([("padding", "2px 8px"), ("border-radius", "4px"), ("color", "#fff"),
+            ("font-weight", "bold"), ("background", if ok then "#3a3" else "#c33")])],
+    [Text(if ok then "OK" else "REJECT")])
+in
 
-let input : Trace = ^^livelit(^trace(([4, 5, 5, 6, 9, 11, 7, 5, 4, 3, 1, 2], 2, 8, -1))) in
+let input : Trace =
+  ^^livelit(^trace(([4, 5, 5, 6, 9, 11, 7, 5, 4, 3, 1, 2], 2, 8, -1)))
+in
 let tolerance : Int = ^^slider(2) in
 let ok : Bool = batch_ok(input, tolerance) in
 

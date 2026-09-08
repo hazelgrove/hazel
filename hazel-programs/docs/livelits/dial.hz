@@ -9,14 +9,15 @@ let ^dial = {
   # (degrees, held) #
   type Model = (Int, Bool);
   type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up;
+
   let init : Model = (45, false);
 
-  # centre (43, 44); the pointer's bearing from the centre, clockwise from the top #
-  let bearing = fun (x, y) ->
+  # centre (43, 44); the pointer's bearing from there, clockwise from the top #
+  let bearing(x: Int, y: Int): Int =
     let a = atan2(float_of_int(x - 43), float_of_int(44 - y)) *. 180.0 /. pi in
     int_mod(int_of_float(round(a)), 360);
 
-  let update = fun ((deg, held), a) : (Model, Action) ->
+  let update((deg, held): Model, a: Action): Model =
     case a
     | Down(x, y) => (bearing(x, y), true)
     | MoveTo(x, y) => if held then (bearing(x, y), true) else (deg, held)
@@ -24,53 +25,89 @@ let ^dial = {
     end;
 
   # a point r px from the centre at the given bearing #
-  let tip = fun (deg, r) ->
+  let tip(deg: Int, r: Int): (String, String) =
     let a = float_of_int(deg) *. pi /. 180.0 in
-    (to_fixed(43.0 +. float_of_int(r) *. sin(a), 1), to_fixed(44.0 -. float_of_int(r) *. cos(a), 1));
+    (to_fixed(43.0 +. float_of_int(r) *. sin(a), 1),
+     to_fixed(44.0 -. float_of_int(r) *. cos(a), 1));
 
-  let tick = fun deg ->
-    let (x1, y1) = tip(deg, 32) in let (x2, y2) = tip(deg, 38) in
-    Node("line", [Create("x1", x1), Create("y1", y1), Create("x2", x2), Create("y2", y2), Create("stroke", "#888")], []);
+  let tick(deg: Int): HTML =
+    let (x1, y1) = tip(deg, 32) in
+    let (x2, y2) = tip(deg, 38) in
+    Node("line",
+      [Create("x1", x1), Create("y1", y1), Create("x2", x2), Create("y2", y2),
+       Create("stroke", "#888")],
+      []);
 
-  let view = fun (deg, held) : Model ->
+  let view((deg, held): Model): HTML =
     let (nx, ny) = tip(deg, 30) in
     Node("svg",
-      [Create("viewBox", "0 0 86 96"), Width("86"), Height("96"), Style([("cursor", "grab")]),
-       OnMouseDownAt(fun (x, y) -> Down(x, y)), OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)), OnMouseUpAt(fun _ -> Up)],
-      [Node("circle", [Create("cx", "43"), Create("cy", "44"), Create("r", "38"), Create("fill", "#fafafa"),
-                       Create("stroke", "#888")], []),
+      [Create("viewBox", "0 0 86 96"), Width("86"), Height("96"),
+       Style([("cursor", "grab")]),
+       OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
+       OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
+       OnMouseUpAt(fun _ -> Up)],
+      [Node("circle",
+         [Create("cx", "43"), Create("cy", "44"), Create("r", "38"),
+          Create("fill", "#fafafa"), Create("stroke", "#888")],
+         []),
        tick(0), tick(90), tick(180), tick(270),
-       Node("line", [Create("x1", "43"), Create("y1", "44"), Create("x2", nx), Create("y2", ny),
-                     Create("stroke", if held then "orange" else "teal"), Create("stroke-width", "3"),
-                     Create("stroke-linecap", "round")], []),
-       Node("circle", [Create("cx", "43"), Create("cy", "44"), Create("r", "4"), Create("fill", "#444")], []),
-       Node("text", [Create("x", "43"), Create("y", "94"), Create("font-size", "11"), Create("text-anchor", "middle"),
-                     Create("font-family", "sans-serif")], [Text(string_of_int(deg) ++ "°")])]);
+       Node("line",
+         [Create("x1", "43"), Create("y1", "44"), Create("x2", nx), Create("y2", ny),
+          Create("stroke", if held then "orange" else "teal"),
+          Create("stroke-width", "3"), Create("stroke-linecap", "round")],
+         []),
+       Node("circle",
+         [Create("cx", "43"), Create("cy", "44"), Create("r", "4"),
+          Create("fill", "#444")],
+         []),
+       Node("text",
+         [Create("x", "43"), Create("y", "94"), Create("font-size", "11"),
+          Create("text-anchor", "middle"), Create("font-family", "sans-serif")],
+         [Text(string_of_int(deg) ++ "°")])]);
 
-  let expand = fun (deg, _) : Model -> Angle(deg);
+  let expand((deg, _): Model): Angle = Angle(deg);
 
-  let wrap : Angle -> Model = fun v -> case v | Angle(deg) => (deg, false) end;
+  let wrap(v: Angle): Model =
+    case v
+    | Angle(deg) => (deg, false)
+    end;
 
-  let shape = Tab(9, 4)
+  let shape : LivelitShape = Tab(9, 4)
 } in
 
-let show : Angle -> HTML = fun v -> ^dial.view(^dial.wrap(v)) in
+let show(v: Angle): HTML = ^dial.view(^dial.wrap(v)) in
 
-let turn : (Angle, Int) -> Angle = fun (a, by) -> case a | Angle(deg) => Angle(int_mod(deg + by, 360)) end in
+let turn(a: Angle, by: Int): Angle =
+  case a
+  | Angle(deg) => Angle(int_mod(deg + by, 360))
+  end
+in
 
-let compass : Angle -> String =
-  fun a -> case a | Angle(deg) => nth(["N", "NE", "E", "SE", "S", "SW", "W", "NW"], int_mod((deg + 22) / 45, 8)) end in
+let compass(a: Angle): String =
+  case a
+  | Angle(deg) =>
+    nth(["N", "NE", "E", "SE", "S", "SW", "W", "NW"], int_mod((deg + 22) / 45, 8))
+  end
+in
 
 # The smaller of the two ways round between headings, in degrees #
-let between : (Angle, Angle) -> Int =
-  fun (a, b) -> case (a, b) | (Angle(p), Angle(q)) => let d = int_mod(p - q, 360) in if d > 180 then 360 - d else d end in
+let between(a: Angle, b: Angle): Int =
+  case (a, b)
+  | (Angle(p), Angle(q)) =>
+    let d = int_mod(p - q, 360) in
+    if d > 180 then 360 - d else d
+  end
+in
 
 let heading : Angle = ^^livelit(^dial((45, false))) in
 let wind : Angle = ^^livelit(^dial((300, false))) in
 let drift : Int = ^^slider(15) in
 
-test compass(Angle(0)) == "N" && compass(Angle(350)) == "N" && compass(Angle(200)) == "S" end;
+test compass(Angle(0)) == "N" && compass(Angle(350)) == "N" end;
+test compass(Angle(200)) == "S" end;
 test turn(Angle(350), 20) == Angle(10) end;
 test between(Angle(10), Angle(350)) == 20 end;
 
-(course=compass(heading), off_wind=between(heading, wind), drifted=show(turn(heading, drift)))
+(course=compass(heading),
+ off_wind=between(heading, wind),
+ drifted=show(turn(heading, drift)))
