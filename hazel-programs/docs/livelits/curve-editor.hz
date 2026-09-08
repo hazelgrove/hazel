@@ -1,0 +1,136 @@
+# Curve Editor: a polyline you shape by hand.                       #
+# Drag a point to move it. Press on empty space to add a point into #
+# the nearest segment (and keep dragging it). Click a point to      #
+# remove it. A use expands to Curve(points); the functions below    #
+# smooth, close and measure it, and `show` renders any Curve with   #
+# the same view.                                                    #
+
+type Curve = + Curve([(Int, Int)]) in
+
+let ^curve = {
+  # (points, index of the point being dragged or -1, moved since press) #
+  type Model = ([(Int, Int)], Int, Bool);
+  type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up;
+  let init : Model = ([(30, 110), (90, 40), (160, 110), (230, 40)], -1, false);
+
+  let d2 = fun ((ax, ay), (bx, by)) -> (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
+
+  # index of the point under p (within 10px), or -1 #
+  let hit : ([(Int, Int)], (Int, Int), Int) -> Int =
+    fun pts, p, i ->
+      case pts | [] => -1 | q :: tl => if d2(p, q) <= 100 then i else hit(tl, p, i + 1) end;
+
+  # squared distance from p to the segment ab #
+  let seg_d2 = fun (a, b, p) ->
+    let (ax, ay) = a in let (bx, by) = b in let (px, py) = p in
+    let num = (px - ax) * (bx - ax) + (py - ay) * (by - ay) in
+    let den = d2(a, b) in
+    if num <= 0 || den == 0 then d2(p, a)
+    else if num >= den then d2(p, b)
+    else d2(p, (ax + (bx - ax) * num / den, ay + (by - ay) * num / den));
+
+  # index of the segment closest to p (segment i runs from point i to i+1) #
+  let nearest_seg : ([(Int, Int)], (Int, Int), Int, Int, Int) -> Int =
+    fun pts, p, i, best, best_d ->
+      case pts
+      | a :: b :: tl =>
+        let d = seg_d2(a, b, p) in
+        if d < best_d then nearest_seg(b :: tl, p, i + 1, i, d)
+        else nearest_seg(b :: tl, p, i + 1, best, best_d)
+      | _ => best
+      end;
+
+  let insert_at : ([(Int, Int)], Int, (Int, Int)) -> [(Int, Int)] =
+    fun pts, i, p ->
+      if i <= 0 then p :: pts
+      else case pts | [] => [p] | hd :: tl => hd :: insert_at(tl, i - 1, p) end;
+
+  let update = fun ((pts, drag, moved), a) : (Model, Action) ->
+    case a
+    | Down(x, y) =>
+      let h = hit(pts, (x, y), 0) in
+      if h != -1 then (pts, h, false)
+      else
+        let i = nearest_seg(pts, (x, y), 0, -1, 999999) + 1 in
+        (insert_at(pts, i, (x, y)), i, true)
+    | MoveTo(x, y) =>
+      if drag == -1 then (pts, drag, moved)
+      else if !moved && d2((x, y), nth(pts, drag)) < 9 then (pts, drag, moved)
+      else (mapi(pts, fun (j, q) -> if j == drag then (x, y) else q), drag, true)
+    | Up =>
+      if drag == -1 || moved then (pts, -1, false)
+      else (map(filter(enumerate(pts), fun (j, _) -> j != drag), snd), -1, false)
+    end;
+
+  let dot = fun ((x, y), held) ->
+    Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)),
+                    Create("r", "6"), Create("fill", if held then "coral" else "teal")], []);
+
+  let path = fun pts ->
+    string_join(" ", map(pts, fun (x, y) -> string_of_int(x) ++ "," ++ string_of_int(y)));
+
+  let view = fun (pts, drag, _) : Model ->
+    Div([Create("data-hint", "drag a point; click removes; press empty space adds"),
+         Style([("display", "flex"), ("flex-direction", "column")])], [
+      Node("svg",
+        [Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
+         Style([("border", "1px solid #ccc"), ("background", "#fafafa"), ("cursor", "crosshair")]),
+         OnMouseDownAt(fun (x, y) -> Down(x, y)),
+         OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)),
+         OnMouseUpAt(fun _ -> Up)],
+        Node("polyline", [Create("points", path(pts)), Create("fill", "none"),
+                          Create("stroke", "#555"), Create("stroke-width", "2")], [])
+        :: mapi(pts, fun (i, p) -> dot(p, i == drag))),
+      Div([Style([("font-size", "0.7em"), ("line-height", "20px"), ("color", "#888")])],
+          [Text(string_of_int(length(pts)) ++ " points")])
+    ]);
+
+  let expand = fun (pts, _, _) : Model -> Curve(pts);
+
+  # a display model for any Curve value (no drag in progress) #
+  let wrap : Curve -> Model = fun v -> case v | Curve(pts) => (pts, -1, false) end;
+
+  let shape = Block(26, 7)
+} in
+
+let show : Curve -> HTML = fun v -> ^curve.view(^curve.wrap(v)) in
+
+# Each pass moves every interior point toward the average of its neighbours #
+let smooth : (Curve, Int) -> Curve =
+  fun (c, passes) ->
+    let rest : [(Int, Int)] -> [(Int, Int)] =
+      fun pts ->
+        case pts
+        | (ax, ay) :: (bx, by) :: (cx, cy) :: tl =>
+          ((ax + 2 * bx + cx) / 4, (ay + 2 * by + cy) / 4) :: rest((bx, by) :: (cx, cy) :: tl)
+        | _ :: last :: [] => [last]
+        | _ => []
+        end in
+    let pass = fun pts -> case pts | [] => [] | hd :: _ => hd :: rest(pts) end in
+    case c | Curve(pts) => Curve(fold_left(range(1, passes), fun (acc, _) -> pass(acc), pts)) end in
+
+# Closing a curve joins its last point back to its first #
+let close : (Curve, Bool) -> Curve =
+  fun (c, closed) -> case c | Curve(pts) => if closed then Curve(pts @ take(pts, 1)) else c end in
+
+let curve_length : Curve -> Int =
+  fun c ->
+    let go : [(Int, Int)] -> Float =
+      fun pts ->
+        case pts
+        | (ax, ay) :: (bx, by) :: tl =>
+          sqrt(float_of_int((ax - bx) * (ax - bx) + (ay - by) * (ay - by))) +. go((bx, by) :: tl)
+        | _ => 0.0
+        end in
+    case c | Curve(pts) => int_of_float(round(go(pts))) end in
+
+let input : Curve = ^^livelit(^curve(([(30, 110), (90, 40), (160, 110), (230, 40)], -1, false))) in
+let passes : Int = ^^slider(3) in
+let closed : Bool = ^^check(false) in
+let output : Curve = smooth(close(input, closed), passes) in
+
+test curve_length(Curve([(0, 0), (30, 40)])) == 50 end;
+test smooth(Curve([(0, 0), (100, 0), (100, 100)]), 1) == Curve([(0, 0), (75, 25), (100, 100)]) end;
+test close(Curve([(1, 1), (2, 2)]), true) == Curve([(1, 1), (2, 2), (1, 1)]) end;
+
+(show(output), curve_length(output))

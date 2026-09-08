@@ -1,0 +1,179 @@
+# TLDraw sketch -> Petrinaut Petri net (David Moon's glue, on Jq) #
+
+# Read a TLDraw document over Automerge, turn its geo shapes and   #
+# arrows into a Petrinaut net, and write that net to a second doc: #
+#   ellipse  -> place  (label "name:count" seeds `count` tokens)   #
+#   other geo -> transition                                        #
+#   arrow    -> arc, following its start/end bindings              #
+
+# --- the input: paste a TLDraw doc's automerge: URL into the box --- #
+# (kept as the first item: a read projector further down the       #
+#  program does not refresh the result until an upstream edit)     #
+
+let sketch = ^^Automerge(Null) in
+
+# --- helpers over one TLDraw record --- #
+
+# the first text run of a shape's rich-text label, or Null #
+let get_text = fun shape ->
+  Jq.run1([Jq.field("props"), Jq.field("richText"),
+           Jq.field("content"), Jq.index(0),
+           Jq.field("content"), Jq.index(0),
+           Jq.field("text")])(shape)
+in
+
+# "name:3" -> ("name", 3); anything else -> (label, 1) #
+let parse_label = fun shape ->
+  case get_text(shape)
+  | String(s) =>
+    case string_split(":", s)
+    | name :: count_str :: [] => (name, int_of_string(count_str))
+    | _ => (s, 1)
+    end
+  | _ => ("", 1)
+  end
+in
+
+let node_type = fun shape ->
+  case Jq.run1([Jq.field("props"), Jq.field("geo")])(shape)
+  | String("ellipse") => "place"
+  | _ => "transition"
+  end
+in
+
+# Petrinaut node ids are "<type>__<tldraw id>" #
+let prefix_id = fun (ntype: String, id) ->
+  case id
+  | String(s) => ntype ++ "__" ++ s
+  | _ => ""
+  end
+in
+
+# jq's select(.k == v): keep records whose field k equals v #
+let field_is = fun (key: String, expected) ->
+  Jq.select(fun v -> [Bool(Jq.run1([Jq.field(key)])(v) == expected)])
+in
+
+# --- the translation --- #
+
+let tldraw_to_petrinaut = fun input ->
+  # store: record id -> record; we only look at the values #
+  let store = Jq.run1([Jq.field("store")])(input) in
+
+  let shapes = Jq.run([Jq.iterate, field_is("type", String("geo"))])(store) in
+  # arrow bindings also carry type "arrow": keep only the shapes #
+  let arrows = Jq.run([Jq.iterate, field_is("typeName", String("shape")),
+                       field_is("type", String("arrow"))])(store) in
+
+  let nodes = map(shapes, fun shape ->
+    let ntype = node_type(shape) in
+    let id = prefix_id(ntype, Jq.run1([Jq.field("id")])(shape)) in
+    let (label, count) = parse_label(shape) in
+    Assoc(
+      [("data", Assoc(
+         [("label", String(label)), ("type", String(ntype))]
+         @ (if ntype == "place" then
+              [("initialTokenCounts", Assoc([("default", Int(count))])),
+               ("tokenCounts", Assoc([]))]
+            else []))),
+       ("id", String(id)),
+       ("position", Assoc([
+          ("x", Jq.run1([Jq.field("x")])(shape)),
+          ("y", Jq.run1([Jq.field("y")])(shape))])),
+       ("type", String(ntype))]
+      @ (if ntype == "place" then
+           [("height", Int(130)), ("width", Int(130))]
+         else
+           [("height", Int(80)), ("width", Int(160))]))
+  ) in
+
+  # the shape id an arrow's start/end terminal is bound to #
+  let find_bound = fun (arrow_id, terminal: String) ->
+    Jq.run1([Jq.iterate,
+             field_is("typeName", String("binding")),
+             field_is("fromId", arrow_id),
+             Jq.select(fun b ->
+               [Bool(Jq.run1([Jq.field("props"), Jq.field("terminal")])(b)
+                     == String(terminal))]),
+             Jq.field("toId")])(store)
+  in
+
+  let lookup_shape = fun shape_id ->
+    Jq.run1([Jq.iterate, field_is("id", shape_id)])(store)
+  in
+
+  let arcs = map(arrows, fun arrow ->
+    let arrow_id = Jq.run1([Jq.field("id")])(arrow) in
+    let source_id = find_bound(arrow_id, "start") in
+    let target_id = find_bound(arrow_id, "end") in
+    let src = prefix_id(node_type(lookup_shape(source_id)), source_id) in
+    let tgt = prefix_id(node_type(lookup_shape(target_id)), target_id) in
+    Assoc([
+      ("source", String(src)),
+      ("sourceHandle", Null),
+      ("target", String(tgt)),
+      ("targetHandle", Null),
+      ("id", String("arc__" ++ src ++ "-" ++ tgt)),
+      ("type", String("default")),
+      ("data", Assoc([("tokenWeights", Assoc([("default", Int(1))]))])),
+      ("interactionWidth", Int(8))])
+  ) in
+
+  Assoc([
+    ("title", String("TLDraw to Petri Net")),
+    ("petriNetDefinition", Assoc([
+       ("arcs", List(arcs)),
+       ("nodes", List(nodes)),
+       ("tokenTypes", List([
+          Assoc([("color", String("#3498db")),
+                 ("id", String("default")),
+                 ("name", String("Default"))])]))])),
+    ("@patchwork", Assoc([("type", String("petrinaut"))]))])
+in
+
+# --- the pipeline: translate, then push the net to a Petrinaut doc --- #
+
+let net = tldraw_to_petrinaut(sketch) in
+let out = ^^AutomergeWriteBack(net) in
+
+# --- a hand-drawn store: ellipse "buffer:3" --arrow--> rectangle "consume" --- #
+
+let rich_text = fun (s: String) ->
+  Assoc([("type", String("doc")),
+         ("content", List([Assoc([("type", String("paragraph")),
+           ("content", List([Assoc([("type", String("text")),
+                                    ("text", String(s))])]))])]))])
+in
+let geo = fun (id: String, kind: String, label: String, x: Float, y: Float) ->
+  Assoc([("id", String(id)), ("typeName", String("shape")),
+         ("type", String("geo")), ("x", Float(x)), ("y", Float(y)),
+         ("props", Assoc([("geo", String(kind)), ("richText", rich_text(label))]))])
+in
+let binding = fun (id: String, arrow: String, shape: String, terminal: String) ->
+  Assoc([("id", String(id)), ("typeName", String("binding")), ("type", String("arrow")),
+         ("fromId", String(arrow)), ("toId", String(shape)),
+         ("props", Assoc([("terminal", String(terminal))]))])
+in
+let sample_store = Assoc([("store", Assoc([
+  ("shape:p1", geo("shape:p1", "ellipse", "buffer:3", 100.0, 120.0)),
+  ("shape:t1", geo("shape:t1", "rectangle", "consume", 400.0, 150.0)),
+  ("shape:a1", Assoc([("id", String("shape:a1")), ("typeName", String("shape")),
+                      ("type", String("arrow")), ("props", Assoc([]))])),
+  ("binding:b1", binding("binding:b1", "shape:a1", "shape:p1", "start")),
+  ("binding:b2", binding("binding:b2", "shape:a1", "shape:t1", "end"))]))])
+in
+let sample_net = tldraw_to_petrinaut(sample_store) in
+let def = fun (key: String) ->
+  Jq.run([Jq.field("petriNetDefinition"), Jq.field(key), Jq.iterate])(sample_net)
+in
+
+test length(def("nodes")) == 2 end;
+test length(def("arcs")) == 1 end;
+test Jq.run1([Jq.index(0), Jq.field("id")])(List(def("nodes")))
+     == String("place__shape:p1") end;
+test Jq.run1([Jq.index(0), Jq.field("data"), Jq.field("initialTokenCounts"),
+              Jq.field("default")])(List(def("nodes"))) == Int(3) end;
+test Jq.run1([Jq.index(0), Jq.field("id")])(List(def("arcs")))
+     == String("arc__place__shape:p1-transition__shape:t1") end;
+
+net

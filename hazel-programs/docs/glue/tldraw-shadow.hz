@@ -1,0 +1,70 @@
+# TLDraw shadow pass (David Moon's glue, on Jq) #
+
+# Read a TLDraw document over Automerge and give every shape a   #
+# half-transparent twin ("shape:ht_<id>") offset 10px down-right. #
+# Old twins are dropped first, so writing the result back to the  #
+# same document is a fixpoint: shapes move, their shadows follow. #
+
+# --- the input: paste a TLDraw doc's automerge: URL into the box --- #
+# (first item on purpose: see tldraw-petrinaut.hz)                  #
+
+let doc = ^^Automerge(Null) in
+
+let starts_with = fun (prefix: String, json) ->
+  case Jq.startswith(prefix)(json)
+  | Bool(b) :: _ => b
+  | _ => false
+  end
+in
+
+# nudge a numeric field; TLDraw stores whole coordinates as Ints #
+let offset = fun (key: String, n: Float) ->
+  Jq.update(key, fun v ->
+    case v
+    | Float(x) => [Float(x +. n)]
+    | Int(i) => [Float(float_of_int(i) +. n)]
+    | _ => [v]
+    end)
+in
+
+let draw_shadow =
+  Jq.run1([Jq.update("store", Jq.with_entries(fun entry ->
+    let key = Jq.run1([Jq.field("key")])(entry) in
+    if starts_with("shape:ht_", key) then []
+    else if starts_with("shape:", key) then
+      let new_key =
+        Jq.run1([Jq.field("key"), Jq.string_sub("shape:", "shape:ht_")])(entry) in
+      let new_value =
+        Jq.run1([Jq.field("value"),
+                 Jq.set("id", new_key),
+                 Jq.set("opacity", Float(0.5)),
+                 offset("x", 10.0),
+                 offset("y", 10.0)])(entry) in
+      [entry, Assoc([("key", new_key), ("value", new_value)])]
+    else [entry]))])
+in
+
+# --- the pipeline: the same URL in both boxes makes the doc self-shadowing --- #
+
+let shadowed = draw_shadow(doc) in
+let out = ^^AutomergeWriteBack(shadowed) in
+
+# --- a hand-drawn store: one page, one shape, one stale shadow --- #
+
+let sample_store = Assoc([("store", Assoc([
+  ("page:page", Assoc([("id", String("page:page")), ("typeName", String("page"))])),
+  ("shape:s1", Assoc([("id", String("shape:s1")), ("typeName", String("shape")),
+                      ("type", String("geo")), ("x", Float(100.0)), ("y", Int(20)),
+                      ("opacity", Float(1.0))])),
+  ("shape:ht_s1", Assoc([("id", String("shape:ht_s1")), ("x", Float(0.0))]))]))])
+in
+let sample = draw_shadow(sample_store) in
+let shadow = Jq.run1([Jq.field("store"), Jq.field("shape:ht_s1")])(sample) in
+
+test Jq.run1([Jq.field("store"), Jq.length])(sample) == Int(3) end;
+test Jq.run1([Jq.field("id")])(shadow) == String("shape:ht_s1") end;
+test Jq.run1([Jq.field("x")])(shadow) == Float(110.0) end;
+test Jq.run1([Jq.field("y")])(shadow) == Float(30.0) end;
+test Jq.run1([Jq.field("opacity")])(shadow) == Float(0.5) end;
+
+shadowed
