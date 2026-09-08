@@ -604,6 +604,9 @@ let node_view =
       ~just_placed: list(string)=[],
       /* the selected type (the sidebar's canvas_focus_ty) wears a halo */
       ~focused_ty: option(string)=None,
+      /* a type node shown as a VALUE: the card content (a probe well over
+         a site of this type) and its close action */
+      ~value_card: option((Node.t, Effect.t(unit)))=None,
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -667,39 +670,94 @@ let node_view =
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
       ]
     };
-  div(
-    /* keyed: canvas children are one flat list, and an unkeyed diff
-       re-purposes elements when the list changes — taking their running
-       animations with them */
-    ~key="n:" ++ n.key,
-    ~attrs=
-      [
-        Attr.id(node_dom_id(n.key)),
-        clss(
-          ["canvas-node", kind_cls(n.kind)]
-          @ (is_module ? ["node-module"] : [])
-          @ (!is_module && n.former != None ? ["node-former"] : [])
-          @ (n.n_err ? ["node-err"] : [])
-          @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
-          @ (base != None ? ["node-glyphed"] : [])
-          /* grows out of the placement-preview dot */
-          @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
-        ),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "left: %spx; top: %spx; width: %spx; height: %spx;",
-            fmt(nl.p.x),
-            fmt(nl.p.y),
-            fmt(d),
-            fmt(d),
+  switch (value_card) {
+  | Some((content, on_close)) =>
+    /* the card hangs from the node's position: its top-left corner is
+       the circle's, so edges still meet the card at its anchor corner;
+       the user rearranges around it (drag) for now */
+    div(
+      ~key="n:" ++ n.key,
+      ~attrs=
+        [
+          Attr.id(node_dom_id(n.key)),
+          clss(
+            ["canvas-node", "node-value-card", kind_cls(n.kind)]
+            @ (focused_ty == Some(n.key) ? ["node-focused"] : []),
           ),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "left: %spx; top: %spx;",
+              fmt(nl.p.x),
+              fmt(nl.p.y),
+            ),
+          ),
+        ]
+        @ click_attrs,
+      [
+        div(
+          ~attrs=[clss(["value-card-head"])],
+          [
+            span(~attrs=[clss(["value-card-title"])], [text(n.label)]),
+            span(
+              ~attrs=[
+                clss(["value-card-close"]),
+                Attr.title("back to the type node"),
+                Attr.on_mousedown(_ => Effect.Stop_propagation),
+                Attr.on_click(_ =>
+                  Effect.Many([Effect.Stop_propagation, on_close])
+                ),
+              ],
+              [text({js|✕|js})],
+            ),
+          ],
         ),
-        Attr.title(tooltip),
-      ]
-      @ click_attrs,
-    label_nodes,
-  );
+        div(
+          ~attrs=[
+            clss(["value-card-body"]),
+            /* the well's own gestures (sample nav, drawer) must not start
+               a node drag */
+            Attr.on_mousedown(_ => Effect.Stop_propagation),
+          ],
+          [content],
+        ),
+      ],
+    )
+  | None =>
+    div(
+      /* keyed: canvas children are one flat list, and an unkeyed diff
+         re-purposes elements when the list changes — taking their running
+         animations with them */
+      ~key="n:" ++ n.key,
+      ~attrs=
+        [
+          Attr.id(node_dom_id(n.key)),
+          clss(
+            ["canvas-node", kind_cls(n.kind)]
+            @ (is_module ? ["node-module"] : [])
+            @ (!is_module && n.former != None ? ["node-former"] : [])
+            @ (n.n_err ? ["node-err"] : [])
+            @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
+            @ (base != None ? ["node-glyphed"] : [])
+            /* grows out of the placement-preview dot */
+            @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
+          ),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "left: %spx; top: %spx; width: %spx; height: %spx;",
+              fmt(nl.p.x),
+              fmt(nl.p.y),
+              fmt(d),
+              fmt(d),
+            ),
+          ),
+          Attr.title(tooltip),
+        ]
+        @ click_attrs,
+      label_nodes,
+    )
+  };
 };
 
 /* constants as slow-orbiting dots around their type's node: labels only
@@ -850,6 +908,8 @@ let view =
       ~just_placed: list(string)=[],
       /* the selected type node, if any */
       ~focused_ty: option(string)=None,
+      /* type nodes shown as value cards: key -> (content, close) */
+      ~value_cards: list((string, (Node.t, Effect.t(unit))))=[],
       /* picking the actor up */
       ~on_avatar_mousedown:
          Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
@@ -1457,12 +1517,15 @@ let view =
         ]
         @ telegraph_nodes
         @ List.map(
-            node_view(
-              ~on_node_mousedown,
-              ~on_node_contextmenu,
-              ~just_placed,
-              ~focused_ty,
-            ),
+            (nl: CanvasLayout.node_layout) =>
+              node_view(
+                ~on_node_mousedown,
+                ~on_node_contextmenu,
+                ~just_placed,
+                ~focused_ty,
+                ~value_card=List.assoc_opt(nl.node.key, value_cards),
+                nl,
+              ),
             lay.nodes,
           )
         @ List.map(

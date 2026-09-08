@@ -216,6 +216,11 @@ module Settings = {
        until the next selection brings it back */
     [@sexp.default false] [@yojson.default false]
     canvas_panel_hidden: bool,
+    /* type nodes shown as VALUES on the canvas: the node becomes a card
+       holding a probe well over a sample site of that type (rich view
+       when one applies), navigable like the panel wells */
+    [@sexp.default []] [@yojson.default []]
+    canvas_value_nodes: list(string),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -264,6 +269,7 @@ module Settings = {
     | SetCanvasPlace(option((string, list(string))))
     | SetCanvasExpand(option((int, int)))
     | SetCanvasProbeModel(string, string)
+    | ToggleCanvasValueNode(string)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
     | SetCanvasPanelHidden(bool)

@@ -2192,6 +2192,46 @@ let view_impl =
       ],
       [text(glyph)],
     );
+  /* type nodes shown as values: each card is a real probe well over the
+     newest sample site of that type (rich view when one applies) */
+  let toggle_value_node = (key: string) =>
+    globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key))));
+  let value_cards: list((string, (Node.t, Effect.t(unit)))) =
+    List.filter_map(
+      key =>
+        switch (
+          CanvasFocus.value_site(
+            ~dynamics=editor.dynamics,
+            ~info_map=editor.statics.info_map,
+            ~graph,
+            key,
+          )
+        ) {
+        | Some(id) =>
+          switch (CanvasProbe.view(~globals, ~editor, ~key="ty/" ++ key, id)) {
+          | Some(well) => Some((key, (well, toggle_value_node(key))))
+          | None => None
+          }
+        | None =>
+          Some((
+            key,
+            (
+              div(
+                ~attrs=[clss(["value-card-empty"])],
+                [
+                  text(
+                    globals.settings.core.probe_all
+                      ? "no values of this type observed yet"
+                      : "no samples — collect samples (values tab) and run",
+                  ),
+                ],
+              ),
+              toggle_value_node(key),
+            ),
+          ))
+        },
+      globals.settings.sidebar.canvas_value_nodes,
+    );
   let menu_rows: list(Node.t) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
@@ -2207,6 +2247,14 @@ let view_impl =
               "tuple with this component: click more nodes, then the canvas",
               () =>
               set_place(Some(("tuple", [syntax])))
+            ),
+            menu_icon(
+              {js|≡|js},
+              List.mem(key, globals.settings.sidebar.canvas_value_nodes)
+                ? "show the type node again"
+                : "show a value of this type here (a navigable probe well; rich view when one applies)",
+              () =>
+              toggle_value_node(key)
             ),
             menu_icon("[]", "list of this type, placed beside it", () => {
               let pos =
@@ -4350,6 +4398,7 @@ let view_impl =
             ~inject_jump,
             ~collapsed_counts,
             ~on_hull_toggle,
+            ~value_cards,
             ~dep_fan,
             ~on_edge_hover,
             ~on_value_click=Some(on_value_click),

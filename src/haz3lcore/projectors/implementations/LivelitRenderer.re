@@ -11,9 +11,10 @@ open Language;
    its `wrap : Expansion -> Model` member (or, when Model IS the expansion
    type, the value itself). Inert: handlers in the view dispatch nothing.
 
-   Resolution: the livelits in the probed expression's ctx, innermost
-   binding first; the first whose expansion type equals the value's type
-   (up to aliases) wins, so a nearer definition shadows an outer one. */
+   Resolution: the livelits in the probed site's ctx, innermost binding
+   first; the first whose expansion type equals the site's type (up to
+   aliases) AND whose view renders the value wins, so a nearer definition
+   shadows an outer one. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = unit;
@@ -23,7 +24,7 @@ type action = unit;
 type value = {
   ll_name: string,
   rows: int, /* the livelit's own block height, for the drawer */
-  closed: Exp.t /* the sampled value, closed */
+  raw: Exp.t /* the raw sample term: the render memo's key */
 };
 
 let update = (m: model, _: action) => m;
@@ -74,7 +75,7 @@ let site = (statics: option(Info.t)): option((Ctx.t, Typ.t)) =>
   | _ => None
   };
 
-/* livelits in scope whose expansion type is the value's type */
+/* livelits in scope whose expansion type is the site's type */
 let candidates = (statics: option(Info.t)): list(LivelitCtx.raw_livelit) =>
   switch (site(statics)) {
   | Some((ctx, ty)) when !is_unknown(ty) =>
@@ -110,39 +111,54 @@ let model_of =
     Typ.equal_up_to_aliases(ctx, ll.model_t, ll.expansion_t) ? Some(v) : None
   };
 
-/* (value identity, livelit) -> rendered html; samples are stable objects */
+/* (sample identity, livelit) -> rendered html. Keyed on the RAW sample
+   term (a stable object across renders); parse and render both go
+   through here, so a value is admitted only if its view really renders.
+   A livelit use's own stream mixes its HTML view samples with its
+   values — HTML is never wrapped, and a view that comes back stuck (a
+   wrap on the wrong shape) is rejected. */
 let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
-let html_of = (~ctx, ll: LivelitCtx.raw_livelit, v: Exp.t): option(Exp.t) =>
+let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
   switch (
     List.find_opt(
-      ((k, _)) => fst(k) === v && snd(k) == ll.name,
+      ((k, _)) => fst(k) === raw && snd(k) == ll.name,
       html_memo^,
     )
   ) {
   | Some((_, h)) => h
   | None =>
+    let v = MvuShape.close_value(raw);
     let h =
-      switch (ll.user_def) {
-      | None => None
-      | Some(def_elab) =>
-        switch (record_of(def_elab)) {
+      if (MvuShape.is_html(v)) {
+        None;
+      } else {
+        switch (ll.user_def) {
         | None => None
-        | Some(record) =>
-          switch (member(record, "view"), model_of(~ctx, ll, record, v)) {
-          | (Some(view), Some(m)) =>
-            switch (
-              MvuShape.safe_evaluate(
-                IdTagged.FreshGrammar.Exp.ap(Forward, view, m),
-              )
-            ) {
-            | Ok(html) when MvuShape.is_html(html) => Some(html)
+        | Some(def_elab) =>
+          switch (record_of(def_elab)) {
+          | None => None
+          | Some(record) =>
+            switch (member(record, "view"), model_of(~ctx, ll, record, v)) {
+            | (Some(view), Some(m)) =>
+              switch (
+                MvuShape.safe_evaluate(
+                  IdTagged.FreshGrammar.Exp.ap(Forward, view, m),
+                )
+              ) {
+              | Ok(html) when MvuShape.is_html(html) => Some(html)
+              | Ok(_) => None
+              | Error(e) =>
+                print_endline(
+                  "LivelitRenderer: ^" ++ ll.name ++ ".view failed: " ++ e,
+                );
+                None;
+              }
             | _ => None
             }
-          | _ => None
           }
-        }
+        };
       };
-    html_memo := [((v, ll.name), h), ...ListUtil.take(63, html_memo^)];
+    html_memo := [((raw, ll.name), h), ...ListUtil.take(63, html_memo^)];
     h;
   };
 
@@ -156,28 +172,19 @@ let rows_of = (ll: LivelitCtx.raw_livelit): int =>
 let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, _))) =>
-    let closed = MvuShape.close_value(exp);
     List.find_map(
       (ll: LivelitCtx.raw_livelit) =>
-        switch (ll.user_def) {
-        | Some(def_elab) =>
-          switch (record_of(def_elab)) {
-          | Some(record) when member(record, "view") != None =>
-            switch (model_of(~ctx, ll, record, closed)) {
-            | Some(_) =>
-              Some({
-                ll_name: ll.name,
-                rows: rows_of(ll),
-                closed,
-              })
-            | None => None
-            }
-          | _ => None
-          }
+        switch (html_of(~ctx, ll, exp)) {
+        | Some(_) =>
+          Some({
+            ll_name: ll.name,
+            rows: rows_of(ll),
+            raw: exp,
+          })
         | None => None
         },
       candidates(statics),
-    );
+    )
   | _ => None
   };
 
@@ -207,7 +214,7 @@ let render =
     switch (site(info.statics)) {
     | Some((ctx, _)) =>
       switch (Ctx.lookup_livelit(ctx, value.ll_name)) {
-      | Some(ll) => html_of(~ctx, ll, value.closed)
+      | Some(ll) => html_of(~ctx, ll, value.raw)
       | None => None
       }
     | _ => None

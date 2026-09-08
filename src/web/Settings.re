@@ -148,6 +148,7 @@ module Model = {
       canvas_tab: "definition",
       canvas_panel_height: None,
       canvas_panel_hidden: false,
+      canvas_value_nodes: [],
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
@@ -497,6 +498,19 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_panel_hidden: b,
+          },
+        }
+      | Sidebar(ToggleCanvasValueNode(key)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_value_nodes:
+              List.mem(key, settings.sidebar.canvas_value_nodes)
+                ? List.filter(
+                    k => k != key,
+                    settings.sidebar.canvas_value_nodes,
+                  )
+                : [key, ...settings.sidebar.canvas_value_nodes],
           },
         }
       | Sidebar(SetCanvasProbeModel(key, model)) => {

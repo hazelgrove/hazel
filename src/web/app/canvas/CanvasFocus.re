@@ -180,6 +180,85 @@ let value_info =
     ],
   );
 
+/* the pretty type names a node stands for: its label, its alias body,
+   or (former nodes "()@Model", "[]@Hand") the alias's body type */
+let node_type_names = (~graph: CanvasGraph.t, n: CanvasGraph.tynode) => {
+  let key = n.key;
+  let former_anchor = (prefix: string): option(string) => {
+    let pl = String.length(prefix);
+    String.length(key) > pl && String.sub(key, 0, pl) == prefix
+      ? Some(String.sub(key, pl, String.length(key) - pl)) : None;
+  };
+  switch (n.kind) {
+  | Product =>
+    switch (former_anchor("()@"), former_anchor("[]@")) {
+    | (Some(alias), _)
+    | (_, Some(alias)) =>
+      switch (node_of(graph, alias)) {
+      | Some({n_ty: Some(body), _}) => [body]
+      | _ => [alias]
+      }
+    | (None, None) => [n.key]
+    }
+  | _ =>
+    [n.label]
+    @ (
+      switch (n.n_ty) {
+      | Some(b) when b != n.label => [b]
+      | _ => []
+      }
+    )
+  };
+};
+
+/* the sample site to show for a type node: among the probed sites whose
+   type is this node's, prefer one a rich renderer applies to (a site
+   inside a livelit's own definition can't be shown through that
+   livelit — its name isn't in scope there), then the newest sample; the
+   well is then navigable through that site's history */
+let value_site =
+    (
+      ~dynamics: Language.Dynamics.Map.t,
+      ~info_map: Language.Statics.Map.t,
+      ~graph: CanvasGraph.t,
+      key: string,
+    )
+    : option(Id.t) =>
+  switch (node_of(graph, key)) {
+  | None => None
+  | Some(n) =>
+    let names = node_type_names(~graph, n);
+    let rich_ok = (id: Id.t, s: Language.Sample.t): bool => {
+      let statics = Id.Map.find_opt(id, info_map);
+      List.exists(
+        (r: RichProbe.packed_renderer) =>
+          r.id != "table" && r.can_handle(~statics, Sort.Exp, s.value),
+        RichProbeRegistry.renderers,
+      );
+    };
+    Language.Sample.Map.fold(
+      (id, samples, best) =>
+        switch (site_ty(~info_map, id), List.rev(samples)) {
+        | (Some(t), [newest_s, ..._]) when List.mem(t, names) =>
+          let newest =
+            List.fold_left(
+              (m, s: Language.Sample.t) => max(m, s.seq),
+              -1,
+              samples,
+            );
+          let rank = (rich_ok(id, newest_s) ? 1 : 0, newest);
+          switch (best) {
+          | Some((_, b)) when compare(b, rank) >= 0 => best
+          | _ => Some((id, rank))
+          };
+        | _ => best
+        },
+      dynamics,
+      None,
+    )
+    |> Option.map(fst);
+  };
+
 let type_view =
     (
       ~globals: Globals.t,
@@ -197,35 +276,7 @@ let type_view =
        let probing = globals.settings.core.probe_all;
        /* a site inhabits this type if its pretty type matches the node's
           name or (for aliases) its body */
-       /* the type this node stands for. Former nodes ("()@Model",
-          "[]@Hand") represent their ALIAS's body type, not unit/[?];
-          implicit products' keys are literal type syntax ("(Todo, Int)") */
-       let former_anchor = (prefix: string): option(string) => {
-         let pl = String.length(prefix);
-         String.length(key) > pl && String.sub(key, 0, pl) == prefix
-           ? Some(String.sub(key, pl, String.length(key) - pl)) : None;
-       };
-       let names =
-         switch (n.kind) {
-         | Product =>
-           switch (former_anchor("()@"), former_anchor("[]@")) {
-           | (Some(alias), _)
-           | (_, Some(alias)) =>
-             switch (node_of(graph, alias)) {
-             | Some({n_ty: Some(body), _}) => [body]
-             | _ => [alias]
-             }
-           | (None, None) => [n.key]
-           }
-         | _ =>
-           [n.label]
-           @ (
-             switch (n.n_ty) {
-             | Some(b) when b != n.label => [b]
-             | _ => []
-             }
-           )
-         };
+       let names = node_type_names(~graph, n);
        let tally: Hashtbl.t(string, (int, int, Language.Sample.t)) =
          Hashtbl.create(16);
        Language.Sample.Map.fold(
