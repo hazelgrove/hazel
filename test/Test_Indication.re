@@ -163,7 +163,7 @@ let literal_tests = [
   ind(~name="Before var", ~input={|¦foo|}, ~indicated="foo [R,S]"),
   ind(~name="After var", ~input={|foo¦|}, ~indicated="foo [L,S]"),
   /* --- Explicit holes --- */
-  ind(~name="Before explicit hole", ~input={|¦?|}, ~indicated="? [R,S]"),
+  ind(~name="Before explicit hole", ~input={|¦|}, ~indicated="? [R,S]"),
   ind(~name="After explicit hole", ~input={|?¦|}, ~indicated="? [L,S]"),
 ];
 
@@ -976,12 +976,15 @@ let grout_tests = [
     ~acts=string_to_ltr_actions("1+"),
     ~indicated="? [R,S]",
   ),
-  /* Concave grout: "1 1" produces concave grout between the operands.
-   * Move left 1 to be between grout and second 1 */
+  /* Zero-width holes collapse the old two caret stops around grout
+     into one: at `1 ¦1` the derived hole and the operand share the
+     position, and the HOLE wins the indication (it carries the
+     type/error info the inspector reports; flip the bias here if
+     operand-wins ever feels better live) */
   ind_acts(
-    ~name="Concave grout left, operand right: operand wins (inward)",
+    ~name="Concave grout left, operand right: hole wins at the collapse",
     ~acts=string_to_ltr_actions("1 1") @ mv_l(1),
-    ~indicated="1 [R,S]",
+    ~indicated="~ [R,S]",
   ),
   /* Concave grout: "1 1" move left 2 puts caret between ws and grout */
   ind_acts(

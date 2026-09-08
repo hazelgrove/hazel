@@ -854,7 +854,7 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
 
 /* === Tab dispatch ===
  * The T1 obligation whose chip zone contains the caret. Zone
- * resolution mirrors CanonicalCompletion.obligation_at_caret: the
+ * resolution mirrors CompletionQuery.obligation_at_caret: the
  * caret's whitespace/grout run plus bounding content pieces. A
  * merged chip (incomplete site) anchors at its closer insertion's
  * anchor; a complete site anchors at its inner right edge. Commas

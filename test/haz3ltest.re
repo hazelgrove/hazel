@@ -62,6 +62,10 @@ let (suite, exit_with_test_status) =
     @ Test_QuiverLayout.tests
     @ Test_CompletionDisplay.tests
     @ Test_CompletionFuzz.tests
+    @ Test_GroutPlace.tests
+    @ Test_FeltPrint.tests
+    @ Test_InlinePersist.tests
+    @ Test_GroutGeometry.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ Test_TabDispatch.tests

@@ -118,7 +118,14 @@ module Update = {
          list the quiver draws at the caret, witness first): type it
          through the normal pipeline, or materialize an opener */
       let action: Action.t =
-        switch (CompletionQuery.tab_action(z, model.editor.syntax.assist)) {
+        switch (
+          CompletionQuery.tab_action(
+            ~display=model.editor.syntax.segment,
+            ~marks=model.editor.syntax.ghost_marks,
+            z,
+            model.editor.syntax.assist,
+          )
+        ) {
         | Some(a) => a
         | None =>
           Zipper.can_put_down(z)
