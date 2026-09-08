@@ -1,7 +1,5 @@
 open Virtual_dom.Vdom;
-
-let icon_size = Util.SvgUtil.icon_size;
-let simple_icon = Util.SvgUtil.simple_icon;
+open Util.SvgUtil;
 
 let disk =
   simple_icon(
