@@ -28,7 +28,7 @@ Marker lines are *exactly*:
 
 | marker | maps to | notes |
 |---|---|---|
-| `@title` | `title` | `"<Folder> / <Lesson>"` (a `SlidePath`, see Folders); defaults to one derived from the filename |
+| `@title` | `title` | the lesson name; defaults to one derived from the filename |
 | `@prompt` | `prompt` | markdown for the instructions panel |
 | `@code` | `your_impl` | editor contents (parsed with `MarkerParse.of_text`) |
 | `@test` | `hidden_tests.tests` | defaults to `test true end` |
@@ -58,41 +58,6 @@ Marker lines are *exactly*:
   impl introduces is in scope for them. That is how a lesson whose tests
   reference `first_four` works — and it is why a lesson needing more than one
   name must leave `wrapper` off.
-
-## Folders
-
-A lesson's `@title` is a **`SlidePath`**: a `/`-separated hierarchical name, the
-same convention Documentation-mode slide names use (`"B2T2 / Table API / ..."`).
-The leading segments are folders, the last is the lesson. `src/web/util/SlidePath.re`
-owns that encoding.
-
-```
-Basics / Holes
-Tuple Structural Operations / Labeled Tuple Omission
-```
-
-The folder drives two things: the top bar renders one dropdown per segment
-(`EditorModeView.indicator_select`), and the prev/next arrows — both the
-in-slide pair and the top-bar pair — **iterate only within the current lesson's
-folder**, clamping at its edges. The last lesson of a folder shows "Done! 🎉"
-instead of a next arrow. Crossing folders is done with the folder dropdown. The
-slide's own heading shows just the leaf, since the breadcrumb already names the
-folder.
-
-Authoring rules, pinned by `test/Test_Tutorial.re`:
-
-- Give every lesson **exactly one** folder segment.
-- Never let one title be a proper prefix of another (`Tables` alongside
-  `Tables / Tables`): the shorter one becomes unreachable from the deeper
-  dropdown.
-- Keep a folder's lessons **contiguous** in `src/tutorialslides/Slides.re` —
-  dropdown options appear in first-appearance order.
-
-Whichever lesson is first in `src/tutorialslides/Slides.re` is the one a fresh
-profile opens on (`TutorialsMode.StoreTutorialKey.default`).
-
-Retitling a lesson is safe: identity comes from the `id=<uuid>` flag, not the
-title, so moving a lesson between folders does not reset anyone's progress.
 
 ## Decoding lessons → text
 
