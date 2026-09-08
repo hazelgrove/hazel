@@ -298,7 +298,7 @@ let update =
             let z = ProbePerform.add_manual(~syntax, id, info_map, z);
             Some((z, true));
           | RemoveProbe(_) =>
-            let target_ids = ProbePerform.target_subterm_ids(id, info_map);
+            let target_ids = ProbeTargets.target_subterm_ids(id, info_map);
             let z = ProbePerform.rm_manual(target_ids, z);
             Some((z, false));
           | ToggleProbe(_) =>
@@ -328,7 +328,7 @@ let update =
             | PlaceStatics(_) =>
               let z = ProbePerform.place_statics_at(~syntax, id, info_map, z);
               let expand =
-                switch (ProbePerform.probe_status(id, info_map, z.refractors)) {
+                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
                 | Statics(_) => true
                 | _ => false
                 };
@@ -339,7 +339,7 @@ let update =
             | ToggleStatics(_) =>
               let z = ProbePerform.toggle_statics(~syntax, id, info_map, z);
               let expand =
-                switch (ProbePerform.probe_status(id, info_map, z.refractors)) {
+                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
                 | Statics(_) => true
                 | _ => false
                 };
