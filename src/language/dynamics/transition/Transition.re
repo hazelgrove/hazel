@@ -189,7 +189,11 @@ let provenance_of_kind: step_kind => provenance =
   | RemoveParens => Administrative({may_delegate: false})
   | Ascription
   | AscriptionTypAp
-  | AscriptionAp => Administrative({may_delegate: true});
+  | AscriptionAp
+  /* Rewraps the Let/Ap under its own id and re-steps it: the probe span
+     must continue (else a second sample). Visible in the stepper, but
+     visibility is should_hide_step_kind's concern, not provenance's. */
+  | StuckDestructure => Administrative({may_delegate: true});
 
 type rule =
   | Step({

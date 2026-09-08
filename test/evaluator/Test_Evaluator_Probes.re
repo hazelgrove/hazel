@@ -848,6 +848,21 @@ in f([1, 2])|},
  * 2. Ascription distribution through typed functions re-evaluated inner
  *    compound elements at a deeper call_stack */
 let duplicate_prevention_tests = [
+  /* StuckDestructure rewraps the Let under its own id and re-evaluates
+   * it; declared as a delegating step (Transition.provenance_of_kind) so
+   * the re-evaluation continues the probe's span instead of minting a
+   * second sample. */
+  probe_count_test(
+    "Stuck destructure: probed let records one sample",
+    {|^^probe(let (a, b) = ? in a)|},
+    [(0, 1)],
+  ),
+  probe_count_test(
+    "Stuck destructure: probed fun-ap records one sample",
+    {|let f = fun (a, b) -> a in
+^^probe(f(?))|},
+    [(1, 1)],
+  ),
   /* Dot projection: extracting from a probed tuple must not duplicate.
    * Without is_value:true on the Dot transition, the projected value
    * gets re-evaluated, recording a second sample at the same call_stack. */
