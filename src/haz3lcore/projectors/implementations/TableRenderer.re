@@ -42,6 +42,10 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 let empty = {menu_state: None};
 let init = (_: v) => empty;
 
+/* Never auto-selected: any list of tuples parses as a table, and the
+   rendering is much larger than the text it would replace. */
+let auto_applies = (_: value): bool => false;
+
 /* Header + data rows; each table row is one line-height tall (proj-table.css
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
@@ -518,35 +522,8 @@ let update: (model, action) => model =
     };
   };
 
-let icon_size = 20.;
-
-let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
-  /* takes a list of paths as strings, a viewport as a string,
-     and an optional (string) transform to apply to each */
-  Node.create_svg(
-    "svg",
-    ~attrs=
-      Attr.[
-        create("viewBox", view),
-        create("width", Printf.sprintf("%fpx", icon_size)),
-        create("height", Printf.sprintf("%fpx", icon_size)),
-        create("preserveAspectRatio", "none"),
-      ],
-    List.map(
-      d =>
-        Node.create_svg(
-          "path",
-          ~attrs=
-            [Attr.create("d", d)]
-            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
-          [],
-        ),
-      ds,
-    ),
-  );
-
 let table_icon =
-  simple_icon(
+  SvgUtil.simple_icon(
     ~view="0 0 8 8",
     [
       "m 1.32307 3.96929 a 0.2645835 0.2645835 0 0 0 -0.26563 0.26367 0.2645835 0.2645835 0 0 0 0.26563 0.26562 h 5.82031 a 0.2645835 0.2645835 0 0 0 0.26562 -0.26562 0.2645835 0.2645835 0 0 0 -0.26562 -0.26367 z",

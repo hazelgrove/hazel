@@ -37,6 +37,16 @@ let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
 let init = (_: value) => {mode: Show};
 let empty = {mode: Show};
 
+/* An empty list parses as an empty hand, so it matches vacuously: no
+   evidence for auto-picking cards ([] of Int was rendering as an empty
+   hand). Explicit picks are unaffected. */
+let auto_applies = (v: value): bool =>
+  switch (v) {
+  | Hand([]) => false
+  | Hand(_)
+  | Card(_) => true
+  };
+
 /* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
    of cards regardless of count. */
 let drawer_rows = (_: value): int => 4;

@@ -22,13 +22,36 @@ module Model = {
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
-  /* true only for single-active-editor modes; Exercises (multi-editor) is unculled */
+  /* Viewport culling measures ONE code container (the first cell not opted
+     out via CellEditor ~cull=false) and keeps one row range, so it is only
+     supported when the mode renders a single probe-bearing editor: Code
+     scratchpads and Tutorial (whose instructor-only hidden-tests cell opts
+     out). Drv scratchpads and Exercises render several cells and stay
+     unculled. */
   let supports_viewport_culling: t => bool =
     fun
-    | Scratch(_)
-    | Documentation(_)
+    | Scratch(m)
+    | Documentation(m) =>
+      switch (List.nth_opt(m.scratchpads, m.current)) {
+      | Some(sp) =>
+        switch (sp.kind) {
+        | Code(_) => true
+        | Drv(_) => false
+        }
+      | None => false
+      }
     | Tutorial(_) => true
     | Exercises(_) => false;
+
+  /* Identity of the editor Page.Update.get_editor returns: stable across
+     frames of the same editor, distinct across slides/exercises/modes. For
+     after-display caches (RefractorShift) and culling-range resets. */
+  let editor_key: t => string =
+    fun
+    | Scratch(m) => "scratch:" ++ string_of_int(m.current)
+    | Documentation(m) => "documentation:" ++ string_of_int(m.current)
+    | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
+    | Exercises(m) => "exercises:" ++ string_of_int(m.current);
 
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */

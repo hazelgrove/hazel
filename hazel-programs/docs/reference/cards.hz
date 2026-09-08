@@ -5,7 +5,7 @@ type Suit =
 
 type Rank =
   + Ace + Jack + Queen + King
-  + Two + Three + Four + Five 
+  + Two + Three + Four + Five
   + Six + Seven + Eight + Nine + Ten in
 
 type Card = (Suit, Rank) in
@@ -28,14 +28,14 @@ let flush = fun hand ->
   | ^^card([(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_),(Clubs,_)]) => true
   | ^^card([(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_),(Diamonds,_)]) => true
   | ^^card([(Spades,_),(Spades,_),(Spades,_),(Spades,_),(Spades,_)]) => true
-  | _ => false  
+  | _ => false
   end in
 
 test flush([^^card((Hearts, King)),^^card((Hearts, Queen)),^^card((Hearts, Jack)),^^card((Hearts, Ten)),^^card((Hearts, Ace))]) end;
 
 let value((_, rank) : Card) : Int =
   case rank
-  | Ace => 14 | King => 13 | Queen => 12 | Jack => 11 
+  | Ace => 14 | King => 13 | Queen => 12 | Jack => 11
   | Ten => 10 | Nine => 9 | Eight => 8 | Seven => 7 | Six => 6
   | Five => 5 | Four => 4 | Three => 3 | Two => 2
   end in

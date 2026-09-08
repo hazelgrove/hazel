@@ -19,9 +19,9 @@ module EvaluatorEVMode: {
     | Uneval;
 
   type inner_result = Trampoline.t(DHExp.t);
-  /* The step kind rides the result (None for non-step finals) so the
-     evaluator can read step provenance — inert until the trace slices
-     consume it (plans/observation-trace.md). */
+  /* The step kind rides the result (None for non-step finals) so eval_2
+     can read the step's provenance (Transition.provenance_of_kind) and
+     declare delegated re-evaluations. */
   type result =
     Trampoline.t(
       (status, list(EvaluatorState.effect), option(step_kind), DHExp.t),
@@ -103,7 +103,7 @@ let rec evaluate =
     evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
   let expr_id = DHExp.rep_id(exp);
   /* Outbox publication keys only on proper program nodes
-   * (EvalInfo.is_program_node — law 1 of the observation-trace design).
+   * (EvalInfo.is_program_node).
    * Administrative/stepped intermediates never publish: doing so either
    * collides with StreamCollector's own Exp.temp nodes (truncating the
    * walk so streamed results appear to go backwards) or never matches
@@ -293,7 +293,7 @@ let rec evaluate =
      * (The different-stack flavor of this smear is still handled
      * heuristically by ascription dominance in Sample.Map.dominated,
      * applied by the trace fold — unifying it needs delegation markers
-     * that scope over subtree re-evaluation, deferred; see design §7.) */
+     * that scope over subtree re-evaluation; deferred.) */
     let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
     let continues_delegated_span =
       switch (is_target) {

@@ -541,6 +541,9 @@ module View = {
         ~caption=?
           Option.map(c => CellCommon.caption(c, ~rest=?subcaption), caption),
         ~lines=true,
+        /* the culling range is measured on the user cell; the instructor
+           hidden-tests cell must not be culled with it */
+        ~cull=this_pos == Tutorial.YourImpl,
         cell,
       );
     };
