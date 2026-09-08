@@ -73,11 +73,7 @@ let folder_position: (~current: int, list(t)) => folder_position;
 /* Move `by` places through the folder holding `current` and return the
    position, in the same list, of the path you land on. Movement stops at the
    folder's first and last path: a step that would leave the folder returns
-   `current` unchanged.
-
-     step_in_folder(~current=0, ~by=1, space)  == 1
-     step_in_folder(~current=1, ~by=1, space)  == 1  /* end of Basics */
-     step_in_folder(~current=2, ~by=-1, space) == 2  /* start of Tables */ */
+   `current` unchanged. */
 let step_in_folder: (~current: int, ~by: int, list(t)) => int;
 
 /* One level of a breadcrumb: the segment the current path has at this depth,
