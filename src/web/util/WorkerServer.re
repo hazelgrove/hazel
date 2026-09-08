@@ -248,6 +248,18 @@ let error_response = exn =>
 let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
   Hashtbl.create(4);
 
+/* Incremental reuse pays for itself only past a certain program size:
+   the reuse pre-pass is a full evaluation-shaped walk and every
+   evaluated node runs a reuse check, which for a demo-sized program
+   (a few hundred statics entries) cost 2-3x the evaluation itself.
+   Below the threshold, evaluate from scratch. (Measured 2026-09-08 on
+   the graph livelit slide: 2.0s -> see the commit message.) */
+let incremental_min_statics = 2500;
+
+let wants_incremental = (req_value: Request.value): bool =>
+  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  >= incremental_min_statics;
+
 let resolve_prev =
     (~key: option(key)=?, prev: Request.prev_source)
     : Language.EvaluatorState.incr_eval =>
@@ -333,21 +345,43 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
+/* the reuse plan computed for a batch item, handed to its evaluation so
+   the pre-pass runs once per request (keyed by the item's expr identity:
+   the plan and the evaluation see the same decoded request) */
+let planned_reuse:
+  ref(
+    list((Language.Exp.t, Language.IncrEval.t(Language.EvaluatorState.t))),
+  ) =
+  ref([]);
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
-    switch (
-      Language.ReusePass.reuse_pass(
-        ~prev=resolve_prev(~key, prev),
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception _ => Language.IncrEval.empty
-    | stream => stream
+    if (!wants_incremental(req_value)) {
+      Language.IncrEval.empty;
+    } else {
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev=resolve_prev(~key, prev),
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      };
     };
+  planned_reuse := [(expr, stream), ...planned_reuse^];
   (key, stream);
+};
+
+let take_planned_reuse =
+    (expr: Language.Exp.t)
+    : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
+  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
+  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
+  Option.map(snd, found);
 };
 
 let stream_min_interval_ms: ref(float) = ref(100.);
@@ -372,11 +406,15 @@ let start_evaluation = (~key: key, req_value: Request.value): evaluation_start =
         float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
       ),
     );
+  let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev=resolve_prev(~key, prev),
+      ~prev=
+        wants_incremental(req_value)
+          ? resolve_prev(~key, prev) : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
+      ~reuse_stream=?planned,
       expr,
     )
   ) {
