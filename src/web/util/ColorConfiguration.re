@@ -148,6 +148,8 @@ let role_groups: list((string, list(string))) = [
       "error-hole-fill",
       "warning-hole-fill",
       "warning-hole-stroke",
+      "simple-error-backing",
+      "simple-warning-backing",
       "hole-fill",
       "hole-stroke",
       "hole-active",
@@ -246,6 +248,9 @@ let role_groups: list((string, list(string))) = [
       "sample-neutral-text",
       "sample-neutral-bg",
       "sample-focus-text",
+      "sample-off-text",
+      "sample-off-shadow",
+      "sample-off-bg",
     ],
   ),
 ];

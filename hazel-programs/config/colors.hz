@@ -217,6 +217,11 @@ let theme_of = fun (p, role) ->
         # The unused-variable box and its outline. #
         `warning-hole-fill` = wash(p.`Y2`, 0., 0.2),
         `warning-hole-stroke` = wash(p.`Y2`, 0.82, 1.5),
+        # Backings behind the simplified error/warning arms, drawn at 0.4  #
+        # opacity, so they sit a step OUTSIDE the page background (t < 0). #
+        # Rotated onto the hues these replaced rather than the palette's.  #
+        `simple-error-backing` = wash(color_rotate(p.`R1`, -5.), -0.0667, 0.6667),
+        `simple-warning-backing` = wash(color_rotate(p.`Y2`, -15.), -0.0667, 1.),
         `hole-fill` = wash(p.`PAT`, 0.11, 0.2),
         `hole-stroke` = wash(p.`PAT`, 0.82, 0.75),
         `hole-active` = wash(p.`PAT`, 1.04, 1.)
@@ -307,7 +312,13 @@ let theme_of = fun (p, role) ->
         # text-on-fill from those two would be nearly the same colour.      #
         `sample-neutral-text` = wash(p.`G0`, 1.01, 0.63),
         `sample-neutral-bg` = wash(p.`G0`, 0.06, 0.09),
-        `sample-focus-text` = wash(p.`G0`, 0.99, 0.87)
+        `sample-focus-text` = wash(p.`G0`, 0.99, 0.87),
+        # Samples off the cursor's call stack: the same green, stepped     #
+        # down the axis so text, shadow and fill stay apart in every       #
+        # scheme. Factors reproduce the literals these replaced.           #
+        `sample-off-text` = wash(p.`G0`, 0.5556, 0.6),
+        `sample-off-shadow` = wash(p.`G0`, 0.2667, 0.4),
+        `sample-off-bg` = wash(p.`G0`, 0.0444, 0.2)
       ))
     ))
   )) in
