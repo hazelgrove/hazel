@@ -608,6 +608,42 @@ let expand = fun m -> m
   };
 };
 
+/* The compositional engine (DefStatics, the web's statics path) must
+   agree with monolithic statics on a module-form livelit definition:
+   the member-granular module path runs the wrapper on a `(hole : ty)`
+   surrogate, which would leave the Let case's livelit classification
+   looking at a hole (no LivelitEntry, InvalidLivelitDef on the let). */
+let module_def_compositional = () => {
+  let text = "let ^dbl = " ++ dbl_module ++ " in ^dbl(21)";
+  let term = parse_exp(text);
+  let settings = CoreSettings.on;
+  let ctx0 = Builtins.ctx_init(Some(Int));
+  let ds = Haz3lcore.DefStatics.calc(~settings, term);
+  let (mono_map, mono_elab) = Statics.mk_unmemoized(settings, ctx0, term);
+  check(
+    Alcotest.list(string),
+    "error-id parity",
+    CorpusUtil.sorted_ids(Statics.Map.error_ids(mono_map)),
+    CorpusUtil.sorted_ids(Haz3lcore.DefStatics.all_error_ids(ds)),
+  );
+  check(
+    bool,
+    "engine binds the livelit",
+    true,
+    switch (Haz3lcore.DefStatics.final_ctx(ds)) {
+    | Some(ctx) => Ctx.lookup_livelit(ctx, "dbl") != None
+    | None => false
+    },
+  );
+  switch (Haz3lcore.DefStatics.whole_elab(ds)) {
+  | None => fail("whole_elab: shape gap")
+  | Some(graft_elab) =>
+    let (v1, _) = Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
+    let (v2, _) = Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
+    check(dhexp_typ, "eval parity", v1, v2);
+  };
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -628,6 +664,11 @@ let tests = [
       test_case("bad arity marked", `Quick, bad_arity_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
+      test_case(
+        "module definition via compositional engine",
+        `Quick,
+        module_def_compositional,
+      ),
       test_case("adapter contract", `Quick, adapter),
       test_case("positional shape field", `Quick, shape_field),
       test_case("commit vs ephemeral decision", `Quick, commit_decision),

@@ -604,12 +604,15 @@ and calc_plain_item =
 /* member granularity fires only for SIMPLE bindings of a module
    literal: ascribed signatures push ana_labels into the lowering,
    which the member path does not replicate (they keep the monolithic
-   item analysis) */
+   item analysis). Livelit binders (`let ^name = {...}`) are excluded
+   too: the Let case classifies the literal def and keeps its
+   elaboration in the LivelitEntry, which the surrogate's `(hole : ty)`
+   def can't supply. */
 and module_literal_members =
     (node: Exp.t): option((Pat.t, Exp.t, list(Mod.t))) => {
   let simple = (p: Pat.t): bool =>
     switch (p.term) {
-    | Var(_)
+    | Var(_) => UserLivelit.binder_name(p) == None
     | Wild => true
     | _ => false
     };
