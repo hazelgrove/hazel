@@ -123,6 +123,9 @@
   --sample-focus-text: oklch(52.45% 0.1305 150);
   --sample-neutral-bg: oklch(94.3% 0.0135 150);
   --sample-neutral-text: oklch(51.55% 0.0945 150);
+  --sample-off-bg: oklch(95.002% 0.03 150);
+  --sample-off-shadow: oklch(84.9985% 0.06 150);
+  --sample-off-text: oklch(71.998% 0.09 150);
   --select-text: oklch(50% 0.07 90);
   --shadow-any: oklch(85% 0.1 30);
   --shadow-error: oklch(60% 0.3 30);
@@ -158,6 +161,8 @@
   --shard-tpat: oklch(95% 0.05 225);
   --shard-typ: oklch(95% 0.05 300);
   --shard_projector: oklch(94% 0.025 90);
+  --simple-error-backing: oklch(100% 0.20001 25);
+  --simple-warning-backing: oklch(100% 0.2 80);
   --surface-accent: oklch(60% 0.07 90);
   --surface-accent-strong: oklch(50% 0.07 90);
   --surface-code: oklch(99% 0.012 90);

@@ -123,7 +123,12 @@ let sort_plate(c) =
       `empty-edge` = role.`frame-mark`,
       `error` = p.`error-hole`,
       `warning` = wash(p.`attention-3`, 0., 0.2),
-      `warning-edge` = wash(p.`attention-3`, 0.82, 1.5)
+      `warning-edge` = wash(p.`attention-3`, 0.82, 1.5),
+      # backings behind the simplified error/warning arms, drawn at 0.4 #
+      # opacity, so they sit a step OUTSIDE the page background (t < 0) #
+      `error-backing` = wash(color_rotate(p.`error-2`, -5.), -0.0667, 0.6667),
+      `warning-backing` =
+        wash(color_rotate(p.`attention-3`, -15.), -0.0667, 1.)
     ),
     # rows in the problems sidebar #
     problems = (
@@ -156,7 +161,12 @@ let sort_plate(c) =
       `callee-edge` = wash(p.`label`, 0.38, 0.45),
       `other` = wash(p.`success`, 0.06, 0.09),
       `other-text` = wash(p.`success`, 1.01, 0.63),
-      `focus-text` = wash(p.`success`, 0.99, 0.87)
+      `focus-text` = wash(p.`success`, 0.99, 0.87),
+      # samples off the cursor's call stack: the same green, stepped down #
+      # the axis so text, edge and fill stay apart in every scheme #
+      `off` = wash(p.`success`, 0.0444, 0.2),
+      `off-text` = wash(p.`success`, 0.5556, 0.6),
+      `off-edge` = wash(p.`success`, 0.2667, 0.4)
     ),
     # inline widgets: text areas, folds, the statics card #
     projector = (
