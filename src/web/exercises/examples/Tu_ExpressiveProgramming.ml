@@ -23,7 +23,7 @@ let exercise : Tutorial.spec =
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
-             0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+             0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "";
         };
       hidden_tests =
@@ -56,7 +56,7 @@ let exercise : Tutorial.spec =
                  Convex))))))(ancestors())))(caret \
                  Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                  -1)(pinned_stack())(indicated_call())(time())(seq \
-                 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
               backup_text = "test answer == 4 end;\n";
             };
           hints = [ "Reread the question!" ];
