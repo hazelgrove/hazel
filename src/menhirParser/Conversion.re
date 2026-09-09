@@ -516,6 +516,21 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | BinHoleTyp(_) as t =>
+      /* concave grout: left-nested chains flatten to ONE MultiHole
+         (MakeTerm parity), as for Exp */
+      let rec collect = (t: AST.typ, acc) =>
+        switch (t) {
+        | BinHoleTyp(l, r) => collect(l, [of_menhir_ast(r), ...acc])
+        | t => [of_menhir_ast(t), ...acc]
+        };
+      unknown(
+        Hole(
+          MultiHole(
+            List.map(t => Language.Grammar.Typ(t), collect(t, [])),
+          ),
+        ),
+      );
     | ProdProjection(t1, t2) =>
       let t2 =
         switch (t2) {
@@ -577,6 +592,25 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
+    | Unknown(Hole(MultiHole(ts))) =>
+      /* all-typ multiholes print as `⧖`-separated chains; mixed-sort
+         ones have no textual spelling and stay unsupported */
+      let typs =
+        List.filter_map(
+          fun
+          | Language.Grammar.Typ(t) => Some(t)
+          | _ => None,
+          ts,
+        );
+      switch (List.length(typs) == List.length(ts), typs) {
+      | (true, [t1, t2, ...rest]) =>
+        List.fold_left(
+          (acc, t) => AST.BinHoleTyp(acc, of_core(t)),
+          BinHoleTyp(of_core(t1), of_core(t2)),
+          rest,
+        )
+      | _ => raise(Failure("MultiHole not supported"))
+      };
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
@@ -613,20 +647,44 @@ and TPat: {
   let of_core: IndicatedG.tpat => AST.tpat;
 } = {
   open IndicatedG.TPat;
-  let of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
+  let rec of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
     switch (tpat) {
     | InvalidTPat(s) => invalid(s)
     | EmptyHoleTPat => empty_hole()
+    | BinHoleTPat(_) as t =>
+      /* concave grout: left-nested chains flatten to ONE MultiHole */
+      let rec collect = (t: AST.tpat, acc) =>
+        switch (t) {
+        | BinHoleTPat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
+        | t => [of_menhir_ast(t), ...acc]
+        };
+      multi_hole(List.map(t => Language.Grammar.TPat(t), collect(t, [])));
     | VarTPat(s) => var(s)
     };
   };
 
-  let of_core = (tpat: IndicatedG.tpat): AST.tpat => {
+  let rec of_core = (tpat: IndicatedG.tpat): AST.tpat => {
     switch (tpat.term) {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
     | Invalid(i) => InvalidTPat(i)
-    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    | MultiHole(ts) =>
+      let tpats =
+        List.filter_map(
+          fun
+          | Language.Grammar.TPat(t) => Some(t)
+          | _ => None,
+          ts,
+        );
+      switch (List.length(tpats) == List.length(ts), tpats) {
+      | (true, [t1, t2, ...rest]) =>
+        List.fold_left(
+          (acc, t) => AST.BinHoleTPat(acc, of_core(t)),
+          BinHoleTPat(of_core(t1), of_core(t2)),
+          rest,
+        )
+      | _ => raise(Failure("MultiHole not supported"))
+      };
     };
   };
 }
@@ -638,6 +696,14 @@ and Pat: {
   let rec of_menhir_ast = (pat: AST.pat): IndicatedG.pat => {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
+    | BinHolePat(_) as p =>
+      /* concave grout: left-nested chains flatten to ONE MultiHole */
+      let rec collect = (p: AST.pat, acc) =>
+        switch (p) {
+        | BinHolePat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
+        | p => [of_menhir_ast(p), ...acc]
+        };
+      multi_hole(List.map(p => Language.Grammar.Pat(p), collect(p, [])));
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
@@ -673,7 +739,23 @@ and Pat: {
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
     | EmptyHole => EmptyHolePat
     | Wild => WildPat
-    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    | MultiHole(ps) =>
+      let pats =
+        List.filter_map(
+          fun
+          | Language.Grammar.Pat(p) => Some(p)
+          | _ => None,
+          ps,
+        );
+      switch (List.length(pats) == List.length(ps), pats) {
+      | (true, [p1, p2, ...rest]) =>
+        List.fold_left(
+          (acc, p) => AST.BinHolePat(acc, of_core(p)),
+          BinHolePat(of_core(p1), of_core(p2)),
+          rest,
+        )
+      | _ => raise(Failure("MultiHole not supported"))
+      };
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)

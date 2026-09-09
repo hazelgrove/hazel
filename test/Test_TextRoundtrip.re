@@ -230,6 +230,32 @@ let concave_marker_cases = [
     ~name="infix hole (recovering parser)",
     "1 \xe2\xa7\x96 2",
   ),
+  /* the marker in every sort the editor molds it for: a document with
+     a pattern/type/type-pattern hole must load on the fast path too */
+  concave_fast_case(~name="pattern hole", "let x \xe2\xa7\x96 y = 1 in\n2"),
+  concave_fast_case(~name="fun parameter hole", "fun x \xe2\xa7\x96 y -> x"),
+  /* `x : Int ⧖ Foo` is a PATTERN hole (`:` binds tighter, `Foo` is a
+     constructor pattern); the hole is a type hole only under parens */
+  concave_fast_case(
+    ~name="pattern hole after an ascription (constructor)",
+    "let x : Int \xe2\xa7\x96 Foo = 1 in\nx",
+  ),
+  concave_fast_case(
+    ~name="type hole in a parenthesized ascription",
+    "let x : (Int \xe2\xa7\x96 Bool) = 1 in\nx",
+  ),
+  concave_fast_case(
+    ~name="type hole beside an arrow",
+    "type t = Int -> Bool \xe2\xa7\x96 String in\n1",
+  ),
+  concave_fast_case(
+    ~name="type-pattern hole",
+    "let f : poly a \xe2\xa7\x96 b -> Int = 1 in\nf",
+  ),
+  concave_fast_case(
+    ~name="pattern hole after an ascription",
+    "let x : Int \xe2\xa7\x96 y = 1 in\n2",
+  ),
 ];
 
 let debug_pieces = (tag, text) =>
