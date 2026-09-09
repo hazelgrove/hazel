@@ -1,0 +1,122 @@
+# The per-push suite runs every QCheck property exactly once at its in-source
+# ~count, so a property that fails on one seed in a few hundred is effectively
+# invisible to CI. This job is the counterweight: the same suite, weekly, with
+# qcheck-core's long mode on, so every ~count is multiplied by
+# QCHECK_LONG_FACTOR. It gates nothing -- it exists to turn rare failures into
+# ones you can see and reproduce.
+#
+# On sizing the factor: only the QCheck properties scale. Most Slow-tagged
+# tests are not properties, and neither are the "stats only" harnesses in
+# Test_Statics_Properties, so all of those are a fixed floor the factor never
+# touches -- the suite is far short of N times longer at factor N. Runtime is
+# linear in the factor on top of that large constant, so to re-derive it, time
+# the suite locally at two factors and divide the difference by the gap. The
+# default below was set that way and extrapolated to this runner; correct it
+# from the job's own wall clock rather than trusting the extrapolation.
+#
+# Scheduled runs only ever fire from the default branch's copy of this file, so
+# this always tests dev. Edits to it do nothing until they land there.
+name: Extended Tests
+
+on:
+  schedule:
+    - cron: "0 6 * * 0" # Sundays, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      factor:
+        description: QCHECK_LONG_FACTOR -- multiplies every QCheck ~count.
+        type: string
+        default: "100"
+      seed:
+        description: QCHECK_SEED. Leave blank to derive one from the run id.
+        type: string
+        default: ""
+
+# Never cancel a run in progress: a superseded four-hour run is four hours of
+# samples thrown away, and nothing downstream is waiting on the result.
+concurrency:
+  group: extended-tests
+  cancel-in-progress: false
+
+jobs:
+  Extended:
+    name: Extended property tests
+    runs-on: ubuntu-latest
+    # Inside GitHub's hard 6h cap, leaving the step timeout below room to fail
+    # first so the summary and artifact steps still run. A factor large enough
+    # to crowd this needs the work split across jobs instead.
+    timeout-minutes: 350
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      # A fixed seed rather than qcheck's self_init, so a failure here is
+      # reproducible from the summary below; derived from the run id, so each
+      # week still explores somewhere new.
+      - name: Choose the seed
+        id: config
+        env:
+          SEED_INPUT: ${{ inputs.seed }}
+          FACTOR_INPUT: ${{ inputs.factor }}
+        run: |
+          seed="${SEED_INPUT}"
+          # % 2^31 only to keep it short enough to retype by hand.
+          [ -n "$seed" ] || seed=$(( GITHUB_RUN_ID % 2147483647 ))
+          factor="${FACTOR_INPUT:-100}"
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+          echo "factor=$factor" >> "$GITHUB_OUTPUT"
+          echo "Seed $seed at factor $factor"
+
+      - name: Run the suite in long mode
+        env:
+          QCHECK_LONG_FACTOR: ${{ steps.config.outputs.factor }}
+          QCHECK_SEED: ${{ steps.config.outputs.seed }}
+        run: opam exec -- make ci-extended
+        # Under the job's 350 so the steps below still get to run and record
+        # the seed if the suite runs long.
+        timeout-minutes: 330
+
+      # The three steps below are always: they are most wanted when the run is
+      # red, and the step above has already decided the job's outcome.
+      - name: Record how to reproduce
+        if: ${{ always() }}
+        env:
+          FACTOR: ${{ steps.config.outputs.factor }}
+          SEED: ${{ steps.config.outputs.seed }}
+        run: |
+          {
+            echo "### Reproducing this run"
+            echo
+            echo '```sh'
+            echo "QCHECK_LONG=1 QCHECK_LONG_FACTOR=$FACTOR QCHECK_SEED=$SEED ./run_tests"
+            echo '```'
+            echo
+            echo "Narrow it to one group by appending, say, \`test 'Evaluator.Properties'\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the JUnit results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: extended-tests-junit-${{ steps.config.outputs.seed }}
+          path: ./_build/default/test/junit_tests*.xml
+          # A failure before the suite ran leaves nothing to upload, and the job
+          # is already red for that reason.
+          if-no-files-found: warn
+
+      - name: Extended Test Report
+        if: ${{ always() }}
+        uses: dorny/test-reporter@v3
+        with:
+          name: Extended Test Report
+          path: ./_build/default/test/junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          fail-on-empty: false
+          # Leaving use-actions-summary at its default writes the report to this
+          # job's summary and creates no check run -- see checks.yml for why
+          # that is the only placement GitHub actually lets us pick.
