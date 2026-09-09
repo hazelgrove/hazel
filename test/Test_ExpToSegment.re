@@ -180,6 +180,29 @@ let tests = (
         equivalent_to_make_term({|(x=1, y=2)|});
       },
     ),
+    test_case(
+      "Colon and a leading-plus sum stay apart",
+      `Quick,
+      () => {
+        /* An unparenthesized sum only turns up as a sig member's ascription.
+           Printed as `:+` the two lex as a single operator token, so MakeTerm
+           read the member back as a hole while Menhir still saw the
+           ascription. Asserted on one print rather than a round trip:
+           Defensive parenthesization is not idempotent on a Sig, so the text
+           gains a paren layer every trip. */
+        let src = {|type T = { let _ : + Adid } in ?|};
+        switch (Parser.to_term(src, ~root=Exp)) {
+        | Some(exp) =>
+          check(
+            string,
+            "`:` and `+` stay apart",
+            {|type T = ({ let _: + Adid }) in ?|},
+            print_seg(exp_to_segment(exp)),
+          )
+        | None => Alcotest.fail("failed to parse " ++ src)
+        };
+      },
+    ),
     test_case("Labels in types with single quotes", `Quick, () => {
       equivalent_to_make_term({|type t = (``=Int, ab=String) in 7|})
     }),
