@@ -695,9 +695,77 @@ let module_abbreviation_tests = [
   ),
 ];
 
+/* abbreviate_typ, reached on its own rather than through an exp or pat --
+   the entry point the type probe uses to size itself. Types are built with
+   the fresh grammar (per-call, never hoisted: ids are minted at call time). */
+let typ_render = (typ: Typ.t): string =>
+  Typ(typ)
+  |> ExpToSegment.any_to_segment(~settings=abbrev_settings)
+  |> seg_to_str;
+
+let abbrev_typ_len = (~available: int, typ: Typ.t): int =>
+  Abbreviate.abbreviate_typ(~available, typ)
+  |> fst
+  |> typ_render
+  |> Util.Unicode.length;
+
+let typ_tests =
+  IdTagged.FreshGrammar.Typ.[
+    test_case("abbreviate_typ leaves a type that fits untouched", `Quick, () =>
+      check(
+        Alcotest.string,
+        "Int -> Bool at a generous budget",
+        typ_render(Arrow(int(), bool()) |> Typ.temp),
+        Abbreviate.abbreviate_typ(
+          ~available=99,
+          Arrow(int(), bool()) |> Typ.temp,
+        )
+        |> fst
+        |> typ_render,
+      )
+    ),
+    test_case(
+      "abbreviate_typ shrinks a type that does not fit",
+      `Quick,
+      () => {
+        let wide = () =>
+          Prod([int(), string(), bool(), float(), int(), string()])
+          |> Typ.temp;
+        check(
+          Alcotest.bool,
+          "a tight budget renders shorter than a generous one",
+          true,
+          abbrev_typ_len(~available=2, wide())
+          < abbrev_typ_len(~available=99, wide()),
+        );
+      },
+    ),
+    test_case(
+      "abbreviate_typ is monotonic in its budget",
+      `Quick,
+      () => {
+        let wide = () =>
+          Prod([int(), string(), bool(), float(), int(), string()])
+          |> Typ.temp;
+        let lens =
+          List.map(
+            a => abbrev_typ_len(~available=a, wide()),
+            [1, 2, 4, 8, 16, 32],
+          );
+        check(
+          Alcotest.list(Alcotest.int),
+          "lengths are non-decreasing in budget",
+          List.sort(compare, lens),
+          lens,
+        );
+      },
+    ),
+  ];
+
 let tests = (
   "Abbreviate",
   structural_tests
+  @ typ_tests
   @ monotonicity_tests
   @ budget_tests
   @ hard_cap_tests

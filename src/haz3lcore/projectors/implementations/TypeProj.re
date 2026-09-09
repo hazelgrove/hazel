@@ -35,23 +35,66 @@ let get_dynamic_typ = (info: info): Typ.t => {
   |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Expected
+  | Self
+  | Dynamic;
+
+/* Named rather than an option(int): the two states are "as wide as the type
+   needs" and "as wide as the user dragged to", and `option` cannot say that.
+   (It also keeps `Some`/`None` out of the derived reader -- they are shadowed
+   in this scope, which is why ProbeProj writes `Option.None`.) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type length =
+  | Auto
+  | Fixed(int);
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    | Expected
-    | Self
-    | Dynamic;
+  /* `length` is the abbreviation budget for the rendered type. It lives in
+     the model rather than in module-level state the way ProbeProj's sample
+     lengths have to: a sample is recreated every evaluation, a projector
+     is not. */
+  type model = {
+    mode,
+    length,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | ToggleDisplay;
+    | ToggleDisplay
+    | SetLength(int);
+
+  let init_model = {
+    mode: Expected,
+    length: Auto,
+  };
+
+  /* A model is persisted as a sexp and read back at render time, where
+     ProjectorBase.Cook calls deserialize_m with no guard -- so a raise here
+     takes the view down. Before this record the model WAS the bare mode, so
+     read that shape too and carry the user's mode across the upgrade rather
+     than resetting it. */
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+    switch (model_of_sexp(sexp)) {
+    | m => m
+    | exception _ =>
+      switch (mode_of_sexp(sexp)) {
+      | mode => {
+          mode,
+          length: Auto,
+        }
+      | exception _ => init_model
+      }
+    };
 
   let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
     | Pat(_)
-    | Typ(_) => Some(Expected)
-    | Any () => Some(Expected) /* Grout don't have sorts rn */
+    | Typ(_) => Some(init_model)
+    | Any () => Some(init_model) /* Grout don't have sorts rn */
     | _ => None
     };
   };
@@ -60,8 +103,8 @@ module M: Projector = {
   let elaborate_syntax = false;
   let focusable = Focusable.non;
 
-  let display_mode = (model: model, statics: option(Language.Info.t)): string => {
-    switch (model) {
+  let display_mode = (mode: mode, statics: option(Language.Info.t)): string => {
+    switch (mode) {
     | Dynamic => "⇓"
     /* ↔ not ⇔: Source Code Pro, the bundled font these render in, has
        no bidirectional double arrow, so ⇔ fell back to a system font and
@@ -73,8 +116,8 @@ module M: Projector = {
     };
   };
   let mode_description =
-      (model: model, statics: option(Language.Info.t)): string => {
-    switch (model) {
+      (mode: mode, statics: option(Language.Info.t)): string => {
+    switch (mode) {
     | Dynamic => "Dynamic type (from runtime values)"
     | _ when self_ty(statics) == expected_ty(statics) => "Self type matches expected type"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "Self type"
@@ -83,18 +126,18 @@ module M: Projector = {
     };
   };
 
-  let mode_view = (model, info) =>
+  let mode_view = (mode, info) =>
     div(
       ~attrs=[
         Attr.classes(["mode"]),
-        Attr.title(mode_description(model, info)),
+        Attr.title(mode_description(mode, info)),
       ],
-      [text(display_mode(model, info))],
+      [text(display_mode(mode, info))],
     );
 
-  let typ_view = (model, info: info, utility, view_seg: View.seg) => {
+  let typ_view = (model: model, info: info, utility, view_seg: View.seg) => {
     let (classes, typ) =
-      switch (model) {
+      switch (model.mode) {
       | Dynamic =>
         let dynamic_typ = get_dynamic_typ(info);
         let static_typ =
@@ -128,10 +171,23 @@ module M: Projector = {
       | Some(ty) => !Typ.is_syn(ty)
       | None => false
       };
-    switch (a, model) {
-    | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
-    | (ToggleDisplay, Self) => Dynamic
-    | (ToggleDisplay, Dynamic) => if (has_expected) {Expected} else {Self}
+    switch (a, model.mode) {
+    | (SetLength(n), _) => {
+        ...model,
+        length: Fixed(max(1, n)),
+      }
+    | (ToggleDisplay, Expected) => {
+        ...model,
+        mode: has_expected ? Self : Dynamic,
+      }
+    | (ToggleDisplay, Self) => {
+        ...model,
+        mode: Dynamic,
+      }
+    | (ToggleDisplay, Dynamic) => {
+        ...model,
+        mode: has_expected ? Expected : Self,
+      }
     };
   };
 
@@ -151,7 +207,7 @@ module M: Projector = {
               Attr.on_double_click(_ => local(ToggleDisplay)),
             ],
             [
-              mode_view(model, info.statics),
+              mode_view(model.mode, info.statics),
               typ_view(model, info, info.utility, view_seg),
             ],
           ),

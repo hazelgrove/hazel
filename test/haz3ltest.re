@@ -54,6 +54,7 @@ let (suite, exit_with_test_status) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_PadIds.tests
+    @ [Test_TypeProj.tests]
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]

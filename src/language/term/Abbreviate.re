@@ -16,6 +16,10 @@ let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
 let flat_ellipses_term_pat = (): TermBase.pat_t =>
   IdTagged.fresh(Invalid(flat_ellipses): Pat.term);
+/* A type has no Invalid of its own; an unknown-with-invalid-hole is its
+   analogue, and is what Typ.cls_of reads back as Invalid. */
+let flat_ellipses_term_typ = (): TermBase.typ_t =>
+  IdTagged.fresh(Unknown(Hole(Invalid(flat_ellipses))): Typ.term);
 let available = ref(0);
 
 module AbbrevBudget = {
@@ -1820,5 +1824,20 @@ let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
     (flat_ellipses_term_pat(), ellipsis_cost);
   } else {
     (pat, length_pat);
+  };
+};
+
+/* The `and abbreviate_typ` above is reached today only through the exp and
+   pat walks, which descend into ascriptions and annotations. This is the
+   entry point for abbreviating a type on its own -- what the type probe
+   needs to size itself. */
+let abbreviate_typ = (~available as a=12, typ: Typ.t): (Typ.t, int) => {
+  available := a;
+  let typ = abbreviate_typ(typ);
+  let length_typ = a - available^;
+  if (a < 0) {
+    (flat_ellipses_term_typ(), ellipsis_cost);
+  } else {
+    (typ, length_typ);
   };
 };
