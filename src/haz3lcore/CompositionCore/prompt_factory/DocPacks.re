@@ -131,6 +131,7 @@ module bound to a livelit name (`^` prefix):
 let ^pct = {
 type Model = Int;
 type Action = Int;
+type Expansion = Int;
 let init : Model = 50;
 let update(m: Model, a: Action) = a;
 let view(m: Model) =
@@ -144,20 +145,33 @@ let expand(m: Model) = m
 ^^livelit(^pct(25)) + ^^livelit(^pct(75))
 ```
 
+All three type members are REQUIRED — they are the livelit's interface:
+
+- `type Model` — the state a use carries, in its own argument
+- `type Action` — what the view's handlers emit
+- `type Expansion` — what a use MEANS to the program. This is the type
+  clients see: `^pct(25)` has type Expansion no matter what `expand`
+  returns, and statics checks each use's expansion against it (an
+  inconsistency is reported on the use, as the livelit's fault).
+
+and the four value members:
+
 - `init : Model` — the model a fresh use starts with
 - `update : (Model, Action) -> Model` — no commands, unlike apps
 - `view : Model -> HTML` — same HTML/handler vocabulary as apps
   (see read_docs("mvu")); handlers emit Actions
-- `expand : Model -> T` — what a use MEANS to the program: `^pct(25)`
-  evaluates to `expand(25)`
+- `expand : Model -> Expansion` — `^pct(25)` evaluates to `expand(25)`
 
 ## Rules
 
 - Each use `^name(model)` carries its own model in its own argument.
   Wrap uses in `^^livelit(...)` so the GUI shows; a bare `^name(model)`
   is still a valid expression, just without the widget.
-- Helpers and type members are ordinary module members; keep the
-  definition self-contained (helpers inside the module).
+- Helpers are ordinary extra module members; keep the definition
+  self-contained (helpers inside the module).
+- A definition missing any of the three types or four members is
+  rejected, and the livelit name stays unbound. There is no tuple
+  form: it has nowhere to declare the types.
 - Optional member `let shape = ...` sets the widget's TEXT footprint
   (a LivelitShape): `Inline(w)` is one line, w columns; `Block(w, h)`
   is h lines with code flowing below; `Tab(w, h)` is h lines with code

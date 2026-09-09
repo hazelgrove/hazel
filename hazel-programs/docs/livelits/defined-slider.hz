@@ -3,14 +3,22 @@
 # A livelit is a live GUI for a value in your program. Define one #
 # with a livelit name (^name) bound to a module: #
 
+# Three types declare the interface. Expansion is the one clients #
+# see: a use of ^pct has type Expansion, whatever expand returns. #
+
+# Model:     the state a use carries, stored in its argument #
+# Action:    what the GUI emits #
+# Expansion: what a use MEANS to the program #
+
 # init:   the model a fresh use starts with #
 # update: (Model, Action) -> Model, run when the GUI acts #
 # view:   Model -> HTML, whose handlers emit Actions #
-# expand: Model -> value, what a use means to the program #
+# expand: Model -> Expansion, checked against the declaration #
 
 let ^pct = {
   type Model = Int;
   type Action = Int;
+  type Expansion = Int;
 
   let init : Model = 50;
 

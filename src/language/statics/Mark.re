@@ -30,9 +30,9 @@ type error_builtin =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type livelit_def_error =
-  | DefNotTuple
-  | DefBadArity(int)
-  | DefMissingMembers(list(string));
+  | DefNotModule
+  | DefMissingMembers(list(string))
+  | DefMissingTypes(list(string));
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
@@ -68,6 +68,13 @@ type t =
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  /* The livelit's expansion does not have the type the definition
+     declares for it (`type Expansion`). The declared type is what
+     clients type against, so the fault is the livelit's, not the use's. */
+  | BadLivelitExpansion({
+      declared: Typ.t,
+      actual: Typ.t,
+    })
   | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)
   | IsLivelitName({
