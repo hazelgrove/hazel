@@ -37,19 +37,11 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) => {
-      let is_edit =
-        Action.is_edit(action)
-        /* When probe_all is on, Refractor actions don't require
-         * re-evaluation since all probes are already computed */
-        && !(
-             settings.core.probe_all
-             && (
-               switch (action) {
-               | Probe(_) => true
-               | _ => false
-               }
-             )
-           );
+      /* With probe_all on, a placed probe's samples already exist
+         (they show instantly), but ambient samples carry no env
+         (CachedStatics.compute_targets), so re-evaluate to give the
+         new probe its bindings. */
+      let is_edit = Action.is_edit(action);
       switch (
         Editor.Update.update(
           ~settings=settings.core,
