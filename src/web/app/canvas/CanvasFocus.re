@@ -239,6 +239,20 @@ let value_site =
   | None => None
   | Some(n) =>
     let names = node_type_names(~graph, n);
+    /* an APP INSTANCE of this type (a livelit invocation with its
+       projector) is the card everyone wants: live, interactive */
+    let is_app = (id: Id.t): bool =>
+      switch (syntax) {
+      | Some(syntax) =>
+        List.mem(id, syntax.projector_list)
+        && (
+          switch (Id.Map.find_opt(id, syntax.projectors)) {
+          | Some(p) => p.kind == ProjectorCore.Kind.Livelit
+          | None => false
+          }
+        )
+      | None => false
+      };
     let inside = (id: Id.t): bool =>
       switch (within, syntax) {
       | (Some((l, r)), Some(syntax)) =>
@@ -287,6 +301,7 @@ let value_site =
               samples,
             );
           let rank = (
+            is_app(id) ? 1 : 0,
             aligned(id, samples) ? 1 : 0,
             inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,

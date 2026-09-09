@@ -147,8 +147,75 @@ let view =
   };
 };
 
+/* A site that IS a livelit invocation (an app instance) renders the
+   real projector — interactive: an action commits the update redex to
+   the master editor, the program re-evaluates, every other card
+   follows. Same construction as the projector panel's cards. */
+let is_app_site = (~editor: CodeWithStatics.Model.t, id: Id.t): bool => {
+  let syntax = editor.editor.syntax;
+  List.mem(id, syntax.projector_list)
+  && (
+    switch (Id.Map.find_opt(id, syntax.projectors)) {
+    | Some(p) => p.kind == ProjectorCore.Kind.Livelit
+    | None => false
+    }
+  );
+};
+
+let app_view =
+    (~globals: Globals.t, ~editor: CodeWithStatics.Model.t, id: Id.t)
+    : option(Node.t) => {
+  let syntax = editor.editor.syntax;
+  let zipper = editor.editor.state.zipper;
+  let inject = (a: Haz3lcore.Action.t) =>
+    switch (master_perform^) {
+    | Option.Some(f) => f(a)
+    | Option.None => globals.inject_global(ActiveEditor(a))
+    };
+  let data =
+    ProjectorView.Model.mk(
+      ~syntax,
+      ~indicated=None,
+      ~statics=editor.statics.info_map,
+      ~dynamics=editor.dynamics,
+      ~sample_focus=zipper.refractors.sample_focus,
+      ~editor_active=false,
+      ~elaborated=Some(editor.statics.elaborated),
+    );
+  switch (
+    List.find_opt(
+      (d: ProjectorView.Model.projector_data) => d.p.id == id,
+      data,
+    )
+  ) {
+  | Some(d) =>
+    let views =
+      ProjectorView.mk_view(
+        inject,
+        globals.font_metrics,
+        ~core_settings=globals.settings.core,
+        d,
+        syntax.projector_list,
+      );
+    Some(
+      div(
+        ~attrs=[
+          clss(
+            ProjectorView.projector_clss(~view_error=views.error, d.status)
+            @ ["canvas-app"],
+          ),
+        ],
+        [views.inline],
+      ),
+    );
+  | None => None
+  };
+};
+
 let card_view = (~globals, ~editor, ~key, id) =>
-  view(~globals, ~editor, ~key, ~card=true, id);
+  is_app_site(~editor, id)
+    ? app_view(~globals, ~editor, id)
+    : view(~globals, ~editor, ~key, ~card=true, id);
 
 /* ---- aggregate value strip (type-node wells) ----
    One chip per distinct value: the sample-display RENDERING (green chip,

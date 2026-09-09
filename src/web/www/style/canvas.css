@@ -2175,3 +2175,22 @@
 .canvas-card-probe .probe-card-empty {
   flex: 1 1 auto;
 }
+/* an app instance: the real (interactive) livelit projector. In the
+   editor a projector is an absolutely positioned box sized by the font
+   grid; in a card it just fills the box. */
+.canvas-node.node-card .canvas-app,
+.canvas-node.node-card .canvas-app .user-livelit {
+  position: static;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.canvas-node.node-card .canvas-app {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}

@@ -2399,10 +2399,12 @@ let view_impl =
             );
           let inner =
             el##querySelector(
-              Js.string(".probe-card-rich, .probe-card-plain"),
+              Js.string(".probe-card-rich, .probe-card-plain, .canvas-app"),
             );
           let rich =
-            Js.Opt.test(el##querySelector(Js.string(".probe-card-rich")));
+            Js.Opt.test(
+              el##querySelector(Js.string(".probe-card-rich, .canvas-app")),
+            );
           switch (Js.Opt.to_option(inner)) {
           | Some(c) =>
             /* the effective CSS zoom right now (the camera may be
