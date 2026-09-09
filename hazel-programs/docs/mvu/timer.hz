@@ -37,66 +37,66 @@ let clock(seconds: Int): String =
   (if secs < 10 then "0" else "") ++ string_of_int(secs)
 in
 
-let button(label: String, action: Action, primary: Bool): HTML =
-  Button(
-    [OnClick(action),
-     Style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
+let button(label: String, action: Action, primary: Bool): Html.T =
+  Html.button(
+    [Attr.on_click(action),
+     Attr.style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
             ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "0.85em"),
             ("background", if primary then "var(--G0)" else "var(--T1)"),
             ("color", if primary then "var(--SAND)" else "var(--STONE)"),
             ("border", if primary then "1px solid var(--G0)" else "1px solid var(--BR1)")])],
-    [Text(label)]
+    [Html.text(label)]
   )
 in
 
-let view(model: Model): HTML =
-  Div(
+let view(model: Model): Html.T =
+  Html.div(
     [
-      Id("timer"),
-      Class("watering-timer"),
-      Style([("max-width", "280px"), ("margin", "0 auto"),
+      Attr.id("timer"),
+      Attr.class("watering-timer"),
+      Attr.style([("max-width", "280px"), ("margin", "0 auto"),
              ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
              ("background", "var(--SAND)"), ("color", "var(--STONE)"),
              ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
              ("overflow", "hidden")])
     ],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
                 ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-        [Text("🌙 Watering Timer")]
+        [Html.text("🌙 Watering Timer")]
       ),
-      Div(
-        [Style([("padding", "0.7em 1em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em"), ("text-align", "center"),
                 ("background", "var(--T2)"), ("font-size", "1.5em"),
                 ("font-weight", "bold"),
                 ("color", if model.running then "var(--G0)" else "var(--BR4)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)")])],
-        [Text(clock(model.seconds))]
+        [Html.text(clock(model.seconds))]
       ),
-      Div(
-        [Style([("padding", "0.7em 1em"), ("display", "grid"),
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em"), ("display", "grid"),
                 ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
         [
           button(if model.running then "Pause" else "Water", Toggle, !model.running),
           button("Reset", Reset, false)
         ]
       ),
-      Div(
-        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
                 ("font-size", "0.75em"), ("color", "var(--BR3)"),
                 ("border-top", "1px solid var(--BR1)")])],
-        [Text(if model.running then "Watering..." else "Paused")]
+        [Html.text(if model.running then "Watering..." else "Paused")]
       )
     ]
   )
 in
 
-let subs(model: Model): Sub =
+let subs(model: Model): Sub.T =
   if model.running
-  then Every(1000.0, fun _timestamp -> Tick)
-  else SubNone
+  then Sub.every(1000.0, fun _timestamp -> Tick)
+  else Sub.none
 in
 
 # Tests #
@@ -126,10 +126,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

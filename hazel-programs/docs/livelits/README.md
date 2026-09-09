@@ -33,7 +33,7 @@ and the four value members:
 
 - `init`: the model a fresh use starts with (`^name` + space inserts it)
 - `update: (Model, Action) => Model`
-- `view: Model => HTML` — handlers emit Actions (same HTML API as the MVU
+- `view: Model => Html.T` — handlers emit Actions (same Html.T API as the MVU
   apps, see ../mvu/README.md)
 - `expand: Model => Expansion`
 - optional member `shape`: `Inline(width)`, `Block(width, height)`, or

@@ -169,34 +169,34 @@ let sidePad = ("padding", "0.7em 1em") in
 let ruleTop = ("border-top", "1px solid var(--BR1)") in
 
 # Section label: uppercase micro-caps, as in Hazel's own panels #
-let sectionLabel(text: String): HTML =
-  Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+let sectionLabel(text: String): Html.T =
+  Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
               ("text-transform", "uppercase"), ("margin-bottom", "0.5em")])],
-      [Text(text)])
+      [Html.text(text)])
 in
 
 # Nutrient bar: label, value 0-100, color #
-let nutrientBar(label: String, value: Int, color: String): HTML =
+let nutrientBar(label: String, value: Int, color: String): Html.T =
   let widthPct = string_of_int(value) ++ "%" in
-  Div(
-    [Style([("margin-bottom", "0.5em")])],
+  Html.div(
+    [Attr.style([("margin-bottom", "0.5em")])],
     [
-      Div(
-        [Style([("display", "flex"), ("justify-content", "space-between"),
+      Html.div(
+        [Attr.style([("display", "flex"), ("justify-content", "space-between"),
                 ("margin-bottom", "0.2em")])],
         [
-          Span([Style([("color", "var(--BR3)")])], [Text(label)]),
-          Span([Style([("color", color), ("font-weight", "bold")])],
-               [Text(string_of_int(value) ++ "/100")])
+          Html.span([Attr.style([("color", "var(--BR3)")])], [Html.text(label)]),
+          Html.span([Attr.style([("color", color), ("font-weight", "bold")])],
+               [Html.text(string_of_int(value) ++ "/100")])
         ]
       ),
-      Div(
-        [Style([("width", "100%"), ("height", "10px"), ("background", "var(--SAND)"),
+      Html.div(
+        [Attr.style([("width", "100%"), ("height", "10px"), ("background", "var(--SAND)"),
                 ("border-radius", "3px"), ("overflow", "hidden"),
                 ("border", "1px solid var(--BR1)")])],
         [
-          Div(
-            [Style([("width", widthPct), ("height", "100%"), ("background", color),
+          Html.div(
+            [Attr.style([("width", widthPct), ("height", "100%"), ("background", color),
                     ("transition", "width 0.3s")])],
             []
           )
@@ -207,11 +207,11 @@ let nutrientBar(label: String, value: Int, color: String): HTML =
 in
 
 # One neutral button everywhere; `accent` marks the primary action #
-let actionButton(label: String, action: Action, accent: Bool): HTML =
-  Button(
+let actionButton(label: String, action: Action, accent: Bool): Html.T =
+  Html.button(
     [
-      OnClick(action),
-      Style([
+      Attr.on_click(action),
+      Attr.style([
         ("padding", "0.35em 0.6em"), ("border-radius", "3px"),
         ("cursor", "pointer"), ("font-size", "0.85em"),
         ("font-family", "inherit"), ("text-align", "left"),
@@ -221,52 +221,52 @@ let actionButton(label: String, action: Action, accent: Bool): HTML =
         ("border", if accent then "1px solid var(--G0)" else "1px solid var(--BR1)")
       ])
     ],
-    [Text(label)]
+    [Html.text(label)]
   )
 in
 
-let buttonGrid(children: [HTML]): HTML =
-  Div(
-    [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
+let buttonGrid(children: [Html.T]): Html.T =
+  Html.div(
+    [Attr.style([("display", "grid"), ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
     children
   )
 in
 
 # Only these two read the model, so only they stay inside view #
-let view(model: Model): HTML =
-  let cropDisplay: HTML =
+let view(model: Model): Html.T =
+  let cropDisplay: Html.T =
     case model.crop
     | None =>
-        Div(
-          [Style([("text-align", "center")])],
+        Html.div(
+          [Attr.style([("text-align", "center")])],
           [
-            Div([Style([("font-size", "1.5em")])], [Text("🌫️")]),
-            Div([Style([("color", "var(--BR3)"), ("margin-top", "0.2em")])],
-                [Text("Fallow — nothing planted")])
+            Html.div([Attr.style([("font-size", "1.5em")])], [Html.text("🌫️")]),
+            Html.div([Attr.style([("color", "var(--BR3)"), ("margin-top", "0.2em")])],
+                [Html.text("Fallow — nothing planted")])
           ]
         )
     | Some(c) =>
-        Div(
-          [Style([("text-align", "center")])],
+        Html.div(
+          [Attr.style([("text-align", "center")])],
           [
-            Div([Style([("font-size", "1.5em")])], [Text(cropEmoji(c))]),
-            Div([Style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-top", "0.2em")])],
-                [Text(cropName(c))]),
-            Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)")])],
-                [Text("Currently growing")])
+            Html.div([Attr.style([("font-size", "1.5em")])], [Html.text(cropEmoji(c))]),
+            Html.div([Attr.style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-top", "0.2em")])],
+                [Html.text(cropName(c))]),
+            Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)")])],
+                [Html.text("Currently growing")])
           ]
         )
     end
   in
 
-  let plantButtons: [HTML] =
+  let plantButtons: [Html.T] =
     case model.crop
     | Some(_) =>
         [
-          Div(
-            [Style([("text-align", "center"), ("color", "var(--BR3)"),
+          Html.div(
+            [Attr.style([("text-align", "center"), ("color", "var(--BR3)"),
                     ("font-size", "0.75em"), ("grid-column", "span 2")])],
-            [Text("Harvest the field before planting again")]
+            [Html.text("Harvest the field before planting again")]
           )
         ]
     | None =>
@@ -279,43 +279,43 @@ let view(model: Model): HTML =
     end
   in
 
-  Div(
-    [Style([
+  Html.div(
+    [Attr.style([
       ("max-width", "320px"), ("margin", "0 auto"),
       ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
       ("background", "var(--SAND)"), ("color", "var(--STONE)"),
       borderStyle, ("border-radius", "0.4em"), ("overflow", "hidden")
     ])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
         [
-          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-              [Text("🌙 Moonlit Soil Lab")]),
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
-              [Text("Nutrient management for the night garden")])
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Html.text("🌙 Moonlit Soil Lab")]),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Html.text("Nutrient management for the night garden")])
         ]
       ),
 
       # Season indicator #
-      Div(
-        [Style([("text-align", "center"), sidePad, cardBg, ruleTop,
+      Html.div(
+        [Attr.style([("text-align", "center"), sidePad, cardBg, ruleTop,
                 ("border-bottom", "1px solid var(--BR1)")])],
         [
-          Span([Style([("font-size", "1.2em")])], [Text(seasonEmoji(model.season))]),
-          Span(
-            [Style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-left", "0.5em")])],
-            [Text(seasonName(model.season))]
+          Html.span([Attr.style([("font-size", "1.2em")])], [Html.text(seasonEmoji(model.season))]),
+          Html.span(
+            [Attr.style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-left", "0.5em")])],
+            [Html.text(seasonName(model.season))]
           ),
-          Span(
-            [Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-left", "0.5em")])],
-            [Text("season " ++ string_of_int(model.season))]
+          Html.span(
+            [Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-left", "0.5em")])],
+            [Html.text("season " ++ string_of_int(model.season))]
           )
         ]
       ),
 
-      Div(
-        [Style([sidePad, ruleTop])],
+      Html.div(
+        [Attr.style([sidePad, ruleTop])],
         [
           sectionLabel("Soil Nutrients"),
           nutrientBar("N  Nitrogen", model.soil.n, "var(--G0)"),
@@ -324,18 +324,18 @@ let view(model: Model): HTML =
         ]
       ),
 
-      Div(
-        [Style([sidePad, ruleTop])],
+      Html.div(
+        [Attr.style([sidePad, ruleTop])],
         [sectionLabel("Current Crop"), cropDisplay]
       ),
 
-      Div(
-        [Style([sidePad, ruleTop])],
+      Html.div(
+        [Attr.style([sidePad, ruleTop])],
         [sectionLabel("Plant"), buttonGrid(plantButtons)]
       ),
 
-      Div(
-        [Style([sidePad, ruleTop])],
+      Html.div(
+        [Attr.style([sidePad, ruleTop])],
         [
           sectionLabel("Actions"),
           # Three actions in a two-column grid: the odd one spans the row #
@@ -343,16 +343,16 @@ let view(model: Model): HTML =
           buttonGrid([
             actionButton("🌿 Harvest", Harvest, true),
             actionButton("🧑‍🌾 Compost", Compost, false),
-            Div([Style([("grid-column", "span 2"), ("display", "grid")])],
+            Html.div([Attr.style([("grid-column", "span 2"), ("display", "grid")])],
                 [actionButton("🔄 Next Season", SeasonChange, false)])
           ])
         ]
       ),
 
-      Div(
-        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
                 ("color", "var(--BR3)"), ("font-size", "0.75em"), ruleTop])],
-        [Text("N " ++ string_of_int(model.soil.n)
+        [Html.text("N " ++ string_of_int(model.soil.n)
               ++ "  P " ++ string_of_int(model.soil.p)
               ++ "  K " ++ string_of_int(model.soil.k))]
       )
@@ -360,7 +360,7 @@ let view(model: Model): HTML =
   )
 in
 
-let subs(_model: Model): Sub = SubNone in
+let subs(_model: Model): Sub.T = Sub.none in
 
 # ===== TESTS ===== #
 
@@ -423,10 +423,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

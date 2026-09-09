@@ -87,24 +87,24 @@ in
 
 # ===== VIEW ===== #
 
-let stripBtn(label: String, action: Action): HTML =
-  Button(
+let stripBtn(label: String, action: Action): Html.T =
+  Html.button(
     [
-      OnClick(action),
-      Style([
+      Attr.on_click(action),
+      Attr.style([
         ("width", "56px"), ("height", "20px"), ("font-size", "0.75em"),
         ("background", "var(--T1)"), ("color", "var(--BR3)"),
         ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
         ("font-family", "inherit"), ("cursor", "pointer")
       ])
     ],
-    [Text(label)]
+    [Html.text(label)]
   )
 in
 
-let view(model: Model): HTML =
-  Div(
-    [Style([
+let view(model: Model): Html.T =
+  Html.div(
+    [Attr.style([
       ("max-width", "320px"), ("margin", "0 auto"), ("text-align", "center"),
       ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
       ("background", "var(--SAND)"), ("color", "var(--STONE)"),
@@ -112,27 +112,27 @@ let view(model: Model): HTML =
       ("overflow", "hidden")
     ])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em")])],
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em")])],
         [
-          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-              [Text("🌙 Crop Plotter")]),
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
-              [Text("Click to plant, double-click to uproot")])
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Html.text("🌙 Crop Plotter")]),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Html.text("Click to plant, double-click to uproot")])
         ]
       ),
       # Seed inventory: the held seed is marked by border colour, not width, #
       # so selecting one never shifts the row #
-      Div(
-        [Style([("display", "flex"), ("justify-content", "center"), ("gap", "0.4em"),
+      Html.div(
+        [Attr.style([("display", "flex"), ("justify-content", "center"), ("gap", "0.4em"),
                 ("padding", "0.7em 1em"), ("background", "var(--T2)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)")])],
         mapi(model.seedInventory, fun (idx, seed) ->
-          Button(
+          Html.button(
             [
-              OnClick(SelectSeed(idx)),
-              Style([
+              Attr.on_click(SelectSeed(idx)),
+              Attr.style([
                 ("font-size", "1.2em"), ("padding", "0.2em 0.4em"), ("cursor", "pointer"),
                 ("font-family", "inherit"), ("border-radius", "3px"),
                 ("background", if seed == model.currentSeed then "var(--SAND)" else "var(--T1)"),
@@ -141,70 +141,70 @@ let view(model: Model): HTML =
                            else "1px solid var(--BR1)")
               ])
             ],
-            [Text(seed)]
+            [Html.text(seed)]
           )
         )
       ),
-      Div(
-        [Style([("padding", "0.7em 1em")])],
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em")])],
         [
           # Column planting strip, offset past the row-button column #
-          Div(
-            [Style([("display", "flex"), ("justify-content", "center"), ("gap", "2px"),
+          Html.div(
+            [Attr.style([("display", "flex"), ("justify-content", "center"), ("gap", "2px"),
                     ("margin-left", "58px")])],
             mapi(nth(model.grove, 0), fun (col_idx, _cell) ->
               stripBtn("↓ col", PlantCol(col_idx))
             )
           ),
           # Grove grid, each row prefixed by its row-planting button #
-          Div(
-            [Style([("display", "inline-block"), ("margin-top", "2px")])],
+          Html.div(
+            [Attr.style([("display", "inline-block"), ("margin-top", "2px")])],
             mapi(model.grove, fun (row_idx, row) ->
-              Div(
-                [Style([("display", "flex"), ("justify-content", "center"), ("gap", "2px"),
+              Html.div(
+                [Attr.style([("display", "flex"), ("justify-content", "center"), ("gap", "2px"),
                         ("margin-bottom", "2px")])],
                 [stripBtn("→ row", PlantRow(row_idx))] @
                 mapi(row, fun (col_idx, cell) ->
-                  Button(
+                  Html.button(
                     [
-                      OnClick(PlantSeed(row_idx, col_idx)),
-                      OnDoubleClick(Uproot(row_idx, col_idx)),
-                      Style([
+                      Attr.on_click(PlantSeed(row_idx, col_idx)),
+                      Attr.on_double_click(Uproot(row_idx, col_idx)),
+                      Attr.style([
                         ("width", "56px"), ("height", "56px"), ("font-size", "1.5em"),
                         ("background", "var(--T1)"), ("border", "1px solid var(--BR1)"),
                         ("border-radius", "3px"), ("font-family", "inherit"),
                         ("cursor", "pointer")
                       ])
                     ],
-                    [Text(if cell == "" then " " else cell)]
+                    [Html.text(if cell == "" then " " else cell)]
                   )
                 )
               )
             )
           ),
-          Button(
+          Html.button(
             [
-              OnClick(ClearGrove),
-              Style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
+              Attr.on_click(ClearGrove),
+              Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
                      ("background", "var(--T1)"), ("color", "var(--STONE)"),
                      ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
                      ("cursor", "pointer"), ("font-family", "inherit"),
                      ("font-size", "0.85em")])
             ],
-            [Text("🌾 Clear Grove")]
+            [Html.text("🌾 Clear Grove")]
           )
         ]
       ),
-      Div(
-        [Style([("padding", "0.6em 1em"), ("font-size", "0.75em"), ("color", "var(--BR3)"),
+      Html.div(
+        [Attr.style([("padding", "0.6em 1em"), ("font-size", "0.75em"), ("color", "var(--BR3)"),
                 ("border-top", "1px solid var(--BR1)")])],
-        [Text("Holding " ++ model.currentSeed)]
+        [Html.text("Holding " ++ model.currentSeed)]
       )
     ]
   )
 in
 
-let subs(_model: Model): Sub = SubNone in
+let subs(_model: Model): Sub.T = Sub.none in
 
 # ===== TESTS ===== #
 
@@ -239,10 +239,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

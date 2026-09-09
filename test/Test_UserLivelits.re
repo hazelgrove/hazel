@@ -381,7 +381,7 @@ type Action = Int;
 type Expansion = Int;
 let init = 50;
 let update = fun (m, a) -> a;
-let view = fun m -> Text(\"hi\");
+let view = fun m -> Html.text(\"hi\");
 let expand = fun m -> m
 }";
   let def_user = parse_exp(def_text);
@@ -432,7 +432,7 @@ let expand = fun m -> m
       );
     check(
       bool,
-      "view(model) is HTML",
+      "view(model) is Html.T",
       true,
       Haz3lcore.MvuShape.is_html(html),
     );
@@ -515,7 +515,7 @@ type Action = Int;
 type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> Text(string_of_int(^^probe(m * 3)));
+let view = fun m -> Html.text(string_of_int(^^probe(m * 3)));
 let expand = fun m -> m * 2
 } in ";
 
@@ -570,7 +570,7 @@ let projector_gets_html_sample = () => {
       mtr.projectors,
       0,
     );
-  check(int, "projector stream carries the live HTML", 1, html_samples);
+  check(int, "projector stream carries the live Html.T", 1, html_samples);
 };
 
 let unprojected_view_not_run = () => {
@@ -600,7 +600,7 @@ type Action = Int;
 type Expansion = Int;
 let init = 0;
 let update = fun (m, a) -> ^^probe(m + a);
-let view = fun m -> Text(string_of_int(m));
+let view = fun m -> Html.text(string_of_int(m));
 let expand = fun m -> m * 2
 } in ";
 
@@ -680,7 +680,7 @@ type Expansion = Int;
 let bump = fun x -> x + 1;
 let init = 0;
 let update = fun (m, a) -> a;
-let view = fun m -> Div([OnClickAt(fun (x, y) -> bump(x + m))], []);
+let view = fun m -> Html.div([Attr.on_click_at(fun (x, y) -> bump(x + m))], []);
 let expand = fun m -> m
 } in ^^livelit(^pk(5))",
     );
@@ -704,7 +704,7 @@ let expand = fun m -> m
       None,
     );
   switch (html) {
-  | None => fail("no HTML sample recorded")
+  | None => fail("no Html.T sample recorded")
   | Some(html) =>
     let handler =
       switch (Haz3lcore.MvuShape.of_constructor_raw(html)) {
@@ -955,7 +955,7 @@ let tests = [
       test_case("commit vs ephemeral decision", `Quick, commit_decision),
       test_case("view probes fire when projected", `Quick, view_probes_fire),
       test_case(
-        "projector samples the live HTML",
+        "projector samples the live Html.T",
         `Quick,
         projector_gets_html_sample,
       ),

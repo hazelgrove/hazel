@@ -153,7 +153,7 @@ in
 
 # ===== VIEW ===== #
 
-let view(model: Model): HTML =
+let view(model: Model): Html.T =
   let playerName(p: Player): String =
     case p
     | PlayerSprout => "Sprout"
@@ -167,38 +167,38 @@ let view(model: Model): HTML =
     | Draw => "The plot is full - a draw!"
     end
   in
-  let boardRow(positions: [Int]): HTML =
-    Div([Style([("display", "flex"), ("gap", "2px"), ("margin-bottom", "2px")])],
+  let boardRow(positions: [Int]): Html.T =
+    Html.div([Attr.style([("display", "flex"), ("gap", "2px"), ("margin-bottom", "2px")])],
       map(positions, fun pos ->
-        Button(
+        Html.button(
           [
-            OnClick(ClickCell(pos)),
-            Style([
+            Attr.on_click(ClickCell(pos)),
+            Attr.style([
               ("width", "72px"), ("height", "72px"), ("font-size", "1.8em"),
               ("background", "var(--T1)"), ("border", "1px solid var(--BR1)"),
               ("border-radius", "3px"), ("font-family", "inherit"), ("cursor", "pointer")
             ])
           ],
-          [Text(cellStr(getCell(model.board, pos)))]
+          [Html.text(cellStr(getCell(model.board, pos)))]
         )
       )
     )
   in
-  Div(
-    [Style([("max-width", "300px"), ("margin", "0 auto"), ("text-align", "center"),
+  Html.div(
+    [Attr.style([("max-width", "300px"), ("margin", "0 auto"), ("text-align", "center"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
             ("background", "var(--SAND)"), ("color", "var(--STONE)"),
             ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em"), ("font-size", "1.2em"),
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em"), ("font-size", "1.2em"),
                 ("font-weight", "bold"), ("color", "var(--BR4)")])],
-        [Text("🌱 Sprouts and Shrooms 🍄")]
+        [Html.text("🌱 Sprouts and Shrooms 🍄")]
       ),
       # The status line is the one place a decided game shows colour #
-      Div(
-        [Style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)"),
                 ("color", case model.status
@@ -206,25 +206,25 @@ let view(model: Model): HTML =
                           | Draw => "var(--BR3)"
                           | InProgress => "var(--STONE)"
                           end)])],
-        [Text(statusText)]
+        [Html.text(statusText)]
       ),
-      Div(
-        [Style([("padding", "0.7em 1em")])],
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em")])],
         [
-          Div(
-            [Style([("display", "inline-block")])],
+          Html.div(
+            [Attr.style([("display", "inline-block")])],
             [boardRow([0, 1, 2]), boardRow([3, 4, 5]), boardRow([6, 7, 8])]
           ),
-          Button(
+          Html.button(
             [
-              OnClick(NewGame),
-              Style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
+              Attr.on_click(NewGame),
+              Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
                      ("background", "var(--G0)"), ("color", "var(--SAND)"),
                      ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
                      ("cursor", "pointer"), ("font-family", "inherit"),
                      ("font-size", "0.85em")])
             ],
-            [Text("New Plot")]
+            [Html.text("New Plot")]
           )
         ]
       )
@@ -232,7 +232,7 @@ let view(model: Model): HTML =
   )
 in
 
-let subs(_model: Model): Sub = SubNone in
+let subs(_model: Model): Sub.T = Sub.none in
 
 # ===== TESTS ===== #
 
@@ -284,10 +284,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

@@ -47,7 +47,7 @@ let ^pct = {
 ^pct(25) + ^pct(75)
 ```
 
-with `update: (Model, Action) => Model`, `view: Model => HTML` (handlers emit
+with `update: (Model, Action) => Model`, `view: Model => Html.T` (handlers emit
 Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
 An optional member `shape = Inline(width) | Block(width, height) |
 Tab(width, height)` (a `LivelitShape`) sets the projector's footprint in
@@ -95,7 +95,7 @@ model lives in its own argument syntax. `^name.member` is also surface
 syntax: it accesses the definition record (e.g. `^pct.expand(25)`).
 
 A projected use's `view` runs in the main evaluation (sampled at the
-projector, which renders the live HTML), so probes inside `view` and
+projector, which renders the live Html.T), so probes inside `view` and
 `expand` see samples per use. Interactions commit the transition itself as
 the new argument — `^name(^name.update(prev, action))` — normalized by the
 next evaluation, so the last interaction stays in the program where

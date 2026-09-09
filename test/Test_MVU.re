@@ -70,7 +70,7 @@ let rec is_valid_html = (exp: Exp.t): bool => {
 let describe_html_issue = (exp: Exp.t): string => {
   switch (Haz3lcore.MvuShape.of_constructor(exp)) {
   | None =>
-    "Not an HTML constructor. Got: "
+    "Not an Html.T constructor. Got: "
     ++ (
       switch (exp.term) {
       | Atom(Int(n)) => "Int(" ++ Bigint.to_string(n) ++ ")"
@@ -175,24 +175,24 @@ let extract_field = (name: string, exp: Exp.t): option(Exp.t) => {
 
 let counter_program = {|
 let update : (Int, Int) -> Int = fun (msg, model) -> model + msg in
-let view : Int -> HTML = fun model -> Div(
-  [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
+let view : Int -> Html.T = fun model -> Html.div(
+  [Attr.class("counter"), Attr.style([("text-align", "center"), ("padding", "20px")])],
   [
-    H2([], [Text("MVU Counter")]),
-    Div(
-      [Style([("font-size", "48px"), ("margin", "20px")])],
-      [Int(model)]
+    Html.h2([], [Html.text("MVU Counter")]),
+    Html.div(
+      [Attr.style([("font-size", "48px"), ("margin", "20px")])],
+      [Html.int(model)]
     ),
-    Div(
+    Html.div(
       [],
       [
-        Button([OnClick(-1), Style([("font-size", "24px")])], [Text("-")]),
-        Button([OnClick(1), Style([("font-size", "24px")])], [Text("+")])
+        Html.button([Attr.on_click(-1), Attr.style([("font-size", "24px")])], [Html.text("-")]),
+        Html.button([Attr.on_click(1), Attr.style([("font-size", "24px")])], [Html.text("+")])
       ]
     )
   ]
 ) in
-let subs : Int -> Sub = fun _model -> SubNone in
+let subs : Int -> Sub.T = fun _model -> Sub.none in
 (0, update, view, subs)
 |};
 
@@ -225,7 +225,7 @@ let counter_init_model_is_zero =
 
 let counter_view_produces_valid_html =
   test_case(
-    "Counter view(0) produces valid HTML",
+    "Counter view(0) produces valid Html.T",
     `Quick,
     () => {
       let result = parse_and_evaluate(counter_program);
@@ -274,7 +274,7 @@ let counter_update_decrement =
 
 let svg_tag_routing =
   test_case(
-    "Node tag routing: SVG tags recognized, HTML tags not",
+    "Node tag routing: SVG tags recognized, Html.T tags not",
     `Quick,
     () => {
       let is_svg = Haz3lcore.HazelDOM.is_svg_tag;
@@ -283,7 +283,7 @@ let svg_tag_routing =
         ["svg", "circle", "path", "text", "g", "linearGradient"],
       );
       List.iter(
-        t => check(bool, t ++ " stays HTML", false, is_svg(t)),
+        t => check(bool, t ++ " stays Html.T", false, is_svg(t)),
         ["div", "span", "a", "script", "style", "canvas"],
       );
     },
@@ -291,7 +291,7 @@ let svg_tag_routing =
 
 let counter_view_after_update =
   test_case(
-    "Counter view(update(1, 0)) produces valid HTML",
+    "Counter view(update(1, 0)) produces valid Html.T",
     `Quick,
     () => {
       let result = parse_and_evaluate(counter_program);
@@ -359,27 +359,27 @@ let update = fun (msg, model) ->
   else
     model
 in
-let view : (Int, Int) -> HTML = fun model ->
+let view : (Int, Int) -> Html.T = fun model ->
   let x = fst(model) in
   let y = snd(model) in
-  Div(
-    [Id("game"), Style([("width", "400px"), ("height", "400px"), ("position", "relative")])],
+  Html.div(
+    [Attr.id("game"), Attr.style([("width", "400px"), ("height", "400px"), ("position", "relative")])],
     [
-      Div([Style([("text-align", "center")])], [Text("Use arrow keys")]),
-      Div(
-        [Style([("width", "40px"), ("height", "40px"), ("position", "absolute"),
+      Html.div([Attr.style([("text-align", "center")])], [Html.text("Use arrow keys")]),
+      Html.div(
+        [Attr.style([("width", "40px"), ("height", "40px"), ("position", "absolute"),
                 ("left", string_of_int(x) ++ "px"), ("top", string_of_int(y) ++ "px")])],
         []
       ),
-      Div(
-        [Style([("position", "absolute"), ("bottom", "10px")])],
-        [Text("Position: (" ++ string_of_int(x) ++ ", " ++ string_of_int(y) ++ ")")]
+      Html.div(
+        [Attr.style([("position", "absolute"), ("bottom", "10px")])],
+        [Html.text("Position: (" ++ string_of_int(x) ++ ", " ++ string_of_int(y) ++ ")")]
       )
     ]
   )
 in
-let subs : (Int, Int) -> Sub = fun _model ->
-  OnDocumentKeyDown(fun (key, _code, _ctrl, _shift, _alt, _meta) -> key)
+let subs : (Int, Int) -> Sub.T = fun _model ->
+  Sub.on_document_key_down(fun (key, _code, _ctrl, _shift, _alt, _meta) -> key)
 in
 ((180, 180), update, view, subs)
 |};
@@ -399,7 +399,7 @@ let keyboard_detects_as_elm_app =
 
 let keyboard_view_produces_valid_html =
   test_case(
-    "Keyboard view((180,180)) produces valid HTML",
+    "Keyboard view((180,180)) produces valid Html.T",
     `Quick,
     () => {
       let result = parse_and_evaluate(keyboard_game_program);
@@ -438,7 +438,7 @@ let keyboard_update_arrow_right =
 
 let keyboard_view_after_move =
   test_case(
-    "Keyboard view after ArrowRight produces valid HTML",
+    "Keyboard view after ArrowRight produces valid Html.T",
     `Quick,
     () => {
       let result = parse_and_evaluate(keyboard_game_program);
@@ -484,10 +484,10 @@ let strip_wrappers_parens =
 
 let of_constructor_basic =
   test_case(
-    "of_constructor on Text(\"hello\")",
+    "of_constructor on Html.text(\"hello\")",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|Text("hello")|});
+      let exp = parse_and_evaluate({|Html.text("hello")|});
       switch (Haz3lcore.MvuShape.of_constructor(exp)) {
       | Some(("Text", _)) => ()
       | Some((name, _)) => fail("Expected Text constructor, got: " ++ name)
@@ -498,10 +498,10 @@ let of_constructor_basic =
 
 let of_constructor_nested =
   test_case(
-    "of_constructor on Div([], [Text(\"hi\")])",
+    "of_constructor on Html.div([], [Html.text(\"hi\")])",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|Div([], [Text("hi")])|});
+      let exp = parse_and_evaluate({|Html.div([], [Html.text("hi")])|});
       switch (Haz3lcore.MvuShape.of_constructor(exp)) {
       | Some(("Div", _)) => ()
       | Some((name, _)) => fail("Expected Div constructor, got: " ++ name)
@@ -520,20 +520,20 @@ type Action = + Inc + Dec + SetTo(Int) in
 let init = (count=0, label="test") in
 let update = fun (action, model) ->
   case action
-  | Inc => ((count=model.count + 1, label=model.label), CmdNone)
-  | Dec => ((count=model.count - 1, label=model.label), CmdNone)
-  | SetTo(n) => ((count=n, label=model.label), CmdNone)
+  | Inc => ((count=model.count + 1, label=model.label), Cmd.none)
+  | Dec => ((count=model.count - 1, label=model.label), Cmd.none)
+  | SetTo(n) => ((count=n, label=model.label), Cmd.none)
   end
 in
 let view = fun model ->
-  Div([], [
-    H2([], [Text(model.label)]),
-    P([], [Int(model.count)]),
-    Button([OnClick(Inc)], [Text("+")]),
-    Button([OnClick(Dec)], [Text("-")])
+  Html.div([], [
+    Html.h2([], [Html.text(model.label)]),
+    Html.p([], [Html.int(model.count)]),
+    Html.button([Attr.on_click(Inc)], [Html.text("+")]),
+    Html.button([Attr.on_click(Dec)], [Html.text("-")])
   ])
 in
-let subs = fun _model -> SubNone in
+let subs = fun _model -> Sub.none in
 (init, update, view, subs)
 |};
 
@@ -572,7 +572,7 @@ let real_mvu_update_returns_pair =
 
 let real_mvu_cmd_is_cmdnone =
   test_case(
-    "Real MVU update returns CmdNone",
+    "Real MVU update returns Cmd.none",
     `Quick,
     () => {
       let result = parse_and_evaluate(real_mvu_program);
@@ -630,7 +630,7 @@ let real_mvu_update_setto =
 
 let real_mvu_view_valid =
   test_case(
-    "Real MVU view(init) produces valid HTML",
+    "Real MVU view(init) produces valid Html.T",
     `Quick,
     () => {
       let result = parse_and_evaluate(real_mvu_program);
@@ -701,22 +701,22 @@ type Action = + Save + Notify(String) + Multi + FocusInput in
 let init = (saved=false, msg="") in
 let update = fun (action, model) ->
   case action
-  | Save => ((saved=true, msg=model.msg), CmdNone)
-  | Notify(text) => ((saved=model.saved, msg=text), Log(text))
-  | Multi => ((saved=true, msg="done"), CmdBatch([Log("a"), Log("b")]))
-  | FocusInput => (model, Focus("my-input"))
+  | Save => ((saved=true, msg=model.msg), Cmd.none)
+  | Notify(text) => ((saved=model.saved, msg=text), Cmd.log(text))
+  | Multi => ((saved=true, msg="done"), Cmd.batch([Cmd.log("a"), Cmd.log("b")]))
+  | FocusInput => (model, Cmd.focus("my-input"))
   end
 in
 let view = fun model ->
-  Div([], [Text(if model.saved then "saved" else "unsaved")])
+  Html.div([], [Html.text(if model.saved then "saved" else "unsaved")])
 in
-let subs = fun _model -> SubNone in
+let subs = fun _model -> Sub.none in
 (init, update, view, subs)
 |};
 
 let cmd_save_returns_cmdnone =
   test_case(
-    "Cmd: Save returns CmdNone",
+    "Cmd.T: Save returns Cmd.none",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -732,7 +732,7 @@ let cmd_save_returns_cmdnone =
 
 let cmd_notify_returns_log =
   test_case(
-    "Cmd: Notify returns Log",
+    "Cmd.T: Notify returns Log",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -753,7 +753,7 @@ let cmd_notify_returns_log =
 
 let cmd_multi_returns_cmdbatch =
   test_case(
-    "Cmd: Multi returns CmdBatch",
+    "Cmd.T: Multi returns CmdBatch",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -769,7 +769,7 @@ let cmd_multi_returns_cmdbatch =
 
 let cmd_cmdbatch_has_list_body =
   test_case(
-    "Cmd: CmdBatch body is a list of commands",
+    "Cmd.T: CmdBatch body is a list of commands",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -802,7 +802,7 @@ let cmd_cmdbatch_has_list_body =
 
 let cmd_focus_returns_focus =
   test_case(
-    "Cmd: FocusInput returns Focus",
+    "Cmd.T: FocusInput returns Focus",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -818,7 +818,7 @@ let cmd_focus_returns_focus =
 
 let cmd_view_after_update =
   test_case(
-    "Cmd: view valid after command-producing update",
+    "Cmd.T: view valid after command-producing update",
     `Quick,
     () => {
       let result = parse_and_evaluate(cmd_program);
@@ -847,22 +847,22 @@ type Action = + Tick + Toggle in
 let init = (count=0, running=false) in
 let update = fun (action, model) ->
   case action
-  | Tick => ((count=model.count + 1, running=model.running), CmdNone)
-  | Toggle => ((count=model.count, running=if model.running then false else true), CmdNone)
+  | Tick => ((count=model.count + 1, running=model.running), Cmd.none)
+  | Toggle => ((count=model.count, running=if model.running then false else true), Cmd.none)
   end
 in
 let view = fun model ->
-  Div([], [Text(string_of_int(model.count))])
+  Html.div([], [Html.text(string_of_int(model.count))])
 in
 let subs = fun model ->
-  if model.running then Every(1000.0, fun _ts -> Tick) else SubNone
+  if model.running then Sub.every(1000.0, fun _ts -> Tick) else Sub.none
 in
 (init, update, view, subs)
 |};
 
 let sub_stopped_returns_subnone =
   test_case(
-    "Sub: stopped model returns SubNone",
+    "Sub.T: stopped model returns Sub.none",
     `Quick,
     () => {
       let result = parse_and_evaluate(sub_program);
@@ -877,7 +877,7 @@ let sub_stopped_returns_subnone =
 
 let sub_running_returns_every =
   test_case(
-    "Sub: running model returns Every",
+    "Sub.T: running model returns Every",
     `Quick,
     () => {
       let result = parse_and_evaluate(sub_program);
@@ -896,7 +896,7 @@ let sub_running_returns_every =
 
 let sub_keyboard_returns_ondocumentkeydown =
   test_case(
-    "Sub: keyboard game returns OnDocumentKeyDown",
+    "Sub.T: keyboard game returns OnDocumentKeyDown",
     `Quick,
     () => {
       let result = parse_and_evaluate(keyboard_game_program);
@@ -911,7 +911,7 @@ let sub_keyboard_returns_ondocumentkeydown =
 
 let sub_counter_returns_subnone =
   test_case(
-    "Sub: counter returns SubNone",
+    "Sub.T: counter returns Sub.none",
     `Quick,
     () => {
       let result = parse_and_evaluate(counter_program);
@@ -926,7 +926,7 @@ let sub_counter_returns_subnone =
 
 let sub_is_valid_sub_check =
   test_case(
-    "Sub: is_valid_sub recognizes Sub constructors",
+    "Sub.T: is_valid_sub recognizes Sub.T constructors",
     `Quick,
     () => {
       // SubNone
@@ -936,7 +936,7 @@ let sub_is_valid_sub_check =
         let sub = apply(subs_fn, init_model);
         check(
           Alcotest.bool,
-          "SubNone is valid sub",
+          "Sub.none is valid sub",
           true,
           is_valid_sub(sub),
         );
@@ -969,23 +969,25 @@ let sub_is_valid_sub_check =
 
 let html_table_tr_td =
   test_case(
-    "HTML: Table > Tr > Td is valid",
+    "Html.T: Table > Tr > Td is valid",
     `Quick,
     () => {
       let exp =
-        parse_and_evaluate({|Table([], [Tr([], [Td([], [Text("cell")])])])|});
+        parse_and_evaluate(
+          {|Html.table([], [Html.tr([], [Html.td([], [Html.text("cell")])])])|},
+        );
       assert_valid_html("Table/Tr/Td", exp);
     },
   );
 
 let html_table_thead_tbody =
   test_case(
-    "HTML: Table with Thead and Tbody is valid",
+    "Html.T: Table with Thead and Tbody is valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|Table([], [Thead([], [Tr([], [Th([], [Text("Header")])])]), Tbody([], [Tr([], [Td([], [Text("Data")])])])])|},
+          {|Html.table([], [Html.thead([], [Html.tr([], [Html.th([], [Html.text("Header")])])]), Html.tbody([], [Html.tr([], [Html.td([], [Html.text("Data")])])])])|},
         );
       assert_valid_html("Table/Thead/Tbody", exp);
     },
@@ -993,12 +995,12 @@ let html_table_thead_tbody =
 
 let html_select_option =
   test_case(
-    "HTML: Select > Option is valid",
+    "Html.T: Select > Option is valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|Select([], [Option([], [Text("A")]), Option([], [Text("B")])])|},
+          {|Html.select([], [Html.option([], [Html.text("A")]), Html.option([], [Html.text("B")])])|},
         );
       assert_valid_html("Select/Option", exp);
     },
@@ -1006,12 +1008,12 @@ let html_select_option =
 
 let html_ol_li =
   test_case(
-    "HTML: Ol > Li is valid",
+    "Html.T: Ol > Li is valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|Ol([], [Li([], [Text("one")]), Li([], [Text("two")])])|},
+          {|Html.ol([], [Html.li([], [Html.text("one")]), Html.li([], [Html.text("two")])])|},
         );
       assert_valid_html("Ol/Li", exp);
     },
@@ -1019,42 +1021,42 @@ let html_ol_li =
 
 let html_h3 =
   test_case(
-    "HTML: H3 is valid",
+    "Html.T: H3 is valid",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|H3([], [Text("heading")])|});
+      let exp = parse_and_evaluate({|Html.h3([], [Html.text("heading")])|});
       assert_valid_html("H3", exp);
     },
   );
 
 let html_hr =
   test_case(
-    "HTML: Hr is valid",
+    "Html.T: Html.hr is valid",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|Hr|});
+      let exp = parse_and_evaluate({|Html.hr|});
       assert_valid_html("Hr", exp);
     },
   );
 
 let html_br =
   test_case(
-    "HTML: Br is valid",
+    "Html.T: Html.br is valid",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|Br|});
+      let exp = parse_and_evaluate({|Html.br|});
       assert_valid_html("Br", exp);
     },
   );
 
 let html_a_element =
   test_case(
-    "HTML: A element is valid",
+    "Html.T: A element is valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|A([Href("https://example.com")], [Text("link")])|},
+          {|Html.a([Attr.href("https://example.com")], [Html.text("link")])|},
         );
       assert_valid_html("A", exp);
     },
@@ -1062,17 +1064,17 @@ let html_a_element =
 
 let html_nested_structure =
   test_case(
-    "HTML: deeply nested structure is valid",
+    "Html.T: deeply nested structure is valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|Div([], [
-            Ul([], [
-              Li([], [Span([], [Text("item 1")])]),
-              Li([], [Span([], [Text("item 2")])])
+          {|Html.div([], [
+            Html.ul([], [
+              Html.li([], [Html.span([], [Html.text("item 1")])]),
+              Html.li([], [Html.span([], [Html.text("item 2")])])
             ]),
-            P([], [Text("paragraph")])
+            Html.p([], [Html.text("paragraph")])
           ])|},
         );
       assert_valid_html("nested structure", exp);
@@ -1081,19 +1083,19 @@ let html_nested_structure =
 
 let html_semantic_elements =
   test_case(
-    "HTML: semantic elements are valid",
+    "Html.T: semantic elements are valid",
     `Quick,
     () => {
       let exp =
         parse_and_evaluate(
-          {|Div([], [
-            Header([], [Text("header")]),
-            Nav([], [Text("nav")]),
-            Main([], [
-              Section([], [Text("section")]),
-              Article([], [Text("article")])
+          {|Html.div([], [
+            Html.header([], [Html.text("header")]),
+            Html.nav([], [Html.text("nav")]),
+            Html.main([], [
+              Html.section([], [Html.text("section")]),
+              Html.article([], [Html.text("article")])
             ]),
-            Footer([], [Text("footer")])
+            Html.footer([], [Html.text("footer")])
           ])|},
         );
       assert_valid_html("semantic elements", exp);
@@ -1113,8 +1115,10 @@ let syntax_commit_simple_msg =
     `Quick,
     () => {
       let msg =
-        parse_and_evaluate({|fun m -> Div([], [m, Text("clicked")])|});
-      let model = parse_and_evaluate({|Span([], [Text("hi")])|});
+        parse_and_evaluate(
+          {|fun m -> Html.div([], [m, Html.text("clicked")])|},
+        );
+      let model = parse_and_evaluate({|Html.span([], [Html.text("hi")])|});
       let new_html = apply(msg, model);
       assert_valid_html("msg(model)", new_html);
       assert_constructor("msg(model)", "Div", new_html);
@@ -1128,10 +1132,11 @@ let syntax_commit_payload_msg =
     "Syntax commit: payload msg = fun m -> handler((m, payload))",
     `Quick,
     () => {
-      let handler = parse_and_evaluate({|fun (m, s) -> Div([], [Text(s)])|});
+      let handler =
+        parse_and_evaluate({|fun (m, s) -> Html.div([], [Html.text(s)])|});
       let msg =
         Haz3lcore.HazelDOM.payload_transform(handler, Exp.string("typed"));
-      let model = parse_and_evaluate({|Div([], [Text("old")])|});
+      let model = parse_and_evaluate({|Html.div([], [Html.text("old")])|});
       let new_html = apply(msg, model);
       assert_valid_html("payload msg applied", new_html);
       // The payload must have reached the handler: child is Text("typed")
@@ -1166,18 +1171,20 @@ let syntax_commit_payload_msg =
 // the Cmd.
 let syntax_commit_html_cmd_result =
   test_case(
-    "Syntax commit: msg producing (Html, Cmd)",
+    "Syntax commit: msg producing (Html, Cmd.T)",
     `Quick,
     () => {
       let msg =
-        parse_and_evaluate({|fun m -> (Div([], [m]), Log("committed"))|});
-      let model = parse_and_evaluate({|Text("x")|});
+        parse_and_evaluate(
+          {|fun m -> (Html.div([], [m]), Cmd.log("committed"))|},
+        );
+      let model = parse_and_evaluate({|Html.text("x")|});
       let result = apply(msg, model);
       switch (extract_pair(result)) {
       | Some((html, cmd)) =>
         assert_valid_html("html half", html);
         assert_constructor("cmd half", "Log", cmd);
-      | None => fail("msg(model) should be an (Html, Cmd) pair")
+      | None => fail("msg(model) should be an (Html, Cmd.T) pair")
       };
     },
   );
@@ -1193,7 +1200,7 @@ let neg_3tuple_not_elm_app =
     () => {
       let result =
         parse_and_evaluate(
-          {|(0, fun (m, a) -> m + a, fun m -> Div([], [Text("hi")]))|},
+          {|(0, fun (m, a) -> m + a, fun m -> Html.div([], [Html.text("hi")]))|},
         );
       switch (extract_elm_app(result)) {
       | Some(_) => fail("3-tuple should not be detected as Elm app")
@@ -1209,7 +1216,7 @@ let neg_5tuple_not_elm_app =
     () => {
       let result =
         parse_and_evaluate(
-          {|(0, fun (m, a) -> m, fun m -> Div([], []), fun m -> SubNone, 99)|},
+          {|(0, fun (m, a) -> m, fun m -> Html.div([], []), fun m -> Sub.none, 99)|},
         );
       switch (extract_elm_app(result)) {
       | Some(_) => fail("5-tuple should not be detected as Elm app")
@@ -1225,8 +1232,8 @@ let neg_5tuple_not_elm_app =
 let labeled_app_program = (fields: string) =>
   {|
 let update(msg, model) = model + msg in
-let view(model) = Div([], [Int(model)]) in
-let subs(_model) = SubNone in
+let view(model) = Html.div([], [Html.int(model)]) in
+let subs(_model) = Sub.none in
 |}
   ++ fields;
 
@@ -1259,20 +1266,20 @@ let labeled_app_permuted_detected =
   );
 
 let neg_bare_string_not_html =
-  test_case("Neg: bare string is not valid HTML", `Quick, () => {
+  test_case("Neg: bare string is not valid Html.T", `Quick, () => {
     check(
       Alcotest.bool,
-      "bare string not HTML",
+      "bare string not Html.T",
       false,
       is_valid_html(Exp.string("hello")),
     )
   });
 
 let neg_bare_int_not_html =
-  test_case("Neg: bare int is not valid HTML", `Quick, () => {
+  test_case("Neg: bare int is not valid Html.T", `Quick, () => {
     check(
       Alcotest.bool,
-      "bare int not HTML",
+      "bare int not Html.T",
       false,
       is_valid_html(Exp.int(42)),
     )
@@ -1280,13 +1287,13 @@ let neg_bare_int_not_html =
 
 let neg_unknown_constructor_not_html =
   test_case(
-    "Neg: unknown constructor is not valid HTML",
+    "Neg: unknown constructor is not valid Html.T",
     `Quick,
     () => {
-      let exp = parse_and_evaluate({|FakeElement([], [Text("hi")])|});
+      let exp = parse_and_evaluate({|FakeElement([], [Html.text("hi")])|});
       check(
         Alcotest.bool,
-        "FakeElement not HTML",
+        "FakeElement not Html.T",
         false,
         is_valid_html(exp),
       );
@@ -1307,7 +1314,7 @@ let projector_dynamics_records_a_sample =
     () => {
       // Wrap an expression in a Projector node, as MakeTerm does for a
       // projected piece; the projector's id is the node's id.
-      let inner = parse_exp("Div([], [Text(\"hi\")])");
+      let inner = parse_exp("Html.div([], [Html.text(\"hi\")])");
       let term: Grammar.exp_term(IdTagged.IdTag.t) =
         Projector(
           {
@@ -1347,7 +1354,7 @@ let projector_dynamics_records_a_sample =
       | [sample, ..._] =>
         check(
           Alcotest.bool,
-          "sample value is the evaluated HTML",
+          "sample value is the evaluated Html.T",
           true,
           Haz3lcore.MvuShape.is_html(sample.value),
         )
@@ -1433,9 +1440,9 @@ let assert_roundtrips = (label: string, model: Exp.t) =>
 
 let checkpoint_program = {|
 let init = (count=1, label="hi") in
-let update = fun (msg, model) -> (model, CmdNone) in
-let view = fun model -> Div([], [Text(model.label), Int(model.count)]) in
-let subs = fun _model -> SubNone in
+let update = fun (msg, model) -> (model, Cmd.none) in
+let view = fun model -> Html.div([], [Html.text(model.label), Html.int(model.count)]) in
+let subs = fun _model -> Sub.none in
 (init, update, view, subs)
 |};
 
@@ -1443,18 +1450,18 @@ let subs = fun _model -> SubNone in
 let checkpoint_program_v2 = {|
 type Shape = + Circle + Square in
 let init : Shape = Circle in
-let update = fun (msg, model) -> (model, CmdNone) in
-let view = fun model -> case model | Circle => Div([], [Text("circle")]) end in
-let subs = fun _model -> SubNone in
+let update = fun (msg, model) -> (model, Cmd.none) in
+let view = fun model -> case model | Circle => Html.div([], [Html.text("circle")]) end in
+let subs = fun _model -> Sub.none in
 (init, update, view, subs)
 |};
 
 // A model that carries a function; the function is closed after evaluation
 let function_model_program = {|
 let init = (count=1, fmt=fun x -> x) in
-let update = fun (msg, model) -> (model, CmdNone) in
-let view = fun model -> Div([], [Int(model.count)]) in
-let subs = fun _model -> SubNone in
+let update = fun (msg, model) -> (model, Cmd.none) in
+let view = fun model -> Html.div([], [Html.int(model.count)]) in
+let subs = fun _model -> Sub.none in
 (init, update, view, subs)
 |};
 

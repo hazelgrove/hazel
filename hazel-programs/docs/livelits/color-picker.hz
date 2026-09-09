@@ -30,14 +30,14 @@ let ^hwb = {
   let update = fun (m, a) : (Model, Action) -> a;
 
   let view = fun (h, w, b) : Model ->
-    Div(
-      [Style([("display", "flex"), ("flex-direction", "column"),
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
               ("gap", "0.35em"),
               ("font-family", "var(--code-font)"),
               ("font-size", "0.75em"), ("padding", "2px")])],
       [
-        Div(
-          [Style([("width", "150px"), ("height", "92px"),
+        Html.div(
+          [Attr.style([("width", "150px"), ("height", "92px"),
                   ("position", "relative"),
                   ("cursor", "crosshair"),
                   ("border-radius", "3px"),
@@ -45,10 +45,10 @@ let ^hwb = {
                    "linear-gradient(to top, #000, transparent), "
                    ++ "linear-gradient(to right, #fff, hsl("
                    ++ string_of_int(h) ++ " 100% 50%))")]),
-           OnClickAt(fun (x, y) -> pick((h, x, y)))],
+           Attr.on_click_at(fun (x, y) -> pick((h, x, y)))],
           [
-            Div(
-              [Style([("position", "absolute"),
+            Html.div(
+              [Attr.style([("position", "absolute"),
                       ("left",
                        string_of_int(dot_x((w, b)) - 4) ++ "px"),
                       ("top", string_of_int(dot_y(b) - 4) ++ "px"),
@@ -61,22 +61,22 @@ let ^hwb = {
             )
           ]
         ),
-        Div(
-          [Style([("display", "flex"), ("gap", "0.5em"),
+        Html.div(
+          [Attr.style([("display", "flex"), ("gap", "0.5em"),
                   ("align-items", "center")])],
           [
-            Div(
-              [Style([("width", "26px"), ("height", "14px"),
+            Html.div(
+              [Attr.style([("width", "26px"), ("height", "14px"),
                       ("border-radius", "7px"),
                       ("border", "1px solid var(--BR1)"),
                       ("background", css((h, w, b)))])],
               []
             ),
-            Input([
-              Type("range"), Min("0"), Max("359"),
-              Value(string_of_int(h)),
-              OnInput(fun s -> (int_of_string(s), w, b)),
-              Style([("width", "118px"), ("margin", "0"),
+            Html.input([
+              Attr.type_("range"), Attr.min("0"), Attr.max("359"),
+              Attr.value(string_of_int(h)),
+              Attr.on_input(fun s -> (int_of_string(s), w, b)),
+              Attr.style([("width", "118px"), ("margin", "0"),
                      ("background",
                       "linear-gradient(to right, #f00, #ff0, #0f0, "
                       ++ "#0ff, #00f, #f0f, #f00)")])

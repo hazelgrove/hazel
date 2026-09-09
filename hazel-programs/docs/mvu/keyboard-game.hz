@@ -51,11 +51,11 @@ let skyEdge: String = "oklch(40% 0.05 300)" in
 let skyText: String = "oklch(68% 0.03 300)" in
 let glow: String = "oklch(88% 0.16 95)" in
 
-let view(model: Model): HTML =
-  Div(
+let view(model: Model): Html.T =
+  Html.div(
     [
-      Id("grove"),
-      Style([
+      Attr.id("grove"),
+      Attr.style([
         ("width", string_of_int(groveW) ++ "px"),
         ("height", string_of_int(groveH) ++ "px"),
         ("position", "relative"),
@@ -70,12 +70,12 @@ let view(model: Model): HTML =
       ])
     ],
     [
-      Div(
-        [Style([("text-align", "center"), ("padding", "0.7em")])],
-        [Text("Arrow keys to steer")]
+      Html.div(
+        [Attr.style([("text-align", "center"), ("padding", "0.7em")])],
+        [Html.text("Arrow keys to steer")]
       ),
-      Div(
-        [Style([
+      Html.div(
+        [Attr.style([
           ("width", string_of_int(fly) ++ "px"),
           ("height", string_of_int(fly) ++ "px"),
           ("background", glow),
@@ -88,16 +88,16 @@ let view(model: Model): HTML =
         ])],
         []
       ),
-      Div(
-        [Style([("position", "absolute"), ("bottom", "0.6em"), ("left", "0.8em")])],
-        [Text("(" ++ string_of_int(model.x) ++ ", " ++ string_of_int(model.y) ++ ")")]
+      Html.div(
+        [Attr.style([("position", "absolute"), ("bottom", "0.6em"), ("left", "0.8em")])],
+        [Html.text("(" ++ string_of_int(model.x) ++ ", " ++ string_of_int(model.y) ++ ")")]
       )
     ]
   )
 in
 
-let subs(_model: Model): Sub =
-  OnDocumentKeyDown(fun (e: KeyEvent) ->
+let subs(_model: Model): Sub.T =
+  Sub.on_document_key_down(fun (e: Attr.KeyEvent) ->
     if e.key == "ArrowUp" then MoveUp
     else if e.key == "ArrowDown" then MoveDown
     else if e.key == "ArrowLeft" then MoveLeft
@@ -134,10 +134,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

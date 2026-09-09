@@ -13,8 +13,8 @@ To work from the file instead:
 
 1. Copy the code from any `.hz` file
 2. Paste it into a Hazel scratchpad
-3. For sidebar apps (4-tuple): open the App View sidebar panel
-4. For inline HTML: right-click on the expression, select "Add HTML"
+3. For sidebar apps (4-tuple): open the Html.App View sidebar panel
+4. For inline Html.T: right-click on the expression, select "Add Html.T"
 
 From the command line: `./hazel run <file>.hz` evaluates the app, and
 `./hazel test <file>.hz` runs its inline test suite.
@@ -42,14 +42,14 @@ surface as a pile of unrelated static errors.
 
 ## Architecture
 
-### Elm-style MVU (sidebar App View)
+### Elm-style MVU (sidebar Html.App View)
 
 Apps are 4-tuples: `(init, update, view, subs)`
 
 - `init` - initial state (any type)
-- `update: (Model, Action) -> (Model, Cmd)` - apply an action
-- `view: Model -> HTML` - render the model
-- `subs: Model -> Sub` - subscriptions, given the model
+- `update: (Model, Action) -> (Model, Cmd.T)` - apply an action
+- `view: Model -> Html.T` - render the model
+- `subs: Model -> Sub.T` - subscriptions, given the model
 
 All ten follow the same skeleton: a named `Model`, a named `Action`, and
 `init`/`update`/`view`/`subs` annotated as above.
@@ -59,18 +59,18 @@ and Hazel's own subject-first convention (`mapi(xs, f)`), so `update` can be
 handed straight to `fold_left` — which is exactly what the tests here do.
 
 Handlers produce **actions**, not new models:
-- `OnClick(action)` - a bare action value
-- `OnInput(fun str -> action)` - event data to action
-- `OnKeyDown(fun e -> action)` - key event to action (labeled tuple: use `e.key`, `e.code`, `e.ctrl`, ...)
+- `Attr.on_click(action)` - a bare action value
+- `Attr.on_input(fun str -> action)` - event data to action
+- `Attr.on_key_down(fun e -> action)` - key event to action (labeled tuple: use `e.key`, `e.code`, `e.ctrl`, ...)
 
 ### Apps with no commands
 
-Nine of these ten never issue a command. Rather than thread `CmdNone` through
+Nine of these ten never issue a command. Rather than thread `Cmd.none` through
 every branch, their `update` returns a bare `Model` and is lifted at the tuple:
 
 ```
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 (init, noCmd(update), view, subs)
@@ -85,13 +85,13 @@ Note the naming is deliberately asymmetric: `Action` is the name in Hazel
 programs, while the OCaml implementation says `msg`, because `action` is already
 taken there by both `HTMLProj`'s own action type and `Haz3lcore.Action`.
 
-### Self-modifying HTML (inline HTML projector, syntax commit)
+### Self-modifying Html.T (inline Html.T projector, syntax commit)
 
-A bare HTML expression (not an app 4-tuple) projected inline commits to
+A bare Html.T expression (not an app 4-tuple) projected inline commits to
 syntax rather than state: handlers emit `Html -> Html` transforms, and each
 event evaluates the transform applied to the projected expression and
 splices the result back into the program text. The expression must be
-closed HTML — the transform evaluates outside the program, so free
+closed Html.T — the transform evaluates outside the program, so free
 variables have no definitions there.
 
 ## Examples
@@ -136,18 +136,18 @@ rendered as a `Table`.
 The widest API surface: `Select`/`Option`/`OnChange`, `OnMouseEnter`/`OnMouseLeave`,
 `OnDoubleClick`, `Delay`, `CopyToClipboard`, `SubBatch`, `OnResize`, `Ol`, `A`,
 `Classes`, `Checked`. The only example that issues real commands, so the only
-one whose `update` returns `(Model, Cmd)` directly. Also the only one with a
+one whose `update` returns `(Model, Cmd.T)` directly. Also the only one with a
 day/night palette, via `Checked`.
 
 ## Types Reference
 
 ```
-HTML = Div([attrs], [children]) | Button([attrs], [children]) | Text(str) | ...
-Attr = Class(str) | Style([(key, value)]) | OnClick(action) | OnInput(String -> action)
-     | OnSubmit(action) | Required(bool) | Disabled(bool) | ...
-Cmd  = CmdNone | Focus(id) | Log(str) | Delay(ms, action) | CopyToClipboard(str) | ...
-Sub  = SubNone | Every(ms, Float -> action) | OnDocumentKeyDown(KeyEvent -> action) | ...
-KeyEvent   = (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
-MouseEvent = (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
-App  = (Model, (Model, Action) -> (Model, Cmd), Model -> HTML, Model -> Sub)
+Html.T = Html.div([attrs], [children]) | Html.button([attrs], [children]) | Html.text(str) | ...
+Attr.T = Attr.class(str) | Attr.style([(key, value)]) | Attr.on_click(action) | Attr.on_input(String -> action)
+     | Attr.on_submit(action) | Attr.required(bool) | Attr.disabled(bool) | ...
+Cmd.T  = Cmd.none | Cmd.focus(id) | Cmd.log(str) | Cmd.delay(ms, action) | Cmd.copy_to_clipboard(str) | ...
+Sub.T  = Sub.none | Sub.every(ms, Float -> action) | Sub.on_document_key_down(Attr.KeyEvent -> action) | ...
+Attr.KeyEvent   = (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+Attr.MouseEvent = (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+Html.App  = (Model, (Model, Action) -> (Model, Cmd.T), Model -> Html.T, Model -> Sub.T)
 ```

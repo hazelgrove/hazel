@@ -155,74 +155,74 @@ let cell: String = "0.35em 0.5em" in
 let cellLast: String = "0.35em 1em 0.35em 0.5em" in
 
 # Uniform width in a two-column grid; the grid stretches each button #
-let harvestButton(h: Harvest): HTML =
-  Button(
-    [OnClick(RecordHarvest(h)),
-     Style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
+let harvestButton(h: Harvest): Html.T =
+  Html.button(
+    [Attr.on_click(RecordHarvest(h)),
+     Attr.style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
             ("color", qualityColor(h.quality)), ("border", "1px solid var(--BR1)"),
             ("border-radius", "3px"), ("cursor", "pointer"),
             ("font-family", "inherit"), ("font-size", "0.85em"),
             ("text-align", "left"), ("white-space", "nowrap")])],
-    [Text(qualityEmoji(h.quality) ++ " " ++ cropName(h.crop) ++ " x" ++ string_of_int(h.quantity))]
+    [Html.text(qualityEmoji(h.quality) ++ " " ++ cropName(h.crop) ++ " x" ++ string_of_int(h.quantity))]
   )
 in
 
-let headerCell(label: String, pad: String, align: String): HTML =
-  Th([Style([("padding", pad), ("text-align", align), ("color", "var(--BR3)"),
+let headerCell(label: String, pad: String, align: String): Html.T =
+  Html.th([Attr.style([("padding", pad), ("text-align", align), ("color", "var(--BR3)"),
              ("font-size", "0.75em"), ("font-weight", "bold"),
              ("text-transform", "uppercase")])],
-     [Text(label)])
+     [Html.text(label)])
 in
 
-let statBlock(label: String, color: String, value: String): HTML =
-  Div(
-    [Style([("text-align", "center")])],
+let statBlock(label: String, color: String, value: String): Html.T =
+  Html.div(
+    [Attr.style([("text-align", "center")])],
     [
-      Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+      Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
                   ("text-transform", "uppercase")])],
-          [Text(label)]),
-      Div([Style([("font-size", "1.5em"), ("color", color), ("font-weight", "bold")])],
-          [Text(value)])
+          [Html.text(label)]),
+      Html.div([Attr.style([("font-size", "1.5em"), ("color", color), ("font-weight", "bold")])],
+          [Html.text(value)])
     ]
   )
 in
 
 # Only the rows depend on the model, so only they stay inside view #
-let view(model: Model): HTML =
-  let harvestRows: [HTML] =
+let view(model: Model): Html.T =
+  let harvestRows: [Html.T] =
     let ordered: [Harvest] = reverse(model.harvests) in
     mapi(ordered, fun (i, h) ->
-      Tr(
-        [Style([("border-top", "1px solid var(--BR1)")])],
+      Html.tr(
+        [Attr.style([("border-top", "1px solid var(--BR1)")])],
         [
-          Td(
-            [Style([("padding", cellFirst), ("color", "var(--BR3)")])],
-            [Text(string_of_int(i + 1))]
+          Html.td(
+            [Attr.style([("padding", cellFirst), ("color", "var(--BR3)")])],
+            [Html.text(string_of_int(i + 1))]
           ),
-          Td(
-            [Style([("padding", cell)])],
-            [Text(cropName(h.crop))]
+          Html.td(
+            [Attr.style([("padding", cell)])],
+            [Html.text(cropName(h.crop))]
           ),
-          Td(
-            [Style([("padding", cell), ("color", qualityColor(h.quality)),
+          Html.td(
+            [Attr.style([("padding", cell), ("color", qualityColor(h.quality)),
                     ("white-space", "nowrap")])],
-            [Text(qualityEmoji(h.quality) ++ " " ++ qualityLabel(h.quality))]
+            [Html.text(qualityEmoji(h.quality) ++ " " ++ qualityLabel(h.quality))]
           ),
-          Td(
-            [Style([("padding", cell), ("text-align", "right")])],
-            [Text(string_of_int(h.quantity))]
+          Html.td(
+            [Attr.style([("padding", cell), ("text-align", "right")])],
+            [Html.text(string_of_int(h.quantity))]
           ),
-          Td(
-            [Style([("padding", cellLast), ("color", "var(--BR4)"),
+          Html.td(
+            [Attr.style([("padding", cellLast), ("color", "var(--BR4)"),
                     ("text-align", "right"), ("font-weight", "bold")])],
-            [Text(string_of_int(harvestValue(h)))]
+            [Html.text(string_of_int(harvestValue(h)))]
           )
         ]
       )
     )
   in
-  Div(
-    [Style([
+  Html.div(
+    [Attr.style([
       # MVU-render is height:100%, so a vertical margin here would overflow #
       # the projector box and leave a permanent scrollbar. Use padding. #
       ("max-width", "600px"), ("margin", "0 auto"),
@@ -232,19 +232,19 @@ let view(model: Model): HTML =
       ("overflow", "hidden")
     ])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
         [
-          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-              [Text("🌙 Harvest Ledger")]),
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
-              [Text("Track your night garden harvests")])
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Html.text("🌙 Harvest Ledger")]),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Html.text("Track your night garden harvests")])
         ]
       ),
 
       # Summary stats, banded full width against the rounded outer frame #
-      Div(
-        [Style([("display", "flex"), ("justify-content", "space-around"),
+      Html.div(
+        [Attr.style([("display", "flex"), ("justify-content", "space-around"),
                 ("padding", sidePad), ("background", "var(--T2)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)")])],
@@ -257,13 +257,13 @@ let view(model: Model): HTML =
         ]
       ),
 
-      Table(
-        [Style([("width", "100%"), ("border-collapse", "collapse")])],
+      Html.table(
+        [Attr.style([("width", "100%"), ("border-collapse", "collapse")])],
         [
-          Thead(
+          Html.thead(
             [],
             [
-              Tr(
+              Html.tr(
                 [],
                 [
                   headerCell("#", cellFirst, "left"),
@@ -275,16 +275,16 @@ let view(model: Model): HTML =
               )
             ]
           ),
-          Tbody(
+          Html.tbody(
             [],
             if length(model.harvests) == 0
             then [
-              Tr([Style([("border-top", "1px solid var(--BR1)")])], [
-                Td(
-                  [ColSpan(5),
-                   Style([("padding", "1.2em 1em"), ("text-align", "center"),
+              Html.tr([Attr.style([("border-top", "1px solid var(--BR1)")])], [
+                Html.td(
+                  [Attr.col_span(5),
+                   Attr.style([("padding", "1.2em 1em"), ("text-align", "center"),
                           ("color", "var(--BR3)")])],
-                  [Text("No harvests yet... the garden awaits")]
+                  [Html.text("No harvests yet... the garden awaits")]
                 )
               ])
             ]
@@ -293,14 +293,14 @@ let view(model: Model): HTML =
         ]
       ),
 
-      Div(
-        [Style([("padding", sidePad), ("border-top", "1px solid var(--BR1)")])],
+      Html.div(
+        [Attr.style([("padding", sidePad), ("border-top", "1px solid var(--BR1)")])],
         [
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
                       ("text-transform", "uppercase"), ("margin-bottom", "0.5em")])],
-              [Text("Record Harvest")]),
-          Div(
-            [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
+              [Html.text("Record Harvest")]),
+          Html.div(
+            [Attr.style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
                     ("gap", "0.4em")])],
             [
               harvestButton((crop = Moonmelon, quality = Bronze, quantity = 2)),
@@ -311,29 +311,29 @@ let view(model: Model): HTML =
               harvestButton((crop = Moonmelon, quality = Starlight, quantity = 1))
             ]
           ),
-          Button(
-            [OnClick(ClaimBonus),
-             Style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
+          Html.button(
+            [Attr.on_click(ClaimBonus),
+             Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
                     ("background", "var(--G0)"), ("color", "var(--SAND)"),
                     ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
                     ("cursor", "pointer"), ("font-family", "inherit"),
                     ("font-size", "0.85em")])],
-            [Text("💰 Claim Bonus")]
+            [Html.text("💰 Claim Bonus")]
           )
         ]
       ),
 
-      Div(
-        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
                 ("font-size", "0.75em"), ("color", "var(--BR3)"),
                 ("border-top", "1px solid var(--BR1)")])],
-        [Text("🌱 " ++ string_of_int(length(model.harvests)) ++ " harvests logged")]
+        [Html.text("🌱 " ++ string_of_int(length(model.harvests)) ++ " harvests logged")]
       )
     ]
   )
 in
 
-let subs(_model: Model): Sub = SubNone in
+let subs(_model: Model): Sub.T = Sub.none in
 
 # ===== TESTS ===== #
 
@@ -386,10 +386,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

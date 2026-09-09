@@ -41,101 +41,101 @@ let update(model: Model, action: Action): Model =
 in
 
 # The entry row needs only the pending text, not the whole model #
-let choreForm(pending: String): HTML =
-  Form(
-    [OnSubmit(AddTodo),
-     Style([("display", "flex"), ("gap", "0.4em"), ("padding", "0.7em 1em"),
+let choreForm(pending: String): Html.T =
+  Html.form(
+    [Attr.on_submit(AddTodo),
+     Attr.style([("display", "flex"), ("gap", "0.4em"), ("padding", "0.7em 1em"),
             ("background", "var(--T2)"),
             ("border-top", "1px solid var(--BR1)"),
             ("border-bottom", "1px solid var(--BR1)")])],
     [
-      Input([
-        Type("text"),
-        Value(pending),
-        Placeholder("Add a garden chore..."),
-        Required(true),
-        OnInput(fun value -> UpdateInput(value)),
-        Style([("flex", "1"), ("min-width", "0"), ("padding", "0.35em 0.5em"),
+      Html.input([
+        Attr.type_("text"),
+        Attr.value(pending),
+        Attr.placeholder("Add a garden chore..."),
+        Attr.required(true),
+        Attr.on_input(fun value -> UpdateInput(value)),
+        Attr.style([("flex", "1"), ("min-width", "0"), ("padding", "0.35em 0.5em"),
                ("font-family", "inherit"), ("font-size", "0.85em"),
                ("color", "var(--STONE)"), ("background", "var(--SAND)"),
                ("border", "1px solid var(--BR1)"), ("border-radius", "3px")])
       ]),
-      Button(
+      Html.button(
         [
-          Type("submit"),
-          Disabled(pending == ""),
-          Style([("padding", "0.35em 0.8em"), ("background", "var(--G0)"),
+          Attr.type_("submit"),
+          Attr.disabled(pending == ""),
+          Attr.style([("padding", "0.35em 0.8em"), ("background", "var(--G0)"),
                  ("color", "var(--SAND)"), ("border", "1px solid var(--G0)"),
                  ("border-radius", "3px"), ("cursor", "pointer"),
                  ("font-family", "inherit"), ("font-size", "0.85em")])
         ],
-        [Text("Plant")]
+        [Html.text("Plant")]
       )
     ]
   )
 in
 
-let choreItem(index: Int, chore: Todo): HTML =
-  Li(
-    [Style([("padding", "0.4em 1em"), ("display", "flex"),
+let choreItem(index: Int, chore: Todo): Html.T =
+  Html.li(
+    [Attr.style([("padding", "0.4em 1em"), ("display", "flex"),
             ("align-items", "center"), ("gap", "0.5em"),
             ("justify-content", "space-between")])],
     [
-      Span([], [Text(chore)]),
-      Button(
+      Html.span([], [Html.text(chore)]),
+      Html.button(
         [
-          OnClick(RemoveTodo(index)),
-          Style([("padding", "0.1em 0.4em"), ("background", "var(--T1)"),
+          Attr.on_click(RemoveTodo(index)),
+          Attr.style([("padding", "0.1em 0.4em"), ("background", "var(--T1)"),
                  ("color", "var(--BR3)"), ("border", "1px solid var(--BR1)"),
                  ("border-radius", "3px"), ("cursor", "pointer"),
                  ("font-family", "inherit"), ("font-size", "0.75em")])
         ],
-        [Text("remove")]
+        [Html.text("remove")]
       )
     ]
   )
 in
 
-let choreList(chores: [Todo]): HTML =
-  Ul(
-    [Style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
+let choreList(chores: [Todo]): Html.T =
+  Html.ul(
+    [Attr.style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
     if length(chores) == 0
     then [
-      Li([Style([("padding", "1.2em 1em"), ("text-align", "center"),
+      Html.li([Attr.style([("padding", "1.2em 1em"), ("text-align", "center"),
                  ("color", "var(--BR3)")])],
-         [Text("Nothing planted yet")])
+         [Html.text("Nothing planted yet")])
     ]
     else mapi(chores, choreItem)
   )
 in
 
-let view(model: Model): HTML =
-  Div(
-    [Class("todo-app"),
-     Style([("max-width", "340px"), ("margin", "0 auto"),
+let view(model: Model): Html.T =
+  Html.div(
+    [Attr.class("todo-app"),
+     Attr.style([("max-width", "340px"), ("margin", "0 auto"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
             ("background", "var(--SAND)"), ("color", "var(--STONE)"),
             ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
                 ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-        [Text("🌙 Planting List")]
+        [Html.text("🌙 Planting List")]
       ),
       choreForm(model.input_value),
       choreList(model.todos),
-      Div(
-        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+      Html.div(
+        [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
                 ("font-size", "0.75em"), ("color", "var(--BR3)"),
                 ("border-top", "1px solid var(--BR1)")])],
-        [Text("🌱 " ++ string_of_int(length(model.todos)) ++ " chores tonight")]
+        [Html.text("🌱 " ++ string_of_int(length(model.todos)) ++ " chores tonight")]
       )
     ]
   )
 in
 
-let subs(_model: Model): Sub = SubNone in
+let subs(_model: Model): Sub.T = Sub.none in
 
 # Tests #
 
@@ -158,10 +158,10 @@ hint "typing updates the pending chore"
 test update(init, UpdateInput("hello")).input_value == "hello" end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

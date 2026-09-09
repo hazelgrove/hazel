@@ -32,27 +32,27 @@ let ^mood = {
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
   let view = fun (v, anchor) : Model ->
-    Div(
-      [Create("data-hint", "drag up/down"),
-       Style([("cursor", "ns-resize")])],
+    Html.div(
+      [Attr.create("data-hint", "drag up/down"),
+       Attr.style([("cursor", "ns-resize")])],
       [
-        Node("svg",
-          [Create("viewBox", "0 0 200 200"),
-           Width("92"), Height("92"),
-           OnMouseDownAt(fun (x, y) -> Down(y)),
-           OnMouseMoveAt(fun (x, y) -> MoveTo(y)),
-           OnMouseUpAt(fun p -> Up)],
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 200 200"),
+           Attr.width("92"), Attr.height("92"),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(y)),
+           Attr.on_mouse_up_at(fun p -> Up)],
           [
-            Node("circle",
-              [Create("cx", "100"), Create("cy", "100"), Create("r", "90"),
-               Create("fill", "gold"), Create("stroke", "black")], []),
-            Node("circle",
-              [Create("cx", "65"), Create("cy", "80"), Create("r", "10")], []),
-            Node("circle",
-              [Create("cx", "135"), Create("cy", "80"), Create("r", "10")], []),
-            Node("path",
-              [Create("d", mouth(v)), Create("stroke", "black"),
-               Create("fill", "transparent"), Create("stroke-width", "5")], [])
+            Html.node("circle",
+              [Attr.create("cx", "100"), Attr.create("cy", "100"), Attr.create("r", "90"),
+               Attr.create("fill", "gold"), Attr.create("stroke", "black")], []),
+            Html.node("circle",
+              [Attr.create("cx", "65"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("circle",
+              [Attr.create("cx", "135"), Attr.create("cy", "80"), Attr.create("r", "10")], []),
+            Html.node("path",
+              [Attr.create("d", mouth(v)), Attr.create("stroke", "black"),
+               Attr.create("fill", "transparent"), Attr.create("stroke-width", "5")], [])
           ])
       ]
     );

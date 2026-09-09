@@ -144,61 +144,61 @@ in
 
 # Every control is the same neutral button; only Run/Pause takes an accent, #
 # since it is the one that changes what the grid is doing #
-let control(label: String, action: Action, accent: Bool): HTML =
-  Button(
-    [OnClick(action),
-     Style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
+let control(label: String, action: Action, accent: Bool): Html.T =
+  Html.button(
+    [Attr.on_click(action),
+     Attr.style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
             ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "0.85em"),
             ("background", if accent then "var(--G0)" else "var(--T1)"),
             ("color", if accent then "var(--SAND)" else "var(--STONE)"),
             ("border", if accent then "1px solid var(--G0)" else "1px solid var(--BR1)")])],
-    [Text(label)]
+    [Html.text(label)]
   )
 in
 
-let view(model: Model): HTML =
-  Div(
-    [Style([("max-width", "320px"), ("margin", "0 auto"), ("text-align", "center"),
+let view(model: Model): Html.T =
+  Html.div(
+    [Attr.style([("max-width", "320px"), ("margin", "0 auto"), ("text-align", "center"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
             ("background", "var(--SAND)"), ("color", "var(--STONE)"),
             ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
-      Div(
-        [Style([("padding", "0.9em 1em 0.8em")])],
+      Html.div(
+        [Attr.style([("padding", "0.9em 1em 0.8em")])],
         [
-          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-              [Text("🌱 Garden of Life")]),
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
-              [Text("Sow a cell; the grove spreads by Conway's rules")])
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Html.text("🌱 Garden of Life")]),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Html.text("Sow a cell; the grove spreads by Conway's rules")])
         ]
       ),
-      Div(
-        [Style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)")])],
         [
-          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
                       ("text-transform", "uppercase")])],
-              [Text("Generation")]),
-          Div([Style([("font-size", "1.5em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
-              [Text(string_of_int(model.generation))])
+              [Html.text("Generation")]),
+          Html.div([Attr.style([("font-size", "1.5em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Html.text(string_of_int(model.generation))])
         ]
       ),
-      Div(
-        [Style([("padding", "0.7em 1em")])],
+      Html.div(
+        [Attr.style([("padding", "0.7em 1em")])],
         [
           # Grid using Table #
-          Table(
-            [Style([("border-collapse", "collapse"), ("margin", "0 auto")])],
+          Html.table(
+            [Attr.style([("border-collapse", "collapse"), ("margin", "0 auto")])],
             map(range(0, model.grid.height - 1), fun y ->
-              Tr([], map(range(0, model.grid.width - 1), fun x ->
+              Html.tr([], map(range(0, model.grid.width - 1), fun x ->
                 let idx = y * model.grid.width + x in
                 let cell = nth(model.grid.cells, idx) in
-                Td(
+                Html.td(
                   [
-                    OnClick(ToggleCell(idx)),
-                    Style([
+                    Attr.on_click(ToggleCell(idx)),
+                    Attr.style([
                       ("width", "20px"), ("height", "20px"),
                       ("border", "1px solid var(--BR1)"),
                       ("cursor", "pointer"),
@@ -211,8 +211,8 @@ let view(model: Model): HTML =
               ))
             )
           ),
-          Div(
-            [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
+          Html.div(
+            [Attr.style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
                     ("gap", "0.4em"), ("margin-top", "0.7em")])],
             [
               control(if model.running then "Pause" else "Run", ToggleRunning, !model.running),
@@ -227,8 +227,8 @@ let view(model: Model): HTML =
   )
 in
 
-let subs(model: Model): Sub =
-  if model.running then Every(400.0, fun _ts -> Step) else SubNone
+let subs(model: Model): Sub.T =
+  if model.running then Sub.every(400.0, fun _ts -> Step) else Sub.none
 in
 
 # With (model, action) order, `update` already has fold_left's shape #
@@ -268,10 +268,10 @@ test
 end;
 
 # Nothing here issues a command, so `update` returns a bare Model and is #
-# lifted into the (Model, Cmd) shape the app tuple expects. #
+# lifted into the (Model, Cmd.T) shape the app tuple expects. #
 
-let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
-  fun (model, action) -> (f(model, action), CmdNone)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd.T) =
+  fun (model, action) -> (f(model, action), Cmd.none)
 in
 
 ^^html_sidebar((init, noCmd(update), view, subs))

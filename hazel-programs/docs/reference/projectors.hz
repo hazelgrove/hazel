@@ -67,19 +67,19 @@ let table = ^^table([(x=1, y=2), (x=3, y=4)]) in
 
 let data = ^^csv([]) in
 
-#    An HTML-valued expression, rendered live        #
+#    An Html.T-valued expression, rendered live        #
 #    (see the `MVU` slides; livelits have their own  #
 #    slides too):                                    #
 
-let hi = ^^html(Div(
-  [Style([("background",
+let hi = ^^html(Html.div(
+  [Attr.style([("background",
            "linear-gradient(135deg, #7c5cff, #29c6a7)"),
           ("color", "#fff"), ("height", "100%"),
           ("display", "flex"), ("align-items", "center"),
           ("justify-content", "center"),
           ("border-radius", "4px"),
           ("font-weight", "bold")])],
-  [Text("live HTML")])) in
+  [Html.text("live Html.T")])) in
 
 # The bottom toggle or backspace removes projectors. #
 # Projectors are preserved on in-editor copy/paste   #

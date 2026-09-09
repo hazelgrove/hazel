@@ -485,17 +485,158 @@ module LivelitShape = {
 
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
+
+/* ===== Opt-in HTML modules (prototype) =====
+   Html, Attr, Cmd and Sub are builtin MODULE VALUES rather than ~120 global
+   constructor names and seven global type aliases. A program writes
+   `Html.div([Attr.style(...)], [Html.text("hi")])`, annotates with `Html.T`,
+   `Attr.T`, `Cmd.T`, `Sub.T`, `Html.App`, `Attr.KeyEvent`, and no user name
+   can collide with the substrate (a module called `App` used to lose its
+   type members to the builtin alias `App`). Each value member is the
+   constructor itself, as a function; the constructor NAMES are unchanged, so
+   the renderer and the MVU runtime need no change. */
+module HtmlModules = {
+  let path = (m: string, t: string): Typ.t =>
+    Typ.fresh(ProdProjection(Typ.fresh(Var(m)), Typ.fresh(Label(t))));
+
+  /* Where the old global aliases now live. */
+  let homes = [
+    ("HTML", ("Html", "T")),
+    ("Attr", ("Attr", "T")),
+    ("Cmd", ("Cmd", "T")),
+    ("Sub", ("Sub", "T")),
+    ("App", ("Html", "App")),
+    ("KeyEvent", ("Attr", "KeyEvent")),
+    ("MouseEvent", ("Attr", "MouseEvent")),
+  ];
+
+  /* Free references to the old global aliases become paths into the
+     modules; a reference to the module's own alias becomes its member T.
+     Rec-bound occurrences (HTML inside Rec(HTML, ...)) are left alone by
+     Typ.subst. */
+  let qualify = (~self: string, ty: Typ.t): Typ.t =>
+    List.fold_left(
+      (ty, (alias, (m, t))) => {
+        let target = alias == self ? Typ.fresh(Var("T")) : path(m, t);
+        Typ.subst(target, Fresh.TPat.var(alias), ty);
+      },
+      ty,
+      homes,
+    );
+
+  /* CmdNone -> none, OnClickAt -> on_click_at, H1 -> h1, Type -> type_ */
+  let member_name = (ctr: string): string =>
+    switch (ctr) {
+    | "CmdNone"
+    | "SubNone" => "none"
+    | "CmdBatch"
+    | "SubBatch" => "batch"
+    | "Type" => "type_"
+    | _ =>
+      let b = Buffer.create(16);
+      String.iteri(
+        (i, c) => {
+          if (i > 0
+              && Char.uppercase_ascii(c) == c
+              && Char.lowercase_ascii(c) != c) {
+            Buffer.add_char(b, '_');
+          };
+          Buffer.add_char(b, Char.lowercase_ascii(c));
+        },
+        ctr,
+      );
+      Buffer.contents(b);
+    };
+
+  let variants = (ty: Typ.t): list((string, option(Typ.t))) => {
+    let of_sum = sm =>
+      List.filter_map(
+        fun
+        | ConstructorMap.Variant(c, _, t) => Some((c, t))
+        | _ => None,
+        sm,
+      );
+    switch (Typ.term_of(ty)) {
+    | Sum(sm) => of_sum(sm)
+    | Rec(_, body) =>
+      switch (Typ.term_of(body)) {
+      | Sum(sm) => of_sum(sm)
+      | _ => []
+      }
+    | _ => []
+    };
+  };
+
+  /* A module named [name] whose type members are [types]; the member T is
+     the sum whose constructors become the value members. [self] is the old
+     global alias this module replaces. */
+  let mk =
+      (~name: string, ~self: string, ~types: list((string, Typ.t)))
+      : BuiltinsUtil.const => {
+    let ctors = List.assoc("T", types);
+    let q = qualify(~self);
+    let self_t = Typ.fresh(Var("T"));
+    let members =
+      variants(ctors)
+      |> List.map(((ctr, arg)) => {
+           let member_ty =
+             switch (arg) {
+             | None => self_t
+             | Some(a) => arrow(q(a), self_t)
+             };
+           let ctor_ty =
+             switch (arg) {
+             | None => q(ctors)
+             | Some(a) => arrow(q(a), q(ctors))
+             };
+           (
+             member_name(ctr),
+             member_ty,
+             Exp.fresh(Constructor(ctr, Some(Some(ctor_ty)))),
+           );
+         });
+    let sig_items =
+      List.map(
+        ((n, ty)) => Sig.item_of_member(Sig.TypeManifest(n, q(ty))),
+        types,
+      )
+      @ List.map(
+          ((n, ty, _)) => Sig.item_of_member(Sig.Val(n, ty)),
+          members,
+        );
+    let mod_items =
+      List.map(((n, _, v)) => Mod.fresh(ModVal(n, v)), members);
+    {
+      name,
+      typ: Sig(sig_items),
+      imp: Exp.fresh(Module(mod_items)),
+    };
+  };
+};
+
+let module_builtins: list(BuiltinsUtil.const) = [
+  HtmlModules.mk(
+    ~name="Html",
+    ~self="HTML",
+    ~types=[("T", HTML.t), ("App", App.t)],
+  ),
+  HtmlModules.mk(
+    ~name="Attr",
+    ~self="Attr",
+    ~types=[
+      ("T", HTML.attr),
+      ("KeyEvent", Event.key),
+      ("MouseEvent", Event.mouse),
+    ],
+  ),
+  HtmlModules.mk(~name="Cmd", ~self="Cmd", ~types=[("T", Cmd.t)]),
+  HtmlModules.mk(~name="Sub", ~self="Sub", ~types=[("T", Sub.t)]),
+];
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
-  ("KeyEvent", Event.key),
-  ("MouseEvent", Event.mouse),
-  ("HTML", HTML.t),
-  ("Attr", HTML.attr),
-  ("Cmd", Cmd.t),
-  ("Sub", Sub.t),
-  ("App", App.t),
   ("JSON", JSON.t),
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
