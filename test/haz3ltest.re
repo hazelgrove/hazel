@@ -71,6 +71,7 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_SerBench.tests
     @ Test_ItemPersist.tests
     @ Test_OutlinePaths.tests
     @ Test_RunPin.tests
@@ -84,6 +85,10 @@ let (suite, exit_with_test_status) =
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_StreamInterests.tests
+    @ Test_ResidentProgram.tests
+    @ Test_W2Protocol.tests
+    @ Test_DeriveDeterminism.tests
+    @ Test_PropagateClamp.tests
     @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests

@@ -139,10 +139,14 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit => {
       },
       active_encodings(),
     );
-  let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
+  let entries =
+    switch (msg) {
+    | WorkerServer.ClientMessage.Evaluate({batch, _}) => List.length(batch)
+    | WorkerServer.ClientMessage.Sync(_) => 1
+    };
   push({
     id,
-    entries: List.length(batch),
+    entries,
     request,
     response: [],
   });
