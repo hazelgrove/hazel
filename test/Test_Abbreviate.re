@@ -760,6 +760,22 @@ let typ_tests =
         );
       },
     ),
+    test_case(
+      "a fully elided type is an ellipsis, not a type hole",
+      `Quick,
+      () => {
+        /* Unknown(Internal) prints as `?`, a real type hole, so using it for
+           elision hid the difference between "shortened" and "still to
+           fill". */
+        let wide = () => Prod([string(), bool(), float(), int()]) |> Typ.temp;
+        check(
+          Alcotest.string,
+          "squeezed to nothing",
+          ellipsis,
+          Abbreviate.abbreviate_typ(~available=1, wide()) |> fst |> typ_render,
+        );
+      },
+    ),
   ];
 
 let tests = (

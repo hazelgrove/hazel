@@ -422,6 +422,10 @@ let abbreviate_label =
 
 let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal);
+/* An ELIDED type, as distinct from an unknown one. Unknown(Internal) prints
+   as `?`, which is a real type hole -- using it for elision made a type the
+   abbreviator had shortened look like a hole the user still had to fill. */
+let elided_term_typ: Typ.term = Unknown(Hole(Invalid(flat_ellipses)));
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
 
@@ -1512,7 +1516,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
     available := available^ - 1;
     {
       ...typ,
-      term: indet_term_typ,
+      term: elided_term_typ,
     };
   } else {
     let rewrap = (term: Typ.term): Typ.t => {
@@ -1526,7 +1530,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
       if (available^ <= cost) {
         available := available^ - 1;
-        indet_term_typ;
+        elided_term_typ;
       } else {
         available := available^ - cost;
         make_term(abbreviate_exp(t));
@@ -1539,42 +1543,42 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Atom(Int) =>
         if (available^ < 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(Int);
         }
       | Atom(SInt) =>
         if (available^ < 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(SInt);
         }
       | Atom(Nat) =>
         if (available^ < 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(Nat);
         }
       | Atom(Float) =>
         if (available^ < 5) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(Float);
         }
       | Atom(Bool) =>
         if (available^ < 4) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(Bool);
         }
       | Atom(String) =>
         if (available^ < 6) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           Atom(String);
         }
@@ -1590,7 +1594,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | List(t) =>
         if (available^ <= 2) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 2; // "[]"
           List(abbreviate_typ(t));
@@ -1598,7 +1602,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Arrow(t1, t2) =>
         if (available^ <= 2) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 2; // "->"
           let t1' = abbreviate_typ(t1);
@@ -1610,7 +1614,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
               t1',
               {
                 ...t2,
-                term: indet_term_typ,
+                term: elided_term_typ,
               },
             );
           };
@@ -1618,7 +1622,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | TupLabel(t1, t2) =>
         if (available^ < 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 1; /* "=" */
           TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
@@ -1626,7 +1630,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | ProdProjection(t1, t2) =>
         if (available^ <= 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 3;
           ProdProjection(abbreviate_typ(t1), abbreviate_typ(t2));
@@ -1634,7 +1638,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | ProdExtension(t1, t2) =>
         if (available^ <= 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 3; // "..."
           let t1' = abbreviate_typ(t1);
@@ -1646,7 +1650,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
               t1',
               {
                 ...t2,
-                term: indet_term_typ,
+                term: elided_term_typ,
               },
             );
           };
@@ -1654,7 +1658,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Sum(ctors) =>
         if (available^ <= 1) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           //TODO: abbreviate these like tuples
           available := available^ - 1; // "+"
@@ -1665,7 +1669,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Prod(ts) =>
         if (available^ <= 2) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           //TODO: abbreviate these like tuples
           available := available^ - 2; // "()"
@@ -1675,7 +1679,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Parens(t) =>
         if (available^ <= 2) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 2; // "()"
           Parens(abbreviate_typ(t));
@@ -1683,7 +1687,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Rec(tp, t) =>
         if (available^ <= 3) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 3; // "rec"
           let tp' = abbreviate_tpat(tp);
@@ -1696,7 +1700,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
               tp',
               {
                 ...t,
-                term: indet_term_typ,
+                term: elided_term_typ,
               },
             );
           };
@@ -1704,7 +1708,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Poly(tp, t) =>
         if (available^ <= 6) {
           available := available^ - 1;
-          indet_term_typ;
+          elided_term_typ;
         } else {
           available := available^ - 3; // "poly"
           let tp' = abbreviate_tpat(tp);
@@ -1717,7 +1721,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
               tp',
               {
                 ...t,
-                term: indet_term_typ,
+                term: elided_term_typ,
               },
             );
           };
@@ -1745,7 +1749,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         available := initial - 1;
         {
           ...typ,
-          term: indet_term_typ,
+          term: elided_term_typ,
         };
       } else {
         let (retried, _) =
