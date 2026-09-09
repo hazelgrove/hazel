@@ -58,13 +58,21 @@ let compute_targets =
     : Sample.targets => {
   let effective_probe_ids =
     settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
+  /* AMBIENT sites (probe_all, not an explicit probe) capture no
+     environment: only the probe context menu displays it, and a
+     sample's env copy of the enclosing bindings was ~80% of the
+     retained memory (each of a site's samples ships its own copy of
+     every bound list and view). Explicit probes keep their env. */
+  let ambient = id => settings.probe_all && !Id.Map.mem(id, probe_ids);
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
         switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) when ambient(id) => []
         | Some(_) => Statics.Map.refs_in(info_map, id)
         | None =>
           switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) when ambient(id) => []
           | Some(_) => Statics.Map.bound_in(info_map, id)
           | None => []
           }
