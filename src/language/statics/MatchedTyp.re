@@ -3,8 +3,6 @@
    Prefer these over ad hoc `Typ.term_of` switches — parens, unknowns, SynSwitch.
  */
 
-open Util;
-open Either;
 open Typ;
 
 let rec arrow = (ctx, ty) =>
@@ -89,14 +87,16 @@ let rec list_strict = (ctx, ty) =>
 let list_tolerant = (ctx, ty) =>
   list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec args = (ctx, ty, arity): Either.t('a, int) => {
+/* Ok: the component types at the requested arity. Error: the arity the type
+   actually has, when it disagrees. */
+let rec args = (ctx, ty, arity): result(list(Typ.t), int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => args(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, ~f=_ => Unknown(Internal) |> temp))
-  | _ => R(1)
+  | Prod(tys) when List.length(tys) == arity => Ok(tys)
+  | Prod(tys) => Error(List.length(tys))
+  | _ when arity == 1 => Ok([ty])
+  | Unknown(_) => Ok(List.init(arity, ~f=_ => Unknown(Internal) |> temp))
+  | _ => Error(1)
   };
 };
 

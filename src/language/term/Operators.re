@@ -119,31 +119,31 @@ type bad_literal =
 
 let replace_literal =
     (lit: Atom.t, ana: option(Atom.cls), use_mode: option(mode))
-    : Either.t(Atom.t, bad_literal) => {
+    : result(Atom.t, bad_literal) => {
   switch (lit, ana, use_mode) {
-  | (_, None, None) => L(lit)
-  | (Int(n), Some(Int), _) => L(Int(n))
-  | (Int(n), Some(Nat), _) => L(Nat(n))
-  | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
+  | (_, None, None) => Ok(lit)
+  | (Int(n), Some(Int), _) => Ok(Int(n))
+  | (Int(n), Some(Nat), _) => Ok(Nat(n))
+  | (Int(n), Some(Float), _) => Ok(Float(Bigint.to_float(n)))
   | (Int(n), Some(SInt), _) =>
     switch (Bigint.to_int(n)) {
-    | Some(i) => L(SInt(i))
-    | None => R(BadInt(Bigint.to_string(n)))
+    | Some(i) => Ok(SInt(i))
+    | None => Error(BadInt(Bigint.to_string(n)))
     }
-  | (Int(n), _, Some(Int)) => L(Int(n))
-  | (Int(n), _, Some(Nat)) => L(Nat(n))
-  | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
+  | (Int(n), _, Some(Int)) => Ok(Int(n))
+  | (Int(n), _, Some(Nat)) => Ok(Nat(n))
+  | (Int(n), _, Some(Float)) => Ok(Float(Bigint.to_float(n)))
   | (Int(n), _, Some(SInt)) =>
     switch (Bigint.to_int(n)) {
-    | Some(i) => L(SInt(i))
-    | None => R(BadInt(Bigint.to_string(n)))
+    | Some(i) => Ok(SInt(i))
+    | None => Error(BadInt(Bigint.to_string(n)))
     }
-  | (Int(n), Some(Bool | String), None) => L(Int(n))
-  | (SInt(n), _, _) => L(SInt(n))
-  | (Float(n), _, _) => L(Float(n))
-  | (Bool(b), _, _) => L(Bool(b))
-  | (String(s), _, _) => L(String(s))
-  | (Nat(n), _, _) => L(Nat(n))
+  | (Int(n), Some(Bool | String), None) => Ok(Int(n))
+  | (SInt(n), _, _) => Ok(SInt(n))
+  | (Float(n), _, _) => Ok(Float(n))
+  | (Bool(b), _, _) => Ok(Bool(b))
+  | (String(s), _, _) => Ok(String(s))
+  | (Nat(n), _, _) => Ok(Nat(n))
   };
 };
 
@@ -339,12 +339,12 @@ type un_semantics =
   | Defined(
       Atom.kind('a),
       Atom.kind('b),
-      'a => Either.t('b, InvalidOperationError.t),
+      'a => result('b, InvalidOperationError.t),
     )
     : un_semantics
   | Undefined(string);
 
-let just = (f, x) => Either.L(f(x));
+let just = (f, x) => Ok(f(x));
 
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
@@ -360,36 +360,36 @@ type bin_semantics =
       Atom.kind('a),
       Atom.kind('b),
       Atom.kind('c),
-      ('a, 'b) => Either.t('c, InvalidOperationError.t),
+      ('a, 'b) => result('c, InvalidOperationError.t),
     )
     : bin_semantics
   | DefinedPoly(op_bin_poly)
   | Undefined(string);
 
-let just = (f, x, y) => Either.L(f(x, y));
+let just = (f, x, y) => Ok(f(x, y));
 let int_power = (x, y) =>
   if (y < Bigint.zero) {
-    Either.R(InvalidOperationError.NegativeExponent);
+    Error(InvalidOperationError.NegativeExponent);
   } else {
-    Either.L(Bigint.pow(x, y));
+    Ok(Bigint.pow(x, y));
   };
 let sint_power = (x, y) =>
   if (y < 0) {
-    Either.R(InvalidOperationError.NegativeExponent);
+    Error(InvalidOperationError.NegativeExponent);
   } else {
-    Either.L(IntUtil.ipow(x, y));
+    Ok(IntUtil.ipow(x, y));
   };
 let int_divide = (x, y) =>
   if (Bigint.equal(y, Bigint.zero)) {
-    Either.R(InvalidOperationError.DivideByZero);
+    Error(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(Bigint.(/)(x, y));
+    Ok(Bigint.(/)(x, y));
   };
 let sint_divide = (x, y) =>
   if (y == 0) {
-    Either.R(InvalidOperationError.DivideByZero);
+    Error(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(x / y);
+    Ok(x / y);
   };
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
