@@ -182,18 +182,10 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
                 )
               ) {
               | Ok(html) when MvuShape.is_html(html) => Some(html)
-              | Ok(other) =>
-                print_endline(
-                  "LivelitRenderer: ^"
-                  ++ ll.name
-                  ++ ".view gave non-HTML: "
-                  ++ String.sub(
-                       Exp.show(other),
-                       0,
-                       min(300, String.length(Exp.show(other))),
-                     ),
-                );
-                None;
+              /* a stuck view (an app livelit's view reads the program,
+                 which the closed evaluation cannot see): not this
+                 livelit's value to render */
+              | Ok(_) => None
               | Error(e) =>
                 print_endline(
                   "LivelitRenderer: ^" ++ ll.name ++ ".view failed: " ++ e,

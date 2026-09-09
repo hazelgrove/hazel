@@ -2152,6 +2152,15 @@
 .canvas-card-probe .probe-card-rich > * {
   max-width: 100%;
 }
+/* a list of a type with a view: the elements' views in a row */
+.rich-livelit-view.rich-livelit-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: center;
+}
 .canvas-card-probe .probe-card-rich .projector,
 .canvas-card-probe .probe-card-rich .rich-html-view {
   position: static;
