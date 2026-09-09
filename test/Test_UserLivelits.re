@@ -746,12 +746,19 @@ shift(p0)";
   | None => fail("parse")
   | Some(z) =>
     let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
-    let settings = {...CoreSettings.on, probe_all: true};
+    let settings = {
+      ...CoreSettings.on,
+      probe_all: true,
+    };
     let (info_map, elaborated) =
       Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
     let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
     let targets =
-      Haz3lcore.CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids);
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids,
+      );
     let (_, state) =
       Evaluator.evaluate(
         ~eval_info=EvalInfo.of_targets(targets),
@@ -764,17 +771,17 @@ shift(p0)";
       Id.Map.fold(
         (id, samples, acc) =>
           switch (acc, Id.Map.find_opt(id, info_map)) {
-          | (None, Some(Info.InfoExp({ty, _}) as info))
-              when Typ.show(ty) |> String.length > 0 =>
+          | (None, Some(Info.InfoExp({ty, _}) as info)) =>
             switch (Typ.term_of(ty)) {
             | Var("Point") =>
               switch (samples) {
-              | [(s: Sample.t), ..._] =>
+              | [s, ..._] =>
+                let s: Sample.t = s;
                 switch (Exp.term_of(s.value)) {
                 | Ap(_, {term: Constructor("P", _), _}, _) =>
                   Some((info, s.value))
                 | _ => acc
-                }
+                };
               | [] => acc
               }
             | _ => acc

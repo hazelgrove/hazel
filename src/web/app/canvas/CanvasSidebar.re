@@ -2230,7 +2230,25 @@ let view_impl =
      the newest rich-renderable sample site of that type */
   let toggle_value_node = (key: string) => {
     fit_pending := true;
-    globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key))));
+    let expanding =
+      !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
+    /* opening a card is a request for live values: turn sampling on if
+       it is off, and end the agent-burst mask if it is holding samples
+       back — the user asked, so the evaluation goes out now */
+    let samples =
+      if (!expanding) {
+        Effect.Ignore;
+      } else if (!globals.settings.core.probe_all) {
+        globals.inject_global(Set(ProbeAll));
+      } else if (Util.AgentPulse.in_burst()) {
+        globals.inject_global(Set(RequestSamples));
+      } else {
+        Effect.Ignore;
+      };
+    Effect.Many([
+      samples,
+      globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key)))),
+    ]);
   };
   /* corner drag: the card's box follows imperatively; the size commits
      on release (one relayout, neighbours pushed) */

@@ -210,6 +210,7 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | RequestSamples
     | AutoReindent
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
@@ -297,6 +298,12 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
+      | RequestSamples =>
+        /* the user opened something that needs live values (a type
+           card): end the agent-burst mask and re-evaluate, keeping the
+           settings as they are */
+        Util.AgentPulse.release();
+        settings;
       | ProbeAll =>
         /* an explicit request for samples ends the agent-burst mask */
         if (!settings.core.probe_all) {

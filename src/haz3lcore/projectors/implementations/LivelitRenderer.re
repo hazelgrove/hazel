@@ -24,7 +24,11 @@ type action = unit;
 type value = {
   ll_name: string,
   rows: int, /* the livelit's own block height, for the drawer */
-  raw: Exp.t /* the raw sample term: the render memo's key */
+  raw: Exp.t, /* the raw sample term: the render memo's key */
+  /* a LIST of the livelit's type: each element renders through the
+     livelit, in a row (Garden = [Plant] shows a row of plants) */
+  [@default false]
+  as_list: bool,
 };
 
 let update = (m: model, _: action) => m;
@@ -81,6 +85,22 @@ let rec strip = (t: Typ.t): Typ.t =>
   | Parens(inner) => strip(inner)
   | _ => t
   };
+
+let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
+  is_unknown(ty)
+    ? []
+    : List.filter_map(
+        (e: Ctx.entry) =>
+          switch (e) {
+          | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
+              when
+                !is_unknown(expansion_t)
+                && Typ.fast_equal(strip(expansion_t), strip(ty)) =>
+            Some(ll)
+          | _ => None
+          },
+        ctx.entries,
+      );
 
 let candidates = (statics: option(Info.t)): list(LivelitCtx.raw_livelit) =>
   switch (site(statics)) {
@@ -195,22 +215,55 @@ let rows_of = (ll: LivelitCtx.raw_livelit): int =>
   | Block(n) => n + 1
   };
 
+/* the elements of a list value (closed), if it is one */
+let list_elems = (exp: Exp.t): option(list(Exp.t)) =>
+  switch (Exp.term_of(MvuShape.close_value(exp))) {
+  | ListLit(items) when items != [] => Some(items)
+  | _ => None
+  };
+
 let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
-  | (Sort.Exp | Sort.Pat, Some((ctx, _))) =>
-    List.find_map(
-      (ll: LivelitCtx.raw_livelit) =>
-        switch (html_of(~ctx, ll, exp)) {
-        | Some(_) =>
-          Some({
-            ll_name: ll.name,
-            rows: rows_of(ll),
-            raw: exp,
-          })
-        | None => None
-        },
-      candidates(statics),
-    )
+  | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
+    let direct =
+      List.find_map(
+        (ll: LivelitCtx.raw_livelit) =>
+          switch (html_of(~ctx, ll, exp)) {
+          | Some(_) =>
+            Some({
+              ll_name: ll.name,
+              rows: rows_of(ll),
+              raw: exp,
+              as_list: false,
+            })
+          | None => None
+          },
+        candidates(statics),
+      );
+    switch (direct) {
+    | Some(_) => direct
+    | None =>
+      /* a list of a type with a view: every element must render */
+      switch (
+        Typ.term_of(Typ.weak_head_normalize(ctx, ty)),
+        list_elems(exp),
+      ) {
+      | (List(elem), Some(items)) =>
+        List.find_map(
+          (ll: LivelitCtx.raw_livelit) =>
+            List.for_all(it => html_of(~ctx, ll, it) != None, items)
+              ? Some({
+                  ll_name: ll.name,
+                  rows: rows_of(ll),
+                  raw: exp,
+                  as_list: true,
+                })
+              : None,
+          candidates_for(ctx, elem),
+        )
+      | _ => None
+      }
+    };
   | _ => None
   };
 
@@ -236,23 +289,38 @@ let render =
     view_term,
     commit: HazelDOM.Syntax,
   };
-  let html =
+  let htmls: option(list(Exp.t)) =
     switch (site(info.statics)) {
     | Some((ctx, _)) =>
       switch (Ctx.lookup_livelit(ctx, value.ll_name)) {
-      | Some(ll) => html_of(~ctx, ll, value.raw)
+      | Some(ll) when value.as_list =>
+        Option.bind(list_elems(value.raw), items =>
+          List.fold_right(
+            (it, acc) =>
+              switch (acc, html_of(~ctx, ll, it)) {
+              | (Some(hs), Some(h)) => Some([h, ...hs])
+              | _ => None
+              },
+            items,
+            Some([]),
+          )
+        )
+      | Some(ll) => Option.map(h => [h], html_of(~ctx, ll, value.raw))
       | None => None
       }
     | _ => None
     };
-  switch (html) {
-  | Some(html) =>
+  switch (htmls) {
+  | Some(htmls) =>
     Node.div(
       ~attrs=[
-        Attr.classes(["rich-html-view", "rich-livelit-view"]),
+        Attr.classes(
+          ["rich-html-view", "rich-livelit-view"]
+          @ (value.as_list ? ["rich-livelit-list"] : []),
+        ),
         Attr.title("^" ++ value.ll_name ++ " view of this value"),
       ],
-      [HazelDOM.go(seed, html)],
+      List.map(HazelDOM.go(seed), htmls),
     )
   | None =>
     Node.div(
