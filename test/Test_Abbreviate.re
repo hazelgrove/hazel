@@ -778,6 +778,56 @@ let typ_tests =
     ),
   ];
 
+/* A tuple type's components share the budget evenly. Before they did, a
+   plain map over the shared counter let the first take what it wanted and
+   left the rest to elide whole: `[(label=String, value=Float)]` squeezed to
+   `[(label=String, …)]` for every budget from 11 to 18, one side in full
+   detail and the other gone. Sweeping the budget is how the difference
+   shows: it used to yield 8 distinct renders, it now yields 12. */
+let granularity_tests =
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "a tuple type's components degrade together, not one at a time",
+      `Quick,
+      () => {
+        let lt = () =>
+          List(
+            Prod([
+              TupLabel(Label("label") |> Typ.temp, string()) |> Typ.temp,
+              TupLabel(Label("value") |> Typ.temp, float()) |> Typ.temp,
+            ])
+            |> Typ.temp,
+          )
+          |> Typ.temp;
+        let renders =
+          List.init(40, b =>
+            Abbreviate.abbreviate_typ(~available=b + 1, lt())
+            |> fst
+            |> typ_render
+          );
+        let distinct = List.sort_uniq(compare, renders) |> List.length;
+        check(
+          Alcotest.bool,
+          "at least 11 distinct widths across budgets 1-40, got "
+          ++ string_of_int(distinct),
+          true,
+          distinct >= 11,
+        );
+        /* The specific regression: no budget renders one component in full
+           while the other is elided to nothing. */
+        check(
+          Alcotest.bool,
+          "no render shows one component whole beside a vanished one",
+          false,
+          List.exists(
+            r => r == "[(label=String, " ++ ellipsis ++ ")]",
+            renders,
+          ),
+        );
+      },
+    ),
+  ];
+
 let tests = (
   "Abbreviate",
   structural_tests
@@ -787,5 +837,6 @@ let tests = (
   @ hard_cap_tests
   @ count_annotation_tests
   @ unit_cost_atom_tests
-  @ module_abbreviation_tests,
+  @ module_abbreviation_tests
+  @ granularity_tests,
 );

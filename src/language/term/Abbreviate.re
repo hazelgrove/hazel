@@ -1671,10 +1671,31 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           available := available^ - 1;
           elided_term_typ;
         } else {
-          //TODO: abbreviate these like tuples
+          /* Components share the budget evenly, the way the exp walk splits
+             a tuple's. A plain map over the shared counter let the first
+             component take whatever it wanted and left the rest to elide
+             whole, so `(label=String, value=Float)` squeezed to
+             `(label=String, …)` -- one side in full detail, the other gone.
+             Explicit recursion rather than List.mapi: each child mutates
+             the shared budget, so evaluation order is load-bearing. */
           available := available^ - 2; // "()"
-          let ts' = List.map(abbreviate_typ, ts);
-          Prod(ts');
+          let parts = List.length(ts);
+          available :=
+            available^ - max(0, parts - 1) * AbbrevSequence.separator_cost;
+          let budgets =
+            AbbrevBudget.split_evenly(~total=max(0, available^), ~parts);
+          let rec go = (idx: int, rest: list(Typ.t)): list(Typ.t) =>
+            switch (rest) {
+            | [] => []
+            | [t, ...rest'] =>
+              let (t', _) =
+                AbbrevBudget.with_budget(
+                  ~budget=List.nth(budgets, idx), ~run=() =>
+                  abbreviate_typ(t)
+                );
+              [t', ...go(idx + 1, rest')];
+            };
+          Prod(go(0, ts));
         }
       | Parens(t) =>
         if (available^ <= 2) {
