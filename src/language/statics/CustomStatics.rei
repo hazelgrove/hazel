@@ -1,16 +1,17 @@
-/* Statics for custom (livelit-provided) application forms. The per-kind
-   implementations and the tuple-labelling helpers are private.
+/* Statics for the builtins whose result type depends on the labels written at
+   the call site, and so cannot be given as an ordinary arrow type:
+   `project_labels`, `select_labels`, `omit_labels`, `omit_all_labels`,
+   `group_by_label` and `to_lvs`, all defined in BuiltinsTupleOperations.
+   Each carries a `Ctx.custom_statics` tag on its context entry, and that tag
+   selects the rule applied here.
 
-   `custom_statics_deferred_ap` ignores `~ancestors`, and its one caller
-   (Statics.re:1751) passes a unit-typed pun rather than the
-   `ancestors_inclusive` every other call in that file uses -- hence the
-   unconstrained type here. Worth reconciling; annotating it list(Id.t)
-   does not compile today. */
+   Both functions take the enclosing statics as a module rather than calling
+   Statics directly, because Statics is what calls them. */
 
 let custom_statics_deferred_ap:
   (
     ~ctx: Ctx.t,
-    ~ancestors: 'a,
+    ~ancestors: list(Id.t),
     ~fn_info: Info.exp,
     Ctx.custom_statics,
     (module StaticsBase.ExpressionStatics),
