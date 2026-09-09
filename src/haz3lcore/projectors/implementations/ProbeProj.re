@@ -2279,19 +2279,47 @@ let rich_content =
 
 /* the sample a card shows: the one aligned with the global focus, else
    the newest (last) of the pin-filtered samples */
-let card_sample = (ctx: probe_ctx): option(Sample.t) =>
-  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
-  | Some(s) => Some(s)
-  | None =>
+let card_sample = (ctx: probe_ctx): option(Sample.t) => {
+  let newest = () =>
     Sample.Selection.filter_by_pin(
       ~ap_id=ctx.ap_id,
       ~pinned=ctx.dynamics.sample_focus.pinned_stack,
       ~pinned_interval=ctx.dynamics.pinned_interval,
       ctx.dynamics.samples,
     )
-    |> List.rev
-    |> ListUtil.hd_opt
+    |> List.fold_left(
+         (best, s: Sample.t) =>
+           switch (best) {
+           | Some(b: Sample.t) when b.seq >= s.seq => best
+           | _ => Some(s)
+           },
+         None,
+       );
+  let focus = ctx.dynamics.sample_focus;
+  let anchored_here =
+    switch (focus.anchor) {
+    | Some(a) => a.probe_id == ctx.id
+    | None => false
+    };
+  switch (focus.anchor) {
+  /* no sample selected anywhere: the latest value (a pin only filters
+     which samples are in play) */
+  | None => newest()
+  | Some(_) =>
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    /* a real alignment: the selected sample itself, or one in the
+       same call as the selection (tandem); a mere tier fallback to
+       some sample is no reason to leave the latest value */
+    | Some(s)
+        when
+          anchored_here
+          || Sample.Focus.relation(~trimmed=true, ~ap_id=ctx.ap_id, focus, s).
+               is_call_cursor =>
+      Some(s)
+    | _ => newest()
+    }
   };
+};
 
 /* first registered renderer that takes the value, rendered */
 let card_rich =

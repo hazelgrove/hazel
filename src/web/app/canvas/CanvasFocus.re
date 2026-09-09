@@ -226,6 +226,12 @@ let value_site =
          in tandem (select a function's output; its input card shows
          the input of that same call) */
       ~focus: option(Language.Sample.Focus.t)=?,
+      /* the selected function's source range: its own sites (params,
+         body, the pieces of a returned tuple) outrank the rest, so
+         selecting `advance` on the canvas puts every card on that
+         function's inputs and outputs — one call per sample */
+      ~within: option((Measured.Point.t, Measured.Point.t))=?,
+      ~syntax: option(CachedSyntax.t)=?,
       key: string,
     )
     : option(Id.t) =>
@@ -233,6 +239,19 @@ let value_site =
   | None => None
   | Some(n) =>
     let names = node_type_names(~graph, n);
+    let inside = (id: Id.t): bool =>
+      switch (within, syntax) {
+      | (Some((l, r)), Some(syntax)) =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((a, b)) =>
+          Measured.Point.compare(l, a) <= 0
+          && Measured.Point.compare(b, r) <= 0
+        | None => false
+        }
+      | _ => false
+      };
     let aligned = (id: Id.t, samples: list(Language.Sample.t)): bool =>
       switch (focus, Id.Map.find_opt(id, info_map)) {
       | (Some(cursor), Some(info)) when cursor.anchor != None =>
@@ -269,6 +288,7 @@ let value_site =
             );
           let rank = (
             aligned(id, samples) ? 1 : 0,
+            inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,
             rich_ok(id, newest_s) ? 1 : 0,
             newest,

@@ -2320,12 +2320,36 @@ let view_impl =
   let cards =
     List.filter_map(
       key => {
+        let selected_fn =
+          switch (selected_edge) {
+          | Some(e) => Some(e.e_name)
+          | None => globals.settings.sidebar.canvas_focus
+          };
+        let within =
+          switch (selected_fn) {
+          | Some(name) =>
+            List.find_opt(
+              (e: CanvasGraph.edge) => e.e_name == name,
+              graph.edges,
+            )
+            |> Option.map((e: CanvasGraph.edge) =>
+                 TermData.extreme_measures(
+                   e.e_id,
+                   editor.editor.syntax.term_data,
+                   editor.editor.syntax.measured,
+                 )
+               )
+            |> Option.join
+          | None => None
+          };
         let site =
           CanvasFocus.value_site(
             ~dynamics=editor.dynamics,
             ~info_map=editor.statics.info_map,
             ~graph,
             ~focus=editor.editor.state.zipper.refractors.sample_focus,
+            ~within?,
+            ~syntax=editor.editor.syntax,
             key,
           );
         let content =
@@ -3166,6 +3190,47 @@ let view_impl =
           top,
         ),
       );
+    }),
+  );
+  /* debug: the samples of one site (id prefix) in stored order */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__siteSamples",
+    Js_of_ocaml.Js.Unsafe.callback(
+      (prefix: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let prefix = Js_of_ocaml.Js.to_string(prefix);
+      let dyn = editor.dynamics;
+      let rows =
+        Id.Map.fold(
+          (id, ss, acc) => {
+            let sid = Id.to_string(id);
+            String.length(sid) >= String.length(prefix)
+            && String.sub(sid, 0, String.length(prefix)) == prefix
+              ? acc
+                @ List.map(
+                    (sm: Language.Sample.t) =>
+                      Printf.sprintf(
+                        "seq=%d step=%d depth=%d %s",
+                        sm.seq,
+                        sm.step_start,
+                        List.length(sm.call_stack),
+                        String.sub(
+                          Language.Exp.show(sm.value),
+                          0,
+                          min(
+                            60,
+                            String.length(Language.Exp.show(sm.value)),
+                          ),
+                        ),
+                      ),
+                    ss,
+                  )
+              : acc;
+          },
+          dyn,
+          [],
+        );
+      Js_of_ocaml.Js.string(String.concat("\n", rows));
     }),
   );
   Js_of_ocaml.Js.Unsafe.set(
