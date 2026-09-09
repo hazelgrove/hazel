@@ -67,9 +67,13 @@ module M: Projector = {
     | _ => print_endline("Warning - LivelitProj.update: No action")
     };
 
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-  };
+  /* Absent when the projector isn't drawn at the code site (docked to the
+     sidebar, or culled from the viewport) */
+  let focus_pointer = (id: Id.t) =>
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
+    | None => ()
+    | Some(el) => el##focus
+    };
 
   let focusable =
     Focusable.{

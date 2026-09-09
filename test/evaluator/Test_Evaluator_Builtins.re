@@ -121,5 +121,37 @@ let tests = (
         ),
       )
     ),
+    test_case("atan2 is quadrant-correct", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|atan2(0., 0. -. 1.) ==. pi|})
+    ),
+    test_case("atan2 diagonal", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|atan2(1., 1.) ==. pi /. 4.|})
+    ),
+    test_case("round half away from zero", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|round(2.5) ==. 3.|})
+    ),
+    test_case("round down", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|round(0.4) ==. 0.|})
+    ),
+    test_case("to_fixed truncates float noise", `Quick, () =>
+      parse_and_evaluate_test({|"0.30"|}, {|to_fixed(0.1 +. 0.2, 2)|})
+    ),
+    test_case("to_fixed zero digits", `Quick, () =>
+      parse_and_evaluate_test({|"3"|}, {|to_fixed(3.14159, 0)|})
+    ),
+    // ---- Ascriptions to the builtin recursive type ----
+    // `Null : JSON` / `Assoc(..) : JSON` used to stick as casts (the
+    // constructor's own type is a compact alias of a Rec sum) and every
+    // case on an annotated JSON binding stayed indeterminate.
+    test_case("JSON-annotated binding matches in case", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|(1, 1, 1)|},
+        {|let j : JSON = Assoc([("k", String("v"))]) in
+let f = fun (v: JSON) -> case v | Assoc(_) => 1 | _ => 0 end in
+let n : JSON = Null in
+(f(j), case j | Assoc(_) => 1 | _ => 0 end, case n | Null => 1 | _ => 0 end)|},
+      )
+    ),
   ],
 );

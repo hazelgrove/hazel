@@ -40,7 +40,7 @@ let show_cls: cls => string =
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 
 /* ==================== Member view ====================
@@ -58,7 +58,7 @@ type member =
 
 let typ_temp = (term: TermBase.Typ.term): TermBase.Typ.t => {
   term,
-  annotation: IdTagged.IdTag.temp(),
+  annotation: IdTagged.IdTag.temp,
 };
 
 let unknown_typ = () => typ_temp(Unknown(Internal));
@@ -116,12 +116,12 @@ let members = (items: list(t)): list(member) =>
 
 let pat_var = (x: Var.t): TermBase.Pat.t => {
   term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
+  annotation: IdTagged.IdTag.temp,
 };
 
 let mpat_var = (x: Var.t): TermBase.MPat.t => {
   term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
+  annotation: IdTagged.IdTag.temp,
 };
 
 let item_of_member = (m: member): t =>
@@ -129,13 +129,13 @@ let item_of_member = (m: member): t =>
   | Val(x, ty) =>
     let asc: TermBase.Pat.t = {
       term: Asc(pat_var(x), ty),
-      annotation: IdTagged.IdTag.temp(),
+      annotation: IdTagged.IdTag.temp,
     };
     temp(SigLet(asc));
   | TypeManifest(name, ty) =>
     let tpat: TermBase.TPat.t = {
       term: Var(name),
-      annotation: IdTagged.IdTag.temp(),
+      annotation: IdTagged.IdTag.temp,
     };
     temp(SigType(tpat, ty));
   };
@@ -144,7 +144,7 @@ let item_of_member = (m: member): t =>
 let module_item = (name: Var.t, ty: TermBase.Typ.t): t => {
   let asc: TermBase.MPat.t = {
     term: Asc(mpat_var(name), ty),
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
   temp(SigModule(asc));
 };

@@ -190,6 +190,7 @@ let execute_one_tool_call =
             ),
           after_segment: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -213,6 +214,7 @@ let execute_one_tool_call =
           before_segment,
           after_segment,
           content: success_message,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -252,6 +254,7 @@ let execute_one_tool_call =
           before_segment,
           after_segment: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -267,6 +270,35 @@ let execute_one_tool_call =
         );
       }
     }
+  | DocsRequest(topic) =>
+    /* Answered from the DocPacks registry; no editor change */
+    let (success, content) =
+      switch (DocPacks.lookup(topic)) {
+      | Some(pack) => (true, pack.body)
+      | None => (
+          false,
+          "Unknown docs topic \""
+          ++ topic
+          ++ "\". Available topics:\n"
+          ++ DocPacks.topic_lines,
+        )
+      };
+    let tool_result: AgentToolResult.tool_result = {
+      tool_call,
+      success,
+      skipped: false,
+      expanded: false,
+      diff: None,
+      before_segment: None,
+      after_segment: None,
+      content,
+      content_is_payload: true,
+    };
+    (
+      model,
+      cell_editor |> Updated.return_quiet,
+      Message.Utils.mk_tool_result_message(tool_result),
+    );
   | Failure(msg) =>
     let tool_result: AgentToolResult.tool_result = {
       tool_call,
@@ -277,6 +309,7 @@ let execute_one_tool_call =
       before_segment: None,
       after_segment: None,
       content: msg,
+      content_is_payload: false,
     };
     // Do not add unparseable tool calls to subtask tool results for now
     (
