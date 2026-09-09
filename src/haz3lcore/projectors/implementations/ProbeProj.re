@@ -396,36 +396,7 @@ module DrawerHeight = {
   let compute = (info: info): int => min(max_rows, content_rows(info));
 };
 
-let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
-  open Float;
-  let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
-  let text_box =
-    e##.currentTarget
-    |> Js.Opt.to_option
-    |> Option.map(JsUtil.get_child_with_class(_, "code"))
-    |> Option.join;
-  switch (text_box) {
-  | None => None
-  | Some(text_box) =>
-    let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
-    let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
-    let row = to_int(y_rel /. row_height);
-    let col = to_int(round(x_rel /. col_width));
-    Some({
-      row,
-      col,
-    });
-  };
-};
-
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 4) {
-    "s" ++ string_of_int(length - 4);
-  } else {
-    "s0";
-  };
+let length_cls = DragLength.length_cls;
 
 /* Depth classes from call stack relation (structural effects: displacement, stacking) */
 let depth_clss =
@@ -594,32 +565,6 @@ let focus_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
-let find_best_budget = (width_at: int => int, target_width: int): int => {
-  let rec find_upper = (b: int): int =>
-    if (b > 500 || width_at(b) > target_width) {
-      b;
-    } else {
-      find_upper(b * 2 + 1);
-    };
-  let upper = find_upper(max(1, target_width));
-  let rec bisect = (lo: int, hi: int): int =>
-    if (lo >= hi) {
-      lo;
-    } else {
-      let mid = (lo + hi + 1) / 2;
-      if (width_at(mid) <= target_width) {
-        bisect(mid, hi);
-      } else {
-        bisect(lo, mid - 1);
-      };
-    };
-  bisect(target_width, upper);
-};
-
-module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
-};
-
 let value_view =
     (
       ~display: sample_display,
@@ -635,10 +580,7 @@ let value_view =
   let {settings, ap_id, utility, _} = ctx;
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
-      let target =
-        e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
-      JsUtil.setPointerCapture(target, e##.pointerId);
-      ValueState.mousedown := Some(target);
+      DragLength.begin_drag(e);
     };
     ctx.parent(
       SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
@@ -646,37 +588,22 @@ let value_view =
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
-    let target =
-      e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
-    if (JsUtil.hasPointerCapture(target, e##.pointerId)) {
-      JsUtil.releasePointerCapture(target, e##.pointerId);
-    };
-    ValueState.mousedown := None;
+    DragLength.end_drag(e);
     Effect.Ignore;
   };
 
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
-    /* buttons > 0 guards a stale drag flag: capture can be lost without a
-       pointerup, which would otherwise resize on shift-hover with no button. */
-    let buttons: int = Js.Unsafe.get(e, "buttons");
-    switch (
-      ValueState.mousedown^,
-      Js.to_bool(e##.shiftKey) && buttons > 0 ? pos_rel_to_target(e) : None,
-    ) {
-    | (Some(_), Some(goal)) =>
-      let target_width = max(1, goal.col);
-      /* Inline: width isn't linear in budget (Abbreviate is discrete), so
-       * bisect. Block: wrap width is target_width directly. */
-      let budget =
-        switch (display) {
-        | Inline =>
-          let width_at = (b: int): int =>
-            abbreviated_seg_of(utility, b, sample.value) |> snd;
-          find_best_budget(width_at, target_width);
-        | Block => target_width
-        };
-      local(ChangeLength(sample.id, budget));
-    | _ => Effect.Ignore
+    /* Inline: the rendered width isn't the budget, so DragLength searches
+     * for the budget that renders at the cursor. Block: the wrap width IS
+     * the budget. */
+    let measure =
+      switch (display) {
+      | Inline => (b => abbreviated_seg_of(utility, b, sample.value) |> snd)
+      | Block => DragLength.width_is_budget
+      };
+    switch (DragLength.on_move(~measure, e)) {
+    | Some(budget) => local(ChangeLength(sample.id, budget))
+    | None => Effect.Ignore
     };
   };
 

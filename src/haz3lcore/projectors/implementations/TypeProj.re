@@ -1,3 +1,4 @@
+open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
@@ -135,7 +136,8 @@ module M: Projector = {
       [text(display_mode(mode, info))],
     );
 
-  let typ_view = (model: model, info: info, utility, view_seg: View.seg) => {
+  let typ_view =
+      (model: model, info: info, utility, view_seg: View.seg, local) => {
     let (classes, typ) =
       switch (model.mode) {
       | Dynamic =>
@@ -155,13 +157,42 @@ module M: Projector = {
       | Self => ((_ => []), self_ty(info.statics) |> totalize_ty)
       };
 
+    /* Shift-drag across the cell chooses how much of the type to show. The
+       rendered width is not the budget -- Abbreviate is discrete -- so
+       DragLength searches for the budget that renders where the cursor is. */
+    let measure = (b: int) =>
+      ProbeUtil.abbreviated_typ_seg_of(utility, b, typ) |> snd;
+    /* The narrowing is the abbreviation itself -- fewer characters render
+       narrower. No width class: ProbeProj sets one, but the `--base` custom
+       property those rules define is never read by any stylesheet, so it
+       would size nothing. */
+    let seg =
+      switch (model.length) {
+      | Auto => utility.term_to_seg(~inline=true, Typ(typ))
+      | Fixed(n) => ProbeUtil.abbreviated_typ_seg_of(utility, n, typ) |> fst
+      };
+
     div(
-      ~attrs=[Attr.classes(["type-cell"])],
-      [
-        Typ(typ)
-        |> utility.term_to_seg(~inline=true)
-        |> view_seg(~single_line=true, ~classes, Sort.Typ),
+      ~attrs=[
+        Attr.classes(["type-cell"]),
+        Attr.on_pointerdown(e => {
+          if (Js.to_bool(e##.shiftKey)) {
+            DragLength.begin_drag(e);
+          };
+          Effect.Ignore;
+        }),
+        Attr.on_pointerup(e => {
+          DragLength.end_drag(e);
+          Effect.Ignore;
+        }),
+        Attr.on_mousemove(e =>
+          switch (DragLength.on_move(~measure, e)) {
+          | Some(budget) => local(SetLength(budget))
+          | None => Effect.Ignore
+          }
+        ),
       ],
+      [seg |> view_seg(~single_line=true, ~classes, Sort.Typ)],
     );
   };
 
@@ -208,7 +239,7 @@ module M: Projector = {
             ],
             [
               mode_view(model.mode, info.statics),
-              typ_view(model, info, info.utility, view_seg),
+              typ_view(model, info, info.utility, view_seg, local),
             ],
           ),
         ),
