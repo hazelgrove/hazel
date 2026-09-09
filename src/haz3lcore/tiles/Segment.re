@@ -869,8 +869,8 @@ and regrout_affix =
 let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   Aba.split(
     fun
-    | Piece.Tile(t) when t.id == id => Either.R(t)
-    | p => L(p),
+    | Piece.Tile(t) when t.id == id => Either.Second(t)
+    | p => Either.First(p),
   );
 
 let inner_regrout = (children: list(t)): list(t) =>
