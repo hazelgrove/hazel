@@ -76,16 +76,26 @@ let site = (statics: option(Info.t)): option((Ctx.t, Typ.t)) =>
   };
 
 /* livelits in scope whose expansion type is the site's type */
+let rec strip = (t: Typ.t): Typ.t =>
+  switch (Typ.term_of(t)) {
+  | Parens(inner) => strip(inner)
+  | _ => t
+  };
+
 let candidates = (statics: option(Info.t)): list(LivelitCtx.raw_livelit) =>
   switch (site(statics)) {
   | Some((ctx, ty)) when !is_unknown(ty) =>
     List.filter_map(
       (e: Ctx.entry) =>
         switch (e) {
+        /* NOMINAL: the livelit renders the type it expands to BY NAME
+           (`expand : Model -> Point` takes sites typed `Point`, not
+           every (Int, Int)); a structural site only matches a livelit
+           that expands to that structure. Aliases are not unfolded. */
         | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
             when
               !is_unknown(expansion_t)
-              && Typ.equal_up_to_aliases(ctx, expansion_t, ty) =>
+              && Typ.fast_equal(strip(expansion_t), strip(ty)) =>
           Some(ll)
         | _ => None
         },
