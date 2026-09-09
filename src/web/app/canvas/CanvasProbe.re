@@ -34,6 +34,9 @@ let view =
       ~globals: Globals.t,
       ~editor: CodeWithStatics.Model.t,
       ~key: string,
+      /* card mode: the aligned sample alone (rich view / pretty value),
+         for the canvas type cards */
+      ~card: bool=false,
       id: Id.t,
     )
     : option(Node.t) => {
@@ -56,9 +59,13 @@ let view =
         /* wells auto-render the first applicable rich renderer (html,
            card, ...) — the plain display is the fallback, not the default */
         ~model=
-          Haz3lcore.ProbeProj.model_string_auto_rich(
-            stored_model(~globals, key),
-          ),
+          card
+            ? Haz3lcore.ProbeProj.model_string_card(
+                stored_model(~globals, key),
+              )
+            : Haz3lcore.ProbeProj.model_string_auto_rich(
+                stored_model(~globals, key),
+              ),
         probe_kind,
       );
     let p = Refractors.to_projector(syntax_piece, id, entry);
@@ -129,13 +136,19 @@ let view =
     Some(
       div(
         ~attrs=[
-          clss(["projector", "probe", "canvas-probe", Sort.show(sort)]),
+          clss(
+            ["projector", "probe", "canvas-probe", Sort.show(sort)]
+            @ (card ? ["canvas-card-probe"] : []),
+          ),
         ],
         Option.to_list(v.offside) @ Option.to_list(v.below),
       ),
     );
   };
 };
+
+let card_view = (~globals, ~editor, ~key, id) =>
+  view(~globals, ~editor, ~key, ~card=true, id);
 
 /* ---- aggregate value strip (type-node wells) ----
    One chip per distinct value: the sample-display RENDERING (green chip,

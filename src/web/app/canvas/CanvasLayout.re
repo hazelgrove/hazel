@@ -138,10 +138,17 @@ let layout_impl =
       ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
+      /* expanded type cards: (w, h) per node key. A card claims its
+         bounding circle for spacing (plus a buffer so neighbours keep
+         clear) and its rectangle for edge endpoints. */
+      ~cards: list((string, (float, float)))=[],
       g: CanvasGraph.t,
     )
     : t => {
   let t_pre = Util.PerfTimer.now();
+  let card_of = (k: string): option((float, float)) =>
+    List.assoc_opt(k, cards);
+  let card_buffer = 14.;
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -229,7 +236,10 @@ let layout_impl =
      order columns), derived [T] after its element, and function flow
      (input strictly left of result). Docked nodes become attachments. */
   let r_of = (n: CanvasGraph.tynode): float =>
-    node_radius(~fan=fan(n.key), n);
+    switch (card_of(n.key)) {
+    | Some((w, h)) => Float.hypot(w /. 2., h /. 2.) +. card_buffer
+    | None => node_radius(~fan=fan(n.key), n)
+    };
   let dep_edges =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
@@ -550,6 +560,28 @@ let layout_impl =
     Hashtbl.find_opt(placed, k)
     |> Option.map(snd)
     |> Option.value(~default=base_radius);
+  /* edge endpoints land on the node's rim: the circle, or for a card
+     the point where the ray toward `b` leaves its rectangle */
+  let rim_toward = (a: pos, b: pos, k: string): pos =>
+    switch (card_of(k)) {
+    | None => offset_along(a, b, radius_of(k))
+    | Some((w, h)) =>
+      let u = norm(a, b);
+      let tx =
+        Float.abs(u.x) < 1e-6 ? Float.infinity : w /. 2. /. Float.abs(u.x);
+      let ty =
+        Float.abs(u.y) < 1e-6 ? Float.infinity : h /. 2. /. Float.abs(u.y);
+      let t = Float.min(tx, ty) +. 1.;
+      {
+        x: a.x +. u.x *. t,
+        y: a.y +. u.y *. t,
+      };
+    };
+  let half_w_of = (k: string): float =>
+    switch (card_of(k)) {
+    | Some((w, _)) => w /. 2. +. 1.
+    | None => radius_of(k)
+    };
 
   /* ---- formation + dependency links (rim-to-rim so arrowheads land) ---- */
   let rim_pair =
@@ -559,8 +591,8 @@ let layout_impl =
       Some((
         from_k,
         to_k,
-        offset_along(fp, tp, radius_of(from_k)),
-        offset_along(tp, fp, radius_of(to_k)),
+        rim_toward(fp, tp, from_k),
+        rim_toward(tp, fp, to_k),
       ))
     | _ => None
     };
@@ -688,8 +720,8 @@ let layout_impl =
             y: mid.y +. v.y *. 38.,
           };
           /* arrows run rim to rim: the head lands on the codomain node */
-          let s = offset_along(src_p, ctrl, radius_of(e.e_src));
-          let d = offset_along(dst_p, ctrl, radius_of(e.dst));
+          let s = rim_toward(src_p, ctrl, e.e_src);
+          let d = rim_toward(dst_p, ctrl, e.dst);
           {
             edge: e,
             src_p: s,
@@ -711,11 +743,11 @@ let layout_impl =
         } else {
           let sign = dst_p.x >= src_p.x ? 1. : (-1.);
           let s = {
-            x: src_p.x +. sign *. radius_of(e.e_src),
+            x: src_p.x +. sign *. half_w_of(e.e_src),
             y: src_p.y,
           };
           let d = {
-            x: dst_p.x -. sign *. radius_of(e.dst),
+            x: dst_p.x -. sign *. half_w_of(e.dst),
             y: dst_p.y,
           };
           let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));
@@ -1350,9 +1382,14 @@ type layout_key = {
   k_origin: option(pos),
   k_offsets: list((string, (float, float))),
   k_pins: list((string, (float, float))),
+  k_cards: list((string, (float, float))),
 };
 let layout_memo: ref(list((layout_key, t))) = ref([]);
 let layout_memo_hits: ref(int) = ref(0);
+/* the expanded cards' extents for the layouts of the current render:
+   set by CanvasSidebar before laying out (every layout call of a render
+   sees the same cards, so this is not threaded through each call) */
+let card_extents: ref(list((string, (float, float)))) = ref([]);
 let layout =
     (
       ~x_scale=1.,
@@ -1361,9 +1398,11 @@ let layout =
       ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
+      ~cards: option(list((string, (float, float))))=?,
       g: CanvasGraph.t,
     )
     : t => {
+  let cards = Option.value(~default=card_extents^, cards);
   let key = {
     k_graph: g,
     k_x: x_scale,
@@ -1372,6 +1411,7 @@ let layout =
     k_origin: origin_override,
     k_offsets: offsets,
     k_pins: pins,
+    k_cards: cards,
   };
   let same = (k: layout_key) =>
     k.k_graph === g
@@ -1380,7 +1420,8 @@ let layout =
     && k.k_center == center_within
     && k.k_origin == origin_override
     && k.k_offsets == offsets
-    && k.k_pins == pins;
+    && k.k_pins == pins
+    && k.k_cards == cards;
   switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
   | Some((_, r)) =>
     incr(layout_memo_hits);
@@ -1397,6 +1438,7 @@ let layout =
         ~origin_override,
         ~offsets,
         ~pins,
+        ~cards,
         g,
       );
     incr(layout_calls);

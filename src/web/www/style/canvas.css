@@ -2054,53 +2054,124 @@
 }
 
 /* --- type node shown as a value card (canvas_value_nodes) --- */
-.canvas-node.node-value-card {
-  width: auto;
-  height: auto;
-  min-width: 160px;
-  max-width: 420px;
-  border-radius: 8px;
-  background: var(--canvas-node-bg, #fff);
-  border: 1.5px solid var(--canvas-node-border, #9b8fd0);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+/* ---- type cards: a type node expanded into its value's view ----
+   The card IS the node element (same key), centered on the node's
+   position: width/height/border-radius transition, so the circle
+   morphs into the rounded rectangle and back; FLIP moves it. Only the
+   view and the type caption — no chrome. */
+.canvas-node {
+  transition:
+    width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.canvas-node.node-card {
+  border-radius: 14px;
+  background: var(--df-bg, #fdfdf4);
+  display: block;
+  overflow: visible;
+  z-index: 5;
+}
+.canvas-node.node-card .card-body {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  border-radius: 12px;
+  cursor: default;
+}
+.canvas-card-probe.canvas-probe {
+  overflow: visible;
+}
+.canvas-node.node-card .card-caption {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  translate: -50% 0;
+  margin-top: 3px;
+  font-weight: bold;
+  cursor: default;
+  user-select: none;
+}
+.canvas-node.node-card .card-resize {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  border-right: 2.5px solid var(--token-typ, #9457c9);
+  border-bottom: 2.5px solid var(--token-typ, #9457c9);
+  border-radius: 0 0 13px 0;
+  opacity: 0.35;
+  z-index: 3;
+}
+.canvas-node.node-card .card-resize:hover {
+  opacity: 1;
+}
+/* selection: the node's sample is the focus anchor (green), red while
+   the card has keyboard focus (arrows step samples) — the well rule */
+.canvas-node.node-card:has(.probe-card.card-selected) {
+  outline: 2px solid var(--G0);
+  outline-offset: 2px;
+}
+.canvas-node.node-card:has(.probe-card.card-selected:focus) {
+  outline: 2px solid var(--R1);
+  box-shadow: 0 0 0 4px oklch(from var(--R1) l c h / 0.18);
+}
+.canvas-card-probe.canvas-probe {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  display: block;
+}
+.canvas-card-probe .live-offside.probe-card {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 0;
-  z-index: 5;
-}
-.canvas-node.node-value-card .value-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 2px 8px;
-  font-family: var(--code-font);
-  font-size: 0.8em;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  cursor: grab;
-}
-.canvas-node.node-value-card .value-card-close {
+  overflow: visible;
+  outline: none;
   cursor: pointer;
-  opacity: 0.55;
-  padding: 0 2px;
 }
-.canvas-node.node-value-card .value-card-close:hover {
-  opacity: 1;
-}
-.canvas-node.node-value-card .value-card-body {
-  padding: 4px 6px;
-  cursor: default;
-  text-align: left;
+.canvas-card-probe .probe-card-rich,
+.canvas-card-probe .probe-card-plain {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
-  max-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
 }
-.canvas-node.node-value-card .value-card-empty {
-  font-size: 0.75em;
-  opacity: 0.7;
-  padding: 4px 2px;
-  white-space: normal;
+.canvas-card-probe .probe-card-plain {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 8px 10px;
 }
-.canvas-node.node-value-card .value-card-title {
-  color: var(--canvas-node-label, #5a3a9a);
-  font-weight: 600;
+.canvas-card-probe .probe-card-rich > * {
+  max-width: 100%;
+}
+.canvas-card-probe .probe-card-rich .projector,
+.canvas-card-probe .probe-card-rich .rich-html-view {
+  position: static;
+}
+/* the probe's own sample nav (diamond + chevrons), overlaid at the
+   bottom center while the card is selected */
+.canvas-card-probe .probe-card-nav {
+  position: absolute;
+  top: 100%;
+  right: -0.4em;
+  margin-top: 2px;
+  width: 2.2em;
+  height: 2.4em;
+  pointer-events: none;
+}
+.canvas-card-probe .probe-card-nav .nav-bar {
+  position: static;
+  width: 100%;
+  height: 100%;
+}
+.canvas-card-probe .probe-card-empty {
+  flex: 1 1 auto;
 }

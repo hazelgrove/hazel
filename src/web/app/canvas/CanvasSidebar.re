@@ -664,6 +664,10 @@ let ty_syntax = (n: CanvasGraph.tynode): string =>
   | _ => n.key /* alias / [T] / (A, B) keys are literal type syntax */
   };
 
+/* a card just opened / closed / resized: re-fit the camera after the
+   render that lays it out */
+let fit_pending: ref(bool) = ref(false);
+
 let px_float = (s: string): float =>
   try(float_of_string(String.sub(s, 0, String.length(s) - 2))) {
   | _ => 0.
@@ -1025,6 +1029,24 @@ let view_impl =
       cached_avail_h := avail_height;
       avail_height;
     };
+  /* expanded type cards: their extents shape the layout (a card claims
+     its box plus a buffer; neighbours are pushed) */
+  let card_default = (360., 260.);
+  let card_size = (key: string): (float, float) =>
+    Option.value(
+      ~default=card_default,
+      List.assoc_opt(
+        (slide, key),
+        globals.settings.sidebar.canvas_card_sizes,
+      ),
+    );
+  CanvasLayout.card_extents :=
+    List.filter_map(
+      key =>
+        List.exists((n: CanvasGraph.tynode) => n.key == key, graph.nodes)
+          ? Some((key, card_size(key))) : None,
+      globals.settings.sidebar.canvas_value_nodes,
+    );
   let lay = {
     /* pins/offsets for nodes that no longer exist (another program on this
        slide) must not keep a stale frame alive */
@@ -2204,46 +2226,181 @@ let view_impl =
       ],
       [text(glyph)],
     );
-  /* type nodes shown as values: each card is a real probe well over the
-     newest sample site of that type (rich view when one applies) */
-  let toggle_value_node = (key: string) =>
+  /* type nodes expanded into cards: each is a probe in card mode over
+     the newest rich-renderable sample site of that type */
+  let toggle_value_node = (key: string) => {
+    fit_pending := true;
     globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key))));
-  let value_cards: list((string, (Node.t, Effect.t(unit)))) =
+  };
+  /* corner drag: the card's box follows imperatively; the size commits
+     on release (one relayout, neighbours pushed) */
+  let start_card_resize = (key: string, evt): Effect.t(unit) => {
+    open Js_of_ocaml;
+    let sx: int = Js.Unsafe.coerce(evt)##.clientX;
+    let sy: int = Js.Unsafe.coerce(evt)##.clientY;
+    let (w0, h0) = card_size(key);
+    let z = max(0.2, globals.settings.canvas_zoom);
+    let cur = ref((w0, h0));
+    let rec on_move = evt => {
+      let x: int = Js.Unsafe.coerce(evt)##.clientX;
+      let y: int = Js.Unsafe.coerce(evt)##.clientY;
+      let w = max(120., w0 +. float_of_int(x - sx) /. z);
+      let h = max(80., h0 +. float_of_int(y - sy) /. z);
+      cur := (w, h);
+      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
+      | Some(el) =>
+        let st = Js.Unsafe.coerce(el)##.style;
+        st##.width := Js.string(Printf.sprintf("%.1fpx", w));
+        st##.height := Js.string(Printf.sprintf("%.1fpx", h));
+      | None => ()
+      };
+      ();
+    }
+    and on_up = _ => {
+      let doc = Js.Unsafe.coerce(Dom_html.document);
+      let _ = doc##removeEventListener("mousemove", on_move);
+      let _ = doc##removeEventListener("mouseup", on_up);
+      let (w, h) = cur^;
+      fit_pending := true;
+      Effect.Expert.handle_non_dom_event_exn(
+        globals.inject_global(
+          Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+        ),
+      );
+      ();
+    };
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##addEventListener("mousemove", on_move);
+    let _ = doc##addEventListener("mouseup", on_up);
+    Effect.Prevent_default;
+  };
+  /* fit the NODES' extent (nodes pinned or dragged outside the frame box
+     sit outside it) into the pane; also runs after a card opens or
+     resizes, so an expanded node never sits off-pane */
+  let fit_view = () => {
+    /* slack: equality lets sub-pixel rounding re-summon the
+       scrollbar the fit was meant to remove */
+    /* fit the NODES' extent, not the layout box: nodes pinned
+       or dragged above/left of the frame origin sit outside
+       the box (a board of only such nodes has a 0-high box) */
+    let aw = Option.value(~default=lay.width, avail_width)
+    and ah = Option.value(~default=lay.height, avail_height);
+    switch (CanvasCamera.graph_bbox^) {
+    | Some((x0, y0, x1, y1)) =>
+      let pad = 28.;
+      let gw = max(1., x1 -. x0 +. 2. *. pad)
+      and gh = max(1., y1 -. y0 +. 2. *. pad);
+      CanvasCamera.animate(
+        ~aw,
+        ~ah,
+        ~zoom=
+          Some(
+            max(0.4, min(2.5, min((aw -. 24.) /. gw, (ah -. 24.) /. gh))),
+          ),
+        ~dur=320.,
+        ~easing=CanvasCamera.EaseOut,
+        ((x0 +. x1) /. 2., (y0 +. y1) /. 2.),
+      );
+    | None =>
+      let zw = (aw -. 24.) /. max(1., lay.width)
+      and zh = (ah -. 24.) /. max(1., lay.height);
+      animate_fit(
+        ~z_to=max(0.4, min(2.5, min(zw, zh))),
+        ~lw=lay.width,
+        ~lh=lay.height,
+        ~aw,
+        ~ah,
+      );
+    };
+  };
+  if (fit_pending^) {
+    fit_pending := false;
+    CanvasEnact.after_render(fit_view);
+  };
+  let cards =
     List.filter_map(
-      key =>
-        switch (
+      key => {
+        let site =
           CanvasFocus.value_site(
             ~dynamics=editor.dynamics,
             ~info_map=editor.statics.info_map,
             ~graph,
             key,
-          )
-        ) {
-        | Some(id) =>
-          switch (CanvasProbe.view(~globals, ~editor, ~key="ty/" ++ key, id)) {
-          | Some(well) => Some((key, (well, toggle_value_node(key))))
+          );
+        let content =
+          switch (site) {
+          | Some(id) =>
+            CanvasProbe.card_view(~globals, ~editor, ~key="ty/" ++ key, id)
           | None => None
-          }
-        | None =>
-          Some((
-            key,
-            (
-              div(
-                ~attrs=[clss(["value-card-empty"])],
-                [
-                  text(
-                    globals.settings.core.probe_all
-                      ? "no values of this type observed yet"
-                      : "no samples — collect samples (values tab) and run",
-                  ),
-                ],
+          };
+        let content =
+          switch (content) {
+          | Some(c) => c
+          | None => div(~attrs=[clss(["card-empty"])], [])
+          };
+        Some((
+          key,
+          (
+            content,
+            card_size(key),
+            !
+              List.mem_assoc(
+                (slide, key),
+                globals.settings.sidebar.canvas_card_sizes,
               ),
-              toggle_value_node(key),
-            ),
-          ))
-        },
+            toggle_value_node(key),
+            start_card_resize(key),
+          ),
+        ));
+      },
       globals.settings.sidebar.canvas_value_nodes,
     );
+  /* AUTOSIZE: a card without a stored size opens at its content's
+     natural size — a rich view as drawn (capped), a plain value capped
+     at the pretty-print box — measured after this render and stored */
+  if (List.exists(((_, (_, _, auto, _, _))) => auto, cards)) {
+    CanvasEnact.after_render(() => {
+      open Js_of_ocaml;
+      let els =
+        Dom_html.document##querySelectorAll(Js.string("[data-autosize]"));
+      for (i in 0 to els##.length - 1) {
+        switch (Js.Opt.to_option(els##item(i))) {
+        | Some(el) =>
+          let key =
+            Js.to_string(
+              Js.Opt.get(el##getAttribute(Js.string("data-autosize")), () =>
+                Js.string("")
+              ),
+            );
+          let inner =
+            el##querySelector(
+              Js.string(".probe-card-rich > *, .probe-card-plain > *"),
+            );
+          let rich =
+            Js.Opt.test(el##querySelector(Js.string(".probe-card-rich")));
+          switch (Js.Opt.to_option(inner)) {
+          | Some(c) =>
+            let z = max(0.2, globals.settings.canvas_zoom);
+            let r = c##getBoundingClientRect;
+            let cw = Js.Optdef.get(r##.width, () => 0.) /. z
+            and ch = Js.Optdef.get(r##.height, () => 0.) /. z;
+            let (cap_w, cap_h) = rich ? (720., 560.) : (360., 260.);
+            let w =
+              Float.max(120., Float.min(cap_w, cw +. (rich ? 12. : 24.)));
+            let h =
+              Float.max(64., Float.min(cap_h, ch +. (rich ? 12. : 20.)));
+            Effect.Expert.handle_non_dom_event_exn(
+              globals.inject_global(
+                Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+              ),
+            );
+          | None => ()
+          };
+        | None => ()
+        };
+      };
+    });
+  };
   let menu_rows: list(Node.t) =
     switch (canvas_menu_node^) {
     | Some((key, syntax)) => [
@@ -3411,46 +3568,7 @@ let view_impl =
           globals.inject_global(Set(ToggleCanvasFollow)),
         ),
         btn(
-          ~on_press=
-            () => {
-              /* slack: equality lets sub-pixel rounding re-summon the
-                 scrollbar the fit was meant to remove */
-              /* fit the NODES' extent, not the layout box: nodes pinned
-                 or dragged above/left of the frame origin sit outside
-                 the box (a board of only such nodes has a 0-high box) */
-              let aw = Option.value(~default=lay.width, avail_width)
-              and ah = Option.value(~default=lay.height, avail_height);
-              switch (CanvasCamera.graph_bbox^) {
-              | Some((x0, y0, x1, y1)) =>
-                let pad = 28.;
-                let gw = max(1., x1 -. x0 +. 2. *. pad)
-                and gh = max(1., y1 -. y0 +. 2. *. pad);
-                CanvasCamera.animate(
-                  ~aw,
-                  ~ah,
-                  ~zoom=
-                    Some(
-                      max(
-                        0.4,
-                        min(2.5, min((aw -. 24.) /. gw, (ah -. 24.) /. gh)),
-                      ),
-                    ),
-                  ~dur=320.,
-                  ~easing=CanvasCamera.EaseOut,
-                  ((x0 +. x1) /. 2., (y0 +. y1) /. 2.),
-                );
-              | None =>
-                let zw = (aw -. 24.) /. max(1., lay.width)
-                and zh = (ah -. 24.) /. max(1., lay.height);
-                animate_fit(
-                  ~z_to=max(0.4, min(2.5, min(zw, zh))),
-                  ~lw=lay.width,
-                  ~lh=lay.height,
-                  ~aw,
-                  ~ah,
-                );
-              };
-            },
+          ~on_press=fit_view,
           "fit",
           "zoom so the whole graph fits the pane",
           Effect.Ignore,
@@ -4484,7 +4602,9 @@ let view_impl =
             ~inject_jump,
             ~collapsed_counts,
             ~on_hull_toggle,
-            ~value_cards,
+            ~cards,
+            ~on_node_dblclick=
+              (n: CanvasGraph.tynode) => toggle_value_node(n.key),
             ~dep_fan,
             ~on_edge_hover,
             ~on_value_click=Some(on_value_click),

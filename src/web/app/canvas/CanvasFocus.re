@@ -228,6 +228,10 @@ let value_site =
   | None => None
   | Some(n) =>
     let names = node_type_names(~graph, n);
+    /* NOMINAL first: a site typed by the alias's own name outranks one
+       that merely matches its body ((Int, Int) is not a Point until the
+       program says so); the body is the fallback */
+    let nominal = (t: string): bool => t == n.label || t == n.key;
     let rich_ok = (id: Id.t, s: Language.Sample.t): bool => {
       let statics = Id.Map.find_opt(id, info_map);
       List.exists(
@@ -246,7 +250,11 @@ let value_site =
               -1,
               samples,
             );
-          let rank = (rich_ok(id, newest_s) ? 1 : 0, newest);
+          let rank = (
+            nominal(t) ? 1 : 0,
+            rich_ok(id, newest_s) ? 1 : 0,
+            newest,
+          );
           switch (best) {
           | Some((_, b)) when compare(b, rank) >= 0 => best
           | _ => Some((id, rank))

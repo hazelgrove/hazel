@@ -149,6 +149,7 @@ module Model = {
       canvas_panel_height: None,
       canvas_panel_hidden: false,
       canvas_value_nodes: [],
+      canvas_card_sizes: [],
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
@@ -511,6 +512,19 @@ module Update = {
                     settings.sidebar.canvas_value_nodes,
                   )
                 : [key, ...settings.sidebar.canvas_value_nodes],
+          },
+        }
+      | Sidebar(SetCanvasCardSize(slide, key, w, h)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            canvas_card_sizes: [
+              ((slide, key), (w, h)),
+              ...List.remove_assoc(
+                   (slide, key),
+                   settings.sidebar.canvas_card_sizes,
+                 ),
+            ],
           },
         }
       | Sidebar(SetCanvasProbeModel(key, model)) => {

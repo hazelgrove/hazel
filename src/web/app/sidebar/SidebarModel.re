@@ -221,6 +221,11 @@ module Settings = {
        when one applies), navigable like the panel wells */
     [@sexp.default []] [@yojson.default []]
     canvas_value_nodes: list(string),
+    /* expanded type cards' sizes (w, h) in canvas px, keyed by slide and
+       node key; a node without an entry opens at its content's natural
+       size (rich views) or the plain-value cap */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_sizes: list(((string, string), (float, float))),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -270,6 +275,7 @@ module Settings = {
     | SetCanvasExpand(option((int, int)))
     | SetCanvasProbeModel(string, string)
     | ToggleCanvasValueNode(string)
+    | SetCanvasCardSize(string, string, float, float)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
     | SetCanvasPanelHidden(bool)

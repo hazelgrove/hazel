@@ -28,6 +28,11 @@ type probe_model = {
      state so resizes persist and serialize; ProbePill stays pure. */
   [@default []]
   sample_lengths: list((int, int)),
+  /* canvas type card: the view is the aligned sample alone — its rich
+     rendering when one applies, else the pretty-printed value — with
+     the nav bar only while this site holds the focus anchor */
+  [@default false]
+  card_mode: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -37,6 +42,7 @@ let init_probe_model: probe_model = {
   auto_rich: false,
   rich_off: false,
   sample_lengths: [],
+  card_mode: false,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -78,6 +84,25 @@ let model_string_auto_rich = (stored: option(string)): string => {
   {
     ...m,
     auto_rich: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
+};
+
+/* Canvas type cards: the stored model (or the default) in card mode. */
+let model_string_card = (stored: option(string)): string => {
+  let m =
+    switch (stored) {
+    | Some(s) =>
+      try(probe_model_of_sexp(Sexplib.Sexp.of_string(s))) {
+      | _ => init_probe_model
+      }
+    | None => init_probe_model
+    };
+  {
+    ...m,
+    auto_rich: true,
+    card_mode: true,
   }
   |> sexp_of_probe_model
   |> Sexplib.Sexp.to_string;
@@ -2250,6 +2275,131 @@ let rich_content =
  * `overflowing` marks content taller than the reserved rows, letting CSS
  * keep `.below-wrapper`'s overflow clip (for scrolling) only when needed —
  * otherwise the clip would cut off the table's column menus. */
+/* ---- card mode (canvas type cards) ---- */
+
+/* the sample a card shows: the one aligned with the global focus, else
+   the newest (last) of the pin-filtered samples */
+let card_sample = (ctx: probe_ctx): option(Sample.t) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | Some(s) => Some(s)
+  | None =>
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      ctx.dynamics.samples,
+    )
+    |> List.rev
+    |> ListUtil.hd_opt
+  };
+
+/* first registered renderer that takes the value, rendered */
+let card_rich =
+    (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
+    : option(Node.t) =>
+  vacuous_value(value)
+    ? None
+    : List.find_map(
+        (r: packed_renderer) =>
+          r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+            ? Option.bind(
+                r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
+                r.render_model(
+                  pm,
+                  ~info=ctx.p_info,
+                  ~exp=value,
+                  ~view_seg=(sort, seg) => view_seg(sort, seg),
+                  ~local=pa => local(RendererAction(pa)),
+                  ~parent=ctx.parent,
+                  ~sort=ctx.sort,
+                  (),
+                )
+              )
+            : None,
+        renderers,
+      );
+
+let card_view =
+    (data: offside_data, local, view_seg: View.seg, ~settings as _: settings)
+    : Node.t => {
+  let {ctx, id, num_total, _} = data;
+  /* selected = this site's sample is the focus anchor */
+  let selected =
+    switch (ctx.dynamics.sample_focus.anchor) {
+    | Some(a) => a.probe_id == id
+    | None => false
+    };
+  let sample = card_sample(ctx);
+  let content =
+    switch (sample) {
+    | None => [div(~attrs=[Attr.classes(["probe-card-empty"])], [])]
+    | Some(sample) =>
+      switch (card_rich(ctx, ~view_seg, local, sample.value)) {
+      | Some(n) => [div(~attrs=[Attr.classes(["probe-card-rich"])], [n])]
+      | None => [
+          div(
+            ~attrs=[Attr.classes(["probe-card-plain"])],
+            [
+              value_view(
+                ~display=Block,
+                ~alt_toggle=() => Effect.Ignore,
+                ctx,
+                ~num_total,
+                (~text_only, segment) =>
+                  view_seg(
+                    ~single_line=false,
+                    ~background=false,
+                    ~text_only,
+                    Sort.Exp,
+                    segment,
+                  ),
+                local,
+                sample,
+              ),
+            ],
+          ),
+        ]
+      }
+    };
+  let select =
+    switch (sample) {
+    | Some(sample) => (
+        _ =>
+          ctx.parent(
+            SampleFocus(
+              Capture(Sample.capture_of_sample(sample), ctx.ap_id),
+            ),
+          )
+      )
+    | None => (_ => Effect.Ignore)
+    };
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.tabindex(0),
+      Attr.on_keydown(
+        key_handler(ctx, ~id, ~drawer_mode_active=false, local),
+      ),
+      Attr.on_pointerdown(select),
+      Attr.classes(
+        ["live-offside", "probe-card"] @ (selected ? ["card-selected"] : []),
+      ),
+    ],
+    content
+    @ (
+      selected && num_total > 1
+        ? [
+          div(
+            ~attrs=[Attr.classes(["probe-card-nav"])],
+            [nav_bar_view(ctx, ~num_total, ~show_arrows=true)],
+          ),
+        ]
+        : []
+    ),
+  );
+};
+
 let rich_drawer_view =
     (
       ~local: action => Ui_effect.t(unit),
@@ -2529,10 +2679,12 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode;
+    let drawer = model.drawer_mode && !model.card_mode;
     let offside_main =
       switch (data_opt, drawer) {
       | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), _) when model.card_mode =>
+        card_view(data, local, view_seg, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
            no whole-row replacement in inline mode */

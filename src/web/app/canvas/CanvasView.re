@@ -604,9 +604,23 @@ let node_view =
       ~just_placed: list(string)=[],
       /* the selected type (the sidebar's canvas_focus_ty) wears a halo */
       ~focused_ty: option(string)=None,
-      /* a type node shown as a VALUE: the card content (a probe well over
-         a site of this type) and its close action */
-      ~value_card: option((Node.t, Effect.t(unit)))=None,
+      /* a type node expanded into a CARD: the content (a probe in card
+         mode over a site of this type), its size, the collapse action
+         and the resize-drag start */
+      ~card:
+         option(
+           (
+             Node.t,
+             (float, float),
+             /* no stored size yet: measured after render (autosize) */
+             bool,
+             Effect.t(unit),
+             Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+             Effect.t(unit),
+           ),
+         )=None,
+      ~on_node_dblclick: CanvasGraph.tynode => Effect.t(unit)=_ =>
+                                                                 Effect.Ignore,
       nl: CanvasLayout.node_layout,
     )
     : Node.t => {
@@ -670,56 +684,67 @@ let node_view =
         span(~attrs=[clss(["canvas-node-label"])], [text(n.label)]),
       ]
     };
-  switch (value_card) {
-  | Some((content, on_close)) =>
-    /* the card hangs from the node's position: its top-left corner is
-       the circle's, so edges still meet the card at its anchor corner;
-       the user rearranges around it (drag) for now */
+  switch (card) {
+  | Some((content, (w, h), autosize, on_collapse, on_resize_start)) =>
+    /* the card is the node: same element (keyed), centered on the node's
+       position, so the circle morphs into the rounded rectangle (CSS
+       transitions on size and radius; FLIP moves it). Only the view and
+       the type caption; the caption's double-click collapses it. */
     div(
       ~key="n:" ++ n.key,
       ~attrs=
         [
           Attr.id(node_dom_id(n.key)),
           clss(
-            ["canvas-node", "node-value-card", kind_cls(n.kind)]
+            ["canvas-node", "node-card", kind_cls(n.kind)]
             @ (focused_ty == Some(n.key) ? ["node-focused"] : []),
           ),
           Attr.create(
             "style",
             Printf.sprintf(
-              "left: %spx; top: %spx;",
+              "left: %spx; top: %spx; width: %spx; height: %spx;",
               fmt(nl.p.x),
               fmt(nl.p.y),
+              fmt(w),
+              fmt(h),
             ),
           ),
         ]
+        @ (autosize ? [Attr.create("data-autosize", n.key)] : [])
         @ click_attrs,
       [
         div(
-          ~attrs=[clss(["value-card-head"])],
-          [
-            span(~attrs=[clss(["value-card-title"])], [text(n.label)]),
-            span(
-              ~attrs=[
-                clss(["value-card-close"]),
-                Attr.title("back to the type node"),
-                Attr.on_mousedown(_ => Effect.Stop_propagation),
-                Attr.on_click(_ =>
-                  Effect.Many([Effect.Stop_propagation, on_close])
-                ),
-              ],
-              [text({js|✕|js})],
-            ),
-          ],
-        ),
-        div(
           ~attrs=[
-            clss(["value-card-body"]),
-            /* the well's own gestures (sample nav, drawer) must not start
-               a node drag */
+            clss(["card-body"]),
+            /* the probe's own gestures (sample select, keys) must not
+               start a node drag */
             Attr.on_mousedown(_ => Effect.Stop_propagation),
           ],
           [content],
+        ),
+        div(
+          ~attrs=[
+            clss(["card-resize"]),
+            Attr.title("resize"),
+            Attr.on_mousedown(evt =>
+              Effect.Many([
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+                on_resize_start(evt),
+              ])
+            ),
+          ],
+          [],
+        ),
+        span(
+          ~attrs=[
+            clss(["canvas-node-label", "card-caption"]),
+            Attr.title("double-click: back to the type node"),
+            Attr.on_double_click(_ =>
+              Effect.Many([Effect.Stop_propagation, on_collapse])
+            ),
+          ],
+          [text(n.label == "" ? n.key : n.label)],
         ),
       ],
     )
@@ -753,6 +778,9 @@ let node_view =
             ),
           ),
           Attr.title(tooltip),
+          Attr.on_double_click(_ =>
+            Effect.Many([Effect.Stop_propagation, on_node_dblclick(n)])
+          ),
         ]
         @ click_attrs,
       label_nodes,
@@ -908,8 +936,24 @@ let view =
       ~just_placed: list(string)=[],
       /* the selected type node, if any */
       ~focused_ty: option(string)=None,
-      /* type nodes shown as value cards: key -> (content, close) */
-      ~value_cards: list((string, (Node.t, Effect.t(unit))))=[],
+      /* type nodes expanded into cards: key -> (content, size, collapse,
+         resize-start) */
+      ~cards:
+         list(
+           (
+             string,
+             (
+               Node.t,
+               (float, float),
+               bool,
+               Effect.t(unit),
+               Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+               Effect.t(unit),
+             ),
+           ),
+         )=[],
+      ~on_node_dblclick: CanvasGraph.tynode => Effect.t(unit)=_ =>
+                                                                 Effect.Ignore,
       /* picking the actor up */
       ~on_avatar_mousedown:
          Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) => Effect.t(unit)=
@@ -1523,7 +1567,8 @@ let view =
                 ~on_node_contextmenu,
                 ~just_placed,
                 ~focused_ty,
-                ~value_card=List.assoc_opt(nl.node.key, value_cards),
+                ~card=List.assoc_opt(nl.node.key, cards),
+                ~on_node_dblclick,
                 nl,
               ),
             lay.nodes,
