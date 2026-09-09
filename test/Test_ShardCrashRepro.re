@@ -42,7 +42,6 @@ let display_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   hole_tiles: false,
   project_tables: false,
-  raise_if_padding: false,
 };
 
 let exp_to_segment = ExpToSegment.exp_to_segment(~settings=display_settings);

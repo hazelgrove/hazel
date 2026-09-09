@@ -1272,7 +1272,20 @@ let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
   | (Parens(t1), _) => diff(~ctx?, t1, ty')
   | (_, Projector(_, t2)) => diff(~ctx?, ty, t2)
   | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
-  | (_, Parens(t2)) => diff(~ctx?, ty, t2)
+  /* Parens carry no meaning of their own, so they take the verdict of the
+     node they wrap: marked when that node is itself replaced, unmarked when
+     it merely contains something that changed.
+     `(Int, ?)` vs `(Int, String)` leaves the parens alone -- the tuple is
+     still the same tuple, only a component differs -- while `?` vs
+     `(a=Int)` marks them, because the tuple is wholly new.
+     Normalization inserts these as real nodes and the renderer emits them as
+     tiles, so leaving them out is what left parentheses in the static colour
+     inside a wholly runtime-derived type. */
+  | (_, Parens(t2)) =>
+    let inner = diff(~ctx?, ty, t2);
+    let wrapped_replaced =
+      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+    wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []

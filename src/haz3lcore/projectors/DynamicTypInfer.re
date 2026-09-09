@@ -32,3 +32,37 @@ let dynamic_typ_of_samples_or_unknown =
     (~ctx: Ctx.t, samples: list(Sample.t)): Typ.t =>
   dynamic_typ_of_samples(~ctx, samples)
   |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+
+/* The segment to show in Dynamic mode, and the ids of its tokens that came
+     from runtime rather than from statics.
+   *
+   * Both types are normalized first -- ExpToSegment.normalize_typ, the same
+   * pass the renderer applies -- and the diff is taken between the normalized
+   * forms. That is the whole trick. Defensive parenthesization inserts real
+   * Parens NODES with fresh ids, and padding adds id slots; both only exist
+   * after normalization, and both end up carrying tokens. Diffing the types as
+   * the caller passed them cannot name those ids, which is why parentheses
+   * used to render in the static colour inside a wholly runtime-derived type.
+   *
+   * The normalized dynamic type is rendered once and returned: normalize_typ is
+   * not idempotent (it mints a fresh id per added Parens), so re-normalizing or
+   * re-rendering would produce a segment the marks do not describe. */
+let displayed_segment_and_marks =
+    /* Injected rather than called directly: ExpToSegment sits downstream of
+       the projectors, so this module cannot name it. Pass
+       utility.normalize_typ and utility.render_normalized_typ, which are
+       built from one settings value so both halves agree. */
+    (
+      ~normalize: Typ.t => Typ.t,
+      ~render_normalized: Typ.t => Base.segment,
+      ~ctx: Ctx.t,
+      ~static_typ: Typ.t,
+      ~samples: list(Sample.t),
+    )
+    : (Base.segment, Id.Set.t) => {
+  let dynamic_typ = dynamic_typ_of_samples_or_unknown(~ctx, samples);
+  let static_n = normalize(static_typ);
+  let dynamic_n = normalize(dynamic_typ);
+  let marks = Typ.diff(~ctx, static_n, dynamic_n) |> Id.Set.of_list;
+  (render_normalized(dynamic_n), marks);
+};
