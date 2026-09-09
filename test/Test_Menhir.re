@@ -348,8 +348,24 @@ let concave_marker_tests = [
     "exp: chain in let body",
     "let x = 1 in x " ++ h ++ " 2 " ++ h ++ " 3",
   ),
-  /* Pat */
+  /* Pat (base-type keywords are constructor patterns, as in exp) */
   concave_marker_equivalent_test("pat: let", "let x " ++ h ++ " y = 1 in 2"),
+  concave_marker_equivalent_test(
+    "pat: keyword constructor",
+    "let Bool = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: ascription tighter, keyword constructor right",
+    "let x : Int " ++ h ++ " Bool = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: ascribed arrow, keyword constructor right",
+    "let x : Int -> Bool " ++ h ++ " String = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: fun parameter ascription tighter",
+    "fun x : Int " ++ h ++ " Bool -> x",
+  ),
   concave_marker_equivalent_test(
     "pat: cons tighter",
     "let x :: y " ++ h ++ " z = 1 in 2",
