@@ -68,10 +68,10 @@ let split = (f: 'c => Either.t('a, 'b), cs: list('c)): t(list('a), 'b) =>
     ~f=
       ((as_, bs), c) =>
         switch (f(c)) {
-        | L(a) =>
+        | Either.First(a) =>
           let (hd, tl) = ListUtil.split_first(as_);
           ([[a, ...hd], ...tl], bs);
-        | R(b) => ([[], ...as_], [b, ...bs])
+        | Either.Second(b) => ([[], ...as_], [b, ...bs])
         },
     ~init=mk([[]], []),
     List.rev(cs),
