@@ -110,6 +110,10 @@ let tests = (
       "module with members",
       "let m = {\n  let a = 1;\n\n  let b = fun x, y -> x + y\n} in m",
     ),
+    verbatim(
+      "livelit module",
+      "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a } in ^p.update((^p.init, 3))",
+    ),
     verbatim("hole", "let x = ? in x"),
     test_case(
       "? lands as explicit tile, \xc2\xbf as Grout",
@@ -175,6 +179,38 @@ let tests = (
       "float literals keep their source spelling",
       "let x = 400.0 in let y = 250. in x +. y *. 2.",
     ),
+    test_case("html app trigger materializes (MVU slide shape)", `Quick, () => {
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~root=Exp,
+          "let init = 0 in\nlet update(m, a) = m + a in\nlet view(m) = Text(\"x\") in\nlet subs(m) = SubNone in\n^^html_sidebar((init, noCmd(update), view, subs))",
+        )
+      ) {
+      | Some(_) => ()
+      | None =>
+        fail(
+          "html app bailed: "
+          ++ Option.value(FastParse.bail_note^, ~default="no note"),
+        )
+      }
+    }),
+    test_case("sidebar-placed trigger materializes", `Quick, () => {
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~root=Exp,
+          "let s = ^^slider_sidebar(50) in s",
+        )
+      ) {
+      | Some(_) => ()
+      | None =>
+        fail(
+          "sidebar trigger bailed: "
+          ++ Option.value(FastParse.bail_note^, ~default="no note"),
+        )
+      }
+    }),
     verbatim(
       "type alias keeps aliased-type parens",
       "type Model = ([Int], [(Int, Int)]) in 1",

@@ -7,7 +7,7 @@ let self = [
   "## Critical Syntax Rules",
   "",
   "1. **Function application** ALWAYS uses parentheses: `f(x)`, `g(x, y)`. NEVER use space-separated application.",
-  "2. **Function parameters** are comma-separated: `fun x, y -> expr`. NEVER space-separate parameters.",
+  "2. **Function parameters** are comma-separated: `fun x, y -> expr`. NEVER space-separate parameters, and NEVER parenthesize annotated lambda parameters: `fun (a: Int, b: Int) : Int -> ...` makes the parens ONE tuple parameter and ascribes it `: Int` — a type error. Annotate per parameter without parens (`fun a: Int, b: Int -> ...`), or use the named form below, which has a real return-type slot.",
   "3. **Named functions** — PREFERRED: parameters on the let, return type after the parens: `let f(x, y) = expr in ...`, `let f(x: Int, y: Int): Int = expr in ...`. Equivalent to `let f = fun x, y -> expr in ...`; keep `fun` for anonymous lambdas.",
   "4. **Recursion** needs NO `rec` keyword. `let f(n) = ... f(n - 1) ... in ...` works directly, annotated or not.",
   "5. **Pattern matching** uses `case expr | p1 => e1 | p2 => e2 end`. MUST end with `end`. NO `of`, `with`, `switch`, or `match` keywords.",

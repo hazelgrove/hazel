@@ -505,7 +505,8 @@ and uexp_to_info_map =
         ~elab_term=LivelitName(name) |> rewrap,
         ~elab_syn_ty=syn_lit,
         ~marks=marks_lit,
-        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        /* caret-prefixed to match the `let ^name` binder's Var entry */
+        ~co_ctx=CoCtx.singleton("^" ++ name, Exp.rep_id(uexp), ana),
         m,
       );
     | ListLit(es) =>
@@ -702,6 +703,31 @@ and uexp_to_info_map =
       );
     | Projector(data, e) =>
       let (e, e_elab, m) = go(~ana, e, m);
+      /* A probed livelit projector also computes view(model) in this run,
+         sampled at the projector's id for the projector to render */
+      let e_elab =
+        switch (
+          data.kind,
+          Id.Map.mem(Exp.rep_id(uexp), probe_ids),
+          UserLivelit.use_parts(ctx, e.user_term),
+        ) {
+        | (Livelit, true, Some((name, model))) =>
+          /* the view gets the ELABORATED model (located inside the
+             expansion by the surface model's id) — a committed transition's
+             surface form is not evaluable */
+          let model =
+            Option.value(
+              Exp.find_by_id(Exp.rep_id(model), e_elab),
+              ~default=model,
+            );
+          UserLivelit.instrument_view(
+            ~projector_id=Exp.rep_id(uexp),
+            ~name,
+            ~model,
+            e_elab,
+          );
+        | _ => e_elab
+        };
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -1252,6 +1278,46 @@ and uexp_to_info_map =
         m,
       );
 
+    | Dot(
+        {term: LivelitName(ll_name), _} as e1,
+        {term: Label(member), _} as e2,
+      )
+        when UserLivelit.is_user_livelit(ctx, ll_name) =>
+      /* Member access on a user-defined livelit: the name denotes its
+         definition record at runtime, so elaborate through the binding.
+         This is also the form interactions commit (^name.update(m, a)). */
+      let (info_e1, _, m) = go(~ana=syn, e1, m);
+      let (info_e2, elab_e2, m) =
+        add(
+          ~user_term=e2,
+          ~elab_term=e2,
+          ~ancestors=ancestors_inclusive,
+          ~ctx,
+          ~ana=syn,
+          ~elab_syn_ty=Label(member) |> Typ.temp,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          ~label_inference=None,
+          ~inferred_label=None,
+          ~dot_labels=[],
+          ~label_sort=true,
+          ~warnings=[],
+          m,
+        );
+      let (_, e1_rewrap) = Exp.unwrap(e1);
+      let binding = e1_rewrap(Var("^" ++ ll_name));
+      add(
+        ~elab_term=Dot(binding, elab_e2) |> rewrap,
+        ~elab_syn_ty=UserLivelit.member_ty(ctx, ll_name, member),
+        ~marks=[],
+        ~co_ctx=CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            info_e1.probe_targets,
+            info_e2.probe_targets,
+          ]),
+        m,
+      );
     | Dot(e1, e2) =>
       /* A capitalized module name parses as a constructor, so a projection
          off one is a module access whenever a module of that name is in
@@ -1688,18 +1754,56 @@ and uexp_to_info_map =
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
-        | Some({expansion_t, model_t, expand, _}) =>
+        | Some({expansion_t, model_t, expand, user_def, _}) =>
           let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
+          /* A user-defined livelit's expansion embeds the model, so give it
+             the ELABORATED model — the surface form of e.g. a committed
+             ^name.update(m, a) transition is not evaluable. Builtins match
+             on surface shapes and keep the user term. */
+          let model_for_expand =
+            Option.is_some(user_def) ? arg_elab : arg.user_term;
+
+          /* Type the expansion — the paper's per-invocation-site validation
+             (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
+             the use synthesizes — clients reason against the livelit's
+             interface, not against whatever code came out of expand — so
+             this pass runs in syn mode and throws its map away; its one
+             product is the mark owed when the expansion's own type is
+             inconsistent with the declaration. Statics traverses surface
+             syntax only, so what gets typed is the expansion of the SURFACE
+             model even where the elaborated one is what gets evaluated.
+             That re-traverses the model, so a use costs twice its model
+             subtree — small in practice, since a model is a literal or a
+             committed transition over one. */
+          let expansion_marks = (expanded: Exp.t) => {
+            let to_check =
+              Option.is_some(user_def)
+                ? expand(arg.user_term) : Some(expanded);
+            switch (to_check) {
+            /* mk_expand_dot always expands, so None is unreachable for a
+               user livelit; skipping the check is the safe reading if
+               that ever changes. */
+            | None => []
+            | Some(to_check) =>
+              let (checked, _, _) = go(~ana=syn, to_check, m);
+              UserLivelit.expansion_mark(
+                ctx,
+                ~declared=expansion_t,
+                ~actual=checked.elab_syn_ty,
+              );
+            };
+          };
+
           // try to expand
-          switch (expand(arg.user_term)) {
+          switch (expand(model_for_expand)) {
           | Some(expanded) =>
             let (info, elab, m) =
               add(
                 ~elab_term=expanded,
                 ~elab_syn_ty=expansion_t,
-                ~marks=[],
+                ~marks=expansion_marks(expanded),
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
                   SubexpProbeTargets.union_all([
@@ -2180,6 +2284,29 @@ and uexp_to_info_map =
           let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
+      /* Bind a livelit: `let ^name = { ...members } in ...` additionally
+         puts a LivelitEntry in the body's context, carrying the module's
+         declared Model, Action and Expansion types. The definition also
+         remains an ordinary binding of `^name`, which the expansion of
+         each use references at runtime — and which typing that expansion
+         consults, so the declaration is an obligation, not an assertion. */
+      let (p_ana_ctx, livelit_marks) =
+        switch (UserLivelit.binder_name(p)) {
+        | Some(ll_name) =>
+          switch (
+            UserLivelit.mk(
+              ~ctx,
+              ~name=ll_name,
+              ~id=Pat.rep_id(p),
+              ~def_user=def.user_term,
+              ~def_elab,
+            )
+          ) {
+          | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])
+          | Error(e) => (p_ana_ctx, [Mark.InvalidLivelitDef(e)])
+          }
+        | None => (p_ana_ctx, [])
+        };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
@@ -2262,7 +2389,7 @@ and uexp_to_info_map =
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_let,
-        ~marks=marks_let,
+        ~marks=livelit_marks @ marks_let,
         ~co_ctx=
           CoCtx.union([
             def.co_ctx,

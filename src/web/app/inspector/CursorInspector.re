@@ -266,6 +266,8 @@ let core_mark_err_view =
     | ModuleTypeMemberMismatch(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | BadLivelitExpansion(_)
+    | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
     | ExpectedConstructor
@@ -801,6 +803,32 @@ let exp_mark_err_view =
       view_type(expected),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | BadLivelitExpansion({declared, actual}) =>
+    div_err([
+      text("Livelit expands to type "),
+      view_type(actual),
+      text(", but declares "),
+      code("Expansion"),
+      text(" = "),
+      view_type(declared),
+    ])
+  | InvalidLivelitDef(DefNotModule) =>
+    div_err([
+      text("Livelit definition should be a module declaring "),
+      code("type Model, Action, Expansion"),
+      text(" and members "),
+      code("init, update, view, expand"),
+    ])
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    div_err([
+      text("Livelit definition is missing members: "),
+      ...List.map(code, missing),
+    ])
+  | InvalidLivelitDef(DefMissingTypes(missing)) =>
+    div_err([
+      text("Livelit definition is missing type members: "),
+      ...List.map(code, missing),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),

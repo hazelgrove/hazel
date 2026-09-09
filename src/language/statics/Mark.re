@@ -29,6 +29,12 @@ type error_builtin =
   | Exactly2Arguments;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type livelit_def_error =
+  | DefNotModule
+  | DefMissingMembers(list(string))
+  | DefMissingTypes(list(string));
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
   | BaseTyp
   | TyAlias
@@ -70,6 +76,14 @@ type t =
     })
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  /* The livelit's expansion does not have the type the definition
+     declares for it (`type Expansion`). The declared type is what
+     clients type against, so the fault is the livelit's, not the use's. */
+  | BadLivelitExpansion({
+      declared: Typ.t,
+      actual: Typ.t,
+    })
+  | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

@@ -140,6 +140,23 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
+  | BadLivelitExpansion({declared, actual}) =>
+    prn(
+      "Livelit expands to type %s, but declares Expansion = %s",
+      Print.typ(actual),
+      Print.typ(declared),
+    )
+  | InvalidLivelitDef(DefNotModule) => "Livelit definition should be a module declaring types Model, Action, Expansion and members init, update, view, expand"
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    prn(
+      "Livelit definition is missing members: %s",
+      String.concat(", ", missing),
+    )
+  | InvalidLivelitDef(DefMissingTypes(missing)) =>
+    prn(
+      "Livelit definition is missing type members: %s",
+      String.concat(", ", missing),
+    )
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
