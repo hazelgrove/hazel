@@ -1,3 +1,10 @@
+/* An alternating sequence `a b a b ... a`: it always begins and ends with an
+   A, so there is exactly one more A than B. Held as two parallel lists with
+   that invariant -- `List.length(as) == List.length(bs) + 1` -- which `mk`,
+   `first_a` and `last_a` assert rather than return an option for.
+
+   Segments are the motivating shape: tiles (A) separated by trim (B). */
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('a, 'b) = (list('a), list('b));
 let mk: (list('a), list('b)) => t('a, 'b);
