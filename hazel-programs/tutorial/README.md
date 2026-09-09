@@ -38,12 +38,26 @@ Marker lines are *exactly*:
 | `@flags` | misc | space-separated: `wrapper`, `show_report`, `version=N`, `id=<uuid>` |
 
 - **No markers** → the whole file is `@code`.
-- Holes are written as `¿` (the implicit-hole marker). For a hole you want to
-  *survive* re-parsing inside a container (e.g. a fillable list element), prefer
-  the explicit hole token `?` — `[?]` round-trips, whereas implicit `[¿]` may
-  collapse to `[]`. Probes/projectors round-trip as `^^probe(...)`.
-- `wrapper` wraps the impl as `let answer = <impl> in …` so the hidden tests
-  reference `answer` (used by "write one expression" lessons).
+- Holes are `¿` — the editor's implicit Grout, and what you are asking the
+  student to fill. Probes and projectors round-trip as `^^probe(...)`.
+  - **Workaround, remove once hazelgrove/hazel#2518 is fixed:** a lone `¿`
+    inside a container is dropped on reload (`[¿]` comes back as `[]`), so a
+    lesson wanting a hole as a container's only element has to spell it `?`
+    for now. That is an explicit hole *tile*: it survives, but the student
+    replaces a piece of syntax instead of filling a gap. Only
+    `14-list-literals.hzt` does this today — put it back to `¿` when the bug
+    is fixed.
+  - In *type* position `?` means the unknown type (as in lesson 22), which is
+    neither of the above.
+- `wrapper` binds the **whole** `@code` as `answer` — `let answer = <impl> in
+  <tests>` — so the tests see `answer` and nothing else the impl defined. Use
+  it for "write one expression" lessons, where there is no binding to name.
+
+  Without it the tests are appended *inside* the impl's own `let` chain
+  (`EditorUtil.append_exp` recurses into `Let` bodies), so every binding the
+  impl introduces is in scope for them. That is how a lesson whose tests
+  reference `first_four` works — and it is why a lesson needing more than one
+  name must leave `wrapper` off.
 
 ## Decoding lessons → text
 
@@ -65,9 +79,11 @@ its files are not compiled in until you deliberately move them here.
 
 `tutorial-verify` checks that each slide's impl/tests text is a **fixed point**
 of the text round-trip (`to_text` == `to_text ∘ of_text ∘ to_text`). A clean
-slide is reproduced faithfully by decode→encode (IDs aside). The known
-non-fixed-point class is grout-placement quirks (e.g. `[¿]`→`[]`) — see the
-`?`-vs-`¿` note above.
+slide is reproduced faithfully by decode→encode (IDs aside).
+
+`Test_TextRoundtrip.re`'s `TutorialLessons` group asserts the same property
+over every shipped lesson, so the CLI is for *diagnosing* a mismatch
+(`--verbose` prints before and after), not for catching one.
 
 ## Source pointers
 

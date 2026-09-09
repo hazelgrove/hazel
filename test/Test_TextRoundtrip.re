@@ -6,6 +6,9 @@
  * so all the grout placement decisions have already been settled by the
  * parser before to_text sees them.
  *
+ *   - TutorialLessons (`Slow`): the same check over every shipped .hzt
+ *     lesson's impl and hidden tests. These are authored as text by hand,
+ *     so they are the ones that can spell a hole the round-trip drops.
  *   - DocSlides (`Slow`): per-slide text fixed-point check. The shipped
  *     slides were created via the editor, which routes every keystroke
  *     through the parser, so they qualify. Complemented by
@@ -64,6 +67,23 @@ let doc_slide_cases =
   Web.Init.documentation_slides
   |> List.map(((name, p: PersistentZipper.t)) =>
        (name, PersistentZipper.unpersist(p, ~root=Exp))
+     )
+  |> List.map(slide_roundtrip_case);
+
+/* The .hzt lessons are authored as text too, so both halves of each one
+   must be a fixed point: what TutorialText parsed and the editor reprints
+   has to be the text in the file, or `tutorial-decode` would not reproduce
+   its own source. A hole regrout does not re-insert fails here — today that
+   is a lone `¿` inside a container, which reloads as `[]` (#2518), and is
+   why one lesson spells that hole `?` for now.
+   `hazel tutorial-verify --verbose` prints the diff. */
+let tutorial_lesson_cases =
+  Web.TutorialText.all
+  |> List.concat_map((spec: Web.Tutorial.spec) =>
+       [
+         (spec.title ++ " (impl)", spec.your_impl),
+         (spec.title ++ " (tests)", spec.hidden_tests.tests),
+       ]
      )
   |> List.map(slide_roundtrip_case);
 
@@ -160,6 +180,7 @@ let arb_exp_roundtrip =
 let tests = [
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
+  ("TextRoundtrip.TutorialLessons", tutorial_lesson_cases),
   (
     "TextRoundtrip.Property",
     [QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_exp_roundtrip)],
