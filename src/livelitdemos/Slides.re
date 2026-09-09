@@ -23,7 +23,11 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   @ (
     /* type cards on the canvas: every type has a view; the app is a
        value in the program and each step is one call of a frame function */
-    [("Tic-Tac-Toe", [%blob "tic-tac-toe.hz"])]
+    [
+      ("Tic-Tac-Toe", [%blob "tic-tac-toe.hz"]),
+      ("Thermostat", [%blob "thermostat.hz"]),
+      ("Trip Planner", [%blob "trip-planner.hz"]),
+    ]
     |> List.map(((name, text)) => ("Cards / " ++ name, text))
   )
   @ (

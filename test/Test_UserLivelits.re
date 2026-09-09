@@ -721,6 +721,88 @@ let def_edit_dirties_uses = () => {
   ignore(ds1);
 };
 
+/* A livelit renders VALUES of the type it expands to (the canvas type
+   cards): a sampled constructor-with-payload value must go through
+   wrap and view like a nullary one. */
+let renders_payload_ctor = () => {
+  let text = "type Point = + P(Int, Int) in
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = P(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    case p
+    | P(x, y) => Node(\"svg\", [Create(\"cx\", string_of_int(x + y))], [])
+    end;
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Tab(6, 4)
+} in
+let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
+let p0 : Point = P(30, 40) in
+shift(p0)";
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("parse")
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let settings = {...CoreSettings.on, probe_all: true};
+    let (info_map, elaborated) =
+      Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
+    let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids);
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    let probes = EvaluatorState.get_probes(state);
+    /* a site typed Point whose sample is a P(..) application */
+    let site =
+      Id.Map.fold(
+        (id, samples, acc) =>
+          switch (acc, Id.Map.find_opt(id, info_map)) {
+          | (None, Some(Info.InfoExp({ty, _}) as info))
+              when Typ.show(ty) |> String.length > 0 =>
+            switch (Typ.term_of(ty)) {
+            | Var("Point") =>
+              switch (samples) {
+              | [(s: Sample.t), ..._] =>
+                switch (Exp.term_of(s.value)) {
+                | Ap(_, {term: Constructor("P", _), _}, _) =>
+                  Some((info, s.value))
+                | _ => acc
+                }
+              | [] => acc
+              }
+            | _ => acc
+            }
+          | _ => acc
+          },
+        probes,
+        None,
+      );
+    switch (site) {
+    | None => fail("no Point-typed site with a P(..) sample")
+    | Some((info, value)) =>
+      let cands = Haz3lcore.LivelitRenderer.candidates(Some(info));
+      check(bool, "^point is a candidate", true, cands != []);
+      let (ctx, _) =
+        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+      let html =
+        Haz3lcore.LivelitRenderer.html_of(~ctx, List.hd(cands), value);
+      check(
+        bool,
+        "P(..) renders through wrap and view: " ++ Exp.show(value),
+        true,
+        html != None,
+      );
+    };
+  };
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -741,6 +823,11 @@ let tests = [
       test_case("bad arity marked", `Quick, bad_arity_marked),
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
+      test_case(
+        "livelit renders a payload constructor value",
+        `Quick,
+        renders_payload_ctor,
+      ),
       test_case(
         "definition edit re-analyzes uses",
         `Quick,

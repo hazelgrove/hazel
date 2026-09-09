@@ -1,0 +1,172 @@
+# Thermostat: a day's setpoint schedule is the app; the outside          #
+# temperature, the setpoint and what the system does each hour are      #
+# values with views. `hour_plan` is the frame: one call per hour.        #
+
+type Temp = + Deg(Int) in
+type Mode = + Heat + Cool + Off in
+type Hour = + Hour(Int) in
+type Schedule = [(Hour, Temp)] in
+type Plan = (Mode, Temp) in
+
+# ---- value views (no controls) ---- #
+
+let ^temp = {
+  type Model = Temp;
+  type Action = + Nothing;
+  let init : Model = Deg(68);
+  let update(m: Model, _: Action): Model = m;
+  let view(t: Model): HTML =
+    case t
+    | Deg(d) =>
+      let raw = (d - 40) * 60 / 50 in
+      let h = string_of_int(if raw < 0 then 0 else if raw > 60 then 60 else raw) in
+      let color = if d >= 76 then "#c2452d" else if d <= 62 then "#2f6fbf" else "#7a9" in
+      Node("svg", [Create("viewBox", "0 0 40 84"), Width("40"), Height("84")],
+        [Node("rect", [Create("x", "15"), Create("y", "6"), Create("width", "10"), Create("height", "60"),
+                       Create("rx", "5"), Create("fill", "#eee")], []),
+         Node("rect", [Create("x", "15"), Create("y", string_of_int(66 - int_of_string(h))), Create("width", "10"),
+                       Create("height", h), Create("rx", "5"), Create("fill", color)], []),
+         Node("circle", [Create("cx", "20"), Create("cy", "70"), Create("r", "9"), Create("fill", color)], []),
+         Node("text", [Create("x", "20"), Create("y", "74"), Create("font-size", "9"), Create("text-anchor", "middle"),
+                       Create("font-family", "sans-serif"), Create("fill", "white")],
+              [Text(string_of_int(d))])])
+    end;
+  let expand(t: Model): Temp = t;
+  let wrap(t: Temp): Model = t;
+  let shape : LivelitShape = Tab(4, 5)
+} in
+
+let ^mode = {
+  type Model = Mode;
+  type Action = + Nothing;
+  let init : Model = Off;
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML =
+    let (label, color) =
+      case m | Heat => ("heat", "#c2452d") | Cool => ("cool", "#2f6fbf") | Off => ("off", "#999") end in
+    Node("svg", [Create("viewBox", "0 0 72 32"), Width("72"), Height("32")],
+      [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "68"), Create("height", "28"),
+                     Create("rx", "14"), Create("fill", color)], []),
+       Node("text", [Create("x", "36"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
+                     Create("font-family", "sans-serif"), Create("fill", "white")], [Text(label)])]);
+  let expand(m: Model): Mode = m;
+  let wrap(m: Mode): Model = m;
+  let shape : LivelitShape = Tab(7, 2)
+} in
+
+let ^hour = {
+  type Model = Hour;
+  type Action = + Nothing;
+  let init : Model = Hour(12);
+  let update(m: Model, _: Action): Model = m;
+  let view(h: Model): HTML =
+    case h
+    | Hour(n) =>
+      let a = float_of_int(int_mod(n, 12)) *. pi /. 6.0 in
+      let x = to_fixed(22.0 +. 14.0 *. sin(a), 1) in
+      let y = to_fixed(22.0 -. 14.0 *. cos(a), 1) in
+      Node("svg", [Create("viewBox", "0 0 44 44"), Width("44"), Height("44")],
+        [Node("circle", [Create("cx", "22"), Create("cy", "22"), Create("r", "20"),
+                         Create("fill", if n >= 6 && n < 18 then "#fff6d5" else "#3b3f5c"), Create("stroke", "#888")], []),
+         Node("line", [Create("x1", "22"), Create("y1", "22"), Create("x2", x), Create("y2", y),
+                       Create("stroke", if n >= 6 && n < 18 then "#444" else "#eee"), Create("stroke-width", "2.5"),
+                       Create("stroke-linecap", "round")], [])])
+    end;
+  let expand(h: Model): Hour = h;
+  let wrap(h: Hour): Model = h;
+  let shape : LivelitShape = Tab(4, 3)
+} in
+
+let ^plan = {
+  type Model = Plan;
+  type Action = + Nothing;
+  let init : Model = (Off, Deg(68));
+  let update(m: Model, _: Action): Model = m;
+  let view((m, t): Model): HTML =
+    let (label, color) =
+      case m | Heat => ("heat to", "#c2452d") | Cool => ("cool to", "#2f6fbf") | Off => ("hold", "#999") end in
+    let d = case t | Deg(d) => d end in
+    Node("svg", [Create("viewBox", "0 0 110 32"), Width("110"), Height("32")],
+      [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "106"), Create("height", "28"),
+                     Create("rx", "14"), Create("fill", color)], []),
+       Node("text", [Create("x", "55"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
+                     Create("font-family", "sans-serif"), Create("fill", "white")],
+            [Text(label ++ " " ++ string_of_int(d))])]);
+  let expand(p: Model): Plan = p;
+  let wrap(p: Plan): Model = p;
+  let shape : LivelitShape = Tab(10, 2)
+} in
+
+# ---- the app: the schedule as bars; click a bar's top half to raise it, bottom half to lower ---- #
+
+let ^schedule = {
+  type Model = Schedule;
+  type Action = + Raise(Int) + Lower(Int);
+  let init : Model = [(Hour(6), Deg(68)), (Hour(9), Deg(64)), (Hour(17), Deg(70)), (Hour(22), Deg(62))];
+  let adjust(s: Model, i: Int, by: Int): Model =
+    mapi(s, fun (j: Int, (h, t): (Hour, Temp)) ->
+      if j == i then (h, case t | Deg(d) => Deg(if d + by < 50 then 50 else if d + by > 85 then 85 else d + by) end) else (h, t));
+  let update(s: Model, a: Action): Model =
+    case a | Raise(i) => adjust(s, i, 1) | Lower(i) => adjust(s, i, -1) end;
+  let bar(i: Int, (h, t): (Hour, Temp)): HTML =
+    let hn = case h | Hour(n) => n end in
+    let d = case t | Deg(d) => d end in
+    let x = 8 + hn * 9 in
+    let height = (d - 50) * 2 in
+    Node("g", [], [
+      Node("rect", [Create("x", string_of_int(x)), Create("y", string_of_int(80 - height)),
+                    Create("width", "14"), Create("height", string_of_int(height)), Create("rx", "3"),
+                    Create("fill", if d >= 70 then "#e08a6b" else "#7fb3d5")], []),
+      Node("rect", [Create("x", string_of_int(x)), Create("y", "4"), Create("width", "14"), Create("height", "38"),
+                    Create("fill", "transparent"), OnClick(Raise(i)), Style([("cursor", "n-resize")])], []),
+      Node("rect", [Create("x", string_of_int(x)), Create("y", "42"), Create("width", "14"), Create("height", "38"),
+                    Create("fill", "transparent"), OnClick(Lower(i)), Style([("cursor", "s-resize")])], []),
+      Node("text", [Create("x", string_of_int(x + 7)), Create("y", string_of_int(76 - height)),
+                    Create("font-size", "8"), Create("text-anchor", "middle"), Create("font-family", "sans-serif"),
+                    Create("fill", "#444")], [Text(string_of_int(d))]),
+      Node("text", [Create("x", string_of_int(x + 7)), Create("y", "90"), Create("font-size", "7"),
+                    Create("text-anchor", "middle"), Create("font-family", "sans-serif"), Create("fill", "#888")],
+           [Text(string_of_int(hn) ++ "h")])]);
+  let view(s: Model): HTML =
+    Node("svg", [Create("viewBox", "0 0 232 94"), Width("232"), Height("94")],
+      [Node("line", [Create("x1", "4"), Create("y1", "80"), Create("x2", "228"), Create("y2", "80"),
+                     Create("stroke", "#ccc")], [])]
+      @ mapi(s, bar));
+  let expand(s: Model): Schedule = s;
+  let wrap(s: Schedule): Model = s;
+  let shape : LivelitShape = Tab(20, 5)
+} in
+
+# ---- the program ---- #
+
+let degrees(t: Temp): Int = case t | Deg(d) => d end in
+
+# the setpoint in force at an hour: the latest scheduled hour not after it #
+let setpoint(s: Schedule, h: Hour): Temp =
+  let hn = case h | Hour(n) => n end in
+  fold_left(s, fun (acc: Temp, (sh, st): (Hour, Temp)) ->
+    if (case sh | Hour(n) => n end) <= hn then st else acc, Deg(62)) in
+
+let decide(target: Temp, outside: Temp): Mode =
+  if degrees(outside) < degrees(target) - 2 then Heat
+  else if degrees(outside) > degrees(target) + 2 then Cool
+  else Off in
+
+# a mild spring day: the outside temperature by hour #
+let outside(h: Hour): Temp =
+  case h
+  | Hour(n) => Deg(52 + (if n < 14 then n else 27 - n) * 2)
+  end in
+
+# the frame: one call per hour of the day #
+let hour_plan(s: Schedule, h: Hour): Plan =
+  let target : Temp = setpoint(s, h) in
+  let now : Temp = outside(h) in
+  (decide(target, now), target) in
+
+let schedule : Schedule = ^^livelit(^schedule([(Hour(6), Deg(68)), (Hour(9), Deg(64)), (Hour(17), Deg(70)), (Hour(22), Deg(62))])) in
+let hours : [Hour] = map(range(0, 24), fun n: Int -> Hour(n)) in
+let day : [Plan] = map(hours, fun h: Hour -> hour_plan(schedule, h)) in
+let running : Int = length(filter(day, fun (m, _): Plan -> m != Off)) in
+
+(running, hour_plan(schedule, Hour(12)))

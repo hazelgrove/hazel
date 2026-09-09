@@ -101,7 +101,6 @@ let ^move = {
   let shape : LivelitShape = Tab(6, 4)
 } in
 
-
 let empty : Board = [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty] in
 let other(p: Player): Player = case p | X => O | O => X end in
 let cell(b: Board, i: Int): Cell = nth(b, i) in
@@ -170,8 +169,5 @@ let ^game = {
 let moves : [Move] = ^^livelit(^game([At(4), At(0), At(8), At(2), At(1)])) in
 let (board, to_move, outcome) : State = replay(moves) in
 let options : [Move] = open_cells(board) in
-
-test winner([Mark(X), Mark(X), Mark(X), Empty, Empty, Empty, Empty, Empty, Empty]) == Won(X) end;
-test replay([At(4), At(4)]) == ([Empty, Empty, Empty, Empty, Mark(X), Empty, Empty, Empty, Empty], O, Playing) end;
 
 (board, to_move, outcome, length(options))

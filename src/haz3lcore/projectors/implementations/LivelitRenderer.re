@@ -149,6 +149,12 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
           | None => None
           | Some(record) =>
             switch (member(record, "view"), model_of(~ctx, ll, record, v)) {
+            | (None, _) => None
+            | (_, None) =>
+              print_endline(
+                "LivelitRenderer: ^" ++ ll.name ++ " wrap failed",
+              );
+              None;
             | (Some(view), Some(m)) =>
               switch (
                 MvuShape.safe_evaluate(
@@ -156,14 +162,24 @@ let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
                 )
               ) {
               | Ok(html) when MvuShape.is_html(html) => Some(html)
-              | Ok(_) => None
+              | Ok(other) =>
+                print_endline(
+                  "LivelitRenderer: ^"
+                  ++ ll.name
+                  ++ ".view gave non-HTML: "
+                  ++ String.sub(
+                       Exp.show(other),
+                       0,
+                       min(300, String.length(Exp.show(other))),
+                     ),
+                );
+                None;
               | Error(e) =>
                 print_endline(
                   "LivelitRenderer: ^" ++ ll.name ++ ".view failed: " ++ e,
                 );
                 None;
               }
-            | _ => None
             }
           }
         };

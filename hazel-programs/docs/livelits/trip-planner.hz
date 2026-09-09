@@ -1,0 +1,159 @@
+# Trip planner: click the map to add stops; the route, its legs and     #
+# their cost are values with views. `leg_cost` is the frame: one call    #
+# per leg of the route.                                                  #
+
+type Point = + Pt(Int, Int) in
+type Route = [Point] in
+type Leg = (Point, Point) in
+type Money = + Cents(Int) in
+
+# ---- value views (no controls) ---- #
+
+let ^point = {
+  type Model = Point;
+  type Action = + Nothing;
+  let init : Model = Pt(50, 50);
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    case p
+    | Pt(x, y) =>
+      Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+        [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
+                       Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+         Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "5"),
+                         Create("fill", "#2f6fbf")], [])])
+    end;
+  let expand(p: Model): Point = p;
+  let wrap(p: Point): Model = p;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^route = {
+  type Model = Route;
+  type Action = + Nothing;
+  let init : Model = [];
+  let update(m: Model, _: Action): Model = m;
+  let coords(ps: Route): String =
+    fold_left(ps, fun (acc: String, p: Point) ->
+      case p | Pt(x, y) => acc ++ string_of_int(x) ++ "," ++ string_of_int(y) ++ " " end, "");
+  let view(r: Model): HTML =
+    Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+      [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
+                     Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#c2452d"),
+                         Create("stroke-width", "2")], [])]
+      @ map(r, fun p: Point -> case p | Pt(x, y) =>
+          Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "4"),
+                          Create("fill", "#2f6fbf")], []) end));
+  let expand(r: Model): Route = r;
+  let wrap(r: Route): Model = r;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^leg = {
+  type Model = Leg;
+  type Action = + Nothing;
+  let init : Model = (Pt(10, 10), Pt(90, 90));
+  let update(m: Model, _: Action): Model = m;
+  let view((a, b): Model): HTML =
+    case (a, b)
+    | (Pt(ax, ay), Pt(bx, by)) =>
+      Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
+        [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
+                       Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+         Node("line", [Create("x1", string_of_int(ax)), Create("y1", string_of_int(ay)),
+                       Create("x2", string_of_int(bx)), Create("y2", string_of_int(by)),
+                       Create("stroke", "#c2452d"), Create("stroke-width", "2")], []),
+         Node("circle", [Create("cx", string_of_int(ax)), Create("cy", string_of_int(ay)), Create("r", "4"),
+                         Create("fill", "#2f6fbf")], []),
+         Node("circle", [Create("cx", string_of_int(bx)), Create("cy", string_of_int(by)), Create("r", "4"),
+                         Create("fill", "#e8a33d")], [])])
+    end;
+  let expand(l: Model): Leg = l;
+  let wrap(l: Leg): Model = l;
+  let shape : LivelitShape = Tab(9, 5)
+} in
+
+let ^money = {
+  type Model = Money;
+  type Action = + Nothing;
+  let init : Model = Cents(0);
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML =
+    case m
+    | Cents(c) =>
+      let cents = int_mod(c, 100) in
+      let label = "$" ++ string_of_int(c / 100) ++ "." ++ (if cents < 10 then "0" else "") ++ string_of_int(cents) in
+      Node("svg", [Create("viewBox", "0 0 84 32"), Width("84"), Height("32")],
+        [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "80"), Create("height", "28"),
+                       Create("rx", "6"), Create("fill", "#e9f3e2"), Create("stroke", "#7a9")], []),
+         Node("text", [Create("x", "42"), Create("y", "21"), Create("font-size", "14"), Create("text-anchor", "middle"),
+                       Create("font-family", "monospace"), Create("fill", "#2b5")], [Text(label)])])
+    end;
+  let expand(m: Model): Money = m;
+  let wrap(m: Money): Model = m;
+  let shape : LivelitShape = Tab(8, 2)
+} in
+
+# ---- the app: click the map to add a stop; click a stop to remove it ---- #
+
+let ^map = {
+  type Model = Route;
+  type Action = + Add(Int, Int) + Remove(Int);
+  let init : Model = [Pt(15, 20), Pt(60, 35), Pt(80, 80)];
+  let update(r: Model, a: Action): Model =
+    case a
+    | Add(x, y) => append(r, [Pt(x, y)])
+    | Remove(i) => filteri(r, fun (j: Int, _: Point) -> j != i)
+    end;
+  let coords(ps: Route): String =
+    fold_left(ps, fun (acc: String, p: Point) ->
+      case p | Pt(x, y) => acc ++ string_of_int(x) ++ "," ++ string_of_int(y) ++ " " end, "");
+  let view(r: Model): HTML =
+    Node("svg", [Create("viewBox", "0 0 100 100"), Width("160"), Height("160"),
+                 OnClickAt(fun (x: Int, y: Int) -> Add(x * 100 / 160, y * 100 / 160)), Style([("cursor", "crosshair")])],
+      [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
+                     Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#c2452d"),
+                         Create("stroke-width", "1.5")], [])]
+      @ mapi(r, fun (i: Int, p: Point) -> case p | Pt(x, y) =>
+          Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "4"),
+                          Create("fill", "#2f6fbf"), OnClick(Remove(i)), Style([("cursor", "pointer")])], []) end));
+  let expand(r: Model): Route = r;
+  let wrap(r: Route): Model = r;
+  let shape : LivelitShape = Tab(14, 8)
+} in
+
+# ---- the program ---- #
+
+let isqrt(n: Int): Int =
+  let go(g: Int): Int = if g * g <= n && (g + 1) * (g + 1) > n then g else go(g + 1) in
+  if n <= 0 then 0 else go(0) in
+
+let distance((a, b): Leg): Int =
+  case (a, b)
+  | (Pt(ax, ay), Pt(bx, by)) => isqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by))
+  end in
+
+let legs(r: Route): [Leg] =
+  case r
+  | a::b::rest => (a, b)::legs(b::rest)
+  | _ => []
+  end in
+
+# the frame: one call per leg — 40 cents a unit of distance plus a $2 stop fee #
+let leg_cost(l: Leg): Money =
+  let d : Int = distance(l) in
+  Cents(200 + d * 40) in
+
+let add((a, b): (Money, Money)): Money =
+  case (a, b) | (Cents(x), Cents(y)) => Cents(x + y) end in
+
+let total(r: Route): Money =
+  fold_left(map(legs(r), leg_cost), fun (acc: Money, m: Money) -> add((acc, m)), Cents(0)) in
+
+let route : Route = ^^livelit(^map([Pt(15, 20), Pt(60, 35), Pt(80, 80)])) in
+let fares : [Money] = map(legs(route), leg_cost) in
+let fare : Money = total(route) in
+
+(length(legs(route)), fare)
