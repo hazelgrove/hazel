@@ -2374,21 +2374,77 @@ let view_impl =
             );
           let inner =
             el##querySelector(
-              Js.string(".probe-card-rich > *, .probe-card-plain > *"),
+              Js.string(".probe-card-rich, .probe-card-plain"),
             );
           let rich =
             Js.Opt.test(el##querySelector(Js.string(".probe-card-rich")));
           switch (Js.Opt.to_option(inner)) {
           | Some(c) =>
-            let z = max(0.2, globals.settings.canvas_zoom);
-            let r = c##getBoundingClientRect;
-            let cw = Js.Optdef.get(r##.width, () => 0.) /. z
-            and ch = Js.Optdef.get(r##.height, () => 0.) /. z;
+            /* the effective CSS zoom right now (the camera may be
+               mid-animation): the card's on-screen width over its
+               layout width */
+            let z = {
+              /* the canvas root's computed CSS zoom (the card itself is
+                 mid-transition from the circle, so its own box is no
+                 reference) */
+              let root =
+                Dom_html.document##querySelector(Js.string(".canvas-root"));
+              switch (Js.Opt.to_option(root)) {
+              | Some(r) =>
+                let cs = Dom_html.window##getComputedStyle(r);
+                let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
+                switch (float_of_string_opt(zs)) {
+                | Some(z) when z > 0.05 => z
+                | _ => 1.
+                };
+              | None => 1.
+              };
+            };
+            /* natural size: let the content box shrink-wrap (absolute +
+               max-content, so block children stop spanning the card),
+               take the union of its descendants' boxes (a rich view's
+               wrapper is often inline/0-sized while its svg or grid has
+               the real size), then restore */
+            let cst = Js.Unsafe.coerce(c)##.style;
+            let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
+            Js.Unsafe.set(
+              cst,
+              "cssText",
+              Js.string(
+                saved
+                ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
+              ),
+            );
+            let r0 = c##getBoundingClientRect;
+            let x0 = r0##.left
+            and y0 = r0##.top;
+            let (x1, y1) = {
+              let ds = c##querySelectorAll(Js.string("*"));
+              let mx = ref(x0)
+              and my = ref(y0);
+              for (j in 0 to min(ds##.length, 600) - 1) {
+                switch (Js.Opt.to_option(ds##item(j))) {
+                | Some(d) =>
+                  let r = d##getBoundingClientRect;
+                  let w = Js.Optdef.get(r##.width, () => 0.);
+                  if (w > 0.) {
+                    mx := Float.max(mx^, r##.right);
+                    my := Float.max(my^, r##.bottom);
+                  };
+                | None => ()
+                };
+              };
+              (mx^, my^);
+            };
+            Js.Unsafe.set(cst, "cssText", Js.string(saved));
+            let cw = (x1 -. x0) /. z
+            and ch = (y1 -. y0) /. z;
             let (cap_w, cap_h) = rich ? (720., 560.) : (360., 260.);
             let w =
               Float.max(120., Float.min(cap_w, cw +. (rich ? 12. : 24.)));
             let h =
               Float.max(64., Float.min(cap_h, ch +. (rich ? 12. : 20.)));
+            fit_pending := true;
             Effect.Expert.handle_non_dom_event_exn(
               globals.inject_global(
                 Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
