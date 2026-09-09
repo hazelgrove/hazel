@@ -63,7 +63,10 @@ module M: Projector = {
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "⇓"
-    | _ when self_ty(statics) == expected_ty(statics) => "⇔"
+    /* ↔ not ⇔: Source Code Pro, the bundled font these render in, has
+       no bidirectional double arrow, so ⇔ fell back to a system font and
+       rendered differently per browser. */
+    | _ when self_ty(statics) == expected_ty(statics) => "↔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
