@@ -42,6 +42,7 @@
   haz3lcore
   b2t2
   mvu
+  charts
   docslides
   omd)
  (js_of_ocaml)

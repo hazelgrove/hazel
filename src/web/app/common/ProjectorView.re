@@ -509,9 +509,14 @@ let mk_view =
       projector_list: list(Id.t),
     )
     : View.t => {
-  /* Only the app projector reads the AppStore, so only its cache entry
-     has to expire when the store changes. */
-  let app_version = p.kind == ProjectorCore.Kind.HTML ? AppBridge.version^ : 0;
+  /* Only surfaces that read the AppStore have to expire when it changes:
+     the HTML projector, and a probe whose rich probe is running an app. */
+  let app_version =
+    switch (p.kind) {
+    | ProjectorCore.Kind.HTML
+    | ProjectorCore.Kind.Probe => AppBridge.version^
+    | _ => 0
+    };
   switch (
     ViewCache.lookup(
       p.id,

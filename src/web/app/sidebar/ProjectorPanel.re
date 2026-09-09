@@ -18,12 +18,25 @@ let empty_view = (): Node.t =>
     ~attrs=[clss(["projector-panel-empty"])],
     [
       text("No projectors docked."),
-      text("Put the caret on a projector and press Alt+S to dock it here."),
+      text(
+        "Put the caret on a projector and press Alt+S to dock it here, "
+        ++ "or dock an open rich probe with the \u{21e5} button.",
+      ),
     ],
   );
 
+/* `undock` is the action that puts this card's content back where it came
+   from: for a docked projector that is TogglePlacement on the projector
+   itself; for a probe's rich probe it is the probe's own placement toggle,
+   since the probe never left the code. */
 let card =
-    (~globals: Globals.t, p: Base.projector, view: Node.t, ~inject): Node.t =>
+    (
+      ~globals: Globals.t,
+      p: Base.projector,
+      view: Node.t,
+      ~undock: unit => Ui_effect.t(unit),
+    )
+    : Node.t =>
   div(
     ~attrs=[clss(["projector-card"])],
     [
@@ -45,10 +58,7 @@ let card =
               clss(["projector-card-undock"]),
               Attr.title("Move back inline"),
               Attr.on_click(_ =>
-                Effect.Many([
-                  jump_to(~globals, p.id, ()),
-                  inject(Action.Project(TogglePlacement)),
-                ])
+                Effect.Many([jump_to(~globals, p.id, ()), undock()])
               ),
             ],
             [text({|⇤|})],
@@ -75,7 +85,7 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
       ~editor_active=true,
       ~elaborated=Some(editor.statics.elaborated),
     );
-  let cards =
+  let docked_projectors =
     ProjectorView.sidebar_views(
       inject,
       globals.font_metrics,
@@ -83,7 +93,12 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
       projector_data,
       editor.editor.syntax.projector_list,
     )
-    |> List.map(((p, view)) => card(~globals, p, view, ~inject));
+    |> List.map(((p, view)) =>
+         card(~globals, p, view, ~undock=() =>
+           inject(Action.Project(TogglePlacement))
+         )
+       );
+  let cards = docked_projectors;
   div(
     ~attrs=[Attr.id("projector-panel")],
     [

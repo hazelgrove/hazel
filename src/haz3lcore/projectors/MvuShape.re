@@ -267,6 +267,40 @@ let is_html = (d: DHExp.t): bool =>
   | None => false
   };
 
+/* Is this an HTML constructor judged by the TYPE statics gave it, rather
+ * than by its name? Auto-display in the evaluation output is gated on this
+ * so a user ADT that happens to define its own `Div` is not drawn as HTML.
+ *
+ * Constructor annotations for unshadowed builtin aliases are compacted to
+ * `Var("HTML")` (ConstructorStaticsHelpers.compact_builtin_recs) — a
+ * shadowing user type keeps its expanded Rec, so the Var form IS the
+ * discrimination. The expanded form is accepted too, for callers that
+ * normalize before asking. */
+let is_html_typed_ctr = (e: DHExp.t): bool => {
+  let rec result_typ = (ty: Typ.t): Typ.t =>
+    switch (Typ.term_of(ty)) {
+    | Parens(ty)
+    | Arrow(_, ty) => result_typ(ty)
+    | _ => ty
+    };
+  switch (strip_wrappers(e).term) {
+  | Constructor(name, Some(Some(ty))) when is_html_constructor(name) =>
+    switch (Typ.term_of(result_typ(ty))) {
+    | Var("HTML") => true
+    | _ => Typ.fast_equal(result_typ(ty), BuiltinsADT.HTML.t)
+    }
+  | _ => false
+  };
+};
+
+/* The same test for a whole term: `Div(...)` or a nullary `Br`. */
+let is_html_typed = (e: DHExp.t): bool =>
+  switch (strip_wrappers(e).term) {
+  | Ap(_, fn, _) => is_html_typed_ctr(fn)
+  | Constructor(_) => is_html_typed_ctr(e)
+  | _ => false
+  };
+
 // === Checkpoints ===
 //
 // Rejects terms carrying a captured environment. Functions are fine:

@@ -106,6 +106,15 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
   },
 };
 
+/* Generate new ids for term, preserving secondary */
+let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
+  term,
+  annotation: {
+    ids: [Id.mk()],
+    secondary,
+  },
+};
+
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
 /* Replace invalid temp ids with fresh ids, preserving secondary */

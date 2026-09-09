@@ -10,7 +10,10 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 };
 
 let documentation_slides: list((string, PersistentZipper.t)) =
-  Docslides.Slides.all_slides @ Mvu.Slides.all_slides @ B2t2.Slides.all_slides;
+  Docslides.Slides.all_slides
+  @ Mvu.Slides.all_slides
+  @ Charts.Slides.all_slides
+  @ B2t2.Slides.all_slides;
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
