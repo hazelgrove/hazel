@@ -250,6 +250,12 @@ and spine = (e: Exp.t): list((list(string), item)) => {
        idiom): its members join the stream like any module's */
     let members =
       switch (strip_exp(def).term, pat.term) {
+      /* a livelit (`let ^name = { … }`) is a VIEW of a type, not program
+         structure: its members (Model, Action, update, view …) stay off
+         the canvas; the binding itself remains a node */
+      | (Module(_), Var(name))
+          when Language.UserLivelit.is_livelit_name(name) =>
+        []
       | (Module(items), Var(name)) => mod_members([name], items)
       | _ => []
       };

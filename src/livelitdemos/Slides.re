@@ -21,6 +21,12 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     |> List.map(((name, text)) => ("Livelits / " ++ name, text))
   )
   @ (
+    /* type cards on the canvas: every type has a view; the app is a
+       value in the program and each step is one call of a frame function */
+    [("Tic-Tac-Toe", [%blob "tic-tac-toe.hz"])]
+    |> List.map(((name, text)) => ("Cards / " ++ name, text))
+  )
+  @ (
     /* Hazel as computational glue: Automerge documents in and out */
     [
       ("TLDraw to Petrinaut", [%blob "tldraw-petrinaut.hz"]),

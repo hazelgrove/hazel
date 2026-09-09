@@ -2325,6 +2325,7 @@ let view_impl =
             ~dynamics=editor.dynamics,
             ~info_map=editor.statics.info_map,
             ~graph,
+            ~focus=editor.editor.state.zipper.refractors.sample_focus,
             key,
           );
         let content =

@@ -221,6 +221,11 @@ let value_site =
       ~dynamics: Language.Dynamics.Map.t,
       ~info_map: Language.Statics.Map.t,
       ~graph: CanvasGraph.t,
+      /* the global dynamic focus: a site with a sample IN the focused
+         call outranks every other, so expanded cards follow the focus
+         in tandem (select a function's output; its input card shows
+         the input of that same call) */
+      ~focus: option(Language.Sample.Focus.t)=?,
       key: string,
     )
     : option(Id.t) =>
@@ -228,6 +233,18 @@ let value_site =
   | None => None
   | Some(n) =>
     let names = node_type_names(~graph, n);
+    let aligned = (id: Id.t, samples: list(Language.Sample.t)): bool =>
+      switch (focus, Id.Map.find_opt(id, info_map)) {
+      | (Some(cursor), Some(info)) when cursor.anchor != None =>
+        let ap_id = Language.Sample.Focus.cur_var_ap(info);
+        List.exists(
+          (s: Language.Sample.t) =>
+            Language.Sample.Focus.relation(~trimmed=true, ~ap_id, cursor, s).
+              is_call_cursor,
+          samples,
+        );
+      | _ => false
+      };
     /* NOMINAL first: a site typed by the alias's own name outranks one
        that merely matches its body ((Int, Int) is not a Point until the
        program says so); the body is the fallback */
@@ -251,6 +268,7 @@ let value_site =
               samples,
             );
           let rank = (
+            aligned(id, samples) ? 1 : 0,
             nominal(t) ? 1 : 0,
             rich_ok(id, newest_s) ? 1 : 0,
             newest,
