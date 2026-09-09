@@ -1,3 +1,17 @@
+/* Grapheme-aware string operations, in the two units the editor actually
+   works in.
+
+   Everything at the top level counts and indexes in GRAPHEME CLUSTERS --
+   what a user calls a character -- never bytes or codepoints, so `length`,
+   `remove_nth` and friends stay correct across combining marks, ZWJ emoji
+   and Hangul jamo. `Width` covers the other unit, COLUMNS: clusters like
+   emoji and CJK ideographs occupy two, and monospace layout needs to know.
+   Both live here so caret arithmetic, measurement and rendering cannot
+   disagree about where a character is.
+
+   Correctness reference is Intl.Segmenter; the ASCII and standalone-codepoint
+   fast paths that avoid it are pinned against it in Test_Unicode. */
+
 type unsafe_any = Js_of_ocaml.Js.Unsafe.any;
 let is_simple_ascii: string => bool;
 let codepoint_at: (string, int) => int;
