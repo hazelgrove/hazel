@@ -1,6 +1,7 @@
-/* Plain-text rendering of a segment or zipper with probe values inlined, for
-   the CLI, the composition agent and the debug console. The walk itself is
-   private. */
+/* Renders a segment or zipper as plain text with each probe's recorded value
+   inlined at the probe, for consumers with no DOM: the CLI, the composition
+   agent and the debug console. `~window` selects how much of a probe's sample
+   history is shown. */
 
 let of_segment:
   (
