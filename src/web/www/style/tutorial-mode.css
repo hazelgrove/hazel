@@ -367,7 +367,47 @@
   background: #000;
 }
 
+/* Inline code in a lesson's prose -- the `+` in "the operators: `+`" -- is
+   marked as code where it sits in the sentence. Block code inside a locked
+   cell is exempted below: there the cell carries the surface. */
 .prompt-content .code {
   background: var(--Y0);
   border-radius: 3px;
+}
+
+.prompt-content .cell.locked .code {
+  background: none;
+  border-radius: 0;
+}
+
+/* A read-only cell embedded in a lesson's prose is a display, not the editor
+   the student is typing in. The tint carries that, and it goes on the cell so
+   the surface covers the result row too rather than tracking the ragged width
+   of each code line.
+
+   The hairline is a box-shadow ring, not a border: a border would inset the
+   children by 1px while they keep the cell's own corner radius, so their fill
+   would cut inside the curve and leave a sliver at the bottom corners where
+   the result row rounds off. A ring sits outside the padding box, so the
+   radius is shared and the corners line up. Radius itself is left to
+   `#main.Tutorial .cell` in cell.css -- one source for it.
+
+   The Task Reference panel is deliberately NOT included: `.task-reference-
+   section` already is a card with this same --T1 fill and --BR1 border, and
+   its `-body` clips at exactly the cell's width, so a ring drawn outside the
+   cell box survives only along the top edge. */
+.prompt-content .cell.locked {
+  background: var(--T1);
+  box-shadow: 0 0 0 1px var(--BR1);
+}
+
+/* `#main .code-editor` sets an I-beam for the primary editor, which also
+   catches these; over a snippet nobody can type in it reads as an
+   invitation. An arrow distinguishes them from the working editor at the
+   moment the student would try, and the text stays selectable so examples
+   can still be copied. Prefixed with #main to outrank that rule; the
+   reference panel sits outside #main, so it is listed unprefixed. */
+#main .prompt-content .cell.locked .code-editor,
+.task-reference-panel .cell.locked .code-editor {
+  cursor: default;
 }
