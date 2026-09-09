@@ -1102,7 +1102,41 @@ let escaped_tests = {
   );
 };
 
+/* `type x = x.a in ?` used to abort the whole analysis with
+   Failure("weak_head_normalize exceeded 1000 recursive calls"): TyAlias wraps a
+   self-referential alias in Rec, but as_sig unrolls that Rec to look for a
+   signature, which hands the projection straight back to path_sig. A cyclic
+   alias has no weak head normal form, so the type must come back stuck --
+   the QCheck property only catches this on seeds that happen to generate one. */
+let cyclic_alias_tests = {
+  module F = IdTagged.FreshGrammar;
+  let cyclic =
+    F.Typ.rec_(
+      F.TPat.var("x"),
+      F.Typ.prod_projection(F.Typ.var("x"), F.Typ.label("a")),
+    );
+  let ctx =
+    Builtins.ctx_init(None) |> Ctx.extend_alias(_, "x", Id.invalid, cyclic);
+  (
+    "Typ.CyclicAlias",
+    [
+      test_case(
+        "a cyclic alias normalizes to a stuck type instead of crashing",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "type x = x.a is stuck",
+          cyclic,
+          Typ.weak_head_normalize(ctx, F.Typ.var("x")),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
+  cyclic_alias_tests,
   escaped_tests,
   meet_tests,
   fast_equal_tests,

@@ -654,9 +654,11 @@ let remove_duplicate_labels =
 /* Out of fuel the type comes back unreduced -- stuck, which is what this
    function already returns for anything else it cannot reduce -- so a type
    with no weak head normal form is a type error where it is used, not a crash
-   of the whole analysis. A signature can name itself through a same-named
-   outer binding (`let m : { type T = m.T } = ...` with an `m` already in
-   scope), and path_sig hands `m.T` straight back here. */
+   of the whole analysis. Two ways to build one: a signature can name itself
+   through a same-named outer binding (`let m : { type T = m.T } = ...` with an
+   `m` already in scope), and path_sig hands `m.T` straight back here; and a
+   cyclic alias `type x = x.a` expands to itself forever once as_sig unrolls
+   the Rec that TyAlias wraps it in. */
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
     ty;
