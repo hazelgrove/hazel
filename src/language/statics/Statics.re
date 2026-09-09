@@ -269,6 +269,7 @@ and uexp_to_info_map =
   };
   let ancestors_inclusive = [Exp.rep_id(uexp)] @ ancestors;
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
+  let () = ancestors; // Nothing below reads the shadow; consume it so it isn't unused
   let go =
       (
         ~ctx=ctx,
@@ -1810,7 +1811,7 @@ and uexp_to_info_map =
         CustomStatics.custom_statics_deferred_ap(
           ~elab_term=DeferredAp(fn_elab, args) |> rewrap,
           ~ctx,
-          ~ancestors,
+          ~ancestors=ancestors_inclusive,
           ~fn_info=fn,
           kind,
           (module

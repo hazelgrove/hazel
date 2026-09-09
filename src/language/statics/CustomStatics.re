@@ -673,7 +673,7 @@ let analyze_args_syn =
 let custom_statics_deferred_ap =
     (
       ~ctx: Ctx.t,
-      ~ancestors as _,
+      ~ancestors as _: list(Id.t),
       ~fn_info: Info.exp,
       kind: Ctx.custom_statics,
       module S: ExpressionStatics,
