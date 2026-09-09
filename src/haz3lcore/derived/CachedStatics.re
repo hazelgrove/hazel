@@ -94,9 +94,20 @@ let compute_targets =
             | None => []
             };
           [(id, {Sample.refs: []}), ...model];
+        /* AMBIENT sites (probe_all, not an explicit probe) capture no
+           environment: nothing displays it, and a sample's env copy of
+           the enclosing bindings was ~80% of the retained memory (each
+           of a site's samples ships its own copy of every bound list
+           and view). Explicit probes keep their env for the inspector. */
+        | Some(_) when settings.probe_all && !Id.Map.mem(id, probe_ids) => [
+            (id, {refs: []}),
+          ]
         | Some(_) => [(id, {refs: Statics.Map.refs_in(info_map, id)})]
         | None =>
           switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) when settings.probe_all && !Id.Map.mem(id, probe_ids) => [
+              (id, {refs: []}),
+            ]
           | Some(_) => [(id, {refs: Statics.Map.bound_in(info_map, id)})]
           | None => [(id, {refs: []})]
           }
