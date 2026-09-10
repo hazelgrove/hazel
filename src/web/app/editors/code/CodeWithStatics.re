@@ -69,12 +69,9 @@ module Model = {
         model.editor.state.zipper,
         model.statics.live_typing_info_map,
       );
-    let id = Indicated.index(model.editor.state.zipper);
     {
       info,
       live_typing_info,
-      dynamics:
-        Option.bind(id, Dynamics.Map.lookup(_, model.dynamics.probe_map)),
       indicated_piece:
         Indicated.for_decoration(model.editor.state.zipper)
         |> Option.map(({piece, _}: Indicated.piece) => piece),

@@ -3,7 +3,6 @@ open Language;
 type cursor('update) = {
   info: option(Info.t),
   live_typing_info: option(Info.t),
-  dynamics: option(list(Sample.t)),
   selected_text: option(unit => string),
   selection: option(Segment.t),
   indicated_piece: option(Piece.t),
@@ -37,7 +36,6 @@ let map_opt = (f: 'a => option('b), cursor) => {
 let empty = {
   info: None,
   live_typing_info: None,
-  dynamics: None,
   selected_text: None,
   selection: None,
   indicated_piece: None,
