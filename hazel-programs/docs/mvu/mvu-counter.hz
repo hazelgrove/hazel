@@ -42,7 +42,7 @@ let view(model: Model): Html.T =
                 ("font-weight", "bold"), ("color", "var(--BR4)"),
                 ("border-top", "1px solid var(--BR1)"),
                 ("border-bottom", "1px solid var(--BR1)")])],
-        [Int(model)]
+        [Html.int(model)]
       ),
       Html.div(
         [Attr.style([("padding", "0.7em 1em"), ("display", "grid"),
