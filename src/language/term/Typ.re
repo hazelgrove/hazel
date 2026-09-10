@@ -1264,11 +1264,28 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   | BadEntry(t) => all_ids(t)
   };
 
-/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
-let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids.
+   [expanded_aliases] holds the names expanded on the current chain of Var
+   lookups, so a cyclic alias (`type A = B in type B = A`) stops instead of
+   looping. Every other case resets it: a structural descent consumes a
+   constructor from the finite left type, so only a chain of consecutive
+   expansions can run forever. */
+let rec diff =
+        (
+          ~ctx: option(Ctx.t)=?,
+          ~expanded_aliases: list(string)=[],
+          ty: t,
+          ty': t,
+        )
+        : list(Id.t) => {
   let get_ids = () => all_ids(ty');
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+    };
   switch (term_of(ty), term_of(ty')) {
-  | (Parens(t1), Parens(t2)) => diff(~ctx?, t1, t2)
   | (Parens(t1), _) => diff(~ctx?, t1, ty')
   | (_, Projector(_, t2)) => diff(~ctx?, ty, t2)
   | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
@@ -1298,13 +1315,31 @@ let rec diff = (~ctx: option(Ctx.t)=?, ty: t, ty': t): list(Id.t) => {
   | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
-    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
-    | Some(expanded) => diff(~ctx?, expanded, ty')
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        expanded,
+        ty',
+      )
     | None => get_ids()
     }
+  /* An alias on the right renders as one token carrying the Var node's own
+     ids, so the expansion is only good for deciding WHETHER it differs --
+     returning ids from the expansion names a type the segment never showed.
+     One token also means the verdict is all-or-nothing. */
   | (_, Var(name)) =>
-    switch (ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join) {
-    | Some(expanded) => diff(~ctx?, ty, expanded)
+    switch (expand(name)) {
+    | Some(expanded) =>
+      diff(
+        ~ctx?,
+        ~expanded_aliases=[name, ...expanded_aliases],
+        ty,
+        expanded,
+      )
+      == []
+        ? [] : get_ids()
     | None => get_ids()
     }
   | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
