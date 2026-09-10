@@ -42,13 +42,19 @@ let get_dynamic_segment =
   switch (info.dynamics) {
   | None => (render_normalized(normalize(static_typ)), Id.Set.empty)
   | Some(d: Dynamics.Info.t) =>
+    let ap_id = Option.bind(info.statics, Sample.Focus.cur_var_ap);
     DynamicTypInfer.displayed_segment_and_dynamic_ids(
       ~normalize,
       ~render_normalized,
       ~ctx,
       ~static_typ,
-      ~samples=d.samples,
-    )
+      ~samples=
+        Sample.Selection.filter_by_pin(
+          ~ap_id,
+          ~pinned=d.sample_focus.pinned_stack,
+          d.samples,
+        ),
+    );
   };
 };
 

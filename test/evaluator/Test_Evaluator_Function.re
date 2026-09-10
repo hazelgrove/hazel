@@ -75,7 +75,7 @@ let tests = (
           int(5),
           let_(
             Pat.(var("f")),
-            fn(Pat.(tuple([])), var("u"), None, None),
+            fn(Pat.(tuple([])), var("u")),
             let_(
               Pat.(var("u")),
               int(3),
@@ -89,7 +89,7 @@ let tests = (
       evaluation_test(
         "(fun x -> x)(x)",
         var("x"),
-        ap(Forward, fn(Pat.(var("x")), var("x"), None, None), var("x")),
+        ap(Forward, fn(Pat.(var("x")), var("x")), var("x")),
       )
     ),
     test_case(
@@ -104,12 +104,7 @@ let tests = (
             typ_ap(
               typ_fun(
                 TPat.(var("T")),
-                fn(
-                  Pat.(asc(var("x"), Typ.var("T"))),
-                  var("x"),
-                  None,
-                  None,
-                ),
+                fn(Pat.(asc(var("x"), Typ.var("T"))), var("x")),
                 None,
               ),
               Typ.int(),
@@ -167,10 +162,7 @@ Ok(Lam("yo", Var("yo"))))|},
         int(42),
         ap(
           Forward,
-          deferred_ap(
-            fn(Pat.(var("f")), var("f"), None, None),
-            [deferral(InAp)],
-          ),
+          deferred_ap(fn(Pat.(var("f")), var("f")), [deferral(InAp)]),
           int(42),
         ),
       )

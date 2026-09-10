@@ -75,7 +75,14 @@ let rec transition =
           IdTagged.fast_copy(
             DHExp.rep_id(e),
             IdTagged.FreshGrammar.(
-              Exp.(fn(Pat.(asc(p, t1)), asc(body, t2), closure_ty, name))
+              Exp.(
+                fn(
+                  Pat.(asc(p, t1)),
+                  asc(body, t2),
+                  ~typ=?closure_ty,
+                  ~name?,
+                )
+              )
             ),
           ),
         ),

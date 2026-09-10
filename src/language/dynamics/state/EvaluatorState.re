@@ -24,6 +24,7 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
+  type_insts: Dynamics.TypeInstMap.t,
   /* In-flight observation spans (the trace fold's bracket stack).
    * Pushed at SpanOpen, enriched by CallEnter, popped+minted into
    * `probes` at SpanClose — see ObsTrace.fold_step, the only minting
@@ -47,7 +48,6 @@ and incr_eval = IncrEval.t(t);
 
 type effect =
   | RecordTest(TestMap.instance_report)
-  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   /* A pattern was matched against a value during evaluation. Carries the
    * pat and rhs so the incremental evaluator can decide which body-scoped
@@ -57,6 +57,8 @@ type effect =
       rhs: DHExp.t,
       samples: PatternMatch.sample_closures,
     })
+  | RecordTypeInstantiation(CallStack.t => Dynamics.TypeInstantiation.t)
+  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
@@ -64,6 +66,7 @@ let empty: t = {
   initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  type_insts: Dynamics.TypeInstMap.empty,
   obs_opens: [],
   obs_trace: [],
   step_count: 0,
@@ -119,6 +122,21 @@ let append = (base: t, ext: t): t => {
       base.tests,
       ext.tests,
     );
+  /* Type instantiations carry wall-clock times, not step stamps, so no
+   * shifting is needed — just merge the per-binder entry lists. */
+  let type_insts =
+    Id.Map.fold(
+      (id, ext_entries, acc) => {
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, existing @ ext_entries, acc);
+      },
+      ext.type_insts,
+      base.type_insts,
+    );
   let obs_trace =
     switch (ext.obs_trace) {
     | [] => base.obs_trace
@@ -129,6 +147,7 @@ let append = (base: t, ext: t): t => {
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
+    type_insts,
     theorems: ext.theorems @ base.theorems,
     /* ext's spans are balanced by the time it is appended (spans never
      * cross top-level segment boundaries); the base's in-flight opens
@@ -176,6 +195,7 @@ let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
 
+let get_type_insts = ({type_insts, _}) => type_insts;
 let get_theorems = ({theorems, _}) => theorems;
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
@@ -183,6 +203,12 @@ let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   ...state,
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
+};
+
+let add_type_inst = (state: t, inst: Dynamics.TypeInstantiation.t) => {
+  ...state,
+  type_insts:
+    Dynamics.TypeInstMap.extend(inst.tpat_id, inst, state.type_insts),
 };
 
 let update =
@@ -295,6 +321,10 @@ let update =
           step_count: state.step_count + 1,
         };
         (call_stack, state);
+      | RecordTypeInstantiation(type_inst_closure) => (
+          call_stack,
+          add_type_inst(state, type_inst_closure(call_stack)),
+        )
       | RecordPrint(value) =>
         /* Print happens in a single step */
         let step = state.step_count;

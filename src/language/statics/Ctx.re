@@ -259,6 +259,47 @@ let filter_shadowed = (ctx: t): t => {
     |> (((ctx, _, _)) => List.rev(ctx)),
 };
 
+/* The context for typing the body of a `Closure(env, body)`.
+
+   A closure's variables are bound by `env`, not by whatever is in scope at
+   the point the closure value is being typed. Left alone, a same-named
+   binder captures them: a probe sample `fun () -> h` typed inside a
+   `fun h -> ...` is read as if its `h` were the parameter, giving a wrong
+   live type and a spurious live typing error.
+
+   So shadow, with `?`, every name `env` binds that resolves to a *program*
+   binder here. Prelude entries are left alone: they carry `Id.invalid`
+   (BuiltinsUtil.ctx_entry_of_builtin) because they have no binder to be
+   confused with, and the runtime env carries the same prelude, so keeping
+   them costs no soundness and keeps builtin types available to closure
+   bodies (the result editor runs statics over evaluated terms with exactly
+   this prelude-only context).
+
+   Statics cannot depend on Dynamics, so the env's values cannot be typed
+   here — `?` is the honest answer. Callers wanting precision should close
+   the value first (`Dynamics.to_live_typing_map` does), which leaves no
+   closure for this to see at all. */
+let of_closure_env = (ctx: t, names: list(Var.t)): t =>
+  List.fold_left(
+    (ctx, name) =>
+      switch (lookup_var(ctx, name)) {
+      | Some({id, _}) when !Id.equal(id, Id.invalid) =>
+        extend(
+          ctx,
+          VarEntry({
+            name,
+            id: Id.invalid,
+            typ: (Unknown(Internal): TermBase.Typ.term) |> IdTagged.fresh,
+            custom_statics: None,
+          }),
+        )
+      | Some(_)
+      | None => ctx
+      },
+    ctx,
+    names,
+  );
+
 let filter_stepper_filter_variables = (ctx: t): t => {
   ...ctx,
   entries:

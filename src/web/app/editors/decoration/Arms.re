@@ -397,17 +397,40 @@ let simple_arm =
 open Util.WebUtil;
 
 module Errors = {
+  type kind =
+    | Error
+    | Warning
+    | LiveTypingError;
+
+  let piece_cls =
+    fun
+    | Error => "errors-piece"
+    | Warning => "warnings-piece"
+    | LiveTypingError => "live-typing-errors-piece";
+
+  let group_cls =
+    fun
+    | Error => "errors"
+    | Warning => "warnings"
+    | LiveTypingError => "live-typing-errors";
+
+  let shard_cls =
+    fun
+    | Error
+    | LiveTypingError => "error"
+    | Warning => "warning";
+
   let of_id =
       (
+        ~kind=Error,
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-        ~is_warning=false,
         ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         id: Id.t,
       ) =>
     div_c(
-      is_warning ? "warnings-piece" : "errors-piece",
+      piece_cls(kind),
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
@@ -419,7 +442,7 @@ module Errors = {
                 tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
                 measurement,
               },
-              [is_warning ? "warning" : "error"],
+              [shard_cls(kind)],
             ),
           ]
         | None =>
@@ -443,7 +466,7 @@ module Errors = {
                 ~shape_map=syntax.shape_map,
                 ~font_metrics,
                 ~shape_init=Some(Convex),
-                ~clss=["simple-backing", is_warning ? "warning" : "error"],
+                ~clss=["simple-backing", shard_cls(kind)],
                 seg,
               )
             | None => []
@@ -454,11 +477,7 @@ module Errors = {
               simple_arm(
                 ~font_metrics,
                 ~rows=syntax.measured.rows,
-                ~path_cls=[
-                  "child-line",
-                  "simple",
-                  is_warning ? "warning" : "error",
-                ],
+                ~path_cls=["child-line", "simple", shard_cls(kind)],
                 range,
               )
             | None => []
@@ -472,19 +491,19 @@ module Errors = {
 
   let of_ids =
       (
+        ~kind=Error,
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-        ~is_warning=false,
         ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         error_ids,
       ) =>
     div_c(
-      is_warning ? "warnings" : "errors",
+      group_cls(kind),
       List.map(
         of_id(
+          ~kind,
           ~refine_sort,
-          ~is_warning,
           ~simple_indication,
           ~font_metrics,
           ~syntax,

@@ -270,8 +270,8 @@ module rec Exp: {
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
-        fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
-      | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
+        fn(Pat.of_menhir_ast(p), of_menhir_ast(e), ~name=name_str)
+      | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e))
       }
     | PipelineExp(e1, e2) =>
       /* e1 |> e2 reads as applying e2 to e1 (MakeTerm: Ap(Reverse, r, l)) */

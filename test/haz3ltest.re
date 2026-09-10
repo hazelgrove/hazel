@@ -38,6 +38,7 @@ let (suite, exit_with_test_status) =
       Test_StringUtil.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
+      Test_WriterMonad.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
     ]

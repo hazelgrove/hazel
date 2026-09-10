@@ -1,10 +1,18 @@
 open Language;
 
 /* Infer a type from a single sample value by running statics on it.
-   Uses the provided context so user-defined types are visible. */
+   Uses the provided context so user-defined types are visible.
+
+   The value is closed first: a function value is a `Closure(env, body)`, and
+   statics discards a closure's env, so the body's free variables would
+   otherwise resolve against `ctx` and capture whatever same-named binder is
+   in scope where the sample was taken. Substituting each closure's own env
+   leaves nothing free to capture. Note this mints fresh ids, so the lookup
+   below must use the substituted expression's rep_id, not the sample's. */
 let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
-  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, sample.value);
-  IdTagged.rep_id(sample.value)
+  let exp = Substitution.in_exp(Environment.empty, sample.value);
+  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, exp);
+  IdTagged.rep_id(exp)
   |> Id.Map.find_opt(_, info_map)
   |> Option.bind(
        _,
@@ -33,8 +41,8 @@ let dynamic_typ_of_samples_or_unknown =
   dynamic_typ_of_samples(~ctx, samples)
   |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 
-/* The segment to show in Dynamic mode, and the ids of its tokens that came
-     from runtime rather than from statics.
+/* The segment to show for a runtime-refined type, and the ids of its tokens
+     that came from runtime rather than from statics.
    *
    * Both types are normalized first -- ExpToSegment.normalize_typ, the same
    * pass the renderer applies -- and the diff is taken between the normalized
@@ -47,11 +55,36 @@ let dynamic_typ_of_samples_or_unknown =
    * The normalized dynamic type is rendered once and returned: normalize_typ is
    * not idempotent (it mints a fresh id per added Parens), so re-normalizing or
    * re-rendering would produce a segment the dynamic_ids do not describe. */
+let segment_and_dynamic_ids =
+    /* normalize/render_normalized are injected rather than called directly:
+       ExpToSegment sits downstream of the projectors, so this module cannot
+       name it. Pass utility.normalize_typ and utility.render_normalized_typ,
+       which are built from one settings value so both halves agree. */
+    (
+      ~normalize: Typ.t => Typ.t,
+      ~render_normalized: Typ.t => Base.segment,
+      ~ctx: option(Ctx.t),
+      ~static_typ: Typ.t,
+      ~dynamic_typ: Typ.t,
+    )
+    : (Base.segment, Id.Set.t) => {
+  let static_n = normalize(static_typ);
+  /* Statics builds types with Typ.temp, so every node of one carries the
+     Id.invalid sentinel rather than a distinct id -- true both of a type
+     inferred from samples and of a live-typing elab_syn_ty. Left in, the
+     sentinel collapses the dynamic_ids: the renderer freshens duplicate tile ids,
+     so every token but the first ends up in no type and so cannot be coloured, and
+     `diff`'s wrapped_replaced test fires on any node sharing the sentinel
+     with a replaced one. Replaced here because this is where a type's ids
+     become the ids of rendered tokens. */
+  let dynamic_n = normalize(Typ.replace_temp(dynamic_typ));
+  let dynamic_ids = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
+  (render_normalized(dynamic_n), dynamic_ids);
+};
+
+/* segment_and_dynamic_ids for the type probe's Dynamic mode, where the dynamic type
+   is inferred from the samples rather than supplied. */
 let displayed_segment_and_dynamic_ids =
-    /* Injected rather than called directly: ExpToSegment sits downstream of
-       the projectors, so this module cannot name it. Pass
-       utility.normalize_typ and utility.render_normalized_typ, which are
-       built from one settings value so both halves agree. */
     (
       ~normalize: Typ.t => Typ.t,
       ~render_normalized: Typ.t => Base.segment,
@@ -59,17 +92,11 @@ let displayed_segment_and_dynamic_ids =
       ~static_typ: Typ.t,
       ~samples: list(Sample.t),
     )
-    : (Base.segment, Id.Set.t) => {
-  let dynamic_typ = dynamic_typ_of_samples_or_unknown(~ctx, samples);
-  let static_n = normalize(static_typ);
-  /* Statics builds types with Typ.temp, so every node of one carries the
-     Id.invalid sentinel rather than a distinct id. Left in, the sentinel
-     collapses the dynamic_ids: the renderer freshens duplicate tile ids, so every
-     token but the first ends up in no type and so cannot be coloured, and `diff`'s
-     wrapped_replaced test fires on any node sharing the sentinel with a
-     replaced one. Replaced here rather than where the type is inferred
-     because this is where a type's ids become the ids of rendered tokens. */
-  let dynamic_n = normalize(Typ.replace_temp(dynamic_typ));
-  let dynamic_ids = Typ.diff(~ctx, static_n, dynamic_n) |> Id.Set.of_list;
-  (render_normalized(dynamic_n), dynamic_ids);
-};
+    : (Base.segment, Id.Set.t) =>
+  segment_and_dynamic_ids(
+    ~normalize,
+    ~render_normalized,
+    ~ctx=Some(ctx),
+    ~static_typ,
+    ~dynamic_typ=dynamic_typ_of_samples_or_unknown(~ctx, samples),
+  );

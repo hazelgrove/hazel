@@ -192,10 +192,30 @@ in [f(true), f(false)]|},
   ),
 ];
 
+/* === Scoping tests === */
+
+let scoping_tests = [
+  /* `f` closes over the outer `h : Int`, and the probe sits where `h` names
+     the annotated parameter instead. Typing the sampled closure against the
+     probe site's context would read its body's `h` as the parameter and give
+     `() -> () -> Int`; the closure has to be read against the environment it
+     captured. */
+  dynamic_typ_test(
+    "Closure sample is typed under its own env, not the probe site's",
+    {|let h = 3
+in let f = fun () -> h
+in let g = fun (h : () -> Int) -> ^^probe(h)
+in g(f)|},
+    /* `(())` is `typ_to_string`'s defensive parenthesization of the unit
+       argument, as in the "Arrow via function" case above. */
+    Some("(()) -> Int"),
+  ),
+];
+
 /* === Colouring the rendered dynamic type === */
 
 /* When statics knew nothing, the whole type came from runtime, so every tile
-   of the rendered segment must be green.
+   of the rendered segment must be coloured.
 
    Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility --
    the composition the projector runs -- because the ids that reach the
@@ -257,9 +277,66 @@ in ^^probe(p)|},
   ),
 ];
 
+/* CursorInspector hands segment_and_dynamic_ids a live-typing elab_syn_ty rather
+   than a sample-inferred type, and statics builds both with Typ.temp -- every
+   node carrying the Id.invalid sentinel. With the sentinels left in, this
+   coloured `Int`, which statics supplied, and the enclosing parens along with
+   it, because diff's wrapped_replaced test fires on any node sharing the
+   sentinel with a replaced one. */
+let coloured_tile_labels = (~static_typ: Typ.t, ~dynamic_typ: Typ.t) => {
+  let (seg, dynamic_ids) =
+    DynamicTypInfer.segment_and_dynamic_ids(
+      ~normalize=ProjectorInfo.utility.normalize_typ(~inline=true),
+      ~render_normalized=
+        ProjectorInfo.utility.render_normalized_typ(~inline=true),
+      ~ctx=None,
+      ~static_typ,
+      ~dynamic_typ,
+    );
+  let rec go = (seg: Segment.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          (
+            Id.Set.mem(t.id, dynamic_ids) ? [String.concat("", t.label)] : []
+          )
+          @ List.concat_map(go, t.children)
+        | Grout(_)
+        | Secondary(_)
+        | Projector(_) => []
+        },
+      seg,
+    );
+  go(seg);
+};
+
+let statics_built_tests = [
+  test_case(
+    "a statics-built dynamic type dynamic_ids only its runtime-derived tokens",
+    `Quick,
+    () => {
+      let temp = (t: Typ.term) => Typ.temp(t);
+      check(
+        list(string),
+        "only the component statics did not know is coloured",
+        ["Bool"],
+        coloured_tile_labels(
+          ~static_typ=
+            temp(Prod([temp(Atom(Atom.Int)), temp(Unknown(Internal))])),
+          ~dynamic_typ=
+            temp(Prod([temp(Atom(Atom.Int)), temp(Atom(Atom.Bool))])),
+        ),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("DynamicTypInfer.Basic", basic_tests),
   ("DynamicTypInfer.Meet", meet_tests),
   ("DynamicTypInfer.UserTypes", user_type_tests),
+  ("DynamicTypInfer.Scoping", scoping_tests),
   ("DynamicTypInfer.DynamicIds", dynamic_id_tests),
+  ("DynamicTypInfer.StaticsBuilt", statics_built_tests),
 ];

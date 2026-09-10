@@ -1,0 +1,134 @@
+open Util;
+
+/* This file exists to define data structures that statics uses during the live typing phase.
+ * Importantly Statics cannot depend on Dynamics due to recursive dependencies, so we define these types here
+ * in a way that both Statics can depend on and can be constructed from Dynamics.
+ */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sample = {exp: Exp.t};
+
+/* A type instantiation records when a type variable is instantiated
+ * with a concrete type during type application evaluation */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type type_instantiation = {
+  tpat_id: Id.t,
+  type_var: string,
+  instantiated_type: Typ.t,
+};
+
+module Map = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry = list(sample);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type type_inst_entry = list(type_instantiation);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    exp_probes: Id.Map.t(entry),
+    type_inst_probes: Id.Map.t(type_inst_entry),
+  };
+
+  let empty = {
+    exp_probes: Id.Map.empty,
+    type_inst_probes: Id.Map.empty,
+  };
+
+  let mk = (exp_probes, type_inst_probes): t => {
+    exp_probes,
+    type_inst_probes,
+  };
+
+  let lookup = (id, map) => Id.Map.find_opt(id, map.exp_probes);
+  let lookup_type_inst = (id, map) =>
+    Id.Map.find_opt(id, map.type_inst_probes);
+};
+
+/* Refine a synthesized/elaborated type using runtime samples gathered
+   through the LiveTyping.Map. Used by Statics to refine types of
+   expressions/patterns whose elaborated synthesis still contains unknowns. */
+let refine_typ_with_dynamics =
+    (
+      ~dynamics: Map.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
+      ~ctx,
+      ~term_id: Id.t,
+      ty: Typ.t,
+    )
+    : Typ.t =>
+  if (Typ.count_unknowns(ty) > 0) {
+    switch (Map.lookup(term_id, dynamics)) {
+    | None
+    | Some([]) => ty
+    | Some(entry) =>
+      let exps = List.map((s: sample) => s.exp, entry);
+      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+      let dyn_typ = Option.bind(dyn_typs, Typ.meet_all(~empty=ty, ctx));
+      switch (dyn_typ) {
+      | None => ty
+      | Some(t) => t
+      };
+    };
+  } else {
+    ty;
+  };
+
+/* Helper to extend Ctx with type instantiations from probes */
+let extend_ctx_with_instantiations =
+    (ctx: Ctx.t, name, tpat_id: Id.t, insts: list(type_instantiation)): Ctx.t => {
+  let new_ty =
+    Typ.join_all(ctx, List.map(inst => inst.instantiated_type, insts))
+    |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+  Ctx.extend_tvar(
+    ctx,
+    {
+      name,
+      id: tpat_id,
+      kind: Singleton(new_ty),
+    },
+  );
+};
+
+/* Re-generalize a live-refined typfun body type against the annotation's
+   body slice (`slice` = the typfun's mode_body, already binder-renamed).
+   Live refinement substitutes runtime instantiations (e.g. r := (m=Int))
+   into synthesized types; rewrapping such a type in Poly(r, ·) would yield
+   a scheme in which r is simultaneously quantified and concretized, which
+   spuriously fails Poly/Poly meets (the alpha-renamed binder is Abstract,
+   so `Var r` no longer resolves). Wherever the annotation prescribes a
+   type variable and the refined subtree is consistent with what that
+   variable denotes under `ctx` (the live Singleton for instantiated
+   binders), restore the variable; keep the refined type everywhere else.
+   Under that Singleton the replacement is a semantic no-op — it changes
+   only how the type is presented once the binder leaves scope.
+   Note: the slice must NOT be weak-head-normalized here — resolving
+   `Var r` through its Singleton would destroy the restoration point. */
+let rec reabstract = (ctx: Ctx.t, slice: Typ.t, syn: Typ.t): Typ.t => {
+  let (syn_term, rewrap) = Annotated.unwrap(syn);
+  switch (Typ.term_of(slice), syn_term) {
+  | (Parens(slice), _) => reabstract(ctx, slice, syn)
+  | (_, Parens(syn)) =>
+    Grammar.Parens(reabstract(ctx, slice, syn)) |> rewrap
+  | (Var(_), _) => Typ.is_consistent(ctx, slice, syn) ? slice : syn
+  | (Arrow(s1, s2), Arrow(t1, t2)) =>
+    Grammar.Arrow(reabstract(ctx, s1, t1), reabstract(ctx, s2, t2))
+    |> rewrap
+  | (List(s), List(t)) => Grammar.List(reabstract(ctx, s, t)) |> rewrap
+  | (TupLabel(sl, s), TupLabel(tl, t)) when Typ.is_consistent(ctx, sl, tl) =>
+    Grammar.TupLabel(tl, reabstract(ctx, s, t)) |> rewrap
+  | (Prod(ss), Prod(ts)) when List.length(ss) == List.length(ts) =>
+    Grammar.Prod(List.map2(reabstract(ctx), ss, ts)) |> rewrap
+  | (Poly(sx, s), Poly(tx, t)) =>
+    let s' =
+      switch (TPat.tyvar_of_utpat(tx)) {
+      | Some(x) => Typ.subst(Grammar.Var(x) |> Typ.temp, sx, s)
+      | None => s
+      };
+    Grammar.Poly(tx, reabstract(Ctx.extend_dummy_tvar(ctx, tx), s', t))
+    |> rewrap;
+  /* Structural mismatch, Unknown slice, Sum, Rec, aliases, …: keep the
+     refined type. Conservative — identical to today's behavior. */
+  | _ => syn
+  };
+};

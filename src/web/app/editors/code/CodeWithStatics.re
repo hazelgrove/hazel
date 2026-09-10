@@ -1,5 +1,7 @@
-open Util.WebUtil;
+open Util;
 open Haz3lcore;
+open Language;
+open WebUtil;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -20,22 +22,25 @@ module Model = {
     editor: Editor.t,
     context_menu: context_menu_state,
     statics: CachedStatics.t,
-    dynamics: Language.Dynamics.Map.t,
+    dynamics: Dynamics.t,
+    /* (live info map, live error ids, wall-clock time of the last live pass).
+     * The timestamp drives the streaming throttle in Update.calculate. */
+    live_typing: Calc.saved((StaticsBase.Map.t, list(Id.t), float)),
+    sample_focus: Calc.saved(Language.Sample.Focus.t),
   };
 
   let context_menu_is_open = (model: t): bool =>
     Util.Menu.is_open(model.context_menu);
 
-  let mk =
-      (
-        ~dynamics=Language.Dynamics.Map.empty,
-        ~statics=CachedStatics.empty,
-        editor,
-      ) => {
-    editor,
-    statics,
-    dynamics,
-    context_menu: None,
+  let mk = (~dynamics=Dynamics.empty, ~statics=CachedStatics.empty, editor) => {
+    {
+      editor,
+      statics,
+      dynamics,
+      context_menu: None,
+      live_typing: Calc.Pending,
+      sample_focus: Calc.Pending,
+    };
   };
 
   let mk_from_exp =
@@ -57,29 +62,39 @@ module Model = {
   let get_statics = (model: t) => model.statics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
-    indicated_piece:
-      Indicated.for_decoration(model.editor.state.zipper)
-      |> Option.map(({piece, _}: Indicated.piece) => piece),
-    selected_text:
-      Some(
-        () => {
-          let z = model.editor.state.zipper;
-          Printer.selected_text(
-            ~indent=" ",
-            ~refractors=z.refractors.manuals,
-            z,
-          );
-        },
-      ),
-    selection: Some(model.editor.state.zipper.selection.content),
-    editor: Some(model.editor),
-    editor_read_only: true,
-    editor_action: x => Some(x),
-    undo_action: None,
-    redo_action: None,
-    error_ids: model.statics.error_ids,
-    contextual_actions: [],
+    let info =
+      Indicated.ci_of(model.editor.state.zipper, model.statics.info_map);
+    let live_typing_info =
+      Indicated.ci_of(
+        model.editor.state.zipper,
+        model.statics.live_typing_info_map,
+      );
+    {
+      info,
+      live_typing_info,
+      indicated_piece:
+        Indicated.for_decoration(model.editor.state.zipper)
+        |> Option.map(({piece, _}: Indicated.piece) => piece),
+      selected_text:
+        Some(
+          () => {
+            let z = model.editor.state.zipper;
+            Printer.selected_text(
+              ~indent=" ",
+              ~refractors=z.refractors.manuals,
+              z,
+            );
+          },
+        ),
+      selection: Some(model.editor.state.zipper.selection.content),
+      editor: Some(model.editor),
+      editor_read_only: true,
+      editor_action: x => Some(x),
+      undo_action: None,
+      redo_action: None,
+      error_ids: model.statics.error_ids,
+      contextual_actions: [],
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -134,6 +149,11 @@ module Update = {
   // There are no events for a read-only editor
   type t;
 
+  /* While the worker streams partial results, run the live-typing pass at
+   * most once per this window; a settled result always runs it (the caller
+   * passes ~eval_pending=false once evaluation completes). */
+  let live_typing_stream_throttle_ms = 500.0;
+
   /* Calculates the statics for the editor. */
   let calculate =
       (
@@ -143,12 +163,22 @@ module Update = {
         ~statics_mode=StaticsNormal,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~dynamics: Calc.t(Dynamics.t),
+        ~eval_pending=false,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, _}: Model.t,
+        {
+          editor,
+          statics,
+          live_typing,
+          sample_focus,
+          context_menu,
+          dynamics: _,
+        }: Model.t,
       )
       : Model.t => {
+    let dynamics_map = Calc.map(dynamics, (d: Dynamics.t) => d.probe_map);
+
     /* Throttle gate for full statics recompute. Bypass the debounce when probe
      * ids change, else stale info_map probe_targets let IncrEval.reuse_check
      * reuse old probes and a new probe shows ∅ until the next refresh. */
@@ -157,7 +187,7 @@ module Update = {
         Language.Id.Map.equal(
           (==),
           CachedStatics.probe_ids_of_zipper(z),
-          Language.Id.Map.map(_ => (), statics.targets),
+          statics.probe_ids,
         );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one */
@@ -184,7 +214,7 @@ module Update = {
         ~autoprobe_mode,
         ~is_edited,
         statics,
-        dynamics,
+        dynamics_map |> Calc.get_value,
         editor,
       );
 
@@ -199,10 +229,75 @@ module Update = {
      * statics stays valid) */
     let statics =
       CachedStatics.with_targets(~settings, editor.state.zipper, statics);
+    let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
+
+    // Track the current sample focus state
+    let current_sample_focus = editor.state.zipper.refractors.sample_focus;
+    let sample_focus_calc =
+      Calc.set(~eq=Sample.Focus.equal, current_sample_focus, sample_focus);
+
+    /* Streaming throttle: while the worker is still evaluating, partial
+     * dynamics arrive once per stream slice. Running the live pass (a full
+     * Statics.mk) on every slice would swamp the main thread, so within the
+     * throttle window we present the streamed dynamics as OldValue — the
+     * saved live typing is kept and no pass runs. The settled result always
+     * arrives with eval_pending=false, so the final pass is never skipped. */
+    let last_live_run =
+      live_typing
+      |> Calc.get_saved((StaticsBase.Map.empty, [], 0.))
+      |> (((_, _, t)) => t);
+    let dynamics_for_live =
+      eval_pending
+      && JsUtil.timestamp()
+      -. last_live_run < live_typing_stream_throttle_ms
+        ? Calc.make_old(dynamics) : dynamics;
+
+    let live_typing =
+      if (settings.live_typing) {
+        Calc.Syntax.(
+          live_typing
+          |> {
+            let.calc dyn = dynamics_for_live
+            and.calc curr_sample_focus = sample_focus_calc;
+
+            let filtered_dynamics =
+              Language.Dynamics.filter_by_focus(curr_sample_focus, dyn);
+
+            let (live_typing_info_map, _) =
+              Statics.mk(
+                ~dynamics=
+                  Language.Dynamics.to_live_typing_map(filtered_dynamics),
+                settings,
+                ctx_init,
+                statics.term,
+              );
+
+            let live_typing_error_ids =
+              StaticsBase.Map.live_typing_error_ids(
+                ~static_error_ids=statics.error_ids,
+                live_typing_info_map,
+              );
+
+            (live_typing_info_map, live_typing_error_ids, JsUtil.timestamp());
+          }
+        );
+      } else {
+        Calc.set((StaticsBase.Map.empty, [], 0.), live_typing);
+      };
+
+    let (live_typing_info_map, live_typing_error_ids, _) =
+      live_typing |> Calc.get_value;
+    let statics: CachedStatics.t = {
+      ...statics,
+      live_typing_info_map,
+      live_typing_error_ids,
+    };
     {
       editor,
       statics,
-      dynamics,
+      dynamics: Calc.get_value(dynamics),
+      live_typing: Calc.save(live_typing),
+      sample_focus: Calc.save(sample_focus_calc),
       context_menu,
     };
   };
@@ -258,12 +353,20 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
+        ~kind=Warning,
         ~refine_sort,
-        ~is_warning=true,
         ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         warning_ids,
+      );
+    let live_typing_decos =
+      Arms.Errors.of_ids(
+        ~kind=LiveTypingError,
+        ~refine_sort,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.live_typing_error_ids,
       );
     let container_classes =
       ["code-container"]
@@ -279,7 +382,8 @@ module View = {
         ProbeStagger.row_ends_attr(measured),
       ],
       // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      [code_text_view, warning_decos, error_decos, live_typing_decos]
+      @ overlays,
     );
   };
 };
