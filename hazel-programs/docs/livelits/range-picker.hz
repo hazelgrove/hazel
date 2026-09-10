@@ -36,28 +36,28 @@ let ^range = {
   let handle(v: Int, held: Bool): HTML =
     Node("circle",
       [Create("cx", s(x_of(v))), Create("cy", "11"), Create("r", "6"),
-       Create("fill", if held then "orange" else "#fff"),
-       Create("stroke", "teal"), Create("stroke-width", "2")],
+       Create("fill", if held then "#e9c182" else "#465d72"),
+       Create("stroke", "#a6d3ee"), Create("stroke-width", "2")],
       []);
 
   let view((lo, hi, drag): Model): HTML =
     Div(
-      [Style([("display", "flex"), ("align-items", "center"), ("gap", "4px"),
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("align-items", "center"), ("gap", "4px"),
               ("font-family", "var(--code-font)"), ("font-size", "0.75em")])],
       [Node("svg",
-         [Create("viewBox", "0 0 186 22"), Width("186"), Height("22"),
-          Style([("cursor", "ew-resize")]),
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ew-resize")]), Create("viewBox", "0 0 186 22"), Width("186"), Height("22"),
+
           OnMouseDownAt(fun (x: Int, _) -> Down(x)),
           OnMouseMoveAt(fun (x: Int, _) -> MoveTo(x)),
           OnMouseUpAt(fun _ -> Up)],
          [Node("rect",
             [Create("x", "8"), Create("y", "8"), Create("width", "170"),
-             Create("height", "6"), Create("rx", "3"), Create("fill", "#ddd")],
+             Create("height", "6"), Create("rx", "3"), Create("fill", "#405a70")],
             []),
           Node("rect",
             [Create("x", s(x_of(lo))), Create("y", "8"),
              Create("width", s(x_of(hi) - x_of(lo))), Create("height", "6"),
-             Create("fill", "teal")],
+             Create("fill", "#a6d3ee")],
             []),
           handle(lo, drag == 0),
           handle(hi, drag == 1)]),
