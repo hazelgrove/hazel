@@ -39,15 +39,21 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
   set_print(show_core_exp, arb_exp);
 };
 
+/**
+ * Render a type as editable syntax, for QCheck counterexamples and Alcotest
+ * failure output. The `Typ.show` deriver prints the whole IdTagged record,
+ * which buries the type in annotation noise.
+ */
+let show_core_typ = typ =>
+  typ
+  |> ExpToSegment.typ_to_segment(
+       ~settings=
+         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+       _,
+     )
+  |> Printer.of_segment(~holes="?", _);
+
 let arb_typ = (~minimal_idents: bool, size: int) => {
-  let show_core_typ = typ =>
-    typ
-    |> ExpToSegment.typ_to_segment(
-         ~settings=
-           ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-         _,
-       )
-    |> Printer.of_segment(~holes="?", _);
   let arb_typ =
     map(
       ~rev=
