@@ -54,8 +54,8 @@ let dynamic_typ_of_samples_or_unknown =
    *
    * The normalized dynamic type is rendered once and returned: normalize_typ is
    * not idempotent (it mints a fresh id per added Parens), so re-normalizing or
-   * re-rendering would produce a segment the marks do not describe. */
-let segment_and_marks =
+   * re-rendering would produce a segment the dynamic_ids do not describe. */
+let segment_and_dynamic_ids =
     /* normalize/render_normalized are injected rather than called directly:
        ExpToSegment sits downstream of the projectors, so this module cannot
        name it. Pass utility.normalize_typ and utility.render_normalized_typ,
@@ -72,19 +72,19 @@ let segment_and_marks =
   /* Statics builds types with Typ.temp, so every node of one carries the
      Id.invalid sentinel rather than a distinct id -- true both of a type
      inferred from samples and of a live-typing elab_syn_ty. Left in, the
-     sentinel collapses the marks: the renderer freshens duplicate tile ids,
-     so every token but the first ends up in no type and unmarkable, and
+     sentinel collapses the dynamic_ids: the renderer freshens duplicate tile ids,
+     so every token but the first ends up in no type and so cannot be coloured, and
      `diff`'s wrapped_replaced test fires on any node sharing the sentinel
      with a replaced one. Replaced here because this is where a type's ids
      become the ids of rendered tokens. */
   let dynamic_n = normalize(Typ.replace_temp(dynamic_typ));
-  let marks = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
-  (render_normalized(dynamic_n), marks);
+  let dynamic_ids = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
+  (render_normalized(dynamic_n), dynamic_ids);
 };
 
-/* segment_and_marks for the type probe's Dynamic mode, where the dynamic type
+/* segment_and_dynamic_ids for the type probe's Dynamic mode, where the dynamic type
    is inferred from the samples rather than supplied. */
-let displayed_segment_and_marks =
+let displayed_segment_and_dynamic_ids =
     (
       ~normalize: Typ.t => Typ.t,
       ~render_normalized: Typ.t => Base.segment,
@@ -93,7 +93,7 @@ let displayed_segment_and_marks =
       ~samples: list(Sample.t),
     )
     : (Base.segment, Id.Set.t) =>
-  segment_and_marks(
+  segment_and_dynamic_ids(
     ~normalize,
     ~render_normalized,
     ~ctx=Some(ctx),

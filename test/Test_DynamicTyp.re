@@ -74,20 +74,20 @@ let group_regions =
   go(fragments) |> List.filter(((text, _)) => text != "");
 };
 
-/* The marking, as DynamicTypInfer does it: normalize both types with the
+/* The colouring, as DynamicTypInfer does it: normalize both types with the
    renderer's own pass, diff the NORMALIZED forms, and render that same
-   normalized dynamic type once. Normalizing first is what lets the marks
+   normalized dynamic type once. Normalizing first is what lets the dynamic_ids
    name the parens -- they are nodes only after normalization -- and the
    single render matters because normalize_typ mints a fresh id per added
    Parens. */
-let mark_and_render =
+let dynamic_ids_and_render =
     (~ctx: option(Ctx.t)=?, static_typ: Typ.t, dynamic_typ: Typ.t)
     : (Id.t => list(string), Segment.t) => {
   let static_n = ExpToSegment.normalize_typ(~settings, static_typ);
   let dynamic_n = ExpToSegment.normalize_typ(~settings, dynamic_typ);
-  let marks = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
+  let dynamic_ids = Typ.diff(~ctx?, static_n, dynamic_n) |> Id.Set.of_list;
   (
-    id => Id.Set.mem(id, marks) ? ["dynamic"] : [],
+    id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [],
     ExpToSegment.normalized_typ_to_segment(~settings, dynamic_n),
   );
 };
@@ -95,7 +95,7 @@ let mark_and_render =
 /* Given static and dynamic types, return grouped regions of (text, classes) */
 let classify_regions =
     (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, list(string))) => {
-  let (classes, segment) = mark_and_render(static_typ, dynamic_typ);
+  let (classes, segment) = dynamic_ids_and_render(static_typ, dynamic_typ);
   segment_fragments(classes, segment) |> group_regions;
 };
 
@@ -248,7 +248,8 @@ let arrow_diff_codomain_test =
 let classify_regions_ctx =
     (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
     : list((string, list(string))) => {
-  let (classes, segment) = mark_and_render(~ctx, static_typ, dynamic_typ);
+  let (classes, segment) =
+    dynamic_ids_and_render(~ctx, static_typ, dynamic_typ);
   segment_fragments(classes, segment) |> group_regions;
 };
 
@@ -377,7 +378,8 @@ let qcheck_all_piece_ids_classified =
         QCheck_Util.arb_typ(~minimal_idents=true, 7),
       ),
       ((static_typ, dynamic_typ)) => {
-        let (classes, segment) = mark_and_render(static_typ, dynamic_typ);
+        let (classes, segment) =
+          dynamic_ids_and_render(static_typ, dynamic_typ);
         let fragments = segment_fragments(classes, segment);
         /* Every fragment should produce a valid class list (empty or non-empty) */
         List.for_all(

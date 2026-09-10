@@ -140,12 +140,12 @@ let view_type = (~globals, ~live_typing_info: option(Info.t)=?, typ: Typ.t) => {
     };
   /* Same pipeline as the type probe's Dynamic mode: normalize both, diff the
      normalized forms, render the normalized dynamic type once. Rendering the
-     type again here would re-normalize it and produce a segment the marks do
+     type again here would re-normalize it and produce a segment the dynamic ids do
      not describe. */
-  let (seg, marks) =
+  let (seg, dynamic_ids) =
     switch (dyn_type) {
     | Some(dynamic_typ) when !Typ.fast_equal(typ, dynamic_typ) =>
-      Haz3lcore.DynamicTypInfer.segment_and_marks(
+      Haz3lcore.DynamicTypInfer.segment_and_dynamic_ids(
         ~normalize=
           Haz3lcore.ExpToSegment.normalize_typ(~settings=code_view_settings),
         ~render_normalized=
@@ -166,7 +166,7 @@ let view_type = (~globals, ~live_typing_info: option(Info.t)=?, typ: Typ.t) => {
     };
   seg
   |> CodeViewable.view_segment(~globals, ~classes=id =>
-       Id.Set.mem(id, marks) ? ["dynamic"] : []
+       Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []
      )
   |> code_box_container;
 };
