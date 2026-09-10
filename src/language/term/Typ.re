@@ -1265,11 +1265,16 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   };
 
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids.
-   [expanded_aliases] holds the names expanded on the current chain of Var
-   lookups, so a cyclic alias (`type A = B in type B = A`) stops instead of
-   looping. Every other case resets it: a structural descent consumes a
-   constructor from the finite left type, so only a chain of consecutive
-   expansions can run forever. */
+
+   PRECONDITION: [ctx] holds no alias cycle whose bodies are all Var, Parens or
+   Projector (`type A = (B) in type B = (A)`). [expanded_aliases] holds the names
+   expanded on the current chain of Var lookups, which stops the bare cycle
+   (`type A = B in type B = A`), but only the two Var cases thread it through --
+   every other case resets it, so a cycle passing through a Parens or Projector
+   on either side expands forever. These recursive calls are in tail position,
+   so violating this spins rather than overflowing the stack.
+   Statics cannot currently build such a ctx: weak_head_normalize fails on a
+   cyclic alias before the type reaches a caller here. */
 let rec diff =
         (
           ~ctx: option(Ctx.t)=?,
