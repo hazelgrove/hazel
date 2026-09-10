@@ -9,6 +9,11 @@ type t = {
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
   targets: Sample.targets, /* Maps expr/pat IDs to capture specs for sampling */
+  /* The PLACED probe ids (manuals + ephemerals) these targets were built from.
+     `targets` also holds ids derived from the program -- probe_all's, and live
+     typing's unknown-typed ids -- so it cannot be compared against the
+     zipper's probes to detect a probe-set change. This can. */
+  probe_ids: Id.Map.t(unit),
   live_typing_info_map: Statics.Map.t,
   live_typing_error_ids: list(Id.t),
 };
@@ -26,6 +31,7 @@ let empty: t = {
   error_ids: [],
   warning_ids: [],
   targets: Sample.no_targets,
+  probe_ids: Id.Map.empty,
   live_typing_info_map: Id.Map.empty,
   live_typing_error_ids: [],
 };
@@ -162,6 +168,7 @@ let init_from_term =
     error_ids,
     warning_ids,
     targets,
+    probe_ids,
     live_typing_info_map: Statics.Map.empty,
     live_typing_error_ids: [],
   };
@@ -177,6 +184,7 @@ let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
   {
     ...s,
     targets,
+    probe_ids,
   };
 };
 
