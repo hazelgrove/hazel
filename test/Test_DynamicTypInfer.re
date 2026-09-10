@@ -192,8 +192,74 @@ in [f(true), f(false)]|},
   ),
 ];
 
+/* === Marking the rendered dynamic type === */
+
+/* When statics knew nothing, the whole type came from runtime, so every tile
+   of the rendered segment must be marked.
+
+   Driven through displayed_segment_and_marks with ProjectorInfo.utility --
+   the composition the projector runs -- because the ids that reach the
+   renderer are the ones statics put on the inferred type, and those are what
+   broke: Typ.temp stamps every node with Id.invalid, so the marks collapsed
+   to one id and uniquify_repeated_tiles freshened away every tile but the
+   first. A generator cannot rediscover this: QCheck_Util.arb_typ mints a
+   distinct id per node, which is the precondition production violates. */
+let unmarked_tiles_test = (name: string, code: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (probes, info_map) = evaluate_probes(code);
+      let samples = first_probe_samples(probes);
+      let ctx =
+        switch (Id.Map.bindings(probes)) {
+        | [(probe_id, _), ..._] =>
+          switch (Statics.Map.lookup(probe_id, info_map)) {
+          | Some(info) => Info.ctx_of(info)
+          | None => Builtins.ctx_init(Some(Int))
+          }
+        | [] => Builtins.ctx_init(Some(Int))
+        };
+      let (seg, marks) =
+        DynamicTypInfer.displayed_segment_and_marks(
+          ~normalize=ProjectorInfo.utility.normalize_typ(~inline=true),
+          ~render_normalized=
+            ProjectorInfo.utility.render_normalized_typ(~inline=true),
+          ~ctx,
+          ~static_typ=Typ.fresh(Unknown(Internal)),
+          ~samples,
+        );
+      check(
+        list(string),
+        "tiles of a wholly runtime-derived type left unmarked",
+        [],
+        Segment.tile_ids(seg)
+        |> List.filter(id => !Id.Set.mem(id, marks))
+        |> List.map(id => Id.str8(id)),
+      );
+    },
+  );
+
+let mark_tests = [
+  unmarked_tiles_test("Tuple", {|^^probe((1, 2))|}),
+  unmarked_tiles_test("List", {|^^probe([1, 2, 3])|}),
+  unmarked_tiles_test("Nested tuple", {|^^probe((1, ("a", true)))|}),
+  unmarked_tiles_test("Arrow", {|let f = fun x -> x + 1 in ^^probe(f)|}),
+  unmarked_tiles_test(
+    "User-defined ADT",
+    {|type T = Some(Int) + None in ^^probe(Some(42))|},
+  ),
+  unmarked_tiles_test(
+    "Type alias",
+    {|type Pair = (Int, String)
+in let p : Pair = (1, "a")
+in ^^probe(p)|},
+  ),
+];
+
 let tests = [
   ("DynamicTypInfer.Basic", basic_tests),
   ("DynamicTypInfer.Meet", meet_tests),
   ("DynamicTypInfer.UserTypes", user_type_tests),
+  ("DynamicTypInfer.Marks", mark_tests),
 ];

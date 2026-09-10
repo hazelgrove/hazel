@@ -62,7 +62,14 @@ let displayed_segment_and_marks =
     : (Base.segment, Id.Set.t) => {
   let dynamic_typ = dynamic_typ_of_samples_or_unknown(~ctx, samples);
   let static_n = normalize(static_typ);
-  let dynamic_n = normalize(dynamic_typ);
+  /* Statics builds types with Typ.temp, so every node of one carries the
+     Id.invalid sentinel rather than a distinct id. Left in, the sentinel
+     collapses the marks: the renderer freshens duplicate tile ids, so every
+     token but the first ends up in no type and unmarkable, and `diff`'s
+     wrapped_replaced test fires on any node sharing the sentinel with a
+     replaced one. Replaced here rather than where the type is inferred
+     because this is where a type's ids become the ids of rendered tokens. */
+  let dynamic_n = normalize(Typ.replace_temp(dynamic_typ));
   let marks = Typ.diff(~ctx, static_n, dynamic_n) |> Id.Set.of_list;
   (render_normalized(dynamic_n), marks);
 };

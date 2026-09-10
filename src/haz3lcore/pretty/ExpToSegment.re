@@ -1135,13 +1135,16 @@ let pad_ids =
 let necessary_ids: Typ.t => int =
   ty =>
     switch (ty.term) {
-    /* "()" and "Void" render from rep_id */
+    /* "()", "Void" and "{}" render from rep_id */
     | Prod([]) => 1
     | Sum([]) => 1
+    | Sig([]) => 1
     /* one id per separator */
     | Prod(tys) => List.length(tys) - 1
     /* one id per variant; the single-variant form renders from rep_id */
     | Sum(tys) => max(1, List.length(tys))
+    /* rep_id for the braces, then one id per `;` between items */
+    | Sig(items) => max(1, List.length(items))
     /* one grout id between entries */
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
     /* every other form renders from rep_id alone */

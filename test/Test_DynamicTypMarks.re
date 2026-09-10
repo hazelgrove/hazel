@@ -27,26 +27,6 @@ let settings: ExpToSegment.Settings.t = {
 let normalize = ExpToSegment.normalize_typ(~settings);
 let render_normalized = ExpToSegment.normalized_typ_to_segment(~settings);
 
-/* Only tiles carry a class: Code.re classes tiles and ignores Grout and
-   Secondary, so those ids are not candidates. */
-let rec tile_ids = (seg: Segment.t): Id.Set.t =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        List.fold_left(
-          (a, c) => Id.Set.union(a, tile_ids(c)),
-          Id.Set.add(t.id, acc),
-          t.children,
-        )
-      | Grout(_)
-      | Secondary(_)
-      | Projector(_) => acc
-      },
-    Id.Set.empty,
-    seg,
-  );
-
 /* The marks, and the one render they describe, reported two ways. Mirrors
    DynamicTypInfer.displayed_segment_and_marks: normalize both, diff the
    normalized forms, render the normalized dynamic type once.
@@ -62,7 +42,11 @@ let marks_and_rendered =
   let dynamic_n = normalize(dynamic_typ);
   let marks = Typ.diff(static_n, dynamic_n) |> Id.Set.of_list;
   let seg = render_normalized(dynamic_n);
-  (marks, Segment.ids(seg) |> Id.Set.of_list, tile_ids(seg));
+  (
+    marks,
+    Segment.ids(seg) |> Id.Set.of_list,
+    Segment.tile_ids(seg) |> Id.Set.of_list,
+  );
 };
 
 /* SOUNDNESS. Every marked id must appear somewhere in the render. An id that
@@ -171,6 +155,22 @@ let count_tests =
         );
         check_count("Void renders from rep_id", 1, Sum([]) |> Typ.temp);
         check_count("Int renders from rep_id", 1, int());
+        check_count(
+          "an empty sig renders from rep_id",
+          1,
+          Sig([]) |> Typ.temp,
+        );
+        let sig_item = (): Sig.t => Sig.temp(EmptyHole);
+        check_count(
+          "a one-item sig renders from rep_id",
+          1,
+          Sig([sig_item()]) |> Typ.temp,
+        );
+        check_count(
+          "a three-item sig needs two separators plus rep_id",
+          3,
+          Sig([sig_item(), sig_item(), sig_item()]) |> Typ.temp,
+        );
       },
     ),
   ];
