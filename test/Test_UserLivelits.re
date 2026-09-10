@@ -771,7 +771,12 @@ shift(p0)";
       Id.Map.fold(
         (id, samples, acc) =>
           switch (acc, Id.Map.find_opt(id, info_map)) {
-          | (None, Some(Info.InfoExp({ty, _}) as info)) =>
+          /* a site OUTSIDE the livelit (its ctx binds ^point): the view's
+             own parameter is Point-typed too, but ^point is not in scope
+             there — and Id.Map order depends on the ids the suite has
+             minted so far */
+          | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
+              when Ctx.lookup_livelit(ctx, "point") != None =>
             switch (Typ.term_of(ty)) {
             | Var("Point") =>
               switch (samples) {

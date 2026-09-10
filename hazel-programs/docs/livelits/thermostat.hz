@@ -165,7 +165,7 @@ let hour_plan(s: Schedule, h: Hour): Plan =
   (decide(target, now), target) in
 
 let schedule : Schedule = ^^livelit(^schedule([(Hour(6), Deg(68)), (Hour(9), Deg(64)), (Hour(17), Deg(70)), (Hour(22), Deg(62))])) in
-let hours : [Hour] = map(range(0, 24), fun n: Int -> Hour(n)) in
+let hours : [Hour] = map(range(0, 23), fun n: Int -> Hour(n)) in
 let day : [Plan] = map(hours, fun h: Hour -> hour_plan(schedule, h)) in
 let running : Int = length(filter(day, fun (m, _): Plan -> m != Off)) in
 

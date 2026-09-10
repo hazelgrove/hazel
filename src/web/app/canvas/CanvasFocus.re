@@ -391,6 +391,18 @@ and value_site_impl =
       | Some(syntax) => inside_livelit(~spans, ~syntax, id)
       | None => false
       };
+    let is_app_site = (id: Id.t): bool =>
+      switch (syntax) {
+      | Some(syntax) =>
+        List.mem(id, syntax.projector_list)
+        && (
+          switch (Id.Map.find_opt(id, syntax.projectors)) {
+          | Some(p) => p.kind == ProjectorCore.Kind.Livelit
+          | None => false
+          }
+        )
+      | None => false
+      };
     let inside = (id: Id.t): bool =>
       switch (within, syntax) {
       | (Some((l, r)), Some(syntax)) =>
@@ -408,10 +420,32 @@ and value_site_impl =
       switch (focus, Id.Map.find_opt(id, info_map)) {
       | (Some(cursor), Some(info)) when cursor.anchor != None =>
         let ap_id = Language.Sample.Focus.cur_var_ap(info);
+        let is_pat =
+          switch (info) {
+          | Language.Info.InfoPat(_) => true
+          | _ => false
+          };
         List.exists(
-          (s: Language.Sample.t) =>
-            Language.Sample.Focus.relation(~trimmed=true, ~ap_id, cursor, s).
-              is_call_cursor,
+          (s: Language.Sample.t) => {
+            let r =
+              Language.Sample.Focus.relation(
+                ~trimmed=true,
+                ~ap_id,
+                cursor,
+                s,
+              );
+            r.is_call_cursor
+            /* a PARAMETER's sample is taken one frame up from the body's
+               sites of the same call: still the same call */
+            || is_pat
+            && (
+              switch (r.relative_level_to_cursor) {
+              | Above(1)
+              | Below(1) => true
+              | _ => false
+              }
+            );
+          },
           samples,
         );
       | _ => false
@@ -445,13 +479,43 @@ and value_site_impl =
               -1,
               samples,
             );
+          let n_samples = List.length(samples);
+          let depth =
+            List.fold_left(
+              (m, s: Language.Sample.t) =>
+                min(m, List.length(s.call_stack)),
+              max_int,
+              samples,
+            );
+          /* HISTORY = distinct values, not samples: a step function's
+             output has one sample per step and all of them differ; a
+             helper's parameter has hundreds of copies of the same few */
+          let distinct =
+            List.fold_left(
+              (reps, s: Language.Sample.t) =>
+                List.exists(r => Language.Exp.fast_equal(r, s.value), reps)
+                  ? reps : [s.value, ...reps],
+              [],
+              /* bounded: 240 samples of a helper's parameter need no
+                 exact count to lose to a step function's 10 */
+              Util.ListUtil.take(48, samples),
+            )
+            |> List.length;
           let rank = (
+            /* an app's own site last: its stream is the app's, and the
+               app has its own node */
+            is_app_site(id) ? 0 : 1,
             aligned(id, samples) ? 1 : 0,
             inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,
             rich_ok(id, newest_s) ? 1 : 0,
-            /* a site with HISTORY (← → walk it) over a single value */
-            List.length(samples) > 1 ? 1 : 0,
+            /* the richest history (← → walk it) … */
+            distinct,
+            /* … told in the fewest samples … */
+            - n_samples,
+            /* … at the shallowest call (the step function's own frame,
+               where the other cards' sites align exactly) */
+            - depth,
             newest,
           );
           switch (best) {

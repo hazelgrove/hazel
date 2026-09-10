@@ -2059,11 +2059,14 @@
    position: width/height/border-radius transition, so the circle
    morphs into the rounded rectangle and back; FLIP moves it. Only the
    view and the type caption — no chrome. */
+/* the morph runs on the relayout beat's timing (CanvasBuffer.relayout_ms,
+   easeOutExpo), so the edges — morphed by Animation.re on that timing —
+   stay attached to the growing or shrinking card */
 .canvas-node {
   transition:
-    width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    width 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.55s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .canvas-node.node-card {
   border-radius: 14px;

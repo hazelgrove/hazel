@@ -10,6 +10,8 @@ type Board = [Cell] in
 type Move = + At(Int) in
 type Outcome = + Won(Player) + Draw + Playing in
 type State = (Board, Player, Outcome) in
+# the game is its list of moves: the app's value, replayed below #
+type Game = [Move] in
 
 # ---- value views (no controls); defined first, so every site below can use them ---- #
 
@@ -90,7 +92,7 @@ let ^move = {
     case m
     | At(k) =>
       Node("svg", [Create("viewBox", "0 0 64 64"), Width("64"), Height("64")],
-        map(range(0, 9), fun i: Int ->
+        map(range(0, 8), fun i: Int ->
           Node("rect", [Create("x", string_of_int(2 + (int_mod(i, 3)) * 20)),
                         Create("y", string_of_int(2 + (i / 3) * 20)),
                         Create("width", "18"), Create("height", "18"), Create("rx", "4"),
@@ -103,18 +105,18 @@ let ^move = {
 
 let empty : Board = [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty] in
 let other(p: Player): Player = case p | X => O | O => X end in
-let cell(b: Board, i: Int): Cell = nth(b, i) in
 let put(b: Board, i: Int, p: Player): Board =
   mapi(b, fun (j: Int, c: Cell) -> if j == i then Mark(p) else c) in
-let line(b: Board, i: Int, j: Int, k: Int): Outcome =
-  case (cell(b, i), cell(b, j), cell(b, k))
-  | (Mark(p), Mark(q), Mark(r)) => if p == q && q == r then Won(p) else Playing
-  | _ => Playing
-  end in
 let winner(b: Board): Outcome =
+  let at(i: Int): Cell = nth(b, i) in
+  let line((i, j, k): (Int, Int, Int)): Outcome =
+    case (at(i), at(j), at(k))
+    | (Mark(p), Mark(q), Mark(r)) => if p == q && q == r then Won(p) else Playing
+    | _ => Playing
+    end in
   let lines = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)] in
-  let wins = filter_map(lines, fun (i: Int, j: Int, k: Int) ->
-    case line(b, i, j, k) | Won(p) => Some(Won(p)) | _ => None end) in
+  let wins = filter_map(lines, fun l: (Int, Int, Int) ->
+    case line(l) | Won(p) => Some(Won(p)) | _ => None end) in
   case wins
   | w::_ => w
   | [] => if exists(b, fun c: Cell -> c == Empty) then Playing else Draw
@@ -124,14 +126,14 @@ let winner(b: Board): Outcome =
 let advance((b, p, o): State, m: Move): State =
   case (o, m)
   | (Playing, At(i)) =>
-    if cell(b, i) == Empty then
+    if nth(b, i) == Empty then
       let next : Board = put(b, i, p) in
       (next, other(p), winner(next))
     else (b, p, o)
   | _ => (b, p, o)
   end in
 
-let replay(moves: [Move]): State =
+let replay(moves: Game): State =
   fold_left(moves, advance, (empty, X, Playing)) in
 
 let open_cells(b: Board): [Move] =
@@ -141,7 +143,7 @@ let open_cells(b: Board): [Move] =
 # the app: its model is the move log; a click appends a move. Its view #
 # reads the program (replay), so it renders from the live evaluation.  #
 let ^game = {
-  type Model = [Move];
+  type Model = Game;
   type Action = + Play(Int);
   let cell_svg(i: Int, c: Cell): HTML =
     let x = 4 + (int_mod(i, 3)) * 40 in
@@ -162,12 +164,12 @@ let ^game = {
     let (b, _, _) = replay(log) in
     Node("svg", [Create("viewBox", "0 0 124 124"), Width("124"), Height("124")],
          mapi(b, fun (i: Int, c: Cell) -> cell_svg(i, c)));
-  let expand(log: Model): [Move] = log;
+  let expand(log: Model): Game = log;
   let shape : LivelitShape = Tab(11, 6)
 } in
 
-let moves : [Move] = ^^livelit(^game([At(4), At(0), At(8), At(2), At(1)])) in
-let (board, to_move, outcome) : State = replay(moves) in
+let game : Game = ^^livelit(^game([At(4), At(0), At(8), At(2), At(1)])) in
+let (board, to_move, outcome) : State = replay(game) in
 let options : [Move] = open_cells(board) in
 
 (board, to_move, outcome, length(options))

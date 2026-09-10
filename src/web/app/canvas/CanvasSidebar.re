@@ -669,6 +669,11 @@ let ty_syntax = (n: CanvasGraph.tynode): string =>
 let fit_pending: ref(bool) = ref(false);
 /* a card just opened / resized: pan it into view after the render */
 let reveal_pending: ref(option(string)) = ref(Option.none);
+/* the render right after a burst ends re-frames the graph: that one big
+   move is the tidy act. A big move the USER caused (a card opening pushes
+   its neighbours) is not scored: it plays on the staged beat at once,
+   not after an actor's drift. */
+let burst_end_reframe: ref(bool) = ref(false);
 
 /* ---- imperative layout follow (node drag, card resize): apply a
    layout's geometry straight to the DOM — no vdom, no app render ---- */
@@ -1035,6 +1040,7 @@ let view_impl =
     let pl = CanvasBuffer.pacing_live();
     if (last_pacing_live^ && !pl) {
       CanvasBuffer.stage_beat(~slow=true, ());
+      burst_end_reframe := true;
     };
     last_pacing_live := pl;
   };
@@ -2252,7 +2258,18 @@ let view_impl =
        while it was a card. Armed INSIDE the effect: this function is
        called at render time to build the cards' callbacks. */
     let arm_reveal =
-      Ui_effect.of_sync_fun(() => reveal_pending := Option.some(key), ());
+      Ui_effect.of_sync_fun(
+        () => {
+          reveal_pending := Option.some(key);
+          /* the circle ↔ card morph is a relayout beat: the edges morph
+             to the new rim on the movers' timing instead of snapping
+             ahead of the growing card */
+          if (!Animation.staged()) {
+            CanvasBuffer.stage_beat(~slow=true, ());
+          };
+        },
+        (),
+      );
     /* opening a card is a request for live values: turn sampling on if
        it is off, and end the agent-burst mask if it is holding samples
        back — the user asked, so the evaluation goes out now */
@@ -2530,10 +2547,26 @@ let view_impl =
             ~syntax=editor.editor.syntax,
             key,
           );
+        let is_livelit_node =
+          switch (
+            List.find_opt(
+              (n: CanvasGraph.tynode) => n.key == key,
+              graph.nodes,
+            )
+          ) {
+          | Some(n) => Language.UserLivelit.is_livelit_name(n.label)
+          | None => false
+          };
         let content =
           switch (site) {
           | Some(id) =>
-            CanvasProbe.card_view(~globals, ~editor, ~key="ty/" ++ key, id)
+            CanvasProbe.card_view(
+              ~globals,
+              ~editor,
+              ~key="ty/" ++ key,
+              ~app=is_livelit_node,
+              id,
+            )
           | None => None
           };
         let content =
@@ -2555,7 +2588,9 @@ let view_impl =
                 (slide, key),
                 globals.settings.sidebar.canvas_card_sizes,
               ),
-            List.mem(key, globals.settings.sidebar.canvas_card_live),
+            /* an app's card opens LIVE (the toggle then means "node") */
+            is_livelit_node
+            != List.mem(key, globals.settings.sidebar.canvas_card_live),
             toggle_value_node(key),
             start_card_resize(key),
             globals.inject_global(Set(Sidebar(ToggleCanvasCardLive(key)))),
@@ -4178,7 +4213,9 @@ let view_impl =
           || changed_edges != []
         )
         || big_move
+        && burst_end_reframe^
       );
+    burst_end_reframe := false;
     if (scored) {
       /* a render nobody staged (the burst-end re-frame) still needs its
          movers recorded before the patch, or the drift is a jump */

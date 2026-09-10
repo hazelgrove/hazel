@@ -1575,8 +1575,26 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     );
   switch (cursor_idx) {
   | Some(idx) =>
-    let next_idx_maybe = idx - offset;
-    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
+    let n = List.length(samples);
+    /* a CARD steps to the next DISTINCT value: a site referenced several
+       times per step, or replayed twice, holds runs of equal samples,
+       and walking them one by one reads as the key doing nothing */
+    let next_idx_maybe =
+      if (ctx.card) {
+        let cur = List.nth(samples, idx).value;
+        let rec find = i =>
+          if (i < 0 || i >= n) {
+            i;
+          } else if (Exp.fast_equal(List.nth(samples, i).value, cur)) {
+            find(i - offset);
+          } else {
+            i;
+          };
+        find(idx - offset);
+      } else {
+        idx - offset;
+      };
+    if (next_idx_maybe >= 0 && next_idx_maybe < n) {
       let sample = List.nth(samples, next_idx_maybe);
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */

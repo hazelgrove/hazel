@@ -247,8 +247,11 @@ let app_view =
   };
 };
 
-let card_view = (~globals, ~editor, ~key, id) =>
-  is_app_site(~editor, id)
+/* ~app: the card belongs to a livelit's own node — the app itself. A
+   TYPE's card shows values, even at the app's site (its stream holds
+   the app's values too). */
+let card_view = (~globals, ~editor, ~key, ~app: bool=false, id) =>
+  app && is_app_site(~editor, id)
     ? app_view(~globals, ~editor, id)
     : view(~globals, ~editor, ~key, ~card=true, id);
 
