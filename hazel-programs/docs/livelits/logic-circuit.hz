@@ -45,14 +45,13 @@ let ^circuit = {
 
   let s : Int -> String = string_of_int;
 
-  let glow(on: Bool): String = if on then "#3a3" else "#bbb";
+  let glow(on: Bool): String = if on then "#b3d3b4" else "#8295a4";
 
   let wire(x1: Int, y1: Int, x2: Int, y2: Int, on: Bool): HTML =
-    Node("line",
-      [Create("x1", s(x1)), Create("y1", s(y1)),
-       Create("x2", s(x2)), Create("y2", s(y2)),
-       Create("stroke", glow(on)), Create("stroke-width", "3")],
-      []);
+    let mid = (x1 + x2) / 2 in
+    Node("path", [Create("d", "M" ++ s(x1) ++ " " ++ s(y1) ++ " H" ++ s(mid) ++ " V" ++ s(y2) ++ " H" ++ s(x2)),
+                  Create("fill", "none"), Create("stroke", glow(on)), Create("stroke-width", "2.5"),
+                  Create("stroke-linejoin", "round"), Create("stroke-linecap", "round")], []);
 
   let caption(x: Int, y: Int, size: String, str: String): HTML =
     Node("text",
@@ -64,29 +63,29 @@ let ^circuit = {
     Node("g", [OnClick(Flip(i)), Style([("cursor", "pointer")])], [
       Node("circle",
         [Create("cx", "22"), Create("cy", s(y)), Create("r", "11"),
-         Create("fill", glow(on)), Create("stroke", "#444")],
+         Create("fill", glow(on)), Create("stroke", "#344b60")],
         []),
-      caption(22, y + 4, "11", name)]);
+      Node("g", [Create("fill", "#2e465b")], [caption(22, y + 4, "10", name)])]);
 
   let gate(i: Int, g: String, x: Int, y: Int, on: Bool): HTML =
     Node("g", [OnClick(Cycle(i)), Style([("cursor", "pointer")])], [
-      Node("rect",
-        [Create("x", s(x)), Create("y", s(y - 15)), Create("width", "50"),
-         Create("height", "30"), Create("rx", "6"), Create("fill", "#fff"),
-         Create("stroke", glow(on)), Create("stroke-width", "3")],
-        []),
-      caption(x + 25, y + 4, "12", g)]);
+      Node("path", [Create("d", "M" ++ s(x - 3) ++ " " ++ s(y - 5) ++ " h3 m-3 10 h3 M" ++ s(x + 50) ++ " " ++ s(y) ++ " h3"),
+                    Create("stroke", "#bdc9ce"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+      Node("rect", [Create("x", s(x)), Create("y", s(y - 14)), Create("width", "50"), Create("height", "30"), Create("rx", "3"), Create("fill", "#344b60")], []),
+      Node("rect", [Create("x", s(x)), Create("y", s(y - 15)), Create("width", "50"), Create("height", "29"), Create("rx", "3"),
+                    Create("fill", "#627c91"), Create("stroke", "#9fb2c0"), Create("stroke-width", "0.7")], []),
+      Node("circle", [Create("cx", s(x + 5)), Create("cy", s(y - 9)), Create("r", "1.5"), Create("fill", glow(on))], []),
+      caption(x + 25, y + 4, "10", g)]);
 
   let view((gates, ins): Model): HTML =
     let (g0, g1, out) = signals(gates, ins) in
     let bit(i: Int): Bool = nth(ins, i) in
     Node("svg",
-      [Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
-       Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
-              ("font-family", "sans-serif")])],
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145")],
       [wire(33, 30, 90, 40, bit(0)), wire(33, 55, 90, 50, bit(1)),
        wire(33, 90, 90, 95, bit(2)), wire(33, 115, 90, 105, bit(3)),
-       wire(140, 45, 175, 65, g0), wire(140, 100, 175, 80, g1),
+       wire(140, 45, 175, 67, g0), wire(140, 100, 175, 77, g1),
        wire(225, 72, 240, 72, out),
        terminal(0, "A", 30, bit(0)), terminal(1, "B", 55, bit(1)),
        terminal(2, "C", 90, bit(2)), terminal(3, "D", 115, bit(3)),
@@ -94,7 +93,7 @@ let ^circuit = {
        gate(2, nth(gates, 2), 175, 72, out),
        Node("circle",
          [Create("cx", "246"), Create("cy", "72"), Create("r", "8"),
-          Create("fill", if out then "gold" else "#ddd"), Create("stroke", "#444")],
+          Create("fill", if out then "#efcb82" else "#405a70"), Create("stroke", "#344b60")],
          [])]);
 
   let expand((gates, ins): Model): Circuit = Circuit(gates, ins);

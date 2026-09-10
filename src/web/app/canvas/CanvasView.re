@@ -731,6 +731,14 @@ let node_view =
         |> Float.min(6.)
       | _ => 1.
       };
+    /* Views with their own edge treatment can opt out of the ordinary
+       gutter without changing the sizing of other cards. */
+    let card_bleed_zoom =
+      switch (natural) {
+      | Some((nw, nh)) when nw > 1. && nh > 1. =>
+        Float.min(w /. nw, h /. nh) |> Float.max(0.15) |> Float.min(6.)
+      | _ => 1.
+      };
     /* the card is the node: same element (keyed), centered on the node's
        position, so the circle morphs into the rounded rectangle (CSS
        transitions on size and radius; FLIP moves it). Only the view and
@@ -748,12 +756,13 @@ let node_view =
           Attr.create(
             "style",
             Printf.sprintf(
-              "left: %spx; top: %spx; width: %spx; height: %spx; --card-zoom: %.4f;",
+              "left: %spx; top: %spx; width: %spx; height: %spx; --card-zoom: %.4f; --card-bleed-zoom: %.4f;",
               fmt(nl.p.x),
               fmt(nl.p.y),
               fmt(w),
               fmt(h),
               card_zoom,
+              card_bleed_zoom,
             ),
           ),
           Attr.create("data-card-key", n.key),

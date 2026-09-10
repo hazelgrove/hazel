@@ -18,13 +18,13 @@ let ^pct = {
 
   let view(m: Model): HTML =
     Div(
-      [Style([("display", "flex"), ("gap", "0.5em"),
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("gap", "0.5em"),
               ("align-items", "center"),
               ("font-family", "var(--code-font)"),
               ("font-size", "0.8em")])],
       [
         Input([
-          Type("range"), Min("0"), Max("100"),
+          Create("aria-label", "Percent"), Type("range"), Min("0"), Max("100"),
           Value(string_of_int(m)),
           OnInput(fun (s: String) -> int_of_string(s))
         ]),

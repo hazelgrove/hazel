@@ -106,27 +106,25 @@ let ^fleet = {
   # the chart frame: a baseline, then the given drawing #
   let canvas(extra: [Attr], drawing: HTML): HTML =
     Node("svg",
-      [Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
-       Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
-              ("font-family", "sans-serif")])]
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+              ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145")]
       @ extra,
       [Node("line",
          [Create("x1", "4"), Create("y1", "125"),
-          Create("x2", "256"), Create("y2", "125"), Create("stroke", "#888")],
+          Create("x2", "256"), Create("y2", "125"), Create("stroke", "#b4c4d0")],
          []),
        drawing]);
 
   let view((units, drag, _): Model): HTML =
     Div(
-      [Create("data-hint", "drag a bar top: cost; click: on/off"),
-       Style([("cursor", "ns-resize")])],
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ns-resize")]), Create("data-hint", "drag a bar top: cost; click: on/off")],
       [canvas(
          [OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
           OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
           OnMouseUpAt(fun _ -> Up)],
          bars(map(order(units), fun (i: Int, (n, w, c, av): Gen) ->
                     (n, w, c,
-                     if i == drag then "orange" else if av then "#5ab" else "#ccc")),
+                     if i == drag then "#e9c182" else if av then "#a6d3ee" else "#7c8fa0")),
               0))]);
 
   let expand((units, _, _): Model): Fleet = Fleet(units);
@@ -191,14 +189,14 @@ let chart(d: Dispatch): HTML =
     ^fleet.canvas([], Node("g", [], [
       ^fleet.bars(map(rows, fun (n: String, w: Int, c: Int, run: Int) ->
                          (n, w, c,
-                          if n == marginal then "orange"
-                          else if run > 0 then "#3a3"
-                          else "#ccc")),
+                          if n == marginal then "#e9c182"
+                          else if run > 0 then "#b3d3b4"
+                          else "#7c8fa0")),
                   0),
       Node("line",
         [Create("x1", s(^fleet.px(demand))), Create("y1", "4"),
          Create("x2", s(^fleet.px(demand))), Create("y2", "125"),
-         Create("stroke", "red"), Create("stroke-dasharray", "4 2")],
+         Create("stroke", "#f2ab98"), Create("stroke-dasharray", "4 2")],
         []),
       Node("text",
         [Create("x", "254"), Create("y", "14"), Create("font-size", "10"),

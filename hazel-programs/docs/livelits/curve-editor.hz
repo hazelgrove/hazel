@@ -76,7 +76,7 @@ let ^curve = {
   let dot((x, y): Point, held: Bool): HTML =
     Node("circle",
       [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)),
-       Create("r", "6"), Create("fill", if held then "coral" else "teal")],
+       Create("r", "5"), Create("stroke", "#354e63"), Create("stroke-width", "1.5"), Create("fill", if held then "#f2ab98" else "#a6d3ee")],
       []);
 
   let path(pts: [Point]): String =
@@ -85,23 +85,19 @@ let ^curve = {
 
   let view((pts, drag, _): Model): HTML =
     Div(
-      [Create("data-hint", "drag a point; click removes; press empty space adds"),
-       Style([("display", "flex"), ("flex-direction", "column")])],
+      [Class("blue-hour-view"), Create("title", string_of_int(length(pts)) ++ " points"), Style([("position", "relative"), ("width", "max-content"), ("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("flex-direction", "column")]), Create("data-hint", "drag a point; click removes; press empty space adds")],
       [Node("svg",
-         [Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
-          Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
-                 ("cursor", "crosshair")]),
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+                 ("cursor", "crosshair")]), Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
+
           OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
           OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
           OnMouseUpAt(fun _ -> Up)],
          Node("polyline",
            [Create("points", path(pts)), Create("fill", "none"),
-            Create("stroke", "#555"), Create("stroke-width", "2")],
+            Create("stroke", "#dce5e9"), Create("stroke-width", "2")],
            [])
-         :: mapi(pts, fun (i: Int, p: Point) -> dot(p, i == drag))),
-       Div([Style([("font-size", "0.7em"), ("line-height", "20px"),
-                   ("color", "#888")])],
-           [Text(string_of_int(length(pts)) ++ " points")])]);
+         :: mapi(pts, fun (i: Int, p: Point) -> dot(p, i == drag)))]);
 
   let expand((pts, _, _): Model): Curve = Curve(pts);
 

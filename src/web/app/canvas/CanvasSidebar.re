@@ -2301,6 +2301,20 @@ let view_impl =
               |],
             ),
           );
+          let zb =
+            Float.min(w /. nw, h /. nh)
+            |> Float.max(0.15)
+            |> Float.min(6.);
+          ignore(
+            Js.Unsafe.meth_call(
+              st,
+              "setProperty",
+              [|
+                Js.Unsafe.inject(Js.string("--card-bleed-zoom")),
+                Js.Unsafe.inject(Js.string(Printf.sprintf("%.4f", zb))),
+              |],
+            ),
+          );
         | _ => ()
         };
       | Option.None => ()
@@ -2568,7 +2582,7 @@ let view_impl =
             Js.Unsafe.set(
               est,
               "cssText",
-              Js.string(saved_card ++ "; --card-zoom: 1;"),
+              Js.string(saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;"),
             );
             let cst = Js.Unsafe.coerce(c)##.style;
             let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));

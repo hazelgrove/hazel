@@ -16,24 +16,26 @@ let ^temp = {
   let init : Model = Deg(68);
   let update(m: Model, _: Action): Model = m;
   let view(t: Model): HTML =
-    case t
-    | Deg(d) =>
-      let raw = (d - 40) * 60 / 50 in
-      let h = string_of_int(if raw < 0 then 0 else if raw > 60 then 60 else raw) in
-      let color = if d >= 76 then "#ef4444" else if d <= 62 then "#3b82f6" else "#22c55e" in
-      Node("svg", [Create("viewBox", "0 0 40 84"), Width("40"), Height("84")],
-        [Node("rect", [Create("x", "15"), Create("y", "6"), Create("width", "10"), Create("height", "60"),
-                       Create("rx", "5"), Create("fill", "#e5e7eb")], []),
-         Node("rect", [Create("x", "15"), Create("y", string_of_int(66 - int_of_string(h))), Create("width", "10"),
-                       Create("height", h), Create("rx", "5"), Create("fill", color)], []),
-         Node("circle", [Create("cx", "20"), Create("cy", "70"), Create("r", "9"), Create("fill", color)], []),
-         Node("text", [Create("x", "20"), Create("y", "74"), Create("font-size", "9"), Create("text-anchor", "middle"),
-                       Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")],
-              [Text(string_of_int(d))])])
+    case t | Deg(d) =>
+      let raw = (d - 40) * 64 / 50 in
+      let h = if raw < 0 then 0 else if raw > 64 then 64 else raw in
+      let color = if d >= 76 then "#f2ab98" else if d <= 62 then "#a6d3ee" else "#b3d3b4" in
+      Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 62 108"), Width("62"), Height("108"),
+                    Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+        [Node("path", [Create("d", "M20 78 V15 a5 5 0 0 1 10 0 V78 a11 11 0 1 1 -10 0"),
+                       Create("fill", "#3f576c"), Create("stroke", "#8fa4b5")], []),
+         Node("rect", [Create("x", "23"), Create("y", string_of_int(80 - h)), Create("width", "4"),
+                       Create("height", string_of_int(h)), Create("rx", "2"), Create("fill", color)], []),
+         Node("circle", [Create("cx", "25"), Create("cy", "88"), Create("r", "7"), Create("fill", color)], []),
+         Node("text", [Create("x", "41"), Create("y", "91"), Create("font-size", "11"), Create("fill", "#f2f4ef")],
+                       [Text(string_of_int(d) ++ "°")])]
+        @ map([16, 32, 48, 64], fun y: Int ->
+            Node("line", [Create("x1", "37"), Create("x2", "42"), Create("y1", string_of_int(y)),
+                           Create("y2", string_of_int(y)), Create("stroke", "#a9bbc8")], [])))
     end;
   let expand(t: Model): Temp = t;
   let wrap(t: Temp): Model = t;
-  let shape : LivelitShape = Tab(4, 5)
+  let shape : LivelitShape = Tab(6, 6)
 } in
 
 let ^mode = {
@@ -43,15 +45,14 @@ let ^mode = {
   let update(m: Model, _: Action): Model = m;
   let view(m: Model): HTML =
     let (label, color) =
-      case m | Heat => ("heat", "#ef4444") | Cool => ("cool", "#3b82f6") | Off => ("off", "#94a3b8") end in
-    Node("svg", [Create("viewBox", "0 0 72 32"), Width("72"), Height("32")],
-      [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "68"), Create("height", "28"),
-                     Create("rx", "14"), Create("fill", color)], []),
-       Node("text", [Create("x", "36"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
-                     Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")], [Text(label)])]);
+      case m | Heat => ("heat", "#efcb82") | Cool => ("cool", "#a6d3ee") | Off => ("off", "#b5c5cf") end in
+    Node("svg", [Class("blue-hour-view blue-hour-snug"), Create("viewBox", "0 0 114 54"), Width("114"), Height("54"),
+                  Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+      [Node("rect", [Create("x", "11"), Create("y", "17"), Create("width", "3"), Create("height", "20"), Create("rx", "1"), Create("fill", color)], []),
+       Node("text", [Create("x", "26"), Create("y", "37"), Create("font-size", "28"), Create("font-weight", "500"), Create("fill", "#f2f4ef")], [Text(label)])]);
   let expand(m: Model): Mode = m;
   let wrap(m: Mode): Model = m;
-  let shape : LivelitShape = Tab(7, 2)
+  let shape : LivelitShape = Tab(12, 3)
 } in
 
 let ^hour = {
@@ -60,21 +61,37 @@ let ^hour = {
   let init : Model = Hour(12);
   let update(m: Model, _: Action): Model = m;
   let view(h: Model): HTML =
-    case h
-    | Hour(n) =>
+    case h | Hour(n) =>
+      let day = n >= 6 && n < 18 in
       let a = float_of_int(int_mod(n, 12)) *. pi /. 6.0 in
-      let x = to_fixed(22.0 +. 14.0 *. sin(a), 1) in
-      let y = to_fixed(22.0 -. 14.0 *. cos(a), 1) in
-      Node("svg", [Create("viewBox", "0 0 44 44"), Width("44"), Height("44")],
-        [Node("circle", [Create("cx", "22"), Create("cy", "22"), Create("r", "20"),
-                         Create("fill", if n >= 6 && n < 18 then "#fef3c7" else "#1e293b"), Create("stroke", "#cbd5e1")], []),
-         Node("line", [Create("x1", "22"), Create("y1", "22"), Create("x2", x), Create("y2", y),
-                       Create("stroke", if n >= 6 && n < 18 then "#1f2933" else "#f8fafc"), Create("stroke-width", "2.5"),
-                       Create("stroke-linecap", "round")], [])])
+      let x = to_fixed(40.0 +. 19.0 *. sin(a), 1) in
+      let y = to_fixed(40.0 -. 19.0 *. cos(a), 1) in
+      Node("svg", [Class("blue-hour-view blue-hour-bleed"), Create("viewBox", "0 0 100 112"), Width("100"), Height("112"),
+                    Style([("display", "block"), ("background", "#576e83"), ("font-family", "Helvetica Neue, Arial, sans-serif"),
+                           ("font-variant-numeric", "tabular-nums")])],
+        [Node("g", [Create("transform", "translate(10 3)")],
+          [Node("circle", [Create("cx", "40"), Create("cy", "41"), Create("r", "33"), Create("fill", "#7e93a5")], []),
+           Node("circle", [Create("cx", "40"), Create("cy", "40"), Create("r", "33"), Create("fill", "#485f74"), Create("stroke", "#354e63")], [])]
+          @ map(range(0, 11), fun i: Int ->
+            let a = float_of_int(i) *. pi /. 6.0 in
+            Node("circle", [Create("cx", to_fixed(40.0 +. 27.0 *. sin(a), 1)),
+                            Create("cy", to_fixed(40.0 -. 27.0 *. cos(a), 1)),
+                            Create("r", if int_mod(i, 3) == 0 then "1.5" else "0.7"), Create("fill", "#b4c4d0")], []))
+          @ [Node("circle", [Create("cx", "40"), Create("cy", "25"), Create("r", "4"), Create("fill", if day then "#efcb82" else "#e1e8ed")], []),
+             Node("circle", [Create("cx", "42"), Create("cy", "23"), Create("r", if day then "0" else "3.6"), Create("fill", "#485f74")], []),
+             Node("line", [Create("x1", "40"), Create("y1", "40"), Create("x2", x), Create("y2", y),
+                           Create("stroke", "#f2f4ef"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+             Node("circle", [Create("cx", "40"), Create("cy", "40"), Create("r", "3"), Create("fill", "#e9c182")], [])]),
+         Node("rect", [Create("x", "0"), Create("y", "84"), Width("100"), Height("28"), Create("fill", "#4e657a")], []),
+         Node("path", [Create("d", "M0 84 H100"), Create("stroke", "#304b6059"), Create("stroke-width", "0.7")], []),
+         Node("path", [Create("d", "M0 85 H100"), Create("stroke", "#d2dce34d"), Create("stroke-width", "0.7")], []),
+         Node("text", [Create("x", "50"), Create("y", "103"), Create("font-size", "12"), Create("text-anchor", "middle"),
+                       Create("font-family", "ui-monospace, Menlo, monospace"), Create("fill", "#e0e8ed")],
+                      [Text((if n < 10 then "0" else "") ++ string_of_int(n) ++ ":00")])])
     end;
   let expand(h: Model): Hour = h;
   let wrap(h: Hour): Model = h;
-  let shape : LivelitShape = Tab(4, 3)
+  let shape : LivelitShape = Tab(10, 6)
 } in
 
 let ^plan = {
@@ -83,18 +100,12 @@ let ^plan = {
   let init : Model = (Off, Deg(68));
   let update(m: Model, _: Action): Model = m;
   let view((m, t): Model): HTML =
-    let (label, color) =
-      case m | Heat => ("heat to", "#ef4444") | Cool => ("cool to", "#3b82f6") | Off => ("hold", "#94a3b8") end in
+    let label = case m | Heat => "Heat to" | Cool => "Cool to" | Off => "Hold" end in
     let d = case t | Deg(d) => d end in
-    Node("svg", [Create("viewBox", "0 0 110 32"), Width("110"), Height("32")],
-      [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "106"), Create("height", "28"),
-                     Create("rx", "14"), Create("fill", color)], []),
-       Node("text", [Create("x", "55"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
-                     Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")],
-            [Text(label ++ " " ++ string_of_int(d))])]);
+    Node("svg", [Create("width", "178"), Create("height", "56"), Create("viewBox", "0 0 178 56"), Style([("display", "block"), ("background", "#576e83"), ("font-family", "Helvetica Neue, Arial, sans-serif"), ("font-variant-numeric", "tabular-nums")]), Class("blue-hour-view blue-hour-bleed")], [Node("rect", [Create("width", "85"), Create("height", "56"), Create("fill", "#4e657a")], []), Node("path", [Create("d", "M85 0 V56"), Create("stroke", "#304b6059"), Create("stroke-width", ".7")], []), Node("path", [Create("d", "M86 0 V56"), Create("stroke", "#d2dce34d"), Create("stroke-width", ".7")], []), Node("text", [Create("x", "14"), Create("y", "33"), Create("font-size", "14"), Create("fill", "#f3f2e9")], [Text(label)]), Node("text", [Create("x", "162"), Create("y", "37"), Create("text-anchor", "end"), Create("font-size", "25"), Create("fill", "#f3f2e9")], [Text(string_of_int(d) ++ "°")])]);
   let expand(p: Model): Plan = p;
   let wrap(p: Plan): Model = p;
-  let shape : LivelitShape = Tab(10, 2)
+  let shape : LivelitShape = Tab(18, 3)
 } in
 
 # ---- the app: the schedule as bars; click a bar's top half to raise it, bottom half to lower ---- #
@@ -111,26 +122,26 @@ let ^schedule = {
   let bar(i: Int, (h, t): (Hour, Temp)): HTML =
     let hn = case h | Hour(n) => n end in
     let d = case t | Deg(d) => d end in
-    let x = 8 + hn * 9 in
+    let x = 4 + hn * 9 in
     let height = (d - 50) * 2 in
     Node("g", [], [
       Node("rect", [Create("x", string_of_int(x)), Create("y", string_of_int(80 - height)),
-                    Create("width", "14"), Create("height", string_of_int(height)), Create("rx", "3"),
-                    Create("fill", if d >= 70 then "#f97316" else "#38bdf8")], []),
-      Node("rect", [Create("x", string_of_int(x)), Create("y", "4"), Create("width", "14"), Create("height", "38"),
+                    Create("width", "22"), Create("height", string_of_int(height)), Create("rx", "3"),
+                    Create("fill", if d >= 70 then "#e9c182" else "#a6d3ee")], []),
+      Node("rect", [Create("x", string_of_int(x)), Create("y", "4"), Create("width", "22"), Create("height", "38"),
                     Create("fill", "transparent"), OnClick(Raise(i)), Style([("cursor", "n-resize")])], []),
-      Node("rect", [Create("x", string_of_int(x)), Create("y", "42"), Create("width", "14"), Create("height", "38"),
+      Node("rect", [Create("x", string_of_int(x)), Create("y", "42"), Create("width", "22"), Create("height", "38"),
                     Create("fill", "transparent"), OnClick(Lower(i)), Style([("cursor", "s-resize")])], []),
-      Node("text", [Create("x", string_of_int(x + 7)), Create("y", string_of_int(76 - height)),
+      Node("text", [Create("x", string_of_int(x + 11)), Create("y", string_of_int(76 - height)),
                     Create("font-size", "8"), Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"),
-                    Create("fill", "#1f2933")], [Text(string_of_int(d))]),
-      Node("text", [Create("x", string_of_int(x + 7)), Create("y", "90"), Create("font-size", "7"),
-                    Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "#6b7280")],
+                    Create("fill", "#f2f4ef")], [Text(string_of_int(d))]),
+      Node("text", [Create("x", string_of_int(x + 11)), Create("y", "90"), Create("font-size", "7"),
+                    Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "#ccd7df")],
            [Text(string_of_int(hn) ++ "h")])]);
   let view(s: Model): HTML =
-    Node("svg", [Create("viewBox", "0 0 232 94"), Width("232"), Height("94")],
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 232 94"), Width("232"), Height("94")],
       [Node("line", [Create("x1", "4"), Create("y1", "80"), Create("x2", "228"), Create("y2", "80"),
-                     Create("stroke", "#e5e7eb")], [])]
+                     Create("stroke", "#415a70")], [])]
       @ mapi(s, bar));
   let expand(s: Model): Schedule = s;
   let wrap(s: Schedule): Model = s;

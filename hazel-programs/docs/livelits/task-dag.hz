@@ -75,25 +75,18 @@ let ^plan = {
     Node("line",
       [Create("x1", s(x1)), Create("y1", s(y1)),
        Create("x2", s(x2)), Create("y2", s(y2)),
-       Create("stroke", "#888"), Create("stroke-width", "2"),
+       Create("stroke", "#b4c4d0"), Create("stroke-width", "2"),
        Create("marker-end", "url(#tip)")],
       []);
 
   let task(i: Int, (name, days, x, y): Task, sel: Int): HTML =
     Node("g", [], [
-      Node("circle",
-        [Create("cx", s(x)), Create("cy", s(y)), Create("r", "17"),
-         Create("fill", if i == sel then "orange" else "#5ab"),
-         Create("stroke", "#333")],
-        []),
-      Node("text",
-        [Create("x", s(x)), Create("y", s(y + 4)), Create("text-anchor", "middle"),
-         Create("font-size", "12"), Create("pointer-events", "none")],
-        [Text(name)]),
-      Node("text",
-        [Create("x", s(x + 18)), Create("y", s(y - 12)), Create("font-size", "10"),
-         Create("fill", "#555"), Create("pointer-events", "none")],
-        [Text(s(days) ++ "d")])]);
+      Node("circle", [Create("cx", s(x)), Create("cy", s(y + 1)), Create("r", "17"), Create("fill", "#344b60")], []),
+      Node("circle", [Create("cx", s(x)), Create("cy", s(y)), Create("r", "17"),
+                      Create("fill", if i == sel then "#b09a78" else "#647f94"), Create("stroke", "#a9becc")], []),
+      Node("path", [Create("d", "M" ++ s(x - 13) ++ " " ++ s(y + 1) ++ " h26"), Create("stroke", "#40596e"), Create("stroke-width", "0.7")], []),
+      Node("text", [Create("x", s(x)), Create("y", s(y - 3)), Create("text-anchor", "middle"), Create("font-size", "10"), Create("pointer-events", "none")], [Text(name)]),
+      Node("text", [Create("x", s(x)), Create("y", s(y + 12)), Create("text-anchor", "middle"), Create("font-size", "8"), Create("fill", "#e3e8e9"), Create("pointer-events", "none")], [Text(s(days) ++ "d")])]);
 
   let arrowhead : HTML =
     Node("defs", [], [
@@ -102,29 +95,23 @@ let ^plan = {
          Create("refY", "5"), Create("markerWidth", "8"), Create("markerHeight", "8"),
          Create("orient", "auto")],
         [Node("path",
-           [Create("d", "M0 0 L10 5 L0 10 z"), Create("fill", "#888")],
+           [Create("d", "M0 0 L10 5 L0 10 z"), Create("fill", "#b4c4d0")],
            [])])]);
 
   let view((ts, deps, sel, _, _): Model): HTML =
     Div(
-      [Create("data-hint", "drag a task; click: select, then link or bump days"),
-       Style([("display", "flex"), ("flex-direction", "column")])],
+      [Class("blue-hour-view"), Create("title", s(length(ts)) ++ " tasks, " ++ s(length(deps)) ++ " links"), Style([("position", "relative"), ("width", "max-content"), ("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("flex-direction", "column")]), Create("data-hint", "drag a task; click: select, then link or bump days")],
       [Node("svg",
-         [Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
-          Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
-                 ("font-family", "sans-serif")]),
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+                 ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 150"), Width("260"), Height("150"),
+
           OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
           OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
           OnMouseUpAt(fun _ -> Up)],
          arrowhead
          :: map(deps, fun (d: (Int, Int)) -> arrow(ts, d))
          @ mapi(ts, fun (i: Int, t: Task) -> task(i, t, sel))),
-       Div(
-         [Style([("display", "flex"), ("gap", "0.6em"), ("align-items", "center"),
-                 ("font-size", "0.7em"), ("line-height", "20px"), ("color", "#888")])],
-         [Button([OnClick(Add), Style([("font-size", "1em"), ("padding", "0 4px")])],
-                 [Text("+ task")]),
-          Text(s(length(ts)) ++ " tasks, " ++ s(length(deps)) ++ " links")])]);
+       Button([Class("blue-hour-action blue-hour-overlay-action"), OnClick(Add)], [Text("+ task")])]);
 
   let expand((ts, deps, _, _, _): Model): Plan =
     Plan(map(ts, fun (n: String, d: Int, _, _) -> (n, d)), deps);
@@ -202,18 +189,18 @@ let gantt(sc: Schedule): HTML =
   case sc
   | Schedule(rows) =>
     let s : Int -> String = string_of_int in
-    let h = 22 * length(rows) + 6 in
+    let h = 28 * length(rows) + 6 in
     Node("svg",
-      [Create("viewBox", "0 0 260 " ++ s(h)), Width("260"), Height(s(h)),
-       Style([("background", "#fafafa"), ("font-family", "sans-serif")])],
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"), ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 " ++ s(h)), Width("260"), Height(s(h))],
       concat(mapi(rows, fun (i: Int, (n, a, b, c): (String, Int, Int, Bool)) ->
-        [Node("text",
-           [Create("x", "4"), Create("y", s(22 * i + 19)), Create("font-size", "12")],
+        [Node("line", [Create("x1", "40"), Create("x2", "256"), Create("y1", s(28 * i + 27)), Create("y2", s(28 * i + 27)), Create("stroke", "#8298aa"), Create("stroke-opacity", "0.25")], []),
+         Node("text",
+           [Create("x", "4"), Create("y", s(28 * i + 20)), Create("font-size", "12")],
            [Text(n)]),
          Node("rect",
-           [Create("x", s(40 + 14 * a)), Create("y", s(22 * i + 6)),
-            Create("width", s(14 * (b - a))), Create("height", "16"), Create("rx", "3"),
-            Create("fill", if c then "coral" else "#5ab")],
+           [Create("x", s(40 + 14 * a)), Create("y", s(28 * i + 6)),
+            Create("width", s(14 * (b - a))), Create("height", "21"), Create("rx", "3"),
+            Create("fill", if c then "#f2ab98" else "#a6d3ee")],
            [])])))
   end
 in

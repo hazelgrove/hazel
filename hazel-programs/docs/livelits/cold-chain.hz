@@ -52,11 +52,11 @@ let ^trace = {
       Node("line",
         [Create("x1", "20"), Create("y1", s(y_of(t))),
          Create("x2", "250"), Create("y2", s(y_of(t))),
-         Create("stroke", "#3a3"), Create("stroke-dasharray", "5 3")],
+         Create("stroke", "#b3d3b4"), Create("stroke-dasharray", "5 3")],
         []),
       Node("text",
         [Create("x", "2"), Create("y", s(y_of(t) + 3)), Create("font-size", "9"),
-         Create("fill", "#3a3")],
+         Create("fill", "#b3d3b4")],
         [Text(label ++ s(t))])]);
 
   # one reading: its hour column (tinted red when out of band), dot and label #
@@ -65,37 +65,36 @@ let ^trace = {
     Node("g", [], [
       Node("rect",
         [Create("x", s(x_of(i) - 10)), Create("y", "4"), Create("width", "20"),
-         Create("height", "132"), Create("fill", if bad then "#f003" else "none")],
+         Create("height", "132"), Create("fill", if bad then "#f2ab981c" else "none")],
         []),
       Node("circle",
         [Create("cx", s(x_of(i))), Create("cy", s(y_of(t))), Create("r", "5"),
-         Create("fill", if held then "orange" else if bad then "#c33" else "teal")],
+         Create("fill", if held then "#e9c182" else if bad then "#f2ab98" else "#a6d3ee")],
         []),
       Node("text",
         [Create("x", s(x_of(i))), Create("y", "144"), Create("font-size", "8"),
-         Create("text-anchor", "middle"), Create("fill", "#888")],
+         Create("text-anchor", "middle"), Create("fill", "#b4c4d0")],
         [Text(s(i) ++ "h")])]);
 
   let view((rs, lo, hi, drag): Model): HTML =
     Div(
-      [Create("data-hint", "drag dots and dashed lines"),
-       Style([("cursor", "ns-resize")])],
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ns-resize")]), Create("data-hint", "drag dots and dashed lines")],
       [Node("svg",
-         [Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
-          Style([("border", "1px solid #ccc"), ("background", "#fafafa"),
-                 ("font-family", "sans-serif")]),
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+                 ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 145"), Width("260"), Height("145"),
+
           OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
           OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
           OnMouseUpAt(fun _ -> Up)],
          Node("rect",
            [Create("x", "20"), Create("y", s(y_of(hi))), Create("width", "230"),
-            Create("height", s(8 * (hi - lo))), Create("fill", "#3a31")],
+            Create("height", s(8 * (hi - lo))), Create("fill", "#b3d3b418")],
            [])
          :: Node("polyline",
               [Create("points",
                  string_join(" ",
                    mapi(rs, fun (i: Int, t: Int) -> s(x_of(i)) ++ "," ++ s(y_of(t))))),
-               Create("fill", "none"), Create("stroke", "#888"),
+               Create("fill", "none"), Create("stroke", "#b4c4d0"),
                Create("stroke-width", "2")],
               [])
          :: limit(lo, "low ")
@@ -140,10 +139,11 @@ let batch_ok(tr: Trace, tolerance: Int): Bool =
 in
 
 let verdict(ok: Bool): HTML =
-  Span(
-    [Style([("padding", "2px 8px"), ("border-radius", "4px"), ("color", "#fff"),
-            ("font-weight", "bold"), ("background", if ok then "#3a3" else "#c33")])],
-    [Text(if ok then "OK" else "REJECT")])
+  Div([Class(if ok then "blue-hour-view blue-hour-bleed blue-hour-verdict blue-hour-verdict-ok" else "blue-hour-view blue-hour-bleed blue-hour-verdict"),
+       Style([("display", "flex"), ("align-items", "center"), ("justify-content", "center"),
+              ("width", "104px"), ("height", "44px"), ("color", "#465d72"), ("font-family", "Inter, system-ui, sans-serif"),
+              ("font-size", "16px"), ("font-weight", "600"), ("background", if ok then "#b3d3b4" else "#f2ab98")])],
+      [Text(if ok then "OK" else "REJECT")])
 in
 
 let input : Trace =

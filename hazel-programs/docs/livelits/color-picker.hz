@@ -19,6 +19,9 @@ let ^hwb = {
     let b = y * 100 / 92 in
     (h, (150 - x) * (100 - b) / 150, b);
 
+  let min(a: Int, b: Int): Int = if a < b then a else b;
+  let max(a: Int, b: Int): Int = if a > b then a else b;
+
   let dot_x(w: Int, b: Int): Int =
     if b == 100 then 0 else 150 - 150 * w / (100 - b);
 
@@ -29,64 +32,24 @@ let ^hwb = {
   let update(_m: Model, a: Action): Model = a;
 
   let view((h, w, b): Model): HTML =
-    Div(
-      [Style([("display", "flex"), ("flex-direction", "column"),
-              ("gap", "0.35em"),
-              ("font-family", "var(--code-font)"),
-              ("font-size", "0.75em"), ("padding", "2px")])],
-      [
-        Div(
-          [Style([("width", "150px"), ("height", "92px"),
-                  ("position", "relative"),
-                  ("cursor", "crosshair"),
-                  ("border-radius", "3px"),
-                  ("background",
-                   "linear-gradient(to top, #000, transparent), "
-                   ++ "linear-gradient(to right, #fff, hsl("
-                   ++ string_of_int(h) ++ " 100% 50%))")]),
-           OnClickAt(fun (x: Int, y: Int) -> pick(h, x, y))],
-          [
-            Div(
-              [Style([("position", "absolute"),
-                      ("left", string_of_int(dot_x(w, b) - 4) ++ "px"),
-                      ("top", string_of_int(dot_y(b) - 4) ++ "px"),
-                      ("width", "8px"), ("height", "8px"),
-                      ("border-radius", "50%"),
-                      ("border", "2px solid #fff"),
-                      ("box-shadow", "0 0 2px #000"),
-                      ("pointer-events", "none")])],
-              []
-            )
-          ]
-        ),
-        Div(
-          [Style([("display", "flex"), ("gap", "0.5em"),
-                  ("align-items", "center")])],
-          [
-            Div(
-              [Style([("width", "26px"), ("height", "14px"),
-                      ("border-radius", "7px"),
-                      ("border", "1px solid var(--BR1)"),
-                      ("background", css((h, w, b)))])],
-              []
-            ),
-            Input([
-              Type("range"), Min("0"), Max("359"),
-              Value(string_of_int(h)),
-              OnInput(fun (s: String) -> (int_of_string(s), w, b)),
-              Style([("width", "118px"), ("margin", "0"),
-                     ("background",
-                      "linear-gradient(to right, #f00, #ff0, #0f0, "
-                      ++ "#0ff, #00f, #f0f, #f00)")])
-            ])
-          ]
-        )
-      ]
-    );
+    Div([Class("blue-hour-view blue-hour-color blue-hour-bleed"), Create("title", css((h, w, b))), Style([("display", "flex"), ("flex-direction", "column"),
+          ("width", "150px"), ("background", "#576e83"), ("color", "#f2f4ef"),
+          ("font-family", "ui-monospace, Menlo, monospace"), ("font-size", "10px")])],
+      [Div([Style([("width", "150px"), ("height", "92px"), ("position", "relative"), ("cursor", "crosshair"),
+                    ("background", "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(" ++ string_of_int(h) ++ " 100% 50%))")]),
+             OnClickAt(fun (x: Int, y: Int) -> pick(h, x, y))],
+        [Div([Style([("position", "absolute"), ("left", string_of_int(max(0, min(136, dot_x(w, b) - 7))) ++ "px"),
+                      ("top", string_of_int(max(0, min(80, dot_y(b) - 6))) ++ "px"), ("width", "14px"), ("height", "12px"), ("background", css((h, w, b))),
+                      ("box-sizing", "border-box"), ("border-radius", "2px"), ("border", "1px solid #fff"),
+                      ("box-shadow", "0 0 0 1px #26394e"), ("pointer-events", "none")])], [])]),
+       Input([Class("blue-hour-hue"), Type("range"), Min("0"), Max("359"), Value(string_of_int(h)),
+              Create("aria-label", "Hue"), OnInput(fun (s: String) -> (int_of_string(s), w, b)),
+              Style([("width", "150px"), ("height", "16px"), ("margin", "1px 0 0"),
+                     ("background", "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)")])])]);
 
   let expand(m: Model): String = css(m);
 
-  let shape : LivelitShape = Tab(16, 5)
+  let shape : LivelitShape = Tab(16, 6)
 } in
 
 # Two picks, each with its own color stored in its argument: #
