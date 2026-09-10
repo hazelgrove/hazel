@@ -66,8 +66,7 @@ module M: Projector = {
   let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
-    | Pat(_)
-    | Typ(_) => Some(Expected)
+    | Pat(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
     | _ => None
     };
