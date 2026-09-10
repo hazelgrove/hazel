@@ -243,6 +243,35 @@ let join_tests = (
         check(typ, "Join of unbound variables", unknown(Internal), t);
       },
     ),
+    test_case(
+      "join terminates on a cyclic alias chain",
+      `Quick,
+      () => {
+        /* Same shape as the Typ.diff case: `type A = B in type B = A` is not
+           self-referential, so TyAlias wraps neither in a Rec, and expanding
+           the chain never ends. join runs in the statics pass via
+           LiveTyping.extend_ctx_with_instantiations. */
+        let extend = (ctx, name, kind) =>
+          Ctx.extend_tvar(
+            ctx,
+            {
+              name,
+              id: Id.mk(),
+              kind,
+            },
+          );
+        let ctx =
+          Ctx.empty
+          |> extend(_, "A", Singleton(Typ.fresh(Var("B"))))
+          |> extend(_, "B", Singleton(Typ.fresh(Var("A"))));
+        check(
+          typ,
+          "a cyclic alias has no join",
+          unknown(Internal),
+          Typ.join(ctx, Typ.fresh(Var("A")), int()),
+        );
+      },
+    ),
   ],
 );
 

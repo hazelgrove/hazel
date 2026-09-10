@@ -954,8 +954,20 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
 /* Lattice join on types — returns the LEAST precise (widest) type that
    is at least as imprecise as both inputs. Unknown dominates:
    join(Unknown, Int) = Unknown. This is the dual of meet. */
-let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
+let rec join =
+        (~expanded_aliases: list(string)=[], ctx: Ctx.t, ty1: t, ty2: t): t => {
   let join' = join(ctx);
+  /* As in `diff`: a cyclic alias chain (`type A = B in type B = A`) has no
+     join, so stop expanding once a name repeats on the current chain of Var
+     lookups rather than recursing forever. Only the two Var cases thread the
+     list; every other case resets it, since a structural descent consumes a
+     constructor from a finite type. */
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      Ctx.lookup_alias(ctx, name);
+    };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
@@ -969,13 +981,15 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   | (_, Unknown(_)) => ty2
   | (Var(n1), Var(n2)) when n1 == n2 => ty1
   | (Var(name), _) =>
-    switch (Ctx.lookup_alias(ctx, name)) {
-    | Some(ty_name) => join'(ty_name, ty2)
+    switch (expand(name)) {
+    | Some(ty_name) =>
+      join(~expanded_aliases=[name, ...expanded_aliases], ctx, ty_name, ty2)
     | None => Unknown(Internal) |> temp
     }
   | (_, Var(name)) =>
-    switch (Ctx.lookup_alias(ctx, name)) {
-    | Some(ty_name) => join'(ty_name, ty1)
+    switch (expand(name)) {
+    | Some(ty_name) =>
+      join(~expanded_aliases=[name, ...expanded_aliases], ctx, ty_name, ty1)
     | None => Unknown(Internal) |> temp
     }
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
