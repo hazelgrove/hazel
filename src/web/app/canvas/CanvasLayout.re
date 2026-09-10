@@ -301,9 +301,11 @@ let layout_impl =
       ~origin_override: option(pos)=None,
       ~offsets: list((string, (float, float)))=[],
       ~pins: list((string, (float, float)))=[],
-      /* expanded type cards: (w, h) per node key. A card claims its
-         bounding circle for spacing (plus a buffer so neighbours keep
-         clear) and its rectangle for edge endpoints. */
+      /* expanded type cards: (w, h) per node key. A card is DISPLAY
+         only: edges land on its rectangle and the board grows to hold
+         it, but it never moves a node — toggling a card is not a
+         relayout (the whole-graph re-solve and re-frame it caused threw
+         the view in a small pane; neighbours may overlap for now). */
       ~cards: list((string, (float, float)))=[],
       g: CanvasGraph.t,
     )
@@ -311,7 +313,6 @@ let layout_impl =
   let t_pre = Util.PerfTimer.now();
   let card_of = (k: string): option((float, float)) =>
     List.assoc_opt(k, cards);
-  let card_buffer = 14.;
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
@@ -396,10 +397,7 @@ let layout_impl =
      order columns), derived [T] after its element, and function flow
      (input strictly left of result). Docked nodes become attachments. */
   let r_of = (n: CanvasGraph.tynode): float =>
-    switch (card_of(n.key)) {
-    | Some((w, h)) => Float.hypot(w /. 2., h /. 2.) +. card_buffer
-    | None => node_radius(~fan=fan(n.key), n)
-    };
+    node_radius(~fan=fan(n.key), n);
   let dep_edges =
     List.concat_map(
       (n: CanvasGraph.tynode) =>
@@ -743,18 +741,14 @@ let layout_impl =
             },
           g.nodes,
         );
-    let card_r = (k: string): float =>
-      switch (card_of(k)) {
-      | Some((w, h)) => max(w, h) /. 2.
-      | None =>
-        List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
-        |> Option.map((nl: node_layout) => nl.r)
-        |> Option.value(~default=base_radius)
-      };
+    let circle_r = (k: string): float =>
+      List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
+      |> Option.map((nl: node_layout) => nl.r)
+      |> Option.value(~default=base_radius);
     declutter(
       ~chords,
       ~fixed=List.map(fst, pins) @ List.map(fst, offsets),
-      ~radius_of=card_r,
+      ~radius_of=circle_r,
       node_layouts,
     );
   };
@@ -1439,9 +1433,40 @@ let layout_impl =
       dep_links:
         List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
       /* panned-up content can put the extent above the origin; svg
-         size attrs reject negatives (overlays overflow: visible) */
-      width: max(0., max_x +. dx +. pad),
-      height: max(0., max_y +. dy +. pad),
+         size attrs reject negatives (overlays overflow: visible). The
+         board also reaches past any card's right/bottom edge (cards do
+         not enter the extent that positions the graph, so a card can't
+         shift it — but it must be scrollable to). */
+      width:
+        List.fold_left(
+          (acc, (k, (w, _))) =>
+            switch (
+              List.find_opt(
+                (nl: node_layout) => nl.node.key == k,
+                node_layouts,
+              )
+            ) {
+            | Some(nl) => max(acc, nl.p.x +. dx +. w /. 2. +. pad)
+            | None => acc
+            },
+          max(0., max_x +. dx +. pad),
+          cards,
+        ),
+      height:
+        List.fold_left(
+          (acc, (k, (_, h))) =>
+            switch (
+              List.find_opt(
+                (nl: node_layout) => nl.node.key == k,
+                node_layouts,
+              )
+            ) {
+            | Some(nl) => max(acc, nl.p.y +. dy +. h /. 2. +. pad)
+            | None => acc
+            },
+          max(0., max_y +. dy +. pad),
+          cards,
+        ),
       origin: {
         x: dx,
         y: dy,

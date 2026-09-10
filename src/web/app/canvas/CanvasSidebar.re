@@ -1244,11 +1244,14 @@ let view_impl =
     let fits_cached =
       switch (cached_frame^, avail_height) {
       | (Some(fc), Some(ah)) when !manual =>
+        /* ~cards=[]: an open card never decides the frame (a toggle is
+           not a relayout) */
         let l =
           CanvasLayout.layout(
             ~x_scale=fc.fc_x_scale,
             ~y_scale=fc.fc_y_scale,
             ~origin_override=Some(fc.fc_origin),
+            ~cards=[],
             graph,
           );
         l.height <= ah -. 8. && l.width <= aw +. 40.;
@@ -1302,7 +1305,7 @@ let view_impl =
       switch (persisted_frame) {
       | Some((_, xs, _)) when runtime_frame == None =>
         /* laid in a wider pane: it would strew the program off-screen */
-        let v = CanvasLayout.layout(graph);
+        let v = CanvasLayout.layout(~cards=[], graph);
         v.width *. xs > aw *. 1.25 ? Option.none : persisted_frame;
       | p => p
       };
@@ -1332,7 +1335,7 @@ let view_impl =
          from the VIRGIN layout — no user offsets/pins — so dragging a
          node can never rescale or re-anchor the rest of the graph. The
          final layout applies the frozen frame plus the user's edits. */
-      let virgin = CanvasLayout.layout(graph);
+      let virgin = CanvasLayout.layout(~cards=[], graph);
       let y_scale =
         switch (layout_height) {
         | Some(h) => min(2.1, max(1., (h -. 40.) /. virgin.height))
@@ -1351,7 +1354,8 @@ let view_impl =
           if (s1 >= 1.8 || s1 <= 1.) {
             s1;
           } else {
-            let v1 = CanvasLayout.layout(~x_scale=s1, ~y_scale, graph);
+            let v1 =
+              CanvasLayout.layout(~x_scale=s1, ~y_scale, ~cards=[], graph);
             v1.width >= target -. 30. && v1.width <= target +. 30.
               ? s1 : min(1.8, max(1., s1 *. target /. v1.width));
           };
@@ -1362,6 +1366,7 @@ let view_impl =
           ~x_scale,
           ~y_scale,
           ~center_within=avail_width,
+          ~cards=[],
           graph,
         );
       cached_frame :=
@@ -1374,16 +1379,16 @@ let view_impl =
           fc_y_scale: y_scale,
           fc_avail_w: aw,
         });
-      offsets == [] && pins == []
-        ? framed
-        : CanvasLayout.layout(
-            ~x_scale,
-            ~y_scale,
-            ~origin_override=Some(framed.origin),
-            ~offsets,
-            ~pins,
-            graph,
-          );
+      /* the rendered layout: the frozen frame plus the user's edits and
+         the open cards (rims and board extent) */
+      CanvasLayout.layout(
+        ~x_scale,
+        ~y_scale,
+        ~origin_override=Some(framed.origin),
+        ~offsets,
+        ~pins,
+        graph,
+      );
     };
   };
   /* zoom while the agent works is the camera's job now: CanvasCamera.follow
@@ -2302,9 +2307,7 @@ let view_impl =
             ),
           );
           let zb =
-            Float.min(w /. nw, h /. nh)
-            |> Float.max(0.15)
-            |> Float.min(6.);
+            Float.min(w /. nw, h /. nh) |> Float.max(0.15) |> Float.min(6.);
           ignore(
             Js.Unsafe.meth_call(
               st,
@@ -2582,7 +2585,9 @@ let view_impl =
             Js.Unsafe.set(
               est,
               "cssText",
-              Js.string(saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;"),
+              Js.string(
+                saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
+              ),
             );
             let cst = Js.Unsafe.coerce(c)##.style;
             let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
