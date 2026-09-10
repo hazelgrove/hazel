@@ -467,8 +467,9 @@
   opacity: 0.55;
 }
 
+/* hover = a tint, never a second ring (one border per thing) */
 .canvas-node.clickable:hover {
-  box-shadow: 0 0 0 3px rgba(120, 160, 90, 0.35);
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 .canvas-node-label {
@@ -655,7 +656,7 @@
 }
 
 .canvas-edge-label:hover {
-  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 /* a label on its wire: centered on the curve; its background masks the
@@ -787,7 +788,7 @@
 }
 
 .canvas-focus .agg-value:hover .value {
-  outline: 1.5px solid var(--G0, #4a9a4a);
+  filter: brightness(0.95);
 }
 
 /* ---- orbiting constants ---- */
@@ -918,45 +919,60 @@
   margin: 2px 0 4px;
 }
 
-/* Real probe wells need row width: the flow stacks vertically — input
-   slots, the fn marker, then the output slot — each slot a full-width
-   [chip | probe] row. */
+/* The flow reads as one line when it fits — in₁ in₂ ⟶ f ⟶ out, each a
+   probe well captioned by its type (as a card on the canvas is) and
+   centred on the row — and wraps when the wells are big (a drawer of
+   samples, a tall view): a wide well takes its own line, the rest
+   follow. */
 .focus-flow {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 7px;
-  margin-top: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 8px;
   min-width: 0;
 }
 
 .focus-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 0;
+  /* the inputs are items of the same wrapping row as the marker */
+  display: contents;
 }
 
 .focus-fn {
-  align-self: flex-start;
-  padding-left: 1.5em;
+  align-self: center;
 }
 
 .focus-output {
   min-width: 0;
+  max-width: 100%;
 }
 
 .focus-slot {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
-  width: 100%;
+  max-width: 100%;
 }
 
+/* caption UNDER the well */
 .focus-slot .focus-chip {
   flex: none;
-  margin-top: 2px;
+  order: 2;
+}
+
+.focus-slot .canvas-probe {
+  max-width: 100%;
+}
+
+/* a plain sample's text wraps inside the row instead of running off
+   the panel (code otherwise never wraps) */
+.canvas-focus .focus-slot .sample .value .code,
+.canvas-focus .focus-slot .sample .value .code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 360px;
 }
 
 .focus-chip {
@@ -1080,7 +1096,6 @@
 .canvas-probe .live-offside:focus .sample:has(.value.focus) .value {
   outline: 2px solid var(--R1);
   outline-offset: -2px;
-  box-shadow: 0 0 0 3px oklch(from var(--R1) l c h / 0.18);
 }
 
 /* rich content participates in the well's flow: the editor's projector
@@ -1089,10 +1104,6 @@
 .canvas-probe .value-rich .projector {
   position: static;
   display: inline-block;
-}
-
-.focus-slot {
-  width: 100%;
 }
 
 /* ---- type focus: observed inhabitant values ---- */
@@ -1171,7 +1182,7 @@
 }
 
 .focus-fnbox:hover {
-  box-shadow: 0 0 0 2px rgba(120, 160, 90, 0.35);
+  background: color-mix(in srgb, var(--df-bg, #fdfdf4) 88%, #78a05a);
 }
 
 .focus-arrow {
@@ -2154,15 +2165,16 @@
 .canvas-node.node-card .card-resize:hover {
   opacity: 1;
 }
-/* selection: the node's sample is the focus anchor (green), red while
-   the card has keyboard focus (arrows step samples) — the well rule */
+/* selection: the card's ONE border takes the color — green when the
+   node's sample is the focus anchor, red while the card has keyboard
+   focus (arrows step samples). Outranks the definition's blue: a card
+   never wears two rings. */
 .canvas-node.node-card:has(.probe-card.card-selected) {
-  outline: 2px solid var(--G0);
-  outline-offset: 2px;
+  border-color: var(--G0);
+  border-width: 2.5px;
 }
 .canvas-node.node-card:has(.probe-card.card-selected:focus) {
-  outline: 2px solid var(--R1);
-  box-shadow: 0 0 0 4px oklch(from var(--R1) l c h / 0.18);
+  border-color: var(--R1);
 }
 /* the info panel's value chip that IS the dynamic focus */
 .agg-value.agg-anchored .value,

@@ -547,6 +547,10 @@ let last_avatar_pos: ref(option(CanvasLayout.pos)) =
 /* camera follow: the avatar position last handed to the camera, and
    whether the agent was busy then (a resting avatar waking up = a hop
    of attention even though it didn't move) */
+/* the site the camera last followed the avatar to: a HOP is a change of
+   site. A relayout that moves the avatar's node (the user opened a card
+   next to it) is not a hop and does not move the camera. */
+let last_followed_id: ref(option(Id.t)) = ref(None: option(Id.t));
 let last_followed: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
 let last_followed_busy: ref(bool) = ref(false);
@@ -667,8 +671,6 @@ let ty_syntax = (n: CanvasGraph.tynode): string =>
 /* a card just opened / closed / resized: re-fit the camera after the
    render that lays it out */
 let fit_pending: ref(bool) = ref(false);
-/* a card just opened / resized: pan it into view after the render */
-let reveal_pending: ref(option(string)) = ref(Option.none);
 /* the render right after a burst ends re-frames the graph: that one big
    move is the tidy act. A big move the USER caused (a card opening pushes
    its neighbours) is not scored: it plays on the staged beat at once,
@@ -1051,6 +1053,7 @@ let view_impl =
     last_avatar_pos := None;
     last_avatar_id := None;
     last_followed := None;
+    last_followed_id := None;
     CanvasCamera.reset_exposure();
     CanvasBuffer.avatar_site := None;
     last_followed_busy := false;
@@ -2253,21 +2256,18 @@ let view_impl =
   let toggle_value_node = (key: string) => {
     let expanding =
       !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
-    /* either way the node is brought into view: a collapsed node goes
-       back to its layout place, which the camera may have left behind
-       while it was a card. Armed INSIDE the effect: this function is
-       called at render time to build the cards' callbacks. */
-    let arm_reveal =
+    /* armed INSIDE the effect: this function is called at render time
+       to build the cards' callbacks */
+    let arm_beat =
       Ui_effect.of_sync_fun(
-        () => {
-          reveal_pending := Option.some(key);
+        () =>
           /* the circle ↔ card morph is a relayout beat: the edges morph
              to the new rim on the movers' timing instead of snapping
-             ahead of the growing card */
+             ahead of the growing card. The camera stays where the user
+             left it: a toggle never pans. */
           if (!Animation.staged()) {
             CanvasBuffer.stage_beat(~slow=true, ());
-          };
-        },
+          },
         (),
       );
     /* opening a card is a request for live values: turn sampling on if
@@ -2284,7 +2284,7 @@ let view_impl =
         Effect.Ignore;
       };
     Effect.Many([
-      arm_reveal,
+      arm_beat,
       samples,
       globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key)))),
     ]);
@@ -2392,7 +2392,6 @@ let view_impl =
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
       let (w, h) = cur^;
-      reveal_pending := Option.some(key);
       Effect.Expert.handle_non_dom_event_exn(
         globals.inject_global(
           Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
@@ -2446,68 +2445,6 @@ let view_impl =
   };
   /* a card just opened or resized: bring IT into view (pan; zoom up to
      a readable minimum) rather than re-fitting the whole graph */
-  let reveal_card = (key: string): unit =>
-    switch (
-      List.find_opt(
-        (nl: CanvasLayout.node_layout) => nl.node.key == key,
-        lay.nodes,
-      ),
-      avail_width,
-      avail_height,
-      CanvasCamera.center(
-        ~aw=Option.value(~default=0., avail_width),
-        ~ah=Option.value(~default=0., avail_height),
-      ),
-    ) {
-    | (Some(nl), Some(aw), Some(ah), Some((cx, cy))) =>
-      /* an expanded card's box, or the collapsed node's circle */
-      let (w, h) =
-        List.mem(key, globals.settings.sidebar.canvas_value_nodes)
-          ? card_size(key) : (nl.r *. 2., nl.r *. 2.);
-      let z = CanvasCamera.zoom_now^;
-      let (vw, vh) = (aw /. z, ah /. z);
-      let inside =
-        nl.p.x
-        -. w
-        /. 2. >= cx
-        -. vw
-        /. 2.
-        && nl.p.x
-        +. w
-        /. 2. <= cx
-        +. vw
-        /. 2.
-        && nl.p.y
-        -. h
-        /. 2. >= cy
-        -. vh
-        /. 2.
-        && nl.p.y
-        +. h
-        /. 2.
-        +. 20. <= cy
-        +. vh
-        /. 2.;
-      /* pan only (the zoom is the user's): a card off the pane comes
-         into view where it is */
-      if (!inside) {
-        CanvasCamera.animate(
-          ~aw,
-          ~ah,
-          ~zoom=Some(z),
-          ~dur=320.,
-          ~easing=CanvasCamera.EaseOut,
-          (nl.p.x, nl.p.y),
-        );
-      };
-    | _ => ()
-    };
-  switch (reveal_pending^) {
-  | Option.Some(key) =>
-    reveal_pending := Option.none;
-    CanvasEnact.after_render(() => reveal_card(key));
-  | Option.None => ()
-  };
   if (fit_pending^) {
     fit_pending := false;
     CanvasEnact.after_render(fit_view);
@@ -3099,15 +3036,11 @@ let view_impl =
            are planned per act); the generic follow is for the rest */
         && !CanvasBuffer.pacing_live()
         && CanvasBuffer.now() >= CanvasCamera.scored_until^ =>
-    let moved =
-      switch (last_followed^) {
-      | Some(lp: CanvasLayout.pos) =>
-        abs_float(lp.x -. p.x) > 1. || abs_float(lp.y -. p.y) > 1.
-      | None => true
-      };
+    let hopped = last_avatar_id^ != last_followed_id^;
     let woke = agent_busy && ! last_followed_busy^;
-    if (moved || woke) {
+    if (hopped || woke) {
       last_followed := Some(p);
+      last_followed_id := last_avatar_id^;
       CanvasCamera.follow(~aw, ~ah, (p.x, p.y));
     };
     last_followed_busy := agent_busy;
