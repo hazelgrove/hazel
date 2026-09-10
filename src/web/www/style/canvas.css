@@ -2094,16 +2094,17 @@
 }
 .canvas-node.node-card .card-resize {
   position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 16px;
-  height: 16px;
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
   cursor: nwse-resize;
   border-right: 2.5px solid var(--token-typ, #9457c9);
   border-bottom: 2.5px solid var(--token-typ, #9457c9);
   border-radius: 0 0 13px 0;
   opacity: 0.35;
-  z-index: 3;
+  /* above the probe's own stacking (live-offside z-indexes) */
+  z-index: 40;
 }
 .canvas-node.node-card .card-resize:hover {
   opacity: 1;

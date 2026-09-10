@@ -29,7 +29,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       ("Trip Planner", [%blob "trip-planner.hz"]),
       ("Greenhouse", [%blob "greenhouse.hz"]),
     ]
-    |> List.map(((name, text)) => ("Cards / " ++ name, text))
+    |> List.map(((name, text)) => ("Type Cards / " ++ name, text))
   )
   @ (
     /* Hazel as computational glue: Automerge documents in and out */
