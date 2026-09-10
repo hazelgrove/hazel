@@ -225,6 +225,12 @@ module Update = {
     | RestoreCaret(Point.t) /* deferred caret restore after slide load */
     | OutlineMenu(option((Haz3lcore.Id.t, bool, float, float)))
     | OutlineDefOp(OutlineSidebar.def_op, Haz3lcore.Id.t)
+    /* an edit of the WHOLE program from outside the editors (a livelit
+       app's commit on the canvas): while a stack is open the master
+       zipper is stale and every consumer reads the focus's master
+       segment, so the edit is applied to the spliced program and
+       committed the way an outline restructure is */
+    | MasterPerform(Haz3lcore.Action.t)
     | UnfocusDef
     | RefreshStatics
     | HydrateCurrent /* deferred slide hydration (SwitchSlide shows a
@@ -387,14 +393,257 @@ module Update = {
     };
   };
 
-  let update =
+  /* commit a whole-program segment produced outside the master editor
+     (an outline restructure, a livelit app's commit while stacked):
+     statics seeded synchronously, the stack kept (its cells rebuilt if
+     the edit landed inside one), the master rebuilt only when it
+     re-becomes visible. `fid`: the edited definition/site. */
+  let commit_program_seg =
       (
         ~schedule_action,
         ~settings: Settings.t,
-        ~is_documentation: bool,
-        action,
-        model: Model.t,
+        ~model: Model.t,
+        ~scratchpad: Scratchpad.t,
+        ~editor: CellEditor.Model.t,
+        ~agent,
+        ~deleting: bool,
+        ~fid: Haz3lcore.Id.t,
+        ~focus_target: option(Haz3lcore.Id.t),
+        new_seg: Haz3lcore.Segment.t,
       ) => {
+    /* Statics are seeded SYNCHRONOUSLY: the outline reads the
+       master's statics.term, and while a stack is open the
+       master's own calculate is skipped — a fresh empty statics
+       would blank the outline. Probe-aware (union of master +
+       open-cell zippers), so this single whole-program parse
+       also serves as the stacked-statics frame (no second
+       Force parse next frame). */
+    let probe_union = (a, b) =>
+      Haz3lcore.Id.Map.union((_, x, _) => Some(x), a, b);
+    let entry_probes =
+      switch (model.focus) {
+      | None => Haz3lcore.Id.Map.empty
+      | Some(f) =>
+        List.fold_left(
+          (acc, e: Model.stack_entry) =>
+            probe_union(
+              acc,
+              Haz3lcore.CachedStatics.probe_ids_of_zipper(
+                e.e_body.editor.editor.state.zipper,
+              ),
+            ),
+          Haz3lcore.Id.Map.empty,
+          f.f_entries,
+        )
+      };
+    let probe_ids =
+      probe_union(
+        entry_probes,
+        Haz3lcore.CachedStatics.probe_ids_of_zipper(
+          editor.editor.editor.state.zipper,
+        ),
+      );
+    let statics =
+      settings.core.statics
+        ? Haz3lcore.CachedStatics.init_compositional_term(
+            ~settings=settings.core,
+            ~probe_ids,
+            MakeTerm.Incr.term_of(new_seg),
+          )
+        : Haz3lcore.CachedStatics.empty;
+    let stays_stacked =
+      switch (model.focus) {
+      | None => false
+      | Some(f) =>
+        (
+          deleting
+            ? List.filter(
+                (e: Model.stack_entry) => e.e_id != fid,
+                f.f_entries,
+              )
+            : f.f_entries
+        )
+        != []
+      };
+    let new_editor: CellEditor.Model.t =
+      if (stays_stacked) {
+        {
+          /* master hidden while stacked: SKIP the whole-program
+             editor rebuild (cell_of_seg re-measures everything,
+             seconds on mega) — the zipper goes stale but every
+             consumer while stacked reads f_master_seg, and
+             unfocus rebuilds from it */
+
+          editor: {
+            ...editor.editor,
+            statics,
+          },
+          result: editor.result,
+        };
+      } else {
+        /* master (re)becomes visible — including when this op
+           deletes the LAST open cell: a stale zipper here would
+           resurrect the deleted def on the next calculate */
+        let fresh = Focus.cell_of_seg(new_seg);
+        {
+          editor: {
+            ...fresh.editor,
+            statics,
+          },
+          result: editor.result,
+        };
+      };
+    let new_sp = {
+      ...scratchpad,
+      kind:
+        Code({
+          editor: new_editor,
+          agent,
+        }),
+    };
+    /* a DELETEd definition's open cell closes with it; an empty
+       stack unfocuses (the rebuilt master is already live) */
+    let focus =
+      switch (model.focus) {
+      | None => None
+      | Some(f) =>
+        let entries =
+          deleting
+            ? List.filter(
+                (e: Model.stack_entry) => e.e_id != fid,
+                f.f_entries,
+              )
+            : f.f_entries;
+        entries == []
+          ? None
+          : Some(
+              Model.{
+                f_entries: entries,
+                f_master_seg: new_seg,
+              },
+            );
+      };
+    /* the op may have landed INSIDE an open cell (a nested row
+       of an open def): that cell's zipper is authoritative on
+       the next splice and would silently ERASE the edit — and
+       opening the created subdef as its own cell would overlap
+       the parent. Rebuild containing cells from the post-op
+       segment instead, and keep focus inside the parent. */
+    let entry_contains = (e: Model.stack_entry, id: Haz3lcore.Id.t) =>
+      e.e_id != id
+      && (
+        Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_body))
+        || Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_header))
+      );
+    let op_inside_open =
+      switch (focus) {
+      | Some(f) => List.exists(e => entry_contains(e, fid), f.f_entries)
+      | None => false
+      };
+    let focus =
+      switch (focus) {
+      | None => None
+      | Some(f) =>
+        op_inside_open
+          ? Some(
+              Model.{
+                ...f,
+                f_entries:
+                  List.map(
+                    (e: Model.stack_entry) =>
+                      entry_contains(e, fid)
+                        ? switch (
+                            Focus.mk_entry(
+                              ~info_map=statics.info_map,
+                              ~sym=?outline_sym(e.e_id, statics.term),
+                              e.e_id,
+                              new_seg,
+                            )
+                          ) {
+                          | Some(e') => e'
+                          | None => e
+                          }
+                        : e,
+                    f.f_entries,
+                  ),
+              },
+            )
+          : Some(f)
+      };
+    /* single-parse restructure: [statics] IS the stacked frame.
+       Seed the slot and recapture the open cells' frozen ctxs
+       from the fresh DefStatics items (a deleted/moved upstream
+       def changes what downstream cells see) — no Force pass. */
+    let focus =
+      switch (focus) {
+      | None =>
+        stacked_statics := None;
+        None;
+      | Some(f) =>
+        stacked_statics := Some(statics);
+        let ds_items =
+          switch (Haz3lcore.DefStatics.current()) {
+          | Some(ds) => ds.items
+          | None => []
+          };
+        let f_entries =
+          List.map(
+            (e: Model.stack_entry) =>
+              switch (
+                List.find_opt(
+                  (it: Haz3lcore.DefStatics.item) =>
+                    it.d_id == e.e_id
+                    || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+                  ds_items,
+                )
+              ) {
+              | Some(it) =>
+                switch (Focus.cell_content(e, new_seg)) {
+                | Some(content) =>
+                  switch (
+                    Focus.captured_ctx(~info_map=it.d_map, e.e_id, content)
+                  ) {
+                  | Some(ctx) => {
+                      ...e,
+                      e_ctx: ctx,
+                    }
+                  | None => e
+                  }
+                | None => e
+                }
+              | None => e
+              },
+            f.f_entries,
+          );
+        Some(
+          Model.{
+            ...f,
+            f_entries,
+          },
+        );
+      };
+    switch (focus_target) {
+    | Some(_) when op_inside_open => () /* shown in the parent */
+    | Some(id) =>
+      schedule_action(focus == None ? FocusToggle(id) : FocusEnsure(id))
+    | None => ()
+    };
+    {
+      ...model,
+      scratchpads: ListUtil.put_nth(model.current, new_sp, model.scratchpads),
+      focus,
+    }
+    |> Updated.return;
+  };
+
+  let rec update =
+          (
+            ~schedule_action,
+            ~settings: Settings.t,
+            ~is_documentation: bool,
+            action,
+            model: Model.t,
+          ) => {
     switch (action) {
     | AgentAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
@@ -881,239 +1130,63 @@ module Update = {
         switch (Restructure.apply(op, fid, live_seg)) {
         | None => model |> Updated.return_quiet
         | Some((new_seg, focus_target)) =>
-          /* Statics are seeded SYNCHRONOUSLY: the outline reads the
-             master's statics.term, and while a stack is open the
-             master's own calculate is skipped — a fresh empty statics
-             would blank the outline. Probe-aware (union of master +
-             open-cell zippers), so this single whole-program parse
-             also serves as the stacked-statics frame (no second
-             Force parse next frame). */
-          let probe_union = (a, b) =>
-            Haz3lcore.Id.Map.union((_, x, _) => Some(x), a, b);
-          let entry_probes =
-            switch (model.focus) {
-            | None => Haz3lcore.Id.Map.empty
-            | Some(f) =>
-              List.fold_left(
-                (acc, e: Model.stack_entry) =>
-                  probe_union(
-                    acc,
-                    Haz3lcore.CachedStatics.probe_ids_of_zipper(
-                      e.e_body.editor.editor.state.zipper,
-                    ),
-                  ),
-                Haz3lcore.Id.Map.empty,
-                f.f_entries,
-              )
-            };
-          let probe_ids =
-            probe_union(
-              entry_probes,
-              Haz3lcore.CachedStatics.probe_ids_of_zipper(
-                editor.editor.editor.state.zipper,
-              ),
-            );
-          let statics =
-            settings.core.statics
-              ? Haz3lcore.CachedStatics.init_compositional_term(
-                  ~settings=settings.core,
-                  ~probe_ids,
-                  MakeTerm.Incr.term_of(new_seg),
-                )
-              : Haz3lcore.CachedStatics.empty;
-          let stays_stacked =
-            switch (model.focus) {
-            | None => false
-            | Some(f) =>
-              (
-                op == OutlineSidebar.Delete
-                  ? List.filter(
-                      (e: Model.stack_entry) => e.e_id != fid,
-                      f.f_entries,
-                    )
-                  : f.f_entries
-              )
-              != []
-            };
-          let new_editor: CellEditor.Model.t =
-            if (stays_stacked) {
-              {
-                /* master hidden while stacked: SKIP the whole-program
-                   editor rebuild (cell_of_seg re-measures everything,
-                   seconds on mega) — the zipper goes stale but every
-                   consumer while stacked reads f_master_seg, and
-                   unfocus rebuilds from it */
-
-                editor: {
-                  ...editor.editor,
-                  statics,
-                },
-                result: editor.result,
-              };
-            } else {
-              /* master (re)becomes visible — including when this op
-                 deletes the LAST open cell: a stale zipper here would
-                 resurrect the deleted def on the next calculate */
-              let fresh = Focus.cell_of_seg(new_seg);
-              {
-                editor: {
-                  ...fresh.editor,
-                  statics,
-                },
-                result: editor.result,
-              };
-            };
-          let new_sp = {
-            ...scratchpad,
-            kind:
-              Code({
-                editor: new_editor,
-                agent,
-              }),
-          };
-          /* a DELETEd definition's open cell closes with it; an empty
-             stack unfocuses (the rebuilt master is already live) */
-          let focus =
-            switch (model.focus) {
-            | None => None
-            | Some(f) =>
-              let entries =
-                op == OutlineSidebar.Delete
-                  ? List.filter(
-                      (e: Model.stack_entry) => e.e_id != fid,
-                      f.f_entries,
-                    )
-                  : f.f_entries;
-              entries == []
-                ? None
-                : Some(
-                    Model.{
-                      f_entries: entries,
-                      f_master_seg: new_seg,
-                    },
-                  );
-            };
-          /* the op may have landed INSIDE an open cell (a nested row
-             of an open def): that cell's zipper is authoritative on
-             the next splice and would silently ERASE the edit — and
-             opening the created subdef as its own cell would overlap
-             the parent. Rebuild containing cells from the post-op
-             segment instead, and keep focus inside the parent. */
-          let entry_contains = (e: Model.stack_entry, id: Haz3lcore.Id.t) =>
-            e.e_id != id
-            && (
-              Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_body))
-              || Focus.seg_contains_id(id, Focus.zip_of_cell(e.e_header))
-            );
-          let op_inside_open =
-            switch (focus) {
-            | Some(f) =>
-              List.exists(e => entry_contains(e, fid), f.f_entries)
-            | None => false
-            };
-          let focus =
-            switch (focus) {
-            | None => None
-            | Some(f) =>
-              op_inside_open
-                ? Some(
-                    Model.{
-                      ...f,
-                      f_entries:
-                        List.map(
-                          (e: Model.stack_entry) =>
-                            entry_contains(e, fid)
-                              ? switch (
-                                  Focus.mk_entry(
-                                    ~info_map=statics.info_map,
-                                    ~sym=?outline_sym(e.e_id, statics.term),
-                                    e.e_id,
-                                    new_seg,
-                                  )
-                                ) {
-                                | Some(e') => e'
-                                | None => e
-                                }
-                              : e,
-                          f.f_entries,
-                        ),
-                    },
-                  )
-                : Some(f)
-            };
-          /* single-parse restructure: [statics] IS the stacked frame.
-             Seed the slot and recapture the open cells' frozen ctxs
-             from the fresh DefStatics items (a deleted/moved upstream
-             def changes what downstream cells see) — no Force pass. */
-          let focus =
-            switch (focus) {
-            | None =>
-              stacked_statics := None;
-              None;
-            | Some(f) =>
-              stacked_statics := Some(statics);
-              let ds_items =
-                switch (Haz3lcore.DefStatics.current()) {
-                | Some(ds) => ds.items
-                | None => []
-                };
-              let f_entries =
-                List.map(
-                  (e: Model.stack_entry) =>
-                    switch (
-                      List.find_opt(
-                        (it: Haz3lcore.DefStatics.item) =>
-                          it.d_id == e.e_id
-                          || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                        ds_items,
-                      )
-                    ) {
-                    | Some(it) =>
-                      switch (Focus.cell_content(e, new_seg)) {
-                      | Some(content) =>
-                        switch (
-                          Focus.captured_ctx(
-                            ~info_map=it.d_map,
-                            e.e_id,
-                            content,
-                          )
-                        ) {
-                        | Some(ctx) => {
-                            ...e,
-                            e_ctx: ctx,
-                          }
-                        | None => e
-                        }
-                      | None => e
-                      }
-                    | None => e
-                    },
-                  f.f_entries,
-                );
-              Some(
-                Model.{
-                  ...f,
-                  f_entries,
-                },
-              );
-            };
-          switch (focus_target) {
-          | Some(_) when op_inside_open => () /* shown in the parent */
-          | Some(id) =>
-            schedule_action(
-              focus == None ? FocusToggle(id) : FocusEnsure(id),
-            )
-          | None => ()
-          };
-          {
-            ...model,
-            scratchpads:
-              ListUtil.put_nth(model.current, new_sp, model.scratchpads),
-            focus,
-          }
-          |> Updated.return;
+          commit_program_seg(
+            ~schedule_action,
+            ~settings,
+            ~model,
+            ~scratchpad,
+            ~editor,
+            ~agent,
+            ~deleting=op == OutlineSidebar.Delete,
+            ~fid,
+            ~focus_target,
+            new_seg,
+          )
         };
       };
+    | MasterPerform(a) =>
+      switch (model.focus) {
+      | Some(f) when Haz3lcore.Action.is_edit(a) =>
+        let scratchpad = List.nth(model.scratchpads, model.current);
+        switch (scratchpad.kind) {
+        | Drv(_) => model |> Updated.return_quiet
+        | Code({editor, agent}) =>
+          /* the edit runs on a throwaway editor over the spliced program */
+          let live = Focus.cell_of_seg(Focus.splice_all(f));
+          let edited =
+            CellEditor.Update.update(
+              ~settings,
+              CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
+              live,
+            );
+          let new_seg = Focus.zip_of_cell(edited.model);
+          let fid =
+            Haz3lcore.Indicated.index(edited.model.editor.editor.state.zipper)
+            |> Option.value(~default=Haz3lcore.Id.invalid);
+          commit_program_seg(
+            ~schedule_action,
+            ~settings,
+            ~model,
+            ~scratchpad,
+            ~editor,
+            ~agent,
+            ~deleting=false,
+            ~fid,
+            ~focus_target=None,
+            new_seg,
+          );
+        };
+      | _ =>
+        update(
+          ~schedule_action,
+          ~settings,
+          ~is_documentation,
+          CellAction(
+            CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
+          ),
+          model,
+        )
+      }
     | UnfocusDef =>
       switch (model.focus) {
       | None => model |> Updated.return_quiet

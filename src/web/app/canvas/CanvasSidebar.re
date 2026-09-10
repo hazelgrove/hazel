@@ -1397,16 +1397,16 @@ let view_impl =
   /* MAIN mode: a canvas click selects the definition as the ONE open
      cell (the info panel's definition tab); the outline row scrolls into
      view (source = canvas, so the canvas itself holds still) */
-  /* wells act on the master editor (see CanvasProbe.master_perform) */
+  /* wells and app cards act on the master editor (see
+     CanvasProbe.master_perform); an EDIT goes through MasterPerform so
+     it lands in the live program even while a definition cell is open
+     (the master zipper is stale then, and a commit made there was
+     invisible and lost on unfocus — andrew's app clicks doing nothing) */
   CanvasProbe.master_perform :=
     Some(
       (a: Haz3lcore.Action.t) =>
         editors_inject(
-          Editors.Update.Scratch(
-            ScratchMode.Update.CellAction(
-              CellEditor.Update.MainEditor(CodeEditable.Update.Perform(a)),
-            ),
-          ),
+          Editors.Update.Scratch(ScratchMode.Update.MasterPerform(a)),
         ),
     );
   let show_panel =
