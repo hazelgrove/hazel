@@ -19,18 +19,24 @@ let ^weather = {
   let init : Model = Sun;
   let update(m: Model, _: Action): Model = m;
   let view(w: Model): HTML =
-    Node("svg", [Create("viewBox", "0 0 48 48"), Width("48"), Height("48")],
-      case w
-      | Sun => [Node("circle", [Create("cx", "24"), Create("cy", "24"), Create("r", "12"), Create("fill", "#fbbf24")], [])]
-      | Cloud => [Node("ellipse", [Create("cx", "24"), Create("cy", "26"), Create("rx", "16"), Create("ry", "9"), Create("fill", "#cbd5e1")], [])]
-      | Rain => [Node("ellipse", [Create("cx", "24"), Create("cy", "20"), Create("rx", "16"), Create("ry", "8"), Create("fill", "#94a3b8")], []),
-                 Node("line", [Create("x1", "16"), Create("y1", "32"), Create("x2", "13"), Create("y2", "42"), Create("stroke", "#3b82f6"), Create("stroke-width", "2.5"), Create("stroke-linecap", "round")], []),
-                 Node("line", [Create("x1", "26"), Create("y1", "32"), Create("x2", "23"), Create("y2", "42"), Create("stroke", "#3b82f6"), Create("stroke-width", "2.5"), Create("stroke-linecap", "round")], []),
-                 Node("line", [Create("x1", "36"), Create("y1", "32"), Create("x2", "33"), Create("y2", "42"), Create("stroke", "#3b82f6"), Create("stroke-width", "2.5"), Create("stroke-linecap", "round")], [])]
-      end);
+    Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 76 84"), Width("76"), Height("84"),
+                  Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+      (case w
+       | Sun => [Node("circle", [Create("cx", "38"), Create("cy", "31"), Create("r", "12"), Create("fill", "#efcb82")], [])]
+         @ map(range(0, 7), fun i: Int ->
+             let a = float_of_int(i) *. pi /. 4.0 in
+             Node("line", [Create("x1", to_fixed(38.0 +. 18.0 *. cos(a), 1)), Create("y1", to_fixed(31.0 +. 18.0 *. sin(a), 1)),
+                           Create("x2", to_fixed(38.0 +. 23.0 *. cos(a), 1)), Create("y2", to_fixed(31.0 +. 23.0 *. sin(a), 1)),
+                           Create("stroke", "#efcb82"), Create("stroke-width", "2"), Create("stroke-linecap", "round")], []))
+       | Cloud => [Node("path", [Create("d", "M19 43 C6 43 6 26 19 25 C19 8 43 6 49 23 C66 19 72 44 55 44 H19 Z"), Create("fill", "#d2dee4")], [])]
+       | Rain => [Node("path", [Create("d", "M19 36 C6 36 6 20 19 20 C21 6 43 7 48 19 C66 16 71 37 55 37 H19 Z"), Create("fill", "#b5c9d6")], []),
+                  Node("path", [Create("d", "M24 44 l-3 7 M39 44 l-3 7 M54 44 l-3 7"), Create("stroke", "#a6d3ee"), Create("stroke-width", "2.5"), Create("stroke-linecap", "round")], [])]
+       end)
+      @ [Node("text", [Create("x", "38"), Create("y", "75"), Create("font-size", "16"), Create("text-anchor", "middle"), Create("fill", "#f2f4ef")],
+                      [Text(case w | Sun => "Sun" | Cloud => "Cloud" | Rain => "Rain" end)])]);
   let expand(w: Model): Weather = w;
   let wrap(w: Weather): Model = w;
-  let shape : LivelitShape = Tab(4, 3)
+  let shape : LivelitShape = Tab(8, 5)
 } in
 
 let ^tank = {
@@ -39,20 +45,28 @@ let ^tank = {
   let init : Model = Level(50);
   let update(m: Model, _: Action): Model = m;
   let view(t: Model): HTML =
-    case t
-    | Level(n) =>
-      let h = n * 40 / 100 in
-      Node("svg", [Create("viewBox", "0 0 36 56"), Width("36"), Height("56")],
-        [Node("rect", [Create("x", "6"), Create("y", "6"), Create("width", "24"), Create("height", "42"), Create("rx", "4"),
-                       Create("fill", "#ffffff"), Create("stroke", "#cbd5e1")], []),
-         Node("rect", [Create("x", "8"), Create("y", string_of_int(46 - h)), Create("width", "20"), Create("height", string_of_int(h)),
-                       Create("rx", "3"), Create("fill", "#38bdf8")], []),
-         Node("text", [Create("x", "18"), Create("y", "30"), Create("font-size", "9"), Create("text-anchor", "middle"),
-                       Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "#1f2933")], [Text(string_of_int(n))])])
+    case t | Level(n) =>
+      let level = if n < 0 then 0 else if n > 100 then 100 else n in
+      let h = level * 106 / 100 in
+      Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 84 122"), Width("84"), Height("122"),
+                    Style([("background", "#576e83"), ("font-family", "Inter, system-ui, sans-serif")])],
+        [Node("svg", [Create("x", "8"), Create("y", "8"), Width("68"), Height("106"), Create("viewBox", "0 0 68 106"),
+                      Style([("overflow", "hidden"), ("border-radius", "4px")])],
+          [Node("rect", [Width("68"), Height("106"), Create("fill", "#40596f")], []),
+           Node("rect", [Create("y", string_of_int(106 - h)), Width("68"), Height(string_of_int(h)), Create("fill", "#acd1e5")], []),
+           Node("line", [Create("x1", "0"), Create("x2", "68"), Create("y1", string_of_int(106 - h)), Create("y2", string_of_int(106 - h)),
+                         Create("stroke", "#e0f0f4"), Create("stroke-opacity", if h == 0 then "0" else "0.6"), Create("stroke-width", "1")], []),
+           Node("text", [Create("x", "34"), Create("y", if h < 34 then "32" else "96"), Create("font-size", "28"), Create("font-weight", "500"),
+                         Create("text-anchor", "middle"), Create("fill", if h < 34 then "#f2f4ef" else "#2c475d")],
+                        [Text(string_of_int(n)), Node("tspan", [Create("font-size", "15")], [Text("%")])])]),
+         Node("path", [Create("d", "M7 10 V107 Q7 115 15 115 H69 Q77 115 77 107 V10"), Create("fill", "none"),
+                       Create("stroke", "#aec4d0"), Create("stroke-opacity", "0.4"), Create("stroke-width", "1")], []),
+         Node("path", [Create("d", "M8 8 H76 V108 Q76 114 70 114 H14 Q8 114 8 108 Z"), Create("fill", "none"),
+                       Create("stroke", "#31495d"), Create("stroke-opacity", "0.7"), Create("stroke-width", "0.8")], [])])
     end;
   let expand(t: Model): Tank = t;
   let wrap(t: Tank): Model = t;
-  let shape : LivelitShape = Tab(3, 3)
+  let shape : LivelitShape = Tab(8, 7)
 } in
 
 let ^plant = {
@@ -61,16 +75,16 @@ let ^plant = {
   let init : Model = Seed;
   let update(m: Model, _: Action): Model = m;
   let view(p: Model): HTML =
-    Node("svg", [Create("viewBox", "0 0 32 48"), Width("32"), Height("48")],
-      [Node("rect", [Create("x", "6"), Create("y", "38"), Create("width", "20"), Create("height", "8"), Create("rx", "3"), Create("fill", "#a16207")], [])]
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 32 48"), Width("32"), Height("48")],
+      [Node("rect", [Create("x", "6"), Create("y", "38"), Create("width", "20"), Create("height", "8"), Create("rx", "3"), Create("fill", "#c29878")], [])]
       @ (case p
-         | Seed => [Node("circle", [Create("cx", "16"), Create("cy", "36"), Create("r", "3"), Create("fill", "#78350f")], [])]
-         | Sprout => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "22"), Create("stroke", "#16a34a"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
-                      Node("ellipse", [Create("cx", "21"), Create("cy", "24"), Create("rx", "5"), Create("ry", "3"), Create("fill", "#4ade80")], [])]
-         | Bloom => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "14"), Create("stroke", "#16a34a"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
-                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "7"), Create("fill", "#ec4899")], []),
-                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "3"), Create("fill", "#fbbf24")], [])]
-         | Wilted => [Node("path", [Create("d", "M16 38 C 16 28, 22 26, 24 20"), Create("fill", "none"), Create("stroke", "#a3a3a3"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
+         | Seed => [Node("circle", [Create("cx", "16"), Create("cy", "36"), Create("r", "3"), Create("fill", "#edcc9e")], [])]
+         | Sprout => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "22"), Create("stroke", "#9abea8"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+                      Node("ellipse", [Create("cx", "21"), Create("cy", "24"), Create("rx", "5"), Create("ry", "3"), Create("fill", "#bdd8b7")], [])]
+         | Bloom => [Node("line", [Create("x1", "16"), Create("y1", "38"), Create("x2", "16"), Create("y2", "14"), Create("stroke", "#9abea8"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], []),
+                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "7"), Create("fill", "#dfb1c3")], []),
+                     Node("circle", [Create("cx", "16"), Create("cy", "11"), Create("r", "3"), Create("fill", "#efcb82")], [])]
+         | Wilted => [Node("path", [Create("d", "M16 38 C 16 28, 22 26, 24 20"), Create("fill", "none"), Create("stroke", "#b5ada4"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
          end));
   let expand(p: Model): Plant = p;
   let wrap(p: Plant): Model = p;
@@ -114,18 +128,23 @@ let ^greenhouse = {
   type Action = + Do(Act);
   let init : Model = [];
   let update(log: Model, a: Action): Model = case a | Do(act) => append(log, [act]) end;
-  let button(label: String, act: Act, x: Int): HTML =
-    Node("g", [OnClick(Do(act)), Style([("cursor", "pointer")])],
-      [Node("rect", [Create("x", string_of_int(x)), Create("y", "4"), Create("width", "44"), Create("height", "20"), Create("rx", "10"), Create("fill", "#e2e8f0")], []),
-       Node("text", [Create("x", string_of_int(x + 22)), Create("y", "18"), Create("font-size", "10"), Create("text-anchor", "middle"),
-                     Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "#334155")], [Text(label)])]);
+  let button(label: String, act: Act): HTML =
+    Button([Class("blue-hour-action"), OnClick(Do(act)),
+            Style([("font-size", "10px"), ("padding", "3px 8px")])], [Text(label)]);
   let view(log: Model): HTML =
     let (w, t, g) = season(log) in
-    Div([Style([("display", "flex"), ("flex-direction", "column"), ("gap", "4px"), ("align-items", "flex-start")])],
-      [Node("svg", [Create("viewBox", "0 0 150 28"), Width("150"), Height("28")],
-         [button("water", Water, 2), button("sow", Sow, 52), button("next", Next, 102)]),
-       Div([Style([("display", "flex"), ("gap", "6px"), ("align-items", "flex-end")])],
-         [^weather.view(w), ^tank.view(t)] @ map(g, fun p: Plant -> ^plant.view(p)))]);
+    Div([Class("blue-hour-view blue-hour-greenhouse"),
+         Style([("background", "#576e83"), ("color", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"),
+                ("position", "relative"), ("display", "grid"), ("grid-template-columns", "minmax(80px, 1fr) 84px"),
+                ("gap", "8px"), ("align-items", "center"), ("min-width", "176px"), ("max-width", "260px")])],
+      [Div([Style([("display", "flex"), ("flex-direction", "column"), ("gap", "4px"), ("align-items", "center")])],
+         [^weather.view(w),
+          Div([Style([("display", "flex"), ("flex-wrap", "wrap"), ("justify-content", "center"), ("max-width", "128px")])],
+              map(g, fun p: Plant -> ^plant.view(p)))]),
+       ^tank.view(t),
+       Div([Class("blue-hour-tools"), Style([("position", "absolute"), ("top", "0"), ("right", "0"),
+                ("display", "flex"), ("gap", "3px"), ("padding", "3px"), ("background", "#4e657aee"), ("border-radius", "3px")])],
+           [button("water", Water), button("sow", Sow), button("next", Next)])]);
   let expand(log: Model): [Act] = log;
   let shape : LivelitShape = Tab(16, 8)
 } in
