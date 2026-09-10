@@ -1899,8 +1899,16 @@ let view_impl =
           };
         };
       };
+      /* an expanded card: a click selects the card (its probe takes
+         the keyboard, ← → step samples), not the definition — whose
+         selection would pull focus to the editor */
+      let expanded =
+        List.mem(n.key, globals.settings.sidebar.canvas_value_nodes);
+      if (! moved^ && expanded) {
+        CanvasView.focus_card_probe(n.key);
+      };
       Effect.Expert.handle_non_dom_event_exn(
-        moved^ ? commit(delta^) : click_effect(n),
+        moved^ ? commit(delta^) : expanded ? Effect.Ignore : click_effect(n),
       );
       ();
     };
@@ -2233,9 +2241,10 @@ let view_impl =
   let toggle_value_node = (key: string) => {
     let expanding =
       !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
-    if (expanding) {
-      reveal_pending := Option.some(key);
-    };
+    /* either way the node is brought into view: a collapsed node goes
+       back to its layout place, which the camera may have left behind
+       while it was a card */
+    reveal_pending := Option.some(key);
     /* opening a card is a request for live values: turn sampling on if
        it is off, and end the agent-burst mask if it is holding samples
        back — the user asked, so the evaluation goes out now */
@@ -2351,7 +2360,10 @@ let view_impl =
       ),
     ) {
     | (Some(nl), Some(aw), Some(ah), Some((cx, cy))) =>
-      let (w, h) = card_size(key);
+      /* an expanded card's box, or the collapsed node's circle */
+      let (w, h) =
+        List.mem(key, globals.settings.sidebar.canvas_value_nodes)
+          ? card_size(key) : (nl.r *. 2., nl.r *. 2.);
       let z = CanvasCamera.zoom_now^;
       let (vw, vh) = (aw /. z, ah /. z);
       let inside =

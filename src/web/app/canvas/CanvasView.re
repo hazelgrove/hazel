@@ -590,14 +590,24 @@ let base_glyph = (label: string): option(string) => {
   };
 };
 
-/* keyboard focus to the probe inside a card (its ← → handler) */
+/* keyboard focus to the probe inside a card (its ← → handler): through
+   FocusEffect, after the render — the node click also selects the
+   definition, whose deferred focus would otherwise land on the editor */
 let focus_card_probe = (key: string): unit => {
   open Js_of_ocaml;
   let sel = "#" ++ node_dom_id(key) ++ " .probe-card";
   switch (
     Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
   ) {
-  | Some(el) => el##focus
+  | Some(el) =>
+    switch (Js.Opt.to_option(el##getAttribute(Js.string("data-probe-id")))) {
+    | Some(pid) =>
+      switch (Haz3lcore.Id.of_string(Js.to_string(pid))) {
+      | Some(id) => Haz3lcore.FocusEffect.schedule(id)
+      | None => el##focus
+      }
+    | None => el##focus
+    }
   | None => ()
   };
 };
@@ -763,10 +773,6 @@ let node_view =
               Attr.on_double_click(_ =>
                 Effect.Many([Effect.Stop_propagation, on_collapse])
               ),
-              Attr.on_click(_ => {
-                focus_card_probe(n.key);
-                Effect.Ignore;
-              }),
             ]
         )
         @ click_attrs,
