@@ -244,6 +244,37 @@ let join_tests = (
       },
     ),
     test_case(
+      "an alias is preserved when the join does not refine it",
+      `Quick,
+      () => {
+        /* meet restores the alias in the same situation; join dropping it
+           would print `(Int, String)` where meet prints `Pair`. */
+        let pair = () => prod([int(), string()]);
+        let ctx =
+          Ctx.extend_tvar(
+            Ctx.empty,
+            {
+              name: "Pair",
+              id: Id.mk(),
+              kind: Singleton(pair()),
+            },
+          );
+        let var_pair = var("Pair");
+        check(
+          typ,
+          "the alias, not its definition from the context",
+          var_pair,
+          Typ.join(ctx, var_pair, pair()),
+        );
+        check(
+          typ,
+          "and symmetrically with the alias on the right",
+          var_pair,
+          Typ.join(ctx, pair(), var_pair),
+        );
+      },
+    ),
+    test_case(
       "join terminates on a cyclic alias chain",
       `Quick,
       () => {

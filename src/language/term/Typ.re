@@ -966,7 +966,15 @@ let rec join =
     if (List.exists(String.equal(name), expanded_aliases)) {
       None;
     } else {
-      Ctx.lookup_alias(ctx, name);
+      /* lookup_tvar, not lookup_alias: the latter synthesizes an Unknown hole
+         for an unbound name rather than failing, and the restore below would
+         then read that hole back as "the alias describes the result" and
+         resurrect the variable. Only a real Singleton is an expansion. */
+      switch (Ctx.lookup_tvar(ctx, name)) {
+      | Some(Singleton(ty)) => Some(ty)
+      | Some(Abstract)
+      | None => None
+      };
     };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
@@ -980,16 +988,33 @@ let rec join =
   | (Unknown(_), _) => ty1
   | (_, Unknown(_)) => ty2
   | (Var(n1), Var(n2)) when n1 == n2 => ty1
+  /* As in meet: join against the expansion, but if the result is just the
+     expansion again then the alias already describes it, so hand back the Var
+     the caller wrote rather than the definition out of the context. */
   | (Var(name), _) =>
     switch (expand(name)) {
     | Some(ty_name) =>
-      join(~expanded_aliases=[name, ...expanded_aliases], ctx, ty_name, ty2)
+      let joined =
+        join(
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ctx,
+          ty_name,
+          ty2,
+        );
+      equal(ty_name, joined) ? ty1 : joined;
     | None => Unknown(Internal) |> temp
     }
   | (_, Var(name)) =>
     switch (expand(name)) {
     | Some(ty_name) =>
-      join(~expanded_aliases=[name, ...expanded_aliases], ctx, ty_name, ty1)
+      let joined =
+        join(
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ctx,
+          ty_name,
+          ty1,
+        );
+      equal(ty_name, joined) ? ty2 : joined;
     | None => Unknown(Internal) |> temp
     }
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
