@@ -1,9 +1,9 @@
-/* Marking the runtime-derived parts of a type in the type probe's Dynamic
-   mode. The marks are ids, and Code.re colours a tile when its id is marked,
-   so the marks have to line up with the tiles the renderer actually emits.
+/* Colouring the runtime-derived parts of a type in the type probe's Dynamic
+   mode. Code.re colours a tile when its id is in the set,
+   so the dynamic_ids have to line up with the tiles the renderer actually emits.
    Two ways that can fail, and neither is caught by checking the padding
-   alone: an id marked but never emitted colours nothing, and a tile emitted
-   for a runtime-derived part but not marked stays the static colour.
+   alone: an id in the set but never emitted colours nothing, and a tile emitted
+   for a runtime-derived part but left out stays the static colour.
 
    Both used to fail. Parens are the reason: normalization inserts them as
    real nodes and the renderer emits them as tiles, so a comparison of the
@@ -27,82 +27,82 @@ let settings: ExpToSegment.Settings.t = {
 let normalize = ExpToSegment.normalize_typ(~settings);
 let render_normalized = ExpToSegment.normalized_typ_to_segment(~settings);
 
-/* The marks, and the one render they describe, reported two ways. Mirrors
-   DynamicTypInfer.displayed_segment_and_marks: normalize both, diff the
+/* The dynamic_ids, and the one render they describe, reported two ways. Mirrors
+   DynamicTypInfer.displayed_segment_and_dynamic_ids: normalize both, diff the
    normalized forms, render the normalized dynamic type once.
 
    The two id sets are deliberately different. `all` includes Grout and
-   Secondary, because a marked node can legitimately render as Grout -- an
-   Unknown does, with show_unknown_as_hole off -- and marking it is harmless.
+   Secondary, because a runtime-derived node can legitimately render as Grout --
+   an Unknown does, with show_unknown_as_hole off -- and including it is harmless.
    `tiles` is what Code.re actually colours, so it is the right set to
    require full coverage of. */
-let marks_and_rendered =
+let dynamic_ids_and_rendered =
     (~static_typ: Typ.t, ~dynamic_typ: Typ.t): (Id.Set.t, Id.Set.t, Id.Set.t) => {
   let static_n = normalize(static_typ);
   let dynamic_n = normalize(dynamic_typ);
-  let marks = Typ.diff(static_n, dynamic_n) |> Id.Set.of_list;
+  let dynamic_ids = Typ.diff(static_n, dynamic_n) |> Id.Set.of_list;
   let seg = render_normalized(dynamic_n);
   (
-    marks,
+    dynamic_ids,
     Segment.ids(seg) |> Id.Set.of_list,
     Segment.tile_ids(seg) |> Id.Set.of_list,
   );
 };
 
-/* SOUNDNESS. Every marked id must appear somewhere in the render. An id that
-   appears nowhere describes nothing, and means the marks and the segment were
+/* SOUNDNESS. Every id in the set must appear somewhere in the render. An id that
+   appears nowhere describes nothing, and means the dynamic_ids and the segment were
    computed from different types. */
-let qcheck_marks_are_emitted =
+let qcheck_dynamic_ids_are_emitted =
   QCheck.Test.make(
-    ~name="every marked id appears in the rendered segment",
+    ~name="every dynamic id appears in the rendered segment",
     ~count=300,
     QCheck.pair(
       QCheck_Util.arb_typ(~minimal_idents=false, 12),
       QCheck_Util.arb_typ(~minimal_idents=false, 12),
     ),
     ((static_typ, dynamic_typ)) => {
-      let (marks, all, _tiles) =
-        marks_and_rendered(~static_typ, ~dynamic_typ);
-      Id.Set.subset(marks, all);
+      let (dynamic_ids, all, _tiles) =
+        dynamic_ids_and_rendered(~static_typ, ~dynamic_typ);
+      Id.Set.subset(dynamic_ids, all);
     },
   );
 
 /* COMPLETENESS, in the case that needs no oracle: if statics knew nothing
-   then the whole type came from runtime, so every tile must be marked.
+   then the whole type came from runtime, so every tile must be green.
    The parens were what failed here. */
-let qcheck_fully_dynamic_marks_everything =
+let qcheck_fully_dynamic_colours_everything =
   QCheck.Test.make(
-    ~name="a wholly runtime-derived type has every tile marked",
+    ~name="a wholly runtime-derived type has every tile green",
     ~count=300,
     QCheck_Util.arb_typ(~minimal_idents=false, 12),
     dynamic_typ => {
       /* Only meaningful when runtime refined something: if the dynamic type
-         is itself unknown, nothing was learned and nothing should be marked. */
+         is itself unknown, nothing was learned and nothing should be green. */
       QCheck.assume(
         switch (Typ.term_of(dynamic_typ)) {
         | Unknown(_) => false
         | _ => true
         },
       );
-      let (marks, _all, tiles) =
-        marks_and_rendered(
+      let (dynamic_ids, _all, tiles) =
+        dynamic_ids_and_rendered(
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~dynamic_typ,
         );
-      Id.Set.subset(tiles, marks);
+      Id.Set.subset(tiles, dynamic_ids);
     },
   );
 
-/* A type runtime merely confirmed has nothing to mark. */
-let qcheck_identical_marks_nothing =
+/* A type runtime merely confirmed has nothing to colour. */
+let qcheck_identical_colours_nothing =
   QCheck.Test.make(
-    ~name="a type identical to the static one marks nothing",
+    ~name="a type identical to the static one dynamic_ids nothing",
     ~count=300,
     QCheck_Util.arb_typ(~minimal_idents=false, 12),
     typ => {
-      let (marks, _, _) =
-        marks_and_rendered(~static_typ=typ, ~dynamic_typ=typ);
-      Id.Set.is_empty(marks);
+      let (dynamic_ids, _, _) =
+        dynamic_ids_and_rendered(~static_typ=typ, ~dynamic_typ=typ);
+      Id.Set.is_empty(dynamic_ids);
     },
   );
 
@@ -176,12 +176,12 @@ let count_tests =
   ];
 let tests = [
   (
-    "DynamicTypMarks",
+    "DynamicTypIds",
     count_tests
     @ [
-      QCheck_alcotest.to_alcotest(qcheck_marks_are_emitted),
-      QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_marks_everything),
-      QCheck_alcotest.to_alcotest(qcheck_identical_marks_nothing),
+      QCheck_alcotest.to_alcotest(qcheck_dynamic_ids_are_emitted),
+      QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_colours_everything),
+      QCheck_alcotest.to_alcotest(qcheck_identical_colours_nothing),
       QCheck_alcotest.to_alcotest(qcheck_normalized_ids_are_sufficient),
     ],
   ),

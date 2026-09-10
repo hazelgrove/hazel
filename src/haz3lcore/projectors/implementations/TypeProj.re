@@ -26,7 +26,7 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
 
 /* The segment to display in Dynamic mode, and the ids of its tokens that
    came from runtime. Rendered here rather than by the caller because the
-   marks only describe this one render -- see DynamicTypInfer. */
+   dynamic_ids only describe this one render -- see DynamicTypInfer. */
 let get_dynamic_segment =
     (utility: utility, info: info): (Base.segment, Id.Set.t) => {
   let ctx =
@@ -42,7 +42,7 @@ let get_dynamic_segment =
   switch (info.dynamics) {
   | None => (render_normalized(normalize(static_typ)), Id.Set.empty)
   | Some(d: Dynamics.Info.t) =>
-    DynamicTypInfer.displayed_segment_and_marks(
+    DynamicTypInfer.displayed_segment_and_dynamic_ids(
       ~normalize,
       ~render_normalized,
       ~ctx,
@@ -110,13 +110,13 @@ module M: Projector = {
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
     /* Every arm yields the segment to display, so Dynamic can hand over the
-       exact segment its marks were computed from. */
+       exact segment its dynamic_ids were computed from. */
     let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
     let (classes, seg) =
       switch (model) {
       | Dynamic =>
-        let (seg, marks) = get_dynamic_segment(utility, info);
-        ((id => Id.Set.mem(id, marks) ? ["dynamic"] : []), seg);
+        let (seg, dynamic_ids) = get_dynamic_segment(utility, info);
+        ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
           (_ => []),
           render(self_ty(info.statics) |> totalize_ty),
