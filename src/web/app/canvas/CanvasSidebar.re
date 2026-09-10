@@ -670,6 +670,197 @@ let fit_pending: ref(bool) = ref(false);
 /* a card just opened / resized: pan it into view after the render */
 let reveal_pending: ref(option(string)) = ref(Option.none);
 
+/* ---- imperative layout follow (node drag, card resize): apply a
+   layout's geometry straight to the DOM — no vdom, no app render ---- */
+module LayoutDom = {
+  open Js_of_ocaml;
+  let set_attr = (el, name: string, v: string) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        el,
+        "setAttribute",
+        [|
+          Js.Unsafe.inject(Js.string(name)),
+          Js.Unsafe.inject(Js.string(v)),
+        |],
+      ),
+    );
+  let set_pos = (id: string, x: float, y: float) =>
+    switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+    | Some(el) =>
+      let st = Js.Unsafe.coerce(el)##.style;
+      st##.left := Js.string(Printf.sprintf("%.1fpx", x));
+      st##.top := Js.string(Printf.sprintf("%.1fpx", y));
+    | None => ()
+    };
+  let fmt' = (v: float) => Printf.sprintf("%f", v);
+  let pull_back = (p: CanvasLayout.pos, c: CanvasLayout.pos, d: float) => {
+    let vx = p.x -. c.x
+    and vy = p.y -. c.y;
+    let len = max(1., Float.hypot(vx, vy));
+    CanvasLayout.{
+      x: p.x -. vx /. len *. d,
+      y: p.y -. vy /. len *. d,
+    };
+  };
+  let apply_layout = (l: CanvasLayout.t): unit => {
+    List.iter(
+      (nl: CanvasLayout.node_layout) =>
+        set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
+      l.nodes,
+    );
+    List.iter(
+      (el: CanvasLayout.edge_layout) => {
+        let e = el.edge;
+        if (el.endo) {
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(
+              "corbit-" ++ CanvasView.sanitize(e.e_name),
+            )
+          ) {
+          | Some(c) =>
+            set_attr(c, "cx", fmt'(el.dst_p.x));
+            set_attr(c, "cy", fmt'(el.dst_p.y));
+          | None => ()
+          };
+        } else {
+          let dstp = pull_back(el.dst_p, el.c2, 7.);
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(
+              "cpath-" ++ CanvasView.sanitize(e.e_name),
+            )
+          ) {
+          | Some(path_el) =>
+            set_attr(
+              path_el,
+              "d",
+              Printf.sprintf(
+                "M %f,%f C %f,%f %f,%f %f,%f",
+                el.src_p.x,
+                el.src_p.y,
+                el.c1.x,
+                el.c1.y,
+                el.c2.x,
+                el.c2.y,
+                dstp.x,
+                dstp.y,
+              ),
+            )
+          | None => ()
+          };
+        };
+        set_pos(
+          CanvasView.edge_dom_id(e.e_name),
+          el.label_p.x,
+          el.label_p.y,
+        );
+        switch (
+          Util.JsUtil.get_elem_by_id_opt(
+            "clead-" ++ CanvasView.sanitize(e.e_name),
+          )
+        ) {
+        | Some(lel) =>
+          set_attr(lel, "x1", fmt'(el.label_p.x));
+          set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
+          set_attr(lel, "x2", fmt'(el.label_anchor.x));
+          set_attr(lel, "y2", fmt'(el.label_anchor.y));
+        | None => ()
+        };
+      },
+      l.edges,
+    );
+    List.iteri(
+      (
+        _i,
+        (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      ) => {
+        let mx = (cp.x +. pp.x) /. 2.;
+        let pp' =
+          pull_back(
+            pp,
+            CanvasLayout.{
+              x: mx,
+              y: pp.y,
+            },
+            5.,
+          );
+        switch (
+          Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
+        ) {
+        | Some(el) =>
+          let (ox, oy) =
+            CanvasLayout.link_offset(
+              ~nodes=l.nodes,
+              ~from_key=a,
+              ~to_key=b,
+              cp,
+              pp',
+            );
+          set_attr(
+            el,
+            "d",
+            CanvasLayout.link_d(
+              cp,
+              CanvasLayout.{
+                x: mx +. ox,
+                y: cp.y +. oy,
+              },
+              CanvasLayout.{
+                x: mx +. ox,
+                y: pp'.y +. oy,
+              },
+              pp',
+            ),
+          );
+        | None => ()
+        };
+      },
+      l.formations,
+    );
+    List.iteri(
+      (
+        _i,
+        (a, b, dp, tp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
+      ) => {
+        let tp' = pull_back(tp, dp, 5.);
+        switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))) {
+        | Some(el) =>
+          let (c1, c2) =
+            CanvasLayout.route_link(
+              ~nodes=l.nodes,
+              ~from_key=a,
+              ~to_key=b,
+              dp,
+              tp',
+            );
+          set_attr(el, "d", CanvasLayout.link_d(dp, c1, c2, tp'));
+        | None => ()
+        };
+      },
+      l.dep_links,
+    );
+    List.iter(
+      (vl: CanvasLayout.value_layout) =>
+        set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
+      l.values,
+    );
+    /* hull sausages track exactly (no springs for paths) */
+    List.iter(
+      path =>
+        List.iter(
+          ((id, d, _)) =>
+            switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+            | Some(el) => set_attr(el, "d", d)
+            | None => ()
+            },
+          CanvasView.hull_sausages_at(l, path),
+        ),
+      CanvasView.hull_paths_of(l),
+    );
+    CanvasJelly.set_targets(CanvasView.hull_targets(l));
+  };
+};
+
 let px_float = (s: string): float =>
   try(float_of_string(String.sub(s, 0, String.length(s) - 2))) {
   | _ => 0.
@@ -1494,6 +1685,7 @@ let view_impl =
       )
       : Effect.t(unit) => {
     open Js_of_ocaml;
+    open LayoutDom;
     let sx: int = Js.Unsafe.coerce(evt)##.clientX;
     let sy: int = Js.Unsafe.coerce(evt)##.clientY;
     /* dragging while the actor works pauses the workload; it resumes on
@@ -1572,35 +1764,6 @@ let view_impl =
     drag_active := true;
     let moved = ref(false);
     let delta = ref((0., 0.));
-    let set_attr = (el, name: string, v: string) =>
-      ignore(
-        Js.Unsafe.meth_call(
-          el,
-          "setAttribute",
-          [|
-            Js.Unsafe.inject(Js.string(name)),
-            Js.Unsafe.inject(Js.string(v)),
-          |],
-        ),
-      );
-    let set_pos = (id: string, x: float, y: float) =>
-      switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-      | Some(el) =>
-        let st = Js.Unsafe.coerce(el)##.style;
-        st##.left := Js.string(Printf.sprintf("%.1fpx", x));
-        st##.top := Js.string(Printf.sprintf("%.1fpx", y));
-      | None => ()
-      };
-    let fmt' = (v: float) => Printf.sprintf("%f", v);
-    let pull_back = (p: CanvasLayout.pos, c: CanvasLayout.pos, d: float) => {
-      let vx = p.x -. c.x
-      and vy = p.y -. c.y;
-      let len = max(1., Float.hypot(vx, vy));
-      CanvasLayout.{
-        x: p.x -. vx /. len *. d,
-        y: p.y -. vy /. len *. d,
-      };
-    };
     /* EXACT drag follow: recompute the REAL layout with the pending
        delta (same frame + offsets the commit will use) and apply every
        piece of geometry imperatively — no vdom, no app render, and
@@ -1636,174 +1799,6 @@ let view_impl =
         )
       | None => None
       };
-    };
-    let apply_layout = (l: CanvasLayout.t): unit => {
-      List.iter(
-        (nl: CanvasLayout.node_layout) =>
-          set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
-        l.nodes,
-      );
-      List.iter(
-        (el: CanvasLayout.edge_layout) => {
-          let e = el.edge;
-          if (el.endo) {
-            switch (
-              Util.JsUtil.get_elem_by_id_opt(
-                "corbit-" ++ CanvasView.sanitize(e.e_name),
-              )
-            ) {
-            | Some(c) =>
-              set_attr(c, "cx", fmt'(el.dst_p.x));
-              set_attr(c, "cy", fmt'(el.dst_p.y));
-            | None => ()
-            };
-          } else {
-            let dstp = pull_back(el.dst_p, el.c2, 7.);
-            switch (
-              Util.JsUtil.get_elem_by_id_opt(
-                "cpath-" ++ CanvasView.sanitize(e.e_name),
-              )
-            ) {
-            | Some(path_el) =>
-              set_attr(
-                path_el,
-                "d",
-                Printf.sprintf(
-                  "M %f,%f C %f,%f %f,%f %f,%f",
-                  el.src_p.x,
-                  el.src_p.y,
-                  el.c1.x,
-                  el.c1.y,
-                  el.c2.x,
-                  el.c2.y,
-                  dstp.x,
-                  dstp.y,
-                ),
-              )
-            | None => ()
-            };
-          };
-          set_pos(
-            CanvasView.edge_dom_id(e.e_name),
-            el.label_p.x,
-            el.label_p.y,
-          );
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(
-              "clead-" ++ CanvasView.sanitize(e.e_name),
-            )
-          ) {
-          | Some(lel) =>
-            set_attr(lel, "x1", fmt'(el.label_p.x));
-            set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
-            set_attr(lel, "x2", fmt'(el.label_anchor.x));
-            set_attr(lel, "y2", fmt'(el.label_anchor.y));
-          | None => ()
-          };
-        },
-        l.edges,
-      );
-      List.iteri(
-        (
-          _i,
-          (a, b, cp, pp): (
-            string,
-            string,
-            CanvasLayout.pos,
-            CanvasLayout.pos,
-          ),
-        ) => {
-          let mx = (cp.x +. pp.x) /. 2.;
-          let pp' =
-            pull_back(
-              pp,
-              CanvasLayout.{
-                x: mx,
-                y: pp.y,
-              },
-              5.,
-            );
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
-          ) {
-          | Some(el) =>
-            let (ox, oy) =
-              CanvasLayout.link_offset(
-                ~nodes=l.nodes,
-                ~from_key=a,
-                ~to_key=b,
-                cp,
-                pp',
-              );
-            set_attr(
-              el,
-              "d",
-              CanvasLayout.link_d(
-                cp,
-                CanvasLayout.{
-                  x: mx +. ox,
-                  y: cp.y +. oy,
-                },
-                CanvasLayout.{
-                  x: mx +. ox,
-                  y: pp'.y +. oy,
-                },
-                pp',
-              ),
-            );
-          | None => ()
-          };
-        },
-        l.formations,
-      );
-      List.iteri(
-        (
-          _i,
-          (a, b, dp, tp): (
-            string,
-            string,
-            CanvasLayout.pos,
-            CanvasLayout.pos,
-          ),
-        ) => {
-          let tp' = pull_back(tp, dp, 5.);
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))
-          ) {
-          | Some(el) =>
-            let (c1, c2) =
-              CanvasLayout.route_link(
-                ~nodes=l.nodes,
-                ~from_key=a,
-                ~to_key=b,
-                dp,
-                tp',
-              );
-            set_attr(el, "d", CanvasLayout.link_d(dp, c1, c2, tp'));
-          | None => ()
-          };
-        },
-        l.dep_links,
-      );
-      List.iter(
-        (vl: CanvasLayout.value_layout) =>
-          set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
-        l.values,
-      );
-      /* hull sausages track exactly (no springs for paths) */
-      List.iter(
-        path =>
-          List.iter(
-            ((id, d, _)) =>
-              switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-              | Some(el) => set_attr(el, "d", d)
-              | None => ()
-              },
-            CanvasView.hull_sausages_at(l, path),
-          ),
-        CanvasView.hull_paths_of(l),
-      );
-      CanvasJelly.set_targets(CanvasView.hull_targets(l));
     };
     let raf_busy = ref(false);
     let pending: ref(option((float, float))) =
@@ -1908,7 +1903,18 @@ let view_impl =
         CanvasView.focus_card_probe(n.key);
       };
       Effect.Expert.handle_non_dom_event_exn(
-        moved^ ? commit(delta^) : expanded ? Effect.Ignore : click_effect(n),
+        moved^
+          ? commit(delta^)
+          : expanded
+              /* the info panel follows the card's type; no definition
+                 select (that would focus the editor) */
+              ? Effect.Many([
+                  globals.inject_global(
+                    Set(Sidebar(SetCanvasFocusTy(Some(n.key)))),
+                  ),
+                  show_panel,
+                ])
+              : click_effect(n),
       );
       ();
     };
@@ -2272,19 +2278,93 @@ let view_impl =
     let (w0, h0) = card_size(key);
     let z = max(0.2, globals.settings.canvas_zoom);
     let cur = ref((w0, h0));
+    let natural =
+      List.assoc_opt(
+        (slide, key),
+        globals.settings.sidebar.canvas_card_natural,
+      );
+    /* LIVE follow: the card's box and its view's zoom track the pointer,
+       and the whole layout (neighbours pushed, edges re-landed) is
+       recomputed with the pending size and applied to the DOM each
+       frame — the committed render then changes nothing */
+    let raf_busy = ref(false);
+    let pending: ref(option((float, float))) = ref(Option.none);
+    let apply_size = ((w, h)) => {
+      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
+      | Some(el) =>
+        let st = Js.Unsafe.coerce(el)##.style;
+        st##.width := Js.string(Printf.sprintf("%.1fpx", w));
+        st##.height := Js.string(Printf.sprintf("%.1fpx", h));
+        switch (natural) {
+        | Option.Some((nw, nh)) when nw > 1. && nh > 1. =>
+          let zc =
+            Float.min((w -. 8.) /. nw, (h -. 8.) /. nh)
+            |> Float.max(0.15)
+            |> Float.min(6.);
+          ignore(
+            Js.Unsafe.meth_call(
+              st,
+              "setProperty",
+              [|
+                Js.Unsafe.inject(Js.string("--card-zoom")),
+                Js.Unsafe.inject(Js.string(Printf.sprintf("%.4f", zc))),
+              |],
+            ),
+          );
+        | _ => ()
+        };
+      | Option.None => ()
+      };
+      CanvasLayout.card_extents :=
+        [
+          (key, (w, h)),
+          ...List.remove_assoc(key, CanvasLayout.card_extents^),
+        ];
+      switch (cached_frame^) {
+      | Option.Some(fc) =>
+        LayoutDom.apply_layout(
+          CanvasLayout.layout(
+            ~x_scale=fc.fc_x_scale,
+            ~y_scale=fc.fc_y_scale,
+            ~origin_override=Option.some(fc.fc_origin),
+            ~offsets,
+            ~pins,
+            graph,
+          ),
+        )
+      | Option.None => ()
+      };
+    };
+    let follow = (wh: (float, float)) => {
+      pending := Option.some(wh);
+      if (! raf_busy^) {
+        raf_busy := true;
+        let _ =
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "requestAnimationFrame",
+            [|
+              Js.Unsafe.inject(
+                Js.Unsafe.callback(() => {
+                  raf_busy := false;
+                  switch (pending^) {
+                  | Option.Some(wh) => apply_size(wh)
+                  | Option.None => ()
+                  };
+                }),
+              ),
+            |],
+          );
+        ();
+      };
+    };
     let rec on_move = evt => {
       let x: int = Js.Unsafe.coerce(evt)##.clientX;
       let y: int = Js.Unsafe.coerce(evt)##.clientY;
       let w = max(40., w0 +. float_of_int(x - sx) /. z);
       let h = max(28., h0 +. float_of_int(y - sy) /. z);
       cur := (w, h);
-      switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
-      | Some(el) =>
-        let st = Js.Unsafe.coerce(el)##.style;
-        st##.width := Js.string(Printf.sprintf("%.1fpx", w));
-        st##.height := Js.string(Printf.sprintf("%.1fpx", h));
-      | None => ()
-      };
+      follow((w, h));
       ();
     }
     and on_up = _ => {

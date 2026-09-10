@@ -2161,6 +2161,12 @@
   outline: 2px solid var(--R1);
   box-shadow: 0 0 0 4px oklch(from var(--R1) l c h / 0.18);
 }
+/* the info panel's value chip that IS the dynamic focus */
+.agg-value.agg-anchored .value,
+.agg-value.agg-anchored .pill {
+  outline: 2px solid var(--R1);
+  outline-offset: -2px;
+}
 .canvas-card-probe.canvas-probe {
   position: absolute;
   inset: 0;
@@ -2195,15 +2201,21 @@
 .canvas-node.node-card .canvas-app .user-livelit > * {
   zoom: var(--card-zoom, 1);
 }
+/* a list wraps at a natural width (360px) into rows, and that block
+   zooms to fit the card like any other view */
 .canvas-card-probe .probe-card-rich > .rich-livelit-list {
-  zoom: 1;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
+  width: max-content;
+  max-width: 360px;
   padding: 4px;
   box-sizing: border-box;
   align-content: flex-start;
   justify-content: flex-start;
+}
+.canvas-card-probe .probe-card-plain {
+  scrollbar-width: none;
+}
+.canvas-card-probe .probe-card-plain::-webkit-scrollbar {
+  display: none;
 }
 /* a plain value: the sample chip's look over the whole surface, the
    value centered, wrapping to the card's width */

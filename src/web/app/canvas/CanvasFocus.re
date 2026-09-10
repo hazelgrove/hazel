@@ -93,6 +93,38 @@ let slot =
 
 let max_type_values = 10;
 
+/* sites inside a livelit definition (`let ^name = { … }`) are a VIEW's
+   insides, not program values: the type panel and the cards skip them.
+   Decided by source position against the definitions' spans. */
+let livelit_spans =
+    (~graph: CanvasGraph.t, ~syntax: CachedSyntax.t)
+    : list((Measured.Point.t, Measured.Point.t)) =>
+  List.filter_map(
+    id => TermData.extreme_measures(id, syntax.term_data, syntax.measured),
+    graph.livelit_defs,
+  );
+
+let inside_livelit =
+    (
+      ~spans: list((Measured.Point.t, Measured.Point.t)),
+      ~syntax: CachedSyntax.t,
+      id: Id.t,
+    )
+    : bool =>
+  spans != []
+  && (
+    switch (TermData.extreme_measures(id, syntax.term_data, syntax.measured)) {
+    | Some((a, b)) =>
+      List.exists(
+        ((l, r)) =>
+          Measured.Point.compare(l, a) <= 0
+          && Measured.Point.compare(b, r) <= 0,
+        spans,
+      )
+    | None => false
+    }
+  );
+
 /* pretty type of a probed site, from statics. Memoized per info_map
    (every card scans every site on every render; pretty-printing each
    site's type each time was a per-keystroke cost). */
@@ -349,6 +381,16 @@ and value_site_impl =
     }
   | Some(n) =>
     let names = node_type_names(~graph, n);
+    let spans =
+      switch (syntax) {
+      | Some(syntax) => livelit_spans(~graph, ~syntax)
+      | None => []
+      };
+    let in_view = (id: Id.t): bool =>
+      switch (syntax) {
+      | Some(syntax) => inside_livelit(~spans, ~syntax, id)
+      | None => false
+      };
     let inside = (id: Id.t): bool =>
       switch (within, syntax) {
       | (Some((l, r)), Some(syntax)) =>
@@ -395,7 +437,8 @@ and value_site_impl =
     Language.Sample.Map.fold(
       (id, samples, best) =>
         switch (site_ty(~info_map, id), List.rev(samples)) {
-        | (Some(t), [newest_s, ..._]) when List.mem(t, names) =>
+        | (Some(t), [newest_s, ..._])
+            when List.mem(t, names) && !in_view(id) =>
           let newest =
             List.fold_left(
               (m, s: Language.Sample.t) => max(m, s.seq),
@@ -407,6 +450,8 @@ and value_site_impl =
             inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,
             rich_ok(id, newest_s) ? 1 : 0,
+            /* a site with HISTORY (← → walk it) over a single value */
+            List.length(samples) > 1 ? 1 : 0,
             newest,
           );
           switch (best) {
@@ -441,24 +486,34 @@ let type_view =
        let names = node_type_names(~graph, n);
        let tally: Hashtbl.t(string, (int, int, Language.Sample.t)) =
          Hashtbl.create(16);
+       let spans = livelit_spans(~graph, ~syntax=editor.editor.syntax);
        Language.Sample.Map.fold(
          (id, samples, ()) =>
            switch (site_ty(~info_map, id)) {
+           | Some(_)
+               when inside_livelit(~spans, ~syntax=editor.editor.syntax, id) =>
+             ()
            | Some(t) when List.mem(t, names) =>
              List.iter(
-               (s: Language.Sample.t) => {
-                 let v = print_value(s.value);
-                 let (c, latest, repr) =
-                   Option.value(
-                     ~default=(0, 0, s),
-                     Hashtbl.find_opt(tally, v),
+               (s: Language.Sample.t) =>
+                 /* an app site's stream mixes its VIEW samples (HTML)
+                    with its values: at a site not typed HTML, the views
+                    are not values of this type */
+                 if (t != "HTML" && MvuShape.is_html(s.value)) {
+                   ();
+                 } else {
+                   let v = print_value(s.value);
+                   let (c, latest, repr) =
+                     Option.value(
+                       ~default=(0, 0, s),
+                       Hashtbl.find_opt(tally, v),
+                     );
+                   Hashtbl.replace(
+                     tally,
+                     v,
+                     (c + 1, max(latest, s.seq), s.seq >= latest ? s : repr),
                    );
-                 Hashtbl.replace(
-                   tally,
-                   v,
-                   (c + 1, max(latest, s.seq), s.seq >= latest ? s : repr),
-                 );
-               },
+                 },
                samples,
              )
            | _ => ()

@@ -351,22 +351,44 @@ let value_chip =
              |> ProjectorInfo.utility.seg_to_string;
            t ++ "\n";
          };
+       /* the strip shows the MASTER editor's dynamics: the capture goes
+          there too (the active editor is the open definition cell) */
        let jump =
-         globals.inject_global(
-           ActiveEditor(
-             Project(
-               SampleFocus(
-                 Capture(Language.Sample.capture_of_sample(sample), None),
-               ),
+         (
+           switch (master_perform^) {
+           | Option.Some(f) => f
+           | Option.None => (a => globals.inject_global(ActiveEditor(a)))
+           }
+         )(
+           Project(
+             SampleFocus(
+               Capture(Language.Sample.capture_of_sample(sample), None),
              ),
            ),
          );
+       /* this occurrence IS the dynamic focus: outlined like a focused
+          sample */
+       let anchored =
+         switch (editor.editor.state.zipper.refractors.sample_focus.anchor) {
+         | Some(a) =>
+           a.probe_id == sample.syntax_id
+           && (
+             switch (a.opened) {
+             | Some(o) => o == sample.step_start
+             | None => true
+             }
+           )
+         | None => false
+         };
        div(
          ~attrs=[
            /* the probe pill's own DOM hierarchy, so proj-probe.css
               (backing, ink, typography) applies natively instead of
               being imitated */
-           clss(["live-offside", "Single", "agg-value"]),
+           clss(
+             ["live-offside", "Single", "agg-value"]
+             @ (anchored ? ["agg-anchored"] : []),
+           ),
            Attr.title(
              value_title ++ "click: jump the dynamic focus to this occurrence",
            ),

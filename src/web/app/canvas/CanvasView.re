@@ -596,20 +596,37 @@ let base_glyph = (label: string): option(string) => {
 let focus_card_probe = (key: string): unit => {
   open Js_of_ocaml;
   let sel = "#" ++ node_dom_id(key) ++ " .probe-card";
-  switch (
-    Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
-  ) {
-  | Some(el) =>
-    switch (Js.Opt.to_option(el##getAttribute(Js.string("data-probe-id")))) {
-    | Some(pid) =>
-      switch (Haz3lcore.Id.of_string(Js.to_string(pid))) {
-      | Some(id) => Haz3lcore.FocusEffect.schedule(id)
-      | None => el##focus
-      }
-    | None => el##focus
+  /* after the render (a deferred editor focus would win otherwise), and
+     WITHOUT scrolling the pane to the element */
+  let later = (f: unit => unit) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.global##.window,
+        "setTimeout",
+        [|Js.Unsafe.inject(Js.Unsafe.callback(f)), Js.Unsafe.inject(30)|],
+      ),
+    );
+  later(() =>
+    switch (
+      Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
+    ) {
+    | Some(el) =>
+      ignore(
+        Js.Unsafe.meth_call(
+          el,
+          "focus",
+          [|
+            Js.Unsafe.inject(
+              Js.Unsafe.obj([|
+                ("preventScroll", Js.Unsafe.inject(Js._true)),
+              |]),
+            ),
+          |],
+        ),
+      )
+    | None => ()
     }
-  | None => ()
-  };
+  );
 };
 
 let node_view =

@@ -107,6 +107,10 @@ type t = {
      insert path be resolved unambiguously when the name is shadowed by a
      nested binding. */
   last_def: option((string, Id.t)),
+  /* the ids of every livelit definition (`let ^name = { … }`): their
+     insides are a view's, not the program's — sites inside them are no
+     values of a type (the type panel and the cards skip them) */
+  livelit_defs: list(Id.t),
 };
 
 let empty: t = {
@@ -116,6 +120,7 @@ let empty: t = {
   loose_tests: [],
   all_tests: [],
   last_def: None,
+  livelit_defs: [],
 };
 
 let mk_node =
@@ -1527,6 +1532,24 @@ let extract_impl =
       },
       alias_nodes,
     );
+  /* walked directly: the spine drops the value-view livelits' entries */
+  let rec livelit_defs_of = (e: Exp.t): list(Id.t) => {
+    let e = strip_exp(e);
+    switch (e.term) {
+    /* the DEFINITION's span (the module), not the let's (which runs to
+       the end of its body, i.e. the rest of the program) */
+    | Let(pat, def, body) when Language.UserLivelit.binder_name(pat) != None => [
+        Exp.rep_id(strip_exp(def)),
+        ...livelit_defs_of(body),
+      ]
+    | Let(_, _, body)
+    | Seq(_, body)
+    | TyAlias(_, _, body)
+    | Filter(_, body) => livelit_defs_of(body)
+    | _ => []
+    };
+  };
+  let livelit_defs = livelit_defs_of(statics.term);
   {
     nodes: uniquify_keys(alias_nodes @ extras^),
     edges,
@@ -1534,6 +1557,7 @@ let extract_impl =
     loose_tests,
     all_tests,
     last_def,
+    livelit_defs,
   };
 };
 

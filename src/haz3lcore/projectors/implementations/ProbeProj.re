@@ -2290,12 +2290,30 @@ let rich_content =
 /* the sample a card shows: the one aligned with the global focus, else
    the newest (last) of the pin-filtered samples */
 let card_sample = (ctx: probe_ctx): option(Sample.t) => {
+  /* an app site's stream mixes its VIEW samples (HTML) with its values;
+     a card of a non-HTML type shows the values */
+  let site_is_html =
+    switch (ctx.statics) {
+    | InfoExp(e) =>
+      switch (Typ.term_of(Info.exp_ty(e))) {
+      | Var("HTML") => true
+      | _ => false
+      }
+    | _ => false
+    };
+  let values =
+    site_is_html
+      ? ctx.dynamics.samples
+      : List.filter(
+          (s: Sample.t) => !MvuShape.is_html(s.value),
+          ctx.dynamics.samples,
+        );
   let newest = () =>
     Sample.Selection.filter_by_pin(
       ~ap_id=ctx.ap_id,
       ~pinned=ctx.dynamics.sample_focus.pinned_stack,
       ~pinned_interval=ctx.dynamics.pinned_interval,
-      ctx.dynamics.samples,
+      values,
     )
     |> List.fold_left(
          (best, s: Sample.t) =>
