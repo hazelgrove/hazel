@@ -235,6 +235,14 @@ let value_info =
 
 /* the pretty type names a node stands for: its label, its alias body,
    or (former nodes "()@Model", "[]@Hand") the alias's body type */
+/* a site a probe (so a card) can anchor to: one with syntax of its own.
+   The prelude's definitions (fold_left's accumulator, say) record samples
+   of the program's types too, but their ids have no segment in the
+   program — a card put there shows nothing, and a focus captured there
+   aligns nothing in the program. */
+let anchorable = (~syntax: CachedSyntax.t, id: Id.t): bool =>
+  TermData.segment(id, syntax.term_data) != None;
+
 let node_type_names = (~graph: CanvasGraph.t, n: CanvasGraph.tynode) => {
   let key = n.key;
   let former_anchor = (prefix: string): option(string) => {
@@ -472,7 +480,15 @@ and value_site_impl =
       (id, samples, best) =>
         switch (site_ty(~info_map, id), List.rev(samples)) {
         | (Some(t), [newest_s, ..._])
-            when List.mem(t, names) && !in_view(id) =>
+            when
+              List.mem(t, names)
+              && !in_view(id)
+              && (
+                switch (syntax) {
+                | Some(syntax) => anchorable(~syntax, id)
+                | None => true
+                }
+              ) =>
           let newest =
             List.fold_left(
               (m, s: Language.Sample.t) => max(m, s.seq),
@@ -555,7 +571,9 @@ let type_view =
          (id, samples, ()) =>
            switch (site_ty(~info_map, id)) {
            | Some(_)
-               when inside_livelit(~spans, ~syntax=editor.editor.syntax, id) =>
+               when
+                 inside_livelit(~spans, ~syntax=editor.editor.syntax, id)
+                 || !anchorable(~syntax=editor.editor.syntax, id) =>
              ()
            | Some(t) when List.mem(t, names) =>
              List.iter(

@@ -2406,7 +2406,12 @@ let card_view =
   let sample = card_sample(ctx);
   let content =
     switch (sample) {
-    | None => [div(~attrs=[Attr.classes(["probe-card-empty"])], [])]
+    | None => [
+        div(
+          ~attrs=[Attr.classes(["probe-card-empty"])],
+          [text("no sample")],
+        ),
+      ]
     | Some(sample) =>
       switch (card_rich(ctx, ~view_seg, local, sample.value)) {
       | Some(n) => [div(~attrs=[Attr.classes(["probe-card-rich"])], [n])]

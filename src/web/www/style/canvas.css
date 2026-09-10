@@ -623,11 +623,16 @@
   opacity: 0.4;
 }
 
+/* "made of" through a constructor (Cell = Mark(Player)): the same dotted
+   vocabulary as the product/list formation lines, not a faint solid
+   line of its own that reads as an unlabeled edge */
 .canvas-dep {
-  stroke: #4a7a4a;
-  stroke-width: 1;
+  stroke: var(--BLACK, #333);
+  stroke-width: 1.2;
+  stroke-dasharray: 0.1 4;
+  stroke-linecap: round;
   fill: none;
-  opacity: 0.18;
+  opacity: 0.45;
 }
 
 .canvas-node.node-err {
@@ -768,12 +773,15 @@
   pointer-events: none;
 }
 
+/* the fan is PART of the selection: it wears the selection color, dotted
+   (it appears because you indicated the function) */
 .canvas-depfan path {
   fill: none;
-  stroke: var(--BR3, #8a744a);
-  stroke-width: 1px;
+  stroke: var(--canvas-select, #2f6fbf);
+  stroke-width: 1.4px;
+  stroke-dasharray: 0.1 4;
   stroke-linecap: round;
-  opacity: 0.5;
+  opacity: 0.75;
 }
 
 /* sample chips in the canvas panels carry the probe pill's OWN DOM
@@ -2270,6 +2278,13 @@
 .canvas-node.node-card:has(.probe-card-plain) {
   background: #d6eed6;
 }
+/* ONE text color: a card shows a single value and its border already
+   says whether it is selected; the probe's focus-relation colors
+   (pink caller, blue callee, gray off-focus) are for a stack of samples */
+.canvas-card-probe .probe-card-plain .value .code-text .token {
+  color: #247e3d !important;
+  opacity: 1 !important;
+}
 /* a list of a type with a view: the elements' views in a row */
 .rich-livelit-view.rich-livelit-list {
   display: flex;
@@ -2299,8 +2314,19 @@
   width: 100%;
   height: 100%;
 }
-.canvas-card-probe .probe-card-empty {
+/* an empty card SAYS so (a bare box read as a glitch) */
+.canvas-card-probe .probe-card-empty,
+.canvas-node.node-card .card-empty {
   flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--code-font, monospace);
+  font-size: 11px;
+  color: var(--BR3, #8a744a);
+  opacity: 0.7;
 }
 /* an app instance: the real (interactive) livelit projector. In the
    editor a projector is an absolutely positioned box sized by the font

@@ -127,6 +127,169 @@ type dock =
    ~offsets are user drag deltas keyed by node key, applied after auto
    placement (edges/rims then derive from the moved positions, and the
    final normalization translates deltas and auto positions together). */
+/* ---- routing for links and arrows ----
+   Lines are STRAIGHT. A chain laid in one row (`Int -> Pos -> World`) would
+   put the middle node on the long link, so `declutter` below moves such a
+   node off the chord at layout time; while a node is being dragged a line
+   may pass under it until the release re-lays the graph. (The earlier
+   router bent a link around whatever it crossed, and re-bent it on every
+   drag frame as the crossings changed: the "waves".) Pure, so the drag
+   follower can re-route from positions alone. */
+let route_link =
+    (
+      ~nodes as _: list(node_layout),
+      ~from_key as _: string,
+      ~to_key as _: string,
+      a: pos,
+      b: pos,
+    )
+    : (pos, pos) => {
+  let c = (t: float) => {
+    x: a.x +. (b.x -. a.x) *. t,
+    y: a.y +. (b.y -. a.y) *. t,
+  };
+  (c(0.33), c(0.67));
+};
+
+let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
+  Printf.sprintf(
+    "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+    a.x,
+    a.y,
+    c1.x,
+    c1.y,
+    c2.x,
+    c2.y,
+    b.x,
+    b.y,
+  );
+
+/* ---- declutter: nodes step OFF the straight lines between other nodes.
+   For every link/arrow chord, a node the chord would run through (not its
+   ends) is nudged perpendicular to the chord by the clearance it lacks;
+   exactly collinear nodes alternate sides. A few rounds settle chains.
+   Fixed nodes (pinned or dragged by the user) stay; a docked satellite
+   rides its anchor. */
+let declutter =
+    (
+      ~chords: list((string, string)),
+      ~fixed: list(string),
+      ~radius_of: string => float,
+      nodes: list(node_layout),
+    )
+    : list(node_layout) => {
+  let clear = 12.;
+  let tbl: Hashtbl.t(string, pos) = Hashtbl.create(32);
+  List.iter(
+    (nl: node_layout) => Hashtbl.replace(tbl, nl.node.key, nl.p),
+    nodes,
+  );
+  let anchor_of = (nl: node_layout): option(string) =>
+    switch (nl.node.sat) {
+    | Some((a, _)) => Some(a)
+    | None => None
+    };
+  let movable = (nl: node_layout): bool =>
+    !List.mem(nl.node.key, fixed) && anchor_of(nl) == None;
+  let parity: Hashtbl.t(string, float) = Hashtbl.create(32);
+  List.iteri(
+    (i, nl: node_layout) =>
+      Hashtbl.replace(parity, nl.node.key, i mod 2 == 0 ? 1. : (-1.)),
+    nodes,
+  );
+  for (_ in 1 to 6) {
+    let delta: Hashtbl.t(string, (float, float)) = Hashtbl.create(16);
+    List.iter(
+      ((ka, kb)) =>
+        switch (Hashtbl.find_opt(tbl, ka), Hashtbl.find_opt(tbl, kb)) {
+        | (Some(a), Some(b)) =>
+          let dx = b.x -. a.x
+          and dy = b.y -. a.y;
+          let len = sqrt(dx *. dx +. dy *. dy);
+          if (len > 1.) {
+            let (ux, uy) = (dx /. len, dy /. len);
+            let (nx, ny) = (-. uy, ux);
+            List.iter(
+              (nl: node_layout) =>
+                if (nl.node.key != ka && nl.node.key != kb && movable(nl)) {
+                  let p = Hashtbl.find(tbl, nl.node.key);
+                  let r = radius_of(nl.node.key);
+                  let px = p.x -. a.x
+                  and py = p.y -. a.y;
+                  let along = px *. ux +. py *. uy;
+                  let side = px *. nx +. py *. ny;
+                  let need = r +. clear;
+                  if (along > r && along < len -. r && abs_float(side) < need) {
+                    let dir =
+                      abs_float(side) < 0.5
+                        ? Hashtbl.find(parity, nl.node.key)
+                        : side >= 0. ? 1. : (-1.);
+                    let m = need -. abs_float(side);
+                    let (ox, oy) =
+                      Option.value(
+                        ~default=(0., 0.),
+                        Hashtbl.find_opt(delta, nl.node.key),
+                      );
+                    Hashtbl.replace(
+                      delta,
+                      nl.node.key,
+                      (ox +. dir *. nx *. m, oy +. dir *. ny *. m),
+                    );
+                  };
+                },
+              nodes,
+            );
+          };
+        | _ => ()
+        },
+      chords,
+    );
+    Hashtbl.iter(
+      (k, (ox, oy)) => {
+        let p = Hashtbl.find(tbl, k);
+        Hashtbl.replace(
+          tbl,
+          k,
+          {
+            x: p.x +. ox,
+            y: p.y +. oy,
+          },
+        );
+      },
+      delta,
+    );
+    List.iter(
+      (nl: node_layout) =>
+        switch (anchor_of(nl)) {
+        | Some(a) =>
+          switch (Hashtbl.find_opt(delta, a)) {
+          | Some((ox, oy)) =>
+            let p = Hashtbl.find(tbl, nl.node.key);
+            Hashtbl.replace(
+              tbl,
+              nl.node.key,
+              {
+                x: p.x +. ox,
+                y: p.y +. oy,
+              },
+            );
+          | None => ()
+          }
+        | None => ()
+        },
+      nodes,
+    );
+  };
+  List.map(
+    (nl: node_layout) =>
+      {
+        ...nl,
+        p: Hashtbl.find(tbl, nl.node.key),
+      },
+    nodes,
+  );
+};
+
 let layout_impl =
     (
       ~x_scale=1.,
@@ -228,9 +391,6 @@ let layout_impl =
       g.nodes,
     );
   let grid_keys = List.map((n: CanvasGraph.tynode) => n.key, grid_nodes);
-  let find_grid = (k: string): option(CanvasGraph.tynode) =>
-    List.find_opt((n: CanvasGraph.tynode) => n.key == k, grid_nodes);
-
   /* ---- placement: delegate to the GraphLayout engine ----
      Rank constraints: alias-body deps (hidden ones included — they still
      order columns), derived [T] after its element, and function flow
@@ -549,6 +709,55 @@ let layout_impl =
            },
          }
        );
+  /* every straight line the render will draw: function arrows and the
+     "made of" links (parts → product, former → alias, element → [T],
+     alias-body deps → alias) */
+  let node_layouts = {
+    let chords =
+      List.map((e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
+      @ List.concat_map(
+          (n: CanvasGraph.tynode) =>
+            switch (n.kind) {
+            | Product =>
+              List.map(pk => (pk, n.key), n.parts)
+              @ (
+                switch (n.sat) {
+                | Some((anchor, _)) => [(n.key, anchor)]
+                | None => []
+                }
+              )
+            | Alias =>
+              List.map(pk => (pk, n.key), n.parts)
+              @ List.filter_map(
+                  d =>
+                    d != n.key && !List.mem(d, n.hidden_deps)
+                      ? Some((d, n.key)) : None,
+                  n.deps,
+                )
+            | Derived =>
+              switch (strip_brackets(n.key)) {
+              | Some(ik) => [(ik, n.key)]
+              | None => []
+              }
+            | _ => []
+            },
+          g.nodes,
+        );
+    let card_r = (k: string): float =>
+      switch (card_of(k)) {
+      | Some((w, h)) => max(w, h) /. 2.
+      | None =>
+        List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
+        |> Option.map((nl: node_layout) => nl.r)
+        |> Option.value(~default=base_radius)
+      };
+    declutter(
+      ~chords,
+      ~fixed=List.map(fst, pins) @ List.map(fst, offsets),
+      ~radius_of=card_r,
+      node_layouts,
+    );
+  };
   let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
   List.iter(
     (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
@@ -751,60 +960,17 @@ let layout_impl =
             y: dst_p.y,
           };
           let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));
-          /* a terminal sits in its anchor's column */
-          let rank_of = k =>
-            switch (List.assoc_opt(k, res.ranks)) {
-            | Some(r) => Some(r)
-            | None =>
-              switch (
-                List.find_opt((m: CanvasGraph.tynode) => m.key == k, g.nodes)
-              ) {
-              | Some({CanvasGraph.sat: Some((anchor, _)), _}) =>
-                List.assoc_opt(anchor, res.ranks)
-              | _ => None
-              }
-            };
-          /* an edge spanning several ranks arcs over the nodes it would
-             otherwise run straight through; one within a single column
-             bows out sideways instead of running down the column */
-          let lift =
-            switch (rank_of(e.e_src), rank_of(e.dst)) {
-            | (Some(r0), Some(r1)) when abs(r1 - r0) >= 2 =>
-              let lo = min(r0, r1)
-              and hi = max(r0, r1);
-              /* bow away from the side of the chord where the skipped
-                 ranks' nodes mostly sit */
-              let chord_y = x =>
-                abs_float(d.x -. s.x) < 1.
-                  ? s.y : s.y +. (d.y -. s.y) *. (x -. s.x) /. (d.x -. s.x);
-              let offs =
-                List.filter_map(
-                  ((k, r)) =>
-                    r > lo && r < hi
-                      ? Option.map(
-                          (p: pos) => p.y -. chord_y(p.x),
-                          pos_of(k),
-                        )
-                      : None,
-                  res.ranks,
-                );
-              let above = List.length(List.filter(o => o < 0., offs));
-              let below = List.length(offs) - above;
-              let mag = min(110., 48. +. 20. *. float_of_int(hi - lo - 2));
-              above > below ? mag : -. mag;
-            | _ => 0.
-            };
+          /* straight: an S with horizontal handles (declutter has moved
+             the nodes off the chord); a same-column arrow runs down the
+             column */
           let same_col = abs_float(d.x -. s.x) < 60.;
-          let bow =
-            same_col
-              ? max(40., min(140., abs_float(d.y -. s.y) *. 0.45)) : 0.;
           let c1 = {
-            x: same_col ? s.x +. bow : s.x +. sign *. bend,
-            y: s.y +. lift,
+            x: same_col ? s.x : s.x +. sign *. bend,
+            y: s.y,
           };
           let c2 = {
-            x: same_col ? d.x +. bow : d.x -. sign *. bend,
-            y: d.y +. lift,
+            x: same_col ? d.x : d.x -. sign *. bend,
+            y: d.y,
           };
           {
             edge: e,
@@ -1283,88 +1449,6 @@ let layout_impl =
     };
   };
 };
-
-/* ---- routing for dependency links (the dotted "made of" arrows) ----
-   Dependencies rank the layout, so `Int -> Pos -> World` lands in one row and
-   the long link would run straight through Pos on top of the short ones.
-   Links get the same two rules as function arrows: arc away from any node
-   they would cross; bow sideways when both ends share a column. Pure, so the
-   drag follower can re-route from positions alone. */
-let link_offset =
-    (
-      ~nodes: list(node_layout),
-      ~from_key: string,
-      ~to_key: string,
-      a: pos,
-      b: pos,
-    )
-    : (float, float) => {
-  let dx = b.x -. a.x
-  and dy = b.y -. a.y;
-  let len = max(1., sqrt(dx *. dx +. dy *. dy));
-  let (ux, uy) = (dx /. len, dy /. len);
-  let (nx, ny) = (-. uy, ux); /* left normal */
-  /* nodes the straight segment would cross, with their signed side */
-  let hits =
-    List.filter_map(
-      (nl: node_layout) =>
-        if (nl.node.key == from_key || nl.node.key == to_key) {
-          None;
-        } else {
-          let px = nl.p.x -. a.x
-          and py = nl.p.y -. a.y;
-          let along = px *. ux +. py *. uy;
-          let side = px *. nx +. py *. ny;
-          along > 0. && along < len && abs_float(side) < nl.r +. 12.
-            ? Some((side, nl.r)) : None;
-        },
-      nodes,
-    );
-  let same_col = abs_float(dx) < 60. && abs_float(dy) > 40.;
-  let (lift, bow) =
-    switch (hits) {
-    | [] => (0., same_col ? max(40., min(120., abs_float(dy) *. 0.4)) : 0.)
-    | _ =>
-      let max_r = List.fold_left((m, (_, r)) => max(m, r), 0., hits);
-      let mean_side =
-        List.fold_left((s, (side, _)) => s +. side, 0., hits)
-        /. float_of_int(List.length(hits));
-      /* pass on the side the obstacles are NOT on */
-      let dir = mean_side >= 0. ? (-1.) : 1.;
-      (dir *. (max_r +. 34.), 0.);
-    };
-  (nx *. lift +. bow, ny *. lift);
-};
-
-let route_link =
-    (
-      ~nodes: list(node_layout),
-      ~from_key: string,
-      ~to_key: string,
-      a: pos,
-      b: pos,
-    )
-    : (pos, pos) => {
-  let (ox, oy) = link_offset(~nodes, ~from_key, ~to_key, a, b);
-  let c = (t: float) => {
-    x: a.x +. (b.x -. a.x) *. t +. ox,
-    y: a.y +. (b.y -. a.y) *. t +. oy,
-  };
-  (c(0.33), c(0.67));
-};
-
-let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
-  Printf.sprintf(
-    "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
-    a.x,
-    a.y,
-    c1.x,
-    c1.y,
-    c2.x,
-    c2.y,
-    b.x,
-    b.y,
-  );
 
 /* ---- instrumentation: how often and how long a render lays out ---- */
 let layout_calls: ref(int) = ref(0);

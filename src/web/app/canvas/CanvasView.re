@@ -206,30 +206,10 @@ let formation_svg =
       (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
     )
     : Node.t => {
-  /* gentle curve from component toward its product; shifted off any node
-     it would otherwise run through (a terminal sitting on the line) */
-  let mx = (cp.x +. pp.x) /. 2.;
-  let pp' =
-    pull_back(
-      pp,
-      {
-        x: mx,
-        y: pp.y,
-      },
-      5.,
-    );
-  let (ox, oy) =
-    CanvasLayout.link_offset(~nodes, ~from_key=a, ~to_key=b, cp, pp');
-  let c1 =
-    CanvasLayout.{
-      x: mx +. ox,
-      y: cp.y +. oy,
-    }
-  and c2 =
-    CanvasLayout.{
-      x: mx +. ox,
-      y: pp'.y +. oy,
-    };
+  /* straight from component to product, pulled back for the arrowhead */
+  let pp' = pull_back(pp, cp, 5.);
+  let (c1, c2) =
+    CanvasLayout.route_link(~nodes, ~from_key=a, ~to_key=b, cp, pp');
   svg(
     ~key=formation_dom_id(a, b),
     "path",
@@ -289,7 +269,6 @@ let dep_link_svg =
       Attr.id(dep_dom_id(a, b)),
       clss(["canvas-dep"]),
       Attr.create("d", CanvasLayout.link_d(dp, c1, c2, np')),
-      Attr.create("marker-end", "url(#cnv-arrow-dep)"),
     ],
     [],
   );

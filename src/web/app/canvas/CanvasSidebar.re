@@ -781,44 +781,20 @@ module LayoutDom = {
         _i,
         (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
       ) => {
-        let mx = (cp.x +. pp.x) /. 2.;
-        let pp' =
-          pull_back(
-            pp,
-            CanvasLayout.{
-              x: mx,
-              y: pp.y,
-            },
-            5.,
-          );
+        let pp' = pull_back(pp, cp, 5.);
         switch (
           Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
         ) {
         | Some(el) =>
-          let (ox, oy) =
-            CanvasLayout.link_offset(
+          let (c1, c2) =
+            CanvasLayout.route_link(
               ~nodes=l.nodes,
               ~from_key=a,
               ~to_key=b,
               cp,
               pp',
             );
-          set_attr(
-            el,
-            "d",
-            CanvasLayout.link_d(
-              cp,
-              CanvasLayout.{
-                x: mx +. ox,
-                y: cp.y +. oy,
-              },
-              CanvasLayout.{
-                x: mx +. ox,
-                y: pp'.y +. oy,
-              },
-              pp',
-            ),
-          );
+          set_attr(el, "d", CanvasLayout.link_d(cp, c1, c2, pp'));
         | None => ()
         };
       },
@@ -1463,12 +1439,6 @@ let view_impl =
             (n: CanvasGraph.tynode) => n.n_id == Some(id),
             graph.nodes,
           )
-        )
-      : None;
-  let selected_value =
-    main_mode
-      ? Option.bind(selected_item, id =>
-          List.find_opt((v: CanvasGraph.value) => v.v_id == id, graph.values)
         )
       : None;
   let set_focus = (f: option(string)) =>
@@ -2509,7 +2479,17 @@ let view_impl =
         let content =
           switch (content) {
           | Some(c) => c
-          | None => div(~attrs=[clss(["card-empty"])], [])
+          | None =>
+            /* no site of this type has samples the card can stand on */
+            div(
+              ~attrs=[clss(["card-empty"])],
+              [
+                text(
+                  globals.settings.core.probe_all
+                    ? "no samples" : "no samples yet",
+                ),
+              ],
+            )
           };
         Some((
           key,
@@ -3385,6 +3365,59 @@ let view_impl =
           top,
         ),
       );
+    }),
+  );
+  /* TEMP debug: candidate sites of a TYPE node — id, sort, whether the
+     site has a syntax segment (a card anchors a probe to it), samples */
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__typeSites",
+    Js_of_ocaml.Js.Unsafe.callback(
+      (ty: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) => {
+      let ty = Js_of_ocaml.Js.to_string(ty);
+      let info_map = editor.statics.info_map;
+      let names =
+        switch (CanvasFocus.node_of(graph, ty)) {
+        | Some(n) => CanvasFocus.node_type_names(~graph, n)
+        | None => [ty]
+        };
+      let rows =
+        Language.Sample.Map.fold(
+          (id, samples, acc) =>
+            switch (CanvasFocus.site_ty(~info_map, id)) {
+            | Some(t) when List.mem(t, names) =>
+              let sort =
+                switch (Id.Map.find_opt(id, info_map)) {
+                | Some(Language.Info.InfoExp(_)) => "Exp"
+                | Some(Language.Info.InfoPat(_)) => "Pat"
+                | _ => "?"
+                };
+              let seg =
+                TermData.segment(id, editor.editor.syntax.term_data)
+                |> Option.map(Haz3lcore.Printer.of_segment(~holes="?"))
+                |> Option.value(~default="<NO SEGMENT>");
+              let depth =
+                switch (samples) {
+                | [s, ..._] => List.length((s: Language.Sample.t).call_stack)
+                | [] => 0
+                };
+              [
+                Printf.sprintf(
+                  "%s %s n=%d depth=%d seg=%s",
+                  String.sub(Id.to_string(id), 0, 6),
+                  sort,
+                  List.length(samples),
+                  depth,
+                  String.sub(seg, 0, min(50, String.length(seg))),
+                ),
+                ...acc,
+              ];
+            | _ => acc
+            },
+          editor.dynamics,
+          [],
+        );
+      Js_of_ocaml.Js.string(String.concat("\n", rows));
     }),
   );
   /* debug: the samples of one site (id prefix) in stored order */
