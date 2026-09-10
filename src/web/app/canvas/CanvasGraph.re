@@ -1285,9 +1285,12 @@ let extract_impl =
           if (is_mod) {
             /* the module node: treat the module as having an implicit
                module TYPE of the same name — the node is labeled like a
-               type node; its info panel shows the module value */
+               type node; its info panel shows the module value. Its jump
+               anchor is the binding, so a click selects `let m = {` in
+               the editor and the outline like any definition. */
             ensure(
               mk_node(
+                ~n_id=Some(id),
                 ~kind=Product,
                 ~m_path=path @ [name],
                 ~n_ty=Some(pretty_ty(ty)),

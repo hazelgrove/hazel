@@ -2104,15 +2104,30 @@
 .canvas-card-probe.canvas-probe {
   overflow: visible;
 }
-.canvas-node.node-card .card-caption {
+/* the caption sits UNDER the card whatever kind of node it was: a
+   module's ({} disc, white label inside, dotted rim) card is a card */
+.canvas-node.node-card .canvas-node-label.card-caption {
   position: absolute;
+  inset: auto;
   top: 100%;
   left: 50%;
   translate: -50% 0;
   margin-top: 3px;
+  display: block;
+  color: var(--token-typ, #9457c9);
+  font-size: 11px;
   font-weight: bold;
+  line-height: normal;
+  padding: 0;
   cursor: default;
   user-select: none;
+}
+.canvas-node.node-card.kind-product,
+.canvas-node.node-card.node-module {
+  border: 1.5px solid var(--token-typ, #9457c9);
+  border-style: solid;
+  background: var(--df-bg, #fdfdf4);
+  opacity: 1;
 }
 /* NODE mode: the view is inert (the card drags anywhere, dbl-click
    collapses); LIVE mode: the view takes the pointer */
@@ -2277,13 +2292,6 @@
 }
 .canvas-node.node-card:has(.probe-card-plain) {
   background: #d6eed6;
-}
-/* ONE text color: a card shows a single value and its border already
-   says whether it is selected; the probe's focus-relation colors
-   (pink caller, blue callee, gray off-focus) are for a stack of samples */
-.canvas-card-probe .probe-card-plain .value .code-text .token {
-  color: #247e3d !important;
-  opacity: 1 !important;
 }
 /* a list of a type with a view: the elements' views in a row */
 .rich-livelit-view.rich-livelit-list {
