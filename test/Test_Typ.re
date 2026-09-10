@@ -285,6 +285,30 @@ let join_tests = (
         },
       ),
       test_case(
+        "an unbound variable joins to a hole that keeps its name",
+        `Quick,
+        () => {
+          /* An unbound type variable is not an error here -- statics reports
+             those as TypFreeTypeVariable -- and lookup_alias stands in a hole
+             carrying the name, which renders as the name rather than as `?`.
+             meet joins against that hole; join matches it, so the name is not
+             silently dropped. fast_equal ignores Unknown provenance, so this
+             reads the provenance directly. */
+          let provenance_name = (t: Typ.t) =>
+            switch (Typ.term_of(t)) {
+            | Unknown(Hole(Invalid(s))) => Some(s)
+            | _ => None
+            };
+          check(
+            Alcotest.(option(string)),
+            "the name survives the join",
+            Some("a"),
+            Typ.join(Builtins.ctx_init(None), var("a"), var("b"))
+            |> provenance_name,
+          );
+        },
+      ),
+      test_case(
         "a product with a repeated label deduplicates as meet does",
         `Quick,
         () => {

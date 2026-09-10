@@ -968,18 +968,21 @@ let rec join =
      lookups rather than recursing forever. Only the two Var cases thread the
      list; every other case resets it, since a structural descent consumes a
      constructor from a finite type. */
+  /* What to join against, paired with whether handing the name back is
+     meaningful. An unbound name is not an error here -- statics reports those
+     separately as TypFreeTypeVariable -- and lookup_alias stands in an Unknown
+     hole carrying the name, which renders as the name rather than as `?`. Join
+     against that hole, as meet does, so the name survives; but never restore
+     onto it, or the restore reads it back as "the alias describes the result"
+     and resurrects the variable. */
   let expand = name =>
     if (List.exists(String.equal(name), expanded_aliases)) {
       None;
     } else {
-      /* lookup_tvar, not lookup_alias: the latter synthesizes an Unknown hole
-         for an unbound name rather than failing, and the restore below would
-         then read that hole back as "the alias describes the result" and
-         resurrect the variable. Only a real Singleton is an expansion. */
       switch (Ctx.lookup_tvar(ctx, name)) {
-      | Some(Singleton(ty)) => Some(ty)
-      | Some(Abstract)
-      | None => None
+      | Some(Singleton(ty)) => Some((ty, true))
+      | Some(Abstract) => None
+      | None => Ctx.lookup_alias(ctx, name) |> Option.map(ty => (ty, false))
       };
     };
   switch (term_of(ty1), term_of(ty2)) {
@@ -999,7 +1002,7 @@ let rec join =
      the caller wrote rather than the definition out of the context. */
   | (Var(name), _) =>
     switch (expand(name)) {
-    | Some(ty_name) =>
+    | Some((ty_name, restorable)) =>
       let joined =
         join(
           ~expanded_aliases=[name, ...expanded_aliases],
@@ -1007,12 +1010,12 @@ let rec join =
           ty_name,
           ty2,
         );
-      equal(ty_name, joined) ? ty1 : joined;
+      restorable && equal(ty_name, joined) ? ty1 : joined;
     | None => Unknown(Internal) |> temp
     }
   | (_, Var(name)) =>
     switch (expand(name)) {
-    | Some(ty_name) =>
+    | Some((ty_name, restorable)) =>
       let joined =
         join(
           ~expanded_aliases=[name, ...expanded_aliases],
@@ -1020,7 +1023,7 @@ let rec join =
           ty_name,
           ty1,
         );
-      equal(ty_name, joined) ? ty2 : joined;
+      restorable && equal(ty_name, joined) ? ty2 : joined;
     | None => Unknown(Internal) |> temp
     }
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
