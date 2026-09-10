@@ -21,12 +21,7 @@ type sample_closures = list((CallStack.t, int, int) => Sample.t);
 
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
-    (
-      ~targets: Sample.targets,
-      recur: (Pat.t, DHExp.t) => match_result,
-      dp: Pat.t,
-      d: DHExp.t,
-    )
+    (recur: (Pat.t, DHExp.t) => match_result, dp: Pat.t, d: DHExp.t)
     : match_result =>
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
@@ -74,8 +69,18 @@ let match_pattern =
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
-    let (_samples, d') =
-      Ascriptions.transition_multiple(~targets, Asc(d, t1) |> DHExp.fresh);
+    /* no_targets, not the real targets: the scrutinee reached matching
+       already final, so any probe under its ascriptions has fired, at the
+       call stack where evaluation actually passed through it. Collecting
+       samples again here would record the same values a second time under
+       whatever stack the match happens to run on. */
+    let d' =
+      snd(
+        Ascriptions.transition_multiple(
+          ~targets=Sample.no_targets,
+          Asc(d, t1) |> DHExp.fresh,
+        ),
+      );
     recur(p, d');
   };
 
@@ -117,12 +122,15 @@ let rec matches_inner =
           d: DHExp.t,
         )
         : match_result => {
-  let (_samples, d) = Ascriptions.transition_multiple(~targets, d);
+  /* See the Asc case in match_pattern for why these samples are not
+     collected. */
+  let d =
+    snd(Ascriptions.transition_multiple(~targets=Sample.no_targets, d));
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
   let recur = matches_inner(targets, sample_closures);
 
-  let result = match_pattern(~targets, recur, dp, d);
+  let result = match_pattern(recur, dp, d);
   record_sample(sample_closures, pat_id, maybe_spec, d, result);
   result;
 };
