@@ -514,6 +514,17 @@
     0px -3px 0 var(--depth-shadow);
 }
 
+/* The one-row depth-below clamps above assume a text chip. A chip
+ * holding rich content (cards: up to inline_rows_cap rows) keeps its
+ * natural height. Clamped, the sample-group's align-items:center put
+ * the ~1-row box a third of the way down the group, so its overflowing
+ * content sat a full row below its unclamped (depth-same/above)
+ * neighbours and jumped as the focus moved. The translate stays: that
+ * IS the stagger. Placed after the depth-N rules to outrank them. */
+.live-offside.Many .sample:has(.value.depth-below):has(.value-rich) {
+  height: auto;
+}
+
 /* TOKEN BKG INDICATED + HOVER */
 .projector.probe.indicated .Many.sample:has(.value.unrelated),
 .projector.probe.indicated .Many.sample:has(.value.tangent-before),
