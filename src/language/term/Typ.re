@@ -819,6 +819,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
+  /* TODO A variable free in ty1 is captured when it happens to share a name
+     with x2: `meet(poly y -> x, poly x -> x)` rewraps ty1's free `x` under the
+     binder `x`. The note below covers renaming x1 to x2 inside ty1, which
+     `subst` does avoid capture for; it does not cover the free variable that
+     the new binder swallows. `join` below has the same shape and the same
+     hole. Found by Typ.join's precision property, which excludes the case. */
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -1055,11 +1061,23 @@ let rec join =
     TupLabel(join'(lab1, lab2), join'(ty1', ty2')) |> temp
   | (TupLabel(_), _) => Unknown(Internal) |> temp
   | (Prod(tys1), Prod(tys2)) =>
+    /* Drop repeated labels first, as meet does: a later `g=` shadows an
+       earlier one, so the two sides only line up positionally once both have
+       been deduplicated. Comparing the raw lists made join disagree with meet
+       about the shape of a product carrying a duplicate label. */
+    let dedup = tys =>
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys),
+        tys,
+      );
+    let tys1 = dedup(tys1);
+    let tys2 = dedup(tys2);
     if (List.length(tys1) != List.length(tys2)) {
       Unknown(Internal) |> temp;
     } else {
       Prod(List.map2(join', tys1, tys2)) |> temp;
-    }
+    };
   | (Prod(_), _) => Unknown(Internal) |> temp
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? ty1 : Unknown(Internal) |> temp
