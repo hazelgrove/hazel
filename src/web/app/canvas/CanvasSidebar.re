@@ -2249,8 +2249,10 @@ let view_impl =
       !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
     /* either way the node is brought into view: a collapsed node goes
        back to its layout place, which the camera may have left behind
-       while it was a card */
-    reveal_pending := Option.some(key);
+       while it was a card. Armed INSIDE the effect: this function is
+       called at render time to build the cards' callbacks. */
+    let arm_reveal =
+      Ui_effect.of_sync_fun(() => reveal_pending := Option.some(key), ());
     /* opening a card is a request for live values: turn sampling on if
        it is off, and end the agent-burst mask if it is holding samples
        back — the user asked, so the evaluation goes out now */
@@ -2265,6 +2267,7 @@ let view_impl =
         Effect.Ignore;
       };
     Effect.Many([
+      arm_reveal,
       samples,
       globals.inject_global(Set(Sidebar(ToggleCanvasValueNode(key)))),
     ]);
@@ -2693,7 +2696,6 @@ let view_impl =
                     Float.max(28., Float.min(260., nh +. 16.)),
                   );
                 };
-              reveal_pending := Option.some(key);
               Effect.Expert.handle_non_dom_event_exn(
                 globals.inject_global(
                   Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
