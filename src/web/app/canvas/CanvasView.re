@@ -590,6 +590,18 @@ let base_glyph = (label: string): option(string) => {
   };
 };
 
+/* keyboard focus to the probe inside a card (its ← → handler) */
+let focus_card_probe = (key: string): unit => {
+  open Js_of_ocaml;
+  let sel = "#" ++ node_dom_id(key) ++ " .probe-card";
+  switch (
+    Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)))
+  ) {
+  | Some(el) => el##focus
+  | None => ()
+  };
+};
+
 let node_view =
     (
       ~on_node_mousedown:
@@ -612,6 +624,9 @@ let node_view =
            (
              Node.t,
              (float, float),
+             /* the content's natural size, once measured: the view is
+                zoomed to fit the card, proportions kept */
+             option((float, float)),
              /* no stored size yet: measured after render (autosize) */
              bool,
              /* LIVE: the view takes the pointer; else a NODE (inert
@@ -693,12 +708,23 @@ let node_view =
   | Some((
       content,
       (w, h),
+      natural,
       autosize,
       live,
       on_collapse,
       on_resize_start,
       on_toggle_live,
     )) =>
+    /* zoom-to-fit: the content's natural box into the card's, with a
+       little air; lists and plain values opt out in CSS */
+    let card_zoom =
+      switch (natural) {
+      | Some((nw, nh)) when nw > 1. && nh > 1. =>
+        Float.min((w -. 8.) /. nw, (h -. 8.) /. nh)
+        |> Float.max(0.15)
+        |> Float.min(6.)
+      | _ => 1.
+      };
     /* the card is the node: same element (keyed), centered on the node's
        position, so the circle morphs into the rounded rectangle (CSS
        transitions on size and radius; FLIP moves it). Only the view and
@@ -716,16 +742,20 @@ let node_view =
           Attr.create(
             "style",
             Printf.sprintf(
-              "left: %spx; top: %spx; width: %spx; height: %spx;",
+              "left: %spx; top: %spx; width: %spx; height: %spx; --card-zoom: %.4f;",
               fmt(nl.p.x),
               fmt(nl.p.y),
               fmt(w),
               fmt(h),
+              card_zoom,
             ),
           ),
+          Attr.create("data-card-key", n.key),
         ]
         @ (autosize ? [Attr.create("data-autosize", n.key)] : [])
-        /* NODE mode: dbl-click anywhere collapses */
+        /* NODE mode: dbl-click anywhere collapses; a click gives the
+           card's probe keyboard focus (← → step samples) — the drag's
+           mousedown prevents the default focus */
         @ (
           live
             ? []
@@ -733,6 +763,10 @@ let node_view =
               Attr.on_double_click(_ =>
                 Effect.Many([Effect.Stop_propagation, on_collapse])
               ),
+              Attr.on_click(_ => {
+                focus_card_probe(n.key);
+                Effect.Ignore;
+              }),
             ]
         )
         @ click_attrs,
@@ -786,7 +820,7 @@ let node_view =
           [text(n.label == "" ? n.key : n.label)],
         ),
       ],
-    )
+    );
   | None =>
     div(
       /* keyed: canvas children are one flat list, and an unkeyed diff
@@ -984,6 +1018,7 @@ let view =
              (
                Node.t,
                (float, float),
+               option((float, float)),
                bool,
                bool,
                Effect.t(unit),

@@ -2266,8 +2266,8 @@ let view_impl =
     let rec on_move = evt => {
       let x: int = Js.Unsafe.coerce(evt)##.clientX;
       let y: int = Js.Unsafe.coerce(evt)##.clientY;
-      let w = max(120., w0 +. float_of_int(x - sx) /. z);
-      let h = max(80., h0 +. float_of_int(y - sy) /. z);
+      let w = max(40., w0 +. float_of_int(x - sx) /. z);
+      let h = max(28., h0 +. float_of_int(y - sy) /. z);
       cur := (w, h);
       switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.node_dom_id(key))) {
       | Some(el) =>
@@ -2451,6 +2451,10 @@ let view_impl =
           (
             content,
             card_size(key),
+            List.assoc_opt(
+              (slide, key),
+              globals.settings.sidebar.canvas_card_natural,
+            ),
             !
               List.mem_assoc(
                 (slide, key),
@@ -2465,20 +2469,22 @@ let view_impl =
       },
       globals.settings.sidebar.canvas_value_nodes,
     );
-  /* AUTOSIZE: a card without a stored size opens at its content's
-     natural size — a rich view as drawn (capped), a plain value capped
-     at the pretty-print box — measured after this render and stored */
-  if (List.exists(((_, (_, _, auto, _, _, _, _))) => auto, cards)) {
+  /* MEASURE every card's content at its natural size (zoom 1,
+     shrink-wrapped) after the render: the natural size drives the
+     zoom-to-fit, and a card without a stored size opens at a standard
+     size with the content's proportions (long side 168px; plain values
+     at their own size, capped 360x260). Stored only on change. */
+  if (cards != []) {
     CanvasEnact.after_render(() => {
       open Js_of_ocaml;
       let els =
-        Dom_html.document##querySelectorAll(Js.string("[data-autosize]"));
+        Dom_html.document##querySelectorAll(Js.string("[data-card-key]"));
       for (i in 0 to els##.length - 1) {
         switch (Js.Opt.to_option(els##item(i))) {
         | Some(el) =>
           let key =
             Js.to_string(
-              Js.Opt.get(el##getAttribute(Js.string("data-autosize")), () =>
+              Js.Opt.get(el##getAttribute(Js.string("data-card-key")), () =>
                 Js.string("")
               ),
             );
@@ -2490,15 +2496,11 @@ let view_impl =
             Js.Opt.test(
               el##querySelector(Js.string(".probe-card-rich, .canvas-app")),
             );
+          let is_list =
+            Js.Opt.test(el##querySelector(Js.string(".rich-livelit-list")));
           switch (Js.Opt.to_option(inner)) {
           | Some(c) =>
-            /* the effective CSS zoom right now (the camera may be
-               mid-animation): the card's on-screen width over its
-               layout width */
             let z = {
-              /* the canvas root's computed CSS zoom (the card itself is
-                 mid-transition from the circle, so its own box is no
-                 reference) */
               let root =
                 Dom_html.document##querySelector(Js.string(".canvas-root"));
               switch (Js.Opt.to_option(root)) {
@@ -2512,11 +2514,15 @@ let view_impl =
               | None => 1.
               };
             };
-            /* natural size: let the content box shrink-wrap (absolute +
-               max-content, so block children stop spanning the card),
-               take the union of its descendants' boxes (a rich view's
-               wrapper is often inline/0-sized while its svg or grid has
-               the real size), then restore */
+            /* natural size: content zoom 1 (override the card's
+               --card-zoom), shrink-wrapped; union of descendants */
+            let est = Js.Unsafe.coerce(el)##.style;
+            let saved_card = Js.to_string(Js.Unsafe.get(est, "cssText"));
+            Js.Unsafe.set(
+              est,
+              "cssText",
+              Js.string(saved_card ++ "; --card-zoom: 1;"),
+            );
             let cst = Js.Unsafe.coerce(c)##.style;
             let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
             Js.Unsafe.set(
@@ -2549,19 +2555,59 @@ let view_impl =
               (mx^, my^);
             };
             Js.Unsafe.set(cst, "cssText", Js.string(saved));
-            let cw = (x1 -. x0) /. z
-            and ch = (y1 -. y0) /. z;
-            let (cap_w, cap_h) = rich ? (720., 560.) : (360., 260.);
-            let w =
-              Float.max(120., Float.min(cap_w, cw +. (rich ? 12. : 24.)));
-            let h =
-              Float.max(64., Float.min(cap_h, ch +. (rich ? 12. : 20.)));
-            reveal_pending := Option.some(key);
-            Effect.Expert.handle_non_dom_event_exn(
-              globals.inject_global(
-                Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
-              ),
-            );
+            Js.Unsafe.set(est, "cssText", Js.string(saved_card));
+            let nw = Float.max(8., (x1 -. x0) /. z)
+            and nh = Float.max(8., (y1 -. y0) /. z);
+            let stored =
+              List.assoc_opt(
+                (slide, key),
+                globals.settings.sidebar.canvas_card_natural,
+              );
+            let changed =
+              switch (stored) {
+              | Some((sw, sh)) =>
+                Float.abs(sw -. nw) > 1.5 || Float.abs(sh -. nh) > 1.5
+              | None => true
+              };
+            if (changed) {
+              Effect.Expert.handle_non_dom_event_exn(
+                globals.inject_global(
+                  Set(Sidebar(SetCanvasCardNatural(slide, key, nw, nh))),
+                ),
+              );
+            };
+            if (!
+                  List.mem_assoc(
+                    (slide, key),
+                    globals.settings.sidebar.canvas_card_sizes,
+                  )) {
+              let (w, h) =
+                if (rich && !is_list) {
+                  /* standard size, the content's proportions */
+                  let long = 168.;
+                  let k = long /. Float.max(nw, nh);
+                  (
+                    Float.max(48., nw *. k +. 8.),
+                    Float.max(48., nh *. k +. 8.),
+                  );
+                } else if (rich) {
+                  (
+                    Float.max(64., Float.min(360., nw +. 12.)),
+                    Float.max(48., Float.min(260., nh +. 12.)),
+                  );
+                } else {
+                  (
+                    Float.max(40., Float.min(360., nw +. 22.)),
+                    Float.max(28., Float.min(260., nh +. 16.)),
+                  );
+                };
+              reveal_pending := Option.some(key);
+              Effect.Expert.handle_non_dom_event_exn(
+                globals.inject_global(
+                  Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
+                ),
+              );
+            };
           | None => ()
           };
         | None => ()

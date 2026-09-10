@@ -231,6 +231,11 @@ module Settings = {
        (drag anywhere, dbl-click collapses, the view is inert) */
     [@sexp.default []] [@yojson.default []]
     canvas_card_live: list(string),
+    /* a card's content at its natural size (w, h): the view scales to
+       the card (zoom-to-fit, proportions kept), and a fresh card opens
+       at a standard size with these proportions */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_natural: list(((string, string), (float, float))),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -282,6 +287,7 @@ module Settings = {
     | ToggleCanvasValueNode(string)
     | SetCanvasCardSize(string, string, float, float)
     | ToggleCanvasCardLive(string)
+    | SetCanvasCardNatural(string, string, float, float)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
     | SetCanvasPanelHidden(bool)

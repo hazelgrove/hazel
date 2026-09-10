@@ -86,6 +86,37 @@ let rec strip = (t: Typ.t): Typ.t =>
   | _ => t
   };
 
+/* Does a type mention something NAMED — an alias or a constructor? A
+   livelit that expands to `Plan = (Mode, Temp)` may also take a site
+   typed structurally `(Mode, Temp)` (a returned tuple literal
+   synthesizes its structure, not the annotation's name): the names
+   inside make the shape specific. A bare `(Int, Int)` is not a Point
+   until the program says so. */
+let rec names_something = (ty: Typ.t): bool =>
+  switch (Typ.term_of(ty)) {
+  | Var(_)
+  | Sum(_) => true
+  | Parens(t)
+  | List(t) => names_something(t)
+  | Prod(ts) => List.exists(names_something, ts)
+  | Arrow(a, b) => names_something(a) || names_something(b)
+  | _ => false
+  };
+
+/* the livelit's expansion type takes the site's type: by NAME, or by
+   the alias's body when that body is itself specific */
+let expands_to = (ctx: Ctx.t, expansion_t: Typ.t, ty: Typ.t): bool =>
+  Typ.fast_equal(strip(expansion_t), strip(ty))
+  || (
+    switch (Typ.term_of(strip(expansion_t)), Typ.term_of(strip(ty))) {
+    | (Var(_), Var(_)) => false /* two different names */
+    | (Var(_), _) =>
+      let body = Typ.weak_head_normalize(ctx, expansion_t);
+      names_something(body) && Typ.fast_equal(strip(body), strip(ty));
+    | _ => false
+    }
+  );
+
 let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
   is_unknown(ty)
     ? []
@@ -94,8 +125,7 @@ let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
           switch (e) {
           | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
               when
-                !is_unknown(expansion_t)
-                && Typ.fast_equal(strip(expansion_t), strip(ty)) =>
+                !is_unknown(expansion_t) && expands_to(ctx, expansion_t, ty) =>
             Some(ll)
           | _ => None
           },
@@ -104,24 +134,8 @@ let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
 
 let candidates = (statics: option(Info.t)): list(LivelitCtx.raw_livelit) =>
   switch (site(statics)) {
-  | Some((ctx, ty)) when !is_unknown(ty) =>
-    List.filter_map(
-      (e: Ctx.entry) =>
-        switch (e) {
-        /* NOMINAL: the livelit renders the type it expands to BY NAME
-           (`expand : Model -> Point` takes sites typed `Point`, not
-           every (Int, Int)); a structural site only matches a livelit
-           that expands to that structure. Aliases are not unfolded. */
-        | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
-            when
-              !is_unknown(expansion_t)
-              && Typ.fast_equal(strip(expansion_t), strip(ty)) =>
-          Some(ll)
-        | _ => None
-        },
-      ctx.entries,
-    )
-  | _ => []
+  | Some((ctx, ty)) => candidates_for(ctx, ty)
+  | None => []
   };
 
 /* the display model for a value: `wrap(value)`, or the value itself when
