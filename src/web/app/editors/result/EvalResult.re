@@ -20,6 +20,13 @@ module Model = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
+    /* The program-derived sampling targets -- probe_all's and live typing's
+       unknown-typed ids, i.e. targets minus the probes actually placed in the
+       zipper. IncrEval.reuse_check only sees per-node probe_targets, which
+       cover placed probes, so it will happily reuse a slice evaluated before
+       one of these ids became a target and hand back no samples for it.
+       Tracked separately so that case can drop the incremental map. */
+    cached_derived_targets: Calc.saved(Id.Map.t(unit)),
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
@@ -43,6 +50,7 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
+    cached_derived_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
@@ -70,6 +78,7 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
+        cached_derived_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
@@ -245,6 +254,7 @@ module Update = {
           cached_settings,
           elab,
           cached_targets,
+          cached_derived_targets,
           result,
           dynamics,
           incr_eval,
@@ -267,11 +277,28 @@ module Update = {
         statics.targets,
         cached_targets,
       );
+    let derived_targets =
+      Calc.set(
+        ~eq=Id.Map.equal((_, _) => true),
+        Id.Map.filter(
+          (id, _) => !Id.Map.mem(id, statics.probe_ids),
+          statics.targets,
+        )
+        |> Id.Map.map(_ => ()),
+        cached_derived_targets,
+      );
 
     /* Previous incremental map, if the last evaluation produced one. Pull
      * from the saved field so it survives intermediate pending states
      * (during which `result` itself is ResultPending). */
-    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    let prev_incr =
+      /* If a derived target appeared or vanished while the elaboration stayed
+         put -- toggling live typing is the clear case -- then reuse_check has
+         no way to tell that a slice now needs sampling, so start clean rather
+         than reuse a sample-less one. When the elaboration also changed, the
+         normal incremental path already re-evaluates what moved. */
+      Calc.is_new(derived_targets) && !Calc.is_new(elab)
+        ? IncrEval.empty : incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. */
@@ -498,6 +525,7 @@ module Update = {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
         cached_targets: targets |> Calc.save,
+        cached_derived_targets: derived_targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
