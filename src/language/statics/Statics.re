@@ -1501,12 +1501,42 @@ and uexp_to_info_map =
         /* Value member of a module. Manifest type members declared in the
            signature are substituted into the member's type. */
         let labels = Sig.value_names(Sig.members(items));
+        /* For a builtin module (Html, Attr, Cmd, Sub; always in scope) the
+           member type keeps the module's type members as paths, `Html.T`,
+           which stay compact. A user module's members get the definitions
+           substituted, since its path may leave scope. */
+        let project = name =>
+          switch (Exp.term_of(e1)) {
+          | Var(m)
+              when
+                Ctx.lookup_var(ctx, m)
+                |> Option.map((v: Ctx.var_entry) => v.id == Id.invalid)
+                |> Option.value(~default=false) =>
+            Typ.sig_project_value_along(~path=Typ.temp(Var(m)), items, name)
+          | _ => Typ.sig_project_value(items, name)
+          };
+        /* A builtin module's member IS a constructor: elaborate to it, so
+           the runtime never carries the module value (which substitution
+           would otherwise copy into every closure that names `Html`). */
+        let member_elab = name =>
+          switch (Exp.term_of(e1)) {
+          | Var(m)
+              when
+                Ctx.lookup_var(ctx, m)
+                |> Option.map((v: Ctx.var_entry) => v.id == Id.invalid)
+                |> Option.value(~default=false) =>
+            switch (BuiltinsADT.builtin_module_member(m, name)) {
+            | Some(v) => v.term |> rewrap
+            | None => dot_elab
+            }
+          | _ => dot_elab
+          };
         switch (e2.term) {
         | Label(name) =>
-          switch (Typ.sig_project_value(items, name)) {
+          switch (project(name)) {
           | Some(typ) =>
             add(
-              ~elab_term=dot_elab,
+              ~elab_term=member_elab(name),
               ~elab_syn_ty=typ,
               ~marks=[],
               ~dot_labels=available_labels,

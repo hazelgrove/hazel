@@ -584,10 +584,13 @@ module HtmlModules = {
              | None => self_t
              | Some(a) => arrow(q(a), self_t)
              };
+           /* The annotation names the type by its path, `Html.T`, the way
+              the global alias used to stay `Var("HTML")`: compact, resolved
+              lazily by Ascriptions through the builtin context. */
            let ctor_ty =
              switch (arg) {
-             | None => q(ctors)
-             | Some(a) => arrow(q(a), q(ctors))
+             | None => path(name, "T")
+             | Some(a) => arrow(q(a), path(name, "T"))
              };
            (
              member_name(ctr),
@@ -632,6 +635,31 @@ let module_builtins: list(BuiltinsUtil.const) = [
   HtmlModules.mk(~name="Cmd", ~self="Cmd", ~types=[("T", Cmd.t)]),
   HtmlModules.mk(~name="Sub", ~self="Sub", ~types=[("T", Sub.t)]),
 ];
+
+/* The term a builtin module member denotes (a constructor), so statics
+   can elaborate `Html.div` to `Div` directly: the runtime then never holds
+   or substitutes the module value itself, and results print as before. */
+let builtin_module_member = (m: string, x: string): option(Exp.t) =>
+  /* (the local module Option above shadows Stdlib.Option) */
+  switch (
+    List.find_opt((c: BuiltinsUtil.const) => c.name == m, module_builtins)
+  ) {
+  | Some({imp, _}) =>
+    switch (Exp.term_of(imp)) {
+    | Module(items) =>
+      List.fold_left(
+        (acc, item: Mod.t) =>
+          switch (item.term) {
+          | ModVal(y, v) when y == x => Some(v)
+          | _ => acc
+          },
+        None,
+        items,
+      )
+    | _ => None
+    }
+  | None => None
+  };
 
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),

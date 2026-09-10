@@ -134,7 +134,23 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
     | Arrow(_, {term: Var(name), _}) => Some(name)
     | _ => None
     };
+  /* A path into a builtin module, `Html.T`, is compact in the same way a
+     builtin alias is: the module is a builtin variable (id Id.invalid). */
+  let is_builtin_path = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | ProdProjection({term: Var(m), _}, {term: Label(_), _}) =>
+      Ctx.lookup_var(ctx, m)
+      |> Option.map((v: Ctx.var_entry) => v.id == Id.invalid)
+      |> Option.value(~default=false)
+    | _ => false
+    };
+  let returns_builtin_path =
+    switch (Typ.term_of(ty)) {
+    | Arrow(_, ret) => is_builtin_path(ret)
+    | _ => is_builtin_path(ty)
+    };
   switch (return_type_name) {
+  | _ when returns_builtin_path => ty
   | Some(name)
       when
         List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)

@@ -36,7 +36,28 @@
    module-load time by Evaluator's top-level initializer and is
    constant afterwards — it contains only builtin type aliases. */
 let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
-let set_ctx = (ctx: Ctx.t) => ctx_ref := ctx;
+
+/* A compact reference may also be a PATH into a builtin module, `Html.T`
+   (the constructor annotations of the Html/Attr/Cmd/Sub modules). Resolving
+   one walks the module's signature, so the result is memoized per path;
+   the builtin context is constant after set_ctx, which clears the memo. */
+let path_memo: Hashtbl.t((string, string), Typ.t) = Hashtbl.create(16);
+let set_ctx = (ctx: Ctx.t) => {
+  ctx_ref := ctx;
+  Hashtbl.reset(path_memo);
+};
+let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
+  switch (Typ.term_of(t)) {
+  | ProdProjection({term: Var(m), _}, {term: Label(l), _}) =>
+    switch (Hashtbl.find_opt(path_memo, (m, l))) {
+    | Some(r) => r
+    | None =>
+      let r = Typ.weak_head_normalize(ctx, t);
+      Hashtbl.replace(path_memo, (m, l), r);
+      r;
+    }
+  | _ => Typ.weak_head_normalize(ctx, t)
+  };
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let ctx = ctx_ref^;
@@ -51,7 +72,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     /* Resolve the type for structural matching. Types may be Var("HTML")
        which needs weak_head_normalize to get the structural form (Rec/Sum/Arrow).
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
-    let t_resolved = Typ.weak_head_normalize(ctx, t);
+    let t_resolved = resolve(ctx, t);
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
     | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value

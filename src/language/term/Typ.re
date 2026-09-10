@@ -555,30 +555,71 @@ let sig_members_closed =
 };
 
 /* The type of value member [name] (last declaration wins), closed with
-   respect to the signature's own type members. */
+   respect to the signature's own type members. Only the requested member
+   is substituted into: closing every member to read one made each `M.x`
+   and `M.T` cost a pass over the whole signature (Html has ~50 members
+   whose T is a 47-constructor sum). */
 let sig_project_value =
-    (~keep_local=_ => false, items: list(Sig.t), name: Var.t): option(t) =>
-  sig_members_closed(~keep_local, items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | Val(x, _) when x == name => Some(ty)
-         | _ => acc
-         },
-       None,
-     );
+    (~keep_local=_ => false, items: list(Sig.t), name: Var.t): option(t) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(Val(x, ty)) when x == name => (
+            sigma,
+            Some(apply_sig_subst(sigma, ty)),
+          )
+        | Some(Val(_)) => (sigma, found)
+        | Some(TypeManifest(n, def)) =>
+          let sigma =
+            keep_local(n)
+              ? sigma : [(n, apply_sig_subst(sigma, def)), ...sigma];
+          (sigma, found);
+        | None => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  found;
+};
 
-/* The definition of type member [name] (last declaration wins). */
-let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) =>
-  sig_members_closed(items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | TypeManifest(x, _) when x == name => Some(ty)
-         | _ => acc
-         },
-       None,
+/* The definition of type member [name] (last declaration wins), closed
+   with respect to the type members declared before it. Value members are
+   not visited. */
+let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(TypeManifest(n, def)) =>
+          let def = apply_sig_subst(sigma, def);
+          ([(n, def), ...sigma], n == name ? Some(def) : found);
+        | _ => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  found;
+};
+
+/* The type of value member [name] of the module at [path], with the
+   signature's own type members left as PATHS (`M.T`) rather than replaced
+   by their definitions: `M.x : S.x[T := M.T]`, the dependent-record
+   projection. A path stays compact where a definition would expand (the
+   builtin Html.T is a 47-constructor sum), and two equal paths meet
+   without normalizing. */
+let sig_project_value_along = (~path: t, items: list(Sig.t), name: Var.t) => {
+  let type_names = Sig.members(items) |> Sig.type_names;
+  let to_path = n => ProdProjection(path, Label(n) |> temp) |> temp;
+  sig_project_value(~keep_local=n => List.mem(n, type_names), items, name)
+  |> Option.map(ty =>
+       List.fold_left(
+         (ty, n) => subst(to_path(n), Var(n) |> TPat.fresh, ty),
+         ty,
+         type_names,
+       )
      );
+};
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
@@ -1095,6 +1136,9 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
       let+ ty_meet = meet'(ty_name, ty1);
       equal(ty_name, ty_meet) ? ty2 : ty_meet;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+    /* The same path (`Html.T` twice) is consistent without expanding it. */
+    | (ProdProjection(_), ProdProjection(_)) when equal(ty1, ty2) =>
+      Some(ty1)
     | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
     | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
     | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
