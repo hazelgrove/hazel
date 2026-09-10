@@ -63,8 +63,19 @@
   cursor: pointer;
 }
 
+/* The mode arrows are glyphs the UI font does not carry, and .offside never
+   set a family -- so they came from whatever each browser picked as a
+   fallback, which is why they rendered differently in Chrome and Firefox.
+   --code-font is bundled (Source Code Pro) and covers U+21D0-U+21D3.
+   700 is a real bundled face; 800 matched none, so it was synthesized or
+   snapped to Black.
+
+   The font has no bidirectional DOUBLE arrow, which is why TypeProj shows
+   the types-agree mode as `↔` rather than `⇔`: every arrow then comes from
+   this one bundled font. */
 .projector.statics .offside .mode {
-  font-weight: 800;
+  font-family: var(--code-font);
+  font-weight: 700;
   color: var(--main-base);
   filter: brightness(0.9);
 }

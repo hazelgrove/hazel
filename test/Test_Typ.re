@@ -477,13 +477,69 @@ let diff_tests = (
         let static_typ =
           Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
         let dynamic_typ = Typ.fresh(Var("Pair"));
-        let result = Typ.diff(~ctx, static_typ, dynamic_typ);
-        /* The Unknown in Pair's expansion differs from String */
+        /* The Unknown in Pair's expansion differs from String, so the alias
+           differs -- but it renders as the single token `Pair`, so the ids
+           are that node's, not the expansion's, which appear nowhere. */
         check(
-          bool,
-          "alias expansion produces diff",
-          true,
-          List.length(result) > 0,
+          list(testable_id),
+          "a differing alias marks its own token",
+          [Typ.rep_id(dynamic_typ)],
+          Typ.diff(~ctx, static_typ, dynamic_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff both sides parenthesized",
+      `Quick,
+      () => {
+        /* Normalization parenthesizes both sides, and the renderer emits the
+           parens as a tile. The wrapped node is wholly replaced, so the parens
+           are replaced with it. */
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let dynamic_typ = Typ.fresh(Parens(int_typ));
+        check(
+          list(testable_id),
+          "parens around a replaced node are marked with it",
+          [Typ.rep_id(dynamic_typ), Typ.rep_id(int_typ)],
+          Typ.diff(Typ.fresh(Parens(Typ.fresh(Var("a")))), dynamic_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff terminates on a cyclic alias chain",
+      `Quick,
+      () => {
+        /* `type A = B in type B = A` -- neither side is self-referential, so
+           TyAlias does not wrap either in a Rec, and diff used to expand the
+           chain until the stack ran out. */
+        let a_body = Typ.fresh(Var("B"));
+        let b_body = Typ.fresh(Var("A"));
+        let extend = (ctx, name, kind) =>
+          Ctx.extend_tvar(
+            ctx,
+            {
+              name,
+              id: Id.mk(),
+              kind,
+            },
+          );
+        let ctx =
+          Ctx.empty
+          |> extend(_, "A", Singleton(a_body))
+          |> extend(_, "B", Singleton(b_body));
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        check(
+          list(testable_id),
+          "an unexpandable alias on the left marks the whole right side",
+          [Typ.rep_id(int_typ)],
+          Typ.diff(~ctx, Typ.fresh(Var("A")), int_typ),
+        );
+        let var_a = Typ.fresh(Var("A"));
+        check(
+          list(testable_id),
+          "on the right, the alias token's own id",
+          [Typ.rep_id(var_a)],
+          Typ.diff(~ctx, Typ.fresh(List(int_typ)), var_a),
         );
       },
     ),

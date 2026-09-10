@@ -45,7 +45,6 @@ module Settings = {
     show_filters: bool,
     show_ascriptions: bool,
     show_unknown_as_hole: bool,
-    raise_if_padding: bool,
     /* Emit EmptyHole as an explicit "?" TILE instead of Grout — used by
        FastParse so a source `?` lands as the tile the typing parser
        would make, keeping explicit `?` holes distinct from Grout
@@ -69,7 +68,6 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
-    raise_if_padding: false,
     hole_tiles: false,
   };
 
@@ -86,7 +84,6 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
-      raise_if_padding: false,
       hole_tiles: false,
     };
   };
@@ -1109,17 +1106,8 @@ let mk_form =
    1. no duplicates within itself;
    2. no id equal to any id in [~forbidden]. */
 let pad_ids =
-    (
-      ~settings: Settings.t,
-      ~forbidden: list(Id.t)=[],
-      n: int,
-      ids: list(Id.t),
-    )
-    : list(Id.t) => {
+    (~forbidden: list(Id.t)=[], n: int, ids: list(Id.t)): list(Id.t) => {
   let len = List.length(ids);
-  if (len < n && settings.raise_if_padding) {
-    raise(Failure("Padding required but not enough ids provided."));
-  };
   let forbidden_set = ref(Id.Set.of_list(forbidden));
   let replace = id =>
     if (Id.Set.mem(id, forbidden_set^)) {
@@ -1137,6 +1125,186 @@ let pad_ids =
       ListUtil.split_n(n, ids) |> fst;
     };
   List.map(replace, truncated);
+};
+
+/* How many ids each type constructor's rendering consumes. This lives here,
+   beside the `pad_ids(n, ...)` calls that spend them, because it mirrors the
+   token layout below -- kept anywhere else it is a second copy that silently
+   drifts. Counts must match the `pad_ids` argument in typ_to_pretty exactly;
+   `typ_ids_sufficient` below is how that is checked. */
+let necessary_ids: Typ.t => int =
+  ty =>
+    switch (ty.term) {
+    /* "()", "Void" and "{}" render from rep_id */
+    | Prod([]) => 1
+    | Sum([]) => 1
+    | Sig([]) => 1
+    /* one id per separator */
+    | Prod(tys) => List.length(tys) - 1
+    /* one id per variant; the single-variant form renders from rep_id */
+    | Sum(tys) => max(1, List.length(tys))
+    /* rep_id for the braces, then one id per `;` between items */
+    | Sig(items) => max(1, List.length(items))
+    /* one grout id between entries */
+    | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
+    /* every other form renders from rep_id alone */
+    | _ => 1
+    };
+
+/* Number of IDs required for a variant_ann by ExpToSegment */
+let necessary_variant_ann_ids: ConstructorMap.variant(Typ.t) => int =
+  fun
+  | Variant(_, _, Some(_)) => 2 /* parens ID + constructor name ID */
+  | Variant(_, _, None) => 1 /* constructor name ID */
+  | BadEntry(_) => 0;
+
+/* Pad variant_ann.ids to the count ExpToSegment expects */
+let pad_variant_ann =
+    (v: ConstructorMap.variant(Typ.t)): ConstructorMap.variant(Typ.t) =>
+  switch (v) {
+  | Variant(c, ann, payload) =>
+    let needed = necessary_variant_ann_ids(v);
+    let current = List.length(ann.ids);
+    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
+    Variant(
+      c,
+      {
+        ...ann,
+        ids,
+      },
+      payload,
+    );
+  | BadEntry(_) => v
+  };
+
+/* Replace all variant_ann.ids with fresh IDs throughout a type */
+let rec freshen_variant_anns = (ty: Typ.t): Typ.t => {
+  let term: Typ.term =
+    switch (ty.term) {
+    | Sum(variants) =>
+      Sum(
+        List.map(
+          fun
+          | ConstructorMap.Variant(c, ann, payload) =>
+            ConstructorMap.Variant(
+              c,
+              {
+                ...ann,
+                ids: List.map(_ => Id.mk(), ann.ids),
+              },
+              Option.map(freshen_variant_anns, payload),
+            )
+          | ConstructorMap.BadEntry(t) =>
+            ConstructorMap.BadEntry(freshen_variant_anns(t)),
+          variants,
+        ),
+      )
+    | Arrow(t1, t2) =>
+      Arrow(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Prod(ts) => Prod(List.map(freshen_variant_anns, ts))
+    | List(t) => List(freshen_variant_anns(t))
+    | TupLabel(t1, t2) =>
+      TupLabel(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Parens(t) => Parens(freshen_variant_anns(t))
+    | Rec(tp, t) => Rec(tp, freshen_variant_anns(t))
+    | Poly(tp, t) => Poly(tp, freshen_variant_anns(t))
+    | Projector(d, t) => Projector(d, freshen_variant_anns(t))
+    | ProdProjection(t1, t2) =>
+      ProdProjection(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | ProdExtension(t1, t2) =>
+      ProdExtension(freshen_variant_anns(t1), freshen_variant_anns(t2))
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ty.term
+    };
+  {
+    ...ty,
+    term,
+  };
+};
+
+/* Recursively pad variant_ann.ids throughout a type */
+let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
+  let term: Typ.term =
+    switch (ty.term) {
+    | Sum(variants) =>
+      Sum(
+        List.map(
+          fun
+          | ConstructorMap.Variant(c, ann, payload) => {
+              let v =
+                ConstructorMap.Variant(
+                  c,
+                  ann,
+                  Option.map(pad_variant_anns, payload),
+                );
+              pad_variant_ann(v);
+            }
+          | ConstructorMap.BadEntry(t) =>
+            ConstructorMap.BadEntry(pad_variant_anns(t)),
+          variants,
+        ),
+      )
+    | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
+    | Prod(ts) => Prod(List.map(pad_variant_anns, ts))
+    | List(t) => List(pad_variant_anns(t))
+    | TupLabel(t1, t2) =>
+      TupLabel(pad_variant_anns(t1), pad_variant_anns(t2))
+    | Parens(t) => Parens(pad_variant_anns(t))
+    | Rec(tp, t) => Rec(tp, pad_variant_anns(t))
+    | Poly(tp, t) => Poly(tp, pad_variant_anns(t))
+    | Projector(d, t) => Projector(d, pad_variant_anns(t))
+    | ProdProjection(t1, t2) =>
+      ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
+    | ProdExtension(t1, t2) =>
+      ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Sig(_) => ty.term
+    };
+  {
+    ...ty,
+    term,
+  };
+};
+
+/**
+ * Pads type IDs to ensure ExpToSegment uses them instead of creating new ones,
+ * preserving ID correspondence for styling.
+ */
+let pad_typ_ids = (ty: Typ.t): Typ.t => {
+  let ty =
+    Typ.map_term(
+      ~f_typ=
+        (cont, ty) => {
+          let current_ids = ty.annotation.ids;
+          let needed_ids = necessary_ids(ty);
+          let ids =
+            current_ids
+            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
+                Id.mk()
+              );
+          cont({
+            ...ty,
+            annotation: {
+              ids,
+              secondary: ty.annotation.secondary,
+            },
+          });
+        },
+      ty,
+    );
+  pad_variant_anns(ty);
 };
 
 /* Save standard list concatenation before we shadow @ */
@@ -1232,7 +1400,6 @@ let project_table_if = (should_project, pieces) =>
 
 let rec drv_exp_to_pretty =
         (~settings: Settings.t, syntax: Drv.Exp.t, ~sort: DrvSort.t): pretty => {
-  let pad_ids = pad_ids(~settings);
   let mk_form = mk_form(~secondary=settings.secondary);
   let go = (~inline=settings.inline, ~sort) =>
     drv_exp_to_pretty(
@@ -1717,7 +1884,6 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
-  let pad_ids = pad_ids(~settings);
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -2424,7 +2590,6 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
-  let pad_ids = pad_ids(~settings);
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
@@ -2603,7 +2768,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
-  let pad_ids = pad_ids(~settings);
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
@@ -2922,7 +3086,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
-  let pad_ids = pad_ids(~settings);
   /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>
@@ -3147,20 +3310,62 @@ let exp_to_segment =
   p |> PrettySegment.select |> uniquify_repeated_tiles;
 };
 
-let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
-  /* Desugar Sig types to labeled tuples so they display as (x=Int, y=Bool)
-     instead of {sig}. Uses empty ctx since we're just displaying. */
-  let typ = Typ.desugar_sig(Ctx.empty, typ);
-  let typ =
-    typ
-    |> parenthesize_typ(
-         ~parenthesization=settings.parenthesization,
-         ~show_filters=settings.show_filters,
-         ~show_ascriptions=settings.show_ascriptions,
-       );
-  let p = typ_to_pretty(~settings, typ);
-  p |> PrettySegment.select |> uniquify_repeated_tiles;
+/* The type the token layout is actually computed from: Sig desugared to
+     labeled tuples, parens inserted (as real Parens NODES, not synthesized
+     tokens), and ids padded to the counts above.
+   *
+   * Exposed because a caller that wants to reason about the ids in a rendered
+   * segment has to reason about THIS type, not the one it passed in: the parens
+   * and the padded id slots are nodes that only exist after normalization, and
+   * their ids are what the renderer puts on tokens. Diffing the un-normalized
+   * type cannot name them.
+   *
+   * Not idempotent: parenthesize_typ mints a fresh id for each Parens it adds,
+   * so normalizing twice yields two different types. Normalize once, then pass
+   * the result to normalized_typ_to_segment. */
+let normalize_typ = (~settings: Settings.t, typ: Typ.t): Typ.t =>
+  typ
+  |> Typ.desugar_sig(Ctx.empty)
+  |> parenthesize_typ(
+       ~parenthesization=settings.parenthesization,
+       ~show_filters=settings.show_filters,
+       ~show_ascriptions=settings.show_ascriptions,
+     )
+  |> pad_typ_ids;
+
+/* Whether every node of a type already carries the ids its rendering will
+     consume, so the renderer never has to mint one.
+   *
+   * This is the invariant the dynamic-type marking rests on: an id minted
+     during rendering is in the DOM but in no type, so nothing can name it, and
+     the token it labels can never be coloured. normalize_typ is supposed to
+     guarantee it -- this is how that is checked, over generated types, rather
+     than by a flag on these settings that only fired on whatever input a test
+     happened to render. */
+let typ_ids_sufficient = (typ: Typ.t): bool => {
+  let ok = ref(true);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, ty) => {
+          if (List.length(ty.annotation.ids) < necessary_ids(ty)) {
+            ok := false;
+          };
+          cont(ty);
+        },
+      typ,
+    );
+  ok^;
 };
+
+/* Render a type that has already been through normalize_typ. */
+let normalized_typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
+  typ_to_pretty(~settings, typ)
+  |> PrettySegment.select
+  |> uniquify_repeated_tiles;
+
+let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
+  normalized_typ_to_segment(~settings, normalize_typ(~settings, typ));
 
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {

@@ -7,16 +7,24 @@ open Language;
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
+  /* One settings value for every rendering here, so a caller that
+     normalizes with these settings and renders with them cannot end up
+     with a segment whose ids came from a different configuration. */
+  let seg_settings = (inline): ExpToSegment.Settings.t => {
+    ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
+    show_unknown_as_hole: false,
+    hole_tiles: false,
+    fold_fn_bodies: `NoFold,
+    project_tables: false,
+  };
   let term_to_seg = (inline, any) =>
-    ExpToSegment.any_to_segment(
-      ~settings={
-        ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
-        show_unknown_as_hole: false,
-        hole_tiles: false,
-        fold_fn_bodies: `NoFold,
-        project_tables: false,
-      },
-      any,
+    ExpToSegment.any_to_segment(~settings=seg_settings(inline), any);
+  let normalize_typ = (inline, typ) =>
+    ExpToSegment.normalize_typ(~settings=seg_settings(inline), typ);
+  let render_normalized_typ = (inline, typ) =>
+    ExpToSegment.normalized_typ_to_segment(
+      ~settings=seg_settings(inline),
+      typ,
     );
   let lift_syntax =
       (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
@@ -44,6 +52,9 @@ let utility: ProjectorBase.utility = {
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    normalize_typ: (~inline, typ) => normalize_typ(inline, typ),
+    render_normalized_typ: (~inline, typ) =>
+      render_normalized_typ(inline, typ),
     seg_to_term,
     lift_syntax: (~inline) => lift_syntax(inline),
     seg_to_string,

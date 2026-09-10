@@ -122,7 +122,6 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
-  raise_if_padding: false,
   hole_tiles: false,
   project_tables: false,
 };
@@ -139,14 +138,36 @@ let view_type = (~globals, ~live_typing_info: option(Info.t)=?, typ: Typ.t) => {
     | Some(InfoPat({elab_syn_ty, _})) => Some(elab_syn_ty)
     | _ => None
     };
-  let (classes, display_typ) =
+  /* Same pipeline as the type probe's Dynamic mode: normalize both, diff the
+     normalized forms, render the normalized dynamic type once. Rendering the
+     type again here would re-normalize it and produce a segment the marks do
+     not describe. */
+  let (seg, marks) =
     switch (dyn_type) {
     | Some(dynamic_typ) when !Typ.fast_equal(typ, dynamic_typ) =>
-      Haz3lcore.PadIds.compute_dynamic_ids(~static_typ=typ, ~dynamic_typ, ())
-    | _ => ((_ => []), typ)
+      Haz3lcore.DynamicTypInfer.segment_and_marks(
+        ~normalize=
+          Haz3lcore.ExpToSegment.normalize_typ(~settings=code_view_settings),
+        ~render_normalized=
+          Haz3lcore.ExpToSegment.normalized_typ_to_segment(
+            ~settings=code_view_settings,
+          ),
+        ~ctx=None,
+        ~static_typ=typ,
+        ~dynamic_typ,
+      )
+    | _ => (
+        Haz3lcore.ExpToSegment.typ_to_segment(
+          ~settings=code_view_settings,
+          typ,
+        ),
+        Id.Set.empty,
+      )
     };
-  display_typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings, ~classes)
+  seg
+  |> CodeViewable.view_segment(~globals, ~classes=id =>
+       Id.Set.mem(id, marks) ? ["dynamic"] : []
+     )
   |> code_box_container;
 };
 

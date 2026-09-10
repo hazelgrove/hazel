@@ -24,22 +24,38 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
-let get_dynamic_typ = (info: info): Typ.t => {
+/* The segment to display in Dynamic mode, and the ids of its tokens that
+   came from runtime. Rendered here rather than by the caller because the
+   marks only describe this one render -- see DynamicTypInfer. */
+let get_dynamic_segment =
+    (utility: utility, info: info): (Base.segment, Id.Set.t) => {
   let ctx =
     Option.map(Info.ctx_of, info.statics)
     |> Option.value(~default=Builtins.ctx_init(Some(Int)));
-  let ap_id = Option.bind(info.statics, Sample.Focus.cur_var_ap);
-  info.dynamics
-  |> Option.map((d: Dynamics.Info.t) => {
-       let filtered =
-         Sample.Selection.filter_by_pin(
-           ~ap_id,
-           ~pinned=d.sample_focus.pinned_stack,
-           d.samples,
-         );
-       DynamicTypInfer.dynamic_typ_of_samples_or_unknown(~ctx, filtered);
-     })
-  |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+  let static_typ =
+    Option.value(
+      ~default=Typ.fresh(Unknown(Internal)),
+      self_ty(info.statics),
+    );
+  let normalize = utility.normalize_typ(~inline=true);
+  let render_normalized = utility.render_normalized_typ(~inline=true);
+  switch (info.dynamics) {
+  | None => (render_normalized(normalize(static_typ)), Id.Set.empty)
+  | Some(d: Dynamics.Info.t) =>
+    let ap_id = Option.bind(info.statics, Sample.Focus.cur_var_ap);
+    DynamicTypInfer.displayed_segment_and_marks(
+      ~normalize,
+      ~render_normalized,
+      ~ctx,
+      ~static_typ,
+      ~samples=
+        Sample.Selection.filter_by_pin(
+          ~ap_id,
+          ~pinned=d.sample_focus.pinned_stack,
+          d.samples,
+        ),
+    );
+  };
 };
 
 module M: Projector = {
@@ -70,7 +86,10 @@ module M: Projector = {
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "⇓"
-    | _ when self_ty(statics) == expected_ty(statics) => "⇔"
+    /* ↔ not ⇔: Source Code Pro, the bundled font these render in, has
+       no bidirectional double arrow, so ⇔ fell back to a system font and
+       rendered differently per browser. */
+    | _ when self_ty(statics) == expected_ty(statics) => "↔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
@@ -97,32 +116,28 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let (classes, typ) =
+    /* Every arm yields the segment to display, so Dynamic can hand over the
+       exact segment its marks were computed from. */
+    let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
+    let (classes, seg) =
       switch (model) {
       | Dynamic =>
-        let dynamic_typ = get_dynamic_typ(info);
-        let static_typ =
-          Option.value(
-            ~default=Typ.fresh(Unknown(Internal)),
-            self_ty(info.statics),
-          );
-        let ctx = Option.map(Info.ctx_of, info.statics);
-        PadIds.compute_dynamic_ids(~ctx?, ~static_typ, ~dynamic_typ, ());
+        let (seg, marks) = get_dynamic_segment(utility, info);
+        ((id => Id.Set.mem(id, marks) ? ["dynamic"] : []), seg);
       | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
           (_ => []),
-          self_ty(info.statics) |> totalize_ty,
+          render(self_ty(info.statics) |> totalize_ty),
         )
-      | Expected => ((_ => []), expected_ty(info.statics) |> totalize_ty)
-      | Self => ((_ => []), self_ty(info.statics) |> totalize_ty)
+      | Expected => (
+          (_ => []),
+          render(expected_ty(info.statics) |> totalize_ty),
+        )
+      | Self => ((_ => []), render(self_ty(info.statics) |> totalize_ty))
       };
 
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [
-        Typ(typ)
-        |> utility.term_to_seg(~inline=true)
-        |> view_seg(~single_line=true, ~classes, Sort.Typ),
-      ],
+      [seg |> view_seg(~single_line=true, ~classes, Sort.Typ)],
     );
   };
 

@@ -24,7 +24,6 @@ let drv_view = (~globals, status: DrvInfo.t) => {
           show_filters: false,
           show_ascriptions: false,
           show_unknown_as_hole: false,
-          raise_if_padding: false,
           hole_tiles: false,
           project_tables: false,
         },
