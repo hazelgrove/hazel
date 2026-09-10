@@ -93,15 +93,36 @@ let slot =
 
 let max_type_values = 10;
 
-/* pretty type of a probed site, from statics */
-let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) =>
-  switch (Id.Map.find_opt(id, info_map)) {
-  | Some(InfoExp(e)) =>
-    Some(CanvasGraph.pretty_ty(Language.Info.exp_ty(e)))
-  | Some(InfoPat(p)) =>
-    Some(CanvasGraph.pretty_ty((p: Language.Info.pat).ana))
-  | _ => None
+/* pretty type of a probed site, from statics. Memoized per info_map
+   (every card scans every site on every render; pretty-printing each
+   site's type each time was a per-keystroke cost). */
+let site_ty_memo:
+  ref((option(Language.Statics.Map.t), Hashtbl.t(Id.t, option(string)))) =
+  ref((Option.none, Hashtbl.create(64)));
+let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) => {
+  let tbl =
+    switch (site_ty_memo^) {
+    | (Option.Some(m), tbl) when m === info_map => tbl
+    | _ =>
+      let tbl = Hashtbl.create(256);
+      site_ty_memo := (Option.some(info_map), tbl);
+      tbl;
+    };
+  switch (Hashtbl.find_opt(tbl, id)) {
+  | Option.Some(r) => r
+  | Option.None =>
+    let r: option(string) =
+      switch (Id.Map.find_opt(id, info_map)) {
+      | Option.Some(InfoExp(e)) =>
+        Option.some(CanvasGraph.pretty_ty(Language.Info.exp_ty(e)))
+      | Option.Some(InfoPat(p)) =>
+        Option.some(CanvasGraph.pretty_ty((p: Language.Info.pat).ana))
+      | _ => Option.none
+      };
+    Hashtbl.replace(tbl, id, r);
+    r;
   };
+};
 
 /* the info panel for an orbiting constant: name (jump), type, and the
    definition rendered as a value chip */
@@ -216,7 +237,67 @@ let node_type_names = (~graph: CanvasGraph.t, n: CanvasGraph.tynode) => {
    inside a livelit's own definition can't be shown through that
    livelit — its name isn't in scope there), then the newest sample; the
    well is then navigable through that site's history */
-let value_site =
+let rec value_site =
+        (
+          ~dynamics: Language.Dynamics.Map.t,
+          ~info_map: Language.Statics.Map.t,
+          ~graph: CanvasGraph.t,
+          ~focus: option(Language.Sample.Focus.t)=?,
+          ~within: option((Measured.Point.t, Measured.Point.t))=?,
+          ~syntax: option(CachedSyntax.t)=?,
+          key: string,
+        )
+        : option(Id.t) => {
+  /* memo: the same inputs (by identity for the maps) give the same site;
+     every render of every card asks */
+  let hit =
+    List.find_opt(
+      ((k, d, i, f, w, g, _)) =>
+        k == key
+        && d === dynamics
+        && i === info_map
+        && f == focus
+        && w == within
+        && g === graph,
+      value_site_memo^,
+    );
+  switch (hit) {
+  | Option.Some((_, _, _, _, _, _, r)) => r
+  | Option.None =>
+    let r =
+      value_site_impl(
+        ~dynamics,
+        ~info_map,
+        ~graph,
+        ~focus?,
+        ~within?,
+        ~syntax?,
+        key,
+      );
+    value_site_memo :=
+      [
+        (key, dynamics, info_map, focus, within, graph, r),
+        ...Util.ListUtil.take(31, value_site_memo^),
+      ];
+    r;
+  };
+}
+and value_site_memo:
+  ref(
+    list(
+      (
+        string,
+        Language.Dynamics.Map.t,
+        Language.Statics.Map.t,
+        option(Language.Sample.Focus.t),
+        option((Measured.Point.t, Measured.Point.t)),
+        CanvasGraph.t,
+        option(Id.t),
+      ),
+    ),
+  ) =
+  ref([])
+and value_site_impl =
     (
       ~dynamics: Language.Dynamics.Map.t,
       ~info_map: Language.Statics.Map.t,
@@ -237,22 +318,37 @@ let value_site =
     : option(Id.t) =>
   switch (node_of(graph, key)) {
   | None => None
+  /* a LIVELIT's node (`^game`): its card is the app — the projected
+     invocation of that livelit, live and interactive */
+  | Some(n) when Language.UserLivelit.is_livelit_name(n.label) =>
+    switch (syntax) {
+    | None => None
+    | Some(syntax) =>
+      List.find_opt(
+        (id: Id.t) =>
+          switch (
+            Id.Map.find_opt(id, syntax.projectors),
+            Id.Map.find_opt(id, info_map),
+          ) {
+          | (Some(p), Some(Language.Info.InfoExp({user_term, ctx, _})))
+              when p.kind == ProjectorCore.Kind.Livelit =>
+            /* the site's term is the Projector wrapper around the use */
+            let inner =
+              switch (Language.Exp.term_of(user_term)) {
+              | Projector(_, e) => e
+              | _ => user_term
+              };
+            switch (Language.UserLivelit.use_parts(ctx, inner)) {
+            | Some((name, _)) => "^" ++ name == n.label
+            | None => false
+            };
+          | _ => false
+          },
+        syntax.projector_list,
+      )
+    }
   | Some(n) =>
     let names = node_type_names(~graph, n);
-    /* an APP INSTANCE of this type (a livelit invocation with its
-       projector) is the card everyone wants: live, interactive */
-    let is_app = (id: Id.t): bool =>
-      switch (syntax) {
-      | Some(syntax) =>
-        List.mem(id, syntax.projector_list)
-        && (
-          switch (Id.Map.find_opt(id, syntax.projectors)) {
-          | Some(p) => p.kind == ProjectorCore.Kind.Livelit
-          | None => false
-          }
-        )
-      | None => false
-      };
     let inside = (id: Id.t): bool =>
       switch (within, syntax) {
       | (Some((l, r)), Some(syntax)) =>
@@ -282,13 +378,19 @@ let value_site =
        that merely matches its body ((Int, Int) is not a Point until the
        program says so); the body is the fallback */
     let nominal = (t: string): bool => t == n.label || t == n.key;
+    /* CHEAP renderability: a livelit in scope for the site's type (no
+       view evaluation here — that happens once, in the card), else the
+       structural renderers' own checks */
     let rich_ok = (id: Id.t, s: Language.Sample.t): bool => {
       let statics = Id.Map.find_opt(id, info_map);
-      List.exists(
-        (r: RichProbe.packed_renderer) =>
-          r.id != "table" && r.can_handle(~statics, Sort.Exp, s.value),
-        RichProbeRegistry.renderers,
-      );
+      LivelitRenderer.candidates(statics) != []
+      || List.exists(
+           (r: RichProbe.packed_renderer) =>
+             r.id != "table"
+             && r.id != "livelit"
+             && r.can_handle(~statics, Sort.Exp, s.value),
+           RichProbeRegistry.renderers,
+         );
     };
     Language.Sample.Map.fold(
       (id, samples, best) =>
@@ -301,7 +403,6 @@ let value_site =
               samples,
             );
           let rank = (
-            is_app(id) ? 1 : 0,
             aligned(id, samples) ? 1 : 0,
             inside(id) ? 1 : 0,
             nominal(t) ? 1 : 0,

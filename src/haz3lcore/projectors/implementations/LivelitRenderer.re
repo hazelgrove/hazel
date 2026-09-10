@@ -151,7 +151,12 @@ let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
 let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
   switch (
     List.find_opt(
-      ((k, _)) => fst(k) === raw && snd(k) == ll.name,
+      ((k, _)) =>
+        snd(k) == ll.name
+        /* by identity, else by value: a re-evaluation hands out fresh
+           sample objects for unchanged values, and re-running the
+           view for each of them on every keystroke is the cost */
+        && (fst(k) === raw || Exp.fast_equal(fst(k), raw)),
       html_memo^,
     )
   ) {

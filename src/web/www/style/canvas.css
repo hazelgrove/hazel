@@ -2092,6 +2092,48 @@
   cursor: default;
   user-select: none;
 }
+/* NODE mode: the view is inert (the card drags anywhere, dbl-click
+   collapses); LIVE mode: the view takes the pointer */
+.canvas-node.node-card.card-node .card-body {
+  cursor: grab;
+}
+.canvas-node.node-card.card-node .card-body .canvas-app,
+.canvas-node.node-card.card-node .card-body .probe-card-rich,
+.canvas-node.node-card.card-node .card-body .probe-card-plain {
+  pointer-events: none;
+}
+.canvas-node.node-card.card-live {
+  border-style: dashed;
+}
+/* the live / node toggle: a small corner button, shown on hover and
+   while live */
+.canvas-node.node-card .card-live-toggle {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--token-typ, #9457c9);
+  background: var(--df-bg, #fdfdf4);
+  color: var(--token-typ, #9457c9);
+  font-size: 9px;
+  line-height: 15px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 41;
+  user-select: none;
+}
+.canvas-node.node-card:hover .card-live-toggle,
+.canvas-node.node-card.card-live .card-live-toggle {
+  opacity: 1;
+}
+.canvas-node.node-card.card-live .card-live-toggle {
+  background: var(--token-typ, #9457c9);
+  color: var(--df-bg, #fdfdf4);
+}
 .canvas-node.node-card .card-resize {
   position: absolute;
   right: -2px;

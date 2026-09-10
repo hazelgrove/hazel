@@ -667,6 +667,8 @@ let ty_syntax = (n: CanvasGraph.tynode): string =>
 /* a card just opened / closed / resized: re-fit the camera after the
    render that lays it out */
 let fit_pending: ref(bool) = ref(false);
+/* a card just opened / resized: pan it into view after the render */
+let reveal_pending: ref(option(string)) = ref(Option.none);
 
 let px_float = (s: string): float =>
   try(float_of_string(String.sub(s, 0, String.length(s) - 2))) {
@@ -2229,9 +2231,11 @@ let view_impl =
   /* type nodes expanded into cards: each is a probe in card mode over
      the newest rich-renderable sample site of that type */
   let toggle_value_node = (key: string) => {
-    fit_pending := true;
     let expanding =
       !List.mem(key, globals.settings.sidebar.canvas_value_nodes);
+    if (expanding) {
+      reveal_pending := Option.some(key);
+    };
     /* opening a card is a request for live values: turn sampling on if
        it is off, and end the agent-burst mask if it is holding samples
        back — the user asked, so the evaluation goes out now */
@@ -2279,7 +2283,7 @@ let view_impl =
       let _ = doc##removeEventListener("mousemove", on_move);
       let _ = doc##removeEventListener("mouseup", on_up);
       let (w, h) = cur^;
-      fit_pending := true;
+      reveal_pending := Option.some(key);
       Effect.Expert.handle_non_dom_event_exn(
         globals.inject_global(
           Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
@@ -2330,6 +2334,67 @@ let view_impl =
         ~ah,
       );
     };
+  };
+  /* a card just opened or resized: bring IT into view (pan; zoom up to
+     a readable minimum) rather than re-fitting the whole graph */
+  let reveal_card = (key: string): unit =>
+    switch (
+      List.find_opt(
+        (nl: CanvasLayout.node_layout) => nl.node.key == key,
+        lay.nodes,
+      ),
+      avail_width,
+      avail_height,
+      CanvasCamera.center(
+        ~aw=Option.value(~default=0., avail_width),
+        ~ah=Option.value(~default=0., avail_height),
+      ),
+    ) {
+    | (Some(nl), Some(aw), Some(ah), Some((cx, cy))) =>
+      let (w, h) = card_size(key);
+      let z = CanvasCamera.zoom_now^;
+      let (vw, vh) = (aw /. z, ah /. z);
+      let inside =
+        nl.p.x
+        -. w
+        /. 2. >= cx
+        -. vw
+        /. 2.
+        && nl.p.x
+        +. w
+        /. 2. <= cx
+        +. vw
+        /. 2.
+        && nl.p.y
+        -. h
+        /. 2. >= cy
+        -. vh
+        /. 2.
+        && nl.p.y
+        +. h
+        /. 2.
+        +. 20. <= cy
+        +. vh
+        /. 2.;
+      /* pan only (the zoom is the user's): a card off the pane comes
+         into view where it is */
+      if (!inside) {
+        CanvasCamera.animate(
+          ~aw,
+          ~ah,
+          ~zoom=Some(z),
+          ~dur=320.,
+          ~easing=CanvasCamera.EaseOut,
+          (nl.p.x, nl.p.y),
+        );
+      };
+    | _ => ()
+    };
+  switch (reveal_pending^) {
+  | Option.Some(key) =>
+    reveal_pending := Option.none;
+    CanvasEnact.after_render(() => reveal_card(key));
+  | Option.None => ()
   };
   if (fit_pending^) {
     fit_pending := false;
@@ -2391,8 +2456,10 @@ let view_impl =
                 (slide, key),
                 globals.settings.sidebar.canvas_card_sizes,
               ),
+            List.mem(key, globals.settings.sidebar.canvas_card_live),
             toggle_value_node(key),
             start_card_resize(key),
+            globals.inject_global(Set(Sidebar(ToggleCanvasCardLive(key)))),
           ),
         ));
       },
@@ -2401,7 +2468,7 @@ let view_impl =
   /* AUTOSIZE: a card without a stored size opens at its content's
      natural size — a rich view as drawn (capped), a plain value capped
      at the pretty-print box — measured after this render and stored */
-  if (List.exists(((_, (_, _, auto, _, _))) => auto, cards)) {
+  if (List.exists(((_, (_, _, auto, _, _, _, _))) => auto, cards)) {
     CanvasEnact.after_render(() => {
       open Js_of_ocaml;
       let els =
@@ -2489,7 +2556,7 @@ let view_impl =
               Float.max(120., Float.min(cap_w, cw +. (rich ? 12. : 24.)));
             let h =
               Float.max(64., Float.min(cap_h, ch +. (rich ? 12. : 20.)));
-            fit_pending := true;
+            reveal_pending := Option.some(key);
             Effect.Expert.handle_non_dom_event_exn(
               globals.inject_global(
                 Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),

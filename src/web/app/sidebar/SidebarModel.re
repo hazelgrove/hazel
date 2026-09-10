@@ -226,6 +226,11 @@ module Settings = {
        size (rich views) or the plain-value cap */
     [@sexp.default []] [@yojson.default []]
     canvas_card_sizes: list(((string, string), (float, float))),
+    /* expanded cards in LIVE mode: the view takes the pointer (an app
+       plays, a probe's own gestures work); a card not listed is a NODE
+       (drag anywhere, dbl-click collapses, the view is inert) */
+    [@sexp.default []] [@yojson.default []]
+    canvas_card_live: list(string),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -276,6 +281,7 @@ module Settings = {
     | SetCanvasProbeModel(string, string)
     | ToggleCanvasValueNode(string)
     | SetCanvasCardSize(string, string, float, float)
+    | ToggleCanvasCardLive(string)
     | SetCanvasTab(string)
     | SetCanvasPanelHeight(option(int))
     | SetCanvasPanelHidden(bool)

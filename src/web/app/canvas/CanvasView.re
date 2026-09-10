@@ -614,8 +614,13 @@ let node_view =
              (float, float),
              /* no stored size yet: measured after render (autosize) */
              bool,
+             /* LIVE: the view takes the pointer; else a NODE (inert
+                view, drag anywhere, dbl-click collapses) */
+             bool,
              Effect.t(unit),
              Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+             Effect.t(unit),
+             /* toggle live / node */
              Effect.t(unit),
            ),
          )=None,
@@ -685,7 +690,15 @@ let node_view =
       ]
     };
   switch (card) {
-  | Some((content, (w, h), autosize, on_collapse, on_resize_start)) =>
+  | Some((
+      content,
+      (w, h),
+      autosize,
+      live,
+      on_collapse,
+      on_resize_start,
+      on_toggle_live,
+    )) =>
     /* the card is the node: same element (keyed), centered on the node's
        position, so the circle morphs into the rounded rectangle (CSS
        transitions on size and radius; FLIP moves it). Only the view and
@@ -697,6 +710,7 @@ let node_view =
           Attr.id(node_dom_id(n.key)),
           clss(
             ["canvas-node", "node-card", kind_cls(n.kind)]
+            @ [live ? "card-live" : "card-node"]
             @ (focused_ty == Some(n.key) ? ["node-focused"] : []),
           ),
           Attr.create(
@@ -711,16 +725,41 @@ let node_view =
           ),
         ]
         @ (autosize ? [Attr.create("data-autosize", n.key)] : [])
+        /* NODE mode: dbl-click anywhere collapses */
+        @ (
+          live
+            ? []
+            : [
+              Attr.on_double_click(_ =>
+                Effect.Many([Effect.Stop_propagation, on_collapse])
+              ),
+            ]
+        )
         @ click_attrs,
       [
         div(
-          ~attrs=[
-            clss(["card-body"]),
-            /* the probe's own gestures (sample select, keys) must not
-               start a node drag */
-            Attr.on_mousedown(_ => Effect.Stop_propagation),
-          ],
+          ~attrs=
+            [clss(["card-body"])]
+            /* LIVE: the view's own gestures must not start a node drag;
+               NODE: mousedown reaches the node, so the card drags */
+            @ (live ? [Attr.on_mousedown(_ => Effect.Stop_propagation)] : []),
           [content],
+        ),
+        div(
+          ~attrs=[
+            clss(["card-live-toggle"]),
+            Attr.title(
+              live
+                ? "back to a node: drag anywhere, double-click to collapse"
+                : "interact with the view (play the app, use the probe's gestures)",
+            ),
+            Attr.on_mousedown(_ => Effect.Stop_propagation),
+            Attr.on_double_click(_ => Effect.Stop_propagation),
+            Attr.on_click(_ =>
+              Effect.Many([Effect.Stop_propagation, on_toggle_live])
+            ),
+          ],
+          [text(live ? {js|■|js} : {js|▶|js})],
         ),
         div(
           ~attrs=[
@@ -946,8 +985,10 @@ let view =
                Node.t,
                (float, float),
                bool,
+               bool,
                Effect.t(unit),
                Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent) =>
+               Effect.t(unit),
                Effect.t(unit),
              ),
            ),

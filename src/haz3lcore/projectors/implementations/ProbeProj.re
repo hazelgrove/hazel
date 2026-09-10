@@ -99,9 +99,12 @@ let model_string_card = (stored: option(string)): string => {
       }
     | None => init_probe_model
     };
+  /* rich_off has no toggle in a card: the view is always the rich one
+     when it applies */
   {
     ...m,
     auto_rich: true,
+    rich_off: false,
     card_mode: true,
   }
   |> sexp_of_probe_model
@@ -307,6 +310,9 @@ type probe_ctx = {
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
+  /* canvas type card: the chip's own dbl-click toggles do not apply
+     (the card's dbl-click collapses it) */
+  card: bool,
   p_info: info,
 };
 
@@ -736,7 +742,10 @@ let value_view =
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ =>
-        ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
+        ctx.card
+          ? Effect.Ignore
+          : ctx.auto_rich_ready
+              ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
@@ -1963,6 +1972,7 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      card: model.card_mode,
       lengths: model.sample_lengths,
       p_info: info,
     };

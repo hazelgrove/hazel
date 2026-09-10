@@ -246,20 +246,38 @@ and spine = (e: Exp.t): list((list(string), item)) => {
   | Let(pat, def, body) =>
     let entry =
       top(ILet(Some(Exp.rep_id(e)), doc_of_fwd^(e.annotation), pat, def));
-    /* `let m = { … }` binds a module without module syntax (the livelit
-       idiom): its members join the stream like any module's */
+    /* a livelit (`let ^name = { … }`): its members (Model, Action,
+       update, view …) are a VIEW's insides, not program structure, and
+       stay off the canvas. A pure VALUE VIEW (it has `wrap`: it only
+       shows values of its type) stays off the canvas altogether; an
+       APP livelit (no wrap: it holds state the program reads) keeps its
+       node, whose card is the live app. */
+    let livelit_view =
+      switch (strip_exp(def).term, pat.term) {
+      | (Module(items), Var(name))
+          when Language.UserLivelit.is_livelit_name(name) =>
+        List.exists(
+          (it: Language.Mod.t) =>
+            switch (it.term) {
+            | ModLet(pat, _) =>
+              Language.UserLivelit.pat_name(pat) == Some("wrap")
+            | _ => false
+            },
+          items,
+        )
+      | _ => false
+      };
+    /* `let m = { … }` binds a module without module syntax: its members
+       join the stream like any module's */
     let members =
       switch (strip_exp(def).term, pat.term) {
-      /* a livelit (`let ^name = { … }`) is a VIEW of a type, not program
-         structure: its members (Model, Action, update, view …) stay off
-         the canvas; the binding itself remains a node */
       | (Module(_), Var(name))
           when Language.UserLivelit.is_livelit_name(name) =>
         []
       | (Module(items), Var(name)) => mod_members([name], items)
       | _ => []
       };
-    [entry] @ members @ spine(body);
+    (livelit_view ? [] : [entry]) @ members @ spine(body);
   /* module M = {...} binds like a let whose type is a Sig ({} former);
      its members join the stream under the module's path */
   | ModuleExp(mpat, def, body) =>

@@ -162,6 +162,20 @@ let is_app_site = (~editor: CodeWithStatics.Model.t, id: Id.t): bool => {
   );
 };
 
+let app_data_memo:
+  ref(
+    option(
+      (
+        CachedSyntax.t,
+        Language.Statics.Map.t,
+        Language.Dynamics.Map.t,
+        Language.Sample.Focus.t,
+        list(ProjectorView.Model.projector_data),
+      ),
+    ),
+  ) =
+  ref(Option.none);
+
 let app_view =
     (~globals: Globals.t, ~editor: CodeWithStatics.Model.t, id: Id.t)
     : option(Node.t) => {
@@ -172,16 +186,37 @@ let app_view =
     | Option.Some(f) => f(a)
     | Option.None => globals.inject_global(ActiveEditor(a))
     };
+  /* projector data for the whole editor, once per (syntax, statics,
+     dynamics, focus): every app card on every render asks */
   let data =
-    ProjectorView.Model.mk(
-      ~syntax,
-      ~indicated=None,
-      ~statics=editor.statics.info_map,
-      ~dynamics=editor.dynamics,
-      ~sample_focus=zipper.refractors.sample_focus,
-      ~editor_active=false,
-      ~elaborated=Some(editor.statics.elaborated),
-    );
+    switch (app_data_memo^) {
+    | Option.Some((sy, st, dy, sf, d))
+        when
+          sy === syntax
+          && st === editor.statics.info_map
+          && dy === editor.dynamics
+          && sf == zipper.refractors.sample_focus => d
+    | _ =>
+      let d =
+        ProjectorView.Model.mk(
+          ~syntax,
+          ~indicated=None,
+          ~statics=editor.statics.info_map,
+          ~dynamics=editor.dynamics,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~editor_active=false,
+          ~elaborated=Some(editor.statics.elaborated),
+        );
+      app_data_memo :=
+        Option.some((
+          syntax,
+          editor.statics.info_map,
+          editor.dynamics,
+          zipper.refractors.sample_focus,
+          d,
+        ));
+      d;
+    };
   switch (
     List.find_opt(
       (d: ProjectorView.Model.projector_data) => d.p.id == id,
