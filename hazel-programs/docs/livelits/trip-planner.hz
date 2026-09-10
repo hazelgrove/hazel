@@ -19,9 +19,9 @@ let ^point = {
     | Pt(x, y) =>
       Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
         [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
-                       Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+                       Create("fill", "#f8fafc"), Create("stroke", "#e2e8f0")], []),
          Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "5"),
-                         Create("fill", "#2f6fbf")], [])])
+                         Create("fill", "#3b82f6")], [])])
     end;
   let expand(p: Model): Point = p;
   let wrap(p: Point): Model = p;
@@ -39,12 +39,12 @@ let ^route = {
   let view(r: Model): HTML =
     Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
       [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
-                     Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
-       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#c2452d"),
+                     Create("fill", "#f8fafc"), Create("stroke", "#e2e8f0")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#ef4444"),
                          Create("stroke-width", "2")], [])]
       @ map(r, fun p: Point -> case p | Pt(x, y) =>
           Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "4"),
-                          Create("fill", "#2f6fbf")], []) end));
+                          Create("fill", "#3b82f6")], []) end));
   let expand(r: Model): Route = r;
   let wrap(r: Route): Model = r;
   let shape : LivelitShape = Tab(9, 5)
@@ -60,14 +60,14 @@ let ^leg = {
     | (Pt(ax, ay), Pt(bx, by)) =>
       Node("svg", [Create("viewBox", "0 0 100 100"), Width("100"), Height("100")],
         [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
-                       Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
+                       Create("fill", "#f8fafc"), Create("stroke", "#e2e8f0")], []),
          Node("line", [Create("x1", string_of_int(ax)), Create("y1", string_of_int(ay)),
                        Create("x2", string_of_int(bx)), Create("y2", string_of_int(by)),
-                       Create("stroke", "#c2452d"), Create("stroke-width", "2")], []),
+                       Create("stroke", "#ef4444"), Create("stroke-width", "2")], []),
          Node("circle", [Create("cx", string_of_int(ax)), Create("cy", string_of_int(ay)), Create("r", "4"),
-                         Create("fill", "#2f6fbf")], []),
+                         Create("fill", "#3b82f6")], []),
          Node("circle", [Create("cx", string_of_int(bx)), Create("cy", string_of_int(by)), Create("r", "4"),
-                         Create("fill", "#e8a33d")], [])])
+                         Create("fill", "#f59e0b")], [])])
     end;
   let expand(l: Model): Leg = l;
   let wrap(l: Leg): Model = l;
@@ -86,9 +86,9 @@ let ^money = {
       let label = "$" ++ string_of_int(c / 100) ++ "." ++ (if cents < 10 then "0" else "") ++ string_of_int(cents) in
       Node("svg", [Create("viewBox", "0 0 84 32"), Width("84"), Height("32")],
         [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "80"), Create("height", "28"),
-                       Create("rx", "6"), Create("fill", "#e9f3e2"), Create("stroke", "#7a9")], []),
+                       Create("rx", "8"), Create("fill", "#ecfdf5"), Create("stroke", "#a7f3d0")], []),
          Node("text", [Create("x", "42"), Create("y", "21"), Create("font-size", "14"), Create("text-anchor", "middle"),
-                       Create("font-family", "monospace"), Create("fill", "#2b5")], [Text(label)])])
+                       Create("font-family", "ui-monospace, Menlo, monospace"), Create("fill", "#059669")], [Text(label)])])
     end;
   let expand(m: Model): Money = m;
   let wrap(m: Money): Model = m;
@@ -113,12 +113,12 @@ let ^map = {
     Node("svg", [Create("viewBox", "0 0 100 100"), Width("160"), Height("160"),
                  OnClickAt(fun (x: Int, y: Int) -> Add(x * 100 / 160, y * 100 / 160)), Style([("cursor", "crosshair")])],
       [Node("rect", [Create("x", "0"), Create("y", "0"), Create("width", "100"), Create("height", "100"),
-                     Create("fill", "#f4f8f4"), Create("stroke", "#cdc")], []),
-       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#c2452d"),
+                     Create("fill", "#f8fafc"), Create("stroke", "#e2e8f0")], []),
+       Node("polyline", [Create("points", coords(r)), Create("fill", "none"), Create("stroke", "#ef4444"),
                          Create("stroke-width", "1.5")], [])]
       @ mapi(r, fun (i: Int, p: Point) -> case p | Pt(x, y) =>
           Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "4"),
-                          Create("fill", "#2f6fbf"), OnClick(Remove(i)), Style([("cursor", "pointer")])], []) end));
+                          Create("fill", "#3b82f6"), OnClick(Remove(i)), Style([("cursor", "pointer")])], []) end));
   let expand(r: Model): Route = r;
   let wrap(r: Route): Model = r;
   let shape : LivelitShape = Tab(14, 8)

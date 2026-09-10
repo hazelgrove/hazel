@@ -20,15 +20,15 @@ let ^temp = {
     | Deg(d) =>
       let raw = (d - 40) * 60 / 50 in
       let h = string_of_int(if raw < 0 then 0 else if raw > 60 then 60 else raw) in
-      let color = if d >= 76 then "#c2452d" else if d <= 62 then "#2f6fbf" else "#7a9" in
+      let color = if d >= 76 then "#ef4444" else if d <= 62 then "#3b82f6" else "#22c55e" in
       Node("svg", [Create("viewBox", "0 0 40 84"), Width("40"), Height("84")],
         [Node("rect", [Create("x", "15"), Create("y", "6"), Create("width", "10"), Create("height", "60"),
-                       Create("rx", "5"), Create("fill", "#eee")], []),
+                       Create("rx", "5"), Create("fill", "#e5e7eb")], []),
          Node("rect", [Create("x", "15"), Create("y", string_of_int(66 - int_of_string(h))), Create("width", "10"),
                        Create("height", h), Create("rx", "5"), Create("fill", color)], []),
          Node("circle", [Create("cx", "20"), Create("cy", "70"), Create("r", "9"), Create("fill", color)], []),
          Node("text", [Create("x", "20"), Create("y", "74"), Create("font-size", "9"), Create("text-anchor", "middle"),
-                       Create("font-family", "sans-serif"), Create("fill", "white")],
+                       Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")],
               [Text(string_of_int(d))])])
     end;
   let expand(t: Model): Temp = t;
@@ -43,12 +43,12 @@ let ^mode = {
   let update(m: Model, _: Action): Model = m;
   let view(m: Model): HTML =
     let (label, color) =
-      case m | Heat => ("heat", "#c2452d") | Cool => ("cool", "#2f6fbf") | Off => ("off", "#999") end in
+      case m | Heat => ("heat", "#ef4444") | Cool => ("cool", "#3b82f6") | Off => ("off", "#94a3b8") end in
     Node("svg", [Create("viewBox", "0 0 72 32"), Width("72"), Height("32")],
       [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "68"), Create("height", "28"),
                      Create("rx", "14"), Create("fill", color)], []),
        Node("text", [Create("x", "36"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
-                     Create("font-family", "sans-serif"), Create("fill", "white")], [Text(label)])]);
+                     Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")], [Text(label)])]);
   let expand(m: Model): Mode = m;
   let wrap(m: Mode): Model = m;
   let shape : LivelitShape = Tab(7, 2)
@@ -67,9 +67,9 @@ let ^hour = {
       let y = to_fixed(22.0 -. 14.0 *. cos(a), 1) in
       Node("svg", [Create("viewBox", "0 0 44 44"), Width("44"), Height("44")],
         [Node("circle", [Create("cx", "22"), Create("cy", "22"), Create("r", "20"),
-                         Create("fill", if n >= 6 && n < 18 then "#fff6d5" else "#3b3f5c"), Create("stroke", "#888")], []),
+                         Create("fill", if n >= 6 && n < 18 then "#fef3c7" else "#1e293b"), Create("stroke", "#cbd5e1")], []),
          Node("line", [Create("x1", "22"), Create("y1", "22"), Create("x2", x), Create("y2", y),
-                       Create("stroke", if n >= 6 && n < 18 then "#444" else "#eee"), Create("stroke-width", "2.5"),
+                       Create("stroke", if n >= 6 && n < 18 then "#1f2933" else "#f8fafc"), Create("stroke-width", "2.5"),
                        Create("stroke-linecap", "round")], [])])
     end;
   let expand(h: Model): Hour = h;
@@ -84,13 +84,13 @@ let ^plan = {
   let update(m: Model, _: Action): Model = m;
   let view((m, t): Model): HTML =
     let (label, color) =
-      case m | Heat => ("heat to", "#c2452d") | Cool => ("cool to", "#2f6fbf") | Off => ("hold", "#999") end in
+      case m | Heat => ("heat to", "#ef4444") | Cool => ("cool to", "#3b82f6") | Off => ("hold", "#94a3b8") end in
     let d = case t | Deg(d) => d end in
     Node("svg", [Create("viewBox", "0 0 110 32"), Width("110"), Height("32")],
       [Node("rect", [Create("x", "2"), Create("y", "2"), Create("width", "106"), Create("height", "28"),
                      Create("rx", "14"), Create("fill", color)], []),
        Node("text", [Create("x", "55"), Create("y", "21"), Create("font-size", "13"), Create("text-anchor", "middle"),
-                     Create("font-family", "sans-serif"), Create("fill", "white")],
+                     Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "white")],
             [Text(label ++ " " ++ string_of_int(d))])]);
   let expand(p: Model): Plan = p;
   let wrap(p: Plan): Model = p;
@@ -116,21 +116,21 @@ let ^schedule = {
     Node("g", [], [
       Node("rect", [Create("x", string_of_int(x)), Create("y", string_of_int(80 - height)),
                     Create("width", "14"), Create("height", string_of_int(height)), Create("rx", "3"),
-                    Create("fill", if d >= 70 then "#e08a6b" else "#7fb3d5")], []),
+                    Create("fill", if d >= 70 then "#f97316" else "#38bdf8")], []),
       Node("rect", [Create("x", string_of_int(x)), Create("y", "4"), Create("width", "14"), Create("height", "38"),
                     Create("fill", "transparent"), OnClick(Raise(i)), Style([("cursor", "n-resize")])], []),
       Node("rect", [Create("x", string_of_int(x)), Create("y", "42"), Create("width", "14"), Create("height", "38"),
                     Create("fill", "transparent"), OnClick(Lower(i)), Style([("cursor", "s-resize")])], []),
       Node("text", [Create("x", string_of_int(x + 7)), Create("y", string_of_int(76 - height)),
-                    Create("font-size", "8"), Create("text-anchor", "middle"), Create("font-family", "sans-serif"),
-                    Create("fill", "#444")], [Text(string_of_int(d))]),
+                    Create("font-size", "8"), Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"),
+                    Create("fill", "#1f2933")], [Text(string_of_int(d))]),
       Node("text", [Create("x", string_of_int(x + 7)), Create("y", "90"), Create("font-size", "7"),
-                    Create("text-anchor", "middle"), Create("font-family", "sans-serif"), Create("fill", "#888")],
+                    Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"), Create("fill", "#6b7280")],
            [Text(string_of_int(hn) ++ "h")])]);
   let view(s: Model): HTML =
     Node("svg", [Create("viewBox", "0 0 232 94"), Width("232"), Height("94")],
       [Node("line", [Create("x1", "4"), Create("y1", "80"), Create("x2", "228"), Create("y2", "80"),
-                     Create("stroke", "#ccc")], [])]
+                     Create("stroke", "#e5e7eb")], [])]
       @ mapi(s, bar));
   let expand(s: Model): Schedule = s;
   let wrap(s: Schedule): Model = s;
