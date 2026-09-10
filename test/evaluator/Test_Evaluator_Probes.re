@@ -839,6 +839,42 @@ in f(0)|},
 in f([1, 2])|},
     [(0, ["[1, 2, 0]"])],
   ),
+  /* A chain of ascriptions collapses pairwise, by meet, before its operand
+   * evaluates. Each collapsed node must carry the inner ascription's ID: with
+   * a fresh one, the outermost ascription is the only level whose ID the
+   * evaluator ever opens a span for, so every other level samples nothing --
+   * or, if a sample is minted at collapse time instead, the operand
+   * unevaluated. Every level ascribes the same value, so every probe reads
+   * it, however deep the chain and whatever the types along it.
+   * A chain's probes all share the innermost term's extremes, so they land on
+   * one line here and the expectation is one value per level. */
+  probe_line_test(
+    "Probes on every level of a deep unknown ascription chain",
+    {|^^probe(^^probe(^^probe(^^probe(^^probe((3 * 7) : ?) : ?) : ?) : ?) : ?)|},
+    [(0, ["21", "21", "21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on every level of a known ascription chain",
+    {|^^probe(^^probe(^^probe((3 * 7) : Int) : Int) : Int)|},
+    [(0, ["21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on an ascription chain mixing known and unknown",
+    {|^^probe(^^probe(^^probe((3 * 7) : Int) : ?) : Int)|},
+    [(0, ["21", "21", "21"])],
+  ),
+  probe_line_test(
+    "Probes on an ascription chain refining a tuple type",
+    {|^^probe(^^probe(^^probe(((1 > 2), 3 * 7) : (?, ?)) : (Bool, ?)) : (?, Int))|},
+    [(0, ["(false, 21)", "(false, 21)", "(false, 21)"])],
+  ),
+  /* Inconsistent types refuse to meet, so this chain never collapses and the
+   * outer ascription stays stuck. Both levels still sample the value. */
+  probe_line_test(
+    "Probes on an ascription chain whose types do not meet",
+    {|^^probe(^^probe(((1 > 2), 3 * 7) : (Bool, ?)) : (String, ?))|},
+    [(0, ["(false, 21)", "(false, 21)"])],
+  ),
 ];
 
 /* Tests that probe samples are not duplicated when values flow through

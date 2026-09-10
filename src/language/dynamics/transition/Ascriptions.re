@@ -43,17 +43,20 @@ let rec transition =
     | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
-      let* () =
-        switch (Id.Map.find_opt(Exp.rep_id(e), targets)) {
-        | Some(spec) => SampleWriter.tell([(Exp.rep_id(e), spec, e')])
-        | None => SampleWriter.return()
-        };
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) =>
-        let+ result = recur(Asc(e', t) |> DHExp.fresh);
+        /* Collapse under e's id, per ID PRESERVATION above: the evaluator
+           opens an observation span for a target id and closes it on the
+           final value (Evaluator.eval_3_record_probe_sample), so keeping the
+           id here is what gets this ascription a sample. Minting one at
+           collapse time instead would capture the operand unevaluated. */
+        let+ result =
+          recur(
+            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+          );
         Some(result);
       | None => SampleWriter.return(None) //TODO  This is an impossible case since we checked consistency
-      };
+      }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
       transition(
