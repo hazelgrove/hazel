@@ -251,7 +251,7 @@ let doc_examples_clean = () =>
       "module M = { type T = Int } in\nlet x : M.T = 6 in x",
       /* HazelSyntaxNotes: mutual recursion via tuple binding */
       "let (even : Int -> Bool, odd : Int -> Bool) =\n  (fun n -> if n == 0 then true else odd(n - 1),\n   fun n -> if n == 0 then false else even(n - 1))\nin\neven(4)",
-      /* HazelDocumentation: implicit recursive type alias */
+      /* implicit recursive type alias */
       "type MyList = Nil + Cons(Int, MyList) in\nlet x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in x",
       /* CompositionPrompt: projector concrete syntax */
       "let speed = ^^slider(60) in speed",
@@ -264,24 +264,14 @@ let fenced_blocks = (s: string): list(string) => {
   List.filteri((i, _) => i mod 2 == 1, parts);
 };
 
-/* The complete sample programs shipped in HazelDocumentation. */
-let big_samples_clean = () => {
+/* Every fenced program in every read_docs pack must be statics-clean —
+   these are the guides the agent follows verbatim. */
+let doc_packs_clean = () =>
   List.iter(
-    s => List.iter(assert_parses_clean, fenced_blocks(s)),
-    [
-      HazelDocumentation.sample_tic_tac_toe_program,
-      HazelDocumentation.sample_emoji_paint,
-    ],
+    (pack: DocPacks.pack) =>
+      List.iter(assert_parses_clean, fenced_blocks(pack.body)),
+    DocPacks.all,
   );
-  let poly_doc =
-    HazelDocumentation.polymorphism_documentation
-    |> String.split_on_char('\n')
-    |> List.filter(l =>
-         Util.StringUtil.plain_search("polymorphismDocumentation", l, 0) < 0
-       )
-    |> String.concat("\n");
-  assert_parses_clean(poly_doc);
-};
 
 let tests = [
   (
@@ -302,9 +292,9 @@ let tests = [
         doc_examples_clean,
       ),
       test_case(
-        "shipped sample programs are statics-clean",
+        "read_docs pack programs are statics-clean",
         `Quick,
-        big_samples_clean,
+        doc_packs_clean,
       ),
     ],
   ),

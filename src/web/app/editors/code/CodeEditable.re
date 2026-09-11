@@ -41,19 +41,11 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           /* With probe_all on, a placed probe's samples already exist
+            * (they show instantly), but ambient samples carry no env
+            * (CachedStatics.compute_targets), so re-evaluate to give the
+            * new probe its bindings. */
+           ~is_edit=Action.is_edit(action),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {

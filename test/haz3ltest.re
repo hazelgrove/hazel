@@ -43,6 +43,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
