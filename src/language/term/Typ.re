@@ -1207,7 +1207,7 @@ and paren_pretty_print = typ =>
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 
-/* Collect all IDs from a type, including variant_ann.ids from Sum constructors */
+/* Every id in a type, including the variant_ann ids on Sum constructors. */
 let all_ids = (ty: t): list(Id.t) => {
   let ids = ref([]);
   let _ =
@@ -1256,7 +1256,7 @@ let all_ids = (ty: t): list(Id.t) => {
   ids^;
 };
 
-/* IDs for a single constructor variant in ty' */
+/* Every id in one constructor variant. */
 let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   switch (v) {
   | Variant(_, ann, Some(t)) => ann.ids @ all_ids(t)
@@ -1264,17 +1264,16 @@ let variant_all_ids = (v: ConstructorMap.variant(t)): list(Id.t) =>
   | BadEntry(t) => all_ids(t)
   };
 
-/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids.
+/* The ids of the nodes of [ty'] that [ty] does not account for -- what has
+   to be marked to show how [ty'] differs. Ids in either type must be
+   distinct, or the result names the wrong nodes.
 
-   PRECONDITION: [ctx] holds no alias cycle whose bodies are all Var, Parens or
-   Projector (`type A = (B) in type B = (A)`). [expanded_aliases] holds the names
-   expanded on the current chain of Var lookups, which stops the bare cycle
-   (`type A = B in type B = A`), but only the two Var cases thread it through --
-   every other case resets it, so a cycle passing through a Parens or Projector
-   on either side expands forever. These recursive calls are in tail position,
-   so violating this spins rather than overflowing the stack.
-   Statics cannot currently build such a ctx: weak_head_normalize fails on a
-   cyclic alias before the type reaches a caller here. */
+   PRECONDITION: [ctx] holds no alias cycle whose bodies are all Var, Parens
+   or Projector (`type A = (B) in type B = (A)`). [expanded_aliases] stops the
+   bare `type A = B in type B = A` cycle, but only the Var cases thread it
+   through, so a cycle passing through a Parens or Projector expands forever
+   -- and the calls are in tail position, so it spins rather than
+   overflowing. */
 let rec diff =
         (
           ~ctx: option(Ctx.t)=?,
@@ -1296,13 +1295,9 @@ let rec diff =
   | (Projector(_, t1), _) => diff(~ctx?, t1, ty')
   /* Parens carry no meaning of their own, so they take the verdict of the
      node they wrap: marked when that node is itself replaced, unmarked when
-     it merely contains something that changed.
-     `(Int, ?)` vs `(Int, String)` leaves the parens alone -- the tuple is
-     still the same tuple, only a component differs -- while `?` vs
-     `(a=Int)` marks them, because the tuple is wholly new.
-     Normalization inserts these as real nodes and the renderer emits them as
-     tiles, so leaving them out is what left parentheses in the static colour
-     inside a wholly runtime-derived type. */
+     it merely contains something that changed. `(Int, ?)` vs `(Int, String)`
+     leaves the parens alone -- still the same tuple, one component differs --
+     while `?` vs `(a=Int)` marks them, the tuple being wholly new. */
   | (_, Parens(t2)) =>
     let inner = diff(~ctx?, ty, t2);
     let wrapped_replaced =
@@ -1330,10 +1325,9 @@ let rec diff =
       )
     | None => get_ids()
     }
-  /* An alias on the right renders as one token carrying the Var node's own
-     ids, so the expansion is only good for deciding WHETHER it differs --
-     returning ids from the expansion names a type the segment never showed.
-     One token also means the verdict is all-or-nothing. */
+  /* An alias renders as one token carrying the Var node's own ids, so the
+     expansion decides only WHETHER it differs; the ids returned are the
+     Var's, and the verdict is all-or-nothing. */
   | (_, Var(name)) =>
     switch (expand(name)) {
     | Some(expanded) =>
@@ -1381,8 +1375,7 @@ let rec diff =
         sm2,
       );
     if (left != []) {
-      /* Static type has constructors missing from dynamic — the dynamic
-         Sum is structurally different, so mark all of it as different */
+      /* A constructor missing on the right makes the whole Sum different. */
       get_ids();
     } else {
       let matched_ids =

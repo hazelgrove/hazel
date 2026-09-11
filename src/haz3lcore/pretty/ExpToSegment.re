@@ -1127,11 +1127,9 @@ let pad_ids =
   List.map(replace, truncated);
 };
 
-/* How many ids each type constructor's rendering consumes. This lives here,
-   beside the `pad_ids(n, ...)` calls that spend them, because it mirrors the
-   token layout below -- kept anywhere else it is a second copy that silently
-   drifts. Counts must match the `pad_ids` argument in typ_to_pretty exactly;
-   `PreparedTyp.ids_sufficient` below is how that is checked. */
+/* How many ids each type constructor's rendering consumes. Must match the
+   `pad_ids(n, ...)` argument in typ_to_pretty exactly, and lives beside those
+   calls because nothing checks the two against each other. */
 let necessary_ids: Typ.t => int =
   ty =>
     switch (ty.term) {
@@ -1151,14 +1149,13 @@ let necessary_ids: Typ.t => int =
     | _ => 1
     };
 
-/* Number of IDs required for a variant_ann by ExpToSegment */
+/* Ids a rendered variant consumes. */
 let necessary_variant_ann_ids: ConstructorMap.variant(Typ.t) => int =
   fun
   | Variant(_, _, Some(_)) => 2 /* parens ID + constructor name ID */
   | Variant(_, _, None) => 1 /* constructor name ID */
   | BadEntry(_) => 0;
 
-/* Pad variant_ann.ids to the count ExpToSegment expects */
 let pad_variant_ann =
     (v: ConstructorMap.variant(Typ.t)): ConstructorMap.variant(Typ.t) =>
   switch (v) {
@@ -1177,7 +1174,6 @@ let pad_variant_ann =
   | BadEntry(_) => v
   };
 
-/* Recursively pad variant_ann.ids throughout a type */
 let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
   let term: Typ.term =
     switch (ty.term) {
@@ -1227,10 +1223,8 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
   };
 };
 
-/**
- * Pads type IDs to ensure ExpToSegment uses them instead of creating new ones,
- * preserving ID correspondence for styling.
- */
+/* Give every node the ids its rendering consumes, so the renderer uses
+   these rather than minting its own. */
 let pad_typ_ids = (ty: Typ.t): Typ.t => {
   let ty =
     Typ.map_term(
@@ -3260,32 +3254,22 @@ let exp_to_segment =
 };
 
 /* A type the token layout can be computed from: Sig desugared to labeled
-   tuples, parens inserted (as real Parens NODES, not synthesized tokens),
-   and every node's ids padded to the counts above. Abstract, and buildable
-   only by [prepare], so holding one is evidence all three ran.
+   tuples, parens inserted as real nodes, and every node's ids padded to the
+   counts above. Buildable only by [prepare], so holding one is evidence all
+   three ran, and it carries the settings they ran under.
 
-   The ids a rendered token can be named by are the ids of the PREPARED
-   type, not of the type [prepare] was given: the parens and the padded id
-   slots are nodes that exist only afterwards. So a caller that marks
-   rendered tokens has to compare prepared types -- see
-   [typ_to_segment_with_diff_ids], which is the only way to do that from
-   outside this module.
-
-   A prepared type carries the settings it was prepared for, because the
-   render has to agree with them, and preparing is not idempotent:
-   parenthesize_typ mints a fresh id per Parens it inserts. */
+   Preparing adds nodes, and those nodes carry tokens -- so the ids naming a
+   rendered token are a prepared type's, and anything reasoning about them
+   must compare prepared types. */
 module PreparedTyp: {
   type t;
   let prepare: (~settings: Settings.t, Typ.t) => t;
   let to_segment: t => Segment.t;
-  /* The ids of the nodes of [t] that [against] does not account for. Both
-     sides must be prepared: an unprepared type has no id for a paren it
-     does not yet contain, so it can neither claim nor disclaim one. */
+  /* The ids of the nodes of [t] that [against] does not account for. */
   let diff_ids: (~ctx: Ctx.t=?, ~against: t, t) => Id.Set.t;
   /* Whether every node carries the ids its rendering will consume, so the
-     renderer never has to mint one. [prepare] is supposed to guarantee this;
-     exposed so it can be checked over generated types, rather than by a flag
-     on the settings that only fired on whatever a test happened to render. */
+     renderer never mints one. [prepare] guarantees this; exposed so it can
+     be checked over generated types. */
   let ids_sufficient: t => bool;
 } = {
   type t = {
@@ -3330,10 +3314,9 @@ module PreparedTyp: {
 let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t =>
   PreparedTyp.prepare(~settings, typ) |> PreparedTyp.to_segment;
 
-/* Render [typ], and report which of the rendered tokens are ones [against]
-   does not account for. The segment returned is the single render those ids
-   describe: preparing mints a fresh id per paren it inserts, so a second
-   render would carry ids these do not name. */
+/* Render [typ], and report which of its rendered tokens [against] does not
+   account for. The segment is the one render those ids describe: preparing
+   mints fresh paren ids, so re-rendering would not answer to them. */
 let typ_to_segment_with_diff_ids =
     (
       ~settings: Settings.t,

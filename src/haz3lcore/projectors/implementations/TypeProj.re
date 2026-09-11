@@ -25,12 +25,9 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   };
 
 /* The segment to display in Dynamic mode, and the ids of its tokens that
-   came from runtime. Rendered here rather than by the caller because the
-   dynamic_ids only describe this one render -- see DynamicTypInfer.
-
-   Takes the ctx rather than defaulting one, because inference needs the
-   expression's own: the types a sample mentions are the ones in scope where
-   it was sampled, and a stand-in context reports them as something else. */
+   came from runtime. [ctx] must be the expression's own: the types a sample
+   mentions are the ones in scope where it was sampled, and a stand-in
+   context reports them as something else. */
 let get_dynamic_segment =
     (utility: utility, info: info, ~ctx: Ctx.t): (Base.segment, Id.Set.t) => {
   let static_typ =
@@ -39,8 +36,8 @@ let get_dynamic_segment =
       self_ty(info.statics),
     );
   switch (info.dynamics) {
-  /* Nothing ran, so nothing is runtime-derived: rendered against itself,
-     which is how an empty id set is produced rather than asserted. */
+  /* Nothing ran, so nothing is runtime-derived -- rendered against itself
+     so the empty id set falls out rather than being asserted. */
   | None =>
     utility.typ_to_seg_with_diff_ids(
       ~inline=true,
@@ -85,9 +82,8 @@ module M: Projector = {
   let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "⇓"
-    /* ↔ not ⇔: Source Code Pro, the bundled font these render in, has
-       no bidirectional double arrow, so ⇔ fell back to a system font and
-       rendered differently per browser. */
+    /* ↔ not ⇔: the bundled font has no bidirectional double arrow, and a
+       fallback renders differently per browser (see proj-type.css). */
     | _ when self_ty(statics) == expected_ty(statics) => "↔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
@@ -115,17 +111,16 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    /* Every arm yields the segment to display, so Dynamic can hand over the
-       exact segment its dynamic_ids were computed from. */
+    /* Every arm yields its own segment, so Dynamic can hand over the exact
+       one its ids were computed from. */
     let render = (t: Typ.t) => utility.term_to_seg(~inline=true, Typ(t));
     let cell = (~attrs=[], contents) =>
       div(~attrs=[Attr.classes(["type-cell"]), ...attrs], contents);
     switch (info.statics) {
     /* Statics are absent when the user has turned them off, and briefly
-       while an edit is being checked. There is no type to report, and no
-       context to infer one in -- say so rather than showing `?`, which
+       while an edit is being checked. Say so rather than showing `?`, which
        would claim the type is unknown when what is unknown is whether we
-       looked. One word, because this sits where a type goes. */
+       looked. */
     | None =>
       cell(
         ~attrs=[Attr.title("No type information for this expression")],

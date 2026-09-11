@@ -35,11 +35,9 @@ type utility = {
   /* Convert a term to a segment */
   term_to_seg: (~inline: bool, Any.t) => Base.segment,
   /* Render a type, reporting the ids of the rendered tokens that [against]
-   * does not account for -- for a projector that colours the parts of a
-   * type some other type did not supply. Rendering inserts parens and pads
-   * ids, and it is those nodes the returned ids name, so the comparison
-   * cannot be done on the types as passed and the segment returned is the
-   * one render the ids describe. */
+   * does not account for -- for a projector that colours the parts of a type
+   * some other type did not supply. The two come together because the ids
+   * name nodes rendering adds, and describe that one segment. */
   typ_to_seg_with_diff_ids:
     (~inline: bool, ~ctx: Ctx.t, ~against: Typ.t, Typ.t) =>
     (Base.segment, Id.Set.t),

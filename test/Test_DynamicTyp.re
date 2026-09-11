@@ -99,7 +99,6 @@ let dynamic_ids_and_render =
   (id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [], segment);
 };
 
-/* Given static and dynamic types, return grouped regions of (text, classes) */
 let classify_regions =
     (static_typ: Typ.t, dynamic_typ: Typ.t): list((string, list(string))) => {
   let (classes, segment) = dynamic_ids_and_render(static_typ, dynamic_typ);
@@ -223,7 +222,6 @@ let arrow_diff_codomain_test =
     },
   );
 
-/* Given static and dynamic types and a ctx, return grouped regions */
 let classify_regions_ctx =
     (~ctx: Ctx.t, static_typ: Typ.t, dynamic_typ: Typ.t)
     : list((string, list(string))) => {
@@ -333,7 +331,6 @@ let qcheck_all_piece_ids_classified =
         let (classes, segment) =
           dynamic_ids_and_render(static_typ, dynamic_typ);
         let fragments = segment_fragments(classes, segment);
-        /* Every fragment should produce a valid class list (empty or non-empty) */
         List.for_all(
           ((_text, clss)) => clss == [] || clss == ["dynamic"],
           fragments,

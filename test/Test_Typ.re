@@ -412,9 +412,8 @@ let diff_tests = (
       "diff both sides parenthesized",
       `Quick,
       () => {
-        /* Normalization parenthesizes both sides, and the renderer emits the
-           parens as a tile. The wrapped node is wholly replaced, so the parens
-           are replaced with it. */
+        /* Preparing for rendering parenthesizes both sides. The wrapped node is
+           wholly replaced, so the parens go with it. */
         let int_typ = Typ.fresh(Atom(Atom.Int));
         let dynamic_typ = Typ.fresh(Parens(int_typ));
         check(
@@ -430,8 +429,8 @@ let diff_tests = (
       `Quick,
       () => {
         /* `type A = B in type B = A` -- neither side is self-referential, so
-           TyAlias does not wrap either in a Rec, and diff used to expand the
-           chain until the stack ran out. */
+           TyAlias wraps neither in a Rec, and nothing but expanded_aliases
+           stops diff following the chain forever. */
         let a_body = Typ.fresh(Var("B"));
         let b_body = Typ.fresh(Var("A"));
         let extend = (ctx, name, kind) =>
@@ -485,7 +484,7 @@ let diff_tests = (
             Sum([ConstructorMap.Variant("Some", ann, Some(some_int))]),
           );
         let result = Typ.diff(static_typ, dynamic_typ);
-        /* Dynamic is missing None, so entire dynamic Sum is different */
+        /* A constructor missing on the right makes the whole Sum different. */
         check(
           bool,
           "missing constructor marks all dynamic IDs",
@@ -510,7 +509,7 @@ let diff_tests = (
             ]),
           );
         let result = Typ.diff(static_typ, dynamic_typ);
-        /* B is extra in dynamic — its variant_ann ID should be in the diff */
+        /* B is extra on the right, so its variant_ann id is in the diff. */
         check(
           bool,
           "extra constructor produces diff",

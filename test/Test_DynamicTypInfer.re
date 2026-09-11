@@ -42,14 +42,13 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   };
 };
 
-/* Get the first probe's samples from the evaluation result */
 let first_probe_samples = (probes: Sample.Map.t): list(Sample.t) =>
   switch (Id.Map.bindings(probes)) {
   | [(_, samples), ..._] => samples
   | [] => []
   };
 
-/* Pretty-print a type for readable test output */
+/* Types appear in failure messages as source, not as a term dump. */
 let typ_to_string = (ty: Typ.t): string => {
   let seg =
     ExpToSegment.typ_to_segment(
@@ -74,9 +73,8 @@ let typ_to_string = (ty: Typ.t): string => {
 
 let testable_typ_string = testable(Fmt.string, String.equal);
 
-/* Test helper: given code with a probe, compute the dynamic type and check
-   it matches `expected`. Pass `Some("Int")` for a successful meet or
-   `None` when sample types are inconsistent. */
+/* Check the dynamic type inferred from a probe's samples. `expected` is
+   None when the sample types are inconsistent and refuse to meet. */
 let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
   test_case(
     name,
@@ -197,13 +195,11 @@ in [f(true), f(false)]|},
 /* When statics knew nothing, the whole type came from runtime, so every tile
    of the rendered segment must be green.
 
-   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility --
-   the composition the projector runs -- because the ids that reach the
-   renderer are the ones statics put on the inferred type, and those are what
-   broke: Typ.temp stamps every node with Id.invalid, so the dynamic_ids collapsed
-   to one id and uniquify_repeated_tiles freshened away every tile but the
-   first. A generator cannot rediscover this: QCheck_Util.arb_typ mints a
-   distinct id per node, which is the precondition production violates. */
+   Driven through displayed_segment_and_dynamic_ids with ProjectorInfo.utility,
+   the composition the projector runs, because the ids that reach the renderer
+   come from statics -- which stamps every node with the same Id.invalid.
+   QCheck_Util.arb_typ mints a distinct id per node, so a generator cannot
+   reach this; it takes a real program. */
 let uncoloured_tiles_test = (name: string, code: string) =>
   test_case(
     name,

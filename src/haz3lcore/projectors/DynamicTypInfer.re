@@ -18,9 +18,6 @@ let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
      );
 };
 
-/* Compute the dynamic type from a list of samples by inferring each
-   sample's type and meeting them all. Returns None if any sample
-   fails to type-check or if the types are inconsistent. */
 let dynamic_typ_of_samples =
     (~ctx: Ctx.t, samples: list(Sample.t)): option(Typ.t) => {
   let types =
@@ -37,15 +34,9 @@ let dynamic_typ_of_samples_or_unknown =
   dynamic_typ_of_samples(~ctx, samples)
   |> Option.value(~default=Typ.fresh(Unknown(Internal)));
 
-/* Rendering a type and naming the tokens of it that some other type does not
-   account for: ProjectorBase.utility.typ_to_seg_with_diff_ids, injected rather
-   than called directly because the renderer sits downstream of the
-   projectors and this module cannot name it. */
 type render_with_diff_ids =
   (~ctx: Ctx.t, ~against: Typ.t, Typ.t) => (Base.segment, Id.Set.t);
 
-/* The segment to show in Dynamic mode, and the ids of its tokens that came
-   from runtime rather than from statics. */
 let displayed_segment_and_dynamic_ids =
     (
       ~render_with_diff_ids: render_with_diff_ids,
@@ -55,12 +46,9 @@ let displayed_segment_and_dynamic_ids =
     )
     : (Base.segment, Id.Set.t) => {
   let dynamic_typ = dynamic_typ_of_samples_or_unknown(~ctx, samples);
-  /* Statics builds types with Typ.temp, so every node of one carries the
-     Id.invalid sentinel rather than a distinct id. Left in, the sentinel
-     collapses the dynamic ids: the renderer freshens duplicate tile ids, so
-     every token but the first ends up in no type and so cannot be coloured,
-     and `diff`'s wrapped_replaced test fires on any node sharing the sentinel
-     with a replaced one. */
+  /* Statics builds types with Typ.temp, so every node shares the Id.invalid
+     sentinel. Distinct ids are a precondition of naming rendered tokens, so
+     they are minted here, where the type becomes something to render. */
   render_with_diff_ids(
     ~ctx,
     ~against=static_typ,

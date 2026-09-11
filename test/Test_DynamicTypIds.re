@@ -1,13 +1,10 @@
 /* Colouring the runtime-derived parts of a type in the type probe's Dynamic
-   mode. Code.re colours a tile when its id is in the set,
-   so the dynamic_ids have to line up with the tiles the renderer actually emits.
-   Two ways that can fail, and neither is caught by checking the padding
-   alone: an id in the set but never emitted colours nothing, and a tile emitted
-   for a runtime-derived part but left out stays the static colour.
-
-   Both used to fail. Parens are the reason: preparing a type for rendering
-   inserts them as real nodes and the renderer emits them as tiles, so a
-   comparison of the types as passed could not name them. */
+   mode. Code.re colours a tile when its id is in the set, so the ids have to
+   line up with the tiles the renderer actually emits. Two ways that can fail,
+   neither caught by checking the padding alone: an id in the set but never
+   emitted colours nothing, and a tile emitted for a runtime-derived part but
+   left out stays the static colour. Parens are where both bite -- preparing
+   for rendering inserts them as real nodes that the renderer emits. */
 
 open Alcotest;
 open Haz3lcore;
@@ -70,8 +67,7 @@ let qcheck_dynamic_ids_are_emitted =
   );
 
 /* COMPLETENESS, in the case that needs no oracle: if statics knew nothing
-   then the whole type came from runtime, so every tile must be green.
-   The parens were what failed here. */
+   then the whole type came from runtime, so every tile must be green. */
 let qcheck_fully_dynamic_colours_everything =
   QCheck.Test.make(
     ~name="a wholly runtime-derived type has every tile green",
@@ -111,12 +107,7 @@ let qcheck_identical_colours_nothing =
 /* The invariant the whole scheme rests on: a prepared type already carries
    every id its rendering consumes, so the renderer never mints one. An id
    minted during rendering is in the DOM but in no type, so nothing can name
-   it and the token it labels can never be coloured.
-
-   This is what the old `raise_if_padding` settings field was for. As a
-   property over generated types it covers far more than that flag did --
-   it only fired on whatever input a test happened to render, and its single
-   `true` lived in a test while eight production modules carried a `false`. */
+   it and the token it labels can never be coloured. */
 let qcheck_prepared_ids_are_sufficient =
   QCheck.Test.make(
     ~name="a prepared type carries every id its rendering consumes",
@@ -127,8 +118,7 @@ let qcheck_prepared_ids_are_sufficient =
   );
 
 /* Unit pins for the id counts, which mirror the pad_ids calls in
-   typ_to_pretty. Both of these were wrong: Sum padded one id too many, and
-   MultiHole was treated as needing one when it needs one per gap. */
+   typ_to_pretty and are checked against nothing else. */
 let count_tests =
   IdTagged.FreshGrammar.Typ.[
     test_case(

@@ -884,14 +884,10 @@ in f([1, 2])|},
     [(0, ["[1, 2, 0]"])],
   ),
   /* A chain of ascriptions collapses pairwise, by meet, before its operand
-   * evaluates. Each collapsed node must carry the inner ascription's ID: with
-   * a fresh one, the outermost ascription is the only level whose ID the
-   * evaluator ever opens a span for, so every other level samples nothing --
-   * or, if a sample is minted at collapse time instead, the operand
-   * unevaluated. Every level ascribes the same value, so every probe reads
-   * it, however deep the chain and whatever the types along it.
-   * A chain's probes all share the innermost term's extremes, so they land on
-   * one line here and the expectation is one value per level. */
+   * evaluates, and each collapsed node keeps the inner ascription's ID so that
+   * every level still has a span opened for it. Every level ascribes the same
+   * value, so every probe reads it, however deep the chain. The probes share
+   * the innermost term's extremes, hence one line and one value per level. */
   probe_line_test(
     "Probes on every level of a deep unknown ascription chain",
     {|^^probe(^^probe(^^probe(^^probe(^^probe((3 * 7) : ?) : ?) : ?) : ?) : ?)|},
